@@ -1,12 +1,10 @@
-<img width="1482" height="931" alt="423142341234" src="https://github.com/user-attachments/assets/4248111c-964b-43a7-8517-f051d1484b0f" /># Word-Smith
+# Word-Smith
 
 A distraction-free writing suite for Obsidian: zen mode, typewriter scrolling, letterbox masks, and a retro status bar — each independent, each toggled on its own.
 
 ## Showcase
+
 <img width="1482" height="931" alt="1233123" src="https://github.com/user-attachments/assets/857b3931-b41c-4f5d-9f21-490dacce5372" />
-
-
-<img width="1482" height="931" alt="423142341234" src="https://github.com/user-attachments/assets/a6775204-ae2c-4a74-acaa-4a2ae839a3b4" />
 
 ## Features
 
