@@ -4,6 +4,7 @@ A distraction-free writing suite for Obsidian: zen mode, typewriter scrolling, l
 
 ## Showcase
 
+
 <img width="1482" height="931" alt="1233123" src="https://github.com/user-attachments/assets/857b3931-b41c-4f5d-9f21-490dacce5372" />
 
 ## Features
