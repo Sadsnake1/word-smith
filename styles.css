@@ -53,7 +53,7 @@ body.zg-masks-active.zg-editor-focused {
 .zenmode-active .prompt-instructions,
 .zenmode-active .workspace-sidedock-vault-profile,
 body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-sidedock-vault-profile {
-	display: none !important;
+	display: none;
 }
 
 .zenmode-active .mod-top-left-space .view-header { padding-left: var(--frame-left-space); }
@@ -61,9 +61,12 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 .zenmode-hide-properties .markdown-reading-view .metadata-container { display: none; }
 .zenmode-hide-properties { --metadata-display-editing: none; }
 .zenmode-active[data-zen-hide-inline-title="true"] .inline-title { display: none; }
-.zenmode-hide-linked-mentions .embedded-backlinks { display: none !important; }
-.zenmode-hide-scroll-bar ::-webkit-scrollbar { display: none !important; }
-.zenmode-hide-scroll-bar * { scrollbar-width: none !important; }
+.zenmode-hide-linked-mentions .embedded-backlinks { display: none; }
+/* Obsidian's own scroller is a plain div, so the ::-webkit-scrollbar
+   pseudo-element (the mechanism Chromium/Electron actually renders) is all
+   that's needed here. scrollbar-width is a Firefox-origin property with
+   only partial support in Obsidian's bundled Chromium and was dropped. */
+.zenmode-hide-scroll-bar ::-webkit-scrollbar { display: none; }
 
 /* Padding */
 .zenmode-active .markdown-preview-view,
@@ -72,17 +75,20 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 	padding-bottom: var(--zen-mode-bottom-padding, 0px);
 }
 
-/* Focused file mode */
-.zenmode-tab-hidden { display: none !important; }
-.zenmode-tab-active { display: block !important; width: 100% !important; flex: 1 1 100% !important; }
+/* Focused file mode. Selector paired with .workspace-tabs (the element the
+   class is always applied to) for specificity, since these are also set as
+   inline styles by JS on the same element and only need to win the
+   cascade for the brief moment before that inline style lands. */
+.workspace-tabs.zenmode-tab-hidden { display: none; }
+.workspace-tabs.zenmode-tab-active { display: block; width: 100%; flex: 1 1 100%; }
 
 /* Draggable titlebar strip (leaves OS buttons) */
 body:not(.is-mobile).zenmode-active .titlebar {
-	display: block !important; position: fixed !important; top: 0 !important;
-	left: 0 !important; width: 100% !important; z-index: 10 !important;
-	background: transparent !important; -webkit-app-region: drag !important;
+	display: block; position: fixed; top: 0;
+	left: 0; width: 100%; z-index: 10;
+	background: transparent; -webkit-app-region: drag;
 }
-body:not(.is-mobile).zenmode-active .titlebar * { -webkit-app-region: no-drag !important; }
+body:not(.is-mobile).zenmode-active .titlebar * { -webkit-app-region: no-drag; }
 
 /* =========================================================================
    Exit button
@@ -111,19 +117,22 @@ body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-initial-highlight 
 body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out { opacity: 0; transition: opacity 0.5s ease-in-out; }
 body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out button { box-shadow: none; }
 
-.zenmode-button-visible { display: block !important; }
+.zenmode-button.zenmode-button-visible { display: block; }
 
 /* =========================================================================
    Editor constraints (zen mode full-width)
    ========================================================================= */
 
 body.zenmode-active {
-	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2)) !important;
+	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2));
 }
 
-.zenmode-active .cm-scroller {
-	padding-top:    50vh !important;
-	padding-bottom: 50vh !important;
+/* Chained through the source-view + cm-editor ancestry for specificity
+   instead of !important — themes generally style .cm-scroller directly
+   with a single class, so this comfortably outranks them. */
+.zenmode-active .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
+	padding-top:    50vh;
+	padding-bottom: 50vh;
 }
 
 /* Outside zen mode the masks have no built-in scroll padding to push
@@ -132,25 +141,25 @@ body.zenmode-active {
    to clear the mask height (computed live in stampMaskPositions). Only
    applies when NOT in zen mode, since zen mode's 50vh above already
    covers this (and is much larger, for typewriter centering). */
-body.zg-masks-active:not(.zenmode-active) .cm-scroller {
-	padding-top:    var(--zg-scroller-pad-top, 0px)    !important;
-	padding-bottom: var(--zg-scroller-pad-bottom, 0px) !important;
+body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
+	padding-top:    var(--zg-scroller-pad-top, 0px);
+	padding-bottom: var(--zg-scroller-pad-bottom, 0px);
 }
 
 .zenmode-active .markdown-source-view.mod-cm6 .cm-sizer,
 .zenmode-active .markdown-reading-view .markdown-preview-sizer,
 .zenmode-active .cm-contentContainer {
-	max-width: 100% !important;
-	width: 100% !important;
+	max-width: 100%;
+	width: 100%;
 }
 
-.zenmode-active .cm-content,
-.zenmode-active .markdown-preview-view {
-	max-width: 100% !important;
-	width: auto !important;
-	margin: 0 auto !important;
-	padding-left:  var(--zg-editor-padding-h) !important;
-	padding-right: var(--zg-editor-padding-h) !important;
+.zenmode-active .markdown-source-view.mod-cm6 .cm-content,
+.zenmode-active .markdown-reading-view .markdown-preview-view {
+	max-width: 100%;
+	width: auto;
+	margin: 0 auto;
+	padding-left:  var(--zg-editor-padding-h);
+	padding-right: var(--zg-editor-padding-h);
 }
 
 /* =========================================================================
