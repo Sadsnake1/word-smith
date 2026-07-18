@@ -45,7 +45,13 @@ Optional per-file word counts in the file explorer (summed into folders) and per
 
 - **Word-Smith: Toggle Word-Smith on/off** — master switch for the whole plugin
 - **Word-Smith: Zen mode** — toggles zen mode only
+- 
+## Installation
 
+1. Download `main.js`, `styles.css`, and `manifest.json` (or clone this repo).
+2. Create a folder named `word-smith` inside your vault's `.obsidian/plugins/` directory.
+3. Copy the files into that folder.
+4. Reload Obsidian (or restart it), then enable **Cursor-Smith** under **Settings → Community plugins**.
 ## Feedback
 
 Found a bug or have an idea? Open an issue!
