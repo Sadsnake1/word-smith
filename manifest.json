@@ -1,0 +1,9 @@
+{
+  "id": "word-smith",
+  "name": "Word-Smith",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Distraction-free writing suite",
+  "author": "SadSnake1",
+  "isDesktopOnly": false
+}

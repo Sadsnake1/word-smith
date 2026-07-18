@@ -1,0 +1,294 @@
+/* =========================================================================
+   Word-Smith — combined zen + typewriter + retro styles
+   ========================================================================= */
+
+:root {
+	--zg-bg:   #050505;
+	--zg-text: #ffb000;
+
+	--zg-editor-padding-h:    40px;
+	--zg-arrow-font-size:     14px;
+	--zg-status-bar-height:   30px;
+	--zg-status-bar-font-size:13px;
+	--zg-separator-style:     solid;
+	--zg-separator-weight:    2px;
+	--zg-z-mask:   20;
+	--zg-z-arrows: 21;
+	--zg-z-status: 22;
+	--zen-mode-top-padding:   0px;
+	--zen-mode-bottom-padding:0px;
+	--zg-scroller-pad-top:    0px;
+	--zg-scroller-pad-bottom: 0px;
+}
+
+/* Whenever the letterbox masks are visible (typewriter mode + letterbox on)
+   AND the note editor actually has focus, raise ZenGrinder elements above
+   Cursor Smith's canvas (z:10000) so the masks fully occlude the cursor
+   while scrolling/writing. Requiring editor focus keeps this from floating
+   above the command palette, settings tab, context menus, or any other
+   modal — those all move focus away from .cm-editor, which drops us back
+   to normal stacking automatically. */
+body.zg-masks-active.zg-editor-focused {
+	--zg-z-mask:   10003;
+	--zg-z-arrows: 10004;
+	--zg-z-status: 10005;
+}
+
+/* =========================================================================
+   Zen mode — UI hiding
+   ========================================================================= */
+
+/* Tab headers, nav, view headers */
+.zenmode-active .mod-root .workspace-tabs .workspace-tab-header-container,
+.zenmode-active .mobile-navbar,
+.zenmode-active .pdf-toolbar,
+.zenmode-active div.app-container>div.horizontal-main-container>div>div.workspace-split.mod-vertical.mod-root.mod-visible>div>div.workspace-tab-container>div>div>div.view-header,
+.zenmode-active .view-header-nav-buttons,
+.zenmode-active div.workspace-tab-container>div>div>div.view-header,
+.zenmode-active .tooltip,
+.zenmode-hide-status-bar .status-bar,
+.zenmode-active .sidebar-toggle-button.mod-right,
+.zenmode-active .sidebar-toggle-button.mod-left,
+.zenmode-active .tree-item-flair:not(.tag-pane-tag-count),
+.zenmode-active .prompt-instructions,
+.zenmode-active .workspace-sidedock-vault-profile,
+body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-sidedock-vault-profile {
+	display: none !important;
+}
+
+.zenmode-active .mod-top-left-space .view-header { padding-left: var(--frame-left-space); }
+
+.zenmode-hide-properties .markdown-reading-view .metadata-container { display: none; }
+.zenmode-hide-properties { --metadata-display-editing: none; }
+.zenmode-active[data-zen-hide-inline-title="true"] .inline-title { display: none; }
+.zenmode-hide-linked-mentions .embedded-backlinks { display: none !important; }
+.zenmode-hide-scroll-bar ::-webkit-scrollbar { display: none !important; }
+.zenmode-hide-scroll-bar * { scrollbar-width: none !important; }
+
+/* Padding */
+.zenmode-active .markdown-preview-view,
+.zenmode-active .markdown-source-view {
+	padding-top:    var(--zen-mode-top-padding,    0px);
+	padding-bottom: var(--zen-mode-bottom-padding, 0px);
+}
+
+/* Focused file mode */
+.zenmode-tab-hidden { display: none !important; }
+.zenmode-tab-active { display: block !important; width: 100% !important; flex: 1 1 100% !important; }
+
+/* Draggable titlebar strip (leaves OS buttons) */
+body:not(.is-mobile).zenmode-active .titlebar {
+	display: block !important; position: fixed !important; top: 0 !important;
+	left: 0 !important; width: 100% !important; z-index: 10 !important;
+	background: transparent !important; -webkit-app-region: drag !important;
+}
+body:not(.is-mobile).zenmode-active .titlebar * { -webkit-app-region: no-drag !important; }
+
+/* =========================================================================
+   Exit button
+   ========================================================================= */
+
+.zenmode-button { position: fixed; bottom: 10px; right: 10px; z-index: 1000; overflow: visible; display: none; }
+.zenmode-button.zenmode-button-moved-up { bottom: 50px; }
+.is-mobile .zenmode-button { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+
+body:not(.is-mobile) .zenmode-button-auto-hide {
+	opacity: 0; transition: opacity 0.3s ease-in-out;
+	pointer-events: auto; padding: 30px; margin: -30px;
+}
+body:not(.is-mobile) .zenmode-button-auto-hide:hover,
+body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out:hover { opacity: 1; }
+body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-initial-highlight { opacity: 1; }
+
+.zenmode-button-initial-highlight button { animation: zenmode-button-highlight 1.5s ease-out; }
+@keyframes zenmode-button-highlight {
+	0%   { box-shadow: 0 2px 12px var(--background-modifier-border); }
+	50%  { box-shadow: 0 2px  8px var(--background-modifier-border); }
+	100% { box-shadow: none; }
+}
+.zenmode-button button { transition: background-color 0.6s ease-in-out, opacity 0.5s ease-in-out; }
+
+body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out { opacity: 0; transition: opacity 0.5s ease-in-out; }
+body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out button { box-shadow: none; }
+
+.zenmode-button-visible { display: block !important; }
+
+/* =========================================================================
+   Editor constraints (zen mode full-width)
+   ========================================================================= */
+
+body.zenmode-active {
+	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2)) !important;
+}
+
+.zenmode-active .cm-scroller {
+	padding-top:    50vh !important;
+	padding-bottom: 50vh !important;
+}
+
+/* Outside zen mode the masks have no built-in scroll padding to push
+   content clear of them — a short/new note starts hidden behind the top
+   mask with nothing to scroll past. Give the scroller just enough padding
+   to clear the mask height (computed live in stampMaskPositions). Only
+   applies when NOT in zen mode, since zen mode's 50vh above already
+   covers this (and is much larger, for typewriter centering). */
+body.zg-masks-active:not(.zenmode-active) .cm-scroller {
+	padding-top:    var(--zg-scroller-pad-top, 0px)    !important;
+	padding-bottom: var(--zg-scroller-pad-bottom, 0px) !important;
+}
+
+.zenmode-active .markdown-source-view.mod-cm6 .cm-sizer,
+.zenmode-active .markdown-reading-view .markdown-preview-sizer,
+.zenmode-active .cm-contentContainer {
+	max-width: 100% !important;
+	width: 100% !important;
+}
+
+.zenmode-active .cm-content,
+.zenmode-active .markdown-preview-view {
+	max-width: 100% !important;
+	width: auto !important;
+	margin: 0 auto !important;
+	padding-left:  var(--zg-editor-padding-h) !important;
+	padding-right: var(--zg-editor-padding-h) !important;
+}
+
+/* =========================================================================
+   Letterbox masks + arrows
+   ========================================================================= */
+
+.zengrinder-mask {
+	position: fixed;
+	z-index: var(--zg-z-mask, 20);
+	pointer-events: none;
+	background-color: var(--background-primary);
+}
+
+.zengrinder-arrows-wrap {
+	position: fixed;
+	z-index: var(--zg-z-arrows, 21);
+	pointer-events: none;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 0;
+	box-sizing: border-box;
+	opacity: 0;
+	transition: opacity 0.25s ease-in-out;
+}
+
+.zengrinder-arrows-wrap.is-visible { opacity: 1; }
+.zengrinder-arrows-wrap-top    { justify-content: flex-end; }
+.zengrinder-arrows-wrap-bottom { justify-content: flex-start; }
+
+/* Explicit, direction-matched margin instead of flex `gap` — gap combines
+   additively with any margin already on the items (including the line's
+   hit-area expansion below), which made the two sides drift apart by
+   different amounts. A plain margin on the arrows row is unambiguous and
+   gives an identical visual gap on both sides. */
+.zengrinder-arrows-wrap-top    .zengrinder-arrows { margin-bottom: 5px; }
+.zengrinder-arrows-wrap-bottom .zengrinder-arrows { margin-top:    5px; }
+
+.zengrinder-arrows {
+	display: flex;
+	justify-content: space-evenly;
+	width: 100%;
+	color: var(--zg-arrow-color, var(--text-normal));
+	font-family: inherit;
+	font-size: var(--zg-arrow-font-size, 14px);
+	line-height: 1;
+	letter-spacing: 2px;
+	pointer-events: auto;
+	cursor: ew-resize;
+}
+
+.zengrinder-arrow-line {
+	position: relative;
+	width: 100%;
+	height: 0;
+	border: none;
+	border-top: var(--zg-separator-weight) var(--zg-separator-style) var(--zg-line-color, var(--text-normal));
+	box-sizing: content-box;
+	pointer-events: auto;
+	cursor: ns-resize;
+}
+
+/* Wider invisible hit area for dragging, layered via a pseudo-element so it
+   doesn't touch the line's own box model (no padding/negative-margin trick
+   that could throw off the gap math above). */
+.zengrinder-arrow-line::before {
+	content: '';
+	position: absolute;
+	left: 0; right: 0;
+	top: -6px; bottom: -6px;
+	pointer-events: auto;
+}
+
+/* =========================================================================
+   Word count badges
+   ========================================================================= */
+
+.zg-count {
+	font-size: 0.8em;
+	opacity: 0.45;
+	margin-left: 6px;
+	flex-shrink: 0;
+	white-space: nowrap;
+	pointer-events: none;
+}
+
+/* =========================================================================
+   Retro status bar
+   ========================================================================= */
+
+.zengrinder-status-bar {
+	position: fixed;
+	bottom: 0; left: 0; width: 100%;
+	height: var(--zg-status-bar-height, 30px);
+	background-color: var(--zg-bg);
+	color: var(--zg-text);
+	font-family: var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
+	font-size: var(--zg-status-bar-font-size, 13px);
+	font-weight: 600;
+	letter-spacing: 0.3px;
+	padding: 0 15px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	white-space: pre;
+	overflow: hidden;
+	z-index: var(--zg-z-status, 22);
+}
+
+.zengrinder-status-bar.zengrinder-status-border {
+	border-top: 2px solid var(--zg-text);
+}
+
+/* =========================================================================
+   Goal bar
+   ========================================================================= */
+
+.zg-goal-bar {
+	font-family: inherit;
+	letter-spacing: 0;
+	display: inline-flex;
+	align-items: baseline;
+	gap: 1px;
+	vertical-align: middle;
+}
+
+.zg-goal-seg         { display: inline-block; opacity: 0.25; transition: opacity 0.1s; }
+.zg-goal-seg-filled  { opacity: 1; }
+
+/* ── Goal met: slow faded flash on the whole bar ── */
+@keyframes zg-strobe {
+	0%,  100% { opacity: 1;    background-color: var(--zg-bg);   color: var(--zg-text); }
+	15%,  45% { opacity: 0.55; background-color: var(--zg-text); color: var(--zg-bg);   }
+	30%,  60% { opacity: 0.75; background-color: var(--zg-bg);   color: var(--zg-text); }
+	75%       { opacity: 0.45; background-color: var(--zg-text); color: var(--zg-bg);   }
+	90%       { opacity: 0.8;  background-color: var(--zg-bg);   color: var(--zg-text); }
+}
+.zengrinder-status-bar.zg-goal-met {
+	animation: zg-strobe 5s ease-in-out infinite;
+}
