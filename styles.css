@@ -301,3 +301,28 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 .zengrinder-status-bar.zg-goal-met {
 	animation: zg-strobe 5s ease-in-out infinite;
 }
+/* =========================================================================
+   "WS" ribbon badge — toggles the entire plugin on/off
+   ========================================================================= */
+
+/* Obsidian sizes ribbon icons around 18px and colors them via currentColor
+   (theme-driven), so the badge inherits both — it stays legible in light
+   and dark themes without hardcoding colors. */
+.ws-ribbon-btn .ws-ribbon-badge {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width:  18px;
+	height: 18px;
+	border: 1.5px solid currentColor;
+	border-radius: 3px;
+	font-family: var(--font-interface, var(--font-ui-small, sans-serif));
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+	line-height: 1;
+}
+
+/* Dimmed state when the plugin is disabled — visual cue that clicking
+   will turn it back on. */
+.ws-ribbon-btn.is-disabled { opacity: 0.45; }
