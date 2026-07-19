@@ -163,7 +163,15 @@ module.exports = class WordSmith extends Plugin {
 			name: 'Zen mode',
 			callback: () => this.toggleZenMode()
 		});
-		this.addRibbonIcon('expand', 'Toggle zen mode', () => this.toggleZenMode());
+		// "WS" badge ribbon button — toggles the whole plugin on/off.
+		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
+		// the SVG it inserts with a text badge and use a class hook for
+		// styling. The label doubles as the tooltip.
+		this.wsRibbonEl = this.addRibbonIcon('type', 'Toggle Word-Smith on/off', () => this.toggleFullPlugin());
+		this.wsRibbonEl.addClass('ws-ribbon-btn');
+		this.wsRibbonEl.empty();
+		this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge', text: 'WS' });
+		this.updateWsRibbonState();
 
 		// Workspace events
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
@@ -308,6 +316,7 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	refresh() {
+		this.updateWsRibbonState();
 		if (!this.settings.pluginEnabled) { this.disablePlugin(); return; }
 		this.applyBodyClasses();
 		this.applyCssVariables();
@@ -482,10 +491,15 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	async toggleZenMode() {
-		if (!this.settings.pluginEnabled) return;
 		if (this._isTogglingZen) return;
 		this._isTogglingZen = true;
 		try {
+			// If the plugin is off, turn it on first — zen mode depends on the
+			// body classes, masks, and observers that refresh()/applyBodyClasses()
+			// set up, none of which run while pluginEnabled is false. Flipping
+			// the flag here and letting saveSettings() → refresh() below handle
+			// the wiring means the command works from either state.
+			if (!this.settings.pluginEnabled) this.settings.pluginEnabled = true;
 			const entering = !this.settings.zenMode;
 			if (!entering) this._hasShownInitialHighlight = false;
 
@@ -514,11 +528,20 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	async toggleFullPlugin() {
-		const anyOn = this.settings.zenMode || this.settings.enableRetroStatus;
-		const next  = !anyOn;
-		await this.toggleZenMode();
-		this.settings.enableRetroStatus = next;
-		await this.saveSettings();
+		const next = !this.settings.pluginEnabled;
+		if (!next && this.settings.zenMode) {
+			// Exit zen mode cleanly (fullscreen, sidebars, saved state) while
+			// the plugin is still enabled — toggleZenMode() no-ops once
+			// pluginEnabled is false.
+			await this.toggleZenMode();
+		}
+		this.settings.pluginEnabled = next;
+		await this.saveSettings(); // refresh() tears everything down or re-applies it
+	}
+
+	updateWsRibbonState() {
+		if (!this.wsRibbonEl) return;
+		this.wsRibbonEl.classList.toggle('is-disabled', !this.settings.pluginEnabled);
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -569,38 +592,9 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	setButtonVisibility() {
-		const isMobile   = document.body.classList.contains('is-mobile');
-		const shouldShow = this.settings.zenMode && (
-			this.settings.exitButtonVisibility === 'always' ||
-			(this.settings.exitButtonVisibility === 'mobile-only' && isMobile)
-		);
-		if (shouldShow) {
-			if (!this.hasButton) { this.createButton(); this.hasButton = true; }
-			this.buttonContainer.classList.add('zenmode-button-visible');
-			this.buttonContainer.classList.toggle('zenmode-button-moved-up', !isMobile);
-			if (this.settings.autoHideButtonOnDesktop && !isMobile && this.settings.exitButtonVisibility === 'always') {
-				this.buttonContainer.classList.add('zenmode-button-auto-hide');
-				if (!this._hasShownInitialHighlight) {
-					this.buttonContainer.classList.add('zenmode-button-initial-highlight');
-					this._hasShownInitialHighlight = true;
-					const t1 = window.setTimeout(() => {
-						if (this.buttonContainer) {
-							this.buttonContainer.classList.remove('zenmode-button-initial-highlight');
-							const t2 = window.setTimeout(() => {
-								if (this.buttonContainer) this.buttonContainer.classList.add('zenmode-button-fade-out');
-							}, 300);
-							this._highlightTimeouts.push(t2);
-						}
-					}, 1500);
-					this._highlightTimeouts.push(t1);
-				}
-			} else {
-				this.buttonContainer.classList.remove('zenmode-button-auto-hide', 'zenmode-button-initial-highlight', 'zenmode-button-fade-out');
-			}
-			this.adjustButtonPosition();
-		} else if (this.hasButton) {
-			this.buttonContainer.classList.remove('zenmode-button-visible');
-		}
+		// Zen exit button removed — the command palette entry ("Word-Smith:
+		// Zen mode") is the sole way in and out of zen mode. Kept as a
+		// no-op stub so refresh() and other call sites don't need to change.
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -1337,15 +1331,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			this.toggle(z, 'Full screen', 'Enter fullscreen when enabling zen mode.', 'fullscreen');
 
-			new Setting(z).setName('Exit button').setDesc('When to show the exit button.')
-				.addDropdown(d => d
-					.addOption('always',      'Always')
-					.addOption('mobile-only', 'Mobile only')
-					.addOption('never',       'Never')
-					.setValue(this.plugin.settings.exitButtonVisibility)
-					.onChange(async v => { this.plugin.settings.exitButtonVisibility = v; await this.plugin.saveSettings(); }));
-
-			this.toggle(z, 'Auto-hide exit button on desktop', 'Hide on desktop — hover to reveal.', 'autoHideButtonOnDesktop');
 			this.toggle(z, 'Focused file mode', 'Only show the active file — hide all other panes.', 'focusedFileMode');
 
 			this.label(z, 'Hide in zen mode');
