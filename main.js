@@ -684,6 +684,10 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	updateWorkspaceAesthetics() {
+		// Event handlers (active-leaf-change etc.) call this unconditionally;
+		// without this guard, opening a note rebuilds the retro bar and masks
+		// even while the plugin is toggled off.
+		if (!this.settings.pluginEnabled) return;
 		// Retro status bar: independent of zen mode
 		this.updateStatusBar();
 		this.updateRetroStatusBar();
@@ -1156,7 +1160,7 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	typewriterScroll() {
-		if (!this.settings.enableTypewriter) return;
+		if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view) return;
 		const scroller = view.contentEl.querySelector('.cm-scroller');
@@ -1206,6 +1210,9 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	async patchExplorerDOM() {
+		// Covers scheduleExplorerPatch() calls from active-leaf-change, vault
+		// modify, and the mutation observer while the plugin is toggled off.
+		if (!this.settings.pluginEnabled) return;
 		if (this.settings.enableFileTreeCounts) {
 			const roots = document.querySelectorAll('.workspace-leaf-content[data-type="file-explorer"]');
 			for (let ri = 0; ri < roots.length; ri++) {
