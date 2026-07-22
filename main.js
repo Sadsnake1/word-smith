@@ -1,6 +1,6 @@
 'use strict';
 
-const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, ButtonComponent } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile } = require('obsidian');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Arrow style presets
@@ -27,8 +27,6 @@ const DEFAULT_SETTINGS = {
 	// ── Zen mode ──────────────────────────────────────────────────────────────
 	zenMode:                  false,
 	fullscreen:               false,
-	exitButtonVisibility:     'always',   // 'always' | 'mobile-only' | 'never'
-	autoHideButtonOnDesktop:  false,
 	leftSidebar:              true,       // saved state (was collapsed when entering zen)
 	rightSidebar:             true,
 	hideProperties:           true,
@@ -85,6 +83,7 @@ const DEFAULT_SETTINGS = {
 	paragraphIndentEm:        2,
 	paragraphIndentMode:      'double',   // 'double' | 'single'
 	lineSpacing:              1.5,
+	justifyText:              false,
 
 	// ── Sidebar word counts ───────────────────────────────────────────────────
 	enableFileTreeCounts:     true,
@@ -111,7 +110,11 @@ module.exports = class WordSmith extends Plugin {
 		this.clockInterval    = null;
 		this.batteryLevel     = null;
 		this.batteryCharging  = false;
+		this._batteryManager  = null;   // kept so listeners can be detached on unload
+		this._batteryHandler  = null;
 		this._zgLastTotalWordCount = 0;
+		this._docStatsCache   = null;   // { doc, totalWC, charCount, paras } keyed on CM doc identity
+		this._lastFit         = null;   // fitStatusBarText memo { text, width, base }
 
 		// ── Scroll / resize handlers ──────────────────────────────────────────
 		this.currentScroller  = null;
@@ -120,6 +123,8 @@ module.exports = class WordSmith extends Plugin {
 
 		// ── Paragraph tagger ──────────────────────────────────────────────────
 		this._paraTaggerObserver = null;
+		this._paraTaggerTarget   = null;
+		this._paraTagRaf         = null;
 
 		// ── Style injection ───────────────────────────────────────────────────
 		this.styleEl          = null;
@@ -129,16 +134,14 @@ module.exports = class WordSmith extends Plugin {
 		this.wordCountCache   = new Map();
 		this._patchScheduled  = false;
 
-		// ── Zen button (from new zen plugin) ─────────────────────────────────
-		this.buttonContainer  = null;
-		this.button           = null;
-		this.hasButton        = false;
+		// ── Zen state ─────────────────────────────────────────────────────────
 		this._isTogglingZen   = false;
 		this._wasZenMode      = false;
-		this._hasShownInitialHighlight = false;
-		this._highlightTimeouts = [];
 		this._tabContainersCache = null;
-		this.visualViewportResizeHandler = null;
+
+		// ── Drag / refresh bookkeeping ────────────────────────────────────────
+		this._activeDragCleanup = null;   // aborts an in-flight mask drag on unload
+		this._refreshTimer      = null;   // debounced saveSettings → refresh
 
 		// ── Live selection rAF ────────────────────────────────────────────────
 		this._selectionRaf    = null;
@@ -148,6 +151,19 @@ module.exports = class WordSmith extends Plugin {
 
 		await this.loadSettings();
 		this._wasZenMode = this.settings.zenMode;
+
+		// Zen mode persists across restarts, but _wasZenMode above makes
+		// setSidebarVisibility() a no-op on the first refresh() — so a vault
+		// relaunched in zen mode could come back with body classes applied yet
+		// sidebars open. Force the sidebars into the zen state once the
+		// workspace layout exists, without touching the saved pre-zen
+		// leftSidebar/rightSidebar restore state.
+		this.app.workspace.onLayoutReady(() => {
+			if (!this.settings.pluginEnabled || !this.settings.zenMode) return;
+			const ws = this.app.workspace;
+			if (ws.leftSplit  && !ws.leftSplit.collapsed)  ws.leftSplit.collapse();
+			if (ws.rightSplit && !ws.rightSplit.collapsed) ws.rightSplit.collapse();
+		});
 
 		this.addSettingTab(new WordSmithSettingTab(this.app, this));
 		this.setupBattery();
@@ -187,6 +203,13 @@ module.exports = class WordSmith extends Plugin {
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this._tabContainersCache = null;
 			if (this.settings.zenMode && this.settings.focusedFileMode) this.updateFocusedFileMode();
+			// The explorer/outline observers are scoped to their leaf
+			// containers, which layout changes can recreate — re-bind them.
+			if (this.settings.pluginEnabled &&
+				(this.settings.enableFileTreeCounts || this.settings.enableOutlineCounts)) {
+				this.attachExplorerObserver();
+				this.scheduleExplorerPatch();
+			}
 		}));
 
 		// DOM events
@@ -198,9 +221,12 @@ module.exports = class WordSmith extends Plugin {
 			this.updateRetroStatusBar();
 			this.typewriterScroll();
 		});
-		// Live selection word count
+		// Live selection word count. selectionchange fires only when the
+		// selection actually changes (mouse drag, shift+arrows, double-click),
+		// unlike the old document-wide mousemove listener that re-derived
+		// word counts on every pointer frame even with no selection at all.
 		this._selectionRaf = null;
-		this.registerDomEvent(document, 'mousemove', () => {
+		this.registerDomEvent(document, 'selectionchange', () => {
 			if (this._selectionRaf) return;
 			this._selectionRaf = requestAnimationFrame(() => {
 				this._selectionRaf = null;
@@ -268,12 +294,18 @@ module.exports = class WordSmith extends Plugin {
 		// Clean up theme observer
 		if (this._themeObserver) { this._themeObserver.disconnect(); this._themeObserver = null; }
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
-		// Clean up zen button
-		this._highlightTimeouts.forEach(id => clearTimeout(id));
-		if (this.buttonContainer) this.buttonContainer.remove();
-		if (this.visualViewportResizeHandler && window.visualViewport) {
-			window.visualViewport.removeEventListener('resize', this.visualViewportResizeHandler);
+		// Abort an in-flight mask drag (its move/up listeners would otherwise
+		// outlive the plugin)
+		if (this._activeDragCleanup) this._activeDragCleanup();
+		// Detach battery listeners — they hold a reference to this plugin
+		// instance and would keep it alive after unload
+		if (this._batteryManager && this._batteryHandler) {
+			this._batteryManager.removeEventListener('levelchange',    this._batteryHandler);
+			this._batteryManager.removeEventListener('chargingchange', this._batteryHandler);
+			this._batteryManager = this._batteryHandler = null;
 		}
+		// Cancel a pending debounced refresh
+		if (this._refreshTimer) { window.clearTimeout(this._refreshTimer); this._refreshTimer = null; }
 		// Exit zen mode cleanly
 		if (this.settings.zenMode) {
 			this.settings.zenMode = false;
@@ -283,7 +315,7 @@ module.exports = class WordSmith extends Plugin {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar',
-			'zenmode-hide-linked-mentions', 'zg-para-indent'
+			'zenmode-hide-linked-mentions', 'zg-para-indent', 'zg-justify'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
@@ -304,11 +336,34 @@ module.exports = class WordSmith extends Plugin {
 				this.settings.letterboxPx = this.settings.letterboxRatio * 200;
 			delete this.settings.letterboxRatio;
 		}
+		// Transient UI state that older versions leaked into data.json, plus
+		// settings for the removed exit button. Dropped on next save.
+		delete this.settings._lastArrowCount;
+		delete this.settings.exitButtonVisibility;
+		delete this.settings.autoHideButtonOnDesktop;
 	}
 
-	async saveSettings() {
+	// Persist settings. By default the full refresh() (mask/observer teardown
+	// and rebuild) is debounced so a slider drag firing onChange every tick
+	// doesn't rebuild the world per tick — only the trailing call applies.
+	// Pass applyImmediately for state changes that must land now (zen toggle,
+	// master switch).
+	async saveSettings(applyImmediately = false) {
 		await this.saveData(this.settings);
-		this.refresh();
+		if (applyImmediately) {
+			if (this._refreshTimer) { window.clearTimeout(this._refreshTimer); this._refreshTimer = null; }
+			this.refresh();
+		} else {
+			this.scheduleRefresh();
+		}
+	}
+
+	scheduleRefresh() {
+		if (this._refreshTimer) window.clearTimeout(this._refreshTimer);
+		this._refreshTimer = window.setTimeout(() => {
+			this._refreshTimer = null;
+			this.refresh();
+		}, 120);
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -323,7 +378,6 @@ module.exports = class WordSmith extends Plugin {
 		this.updateStyleEl();
 		this.updateWorkspaceAesthetics();
 		this.setSidebarVisibility();
-		this.setButtonVisibility();
 		this.updateFocusedFileMode();
 		if (this.settings.enableFileTreeCounts || this.settings.enableOutlineCounts) {
 			this.attachExplorerObserver();
@@ -344,13 +398,11 @@ module.exports = class WordSmith extends Plugin {
 		this.detachScrollHandler();
 		this.detachResizeHandler();
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
-		// Remove button
-		if (this.buttonContainer) { this.buttonContainer.classList.remove('zenmode-button-visible'); }
 		// Strip all body classes and attributes
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-linked-mentions', 'zg-para-indent',
-			'zg-masks-active'
+			'zg-justify', 'zg-masks-active'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
@@ -378,6 +430,7 @@ module.exports = class WordSmith extends Plugin {
 		body.classList.toggle('zenmode-hide-scroll-bar',    zen && this.settings.hideScrollBar);
 		body.classList.toggle('zenmode-hide-linked-mentions', zen && this.settings.hideLinkedMentions);
 		body.classList.toggle('zg-para-indent',             this.settings.enableParagraphIndent);
+		body.classList.toggle('zg-justify',                 this.settings.justifyText);
 		body.classList.toggle('zg-masks-active',            this.settings.enableTypewriter && this.settings.enableLetterbox);
 		if (zen) {
 			body.setAttribute('data-zen-hide-inline-title', String(this.settings.hideInlineTitle));
@@ -391,15 +444,15 @@ module.exports = class WordSmith extends Plugin {
 	applyCssVariables() {
 		const root = document.documentElement.style;
 		root.setProperty('--zg-editor-padding-h',    this.settings.editorPaddingH + 'px');
-		root.setProperty('--zg-z-mask',   '20');
-		root.setProperty('--zg-z-arrows', '21');
-		root.setProperty('--zg-z-status', '22');
+		// (z-index vars intentionally not stamped here — the stylesheet
+		// defaults already provide them, and inline values on :root would
+		// still lose to the elevated body.zg-masks-active values anyway.)
 		root.setProperty('--zen-mode-top-padding',    this.settings.topPadding + 'px');
 		root.setProperty('--zen-mode-bottom-padding', this.settings.bottomPadding + 'px');
 
-		const base = window.innerWidth * 0.012;
-		const size = Math.max(10, Math.min(40, base * (this.settings.arrowScale || 1)));
-		root.setProperty('--zg-arrow-font-size',      size + 'px');
+		// Arrow size is a vw-based clamp() in styles.css so it tracks window
+		// resizes with zero JS; only the user's scale multiplier is stamped.
+		root.setProperty('--zg-arrow-scale',          String(this.settings.arrowScale || 1));
 		root.setProperty('--zg-separator-style',      this.settings.separatorStyle);
 		root.setProperty('--zg-separator-weight',     this.settings.separatorWeight + 'px');
 		root.setProperty('--zg-status-bar-font-size', this.settings.statusBarFontSize + 'px');
@@ -434,6 +487,14 @@ module.exports = class WordSmith extends Plugin {
 				rules.push('.zg-para-indent .markdown-preview-view p + p { text-indent: ' + ind + ' !important; }');
 			}
 		}
+		if (this.settings.justifyText) {
+			// Justify in the source editor (skip code blocks and table cells).
+			// The .cm-line selector is chained through .cm-content so it wins
+			// over theme styles without !important in most cases.
+			rules.push('.zg-justify .cm-content .cm-line { text-align: justify; text-align-last: left; }');
+			// Reading view: paragraphs and list items.
+			rules.push('.zg-justify .markdown-preview-view p, .zg-justify .markdown-preview-view li { text-align: justify; }');
+		}
 		if (this.settings.lineSpacing && this.settings.lineSpacing !== 1.5) {
 			const ls = String(this.settings.lineSpacing);
 			rules.push('.cm-content { line-height: ' + ls + ' !important; }');
@@ -456,20 +517,38 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	attachParaTagger() {
-		if (this._paraTaggerObserver) return;
-		const tag = () => this.tagParaFirstLines();
-		this._paraTaggerObserver = new MutationObserver(tag);
-		this._paraTaggerObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
-		tag();
+		// Observe only the active editor's .cm-content — the old body-wide
+		// observer with characterData re-scanned every .cm-line in every
+		// editor on any mutation anywhere in the app. Re-bound on
+		// active-leaf-change via updateWorkspaceAesthetics().
+		const view    = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const content = view ? view.contentEl.querySelector('.cm-content') : null;
+		if (this._paraTaggerObserver && this._paraTaggerTarget === content) return;
+		this.detachParaTagger();
+		if (!content) return;
+		const schedule = () => {
+			if (this._paraTagRaf) return;
+			this._paraTagRaf = requestAnimationFrame(() => {
+				this._paraTagRaf = null;
+				this.tagParaFirstLines(content);
+			});
+		};
+		this._paraTaggerObserver = new MutationObserver(schedule);
+		this._paraTaggerTarget   = content;
+		// class toggles don't re-trigger this observer (no attributes flag)
+		this._paraTaggerObserver.observe(content, { childList: true, subtree: true, characterData: true });
+		schedule();
 	}
 
 	detachParaTagger() {
 		if (this._paraTaggerObserver) { this._paraTaggerObserver.disconnect(); this._paraTaggerObserver = null; }
+		this._paraTaggerTarget = null;
+		if (this._paraTagRaf) { cancelAnimationFrame(this._paraTagRaf); this._paraTagRaf = null; }
 		document.querySelectorAll('.zg-para-first').forEach(el => el.classList.remove('zg-para-first'));
 	}
 
-	tagParaFirstLines() {
-		const contents = document.querySelectorAll('.cm-content');
+	tagParaFirstLines(scope) {
+		const contents = scope ? [scope] : Array.from(document.querySelectorAll('.cm-content'));
 		for (let ci = 0; ci < contents.length; ci++) {
 			const lines = contents[ci].querySelectorAll('.cm-line');
 			let prevWasBlank = true;
@@ -501,7 +580,6 @@ module.exports = class WordSmith extends Plugin {
 			// the wiring means the command works from either state.
 			if (!this.settings.pluginEnabled) this.settings.pluginEnabled = true;
 			const entering = !this.settings.zenMode;
-			if (!entering) this._hasShownInitialHighlight = false;
 
 			if (entering) {
 				if (this.settings.focusedFileMode) await this.revealPinnedTabIfExists();
@@ -521,7 +599,7 @@ module.exports = class WordSmith extends Plugin {
 				}
 				this.settings.zenMode = false;
 			}
-			await this.saveSettings();
+			await this.saveSettings(true);
 		} finally {
 			this._isTogglingZen = false;
 		}
@@ -536,7 +614,7 @@ module.exports = class WordSmith extends Plugin {
 			await this.toggleZenMode();
 		}
 		this.settings.pluginEnabled = next;
-		await this.saveSettings(); // refresh() tears everything down or re-applies it
+		await this.saveSettings(true); // refresh() tears everything down or re-applies it
 	}
 
 	updateWsRibbonState() {
@@ -562,39 +640,6 @@ module.exports = class WordSmith extends Plugin {
 			if (!ws.rightSplit.collapsed) ws.rightSplit.collapse();
 		}
 		this._wasZenMode = this.settings.zenMode;
-	}
-
-	// ─────────────────────────────────────────────────────────────────────────
-	// Exit button (from new zen plugin)
-	// ─────────────────────────────────────────────────────────────────────────
-
-	createButton() {
-		this.buttonContainer = document.createElement('div');
-		this.buttonContainer.classList.add('zenmode-button');
-		this.button = new ButtonComponent(this.buttonContainer);
-		this.button.setIcon('shrink');
-		this.button.onClick(() => this.toggleZenMode());
-		document.body.appendChild(this.buttonContainer);
-		this.adjustButtonPosition();
-		this.registerDomEvent(window, 'resize', () => this.adjustButtonPosition());
-		if (window.visualViewport) {
-			this.visualViewportResizeHandler = () => this.adjustButtonPosition();
-			window.visualViewport.addEventListener('resize', this.visualViewportResizeHandler);
-		}
-	}
-
-	adjustButtonPosition() {
-		if (!this.buttonContainer || !document.body.classList.contains('is-mobile')) return;
-		const vph  = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-		const navH = Math.max(0, window.outerHeight - vph);
-		const off  = Math.max(60, navH + 10);
-		this.buttonContainer.style.bottom = off + 'px';
-	}
-
-	setButtonVisibility() {
-		// Zen exit button removed — the command palette entry ("Word-Smith:
-		// Zen mode") is the sole way in and out of zen mode. Kept as a
-		// no-op stub so refresh() and other call sites don't need to change.
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -692,6 +737,12 @@ module.exports = class WordSmith extends Plugin {
 		this.updateStatusBar();
 		this.updateRetroStatusBar();
 
+		// The paragraph tagger is scoped to the active editor's .cm-content,
+		// so it needs re-binding whenever the active leaf changes.
+		if (this.settings.enableParagraphIndent && this.settings.paragraphIndentMode !== 'single') {
+			this.attachParaTagger();
+		}
+
 		// Letterbox masks + typewriter: driven by enableTypewriter, not zenMode
 		if (this.settings.enableTypewriter) {
 			this.buildMaskElements();
@@ -743,7 +794,8 @@ module.exports = class WordSmith extends Plugin {
 
 	startClockTick() {
 		if (this.clockInterval) return;
-		this.clockInterval = window.setInterval(() => this.updateRetroStatusBar(), 15000);
+		// registerInterval → Obsidian clears it automatically on unload
+		this.clockInterval = this.registerInterval(window.setInterval(() => this.updateRetroStatusBar(), 15000));
 	}
 
 	stopClockTick() {
@@ -759,6 +811,8 @@ module.exports = class WordSmith extends Plugin {
 				this.batteryCharging = bm.charging;
 				this.updateRetroStatusBar();
 			};
+			this._batteryManager = bm;
+			this._batteryHandler = update;
 			bm.addEventListener('levelchange', update);
 			bm.addEventListener('chargingchange', update);
 			update();
@@ -790,24 +844,67 @@ module.exports = class WordSmith extends Plugin {
 		return (parts.length <= 1 ? '~/' : '~/' + parts.slice(0, -1).join('/') + '/') + file.basename;
 	}
 
-	getParagraphInfo(view) {
-		if (!view || !view.editor) return '1/1';
-		const cursorLine = view.editor.getCursor('head').line;
-		const lines = view.getViewData().split('\n');
-		let current = 0, total = 0, inPara = false, counted = false;
+	// Strip a leading YAML frontmatter block. Frontmatter inflates word
+	// counts on heavily-tagged notes and makes goals inconsistent with
+	// Obsidian's own counter.
+	stripFrontmatter(text) {
+		if (text.startsWith('---\n') || text.startsWith('---\r\n')) {
+			const m = text.match(/^---\r?\n[\s\S]*?\r?\n---(\r?\n|$)/);
+			if (m) return text.slice(m[0].length);
+		}
+		return text;
+	}
+
+	countWords(text) {
+		const t = this.stripFrontmatter(text).trim();
+		return t === '' ? 0 : t.split(/\s+/).length;
+	}
+
+	// Doc-derived stats (total word count, char count, paragraph ranges),
+	// cached on the CodeMirror doc object — reference equality means the
+	// cache only invalidates after actual edits, so the selection/cursor
+	// paths never re-split a 50k-word note just to redraw the bar.
+	getDocStats(view) {
+		const editor = view.editor;
+		const doc = editor && editor.cm && editor.cm.state ? editor.cm.state.doc : null;
+		if (doc && this._docStatsCache && this._docStatsCache.doc === doc) {
+			return this._docStatsCache;
+		}
+		const full      = view.getViewData();
+		const totalWC   = this.countWords(full);
+		const charCount = full.length;
+		// Paragraph ranges: contiguous runs of non-blank, non-heading lines.
+		const lines = full.split('\n');
+		const paras = [];
+		let inPara = false;
 		for (let i = 0; i < lines.length; i++) {
 			const raw     = lines[i];
 			const blank   = raw.trim() === '';
 			const heading = /^\s{0,3}#{1,6}\s/.test(raw);
-			if (!blank && !heading && !inPara) {
-				total++; inPara = true;
-				if (!counted && i >= cursorLine) { current = total; counted = true; }
+			if (!blank && !heading) {
+				if (!inPara) { paras.push({ start: i, end: i }); inPara = true; }
+				else paras[paras.length - 1].end = i;
+			} else {
+				inPara = false;
 			}
-			if (blank || heading) inPara = false;
-			if (!counted && i === cursorLine && inPara) { current = total; counted = true; }
 		}
-		if (!counted) current = total;
-		if (total === 0) { total = 1; current = 1; }
+		const stats = { doc, totalWC, charCount, paras };
+		if (doc) this._docStatsCache = stats; // only cache when identity is trackable
+		return stats;
+	}
+
+	getParagraphInfo(view, stats) {
+		if (!view || !view.editor) return '1/1';
+		const paras = (stats || this.getDocStats(view)).paras;
+		const total = paras.length;
+		if (total === 0) return '1/1';
+		const cursorLine = view.editor.getCursor('head').line;
+		// The paragraph containing the cursor; on a blank line, the next one.
+		let current = 0;
+		for (let p = 0; p < total; p++) {
+			if (cursorLine <= paras[p].end) { current = p + 1; break; }
+		}
+		if (!current) current = total;
 		return current + '/' + total;
 	}
 
@@ -823,22 +920,17 @@ module.exports = class WordSmith extends Plugin {
 
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const now  = new Date();
-		let totalWC = 0, charCount = 0, displayWC = 0, displayCC = 0;
+		let stats = null, totalWC = 0, charCount = 0, displayWC = 0, displayCC = 0;
 
 		if (view) {
-			const full = view.getViewData();
-			totalWC   = full.trim() === '' ? 0 : full.trim().split(/\s+/).length;
-			charCount  = full.length;
+			stats     = this.getDocStats(view);
+			totalWC   = stats.totalWC;
+			charCount = stats.charCount;
 			const editor = view.editor;
-			if (editor) {
-				const sel = editor.getSelection();
-				if (sel && sel.trim().length > 0) {
-					displayWC = sel.trim().split(/\s+/).length;
-					displayCC = sel.length;
-				} else {
-					displayWC = totalWC;
-					displayCC = charCount;
-				}
+			const sel = editor ? editor.getSelection() : '';
+			if (sel && sel.trim().length > 0) {
+				displayWC = sel.trim().split(/\s+/).length;
+				displayCC = sel.length;
 			} else {
 				displayWC = totalWC;
 				displayCC = charCount;
@@ -854,7 +946,7 @@ module.exports = class WordSmith extends Plugin {
 			'{time}':      this.formatTime(now),
 			'{date}':      this.formatDate(now),
 			'{battery}':   this.formatBattery(),
-			'{paragraph}': this.getParagraphInfo(view),
+			'{paragraph}': this.getParagraphInfo(view, stats),
 			'{goal}':      '\x00GOAL\x00'
 		};
 
@@ -912,6 +1004,14 @@ module.exports = class WordSmith extends Plugin {
 		const el = this.retroStatusBarEl;
 		if (!el) return;
 		const baseSize = this.settings.statusBarFontSize || 13;
+		// Resetting font-size forces a reflow; skip the whole measure when
+		// nothing that affects fit has changed since the last call.
+		const text  = el.textContent;
+		const width = el.clientWidth;
+		if (this._lastFit && this._lastFit.text === text &&
+			this._lastFit.width === width && this._lastFit.base === baseSize) return;
+		this._lastFit = { text, width, base: baseSize };
+
 		el.style.fontSize = baseSize + 'px';
 		if (el.scrollWidth <= el.clientWidth) return;
 
@@ -990,7 +1090,10 @@ module.exports = class WordSmith extends Plugin {
 		const sTop    = Math.max(0, sr.top);
 		const sLeft   = Math.max(0, sr.left);
 		const sWidth  = sr.width;
-		const sBottom = window.innerHeight - statusH;
+		// visualViewport.height is the honest bottom edge on mobile when the
+		// on-screen keyboard is open; innerHeight ignores it.
+		const vpH     = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+		const sBottom = vpH - statusH;
 		const sHeight = Math.max(0, sBottom - sTop);
 
 		let maskH = this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26;
@@ -1039,62 +1142,72 @@ module.exports = class WordSmith extends Plugin {
 		for (let i = 0; i < this.settings.arrowCount; i++) arrows.createEl('span', { text: char });
 		if (position === 'top') wrap.insertBefore(arrows, line);
 
+		// Pointer events (with capture) instead of mouse events: identical on
+		// desktop, and tablet/mobile dragging works for free.
 		line.style.cursor        = 'ns-resize';
 		line.style.pointerEvents = 'auto';
-		line.addEventListener('mousedown', e => {
-			if (e.button !== 0) return;
+		line.addEventListener('pointerdown', e => {
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
 			e.preventDefault(); e.stopPropagation();
-			this._startVerticalDrag(e, position);
+			this._startVerticalDrag(e, position, line);
 		});
 
 		arrows.style.cursor        = 'ew-resize';
 		arrows.style.pointerEvents = 'auto';
-		arrows.addEventListener('mousedown', e => {
-			if (e.button !== 0) return;
+		arrows.addEventListener('pointerdown', e => {
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
 			e.preventDefault(); e.stopPropagation();
-			this._startHorizontalDrag(e);
+			this._startHorizontalDrag(e, arrows);
 		});
 		return wrap;
 	}
 
-	_startVerticalDrag(e, position) {
+	// Shared pointer-drag plumbing. setPointerCapture routes all move/up
+	// events to the grabbed element, so no document-level listeners are
+	// needed — and _activeDragCleanup lets onunload abort a drag that's
+	// still in flight instead of leaking its listeners.
+	_startPointerDrag(e, el, cursor, onMove) {
+		if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (_) {} }
+		document.body.style.cursor = cursor; document.body.style.userSelect = 'none';
+		const finish = (save) => {
+			el.removeEventListener('pointermove',   onMove);
+			el.removeEventListener('pointerup',     onUp);
+			el.removeEventListener('pointercancel', onCancel);
+			if (el.hasPointerCapture && el.hasPointerCapture(e.pointerId)) {
+				try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+			}
+			document.body.style.cursor = ''; document.body.style.userSelect = '';
+			this._activeDragCleanup = null;
+			if (save) this.saveSettings();
+		};
+		const onUp     = () => finish(true);
+		const onCancel = () => finish(false);
+		el.addEventListener('pointermove',   onMove);
+		el.addEventListener('pointerup',     onUp);
+		el.addEventListener('pointercancel', onCancel);
+		this._activeDragCleanup = () => finish(false);
+	}
+
+	_startVerticalDrag(e, position, el) {
 		const startY = e.clientY;
 		const startH = (this.maskTopEl ? parseFloat(this.maskTopEl.style.height) : null)
 			|| (this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26);
-		document.body.style.cursor = 'ns-resize'; document.body.style.userSelect = 'none';
-		const onMove = me => {
+		this._startPointerDrag(e, el, 'ns-resize', me => {
 			const dy = me.clientY - startY;
 			this.settings.letterboxPx = Math.max(0, startH + dy * (position === 'top' ? 1 : -1));
 			this.scheduleMaskPosition();
-		};
-		const onUp = async () => {
-			document.removeEventListener('mousemove', onMove);
-			document.removeEventListener('mouseup', onUp);
-			document.body.style.cursor = ''; document.body.style.userSelect = '';
-			await this.saveSettings();
-		};
-		document.addEventListener('mousemove', onMove);
-		document.addEventListener('mouseup', onUp);
+		});
 	}
 
-	_startHorizontalDrag(e) {
+	_startHorizontalDrag(e, el) {
 		const startX   = e.clientX;
 		const startPad = this.settings.maskPaddingH || 0;
 		const cx       = window.innerWidth / 2;
-		document.body.style.cursor = 'ew-resize'; document.body.style.userSelect = 'none';
-		const onMove = me => {
+		this._startPointerDrag(e, el, 'ew-resize', me => {
 			const dx = me.clientX - startX;
 			this.settings.maskPaddingH = Math.max(0, Math.min(Math.round(cx) - 20, Math.round(startPad + dx * (startX < cx ? 1 : -1))));
 			this.scheduleMaskPosition();
-		};
-		const onUp = async () => {
-			document.removeEventListener('mousemove', onMove);
-			document.removeEventListener('mouseup', onUp);
-			document.body.style.cursor = ''; document.body.style.userSelect = '';
-			await this.saveSettings();
-		};
-		document.addEventListener('mousemove', onMove);
-		document.addEventListener('mouseup', onUp);
+		});
 	}
 
 	getArrowChars() {
@@ -1193,10 +1306,16 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	attachExplorerObserver() {
-		if (this.explorerObserver) return;
+		// Observe only the file-explorer and outline leaf containers — the
+		// old body-wide observer scheduled a full explorer re-scan on any DOM
+		// change anywhere (typing repaints, tooltips, …). Re-bound from the
+		// layout-change handler since these leaves can be recreated.
+		this.detachExplorerObserver();
 		this.scheduleExplorerPatch();
 		this.explorerObserver = new MutationObserver(() => this.scheduleExplorerPatch());
-		this.explorerObserver.observe(document.body, { childList: true, subtree: true });
+		const targets = document.querySelectorAll(
+			'.workspace-leaf-content[data-type="file-explorer"], .workspace-leaf-content[data-type="outline"]');
+		targets.forEach(t => this.explorerObserver.observe(t, { childList: true, subtree: true }));
 	}
 
 	detachExplorerObserver() {
@@ -1216,12 +1335,14 @@ module.exports = class WordSmith extends Plugin {
 		if (this.settings.enableFileTreeCounts) {
 			const roots = document.querySelectorAll('.workspace-leaf-content[data-type="file-explorer"]');
 			for (let ri = 0; ri < roots.length; ri++) {
-				const root = roots[ri];
+				const root  = roots[ri];
 				const tiles = root.querySelectorAll('.nav-file-title');
+				const jobs  = [];
 				for (let i = 0; i < tiles.length; i++) {
 					const path = tiles[i].dataset && tiles[i].dataset.path;
-					if (path && path.endsWith('.md')) await this.applyFileWordCount(tiles[i], path);
+					if (path && path.endsWith('.md')) jobs.push(this.applyFileWordCount(tiles[i], path));
 				}
+				await Promise.all(jobs); // parallel reads, not one await per file
 				this.applyFolderSums(root);
 			}
 		} else {
@@ -1229,7 +1350,7 @@ module.exports = class WordSmith extends Plugin {
 		}
 		if (this.settings.enableOutlineCounts) {
 			const oroots = document.querySelectorAll('.workspace-leaf-content[data-type="outline"]');
-			for (let ri = 0; ri < oroots.length; ri++) await this.applyOutlineWordCounts(oroots[ri]);
+			await Promise.all(Array.from(oroots, r => this.applyOutlineWordCounts(r)));
 		} else {
 			document.querySelectorAll('.tree-item-self .zg-count').forEach(el => el.remove());
 		}
@@ -1242,7 +1363,7 @@ module.exports = class WordSmith extends Plugin {
 		if (hit && hit.mtime === file.stat.mtime) { this.setCountBadge(el, hit.count); return; }
 		try {
 			const text = await this.app.vault.cachedRead(file);
-			const count = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+			const count = this.countWords(text); // frontmatter excluded, matching the status bar
 			this.wordCountCache.set(path, { mtime: file.stat.mtime, count });
 			this.setCountBadge(el, count);
 		} catch (_) {}
@@ -1304,12 +1425,18 @@ module.exports = class WordSmith extends Plugin {
 // =============================================================================
 
 class WordSmithSettingTab extends PluginSettingTab {
-	constructor(app, plugin) { super(app, plugin); this.plugin = plugin; }
+	constructor(app, plugin) {
+		super(app, plugin);
+		this.plugin = plugin;
+		// Transient UI memory (last non-zero arrow count) lives here — on the
+		// tab instance — so it never gets persisted into data.json.
+		this._lastArrowCount = null;
+	}
 
 	display() {
 		const { containerEl } = this;
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Word-Smith' });
+		new Setting(containerEl).setName('Word-Smith').setHeading();
 
 		// ── Master on/off ──────────────────────────────────────────────────────
 		new Setting(containerEl)
@@ -1324,7 +1451,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		if (!this.plugin.settings.pluginEnabled) return;
 
-		containerEl.createEl('hr').style.cssText = 'margin:8px 0 16px;border:none;border-top:1px solid var(--background-modifier-border);';
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
 		// ── Zen Mode toggle + inline options ───────────────────────────────────
 		new Setting(containerEl)
@@ -1389,8 +1516,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 				new Setting(ls).setName('Show arrows').setDesc('Arrow characters along the mask edges.')
 					.addToggle(t => t.setValue(this.plugin.settings.arrowCount > 0)
 						.onChange(async v => {
-							this.plugin.settings._lastArrowCount = this.plugin.settings.arrowCount || 5;
-							this.plugin.settings.arrowCount = v ? (this.plugin.settings._lastArrowCount || 5) : 0;
+							if (!v) this._lastArrowCount = this.plugin.settings.arrowCount || 5;
+							this.plugin.settings.arrowCount = v ? (this._lastArrowCount || 5) : 0;
 							await this.plugin.saveSettings(); this.display();
 						}));
 
@@ -1428,7 +1555,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				this.slider(ls, 'Line weight', 'Thickness (1–8 px).', 'separatorWeight', 1, 8, 1);
 
 				this.label(ls, 'Colors');
-				containerEl.createEl('p', { text: 'Dark and light variants switch automatically with your theme.' }).style.cssText = 'font-size:0.82em;color:var(--text-muted);margin:0 0 6px 14px;';
+				ls.createEl('p', { text: 'Dark and light variants switch automatically with your theme.', cls: 'ws-settings-note' });
 				this.label(ls, 'Dark theme');
 				const cdk = this.sub(ls);
 				new Setting(cdk).setName('Arrows color').addColorPicker(cp => cp.setValue(this.plugin.settings.arrowDarkColor).onChange(async v => { this.plugin.settings.arrowDarkColor = v; await this.plugin.saveSettings(); }));
@@ -1471,7 +1598,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const gs = this.sub(rb);
 			new Setting(gs).setName('Word target').setDesc('Target word count. Click the bar to reset the baseline.')
 				.addText(t => {
-					t.inputEl.type = 'number'; t.inputEl.min = '1'; t.inputEl.style.width = '80px';
+					t.inputEl.type = 'number'; t.inputEl.min = '1'; t.inputEl.addClass('ws-num-input');
 					t.setValue(String(this.plugin.settings.goalTarget));
 					t.onChange(async v => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0) { this.plugin.settings.goalTarget = n; await this.plugin.saveSettings(); } });
 				});
@@ -1495,11 +1622,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 					t.setPlaceholder('dd/mm/yyyy').setValue(this.plugin.settings.dateFormat);
 					t.onChange(async v => { this.plugin.settings.dateFormat = v || 'dd/mm/yyyy'; await this.plugin.saveSettings(); refreshPreview(); });
 				});
-			const fmtRow = df.createEl('div');
-			fmtRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px;';
+			const fmtRow = df.createEl('div', { cls: 'ws-fmt-row' });
 			for (const fmt of ['dd/mm/yyyy', 'mm/dd/yyyy', 'yyyy-mm-dd', 'dd.mm.yy', 'dd-mm-yyyy', 'yyyy/mm/dd']) {
 				const btn = fmtRow.createEl('button', { text: fmt });
-				btn.style.cssText = 'font-family:monospace;font-size:11px;padding:2px 6px;cursor:pointer;';
 				btn.addEventListener('click', async () => { this.plugin.settings.dateFormat = fmt; await this.plugin.saveSettings(); this.display(); });
 			}
 			df.createEl('small', { text: 'Preview: ' }).appendChild(preview);
@@ -1507,7 +1632,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			// ── Colors (inside retro bar) ─────────────────────────────────────────
 			this.label(rb, 'Colors');
-			containerEl.createEl('p', { text: 'Dark and light variants switch automatically with your theme.' }).style.cssText = 'font-size:0.82em;color:var(--text-muted);margin:0 0 6px 14px;';
+			rb.createEl('p', { text: 'Dark and light variants switch automatically with your theme.', cls: 'ws-settings-note' });
 
 			this.label(rb, 'Dark theme');
 			const dk = this.sub(rb);
@@ -1521,7 +1646,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		}
 
 		// ── Misc Options (text options + word counts) ──────────────────────────
-		containerEl.createEl('hr').style.cssText = 'margin:16px 0 8px;border:none;border-top:1px solid var(--background-modifier-border);';
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 		new Setting(containerEl)
 			.setName('Misc options')
 			.setDesc('Paragraph indent, line spacing, and sidebar word counts.')
@@ -1545,10 +1670,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 			}
 			new Setting(mc).setName('Line spacing').setDesc('Line height multiplier (e.g. 1, 1.5, 2).')
 				.addText(t => {
-					t.inputEl.type = 'number'; t.inputEl.min = '0.8'; t.inputEl.max = '4'; t.inputEl.step = '0.1'; t.inputEl.style.width = '60px';
+					t.inputEl.type = 'number'; t.inputEl.min = '0.8'; t.inputEl.max = '4'; t.inputEl.step = '0.1'; t.inputEl.addClass('ws-num-input');
 					t.setValue(String(this.plugin.settings.lineSpacing != null ? this.plugin.settings.lineSpacing : 1.5));
 					t.onChange(async v => { const n = parseFloat(v); if (!isNaN(n) && n >= 0.8 && n <= 4) { this.plugin.settings.lineSpacing = n; await this.plugin.saveSettings(); } });
 				});
+			this.toggle(mc, 'Justify text', 'Full-justify paragraph text in both editing and reading views.', 'justifyText');
 
 			this.label(mc, 'Word counts');
 			this.toggle(mc, 'File tree word counts', 'Word count per note in the left sidebar, summed into folders.', 'enableFileTreeCounts', () => this.display());
@@ -1559,14 +1685,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// ── Helpers ───────────────────────────────────────────────────────────────
 
 	sub(root) {
-		const el = root.createEl('div');
-		el.style.cssText = 'border-left:2px solid var(--background-modifier-border);margin-left:12px;padding-left:12px;margin-top:4px;margin-bottom:8px;';
-		return el;
+		return root.createEl('div', { cls: 'ws-settings-sub' });
 	}
 
 	label(root, text) {
-		const p = root.createEl('p', { text });
-		p.style.cssText = 'margin:12px 0 4px;font-weight:600;font-size:0.9em;color:var(--text-muted);';
+		root.createEl('p', { text, cls: 'ws-settings-label' });
 	}
 
 	toggle(c, name, desc, key, cb) {
@@ -1587,9 +1710,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 	numInput(c, name, desc, key, min, max) {
 		return new Setting(c).setName(name).setDesc(desc || '')
 			.addText(t => {
-				t.inputEl.type = 'number'; t.inputEl.min = String(min); t.inputEl.max = String(max); t.inputEl.style.width = '60px';
+				t.inputEl.type = 'number'; t.inputEl.min = String(min); t.inputEl.max = String(max); t.inputEl.addClass('ws-num-input');
 				t.setValue(String(this.plugin.settings[key]));
 				t.onChange(async v => { const n = parseInt(v, 10); if (!isNaN(n) && n >= min && n <= max) { this.plugin.settings[key] = n; await this.plugin.saveSettings(); } });
 			});
 	}
 }
+/* nosourcemap */

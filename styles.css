@@ -7,7 +7,9 @@
 	--zg-text: #ffb000;
 
 	--zg-editor-padding-h:    40px;
-	--zg-arrow-font-size:     14px;
+	/* Arrow size tracks window width via clamp() so it stays current after
+	   resize with zero JS. --zg-arrow-scale is stamped by JS (default 1). */
+	--zg-arrow-font-size:     clamp(10px, calc(1.2vw * var(--zg-arrow-scale, 1)), 40px);
 	--zg-status-bar-height:   30px;
 	--zg-status-bar-font-size:13px;
 	--zg-separator-style:     solid;
@@ -42,9 +44,8 @@ body.zg-masks-active.zg-editor-focused {
 .zenmode-active .mod-root .workspace-tabs .workspace-tab-header-container,
 .zenmode-active .mobile-navbar,
 .zenmode-active .pdf-toolbar,
-.zenmode-active div.app-container>div.horizontal-main-container>div>div.workspace-split.mod-vertical.mod-root.mod-visible>div>div.workspace-tab-container>div>div>div.view-header,
+.zenmode-active .workspace-tab-container .view-header,
 .zenmode-active .view-header-nav-buttons,
-.zenmode-active div.workspace-tab-container>div>div>div.view-header,
 .zenmode-active .tooltip,
 .zenmode-hide-status-bar .status-bar,
 .zenmode-active .sidebar-toggle-button.mod-right,
@@ -63,9 +64,7 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 .zenmode-active[data-zen-hide-inline-title="true"] .inline-title { display: none; }
 .zenmode-hide-linked-mentions .embedded-backlinks { display: none; }
 /* Obsidian's own scroller is a plain div, so the ::-webkit-scrollbar
-   pseudo-element (the mechanism Chromium/Electron actually renders) is all
-   that's needed here. scrollbar-width is a Firefox-origin property with
-   only partial support in Obsidian's bundled Chromium and was dropped. */
+   pseudo-element is all that's needed here for Chromium/Electron. */
 .zenmode-hide-scroll-bar ::-webkit-scrollbar { display: none; }
 
 /* Padding */
@@ -75,10 +74,7 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 	padding-bottom: var(--zen-mode-bottom-padding, 0px);
 }
 
-/* Focused file mode. Selector paired with .workspace-tabs (the element the
-   class is always applied to) for specificity, since these are also set as
-   inline styles by JS on the same element and only need to win the
-   cascade for the brief moment before that inline style lands. */
+/* Focused file mode. */
 .workspace-tabs.zenmode-tab-hidden { display: none; }
 .workspace-tabs.zenmode-tab-active { display: block; width: 100%; flex: 1 1 100%; }
 
@@ -91,35 +87,6 @@ body:not(.is-mobile).zenmode-active .titlebar {
 body:not(.is-mobile).zenmode-active .titlebar * { -webkit-app-region: no-drag; }
 
 /* =========================================================================
-   Exit button
-   ========================================================================= */
-
-.zenmode-button { position: fixed; bottom: 10px; right: 10px; z-index: 1000; overflow: visible; display: none; }
-.zenmode-button.zenmode-button-moved-up { bottom: 50px; }
-.is-mobile .zenmode-button { bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
-
-body:not(.is-mobile) .zenmode-button-auto-hide {
-	opacity: 0; transition: opacity 0.3s ease-in-out;
-	pointer-events: auto; padding: 30px; margin: -30px;
-}
-body:not(.is-mobile) .zenmode-button-auto-hide:hover,
-body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out:hover { opacity: 1; }
-body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-initial-highlight { opacity: 1; }
-
-.zenmode-button-initial-highlight button { animation: zenmode-button-highlight 1.5s ease-out; }
-@keyframes zenmode-button-highlight {
-	0%   { box-shadow: 0 2px 12px var(--background-modifier-border); }
-	50%  { box-shadow: 0 2px  8px var(--background-modifier-border); }
-	100% { box-shadow: none; }
-}
-.zenmode-button button { transition: background-color 0.6s ease-in-out, opacity 0.5s ease-in-out; }
-
-body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out { opacity: 0; transition: opacity 0.5s ease-in-out; }
-body:not(.is-mobile) .zenmode-button-auto-hide.zenmode-button-fade-out button { box-shadow: none; }
-
-.zenmode-button.zenmode-button-visible { display: block; }
-
-/* =========================================================================
    Editor constraints (zen mode full-width)
    ========================================================================= */
 
@@ -127,20 +94,14 @@ body.zenmode-active {
 	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2));
 }
 
-/* Chained through the source-view + cm-editor ancestry for specificity
-   instead of !important — themes generally style .cm-scroller directly
-   with a single class, so this comfortably outranks them. */
+/* Chained through the source-view + cm-editor ancestry for specificity. */
 .zenmode-active .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
 	padding-top:    50vh;
 	padding-bottom: 50vh;
 }
 
-/* Outside zen mode the masks have no built-in scroll padding to push
-   content clear of them — a short/new note starts hidden behind the top
-   mask with nothing to scroll past. Give the scroller just enough padding
-   to clear the mask height (computed live in stampMaskPositions). Only
-   applies when NOT in zen mode, since zen mode's 50vh above already
-   covers this (and is much larger, for typewriter centering). */
+/* Outside zen mode the masks have no built-in scroll padding — give the
+   scroller just enough to clear the mask height. */
 body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
 	padding-top:    var(--zg-scroller-pad-top, 0px);
 	padding-bottom: var(--zg-scroller-pad-bottom, 0px);
@@ -190,11 +151,6 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 .zengrinder-arrows-wrap-top    { justify-content: flex-end; }
 .zengrinder-arrows-wrap-bottom { justify-content: flex-start; }
 
-/* Explicit, direction-matched margin instead of flex `gap` — gap combines
-   additively with any margin already on the items (including the line's
-   hit-area expansion below), which made the two sides drift apart by
-   different amounts. A plain margin on the arrows row is unambiguous and
-   gives an identical visual gap on both sides. */
 .zengrinder-arrows-wrap-top    .zengrinder-arrows { margin-bottom: 5px; }
 .zengrinder-arrows-wrap-bottom .zengrinder-arrows { margin-top:    5px; }
 
@@ -204,11 +160,14 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	width: 100%;
 	color: var(--zg-arrow-color, var(--text-normal));
 	font-family: inherit;
-	font-size: var(--zg-arrow-font-size, 14px);
+	font-size: var(--zg-arrow-font-size);
 	line-height: 1;
 	letter-spacing: 2px;
 	pointer-events: auto;
 	cursor: ew-resize;
+	/* touch-action: none lets pointerdown fire immediately on touch without
+	   the browser waiting to see if it's a scroll gesture. */
+	touch-action: none;
 }
 
 .zengrinder-arrow-line {
@@ -220,11 +179,10 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	box-sizing: content-box;
 	pointer-events: auto;
 	cursor: ns-resize;
+	touch-action: none;
 }
 
-/* Wider invisible hit area for dragging, layered via a pseudo-element so it
-   doesn't touch the line's own box model (no padding/negative-margin trick
-   that could throw off the gap math above). */
+/* Wider invisible hit area for dragging. */
 .zengrinder-arrow-line::before {
 	content: '';
 	position: absolute;
@@ -290,7 +248,10 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 .zg-goal-seg         { display: inline-block; opacity: 0.25; transition: opacity 0.1s; }
 .zg-goal-seg-filled  { opacity: 1; }
 
-/* ── Goal met: slow faded flash on the whole bar ── */
+/* Goal met: slow faded flash on the whole bar.
+   Wrapped in prefers-reduced-motion: an infinite 5-second strobe is exactly
+   what that media query exists for. The goal-met state is still visible via
+   the filled bar / fraction even when animation is suppressed. */
 @keyframes zg-strobe {
 	0%,  100% { opacity: 1;    background-color: var(--zg-bg);   color: var(--zg-text); }
 	15%,  45% { opacity: 0.55; background-color: var(--zg-text); color: var(--zg-bg);   }
@@ -298,16 +259,16 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	75%       { opacity: 0.45; background-color: var(--zg-text); color: var(--zg-bg);   }
 	90%       { opacity: 0.8;  background-color: var(--zg-bg);   color: var(--zg-text); }
 }
-.zengrinder-status-bar.zg-goal-met {
-	animation: zg-strobe 5s ease-in-out infinite;
+@media (prefers-reduced-motion: no-preference) {
+	.zengrinder-status-bar.zg-goal-met {
+		animation: zg-strobe 5s ease-in-out infinite;
+	}
 }
+
 /* =========================================================================
    "WS" ribbon badge — toggles the entire plugin on/off
    ========================================================================= */
 
-/* Obsidian sizes ribbon icons around 18px and colors them via currentColor
-   (theme-driven), so the badge inherits both — it stays legible in light
-   and dark themes without hardcoding colors. */
 .ws-ribbon-btn .ws-ribbon-badge {
 	display: inline-flex;
 	align-items: center;
@@ -323,6 +284,54 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	line-height: 1;
 }
 
-/* Dimmed state when the plugin is disabled — visual cue that clicking
-   will turn it back on. */
+/* Dimmed when disabled */
 .ws-ribbon-btn.is-disabled { opacity: 0.45; }
+
+/* =========================================================================
+   Settings tab helpers
+   ========================================================================= */
+
+.ws-settings-hr {
+	margin: 16px 0 8px;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.ws-settings-sub {
+	border-left: 2px solid var(--background-modifier-border);
+	margin-left: 12px;
+	padding-left: 12px;
+	margin-top: 4px;
+	margin-bottom: 8px;
+}
+
+.ws-settings-label {
+	margin: 12px 0 4px;
+	font-weight: 600;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+.ws-settings-note {
+	font-size: 0.82em;
+	color: var(--text-muted);
+	margin: 0 0 6px 0;
+}
+
+.ws-fmt-row {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin: 4px 0 8px;
+}
+
+.ws-fmt-row button {
+	font-family: monospace;
+	font-size: 11px;
+	padding: 2px 6px;
+	cursor: pointer;
+}
+
+.ws-num-input {
+	width: 60px;
+}
