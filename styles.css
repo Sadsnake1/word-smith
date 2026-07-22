@@ -48,6 +48,7 @@ body.zg-masks-active.zg-editor-focused {
 .zenmode-active .view-header-nav-buttons,
 .zenmode-active .tooltip,
 .zenmode-hide-status-bar .status-bar,
+.zenmode-hide-ribbon .workspace-ribbon,
 .zenmode-active .sidebar-toggle-button.mod-right,
 .zenmode-active .sidebar-toggle-button.mod-left,
 .zenmode-active .tree-item-flair:not(.tag-pane-tag-count),
@@ -58,6 +59,14 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 }
 
 .zenmode-active .mod-top-left-space .view-header { padding-left: var(--frame-left-space); }
+
+/* Native status bar: dedicated !important rule (in addition to the list
+   above and the inline style set from JS) so no theme/snippet rule that
+   also targets .status-bar can win and peek through the retro bar's
+   goal-met flash. */
+body.zenmode-hide-status-bar .status-bar {
+	display: none !important;
+}
 
 .zenmode-hide-properties .markdown-reading-view .metadata-container { display: none; }
 .zenmode-hide-properties { --metadata-display-editing: none; }
@@ -114,13 +123,20 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	width: 100%;
 }
 
+/* Horizontal text padding — applies everywhere, independent of zen mode.
+   (Zen mode's own top/bottom padding above is intentionally still scoped to
+   .zenmode-active — only the horizontal inset is a general text option.) */
+.markdown-source-view.mod-cm6 .cm-content,
+.markdown-reading-view .markdown-preview-view {
+	padding-left:  var(--zg-editor-padding-h);
+	padding-right: var(--zg-editor-padding-h);
+}
+
 .zenmode-active .markdown-source-view.mod-cm6 .cm-content,
 .zenmode-active .markdown-reading-view .markdown-preview-view {
 	max-width: 100%;
 	width: auto;
 	margin: 0 auto;
-	padding-left:  var(--zg-editor-padding-h);
-	padding-right: var(--zg-editor-padding-h);
 }
 
 /* =========================================================================
@@ -192,6 +208,45 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 }
 
 /* =========================================================================
+   Hidden markers (spaces / tabs / paragraphs / end of lines)
+   ========================================================================= */
+/* All four are rendered by CM6 decorations (see setupEditorExtensions in
+   main.js) — spans/widgets created inside the editor's own pipeline, so
+   nothing here fights the editor's rendering. */
+
+/* Each decorated space gets a small centred dot painted behind the
+   (invisible) space character itself — same technique as CM6's own
+   highlightWhitespace. Fixed em radius so it stays a subtle point instead
+   of scaling with the glyph box. */
+.zg-ws-space {
+	background-image: radial-gradient(circle at 50% 55%, var(--text-faint, #888) 0.07em, transparent 0.085em);
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+/* Tabs keep their real width; the arrow is overlaid at the start. */
+.zg-ws-tab {
+	position: relative;
+}
+.zg-ws-tab::before {
+	content: '→';
+	position: absolute;
+	left: 1px;
+	color: var(--text-faint, currentColor);
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+/* ¶ / ↵ end-of-line widgets */
+.zg-invisible {
+	color: var(--text-faint, currentColor);
+	opacity: 0.5;
+	margin-left: 2px;
+	pointer-events: none;
+	user-select: none;
+}
+
+/* =========================================================================
    Word count badges
    ========================================================================= */
 
@@ -221,15 +276,36 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	padding: 0 15px;
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	text-align: center;
+	justify-content: space-between;
+	gap: 12px;
 	white-space: pre;
 	overflow: hidden;
 	z-index: var(--zg-z-status, 22);
 }
 
+.zg-status-section {
+	flex: 1 1 0;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: pre;
+}
+
+.zg-status-left   { text-align: left; }
+.zg-status-center { text-align: center; }
+.zg-status-right  { text-align: right; }
+
 .zengrinder-status-bar.zengrinder-status-border {
 	border-top: 2px solid var(--zg-text);
+}
+
+/* CodeMirror bottom panels — the vim ":" command line lives here — stick
+   to the bottom edge of the editor, which the fixed retro bar overlays.
+   While the bar is active, lift them by its height so they stay visible.
+   !important because CM's own generated theme sets bottom: 0 at matching
+   specificity. */
+body.zg-retrobar-active .cm-editor .cm-panels-bottom {
+	bottom: var(--zg-status-bar-height, 30px) !important;
 }
 
 /* =========================================================================
@@ -334,4 +410,45 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 
 .ws-num-input {
 	width: 60px;
+}
+
+/* =========================================================================
+   Settings tab navigation (Zen / Typewriter / Mask / Retro Bar / Text)
+   ========================================================================= */
+
+.ws-tab-nav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 4px 0 16px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 8px;
+}
+
+.ws-tab-btn {
+	font-family: inherit;
+	font-size: 0.88em;
+	font-weight: 600;
+	padding: 6px 14px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+
+.ws-tab-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.ws-tab-btn.is-active {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.ws-tab-body {
+	margin-top: 4px;
 }

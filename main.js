@@ -2,6 +2,20 @@
 
 const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile } = require('obsidian');
 
+// Obsidian exposes its bundled CodeMirror 6 packages to plugins via require.
+// Decorations registered through registerEditorExtension render inside CM6's
+// own pipeline, which is the only glitch-free way to do per-line styling —
+// any MutationObserver / direct-DOM approach races the editor's rendering
+// and flickers (this is also how the reference typewriter-mode plugin works).
+let CM = null;
+try {
+	const { ViewPlugin, Decoration, WidgetType } = require('@codemirror/view');
+	const { RangeSetBuilder } = require('@codemirror/state');
+	CM = { ViewPlugin, Decoration, WidgetType, RangeSetBuilder };
+} catch (_) {
+	// Extremely old Obsidian build — dimming + hidden markers silently off.
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Arrow style presets
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12,7 +26,6 @@ const ARROW_STYLES = {
 	'standard-arrow':   { top: '↑', bottom: '↓' },
 	'chevron':          { top: '∧', bottom: '∨' },
 	'double-chevron':   { top: '⇑', bottom: '⇓' },
-	'ascii':            { top: '^',  bottom: 'v' },
 	'custom':           { top: '',   bottom: ''  }
 };
 
@@ -25,26 +38,31 @@ const DEFAULT_SETTINGS = {
 	pluginEnabled:            true,
 
 	// ── Zen mode ──────────────────────────────────────────────────────────────
+	// zenMode stays false as a default even though the author writes in zen:
+	// it's a runtime mode, not a preference — defaulting it on would collapse
+	// sidebars and hide the entire UI the moment a new user installs the
+	// plugin, before they know what's happening or how to exit.
 	zenMode:                  false,
 	fullscreen:               false,
 	leftSidebar:              true,       // saved state (was collapsed when entering zen)
 	rightSidebar:             true,
 	hideProperties:           true,
-	hideInlineTitle:          false,
+	hideInlineTitle:          true,
 	hideStatusBar:            true,
-	hideLinkedMentions:       false,
+	hideLinkedMentions:       true,
 	hideScrollBar:            true,
+	hideRibbon:               true,
 	topPadding:               0,
 	bottomPadding:            0,
 	focusedFileMode:          false,
 
 	// ── Typewriter / letterbox ────────────────────────────────────────────────
 	enableTypewriter:         true,
-	editorPaddingH:           150,
+	editorPaddingH:           90,
 	enableLetterbox:          true,
 	letterboxLines:           8,
-	letterboxPx:              112,
-	maskPaddingH:             123,
+	letterboxPx:              87,
+	maskPaddingH:             208,
 	maskOverhang:             4,
 	arrowStyle:               'solid-triangle',
 	customArrowTop:           '^',
@@ -53,27 +71,39 @@ const DEFAULT_SETTINGS = {
 	arrowScale:               1.0,
 	separatorStyle:           'solid',
 	separatorWeight:          2,
+	highlightCurrentLine:     false,
+	lineHighlightDarkColor:   '#3a3a2a',
+	lineHighlightLightColor:  '#fff2b2',
+	lineHighlightOpacity:     0.35,
+	typewriterLinesAbove:     8,
+	typewriterLinesBelow:     8,
+	dimUnfocusedEnabled:      true,
+	dimFocusMode:             'paragraph', // 'paragraph' | 'sentence'
+	dimOpacity:               0.35,
 
 	// ── Retro status bar ──────────────────────────────────────────────────────
 	enableRetroStatus:        true,
-	statusFormatText:         '{file} | {goal} | words: {words} | chars: {chars} | {date} {time} | {battery} | ¶{paragraph}',
+	statusFormatLeft:         '{file}',
+	statusFormatCenter:       '{goal}',
+	statusFormatRight:        ' ¶{paragraph} | {words}w | {battery} | {date} {time} ',
+	fileTokenFormat:          'name',     // 'path' (~/folder/name) | 'name' (basename only)
 	statusBarBorder:          true,
-	statusBarFontSize:        13,
+	statusBarFontSize:        12,
 	statusBarHeight:          30,
 	goalTarget:               1000,
 	goalDisplay:              'bar',
-	goalBaseline:             0,          // intentionally not copied — see note below
-	goalBarCells:             5,
+	goalBaseline:             0,          // per-vault word-count counter — never ship a non-zero default
+	goalBarCells:             20,
 	goalFlashEnabled:         true,
-	dateFormat:               'dd/mm/yy',
+	dateFormat:               'dd/mm',
 	retroDarkBgColor:         '#050505',
 	retroDarkTextColor:       '#fbfaf9',
 	retroLightBgColor:        '#f5f0e8',
-	retroLightTextColor:      '#1a4a1a',
+	retroLightTextColor:      '#050505',
 	arrowDarkColor:           '#fbfaf9',
-	arrowLightColor:          '#1a4a1a',
+	arrowLightColor:          '#2b2b2b',
 	lineDarkColor:            '#faf8f5',
-	lineLightColor:           '#1a4a1a',
+	lineLightColor:           '#2b2b2b',
 
 	// ── Misc options ──────────────────────────────────────────────────────────
 	miscEnabled:              true,
@@ -83,7 +113,12 @@ const DEFAULT_SETTINGS = {
 	paragraphIndentEm:        2,
 	paragraphIndentMode:      'double',   // 'double' | 'single'
 	lineSpacing:              1.5,
-	justifyText:              false,
+	justifyText:              true,
+	showHiddenMarkers:        false,
+	markSpaces:               true,
+	markTabs:                 true,
+	markParagraphs:           true,
+	markEndOfLines:           true,
 
 	// ── Sidebar word counts ───────────────────────────────────────────────────
 	enableFileTreeCounts:     true,
@@ -115,6 +150,8 @@ module.exports = class WordSmith extends Plugin {
 		this._zgLastTotalWordCount = 0;
 		this._docStatsCache   = null;   // { doc, totalWC, charCount, paras } keyed on CM doc identity
 		this._lastFit         = null;   // fitStatusBarText memo { text, width, base }
+		this._capsLockOn      = false;  // tracked from keyboard events for {caps}
+		this._numLockOn       = false;  // tracked from keyboard events for {nump}
 
 		// ── Scroll / resize handlers ──────────────────────────────────────────
 		this.currentScroller  = null;
@@ -194,6 +231,7 @@ module.exports = class WordSmith extends Plugin {
 			this.updateWorkspaceAesthetics();
 			this.scheduleExplorerPatch();
 			if (this.settings.zenMode && this.settings.focusedFileMode) this.updateFocusedFileMode();
+			this.typewriterScroll();
 		}));
 		this.registerEvent(this.app.workspace.on('editor-change', () => {
 			this.updateRetroStatusBar();
@@ -213,7 +251,8 @@ module.exports = class WordSmith extends Plugin {
 		}));
 
 		// DOM events
-		this.registerDomEvent(document, 'keyup', () => {
+		this.registerDomEvent(document, 'keyup', (evt) => {
+			this.updateModifierState(evt);
 			this.updateRetroStatusBar();
 			this.typewriterScroll();
 		});
@@ -235,6 +274,7 @@ module.exports = class WordSmith extends Plugin {
 		});
 		// Escape exits zen mode (from new zen plugin — respects vim mode and excalidraw)
 		this.registerDomEvent(document, 'keydown', (evt) => {
+			this.updateModifierState(evt);
 			if (evt.key === 'Escape' && this.settings.zenMode) {
 				const target = evt.target;
 				if (target) {
@@ -270,9 +310,19 @@ module.exports = class WordSmith extends Plugin {
 			this.scheduleExplorerPatch();
 		}));
 
-		// Theme observer
-		this._themeObserver = new MutationObserver(() => this.applyCssVariables());
+		// Theme observer. Guarded on pluginEnabled: disablePlugin() removes
+		// body classes, which fires this very observer — without the guard
+		// it would recreate the injected styles (line highlight etc.) and
+		// re-stamp CSS variables immediately after they were removed.
+		this._themeObserver = new MutationObserver(() => {
+			if (!this.settings.pluginEnabled) return;
+			this.applyCssVariables();
+			this.updateStyleEl();
+		});
 		this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+		// CM6 decoration extensions (focus dimming + hidden markers)
+		this.setupEditorExtensions();
 
 		this.refresh();
 	}
@@ -291,6 +341,8 @@ module.exports = class WordSmith extends Plugin {
 		// Clean up scroll/resize handlers
 		this.detachScrollHandler();
 		this.detachResizeHandler();
+		// Restore the native status bar (inline hide is not class-based)
+		this.applyNativeStatusBarVisibility(false);
 		// Clean up theme observer
 		if (this._themeObserver) { this._themeObserver.disconnect(); this._themeObserver = null; }
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
@@ -336,6 +388,17 @@ module.exports = class WordSmith extends Plugin {
 				this.settings.letterboxPx = this.settings.letterboxRatio * 200;
 			delete this.settings.letterboxRatio;
 		}
+		// Migrate the old single-field retro bar format into the center slot
+		// of the new left/center/right layout.
+		if (this.settings.statusFormatText != null) {
+			this.settings.statusFormatCenter = this.settings.statusFormatText;
+			delete this.settings.statusFormatText;
+		}
+		// The ASCII arrow style was removed (too similar to Chevron) — carry
+		// anyone still on it over to the closest replacement.
+		if (this.settings.arrowStyle === 'ascii') {
+			this.settings.arrowStyle = 'chevron';
+		}
 		// Transient UI state that older versions leaked into data.json, plus
 		// settings for the removed exit button. Dropped on next save.
 		delete this.settings._lastArrowCount;
@@ -372,19 +435,37 @@ module.exports = class WordSmith extends Plugin {
 
 	refresh() {
 		this.updateWsRibbonState();
-		if (!this.settings.pluginEnabled) { this.disablePlugin(); return; }
+		if (!this.settings.pluginEnabled) { this.disablePlugin(); this.reconfigureEditors(); return; }
 		this.applyBodyClasses();
 		this.applyCssVariables();
 		this.updateStyleEl();
 		this.updateWorkspaceAesthetics();
 		this.setSidebarVisibility();
 		this.updateFocusedFileMode();
+		this.typewriterScroll();
+		// The dim/marker decorations read settings only when (re)built, so a
+		// settings change needs the editors reconfigured to take effect.
+		this.reconfigureEditors();
 		if (this.settings.enableFileTreeCounts || this.settings.enableOutlineCounts) {
 			this.attachExplorerObserver();
 		} else {
 			this.detachExplorerObserver();
 			this.removeWordCounts();
 		}
+	}
+
+	// Swaps the registered extension array's contents for freshly built
+	// plugin instances, then reconfigures every open editor. Both halves are
+	// required: updateOptions() alone with the same extension values is a
+	// no-op (CM6 keeps the old instances), and swapping without
+	// updateOptions() never reaches the editors. With the plugin disabled
+	// the array is emptied, which fully removes the decorations.
+	reconfigureEditors() {
+		if (CM && this.editorExtensions) {
+			this.editorExtensions.length = 0;
+			this.editorExtensions.push(...this.buildEditorExtensions());
+		}
+		try { this.app.workspace.updateOptions(); } catch (_) {}
 	}
 
 	// Tear down everything without unloading the plugin
@@ -397,15 +478,19 @@ module.exports = class WordSmith extends Plugin {
 		this.removeWordCounts();
 		this.detachScrollHandler();
 		this.detachResizeHandler();
+		this.applyNativeStatusBarVisibility(false);
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 		// Strip all body classes and attributes
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-linked-mentions', 'zg-para-indent',
-			'zg-justify', 'zg-masks-active'
+			'zg-justify', 'zg-masks-active', 'zenmode-hide-ribbon', 'zg-retrobar-active'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
+		// The horizontal padding rule is unscoped (applies always), so it
+		// needs its own reset when the plugin itself is turned off.
+		document.documentElement.style.removeProperty('--zg-editor-padding-h');
 		// Restore tab containers
 		document.querySelectorAll('.workspace-tabs').forEach(el => {
 			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
@@ -424,11 +509,20 @@ module.exports = class WordSmith extends Plugin {
 	applyBodyClasses() {
 		const body = document.body;
 		const zen  = this.settings.zenMode;
+		// The retro bar visually replaces the native status bar, so it always
+		// hides it while active — independent of the separate "hide native
+		// status bar in zen mode" toggle below. These used to share a single
+		// setting, which meant flipping either one could silently flip the
+		// other's effect (e.g. turning the retro bar on/off would overwrite
+		// the zen-mode toggle's value, or vice versa).
+		const hideNativeStatusBar = this.settings.enableRetroStatus || (zen && this.settings.hideStatusBar);
 		body.classList.toggle('zenmode-active',             zen);
 		body.classList.toggle('zenmode-hide-properties',    zen && this.settings.hideProperties);
-		body.classList.toggle('zenmode-hide-status-bar',    this.settings.hideStatusBar);
+		body.classList.toggle('zenmode-hide-status-bar',    hideNativeStatusBar);
+		this.applyNativeStatusBarVisibility(hideNativeStatusBar);
 		body.classList.toggle('zenmode-hide-scroll-bar',    zen && this.settings.hideScrollBar);
 		body.classList.toggle('zenmode-hide-linked-mentions', zen && this.settings.hideLinkedMentions);
+		body.classList.toggle('zenmode-hide-ribbon',        zen && this.settings.hideRibbon);
 		body.classList.toggle('zg-para-indent',             this.settings.enableParagraphIndent);
 		body.classList.toggle('zg-justify',                 this.settings.justifyText);
 		body.classList.toggle('zg-masks-active',            this.settings.enableTypewriter && this.settings.enableLetterbox);
@@ -439,6 +533,20 @@ module.exports = class WordSmith extends Plugin {
 			body.removeAttribute('data-zen-hide-inline-title');
 			body.removeAttribute('data-zen-focused-file');
 		}
+	}
+
+	// Hides/restores the native status bar via an inline
+	// display:none!important. The class-based CSS rule alone proved
+	// unreliable: themes and snippets commonly style .status-bar with
+	// higher-specificity or !important rules that outrank a descendant
+	// selector, which let the native bar show through the retro bar's
+	// goal-met flash (whose strobe dips the retro bar's opacity). An inline
+	// important declaration cannot be beaten by any stylesheet rule.
+	applyNativeStatusBarVisibility(hide) {
+		const nb = document.querySelector('.status-bar');
+		if (!nb) return;
+		if (hide) nb.style.setProperty('display', 'none', 'important');
+		else nb.style.removeProperty('display');
 	}
 
 	applyCssVariables() {
@@ -472,6 +580,7 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 
 	updateStyleEl() {
+		if (!this.settings.pluginEnabled) { this.removeStyleEl(); return; }
 		if (!this.styleEl) {
 			this.styleEl = document.head.createEl('style');
 			this.styleEl.id = 'zengrinder-injected';
@@ -499,6 +608,16 @@ module.exports = class WordSmith extends Plugin {
 			const ls = String(this.settings.lineSpacing);
 			rules.push('.cm-content { line-height: ' + ls + ' !important; }');
 			rules.push('.markdown-preview-view { line-height: ' + ls + ' !important; }');
+		}
+		if (this.settings.highlightCurrentLine) {
+			const isDark = document.body.classList.contains('theme-dark');
+			const hex     = isDark ? this.settings.lineHighlightDarkColor : this.settings.lineHighlightLightColor;
+			const opacity = this.settings.lineHighlightOpacity != null ? this.settings.lineHighlightOpacity : 0.35;
+			rules.push('.cm-active.cm-line { background-color: ' + this.hexToRgba(hex, opacity) + ' !important; }');
+		}
+		if (this.settings.dimUnfocusedEnabled) {
+			const opacity = this.settings.dimOpacity != null ? this.settings.dimOpacity : 0.35;
+			rules.push('.zg-dim-line, .zg-dim-text { opacity: ' + opacity + '; transition: opacity 0.15s ease; }');
 		}
 		this.styleEl.textContent = rules.join('\n');
 		if (this.settings.enableParagraphIndent && this.settings.paragraphIndentMode !== 'single') {
@@ -742,6 +861,9 @@ module.exports = class WordSmith extends Plugin {
 		if (this.settings.enableParagraphIndent && this.settings.paragraphIndentMode !== 'single') {
 			this.attachParaTagger();
 		}
+		// (Focus dimming and hidden markers are CM6 decorations registered
+		// once via registerEditorExtension — they follow every editor
+		// automatically and need no per-leaf re-binding here.)
 
 		// Letterbox masks + typewriter: driven by enableTypewriter, not zenMode
 		if (this.settings.enableTypewriter) {
@@ -789,6 +911,13 @@ module.exports = class WordSmith extends Plugin {
 		if (this.retroStatusBarEl) {
 			this.retroStatusBarEl.classList.toggle('zengrinder-status-border', this.settings.statusBarBorder);
 		}
+		// Body class lets CSS lift bottom editor panels (vim ":" command
+		// line etc.) above the bar — see styles.css.
+		document.body.classList.toggle('zg-retrobar-active', !!this.retroStatusBarEl);
+		// Re-stamp on every call (runs on leaf changes) so a status bar
+		// element created after plugin load is still caught.
+		this.applyNativeStatusBarVisibility(
+			this.settings.enableRetroStatus || (this.settings.zenMode && this.settings.hideStatusBar));
 		this.applyCssVariables();
 	}
 
@@ -824,6 +953,20 @@ module.exports = class WordSmith extends Plugin {
 		return (this.batteryCharging ? '⚡︎' : '') + this.batteryLevel + '%';
 	}
 
+	// Converts a #rrggbb / #rgb hex color plus an alpha (0–1) into an
+	// rgba() string, so a single color-picker + slider pair can produce a
+	// translucent highlight without needing CSS color-mix() support.
+	hexToRgba(hex, alpha) {
+		if (!hex) return 'transparent';
+		let h = hex.replace('#', '');
+		if (h.length === 3) h = h.split('').map(c => c + c).join('');
+		const r = parseInt(h.substring(0, 2), 16) || 0;
+		const g = parseInt(h.substring(2, 4), 16) || 0;
+		const b = parseInt(h.substring(4, 6), 16) || 0;
+		const a = Math.max(0, Math.min(1, alpha != null ? alpha : 1));
+		return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+	}
+
 	formatDate(now) {
 		const dd = String(now.getDate()).padStart(2, '0');
 		const mm = String(now.getMonth() + 1).padStart(2, '0');
@@ -840,6 +983,7 @@ module.exports = class WordSmith extends Plugin {
 	getFilePath(view) {
 		const file = view && view.file;
 		if (!file) return 'no file';
+		if (this.settings.fileTokenFormat === 'name') return file.basename;
 		const parts = file.path.split('/');
 		return (parts.length <= 1 ? '~/' : '~/' + parts.slice(0, -1).join('/') + '/') + file.basename;
 	}
@@ -915,6 +1059,67 @@ module.exports = class WordSmith extends Plugin {
 		return { text: count.toLocaleString() + '/' + target.toLocaleString(), ratio, met: count >= target };
 	}
 
+	// Reads CapsLock/NumLock state off a keyboard event and refreshes the
+	// retro bar when either changes. Not every keyboard event supports
+	// getModifierState (and NumLock has no meaning on keyboards/OSes without
+	// a physical numpad concept, e.g. most Mac laptops), so this fails quiet.
+	updateModifierState(evt) {
+		if (!evt || typeof evt.getModifierState !== 'function') return;
+		let changed = false;
+		try {
+			const caps = evt.getModifierState('CapsLock');
+			if (caps !== this._capsLockOn) { this._capsLockOn = caps; changed = true; }
+		} catch (_) { /* getModifierState with an unsupported key name can throw */ }
+		try {
+			const num = evt.getModifierState('NumLock');
+			if (num !== this._numLockOn) { this._numLockOn = num; changed = true; }
+		} catch (_) {}
+		if (changed) this.updateRetroStatusBar();
+	}
+
+	// Best-effort Vim mode label for {vim}. Obsidian's Vim mode is backed by
+	// @replit/codemirror-vim, which exposes its state on a CM5-compatible
+	// facade at editor.cm.cm — not officially documented, but it's the same
+	// access pattern community Vim-status plugins rely on. Falls back to ''
+	// (token renders empty) any time the shape isn't what's expected, e.g.
+	// Vim mode is off, or a future Obsidian version changes internals.
+	getVimModeLabel() {
+		try {
+			const vault = this.app.vault;
+			if (!vault.config || vault.config.vimMode !== true) return '';
+
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			const cm6  = view && view.editor && view.editor.cm;
+			const cm5  = cm6 && cm6.cm;
+			const vim  = cm5 && cm5.state && cm5.state.vim;
+			if (!vim) return '';
+
+			// Replace mode (R) is represented as insert mode with the CM5
+			// facade's overwrite flag set — vim.replaceMode alone is not
+			// reliable across versions, which is why REPLACE never showed.
+			if (vim.insertMode) {
+				return (cm5.state.overwrite || vim.replaceMode) ? '-- REPLACE --' : '-- INSERT --';
+			}
+			if (vim.replaceMode) return '-- REPLACE --';
+			if (vim.visualMode) {
+				if (vim.visualBlock) return '-- VISUAL BLOCK --';
+				if (vim.visualLine)  return '-- VISUAL LINE --';
+				return '-- VISUAL --';
+			}
+			switch (vim.mode) {
+				case 'insert':  return '-- INSERT --';
+				case 'replace': return '-- REPLACE --';
+				case 'visual':  return '-- VISUAL --';
+			}
+			// The ex command-line (":") prompt doesn't flip `mode` in every
+			// version of the vim layer, so also check for its dialog in the DOM.
+			if (document.querySelector('.cm-vim-panel, .CodeMirror-dialog')) return '-- COMMAND --';
+			return '-- NORMAL --';
+		} catch (_) {
+			return '';
+		}
+	}
+
 	updateRetroStatusBar() {
 		if (!this.retroStatusBarEl) return;
 
@@ -937,9 +1142,8 @@ module.exports = class WordSmith extends Plugin {
 			}
 		}
 
-		const goal    = this.formatGoal(totalWC);
-		const hasGoal = this.settings.statusFormatText.includes('{goal}');
-		const subs    = {
+		const goal = this.formatGoal(totalWC);
+		const subs = {
 			'{file}':      this.getFilePath(view),
 			'{words}':     displayWC,
 			'{chars}':     displayCC,
@@ -947,11 +1151,16 @@ module.exports = class WordSmith extends Plugin {
 			'{date}':      this.formatDate(now),
 			'{battery}':   this.formatBattery(),
 			'{paragraph}': this.getParagraphInfo(view, stats),
+			'{caps}':      this._capsLockOn ? 'CAPS' : '',
+			'{nump}':      this._numLockOn ? 'NUMP' : '',
+			'{vim}':       this.getVimModeLabel(),
 			'{goal}':      '\x00GOAL\x00'
 		};
 
-		let out = this.settings.statusFormatText;
-		for (const token in subs) out = out.split(token).join(String(subs[token]));
+		const left   = this.settings.statusFormatLeft   || '';
+		const center = this.settings.statusFormatCenter || '';
+		const right  = this.settings.statusFormatRight  || '';
+		const hasGoal = left.includes('{goal}') || center.includes('{goal}') || right.includes('{goal}');
 
 		// Click-to-reset
 		if (hasGoal) {
@@ -975,19 +1184,13 @@ module.exports = class WordSmith extends Plugin {
 		}
 		this._zgLastTotalWordCount = totalWC;
 
-		if (out.includes('\x00GOAL\x00')) {
-			const parts = out.split('\x00GOAL\x00');
-			this.retroStatusBarEl.empty();
-			if (parts[0]) this.retroStatusBarEl.appendText(parts[0]);
-			if (this.settings.goalDisplay === 'bar') {
-				this.retroStatusBarEl.appendChild(this.buildGoalBar(goal.ratio));
-			} else {
-				this.retroStatusBarEl.createSpan({ cls: 'zg-goal-text', text: goal.text });
-			}
-			if (parts[1]) this.retroStatusBarEl.appendText(parts[1]);
-		} else {
-			this.retroStatusBarEl.setText(out);
-		}
+		this.retroStatusBarEl.empty();
+		const leftEl   = this.retroStatusBarEl.createSpan({ cls: 'zg-status-section zg-status-left' });
+		const centerEl = this.retroStatusBarEl.createSpan({ cls: 'zg-status-section zg-status-center' });
+		const rightEl  = this.retroStatusBarEl.createSpan({ cls: 'zg-status-section zg-status-right' });
+		leftEl.appendChild(this.renderStatusSection(left, subs, goal));
+		centerEl.appendChild(this.renderStatusSection(center, subs, goal));
+		rightEl.appendChild(this.renderStatusSection(right, subs, goal));
 
 		// Flash the bar when goal is met (if enabled)
 		this.retroStatusBarEl.classList.toggle('zg-goal-met', goal.met && this.settings.goalFlashEnabled);
@@ -995,6 +1198,35 @@ module.exports = class WordSmith extends Plugin {
 		// Shrink font size if the content overflows the bar's current width
 		// (e.g. when a sidebar is open and the note pane narrows).
 		this.fitStatusBarText();
+	}
+
+	// Turns one of the three format strings (left/center/right) into a DOM
+	// fragment, substituting tokens and swapping in the live goal-bar element
+	// where {goal} appeared (rather than plain text, when the bar display
+	// style is chosen).
+	renderStatusSection(formatStr, subs, goal) {
+		const frag = document.createDocumentFragment();
+		if (!formatStr) return frag;
+
+		let out = formatStr;
+		for (const token in subs) out = out.split(token).join(String(subs[token]));
+
+		if (out.includes('\x00GOAL\x00')) {
+			const parts = out.split('\x00GOAL\x00');
+			if (parts[0]) frag.appendChild(document.createTextNode(parts[0]));
+			if (this.settings.goalDisplay === 'bar') {
+				frag.appendChild(this.buildGoalBar(goal.ratio));
+			} else {
+				const span = document.createElement('span');
+				span.className = 'zg-goal-text';
+				span.textContent = goal.text;
+				frag.appendChild(span);
+			}
+			if (parts[1]) frag.appendChild(document.createTextNode(parts[1]));
+		} else if (out) {
+			frag.appendChild(document.createTextNode(out));
+		}
+		return frag;
 	}
 
 	// Reduce the retro bar's font size until the text fits its current width,
@@ -1220,6 +1452,7 @@ module.exports = class WordSmith extends Plugin {
 	removeCustomElements() {
 		// Tear down retro bar
 		if (this.retroStatusBarEl) { this.retroStatusBarEl.remove(); this.retroStatusBarEl = null; }
+		document.body.classList.remove('zg-retrobar-active');
 		this.stopClockTick();
 		// Tear down masks
 		this.removeMaskElements();
@@ -1296,9 +1529,180 @@ module.exports = class WordSmith extends Plugin {
 				lineHeight = coords.bottom - coords.top;
 			} catch (_) { return; }
 		}
-		const target = lineTop + lineHeight / 2 - scroller.clientHeight / 2;
+		// Cursor's vertical anchor within the scroller, expressed as a ratio
+		// derived from "keep N lines above / M lines below" — defaults of 8/8
+		// reproduce the previous fixed dead-center (0.5) behaviour.
+		const linesAbove = Math.max(0, this.settings.typewriterLinesAbove != null ? this.settings.typewriterLinesAbove : 8);
+		const linesBelow = Math.max(0, this.settings.typewriterLinesBelow != null ? this.settings.typewriterLinesBelow : 8);
+		const totalLines = linesAbove + linesBelow;
+		const ratioAbove  = totalLines > 0 ? linesAbove / totalLines : 0.5;
+		const target = lineTop + lineHeight / 2 - scroller.clientHeight * ratioAbove;
 		if (Math.abs(scroller.scrollTop - target) < 1) return;
 		scroller.scrollTop = target;
+	}
+
+	// ─────────────────────────────────────────────────────────────────────────
+	// CM6 editor extensions: focus dimming + hidden markers
+	// ─────────────────────────────────────────────────────────────────────────
+	// Both features are implemented as CodeMirror decorations so they render
+	// inside the editor's own pipeline — recomputed atomically with every
+	// transaction, never racing CM6's DOM reconciliation the way the earlier
+	// MutationObserver approach did (which is what caused the flicker).
+	// The extensions read this.settings at build time, so they self-disable
+	// when toggled off; refresh() calls workspace.updateOptions() to force a
+	// rebuild whenever settings change.
+	//
+	// "Sentence" dim mode is approximated as the current line: decorations
+	// could technically split a line into per-sentence marks, but Obsidian's
+	// live-preview widgets (checkboxes, embeds, rendered links) sit inside
+	// lines at unpredictable offsets, so line granularity is what's reliable.
+
+	setupEditorExtensions() {
+		if (!CM) return; // @codemirror modules unavailable — features off
+		// A mutable array is registered ONCE; reconfigureEditors() then swaps
+		// its contents and calls workspace.updateOptions(), which is the
+		// standard Obsidian pattern for dynamic editor extensions.
+		this.editorExtensions = [];
+		this.editorExtensions.push(...this.buildEditorExtensions());
+		this.registerEditorExtension(this.editorExtensions);
+	}
+
+	// Factory that creates FRESH ViewPlugin values each call. This matters:
+	// workspace.updateOptions() with unchanged extension values is a no-op —
+	// CM6 keeps the existing plugin instances and never re-runs their
+	// constructors — so settings toggles silently did nothing until some
+	// unrelated edit/scroll happened to trigger an update(). Recreating the
+	// plugins forces real reconfiguration and an immediate rebuild.
+	buildEditorExtensions() {
+		if (!CM || !this.settings.pluginEnabled) return [];
+		const plugin = this;
+		const { ViewPlugin, Decoration, WidgetType, RangeSetBuilder } = CM;
+
+		class InvisibleWidget extends WidgetType {
+			constructor(text) { super(); this.text = text; }
+			eq(other) { return other.text === this.text; }
+			toDOM() {
+				const s = document.createElement('span');
+				s.className = 'zg-invisible';
+				s.textContent = this.text;
+				return s;
+			}
+			ignoreEvent() { return true; }
+		}
+		const PILCROW  = Decoration.widget({ widget: new InvisibleWidget('¶'), side: 1 });
+		const NEWLINE  = Decoration.widget({ widget: new InvisibleWidget('↵'), side: 1 });
+		const dimDeco   = Decoration.line({ class: 'zg-dim-line' });
+		const dimText   = Decoration.mark({ class: 'zg-dim-text' });
+		const spaceDeco = Decoration.mark({ class: 'zg-ws-space' });
+		const tabDeco   = Decoration.mark({ class: 'zg-ws-tab' });
+
+		// ── Focus dimming ─────────────────────────────────────────────────────
+		const dimPlugin = ViewPlugin.fromClass(class {
+			constructor(view) { this.decorations = this.build(view); }
+			update(u) {
+				if (u.docChanged || u.selectionSet || u.viewportChanged || u.focusChanged) {
+					this.decorations = this.build(u.view);
+				}
+			}
+			build(view) {
+				const s = plugin.settings;
+				if (!s.pluginEnabled || !s.enableTypewriter || !s.dimUnfocusedEnabled) return Decoration.none;
+				const doc  = view.state.doc;
+				const head = view.state.selection.main.head;
+				const cur  = doc.lineAt(head);
+				// Paragraph bounds (blank-line delimited) around the cursor.
+				let pStart = cur.number, pEnd = cur.number;
+				while (pStart > 1 && doc.line(pStart - 1).text.trim() !== '') pStart--;
+				while (pEnd < doc.lines && doc.line(pEnd + 1).text.trim() !== '') pEnd++;
+				// Focus range in absolute doc positions. Paragraph mode keeps
+				// the whole paragraph; sentence mode narrows it to the sentence
+				// under the cursor by scanning the paragraph text for sentence
+				// terminators (., !, ?, …, optionally followed by closing
+				// quotes/brackets, then whitespace or paragraph end).
+				let focusFrom = doc.line(pStart).from;
+				let focusTo   = doc.line(pEnd).to;
+				if (s.dimFocusMode === 'sentence') {
+					const paraText = doc.sliceString(focusFrom, focusTo);
+					const rel = Math.min(Math.max(head - focusFrom, 0), paraText.length);
+					const re = /[.!?\u2026]+["'\u201d\u2019)\]]*(\s+|$)/g;
+					let sFrom = 0, sTo = paraText.length, m;
+					while ((m = re.exec(paraText))) {
+						const termEnd  = m.index + m[0].replace(/\s+$/, '').length; // end of terminator
+						const boundEnd = m.index + m[0].length;                     // after trailing whitespace
+						if (boundEnd <= rel) { sFrom = boundEnd; }
+						else { sTo = termEnd; break; }
+					}
+					focusTo   = focusFrom + sTo;   // compute before mutating focusFrom
+					focusFrom = focusFrom + sFrom;
+				}
+				const b = new RangeSetBuilder();
+				for (const range of view.visibleRanges) {
+					let pos = range.from;
+					while (pos <= range.to) {
+						const line = doc.lineAt(pos);
+						if (line.to < focusFrom || line.from > focusTo) {
+							// Entirely outside the focus area → dim the whole line.
+							b.add(line.from, line.from, dimDeco);
+						} else {
+							// Line overlaps the focus area (sentence mode) → dim
+							// only the stretches of it outside the sentence.
+							if (line.from < focusFrom) b.add(line.from, Math.min(focusFrom, line.to), dimText);
+							if (focusTo < line.to)     b.add(Math.max(focusTo, line.from), line.to, dimText);
+						}
+						pos = line.to + 1;
+					}
+				}
+				return b.finish();
+			}
+		}, { decorations: v => v.decorations });
+
+		// ── Hidden markers ────────────────────────────────────────────────────
+		const markerPlugin = ViewPlugin.fromClass(class {
+			constructor(view) { this.decorations = this.build(view); }
+			update(u) {
+				if (u.docChanged || u.viewportChanged) {
+					this.decorations = this.build(u.view);
+				}
+			}
+			build(view) {
+				const s = plugin.settings;
+				if (!s.pluginEnabled || !s.showHiddenMarkers) return Decoration.none;
+				const showSp  = s.markSpaces, showTab = s.markTabs;
+				const showPar = s.markParagraphs, showEol = s.markEndOfLines;
+				if (!showSp && !showTab && !showPar && !showEol) return Decoration.none;
+				const doc  = view.state.doc;
+				const b    = new RangeSetBuilder();
+				const wsRe = /[ \t]/g;
+				for (const range of view.visibleRanges) {
+					let pos = range.from;
+					while (pos <= range.to) {
+						const line = doc.lineAt(pos);
+						if (showSp || showTab) {
+							wsRe.lastIndex = 0;
+							let m;
+							while ((m = wsRe.exec(line.text))) {
+								const isTab = m[0] === '\t';
+								if (isTab ? showTab : showSp) {
+									b.add(line.from + m.index, line.from + m.index + 1, isTab ? tabDeco : spaceDeco);
+								}
+							}
+						}
+						// A blank line shows ¶ (paragraph break); every other line
+						// end shows ↵ — except the last line, which has no newline.
+						const blank = line.text.trim() === '';
+						if (blank && showPar) {
+							b.add(line.to, line.to, PILCROW);
+						} else if (showEol && line.number < doc.lines) {
+							b.add(line.to, line.to, NEWLINE);
+						}
+						pos = line.to + 1;
+					}
+				}
+				return b.finish();
+			}
+		}, { decorations: v => v.decorations });
+
+		return [dimPlugin, markerPlugin];
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -1428,9 +1832,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 	constructor(app, plugin) {
 		super(app, plugin);
 		this.plugin = plugin;
-		// Transient UI memory (last non-zero arrow count) lives here — on the
-		// tab instance — so it never gets persisted into data.json.
+		// Transient UI memory (last non-zero arrow count, active tab) lives here
+		// — on the tab instance — so it never gets persisted into data.json.
 		this._lastArrowCount = null;
+		this._activeTab = 'zen';
 	}
 
 	display() {
@@ -1445,7 +1850,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			.addToggle(t => t.setValue(this.plugin.settings.pluginEnabled)
 				.onChange(async v => {
 					this.plugin.settings.pluginEnabled = v;
-					await this.plugin.saveSettings();
+					await this.plugin.saveSettings(true); // master switch lands immediately, not debounced
 					this.display();
 				}));
 
@@ -1453,7 +1858,36 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
-		// ── Zen Mode toggle + inline options ───────────────────────────────────
+		// ── Tab bar ──────────────────────────────────────────────────────────────
+		const TABS = [
+			{ id: 'zen',        label: 'Zen',          render: this.displayZenTab },
+			{ id: 'typewriter', label: 'Typewriter',   render: this.displayTypewriterTab },
+			{ id: 'mask',       label: 'Mask',         render: this.displayMaskTab },
+			{ id: 'retrobar',   label: 'Retro Bar',    render: this.displayRetroBarTab },
+			{ id: 'text',       label: 'Text Options', render: this.displayTextTab }
+		];
+		if (!this._activeTab || !TABS.some(t => t.id === this._activeTab)) this._activeTab = TABS[0].id;
+
+		const navEl = containerEl.createEl('div', { cls: 'ws-tab-nav' });
+		TABS.forEach(tab => {
+			const btn = navEl.createEl('button', {
+				text: tab.label,
+				cls: 'ws-tab-btn' + (this._activeTab === tab.id ? ' is-active' : '')
+			});
+			btn.addEventListener('click', () => {
+				if (this._activeTab === tab.id) return;
+				this._activeTab = tab.id;
+				this.display();
+			});
+		});
+
+		const bodyEl = containerEl.createEl('div', { cls: 'ws-tab-body' });
+		const active = TABS.find(t => t.id === this._activeTab);
+		active.render.call(this, bodyEl);
+	}
+
+	// ── Zen tab ────────────────────────────────────────────────────────────────
+	displayZenTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Zen mode')
 			.setDesc('Hide UI chrome and collapse sidebars for distraction-free writing.')
@@ -1471,17 +1905,20 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const hide = this.sub(z);
 			this.toggle(hide, 'Properties',       'Hide note properties / frontmatter.',   'hideProperties');
 			this.toggle(hide, 'Inline title',      'Hide the inline note title.',            'hideInlineTitle');
-			this.toggle(hide, 'Native status bar', 'Hide Obsidian\'s built-in status bar.', 'hideStatusBar');
+			this.toggle(hide, 'Native status bar', 'Hide Obsidian\'s built-in status bar in zen mode. (The retro bar always hides it while active, regardless of this setting.)', 'hideStatusBar');
 			this.toggle(hide, 'Linked mentions',   'Hide linked mentions panel.',            'hideLinkedMentions');
 			this.toggle(hide, 'Scroll bar',        'Hide the editor scroll bar.',            'hideScrollBar');
+			this.toggle(hide, 'Ribbon',            'Hide the left ribbon bar.',               'hideRibbon');
 
 			this.label(z, 'Padding');
 			const pad = this.sub(z);
 			this.slider(pad, 'Top',    'Extra space above editor content (0–100 px).', 'topPadding',    0, 100, 1);
 			this.slider(pad, 'Bottom', 'Extra space below editor content (0–100 px).', 'bottomPadding', 0, 100, 1);
 		}
+	}
 
-		// ── Typewriter toggle + inline options ─────────────────────────────────
+	// ── Typewriter tab ─────────────────────────────────────────────────────────
+	displayTypewriterTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Typewriter mode')
 			.setDesc('Keep the cursor line vertically centred as you type.')
@@ -1493,90 +1930,133 @@ class WordSmithSettingTab extends PluginSettingTab {
 				}));
 
 		if (this.plugin.settings.enableTypewriter) {
+			containerEl.createEl('p', { text: 'Letterbox masks and arrows have their own settings on the Mask tab. Horizontal text padding now lives on the Text Options tab.', cls: 'ws-settings-note' });
+
 			const tw = this.sub(containerEl);
 
-			this.slider(tw, 'Horizontal padding', 'Left/right text padding inside the editor.', 'editorPaddingH', 0, 400, 10);
-
-			this.label(tw, 'Letterbox masks');
-			this.toggle(tw, 'Enable letterbox', 'Top and bottom masks framing the writing area (active in zen mode).', 'enableLetterbox', () => this.display());
-
-			if (this.plugin.settings.enableLetterbox) {
-				const ls = this.sub(tw);
-
-				new Setting(ls).setName('Mask height (px)').setDesc('Drag the separator line in zen mode to adjust live.')
-					.addSlider(s => s.setLimits(0, 400, 4)
-						.setValue(this.plugin.settings.letterboxPx != null
-							? Math.round(this.plugin.settings.letterboxPx)
-							: (this.plugin.settings.letterboxLines || 8) * 26)
-						.setDynamicTooltip()
-						.onChange(async v => { this.plugin.settings.letterboxPx = v; await this.plugin.saveSettings(); }));
-
-				this.slider(ls, 'Horizontal inset', 'Insets the arrow/line layer. Drag the arrow row to adjust live.', 'maskPaddingH', 0, 400, 10);
-
-				new Setting(ls).setName('Show arrows').setDesc('Arrow characters along the mask edges.')
-					.addToggle(t => t.setValue(this.plugin.settings.arrowCount > 0)
-						.onChange(async v => {
-							if (!v) this._lastArrowCount = this.plugin.settings.arrowCount || 5;
-							this.plugin.settings.arrowCount = v ? (this._lastArrowCount || 5) : 0;
-							await this.plugin.saveSettings(); this.display();
-						}));
-
-				if (this.plugin.settings.arrowCount > 0) {
-					const as = this.sub(ls);
-					new Setting(as).setName('Arrow style')
-						.addDropdown(d => d
-							.addOption('solid-triangle',   '▲ / ▼  Solid triangles')
-							.addOption('outline-triangle', '△ / ▽  Outline triangles')
-							.addOption('standard-arrow',   '↑ / ↓  Standard arrows')
-							.addOption('chevron',          '∧ / ∨  Chevrons')
-							.addOption('double-chevron',   '⇑ / ⇓  Double chevrons')
-							.addOption('ascii',            '^  /  v  ASCII')
-							.addOption('custom',           'Custom characters')
-							.setValue(this.plugin.settings.arrowStyle)
-							.onChange(async v => { this.plugin.settings.arrowStyle = v; await this.plugin.saveSettings(); this.display(); }));
-					if (this.plugin.settings.arrowStyle === 'custom') {
-						new Setting(as).setName('Top char').addText(t => t.setValue(this.plugin.settings.customArrowTop).onChange(async v => { this.plugin.settings.customArrowTop = v || '^'; await this.plugin.saveSettings(); }));
-						new Setting(as).setName('Bottom char').addText(t => t.setValue(this.plugin.settings.customArrowBottom).onChange(async v => { this.plugin.settings.customArrowBottom = v || 'v'; await this.plugin.saveSettings(); }));
-					}
-					this.numInput(as, 'Arrow count', 'Number per row (1–10).', 'arrowCount', 1, 10);
-					this.slider(as, 'Arrow scale', 'Size multiplier.', 'arrowScale', 0.5, 3, 0.1);
-				}
-
-				this.label(ls, 'Separator line');
-				new Setting(ls).setName('Line style')
-					.addDropdown(d => d
-						.addOption('none',   'None (hidden)')
-						.addOption('solid',  'Solid ——')
-						.addOption('dashed', 'Dashed - - -')
-						.addOption('dotted', 'Dotted · · ·')
-						.addOption('double', 'Double ═══')
-						.setValue(this.plugin.settings.separatorStyle)
-						.onChange(async v => { this.plugin.settings.separatorStyle = v; await this.plugin.saveSettings(); }));
-				this.slider(ls, 'Line weight', 'Thickness (1–8 px).', 'separatorWeight', 1, 8, 1);
-
-				this.label(ls, 'Colors');
-				ls.createEl('p', { text: 'Dark and light variants switch automatically with your theme.', cls: 'ws-settings-note' });
-				this.label(ls, 'Dark theme');
-				const cdk = this.sub(ls);
-				new Setting(cdk).setName('Arrows color').addColorPicker(cp => cp.setValue(this.plugin.settings.arrowDarkColor).onChange(async v => { this.plugin.settings.arrowDarkColor = v; await this.plugin.saveSettings(); }));
-				new Setting(cdk).setName('Separator line color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineDarkColor).onChange(async v => { this.plugin.settings.lineDarkColor = v; await this.plugin.saveSettings(); }));
-				this.label(ls, 'Light theme');
-				const clt = this.sub(ls);
-				new Setting(clt).setName('Arrows color').addColorPicker(cp => cp.setValue(this.plugin.settings.arrowLightColor).onChange(async v => { this.plugin.settings.arrowLightColor = v; await this.plugin.saveSettings(); }));
-				new Setting(clt).setName('Separator line color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineLightColor).onChange(async v => { this.plugin.settings.lineLightColor = v; await this.plugin.saveSettings(); }));
+			// ── Current line highlight ─────────────────────────────────────────
+			this.label(tw, 'Current line highlight');
+			this.toggle(tw, 'Highlight current line', 'Tint the background of the line the cursor is on.', 'highlightCurrentLine', () => this.display());
+			if (this.plugin.settings.highlightCurrentLine) {
+				const hl = this.sub(tw);
+				new Setting(hl).setName('Dark theme color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineHighlightDarkColor).onChange(async v => { this.plugin.settings.lineHighlightDarkColor = v; await this.plugin.saveSettings(); }));
+				new Setting(hl).setName('Light theme color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineHighlightLightColor).onChange(async v => { this.plugin.settings.lineHighlightLightColor = v; await this.plugin.saveSettings(); }));
+				this.slider(hl, 'Opacity', 'How strong the tint is.', 'lineHighlightOpacity', 0.05, 1, 0.05);
 			}
+
+			// ── Cursor position ─────────────────────────────────────────────────
+			this.label(tw, 'Cursor position');
+			tw.createEl('p', { text: 'How many lines of context to keep above/below the cursor. Equal values keep it dead-centre (the default).', cls: 'ws-settings-note' });
+			const pos = this.sub(tw);
+			this.numInput(pos, 'Lines above cursor', '', 'typewriterLinesAbove', 0, 40);
+			this.numInput(pos, 'Lines below cursor', '', 'typewriterLinesBelow', 0, 40);
+
+			// ── Focus dimming ────────────────────────────────────────────────────
+			this.label(tw, 'Focus dimming');
+			this.toggle(tw, 'Dim unfocused text', 'Fade everything outside the focus area while you write.', 'dimUnfocusedEnabled', () => this.display());
+			if (this.plugin.settings.dimUnfocusedEnabled) {
+				const dim = this.sub(tw);
+				new Setting(dim).setName('Focus area')
+					.addDropdown(d => d
+						.addOption('paragraph', 'Paragraph')
+						.addOption('sentence',  'Sentence')
+						.setValue(this.plugin.settings.dimFocusMode || 'paragraph')
+						.onChange(async v => { this.plugin.settings.dimFocusMode = v; await this.plugin.saveSettings(); }));
+				this.slider(dim, 'Opacity', 'Opacity of the dimmed, unfocused text.', 'dimOpacity', 0.05, 1, 0.05);
+			}
+		} else {
+			containerEl.createEl('p', {
+				text: 'Turn this on to also use the letterbox masks on the Mask tab — they require typewriter mode to be active.',
+				cls: 'ws-settings-note'
+			});
+		}
+	}
+
+	// ── Mask (arrows) tab ──────────────────────────────────────────────────────
+	displayMaskTab(containerEl) {
+		if (!this.plugin.settings.enableTypewriter) {
+			containerEl.createEl('p', {
+				text: 'Typewriter mode is off, so masks won\'t be visible yet. Enable it from the Typewriter tab.',
+				cls: 'ws-settings-note'
+			});
 		}
 
-		// ── Retro Bar toggle + inline options ──────────────────────────────────
+		this.toggle(containerEl, 'Enable letterbox', 'Top and bottom masks framing the writing area (active in zen mode).', 'enableLetterbox', () => this.display());
+
+		if (this.plugin.settings.enableLetterbox) {
+			const ls = this.sub(containerEl);
+
+			new Setting(ls).setName('Mask height (px)').setDesc('Drag the separator line in zen mode to adjust live.')
+				.addSlider(s => s.setLimits(0, 400, 4)
+					.setValue(this.plugin.settings.letterboxPx != null
+						? Math.round(this.plugin.settings.letterboxPx)
+						: (this.plugin.settings.letterboxLines || 8) * 26)
+					.setDynamicTooltip()
+					.onChange(async v => { this.plugin.settings.letterboxPx = v; await this.plugin.saveSettings(); }));
+
+			this.slider(ls, 'Horizontal inset', 'Insets the arrow/line layer. Drag the arrow row to adjust live.', 'maskPaddingH', 0, 400, 10);
+
+			new Setting(ls).setName('Show arrows').setDesc('Arrow characters along the mask edges.')
+				.addToggle(t => t.setValue(this.plugin.settings.arrowCount > 0)
+					.onChange(async v => {
+						if (!v) this._lastArrowCount = this.plugin.settings.arrowCount || 5;
+						this.plugin.settings.arrowCount = v ? (this._lastArrowCount || 5) : 0;
+						await this.plugin.saveSettings(); this.display();
+					}));
+
+			if (this.plugin.settings.arrowCount > 0) {
+				const as = this.sub(ls);
+				new Setting(as).setName('Arrow style')
+					.addDropdown(d => d
+						.addOption('solid-triangle',   '▲ / ▼  Solid triangles')
+						.addOption('outline-triangle', '△ / ▽  Outline triangles')
+						.addOption('standard-arrow',   '↑ / ↓  Standard arrows')
+						.addOption('chevron',          '∧ / ∨  Chevrons')
+						.addOption('double-chevron',   '⇑ / ⇓  Double chevrons')
+						.addOption('custom',           'Custom characters')
+						.setValue(this.plugin.settings.arrowStyle)
+						.onChange(async v => { this.plugin.settings.arrowStyle = v; await this.plugin.saveSettings(); this.display(); }));
+				if (this.plugin.settings.arrowStyle === 'custom') {
+					new Setting(as).setName('Top char').addText(t => t.setValue(this.plugin.settings.customArrowTop).onChange(async v => { this.plugin.settings.customArrowTop = v || '^'; await this.plugin.saveSettings(); }));
+					new Setting(as).setName('Bottom char').addText(t => t.setValue(this.plugin.settings.customArrowBottom).onChange(async v => { this.plugin.settings.customArrowBottom = v || 'v'; await this.plugin.saveSettings(); }));
+				}
+				this.numInput(as, 'Arrow count', 'Number per row (1–10).', 'arrowCount', 1, 10);
+				this.slider(as, 'Arrow scale', 'Size multiplier.', 'arrowScale', 0.5, 3, 0.1);
+			}
+
+			this.label(ls, 'Separator line');
+			new Setting(ls).setName('Line style')
+				.addDropdown(d => d
+					.addOption('none',   'None (hidden)')
+					.addOption('solid',  'Solid ——')
+					.addOption('dashed', 'Dashed - - -')
+					.addOption('dotted', 'Dotted · · ·')
+					.addOption('double', 'Double ═══')
+					.setValue(this.plugin.settings.separatorStyle)
+					.onChange(async v => { this.plugin.settings.separatorStyle = v; await this.plugin.saveSettings(); }));
+			this.slider(ls, 'Line weight', 'Thickness (1–8 px).', 'separatorWeight', 1, 8, 1);
+
+			this.label(ls, 'Colors');
+			ls.createEl('p', { text: 'Dark and light variants switch automatically with your theme.', cls: 'ws-settings-note' });
+			this.label(ls, 'Dark theme');
+			const cdk = this.sub(ls);
+			new Setting(cdk).setName('Arrows color').addColorPicker(cp => cp.setValue(this.plugin.settings.arrowDarkColor).onChange(async v => { this.plugin.settings.arrowDarkColor = v; await this.plugin.saveSettings(); }));
+			new Setting(cdk).setName('Separator line color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineDarkColor).onChange(async v => { this.plugin.settings.lineDarkColor = v; await this.plugin.saveSettings(); }));
+			this.label(ls, 'Light theme');
+			const clt = this.sub(ls);
+			new Setting(clt).setName('Arrows color').addColorPicker(cp => cp.setValue(this.plugin.settings.arrowLightColor).onChange(async v => { this.plugin.settings.arrowLightColor = v; await this.plugin.saveSettings(); }));
+			new Setting(clt).setName('Separator line color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineLightColor).onChange(async v => { this.plugin.settings.lineLightColor = v; await this.plugin.saveSettings(); }));
+		}
+	}
+
+	// ── Retro Bar tab ──────────────────────────────────────────────────────────
+	displayRetroBarTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Retro status bar')
 			.setDesc('Fixed retro-styled bar at the bottom. Auto-hides the native status bar while active.')
 			.addToggle(t => t.setValue(this.plugin.settings.enableRetroStatus)
 				.onChange(async v => {
 					this.plugin.settings.enableRetroStatus = v;
-					this.plugin.settings.hideStatusBar = v;
-					document.body.classList.toggle('zenmode-hide-status-bar',
-						this.plugin.settings.zenMode && v);
 					this.plugin.updateStatusBar();
 					this.plugin.updateRetroStatusBar();
 					await this.plugin.saveSettings();
@@ -1586,10 +2066,30 @@ class WordSmithSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.enableRetroStatus) {
 			const rb = this.sub(containerEl);
 
-			new Setting(rb).setName('Format').setDesc('Tokens: {file} {words} {chars} {time} {date} {battery} {paragraph} {goal}')
-				.addText(t => t.setPlaceholder(DEFAULT_SETTINGS.statusFormatText)
-					.setValue(this.plugin.settings.statusFormatText)
-					.onChange(async v => { this.plugin.settings.statusFormatText = v || '{file}'; await this.plugin.saveSettings(); }));
+			this.label(rb, 'Format');
+			rb.createEl('p', {
+				text: 'Tokens: {file} {words} {chars} {time} {date} {battery} {paragraph} {goal} {caps} {nump} {vim}',
+				cls: 'ws-settings-note'
+			});
+			const fmt = this.sub(rb);
+			new Setting(fmt).setName('Left').setDesc('Aligned to the left edge of the bar.')
+				.addText(t => t.setPlaceholder('e.g. {file}')
+					.setValue(this.plugin.settings.statusFormatLeft)
+					.onChange(async v => { this.plugin.settings.statusFormatLeft = v; await this.plugin.saveSettings(); }));
+			new Setting(fmt).setName('Center').setDesc('Centered in the bar.')
+				.addText(t => t.setPlaceholder(DEFAULT_SETTINGS.statusFormatCenter)
+					.setValue(this.plugin.settings.statusFormatCenter)
+					.onChange(async v => { this.plugin.settings.statusFormatCenter = v; await this.plugin.saveSettings(); }));
+			new Setting(fmt).setName('Right').setDesc('Aligned to the right edge of the bar.')
+				.addText(t => t.setPlaceholder('e.g. {vim}')
+					.setValue(this.plugin.settings.statusFormatRight)
+					.onChange(async v => { this.plugin.settings.statusFormatRight = v; await this.plugin.saveSettings(); }));
+			new Setting(fmt).setName('{file} format').setDesc('What the {file} token shows.')
+				.addDropdown(d => d
+					.addOption('path', 'Full path  ~/folder/note')
+					.addOption('name', 'File name only  note')
+					.setValue(this.plugin.settings.fileTokenFormat || 'path')
+					.onChange(async v => { this.plugin.settings.fileTokenFormat = v; await this.plugin.saveSettings(); this.plugin.updateRetroStatusBar(); }));
 			this.slider(rb, 'Font size', 'Font size (8–24 px).', 'statusBarFontSize', 8, 24, 1);
 			this.slider(rb, 'Height',    'Bar height (20–60 px).', 'statusBarHeight',   20, 60, 1);
 			this.toggle(rb, 'Top border', 'Coloured separator line above the bar.', 'statusBarBorder');
@@ -1644,19 +2144,21 @@ class WordSmithSettingTab extends PluginSettingTab {
 			new Setting(lt).setName('Bar background').addColorPicker(cp => cp.setValue(this.plugin.settings.retroLightBgColor).onChange(async v => { this.plugin.settings.retroLightBgColor = v; await this.plugin.saveSettings(); }));
 			new Setting(lt).setName('Bar text / accent').addColorPicker(cp => cp.setValue(this.plugin.settings.retroLightTextColor).onChange(async v => { this.plugin.settings.retroLightTextColor = v; await this.plugin.saveSettings(); }));
 		}
+	}
 
-		// ── Misc Options (text options + word counts) ──────────────────────────
-		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+	// ── Text Options tab (text options + word counts) ─────────────────────────
+	displayTextTab(containerEl) {
 		new Setting(containerEl)
-			.setName('Misc options')
-			.setDesc('Paragraph indent, line spacing, and sidebar word counts.')
+			.setName('Text options')
+			.setDesc('Paragraph indent, line spacing, justification, and sidebar word counts.')
 			.addToggle(t => t.setValue(this.plugin.settings.miscEnabled)
 				.onChange(async v => { this.plugin.settings.miscEnabled = v; await this.plugin.saveSettings(); this.display(); }));
 
 		if (this.plugin.settings.miscEnabled) {
 			const mc = this.sub(containerEl);
 
-			this.label(mc, 'Text options');
+			this.slider(mc, 'Horizontal padding', 'Left/right text padding inside the editor. Applies everywhere — not just zen mode.', 'editorPaddingH', 0, 400, 10);
+
 			this.toggle(mc, 'Paragraph indent', 'Indent the first line of paragraphs.', 'enableParagraphIndent', () => this.display());
 			if (this.plugin.settings.enableParagraphIndent) {
 				const pi = this.sub(mc);
@@ -1675,6 +2177,16 @@ class WordSmithSettingTab extends PluginSettingTab {
 					t.onChange(async v => { const n = parseFloat(v); if (!isNaN(n) && n >= 0.8 && n <= 4) { this.plugin.settings.lineSpacing = n; await this.plugin.saveSettings(); } });
 				});
 			this.toggle(mc, 'Justify text', 'Full-justify paragraph text in both editing and reading views.', 'justifyText');
+
+			this.label(mc, 'Hidden markers');
+			this.toggle(mc, 'Show hidden markers', 'Reveal invisible whitespace and line breaks in the editor.', 'showHiddenMarkers', () => this.display());
+			if (this.plugin.settings.showHiddenMarkers) {
+				const hm = this.sub(mc);
+				this.toggle(hm, 'Spaces', 'Mark every space with a middle dot (·).', 'markSpaces');
+				this.toggle(hm, 'Tabs', 'Mark every tab with an arrow (→).', 'markTabs');
+				this.toggle(hm, 'Paragraphs', 'Mark blank (paragraph-break) lines with a pilcrow (¶).', 'markParagraphs');
+				this.toggle(hm, 'End of lines', 'Mark the end of every line with a return arrow (↵).', 'markEndOfLines');
+			}
 
 			this.label(mc, 'Word counts');
 			this.toggle(mc, 'File tree word counts', 'Word count per note in the left sidebar, summed into folders.', 'enableFileTreeCounts', () => this.display());
