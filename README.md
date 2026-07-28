@@ -1,66 +1,131 @@
 # Word-Smith
 
-A distraction-free writing suite for Obsidian: zen mode, typewriter scrolling, letterbox masks, focus dimming, and a retro status bar — each independent, each toggled on its own.
+A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, smart typography, and a configurable status bar — each independent, each toggled on its own.
 
 ## Showcase
 
-<img width="1482" height="916" alt="Word-Smith in action" src="https://github.com/user-attachments/assets/da3eae4e-53e4-4c72-8e18-86498ddbb37d" />
+<img width="1340" height="860" alt="123" src="https://github.com/user-attachments/assets/2480ee72-4f08-41d6-ab9c-1bed61203700" />
+
+<img width="1340" height="860" alt="12331" src="https://github.com/user-attachments/assets/b1c3ed38-1ce2-4d7b-abd0-9fe4ed8d0929" />
+
+
 
 ## Features
 
-Settings are organized into five tabs: **Zen**, **Typewriter**, **Mask**, **Retro Bar**, and **Text Options**.
+Settings are organized into seven tabs: **Zen**, **Typewriter**, **Hemingway**, **Retro Bar**, **Syntax**, **Text Options**, and **Misc**.
 
-### Zen mode
+### Where it applies
 
-Hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle, plus adjustable top/bottom editor padding. Press `Escape` to exit (respects vim mode and Excalidraw).
+Word-Smith can be limited to specific folders and notes, in either direction — *only these* or *everywhere except these*. Leave the list empty and it applies to every note.
 
-### Typewriter mode
+A single note can override all of it from its frontmatter, which takes precedence over the list:
 
-Keeps the cursor line vertically anchored as you type — works with or without zen mode. Configure how many lines of context stay **above** and **below** the cursor (equal values keep it dead-center).
+```yaml
+---
+wordsmith: off        # ignore this note entirely
+ws-zen: true          # or override one thing at a time
+ws-typewriter: false
+ws-hemingway: true
+ws-syntax: true
+ws-markers: false
+ws-typography: false
+ws-goal: 2000         # word target for this note
+---
+```
 
-- **Current line highlight** — tint the line the cursor is on, with separate dark/light theme colors and an opacity slider.
-- **Focus dimming** — fade everything outside your focus area while you write. Choose **paragraph** or **sentence** granularity (sentence mode dims other sentences even on the same line) and set the dim opacity. Rendered through CodeMirror's own decoration pipeline, so it never flickers while typing.
+There's also an optional **restore cursor position**, which reopens a note where you left the caret — including the scroll position, and in whichever pane you open it.
 
-### Letterbox masks
+### Zen
 
-Top and bottom masks frame the writing area, with adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, and separator line style/weight. Separate dark/light colors for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the horizontal inset — both live, right in the editor.
+A master switch over two halves.
 
-### Retro status bar
+**Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle, plus adjustable top/bottom editor padding. Press `Escape` to exit (respects vim mode and Excalidraw).
 
-A fixed bar at the bottom of the screen, sized to match the open note (not the full window), with **three independently formatted sections** — left, center, and right — each accepting any mix of tokens:
+**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor.
+
+Letterbox is independent of typewriter scrolling: you can run either without the other.
+
+### Typewriter
+
+Keeps the cursor line vertically anchored as you type. Configure how many lines of context stay **above** and **below** the cursor (equal values keep it dead-centre).
+
+- **Current line highlight** — tint the line the cursor is on, with separate dark/light colours and an opacity slider.
+- **Focus dimming** — fade everything outside your focus area while you write. Choose **paragraph** or **sentence** granularity (sentence mode dims other sentences even on the same line) and set the dim opacity. Dimming lifts automatically when the editor loses focus.
+
+Both are rendered through CodeMirror's own decoration pipeline, so they never flicker while typing.
+
+### Hemingway
+
+Blocks the keys you use to go back and revise, so a draft can only move forward. Every lock is individually switchable:
+
+**Removing text** — backspace (and its word/line variants), forward delete, undo and redo, cut, paste.
+**Moving the cursor** — arrow keys, Home/End/Page Up/Page Down, select all, mouse clicks.
+
+Blocked keys can flash the **screen**, the **retro bar**, both, or nothing. Nothing is permanent — switch it off from the tab, or from the `H` badge in the bar, at any time.
+
+The lock works at two levels: a high-precedence keymap for keystrokes, and a `beforeinput` layer that also catches the Edit menu, right-click, IME, and mobile keyboards.
+
+### Retro bar
+
+A fixed bar at the bottom of the screen, sized to match the open note (not the full window). **One to three stacked rows**, each with independently formatted **left**, **center**, and **right** slots, each accepting any mix of tokens:
 
 | Token | Shows |
 |---|---|
 | `{file}` | Current file — full path or filename only (configurable) |
 | `{words}` | Word count (selection count if text is selected) |
 | `{chars}` | Character count (selection count if text is selected) |
+| `{paragraph}` | Current paragraph / total paragraphs |
+| `{readtime}` | Estimated reading time, at a configurable words-per-minute |
+| `{goal}` | Writing goal — a ring with the percentage inside, or a plain fraction |
+| `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
+| `{syntax}` | Syntax highlight picker |
+| `{markers}` | Hidden marker picker |
+| `{lock}` | `LOCK` while Hemingway mode is on |
 | `{time}` | Current time |
 | `{date}` | Current date (customizable format) |
 | `{battery}` | Battery level (⚡︎ while charging) |
-| `{paragraph}` | Current paragraph / total paragraphs |
-| `{goal}` | Writing goal progress (fraction or fill-bar) |
-| `{caps}` | `CAPS` while Caps Lock is on, otherwise empty |
-| `{nump}` | `NUMP` while Num Lock is on, otherwise empty |
+| `{caps}` | Caps Lock key glyph while it's on |
+| `{num}` | Num Lock key glyph while it's on |
 | `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, `-- COMMAND --` |
 
-Click the bar to reset your word-goal baseline. Optional flash animation when the goal is met. Separate dark/light color pickers for the bar background and text. The bar auto-hides Obsidian's native status bar while active, and the vim `:` command line is lifted above it so it stays visible.
+Four of these are interactive:
+
+- **`{mode}`** — click any badge to toggle that mode. Inactive ones are struck through.
+- **`{syntax}`** — opens a picker listing each word class beside its own colour, faded when off, plus a master switch.
+- **`{markers}`** — opens a picker for spaces, tabs, paragraphs and line ends.
+- **`{goal}`** — click to reset your word-goal baseline. When the target is met the ring breathes green and swaps the percentage for a reset icon.
+
+The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers). Configurable row height, top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
+
+### Syntax
+
+Colours words by grammatical class — nouns, verbs, adjectives, adverbs, conjunctions — each with its own colour and toggle. Optionally mutes everything else, so one class carries the sentence. Skips code, frontmatter and math.
+
+Turn on one class at a time to read a paragraph for it. Everything at once is a rainbow.
+
+The tagger is a dependency-free heuristic (lexicon + suffix + context rules), so treat a colour as a prompt to reread the sentence, not a verdict.
 
 ### Text options
 
-- **Horizontal padding** — left/right text padding, applied everywhere (not just zen mode).
-- **Paragraph indent** — first-line indent, triggered by a blank line or every new line, with adjustable width.
+- **Typography** — replaces typed shorthand with real characters as you write: curly quotes and apostrophes, ellipsis, en/em dashes, arrows, guillemets, comparison operators, and fractions. Each group toggles separately. Never fires inside code, math or frontmatter, and undo restores exactly what you typed.
+- **Limit line length** — cap the text column at a fixed character measure regardless of window width.
+- **Horizontal padding** — left/right text padding, applied everywhere.
+- **Paragraph indent** — first-line indent, triggered by a blank line or every line, with adjustable width. Applies to paragraphs only: lists, tasks, headings, quotes, tables and code are left alone.
 - **Line spacing** — line-height multiplier.
 - **Justify text** — full justification in both editing and reading views.
-- **Hidden markers** — reveal invisible characters, each with its own toggle: spaces (`·`), tabs (`→`), paragraph breaks (`¶`), and line endings (`↵`). Rendered as editor decorations, glitch-free.
+- **Hidden markers** — reveal invisible characters, each with its own toggle: spaces (`·`), tabs (`→`), paragraph breaks (`¶`) and line endings (`↵`).
 
-### Word counts
+### Misc
 
-Optional per-file word counts in the file explorer (summed into folders) and per-heading word counts in the outline panel.
+Optional per-file word counts in the file explorer (summed into folders), and per-heading word counts in the outline panel.
+
+Word counting is markdown-aware: frontmatter, fenced code, math blocks, HTML, URLs, link targets and list markup are excluded, while headings, list text and link labels are counted. Chinese and Japanese count per character; Korean counts by word.
 
 ## Commands
 
 - **Word-Smith: Toggle Word-Smith on/off** — master switch for the whole plugin (also available as the "WS" ribbon badge)
-- **Word-Smith: Zen mode** — toggles zen mode only
+
+Everything else is reachable from the settings tabs or directly from the retro bar tokens.
 
 ## Installation
 
