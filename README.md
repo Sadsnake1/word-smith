@@ -6,7 +6,7 @@ A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewr
 
 <img width="1340" height="860" alt="123" src="https://github.com/user-attachments/assets/2480ee72-4f08-41d6-ab9c-1bed61203700" />
 
-<img width="1340" height="860" alt="12331" src="https://github.com/user-attachments/assets/b1c3ed38-1ce2-4d7b-abd0-9fe4ed8d0929" />
+<img width="1340" height="860" alt="12331" src="https://github.com/user-attachments/assets/750db726-30d1-4a1f-9c9f-f09963c8af15" />
 
 
 
