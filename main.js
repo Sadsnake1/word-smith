@@ -1,6 +1,6 @@
 'use strict';
 
-const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, setIcon } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, setIcon } = require('obsidian');
 
 // Path picker for the scope list. Defined conditionally because `class X
 // extends undefined` throws at definition time, and FuzzySuggestModal is not
@@ -311,6 +311,219 @@ function posBucket(tag) {
 	}
 }
 
+// ── Writing checks ───────────────────────────────────────────────────────────
+// Categories follow Editsaurus, which in turn follows Matt Might's shell
+// scripts: filler words, passive voice, lexical illusions, commonly misused
+// words, and pronouns with loose referents. All of it is list-and-rule based
+// and runs on the visible lines only.
+
+// Hedges, intensifiers and vague quantifiers.
+const FILLER_WORDS = new Set(`very really quite rather somewhat fairly pretty
+	extremely incredibly absolutely totally completely utterly literally
+	actually basically essentially virtually practically arguably apparently
+	seemingly presumably supposedly relatively generally typically usually
+	often sometimes frequently occasionally probably possibly perhaps maybe
+	surely certainly clearly obviously definitely simply merely just almost
+	nearly roughly approximately several various numerous many most some few
+	much lots somehow truly honestly frankly interestingly notably importantly
+	significantly substantially considerably slightly marginally overall
+	ultimately effectively largely mostly partly rarely`
+	.split(/\s+/).filter(Boolean));
+
+const FILLER_PHRASES = new RegExp('\\b(' + [
+	'kind of', 'sort of', 'a bit', 'a little', 'a lot of', 'lots of',
+	'in order to', 'due to the fact that', 'the fact that',
+	'it is important to note', 'it should be noted', 'needless to say',
+	'at the end of the day', 'for all intents and purposes',
+	'in terms of', 'with regard to', 'with respect to', 'in the event that',
+	'more or less', 'to some extent', 'in my opinion', 'i think that',
+	'as a matter of fact', 'when all is said and done', 'each and every',
+	'first and foremost', 'few and far between'
+].join('|') + ')\\b', 'gi');
+
+// Passive voice: a be-form, optional adverbs, then a past participle.
+const BE_FORMS = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+	"isn't", "aren't", "wasn't", "weren't", 'get', 'gets', 'got', 'getting']);
+
+const IRREGULAR_PP = new Set(`been done gone seen taken given made said known
+	written spoken broken chosen driven eaten fallen forgotten frozen hidden
+	held kept left lost meant met paid put read run sent set shown shut sold
+	sung sunk sat slept spent stood stolen struck sworn taught told thought
+	thrown understood worn won built bought brought caught cut felt found got
+	gotten heard led let lit lain laid drawn dealt fed fought fled flown
+	forbidden forgiven grown hung hurt knelt learnt lent mistaken overcome
+	proven quit ridden rung risen sought shaken shone shot shrunk slid sown
+	sped spun spread sprung stuck stung stunk striven swept swum swung torn
+	thrust trodden woken woven wound withdrawn beaten begun bent bound bred
+	burst cast clung crept dug dreamt drunk dwelt hit knit leapt misled
+	outdone overrun rebuilt rid sewn shed slain slit smelt spilt split spoilt
+	strung sublet swollen undergone undertaken upheld withheld withstood wrung`
+	.split(/\s+/).filter(Boolean));
+
+// Words ending in -ed that are not past participles. An exact-match set, not
+// a suffix regex: an alternative like `red` also swallows "considered".
+const ED_NOT_PARTICIPLE = new Set(`need indeed hundred thousand sacred wicked
+	naked embed exceed proceed succeed feed speed breed bleed agreed freed
+	deed creed greed seed weed shed sled bed fled led red wed hatred ahead
+	instead spread thread bread dread biped moped aged blessed rugged ragged
+	wretched crooked jagged`.split(/\s+/).filter(Boolean));
+
+const VERB_PREFIXES = ['re', 'over', 'under', 'out', 'mis', 'un', 'pre', 'dis',
+	'fore', 'up', 'inter', 'trans', 'co', 'de'];
+
+function isPastParticiple(tok) {
+	const lw = tok.lw;
+	if (IRREGULAR_PP.has(lw)) return true;
+	if (lw.length > 5) {
+		for (const pre of VERB_PREFIXES) {
+			if (lw.startsWith(pre) && IRREGULAR_PP.has(lw.slice(pre.length))) return true;
+		}
+	}
+	return lw.length > 3 && /ed$/.test(lw) && !ED_NOT_PARTICIPLE.has(lw);
+}
+
+function isLyAdverb(tok) {
+	return tok.lw.length > 3 && /ly$/.test(tok.lw) && !LY_NOT_ADVERB.has(tok.lw);
+}
+
+function findPassive(tokens) {
+	const hits = [];
+	const skippable = t => t.tag === 'ADV' || isLyAdverb(t) || t.lw === 'been' || t.lw === 'being';
+	for (let i = 0; i < tokens.length; i++) {
+		if (!BE_FORMS.has(tokens[i].lw)) continue;
+		let j = i + 1, hops = 0;
+		while (j < tokens.length && hops < 4 && skippable(tokens[j])) { j++; hops++; }
+		if (j < tokens.length && isPastParticiple(tokens[j])) {
+			let start = tokens[i].from;
+			if ((tokens[i].lw === 'been' || tokens[i].lw === 'being') && i > 0 &&
+				/^(have|has|had|having)$/.test(tokens[i - 1].lw)) {
+				start = tokens[i - 1].from;
+			}
+			hits.push({ from: start, to: tokens[j].to });
+			i = j;
+		}
+	}
+	return hits;
+}
+
+// Lexical illusions: the same word twice in a row. The eye skips them, which
+// is exactly why they survive proofreading.
+function findIllusions(tokens) {
+	const hits = [];
+	for (let i = 1; i < tokens.length; i++) {
+		if (tokens[i].lw !== tokens[i - 1].lw) continue;
+		if (tokens[i].lw.length < 2) continue;               // "s s" in odd markup
+		hits.push({ from: tokens[i - 1].from, to: tokens[i].to });
+	}
+	return hits;
+}
+
+// Pairs people reach for the wrong half of. Flagged for a look, never
+// "corrected" — which half is right depends on the sentence.
+const MISUSED_WORDS = new Set(`affect effect its it's their there they're your
+	you're then than lose loose complement compliment principal principle
+	discreet discrete farther further fewer less lay lie laid lain who whom
+	whose who's accept except adverse averse allusion illusion capital capitol
+	cite site sight elicit illicit eminent imminent ensure insure assure
+	precede proceed stationary stationery than then to too two weather whether
+	alot irregardless supposably could've would've should've
+	comprised nauseous peruse literally bemused enormity`
+	.split(/\s+/).filter(Boolean));
+
+// A pronoun opening a sentence usually points at the previous one, and the
+// reader has to guess which part. Mid-sentence pronouns are left alone.
+const VAGUE_PRONOUNS = new Set(['it', 'this', 'that', 'these', 'those', 'they', 'them', 'there']);
+
+// ── Readability ──────────────────────────────────────────────────────────────
+
+// Syllable counting by the standard heuristic: strip silent endings, then
+// count vowel groups. Wrong on a minority of words ("fire", "poem"), which is
+// fine — Flesch–Kincaid averages over a whole document and the error washes
+// out long before it moves the grade.
+function countSyllables(word) {
+	let w = String(word).toLowerCase().replace(/[^a-z]/g, '');
+	if (!w) return 0;
+	if (w.length <= 3) return 1;
+	w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '');
+	w = w.replace(/^y/, '');
+	const groups = w.match(/[aeiouy]{1,2}/g);
+	return groups ? groups.length : 1;
+}
+
+// Sentence ranges within one line. Markdown paragraphs are normally a single
+// soft-wrapped line, so a sentence very rarely crosses a hard break; treating
+// the line as the outer bound keeps this cheap and viewport-local.
+const SENTENCE_SPLIT = /[^.!?\u2026]+[.!?\u2026]*\s*/g;
+
+function splitSentences(text) {
+	const out = [];
+	SENTENCE_SPLIT.lastIndex = 0;
+	let m;
+	while ((m = SENTENCE_SPLIT.exec(text))) {
+		if (!m[0].trim()) continue;
+		// Trim the trailing whitespace back off so the tint stops at the
+		// full stop rather than running into the next sentence.
+		const raw  = m[0];
+		const from = m.index;
+		const to   = from + raw.replace(/\s+$/, '').length;
+		if (to > from) out.push({ from, to, text: raw.trim() });
+	}
+	return out;
+}
+
+// Flesch–Kincaid grade level. Below ~9 reads easily; the Hemingway app calls
+// 10–13 hard and 14+ very hard, which is where the two tints come from.
+function fkGrade(words, sentences, syllables) {
+	if (!words || !sentences) return 0;
+	return 0.39 * (words / sentences) + 11.8 * (syllables / words) - 15.59;
+}
+
+// Grade for one sentence, from its own tokens.
+function sentenceGrade(tokens) {
+	if (!tokens.length) return 0;
+	let syl = 0;
+	for (const t of tokens) syl += countSyllables(t.w);
+	return fkGrade(tokens.length, 1, syl);
+}
+
+// ── Repetition radar ─────────────────────────────────────────────────────────
+
+// Words common enough that repeating them is invisible and unavoidable. Only
+// words outside this list, and long enough to be noticed, are worth flagging.
+const REPETITION_STOPWORDS = new Set(`the a an and or but if then than that this
+	these those there here it its it's is are was were be been being am do does
+	did have has had having will would shall should can could may might must
+	i me my we us our you your he him his she her they them their who whom whose
+	what which when where why how all any both each few more most other some such
+	no nor not only own same so too very just also as at by for from in into of
+	on to with about after before between during over under again once out up
+	down off above below now new one two three way get got go went come came
+	said say says like make made take took see saw know knew think thought`
+	.split(/\s+/).filter(Boolean));
+
+// A word is an echo when the same word appeared within `window` words behind
+// it. Both occurrences are marked, because you cannot fix one without seeing
+// the other.
+function findRepetitions(tokens, windowSize, minLength) {
+	const hits = [];
+	const lastSeen = new Map();
+	for (let i = 0; i < tokens.length; i++) {
+		const t = tokens[i];
+		const w = t.lw.replace(/[^a-z']/g, '');
+		if (w.length < minLength || REPETITION_STOPWORDS.has(w)) continue;
+		// Crude stemming, so "writing" echoes "writes".
+		const stem = w.replace(/(ing|ed|es|s)$/, '');
+		const key  = stem.length >= 4 ? stem : w;
+		const prev = lastSeen.get(key);
+		if (prev !== undefined && i - prev.i <= windowSize) {
+			hits.push({ from: prev.from, to: prev.to });
+			hits.push({ from: t.from,   to: t.to   });
+		}
+		lastSeen.set(key, { i, from: t.from, to: t.to });
+	}
+	return hits;
+}
+
 // ── Smart typography ─────────────────────────────────────────────────────────
 // Rules are pure data: `text` is what the user has typed once the newest
 // character lands, `insert` is what replaces it. One matcher drives all of
@@ -560,11 +773,26 @@ const DEFAULT_SETTINGS = {
 	statusBarBorderWidth:     2,           // 1–8 px; 'none' style hides it
 	statusBarFontSize:        12,
 	statusBarHeight:          27,
-	goalTarget:               1000,
-	goalDisplay:              'ring',      // 'ring' | 'fraction'
-	goalBaseline:             0,          // per-vault word-count counter — never ship a non-zero default
-	goalRingPercent:          true,        // draw the percentage inside the ring
-	goalRingWeight:           4,           // ring stroke, in viewBox units
+	// ── Goals ────────────────────────────────────────────────────────────────
+	// Three of them, drawn the same way: the writing goal as a ring, the file
+	// goal as a triangle, the folder goal as a square. One label mode and one
+	// line weight across all three, so they never disagree about how they look.
+	goalTarget:               1000,       // the writing goal, {goal}
+	goalBaseline:             0,          // words already written when it was last rebased
+	fileGoals:                {},         // note path   -> word target
+	folderGoals:              {},         // folder path -> word target
+	goalLabelMode:            'percent',  // 'percent' inside | 'fraction' beside | 'none'
+	goalRingWeight:           12,         // gauge thickness, in viewBox units
+	goalOrientation:          'vertical', // 'vertical' | 'horizontal'
+	goalCustomColors:         false,      // off: all three inherit the bar's text colour
+	goalShowGauge:            true,       // off: the label alone, no bar
+	goalLenWriting:           90,         // horizontal length, in viewBox units
+	goalLenFile:              90,
+	goalLenFolder:            90,
+	goalColor:                '#4caf7d',  // writing goal
+	fileGoalColor:            '#4f9dde',  // file goal
+	folderGoalColor:          '#d98cc4',  // folder goal
+
 	dateFormat:               'dd/mm',
 	// Off by default: the bar should look like part of the app it lives in,
 	// not like a second app parked at the bottom of the window.
@@ -586,6 +814,7 @@ const DEFAULT_SETTINGS = {
 	paragraphIndentEm:        4,
 	paragraphIndentMode:      'single',   // 'double' | 'single'
 	lineSpacing:              1.5,
+	editorFont:               '',        // '' = whatever the theme sets
 	limitLineLength:          true,
 	maxLineChars:             64,
 	justifyText:              true,
@@ -614,6 +843,28 @@ const DEFAULT_SETTINGS = {
 
 	// ── Syntax highlight ──────────────────────────────────────────────────────
 	syntaxSkipCode:           true,
+	syntaxStyle:              'text',     // 'text' | 'highlight' | 'squiggle' | 'line'
+	checksEnabled:            false,      // master switch over the writing checks
+	checkStyle:               'squiggle', // same options, for the writing checks
+	checkFiller:              false,
+	checkFillerColor:         '#8a7fd1',
+	checkPassive:             false,
+	checkPassiveColor:        '#c2544d',
+	checkIllusion:            false,
+	checkIllusionColor:       '#d98cc4',
+	checkMisused:             false,
+	checkMisusedColor:        '#e0913a',
+	checkPronoun:             false,
+	checkPronounColor:        '#4f9dde',
+	checkRhythm:              false,
+	checkRhythmHardColor:     '#d4a017',
+	checkRhythmVeryHardColor: '#c2544d',
+	checkRhythmHardGrade:     10,        // Flesch-Kincaid grade for "hard"
+	checkRhythmVeryHardGrade: 14,        // and for "very hard"
+	checkRepetition:          false,
+	checkRepetitionColor:     '#4caf7d',
+	repetitionWindow:         50,        // words
+	repetitionMinLength:      5,         // ignore short words
 	posEnabled:               false,
 	posDimOthers:             true,
 	posNoun:                  true,
@@ -632,6 +883,12 @@ const DEFAULT_SETTINGS = {
 	// thing to start doing to someone's notes uninvited.
 	typographyEnabled:        true,
 	typoSmartQuotes:          true,
+	typoCustomQuotes:         false,     // pick the characters yourself
+	typoOpenDouble:           '\u201c',
+	typoCloseDouble:          '\u201d',
+	typoOpenSingle:           '\u2018',
+	typoCloseSingle:          '\u2019',
+	typoApostrophe:           '\u2019',
 	typoEllipsis:             true,
 	typoDashes:               true,
 	typoArrows:               true,
@@ -760,12 +1017,14 @@ module.exports = class WordSmith extends Plugin {
 		// Workspace events
 		this.registerEvent(this.app.workspace.on('file-open', (file) => {
 			this.syncScope();
+			this.applyEditorFont();
 			this.restoreCursorFor(file);
 			this.updateWorkspaceAesthetics();
 		}));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
 			this.flushCursorMemory();
 			this.syncScope();
+			this.applyEditorFont();
 			this.updateWorkspaceAesthetics();
 			this.scheduleExplorerPatch();
 			if (this.settings.zenMode && this.settings.focusedFileMode) this.updateFocusedFileMode();
@@ -1037,17 +1296,29 @@ module.exports = class WordSmith extends Plugin {
 		// a drawn ring; goalBarCells is the marker that data.json predates the
 		// change, so anyone who was on the block bar lands on the ring.
 		// The border was a single on/off flag; width 0 is now the "off".
+		// goalDisplay, goalRingPercent and goalShapeLabel collapsed into one
+		// mode shared by all three goals. The block bar became a ring long
+		// before that, so 'bar' resolves the same way 'ring' does: to the
+		// default percentage mode.
+		if (this.settings.goalShapeLabel != null || this.settings.goalRingPercent != null ||
+			this.settings.goalDisplay != null) {
+			if (this.settings.goalDisplay === 'fraction')     this.settings.goalLabelMode = 'fraction';
+			else if (this.settings.goalShapeLabel != null)    this.settings.goalLabelMode = this.settings.goalShapeLabel;
+			else if (this.settings.goalRingPercent === false) this.settings.goalLabelMode = 'none';
+			delete this.settings.goalDisplay;
+			delete this.settings.goalRingPercent;
+			delete this.settings.goalShapeLabel;
+		}
 		if (this.settings.statusBarBorder != null) {
 			if (!this.settings.statusBarBorder) this.settings.statusBarBorderWidth = 0;
 			delete this.settings.statusBarBorder;
 		}
 		if (this.settings.goalBarCells != null) delete this.settings.goalBarCells;
 		// The slim bar was dropped; the ring is the only indicator now.
-		if (this.settings.goalDisplay === 'bar') this.settings.goalDisplay = 'ring';
 		// goalLabel used to place text beside the indicator. The percentage
 		// now lives inside the ring, so the old setting maps onto the toggle.
 		if (this.settings.goalLabel != null) {
-			this.settings.goalRingPercent = this.settings.goalLabel !== 'none';
+			if (this.settings.goalLabel === 'none') this.settings.goalLabelMode = 'none';
 			delete this.settings.goalLabel;
 		}
 		// The ASCII arrow style was removed (too similar to Chevron) — carry
@@ -1102,6 +1373,7 @@ module.exports = class WordSmith extends Plugin {
 		this._lastScopeInScope = this.isActiveFileInScope();
 		this.applyBodyClasses();
 		this.applyCssVariables();
+		this.applyEditorFont();
 		this.updateStyleEl();
 		this.updateWorkspaceAesthetics();
 		this.setSidebarVisibility();
@@ -1153,12 +1425,14 @@ module.exports = class WordSmith extends Plugin {
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-linked-mentions', 'zg-para-indent',
 			'zg-justify', 'zg-masks-active', 'zenmode-hide-ribbon', 'zg-retrobar-active',
-			'zg-pos-dim', 'zg-hemingway-active', 'zg-line-limit', 'zg-editor-focused'
+			'zg-pos-dim', 'zg-hemingway-active', 'zg-line-limit', 'zg-editor-focused',
+			'zg-font-active', 'zg-rtl'
 		);
 		// The bar colours are stamped on <body>, so they need clearing here
 		// too — the class list above does not reach them.
 		document.body.style.removeProperty('--zg-bg');
 		document.body.style.removeProperty('--zg-text');
+		document.body.style.removeProperty('--zg-font');
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
 		// The horizontal padding rule is unscoped (applies always), so it
@@ -1202,6 +1476,7 @@ module.exports = class WordSmith extends Plugin {
 		body.classList.toggle('zg-para-indent',             scoped && this.settings.enableParagraphIndent);
 		body.classList.toggle('zg-justify',                 scoped && this.settings.justifyText);
 		body.classList.toggle('zg-line-limit',              scoped && this.settings.limitLineLength);
+		body.classList.toggle('zg-rtl',                     this.isRightToLeft());
 		body.classList.toggle('zg-masks-active',            scoped && this.letterboxActive());
 		body.classList.toggle('zg-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
 		body.classList.toggle('zg-hemingway-active',        scoped && this.settings.hemingwayEnabled);
@@ -1285,25 +1560,42 @@ module.exports = class WordSmith extends Plugin {
 			const ind = 'var(--zg-para-indent)';
 			// Source view is driven entirely by the paraPlugin decoration, so
 			// these selectors never need to know what a list line looks like.
+			//
+			// Specificity, not !important. Leading with `body.` adds an element
+			// to the count, and naming the editor chain outranks the theme
+			// rules that set text-indent on .cm-line and p — while still
+			// letting a user's own snippet win if they want it to.
+			const srcLine = 'body.zg-para-indent .markdown-source-view.mod-cm6 .cm-content ';
+			const prevAll = 'body.zg-para-indent .markdown-reading-view .markdown-preview-view ';
 			if (this.settings.paragraphIndentMode === 'single') {
-				rules.push('.zg-para-indent .zg-para-line { text-indent: ' + ind + ' !important; }');
-				rules.push('.zg-para-indent .markdown-preview-view p { text-indent: ' + ind + ' !important; }');
+				rules.push(srcLine + '.zg-para-line { text-indent: ' + ind + '; }');
+				rules.push(prevAll + 'p { text-indent: ' + ind + '; }');
 			} else {
-				rules.push('.zg-para-indent .zg-para-first { text-indent: ' + ind + ' !important; }');
-				rules.push('.zg-para-indent .markdown-preview-view p + p { text-indent: ' + ind + ' !important; }');
+				rules.push(srcLine + '.zg-para-first { text-indent: ' + ind + '; }');
+				rules.push(prevAll + 'p + p { text-indent: ' + ind + '; }');
 			}
 			// Reading view renders list items, quotes, callouts and table cells
 			// as <p> too, so the rules above catch them. Rather than a fragile
 			// :not() chain, indent every paragraph and then take it back from
 			// the containers where it does not belong.
+			// These have to outrank the rule directly above them, which they do
+			// on element count alone — one more descendant each.
 			rules.push([
-				'.zg-para-indent .markdown-preview-view li p',
-				'.zg-para-indent .markdown-preview-view blockquote p',
-				'.zg-para-indent .markdown-preview-view td p',
-				'.zg-para-indent .markdown-preview-view th p',
-				'.zg-para-indent .markdown-preview-view .callout p',
-				'.zg-para-indent .markdown-preview-view figcaption'
-			].join(',\n') + ' { text-indent: 0 !important; }');
+				prevAll + 'li p',
+				prevAll + 'blockquote p',
+				prevAll + 'td p',
+				prevAll + 'th p',
+				prevAll + '.callout p',
+				prevAll + 'figcaption'
+			].join(',\n') + ' { text-indent: 0; }');
+		}
+		if (this.settings.editorFont || this.opt('editorFont')) {
+			// The full chain plus the leading body class outranks the theme
+			// rules that set font-family on these same elements, so this needs
+			// no !important of its own.
+			rules.push('body.zg-font-active .markdown-source-view.mod-cm6 .cm-content,\n' +
+				'body.zg-font-active .markdown-reading-view .markdown-preview-view ' +
+				'{ font-family: var(--zg-font); }');
 		}
 		if (this.settings.limitLineLength) {
 			// ch is the width of a "0", which is the conventional stand-in for
@@ -1312,12 +1604,14 @@ module.exports = class WordSmith extends Plugin {
 			// than the box, whatever the padding is set to.
 			const measure = 'calc(' + Math.max(20, Math.min(200, this.settings.maxLineChars || 64))
 				+ 'ch + (var(--zg-editor-padding-h) * 2))';
-			// !important and the .cm-content chain are both needed: zen mode
-			// sets max-width:100% on this very element a few rules above.
-			rules.push('.zg-line-limit .markdown-source-view.mod-cm6 .cm-content { max-width: ' + measure +
-				' !important; margin-left: auto !important; margin-right: auto !important; }');
-			rules.push('.zg-line-limit .markdown-reading-view .markdown-preview-view { max-width: ' + measure +
-				' !important; margin-left: auto !important; margin-right: auto !important; }');
+			// Zen mode sets max-width:100% on this very element in styles.css,
+			// at equal specificity — which would leave the winner decided by
+			// stylesheet order, and that is not guaranteed. Leading with
+			// `body.` adds an element to the count and settles it.
+			rules.push('body.zg-line-limit .markdown-source-view.mod-cm6 .cm-content ' +
+				'{ max-width: ' + measure + '; margin-inline: auto; }');
+			rules.push('body.zg-line-limit .markdown-reading-view .markdown-preview-view ' +
+				'{ max-width: ' + measure + '; margin-inline: auto; }');
 		}
 		if (this.settings.justifyText) {
 			// Justify in the source editor (skip code blocks and table cells).
@@ -1328,37 +1622,86 @@ module.exports = class WordSmith extends Plugin {
 			rules.push('.zg-justify .markdown-preview-view p, .zg-justify .markdown-preview-view li { text-align: justify; }');
 		}
 		if (this.settings.lineSpacing && this.settings.lineSpacing !== 1.5) {
+			// A bare .cm-content selector loses to any theme rule that names a
+			// parent, which is why this used to need !important. The full
+			// chain wins on its own.
 			const ls = String(this.settings.lineSpacing);
-			rules.push('.cm-content { line-height: ' + ls + ' !important; }');
-			rules.push('.markdown-preview-view { line-height: ' + ls + ' !important; }');
+			rules.push('body .markdown-source-view.mod-cm6 .cm-content { line-height: ' + ls + '; }');
+			rules.push('body .markdown-reading-view .markdown-preview-view { line-height: ' + ls + '; }');
 		}
 		if (this.settings.highlightCurrentLine) {
 			const isDark = document.body.classList.contains('theme-dark');
 			const hex     = isDark ? this.settings.lineHighlightDarkColor : this.settings.lineHighlightLightColor;
 			const opacity = this.settings.lineHighlightOpacity != null ? this.settings.lineHighlightOpacity : 0.35;
-			rules.push('.cm-active.cm-line { background-color: ' + this.hexToRgba(hex, opacity) + ' !important; }');
+			// Same reasoning: name the chain rather than shout over it.
+			rules.push('body .markdown-source-view.mod-cm6 .cm-content .cm-active.cm-line ' +
+				'{ background-color: ' + this.hexToRgba(hex, opacity) + '; }');
 		}
 		if (this.settings.dimUnfocusedEnabled) {
 			const opacity = this.settings.dimOpacity != null ? this.settings.dimOpacity : 0.35;
 			rules.push('.zg-dim-line, .zg-dim-text { opacity: ' + opacity + '; transition: opacity 0.15s ease; }');
 		}
-		// ── Syntax highlight ──────────────────────────────────────────────
-		if (this.settings.posEnabled) {
-			const pos = [
+		// ── Syntax highlight + writing checks ─────────────────────────────
+		if (this.settings.posEnabled || this.settings.checksEnabled) {
+			// One painter for both groups. Colour is the only difference
+			// between a noun and a passive phrase; how it is drawn is the
+			// user's choice, and the same four options suit either job.
+			const paint = (cls, color, style) => {
+				switch (style) {
+					case 'highlight':
+						return '.' + cls + ' { background-color: ' + this.hexToRgba(color, 0.22) +
+							'; border-radius: 2px; }';
+					case 'squiggle':
+						return '.' + cls + ' { text-decoration-line: underline; text-decoration-style: wavy;' +
+							' text-decoration-color: ' + color + '; text-decoration-thickness: 1px;' +
+							' text-underline-offset: 3px; text-decoration-skip-ink: none; }';
+					case 'line':
+						return '.' + cls + ' { text-decoration-line: underline; text-decoration-style: solid;' +
+							' text-decoration-color: ' + color + '; text-decoration-thickness: 2px;' +
+							' text-underline-offset: 3px; text-decoration-skip-ink: none; }';
+					default:
+						return '.' + cls + ' { color: ' + color + '; }';
+				}
+			};
+
+			const posStyle = this.settings.syntaxStyle || 'text';
+			const pos = this.settings.posEnabled ? [
 				['noun', this.settings.posNoun,        this.settings.posNounColor],
 				['verb', this.settings.posVerb,        this.settings.posVerbColor],
 				['adj',  this.settings.posAdjective,   this.settings.posAdjectiveColor],
 				['adv',  this.settings.posAdverb,      this.settings.posAdverbColor],
 				['conj', this.settings.posConjunction, this.settings.posConjunctionColor]
-			];
+			] : [];
 			for (const entry of pos) {
-				if (entry[1]) rules.push('.zg-pos-' + entry[0] + ' { color: ' + entry[2] + '; }');
+				if (entry[1]) rules.push(paint('zg-pos-' + entry[0], entry[2], posStyle));
 			}
+
+			const ckStyle = this.settings.checkStyle || 'squiggle';
+			const checks = this.settings.checksEnabled ? [
+				['filler',   this.settings.checkFiller,   this.settings.checkFillerColor],
+				['passive',  this.settings.checkPassive,  this.settings.checkPassiveColor],
+				['illusion', this.settings.checkIllusion, this.settings.checkIllusionColor],
+				['misused',  this.settings.checkMisused,  this.settings.checkMisusedColor],
+				['pronoun',  this.settings.checkPronoun,  this.settings.checkPronounColor]
+			] : [];
+			checks.push(['repeat', this.settings.checkRepetition, this.settings.checkRepetitionColor]);
+			for (const entry of checks) {
+				if (entry[1]) rules.push(paint('zg-ck-' + entry[0], entry[2], ckStyle));
+			}
+
+			// Rhythm is forced to a background tint whatever checkStyle says.
+			// A squiggle under a thirty-word sentence is noise; the point of
+			// this one is seeing a wall of a single colour at a glance.
+			if (this.settings.checksEnabled && this.settings.checkRhythm) {
+				rules.push(paint('zg-ck-hard',     this.settings.checkRhythmHardColor,     'highlight'));
+				rules.push(paint('zg-ck-veryhard', this.settings.checkRhythmVeryHardColor, 'highlight'));
+			}
+
 			// Muting everything else is what makes one class read as the
 			// sentence's skeleton. The mark spans set their own colour and are
 			// separate elements, so this ancestor rule never outranks them
 			// however specific it is.
-			if (this.settings.posDimOthers) {
+			if (this.settings.posEnabled && this.settings.posDimOthers) {
 				rules.push('body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(--text-faint); }');
 			}
 		}
@@ -1878,6 +2221,9 @@ module.exports = class WordSmith extends Plugin {
 			}
 			const goal = Number(fm['ws-goal']);
 			if (!isNaN(goal) && goal > 0) add('goalTarget', Math.round(goal));
+			// A font name, or an explicit empty string to fall back to the
+			// theme for this one note.
+			if ('ws-font' in fm) add('editorFont', String(fm['ws-font'] || '').trim());
 		}
 		this._fmCache[file.path] = out;
 		return out;
@@ -1910,6 +2256,22 @@ module.exports = class WordSmith extends Plugin {
 
 	letterboxActive() {
 		return !!(this.opt('zenEnabled') && this.settings.enableLetterbox);
+	}
+
+	// Obsidian keeps its right-to-left preference in appearance config, and
+	// also sets it per note. Either is enough to mirror the text options.
+	isRightToLeft() {
+		try {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (view && view.editor && view.editor.cm && view.editor.cm.contentDOM) {
+				const dir = view.editor.cm.contentDOM.getAttribute('dir');
+				if (dir) return dir === 'rtl';
+			}
+		} catch (_) { /* editor not ready */ }
+		try {
+			if (this.app.vault.getConfig) return !!this.app.vault.getConfig('rightToLeft');
+		} catch (_) {}
+		return false;
 	}
 
 	hasScopeLimits() {
@@ -2056,7 +2418,9 @@ module.exports = class WordSmith extends Plugin {
 	// Both figures come out of one reduction so {words} and {chars} can never
 	// end up measuring different documents.
 	countProse(text) {
-		if (!text) return { words: 0, chars: 0 };
+		// Same shape as the full return, or callers reading charsNoSpaces get
+		// undefined on an empty note.
+		if (!text) return { words: 0, chars: 0, charsNoSpaces: 0 };
 		const lines = text.split('\n');
 		const skip  = scanNonProseLines(lines);
 		const kept  = [];
@@ -2074,9 +2438,48 @@ module.exports = class WordSmith extends Plugin {
 		WORDISH.lastIndex = 0;
 		const runs = (rest.match(WORDISH) || []).length;
 
+		const collapsed = prose.replace(/\s+/g, ' ').trim();
 		return {
 			words: cjk + runs,
-			chars: prose.replace(/\s+/g, ' ').trim().length
+			chars: collapsed.length,
+			// Whitespace stripped entirely, which is the figure most word
+			// processors label "characters excluding spaces".
+			charsNoSpaces: collapsed.replace(/\s+/g, '').length
+		};
+	}
+
+	// Everything the report shows, from one reduction. Words and chars come
+	// from countProse so the report can never disagree with the status bar.
+	analyzeText(text) {
+		const base = this.countProse(text);
+		const lines = String(text || '').split('\n');
+		const skip  = scanNonProseLines(lines);
+		let sentences = 0, syllables = 0, paragraphs = 0, lineCount = 0, inPara = false;
+		for (let i = 0; i < lines.length; i++) {
+			const raw = lines[i];
+			if (skip.has(i + 1)) { inPara = false; continue; }
+			if (!raw.trim()) { inPara = false; continue; }
+			lineCount++;
+			if (!inPara) { paragraphs++; inPara = true; }
+			const masked = maskForCounting(raw);
+			for (const sent of splitSentences(masked)) {
+				const toks = tokenizeLine(sent.text);
+				if (!toks.length) continue;
+				sentences++;
+				for (const t of toks) syllables += countSyllables(t.w);
+			}
+		}
+		return {
+			words:      base.words,
+			chars:      base.chars,
+			charsNoSpaces: base.charsNoSpaces,
+			syllables,
+			sentences,
+			paragraphs,
+			lines:      lineCount,
+			// The manuscript convention: 250 words to a page.
+			pages:      base.words ? Math.max(1, Math.round(base.words / 250)) : 0,
+			grade:      fkGrade(base.words, sentences, syllables)
 		};
 	}
 
@@ -2186,7 +2589,13 @@ module.exports = class WordSmith extends Plugin {
 		const count  = Math.max(0, total - (this.settings.goalBaseline || 0));
 		const target = this.settings.goalTarget || 1000;
 		const ratio  = Math.min(count / target, 1);
-		return { text: count.toLocaleString() + '/' + target.toLocaleString(), ratio, met: count >= target };
+		return {
+			words:  count,
+			target,
+			ratio,
+			met:    count >= target,
+			text:   count.toLocaleString() + '/' + target.toLocaleString()
+		};
 	}
 
 	// ════════════════════════════════════════════════════════════════════════
@@ -2256,7 +2665,9 @@ module.exports = class WordSmith extends Plugin {
 
 		for (const item of items) {
 			const row = document.createElement('div');
-			row.className = 'zg-picker-row' + (item.on ? '' : ' is-off');
+			// Sub-options indent under the master switch at the foot of the
+			// list, so the popup reads as a group rather than a flat pile.
+			row.className = 'zg-picker-row' + (item.on ? '' : ' is-off') + (item.sub ? ' is-sub' : '');
 
 			// Only colour-bearing rows get a swatch. A hollow ring beside
 			// "Spaces" said nothing except that a circle could have gone
@@ -2271,6 +2682,8 @@ module.exports = class WordSmith extends Plugin {
 			const label = document.createElement('span');
 			label.className = 'zg-picker-label';
 			label.textContent = item.label;
+			// A font list that does not show the fonts is a list of words.
+			if (item.font) label.style.fontFamily = item.font;
 			row.appendChild(label);
 
 			// mousedown, not click. The bar rebuilds itself on edits, on the
@@ -2349,6 +2762,653 @@ module.exports = class WordSmith extends Plugin {
 		return el;
 	}
 
+	// ── Folder goals + report ────────────────────────────────────────────────
+
+	// The folder a note lives in, '/' for the vault root.
+	activeFolderPath() {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const file = view && view.file;
+		if (!file || !file.path) return null;
+		const i = file.path.lastIndexOf('/');
+		return i < 0 ? '/' : file.path.slice(0, i);
+	}
+
+	// Frontmatter wins, so a note can carry its own target without touching
+	// settings. The click-to-set modal writes to fileGoals.
+	fileGoalFor(path) {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (view && view.file && view.file.path === path) {
+			const ov = this.getOverrides(view.file);
+			if (ov && ov.goalTarget) return ov.goalTarget;
+		}
+		const goals = this.settings.fileGoals || {};
+		return Number(goals[path]) || 0;
+	}
+
+	folderGoalFor(path) {
+		const goals = this.settings.folderGoals || {};
+		return Number(goals[path]) || 0;
+	}
+
+	filesInFolder(path, recursive) {
+		const all = this.app.vault.getMarkdownFiles ? this.app.vault.getMarkdownFiles() : [];
+		if (path === '/') return recursive ? all : all.filter(f => f.path.indexOf('/') < 0);
+		const prefix = path + '/';
+		return all.filter(f => {
+			if (!f.path.startsWith(prefix)) return false;
+			return recursive || f.path.slice(prefix.length).indexOf('/') < 0;
+		});
+	}
+
+	// Reads every note in the folder and below it. Cached on mtime in the same
+	// map the explorer counts use, so an unchanged folder is free to re-open.
+	async analyzeFolder(path) {
+		// Lazily, because this is reachable from a bar token that can paint
+		// before onload has finished initialising fields on a slow vault.
+		if (!this.wordCountCache) this.wordCountCache = new Map();
+		const files = this.filesInFolder(path, true);
+		const total = { words: 0, chars: 0, charsNoSpaces: 0, syllables: 0, sentences: 0,
+			paragraphs: 0, lines: 0, files: files.length };
+		for (const file of files) {
+			let stats = null;
+			const hit = this.wordCountCache.get('stats:' + file.path);
+			if (hit && hit.mtime === file.stat.mtime) stats = hit.stats;
+			if (!stats) {
+				try {
+					const text = await this.app.vault.cachedRead(file);
+					stats = this.analyzeText(text);
+					this.wordCountCache.set('stats:' + file.path, { mtime: file.stat.mtime, stats });
+				} catch (_) { continue; }
+			}
+			total.words      += stats.words;
+			total.chars      += stats.chars;
+			total.charsNoSpaces += stats.charsNoSpaces || 0;
+			total.syllables  += stats.syllables;
+			total.sentences  += stats.sentences;
+			total.paragraphs += stats.paragraphs;
+			total.lines      += stats.lines || 0;
+		}
+		total.pages = total.words ? Math.max(1, Math.round(total.words / 250)) : 0;
+		total.grade = fkGrade(total.words, total.sentences, total.syllables);
+		return total;
+	}
+
+	// A gauge that fills from one end: bottom-up when vertical, left-to-right
+	// when horizontal. The fill is a plain rect whose far edge moves, exact at
+	// every ratio where a stroked arc had rounding error.
+	//
+	// The viewBox grows with the thickness and, horizontally, with the length,
+	// so the element's aspect ratio always matches the bar: cap one dimension
+	// in CSS and the other follows without distorting anything inside.
+	buildGoalBar(ratio, met, length, label) {
+		const NS   = 'http://www.w3.org/2000/svg';
+		const W    = Math.max(1, Math.min(16, this.settings.goalRingWeight || 12));
+		const vert = (this.settings.goalOrientation || 'vertical') === 'vertical';
+		const LONG = vert ? 24 : Math.max(30, Math.min(220, length || 90));
+		const r    = Math.min(Math.max(ratio, 0), 1);
+		const pad  = 1;
+		const span = LONG - pad * 2;
+
+		const svg = document.createElementNS(NS, 'svg');
+		svg.setAttribute('class', 'zg-goal-bar is-' + (vert ? 'vertical' : 'horizontal'));
+		svg.setAttribute('viewBox', vert ? '0 0 ' + (W + 2) + ' ' + LONG
+		                                 : '0 0 ' + LONG + ' ' + (W + 2));
+		svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+		svg.setAttribute('aria-hidden', 'true');
+
+		const rect = (cls, x, y, w, h) => {
+			const el = document.createElementNS(NS, 'rect');
+			el.setAttribute('class', cls);
+			el.setAttribute('x', String(x));
+			el.setAttribute('y', String(y));
+			el.setAttribute('width',  String(w));
+			el.setAttribute('height', String(h));
+			return el;
+		};
+
+		svg.appendChild(vert ? rect('zg-goal-bar-track', 1, pad, W, span)
+		                     : rect('zg-goal-bar-track', pad, 1, span, W));
+
+		if (r > 0) {
+			const filled = span * r;
+			// Vertical grows upward, horizontal rightward: in both cases the
+			// far edge moves and the near edge stays put.
+			svg.appendChild(vert
+				? rect('zg-goal-bar-fill', 1, pad + span - filled, W, filled)
+				: rect('zg-goal-bar-fill', pad, 1, filled, W));
+		}
+
+		// A horizontal bar has room along its length, so the label goes in it.
+		// Vertical does not, and its label stays outside.
+		if (!vert && label) {
+			const t = document.createElementNS(NS, 'text');
+			t.setAttribute('class', 'zg-goal-bar-label');
+			t.setAttribute('x', String(LONG / 2));
+			t.setAttribute('y', String(1 + W / 2));
+			t.setAttribute('text-anchor', 'middle');
+			t.setAttribute('dominant-baseline', 'central');
+			t.setAttribute('font-size', String(Math.max(4, W * 0.62)));
+			t.textContent = label;
+			svg.appendChild(t);
+		}
+		return svg;
+	}
+
+	// Ten seconds of pixel fireworks over the report.
+	//
+	// The layer goes on the report body, not the gauge: the gauge band is
+	// eighty pixels tall, so anchoring there crushed every burst into a strip
+	// across the middle. The body is emptied on each render, so the layer
+	// still dies with the tab that earned it — which was the point of moving
+	// it off the modal in the first place.
+	//
+	// Three kinds, because one shape repeated reads as a loop: bursts throw
+	// sparks radially, fountains spray upward, rockets climb before breaking.
+	// Each spark is two nested elements — the outer carries its vector, the
+	// inner carries gravity and the fade — because a second transform on one
+	// element overwrites the first, and gravity is what stops it looking like
+	// starburst clipart.
+	celebrate(host) {
+		if (!host || !host.createDiv) return;
+		try {
+			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		} catch (_) { /* no matchMedia in this shell */ }
+
+		const layer = host.createDiv({ cls: 'zg-fireworks' });
+		const HUES  = [48, 12, 140, 200, 320, 275, 95, 175, 30, 260];
+		const rand  = (a, b) => a + Math.random() * (b - a);
+		const BURSTS = 28, JETS = 10, ROCKETS = 12;
+
+		const spark = (parent, kind, angle, dist, hue, delay, px, life) => {
+			const vec = parent.createDiv({ cls: 'zg-firework-vec is-' + kind });
+			vec.style.setProperty('--a', angle + 'deg');
+			vec.style.setProperty('--d', dist + 'px');
+			vec.style.animationDelay    = delay + 's';
+			vec.style.animationDuration = life + 's';
+			const p = vec.createDiv({ cls: 'zg-firework-spark' });
+			p.style.width  = px + 'px';
+			p.style.height = px + 'px';
+			p.style.background = 'hsl(' + (hue + rand(-14, 14)) + ', 95%, ' + rand(56, 84) + '%)';
+			p.style.animationDelay    = delay + 's';
+			p.style.animationDuration = life + 's';
+		};
+
+		// ── Bursts: full rings, spread across the whole panel ─────────────
+		for (let b = 0; b < BURSTS; b++) {
+			const burst = layer.createDiv({ cls: 'zg-firework' });
+			burst.style.left = rand(6, 94) + '%';
+			burst.style.top  = rand(8, 88) + '%';
+			const hue = HUES[Math.floor(Math.random() * HUES.length)];
+			const n = Math.floor(rand(14, 26)), reach = rand(22, 52);
+			// Spread deterministically across the run and jitter within the
+			// slot. Purely random delays clustered, so the tail went quiet.
+			const delay = (b / BURSTS) * 8.6 + rand(0, 0.4);
+			const px = Math.floor(rand(2, 5)), spin = rand(0, 360);
+			for (let i = 0; i < n; i++) {
+				spark(burst, 'fly', spin + (360 / n) * i,
+					reach * rand(0.5, 1), hue, delay, px, rand(1.4, 2.2));
+			}
+		}
+
+		// ── Fountains: narrow upward sprays along the foot ────────────────
+		for (let f = 0; f < JETS; f++) {
+			const jet = layer.createDiv({ cls: 'zg-firework' });
+			jet.style.left = rand(6, 94) + '%';
+			jet.style.bottom = '2%';
+			const hue = HUES[Math.floor(Math.random() * HUES.length)];
+			const delay = (f / JETS) * 8.2 + rand(0, 0.4);
+			for (let i = 0; i < 24; i++) {
+				spark(jet, 'jet', rand(165, 195),
+					rand(50, 120), hue, delay + i * 0.045, Math.floor(rand(2, 4)), rand(1.6, 2.4));
+			}
+		}
+
+		// ── Rockets: climb, then break where the climb ends ───────────────
+		for (let r = 0; r < ROCKETS; r++) {
+			const rocket = layer.createDiv({ cls: 'zg-firework' });
+			rocket.style.left = rand(6, 94) + '%';
+			rocket.style.bottom = '2%';
+			const hue = HUES[Math.floor(Math.random() * HUES.length)];
+			const delay = 0.4 + (r / ROCKETS) * 8.2 + rand(0, 0.3);
+			const rise = rand(60, 130);
+			spark(rocket, 'rocket', 180, rise, hue, delay, 3, 1.1);
+			const head = rocket.createDiv({ cls: 'zg-firework zg-firework-head' });
+			head.style.setProperty('--rise', rise + 'px');
+			head.style.animationDelay = delay + 's';
+			for (let i = 0; i < 18; i++) {
+				spark(head, 'fly', (360 / 18) * i, rand(16, 38), hue,
+					delay + 1.0, Math.floor(rand(2, 4)), rand(1.2, 1.8));
+			}
+		}
+
+		window.setTimeout(() => { if (layer.remove) layer.remove(); }, 10400);
+	}
+
+	// The report's gauge: a ring with the number inside and a stroke that
+	// warms from red through amber to green as it fills. The colour is the
+	// point — a ring at 30% and one at 90% should not look alike.
+	buildGoalCircle(ratio) {
+		const NS = 'http://www.w3.org/2000/svg';
+		const W  = 3.4;
+		const R  = 12 - W / 2 - 0.5;
+		const C  = 2 * Math.PI * R;
+		const r  = Math.min(Math.max(ratio, 0), 1);
+		const pct = Math.round(r * 100);
+
+		const svg = document.createElementNS(NS, 'svg');
+		svg.setAttribute('class', 'zg-goal-circle');
+		svg.setAttribute('viewBox', '0 0 24 24');
+		svg.setAttribute('aria-hidden', 'true');
+		// hue 0 is red, 140 is green; everything between is the ramp.
+		svg.style.color = 'hsl(' + Math.round(r * 140) + ', 68%, 47%)';
+
+		const g = document.createElementNS(NS, 'g');
+		g.setAttribute('transform', 'rotate(-90 12 12)');
+		for (const cls of ['zg-goal-circle-track', 'zg-goal-circle-fill']) {
+			const c = document.createElementNS(NS, 'circle');
+			c.setAttribute('class', cls);
+			c.setAttribute('cx', '12'); c.setAttribute('cy', '12');
+			c.setAttribute('r', String(R));
+			c.setAttribute('stroke-width', String(W));
+			if (cls === 'zg-goal-circle-fill') {
+				c.setAttribute('stroke-dasharray', String(C));
+				c.setAttribute('stroke-dashoffset', String(C * (1 - r)));
+				if (r <= 0) c.setAttribute('visibility', 'hidden');
+			}
+			g.appendChild(c);
+		}
+		svg.appendChild(g);
+
+		const t = document.createElementNS(NS, 'text');
+		t.setAttribute('class', 'zg-goal-circle-pct');
+		t.setAttribute('x', '12'); t.setAttribute('y', '12');
+		t.setAttribute('text-anchor', 'middle');
+		t.setAttribute('dominant-baseline', 'central');
+		t.setAttribute('font-size', pct >= 100 ? '6.4' : '7.6');
+		t.textContent = pct + '%';
+		svg.appendChild(t);
+		return svg;
+	}
+
+	// Shared by all three goals. They differ only in their colour, their
+	// numbers, their length, and what the click opens.
+	buildSubGoal(kind, path, words, target, noun) {
+		const COLORS = { writing: 'goalColor',      file: 'fileGoalColor',  folder: 'folderGoalColor' };
+		const LENS   = { writing: 'goalLenWriting', file: 'goalLenFile',    folder: 'goalLenFolder'   };
+		const s = this.settings;
+		const wrap = document.createElement('span');
+		wrap.className = 'zg-goal zg-goal-' + kind + ' is-clickable';
+		// currentColor drives track, fill and label together. Left unset, the
+		// gauge inherits the bar's own text colour — which is what "no
+		// colours" means here: not grey, just not special.
+		if (s.goalCustomColors) wrap.style.color = s[COLORS[kind]] || 'currentColor';
+
+		const vert   = (s.goalOrientation || 'vertical') === 'vertical';
+		const length = s[LENS[kind]] || 90;
+		const gauge  = s.goalShowGauge !== false;
+
+		if (!path || !target) {
+			wrap.classList.add('is-off');
+			if (gauge) wrap.appendChild(this.buildGoalBar(0, false, length, null));
+			else wrap.appendChild(this.makeGoalLabel('\u2014'));
+			wrap.title = !path ? 'No ' + noun + ' \u2014 open a note first'
+			                   : 'No ' + noun + ' set \u2014 click to set one';
+			return wrap;
+		}
+
+		const ratio = Math.min(words / target, 1);
+		const met   = words >= target;
+		if (met) wrap.classList.add('is-met');
+
+		const mode = s.goalLabelMode || 'percent';
+		const text = mode === 'none' ? null
+			: mode === 'fraction' ? words.toLocaleString() + '/' + target.toLocaleString()
+			: Math.round(ratio * 100) + '%';
+
+		if (!gauge) {
+			// Label only: no bar at all, just the number.
+			if (text) wrap.appendChild(this.makeGoalLabel(text));
+		} else if (!vert) {
+			// Horizontal has room along its length, so the label rides inside.
+			wrap.appendChild(this.buildGoalBar(ratio, met, length, text));
+		} else {
+			wrap.appendChild(this.buildGoalBar(ratio, met, length, null));
+			if (text) wrap.appendChild(this.makeGoalLabel(text));
+		}
+
+		wrap.title = noun + ' \u2014 ' + words.toLocaleString() + '/' + target.toLocaleString()
+			+ ' words \u2014 click to change';
+		return wrap;
+	}
+
+	makeGoalLabel(text) {
+		const el = document.createElement('span');
+		el.className = 'zg-goal-text';
+		el.textContent = text;
+		return el;
+	}
+
+	buildFileGoalIndicator() {
+		const view   = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const path   = view && view.file ? view.file.path : null;
+		const target = path ? this.fileGoalFor(path) : 0;
+		const words  = this._zgLastTotalWordCount || 0;
+		const el = this.buildSubGoal('file', path, words, target, 'note goal');
+		el.addEventListener('mousedown', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (path) this.openGoalModal('file', path);
+		});
+		return el;
+	}
+
+	buildFolderGoalIndicator() {
+		const path   = this.activeFolderPath();
+		const target = path ? this.folderGoalFor(path) : 0;
+		const words  = this._folderWordCache && this._folderWordCache.path === path
+			? this._folderWordCache.words : 0;
+		const el = this.buildSubGoal('folder', path, words, target, 'folder goal');
+		el.addEventListener('mousedown', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			if (path) this.openGoalModal('folder', path);
+		});
+		// Refresh the total in the background so the next repaint is current.
+		if (path && target) this.refreshFolderWords(path);
+		return el;
+	}
+
+	async refreshFolderWords(path) {
+		if (this._folderWordBusy) return;
+		this._folderWordBusy = true;
+		try {
+			const stats = await this.analyzeFolder(path);
+			const prev  = this._folderWordCache;
+			this._folderWordCache = { path, words: stats.words };
+			if (!prev || prev.path !== path || prev.words !== stats.words) this.updateRetroStatusBar();
+		} catch (_) {
+		} finally { this._folderWordBusy = false; }
+	}
+
+	// One modal for all three. The writing goal additionally offers to rebase,
+	// which is the only thing that used to require a click on the token.
+	openGoalModal(kind, path) {
+		if (!Modal) return;
+		const plugin = this;
+		const modal  = new Modal(this.app);
+		const titles = {
+			writing: 'Writing goal',
+			file:    'Word goal for ' + path,
+			folder:  'Word goal for ' + (path === '/' ? 'the vault root' : path)
+		};
+		modal.titleEl.setText(titles[kind] || 'Word goal');
+		const body = modal.contentEl;
+		const notes = {
+			writing: 'Counts words written since the goal was last rebased, across every note.',
+			file:    'Counts the words in this note. Set 0 to remove the goal.',
+			folder:  'Counts every note in this folder and below it. Set 0 to remove the goal.'
+		};
+		body.createEl('p', { text: notes[kind], cls: 'ws-settings-note' });
+
+		const current = kind === 'writing' ? plugin.settings.goalTarget
+			: kind === 'file' ? plugin.fileGoalFor(path) : plugin.folderGoalFor(path);
+		let value = String(current || '');
+		new Setting(body).setName('Target').addText(t => {
+			t.inputEl.type = 'number';
+			t.inputEl.min = '0';
+			t.setValue(value).onChange(v => { value = v; });
+		});
+
+		if (kind === 'writing') {
+			new Setting(body).setName('Baseline')
+				.setDesc('Start counting again from the current total.')
+				.addButton(b => b.setButtonText('Reset').onClick(async () => {
+					plugin.settings.goalBaseline = plugin._zgLastTotalWordCount || 0;
+					plugin._goalWasMet = false;
+					await plugin.saveSettings(true);
+					modal.close();
+				}));
+		}
+
+		new Setting(body).addButton(b => b.setButtonText('Save').setCta().onClick(async () => {
+			const n = Math.max(0, Math.round(Number(value) || 0));
+			if (kind === 'writing') {
+				plugin.settings.goalTarget = n;
+			} else {
+				const store = kind === 'folder' ? 'folderGoals' : 'fileGoals';
+				if (!plugin.settings[store]) plugin.settings[store] = {};
+				if (n) plugin.settings[store][path] = n;
+				else   delete plugin.settings[store][path];
+				if (kind === 'folder') plugin._folderWordCache = null;
+			}
+			await plugin.saveSettings(true);
+			modal.close();
+		}));
+		modal.open();
+	}
+
+	buildReportIndicator() {
+		return this.buildBarButton('zg-barbtn-report',
+			(node) => { node.textContent = 'Report'; },
+			'Text analysis \u2014 click for the full report',
+			() => this.openReportModal());
+	}
+
+	// A centred report rather than a bar popup: eight figures and a gauge,
+	// twice over, is more than a strip above the status bar can hold legibly.
+	openReportModal() {
+		if (!Modal) return;
+		const plugin = this;
+		const modal  = new Modal(this.app);
+		modal.titleEl.setText('Writing Report');
+		modal.modalEl.addClass('zg-report-modal');
+
+		const view       = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const file       = view && view.file ? view.file : null;
+		const folderPath = this.activeFolderPath();
+		const baseName   = file ? file.path.split('/').pop() : 'Current note';
+		const folderName = folderPath && folderPath !== '/'
+			? folderPath.split('/').pop() : 'Vault root';
+
+		const nav  = modal.contentEl.createDiv({ cls: 'ws-tab-nav zg-report-nav' });
+		const body = modal.contentEl.createDiv({ cls: 'zg-report-body' });
+
+		const TABS = [
+			{ id: 'note',   label: baseName   },
+			{ id: 'folder', label: folderName }
+		];
+		let active = 'note';
+
+		const render = async () => {
+			nav.empty();
+			for (const tab of TABS) {
+				const btn = nav.createEl('button', {
+					cls: 'ws-tab-btn' + (tab.id === active ? ' is-active' : ''),
+					text: tab.label
+				});
+				btn.addEventListener('click', () => { active = tab.id; render(); });
+			}
+			body.empty();
+			body.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
+
+			let stats = null, target = 0, scope = '';
+			if (active === 'note') {
+				if (!file) { body.empty(); body.createDiv({ text: 'No note open.' }); return; }
+				let text = '';
+				try { text = await plugin.app.vault.cachedRead(file); } catch (_) {}
+				stats  = plugin.analyzeText(text);
+				// The file's own goal, not the vault-wide writing goal — those
+				// are different numbers and showing one under the other's name
+				// made the ring meaningless.
+				target = plugin.fileGoalFor(file.path);
+				scope  = file.path;
+			} else {
+				if (!folderPath) { body.empty(); body.createDiv({ text: 'No folder.' }); return; }
+				stats  = await plugin.analyzeFolder(folderPath);
+				target = plugin.folderGoalFor(folderPath);
+				scope  = (folderPath === '/' ? 'Vault root' : folderPath)
+					+ ' \u2014 ' + stats.files + ' note' + (stats.files === 1 ? '' : 's');
+			}
+
+			// A tab switch mid-read must not paint stale numbers.
+			body.empty();
+			body.createDiv({ cls: 'zg-report-scope', text: scope });
+			body.createEl('hr', { cls: 'zg-report-rule' });
+
+			const ringWrap = body.createDiv({ cls: 'zg-report-ring' });
+			if (target > 0) {
+				const ratio = Math.min(stats.words / target, 1);
+				const holder = ringWrap.createSpan({ cls: 'zg-goal' + (stats.words >= target ? ' is-met' : '') });
+				holder.appendChild(plugin.buildGoalCircle(ratio));
+				// Crossing the line in the report is the one place worth
+				// making a fuss about, so it gets a fuss.
+				// Over the whole report, not just the gauge — see celebrate().
+				if (stats.words >= target) plugin.celebrate(body);
+			} else {
+				ringWrap.createSpan({
+					cls: 'zg-report-ring-label is-muted',
+					text: active === 'note' ? 'No goal set for this note.'
+						: 'No goal set for this folder.'
+				});
+			}
+
+			const grid = body.createDiv({ cls: 'zg-report-grid' });
+			// Each figure carries its own explanation on hover, rather than a
+			// block of footnotes below competing with the numbers for height.
+			const cell = (label, value, tip) => {
+				const c = grid.createDiv({ cls: 'zg-report-cell' + (tip ? ' has-tip' : '') });
+				if (tip) c.setAttribute('title', tip);
+				c.createDiv({ cls: 'zg-report-value', text: value });
+				c.createDiv({ cls: 'zg-report-label', text: label });
+			};
+			// The fraction lives in the Words cell rather than beside the
+			// gauge: it is a word count, and that is where a reader looks.
+			cell(target > 0 ? 'of ' + target.toLocaleString() + ' words' : 'Words',
+				stats.words.toLocaleString(),
+				'Prose only. Frontmatter, code blocks, math and link targets are not counted. '
+				+ 'Chinese and Japanese count per character; Korean counts by word.');
+			cell('Characters', stats.chars.toLocaleString(),
+				'Including spaces. Same exclusions as the word count.');
+			cell('No spaces',  (stats.charsNoSpaces || 0).toLocaleString(),
+				'Characters with all whitespace stripped \u2014 the figure most word processors '
+				+ 'call "characters excluding spaces".');
+			cell('Syllables',  stats.syllables.toLocaleString(),
+				'Counted heuristically \u2014 a handful of unusual words will be off, which the '
+				+ 'grade averages out.');
+			cell('Sentences',  stats.sentences.toLocaleString(),
+				'Split on full stops, question marks and exclamation marks.');
+			cell('Paragraphs', stats.paragraphs.toLocaleString(),
+				'Blocks of prose separated by a blank line. Lists, headings and code do not count.');
+			cell('Lines',      (stats.lines || 0).toLocaleString(),
+				'Non-empty lines of prose, as written \u2014 not as wrapped on screen.');
+			cell('Pages',      (stats.pages || 0).toLocaleString(),
+				'At 250 words to a page, the manuscript convention.');
+			cell('Read time',  plugin.formatReadTime(stats.words),
+				'At ' + (plugin.settings.readTimeWpm || 200) + ' words a minute, set under '
+				+ 'Retro Bar \u2192 Token formats.');
+			cell('Grade',      stats.sentences ? stats.grade.toFixed(1) : '\u2014',
+				'Flesch\u2013Kincaid: roughly the years of schooling needed to read this '
+				+ 'comfortably. Under 9 reads easily.');
+
+		};
+		render();
+		modal.open();
+	}
+
+	// The fonts the user added under Appearance \u2192 Text font, not every font
+	// installed on the machine. Obsidian keeps that list in appearance.json and
+	// exposes it through vault.getConfig; the computed --font-text is the
+	// fallback, and needs the generic stack filtered back out of it.
+	getConfiguredFonts() {
+		let raw = '';
+		try {
+			if (this.app.vault.getConfig) {
+				const cfg = this.app.vault.getConfig('textFontFamily');
+				raw = Array.isArray(cfg) ? cfg.join(',') : (cfg || '');
+			}
+		} catch (_) { raw = ''; }
+		if (!raw) {
+			try { raw = getComputedStyle(document.body).getPropertyValue('--font-text') || ''; }
+			catch (_) { raw = ''; }
+		}
+		// Everything Obsidian appends as a fallback, plus the CSS generics.
+		const GENERIC = new Set(['inherit', 'initial', 'unset', 'sans-serif', 'serif',
+			'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif',
+			'ui-monospace', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto',
+			'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+			'Helvetica', 'Arial', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol']);
+		const seen = new Set();
+		const out  = [];
+		for (const part of String(raw).split(',')) {
+			const name = part.trim().replace(/^["']|["']$/g, '');
+			if (!name || GENERIC.has(name) || seen.has(name)) continue;
+			seen.add(name);
+			out.push(name);
+		}
+		return out;
+	}
+
+	// Stamped separately from the rest of applyCssVariables because the value
+	// can change per note, and so has to be re-applied on every file switch
+	// rather than only on a settings change.
+	applyEditorFont() {
+		const font = this.settings.pluginEnabled && this.isActiveFileInScope()
+			? (this.opt('editorFont') || '')
+			: '';
+		if (font) document.body.style.setProperty('--zg-font', font);
+		else      document.body.style.removeProperty('--zg-font');
+		document.body.classList.toggle('zg-font-active', !!font);
+	}
+
+	buildFontIndicator() {
+		const current = this.opt('editorFont') || '';
+		const el = this.buildBarButton(
+			'zg-barbtn-font' + (current ? '' : ' is-off'),
+			(node) => {
+				node.textContent = 'Aa';
+				// The button previews the choice too.
+				if (current) node.style.fontFamily = current;
+			},
+			current ? 'Font: ' + current + ' \u2014 click to change' : 'Font \u2014 click to choose',
+			(anchor) => this.openFontPicker(anchor)
+		);
+		return el;
+	}
+
+	openFontPicker(anchor) {
+		const fonts   = this.getConfiguredFonts();
+		const current = () => this.opt('editorFont') || '';
+		const items = [{
+			label: 'Theme default',
+			on: () => !current(),
+			onClick: async () => {
+				this.settings.editorFont = '';
+				await this.saveSettings(true);
+				this.applyEditorFont();
+			}
+		}];
+		for (const name of fonts) {
+			items.push({
+				label: name,
+				font: name,
+				on: () => current() === name,
+				onClick: async () => {
+					this.settings.editorFont = name;
+					await this.saveSettings(true);
+					this.applyEditorFont();
+				}
+			});
+		}
+		if (fonts.length === 0) {
+			items.push({
+				label: 'No fonts added yet',
+				on: () => false,
+				onClick: async () => {}
+			});
+		}
+		this.openPickerLive(anchor, items, 'choose');
+	}
+
 	// The five syntax-highlight classes, in the order they appear everywhere
 	// else. The settings keys keep their pos* names: renaming them would force
 	// a migration on every existing vault, and nobody reads data.json.
@@ -2413,72 +3473,81 @@ module.exports = class WordSmith extends Plugin {
 		this.openPickerLive(anchor, items, 'toggle');
 	}
 
-	// Caps Lock as the key cap itself: an upward chevron with an A inside it,
-	// the way the key is engraved. Drawn rather than typed, because no font
-	// carries a glyph for this and CAPS in flat text reads as shouting.
-	buildCapsIndicator() {
-		const NS  = 'http://www.w3.org/2000/svg';
-		const svg = document.createElementNS(NS, 'svg');
-		svg.setAttribute('class', 'zg-key zg-key-caps');
-		svg.setAttribute('viewBox', '0 0 20 20');
-		svg.setAttribute('aria-hidden', 'true');
-
-		// A hollow up-arrow outline, wide enough to hold a letter.
-		const arrow = document.createElementNS(NS, 'path');
-		arrow.setAttribute('class', 'zg-key-shape');
-		arrow.setAttribute('d', 'M10 1.5 L18.5 9 H14.5 V18 H5.5 V9 H1.5 Z');
-		svg.appendChild(arrow);
-
-		const letter = document.createElementNS(NS, 'text');
-		letter.setAttribute('class', 'zg-key-text');
-		letter.setAttribute('x', '10');
-		letter.setAttribute('y', '15.4');
-		letter.setAttribute('text-anchor', 'middle');
-		letter.setAttribute('font-size', '7.5');
-		letter.textContent = 'A';
-		svg.appendChild(letter);
-
+	// Both lock indicators are the key legend on two lines, unboxed. The
+	// drawn key caps read as buttons you could press, which they are not —
+	// plain stacked text says "this is on" without implying an action.
+	buildKeyGlyph(top, bottom, title) {
 		const wrap = document.createElement('span');
 		wrap.className = 'zg-keycap';
-		wrap.title = 'Caps Lock is on';
-		wrap.appendChild(svg);
+		wrap.title = title;
+		for (const text of [top, bottom]) {
+			const row = document.createElement('span');
+			row.className = 'zg-keycap-row';
+			row.textContent = text;
+			wrap.appendChild(row);
+		}
 		return wrap;
 	}
 
-	// Num Lock as a rounded key cap with the legend on two lines, which is how
-	// it is actually printed on a keyboard.
+	buildCapsIndicator() {
+		return this.buildKeyGlyph('Caps', 'Lock', 'Caps Lock is on');
+	}
+
 	buildNumIndicator() {
-		const NS  = 'http://www.w3.org/2000/svg';
-		const svg = document.createElementNS(NS, 'svg');
-		svg.setAttribute('class', 'zg-key zg-key-num');
-		svg.setAttribute('viewBox', '0 0 22 20');
-		svg.setAttribute('aria-hidden', 'true');
+		return this.buildKeyGlyph('Num', 'Lock', 'Num Lock is on');
+	}
 
-		const cap = document.createElementNS(NS, 'rect');
-		cap.setAttribute('class', 'zg-key-shape');
-		cap.setAttribute('x', '1.2'); cap.setAttribute('y', '1.2');
-		cap.setAttribute('width', '19.6'); cap.setAttribute('height', '17.6');
-		cap.setAttribute('rx', '3.4');
-		svg.appendChild(cap);
+	// The writing checks get their own token, so the syntax picker can stay
+	// one line about them rather than seven.
+	getWriteChecks() {
+		return [
+			{ key: 'checkFiller',     color: 'checkFillerColor',     label: 'Filler words'      },
+			{ key: 'checkPassive',    color: 'checkPassiveColor',    label: 'Passive voice'     },
+			{ key: 'checkIllusion',   color: 'checkIllusionColor',   label: 'Lexical illusions' },
+			{ key: 'checkMisused',    color: 'checkMisusedColor',    label: 'Commonly misused'  },
+			{ key: 'checkPronoun',    color: 'checkPronounColor',    label: 'Loose pronouns'    },
+			{ key: 'checkRhythm',     color: 'checkRhythmHardColor', label: 'Sentence rhythm'   },
+			{ key: 'checkRepetition', color: 'checkRepetitionColor', label: 'Repetition radar'  }
+		];
+	}
 
-		// Two rows, sized to sit inside the cap without touching its radius.
-		const rows = [['Num', 8.6], ['Lock', 16.2]];
-		for (const row of rows) {
-			const t = document.createElementNS(NS, 'text');
-			t.setAttribute('class', 'zg-key-text');
-			t.setAttribute('x', '11');
-			t.setAttribute('y', String(row[1]));
-			t.setAttribute('text-anchor', 'middle');
-			t.setAttribute('font-size', '6.6');
-			t.textContent = row[0];
-			svg.appendChild(t);
-		}
+	buildWriteChecksIndicator() {
+		const s = this.settings;
+		const active = s.checksEnabled ? this.getWriteChecks().filter(c => s[c.key]) : [];
+		return this.buildBarButton(
+			'zg-barbtn-writechecks' + (active.length ? '' : ' is-off'),
+			(node) => { node.textContent = 'WriteChecks'; },
+			active.length ? 'Writing checks: ' + active.map(c => c.label.toLowerCase()).join(', ')
+				: 'Writing checks are off',
+			(anchor) => this.openWriteChecksPicker(anchor)
+		);
+	}
 
-		const wrap = document.createElement('span');
-		wrap.className = 'zg-keycap';
-		wrap.title = 'Num Lock is on';
-		wrap.appendChild(svg);
-		return wrap;
+	openWriteChecksPicker(anchor) {
+		const s = this.settings;
+		const items = this.getWriteChecks().map(c => ({
+			label: c.label,
+			color: s[c.color],
+			on:    () => !!(s.checksEnabled && s[c.key]),
+			onClick: async () => {
+				s[c.key] = !s[c.key];
+				if (s[c.key]) s.checksEnabled = true;
+				else if (!this.getWriteChecks().some(x => s[x.key])) s.checksEnabled = false;
+				await this.saveSettings(true);
+			}
+		}));
+		items.push({
+			label: 'Write checks',
+			on: () => !!s.checksEnabled,
+			onClick: async () => {
+				s.checksEnabled = !s.checksEnabled;
+				// Switching it on with nothing selected would mark nothing at
+				// all, so hand back a default.
+				if (s.checksEnabled && !this.getWriteChecks().some(c => s[c.key])) s.checkFiller = true;
+				await this.saveSettings(true);
+			}
+		});
+		this.openPickerLive(anchor, items, 'toggle');
 	}
 
 	// ¶ in the bar; the picker toggles which invisibles are drawn.
@@ -2504,6 +3573,7 @@ module.exports = class WordSmith extends Plugin {
 		];
 		const items = defs.map(d => ({
 			label: d.label,
+			sub:   true,
 			on: () => !!(s.showHiddenMarkers && s[d.key]),
 			onClick: async () => {
 				s[d.key] = !s[d.key];
@@ -2517,9 +3587,10 @@ module.exports = class WordSmith extends Plugin {
 
 	// Small wrapper so pickers can pass live getters rather than a snapshot.
 	openPickerLive(anchor, items, mode) {
-		const snapshot = items.map(i => ({
-			label: i.label, color: i.color, on: i.on(), onClick: i.onClick
-		}));
+		// Copy the whole item and overwrite only `on`, rather than listing the
+		// fields by hand — the hand-written version silently dropped `font`
+		// the moment a picker started using it.
+		const snapshot = items.map(i => Object.assign({}, i, { on: i.on() }));
 		this.openBarPicker(anchor, snapshot, mode);
 		if (this._barPicker) this._barPicker._live = items;
 	}
@@ -2663,6 +3734,11 @@ module.exports = class WordSmith extends Plugin {
 			'{mode}':      '\x00MODE\x00',
 			'{syntax}':    '\x00SYNTAX\x00',
 			'{markers}':   '\x00MARKERS\x00',
+			'{writechecks}': '\x00WRITECHECKS\x00',
+			'{font}':      '\x00FONT\x00',
+			'{foldergoal}': '\x00FOLDERGOAL\x00',
+			'{filegoal}':  '\x00FILEGOAL\x00',
+			'{report}':    '\x00REPORT\x00',
 			'{readtime}':  this.formatReadTime(totalWC),
 			'{goal}':      '\x00GOAL\x00'
 		};
@@ -2731,12 +3807,17 @@ module.exports = class WordSmith extends Plugin {
 			MODE:     () => this.buildModeIndicator(),
 			SYNTAX:   () => this.buildSyntaxIndicator(),
 			MARKERS:  () => this.buildMarkersIndicator(),
+			WRITECHECKS: () => this.buildWriteChecksIndicator(),
+			FONT:     () => this.buildFontIndicator(),
+			FOLDERGOAL: () => this.buildFolderGoalIndicator(),
+			FILEGOAL: () => this.buildFileGoalIndicator(),
+			REPORT:   () => this.buildReportIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
 			NUM:      () => this.buildNumIndicator()
 		};
 		// \x00 cannot appear in a note or a format string, so the split is
 		// unambiguous. Odd indices are the captured sentinel names.
-		const parts = out.split(/\x00(GOAL|MODE|SYNTAX|MARKERS|CAPS|NUM)\x00/);
+		const parts = out.split(/\x00(GOAL|FOLDERGOAL|FILEGOAL|MODE|SYNTAX|MARKERS|WRITECHECKS|FONT|REPORT|CAPS|NUM)\x00/);
 		for (let i = 0; i < parts.length; i++) {
 			const chunk = parts[i];
 			if (!chunk) continue;
@@ -2784,110 +3865,21 @@ module.exports = class WordSmith extends Plugin {
 	// GOAL INDICATOR
 	// ════════════════════════════════════════════════════════════════════════
 
-	// Ring or plain fraction. Everything is drawn from currentColor, so the
-	// indicator inherits --zg-text without a second set of colour settings.
+	// All three goals go through buildSubGoal: same shape code, same label
+	// rules, same click. Only the outline and the numbers differ.
 	buildGoalIndicator(goal) {
-		const wrap = document.createElement('span');
-		wrap.className = 'zg-goal is-clickable';
-		if (goal.met) wrap.classList.add('is-met');
-		wrap.title = goal.text + ' \u2014 click to reset the baseline';
-
-		if ((this.settings.goalDisplay || 'ring') === 'fraction') {
-			const span = document.createElement('span');
-			span.className = 'zg-goal-text';
-			span.textContent = goal.text;
-			wrap.appendChild(span);
-			// The ring carries the reset glyph inside it; in fraction mode
-			// there is no inside, so it sits alongside the number.
-			if (goal.met) wrap.appendChild(this.buildResetGlyph());
-		} else {
-			wrap.appendChild(this.buildGoalRing(goal.ratio, goal.met));
-		}
-
-		wrap.addEventListener('mousedown', async (e) => {
+		const el = this.buildSubGoal('writing', 'writing goal',
+			goal.words, goal.target, 'writing goal');
+		el.addEventListener('mousedown', (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this.settings.goalBaseline = this._zgLastTotalWordCount || 0;
-			this._goalWasMet = false;
-			await this.saveSettings();
-			this.updateRetroStatusBar();
+			this.openGoalModal('writing', null);
 		});
-		return wrap;
+		return el;
 	}
 
-	// The circled arrow shared by both goal displays.
-	buildResetGlyph(size) {
-		const NS  = 'http://www.w3.org/2000/svg';
-		const svg = document.createElementNS(NS, 'svg');
-		svg.setAttribute('class', 'zg-goal-reset');
-		svg.setAttribute('viewBox', '0 0 24 24');
-		svg.setAttribute('aria-hidden', 'true');
-		const icon = document.createElementNS(NS, 'path');
-		icon.setAttribute('class', 'zg-goal-ring-icon');
-		icon.setAttribute('d', 'M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z');
-		svg.appendChild(icon);
-		return svg;
-	}
 
-	// A stroked SVG arc. Only the circles are rotated, not the whole element:
-	// rotating the svg would stand the percentage on its side.
-	buildGoalRing(ratio, met) {
-		const NS = 'http://www.w3.org/2000/svg';
-		const W  = Math.max(1, Math.min(8, this.settings.goalRingWeight || 4));
-		const R  = 12 - (W / 2) - 0.5;          // keep the stroke inside a 24x24 box
-		const C  = 2 * Math.PI * R;
-		const pct = Math.round(Math.min(Math.max(ratio, 0), 1) * 100);
 
-		const svg = document.createElementNS(NS, 'svg');
-		svg.setAttribute('class', 'zg-goal-ring');
-		svg.setAttribute('viewBox', '0 0 24 24');
-		svg.setAttribute('aria-hidden', 'true');
-
-		const g = document.createElementNS(NS, 'g');
-		g.setAttribute('transform', 'rotate(-90 12 12)');   // start at twelve o'clock
-		for (const cls of ['zg-goal-ring-track', 'zg-goal-ring-fill']) {
-			const c = document.createElementNS(NS, 'circle');
-			c.setAttribute('class', cls);
-			c.setAttribute('cx', '12');
-			c.setAttribute('cy', '12');
-			c.setAttribute('r', String(R));
-			c.setAttribute('stroke-width', String(W));
-			if (cls === 'zg-goal-ring-fill') {
-				c.setAttribute('stroke-dasharray',  String(C));
-				c.setAttribute('stroke-dashoffset', String(C * (1 - Math.min(Math.max(ratio, 0), 1))));
-				// A round cap at exactly zero reads as progress that has not
-				// happened, so hide the arc entirely instead.
-				if (ratio <= 0) c.setAttribute('visibility', 'hidden');
-			}
-			g.appendChild(c);
-		}
-		svg.appendChild(g);
-
-		// Once the target is met the number has done its job — it reads 100 and
-		// stays there. The refresh glyph says what a click does now instead.
-		if (met && this.settings.goalRingPercent) {
-			const g2 = document.createElementNS(NS, 'g');
-			g2.setAttribute('transform', 'translate(12 12) scale(0.44) translate(-12 -12)');
-			const icon = document.createElementNS(NS, 'path');
-			icon.setAttribute('class', 'zg-goal-ring-icon');
-			icon.setAttribute('d', 'M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z');
-			g2.appendChild(icon);
-			svg.appendChild(g2);
-		} else if (this.settings.goalRingPercent) {
-			const t = document.createElementNS(NS, 'text');
-			t.setAttribute('class', 'zg-goal-ring-pct');
-			t.setAttribute('x', '12');
-			t.setAttribute('y', '12');
-			t.setAttribute('text-anchor', 'middle');
-			t.setAttribute('dominant-baseline', 'central');
-			// Three digits need to fit once the goal is met, so the type
-			// steps down rather than overflowing the ring.
-			t.setAttribute('font-size', pct >= 100 ? '7.6' : '9');
-			t.textContent = String(pct);
-			svg.appendChild(t);
-		}
-		return svg;
-	}
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// Letterbox mask system
@@ -3338,6 +4330,16 @@ module.exports = class WordSmith extends Plugin {
 		}, { decorations: v => v.decorations });
 
 		// ── Syntax highlight ──────────────────────────────────────────────────
+		const checkMark = {
+			filler:   Decoration.mark({ class: 'zg-ck-filler'   }),
+			passive:  Decoration.mark({ class: 'zg-ck-passive'  }),
+			illusion: Decoration.mark({ class: 'zg-ck-illusion' }),
+			hard:     Decoration.mark({ class: 'zg-ck-hard'     }),
+			veryhard: Decoration.mark({ class: 'zg-ck-veryhard' }),
+			repeat:   Decoration.mark({ class: 'zg-ck-repeat'   }),
+			misused:  Decoration.mark({ class: 'zg-ck-misused'  }),
+			pronoun:  Decoration.mark({ class: 'zg-ck-pronoun'  })
+		};
 		const posMark = {
 			noun: Decoration.mark({ class: 'zg-pos-noun' }),
 			verb: Decoration.mark({ class: 'zg-pos-verb' }),
@@ -3353,17 +4355,25 @@ module.exports = class WordSmith extends Plugin {
 			}
 			build(view) {
 				const s = plugin.settings;
-				if (!s.pluginEnabled || !s.posEnabled) return Decoration.none;
-				const posOn = {
+				if (!s.pluginEnabled) return Decoration.none;
+				// Word classes and writing checks are independent now: either
+				// can run without the other.
+				const posOn = s.posEnabled ? {
 					noun: s.posNoun, verb: s.posVerb, adj: s.posAdjective,
 					adv:  s.posAdverb, conj: s.posConjunction
-				};
-				if (!Object.keys(posOn).some(k => posOn[k])) return Decoration.none;
+				} : {};
+				const checksOn = s.checksEnabled && (s.checkFiller || s.checkPassive ||
+					s.checkIllusion || s.checkMisused || s.checkPronoun ||
+					s.checkRhythm || s.checkRepetition);
+				if (!Object.keys(posOn).some(k => posOn[k]) && !checksOn) return Decoration.none;
 				if (!plugin.isEditorInScope(view)) return Decoration.none;
 
 				const doc  = view.state.doc;
 				const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
 				const out  = [];
+				// Repetition spans lines, so its tokens are collected across
+				// the whole visible range and scanned once at the end.
+				const seen = s.checkRepetition ? [] : null;
 
 				for (const range of view.visibleRanges) {
 					let pos = range.from;
@@ -3376,12 +4386,79 @@ module.exports = class WordSmith extends Plugin {
 						const masked = maskMarkup(line.text);
 						const tokens = tagTokens(tokenizeLine(masked), masked);
 						const base   = line.from;
+
 						for (const t of tokens) {
 							const bucket = posBucket(t.tag);
 							if (bucket && posOn[bucket]) {
 								out.push(posMark[bucket].range(base + t.from, base + t.to));
 							}
 						}
+
+						if (!checksOn) continue;
+
+						if (s.checkPassive) {
+							for (const r of findPassive(tokens)) {
+								out.push(checkMark.passive.range(base + r.from, base + r.to));
+							}
+						}
+						if (s.checkIllusion) {
+							for (const r of findIllusions(tokens)) {
+								out.push(checkMark.illusion.range(base + r.from, base + r.to));
+							}
+						}
+						for (const t of tokens) {
+							if (s.checkFiller && FILLER_WORDS.has(t.lw)) {
+								out.push(checkMark.filler.range(base + t.from, base + t.to));
+							}
+							if (s.checkMisused && MISUSED_WORDS.has(t.lw)) {
+								out.push(checkMark.misused.range(base + t.from, base + t.to));
+							}
+							// Only sentence-initial: a pronoun mid-sentence
+							// almost always has its referent right there.
+							if (s.checkPronoun && t.first && VAGUE_PRONOUNS.has(t.lw)) {
+								out.push(checkMark.pronoun.range(base + t.from, base + t.to));
+							}
+						}
+						if (s.checkFiller) {
+							FILLER_PHRASES.lastIndex = 0;
+							let m;
+							while ((m = FILLER_PHRASES.exec(masked))) {
+								out.push(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
+							}
+						}
+
+						// Sentence rhythm. Always a background tint, whatever
+						// checkStyle says: a squiggle under thirty words is
+						// noise, and the point is to see a wall of one colour.
+						if (s.checkRhythm) {
+							for (const sent of splitSentences(masked)) {
+								const st = tokenizeLine(sent.text);
+								if (st.length < 4) continue;      // fragments are not "hard"
+								const grade = sentenceGrade(st);
+								// != null, not ||: a threshold of 0 is a valid
+								// setting and `|| 10` silently discarded it.
+								const veryAt = s.checkRhythmVeryHardGrade != null ? s.checkRhythmVeryHardGrade : 14;
+								const hardAt = s.checkRhythmHardGrade     != null ? s.checkRhythmHardGrade     : 10;
+								const mark = grade >= veryAt ? checkMark.veryhard
+									: grade >= hardAt        ? checkMark.hard
+									: null;
+								if (mark) out.push(mark.range(base + sent.from, base + sent.to));
+							}
+						}
+
+						if (seen) {
+							for (const t of tokens) {
+								seen.push({ lw: t.lw, w: t.w, from: base + t.from, to: base + t.to });
+							}
+						}
+					}
+				}
+
+				if (seen && seen.length) {
+					const win = s.repetitionWindow    != null ? s.repetitionWindow    : 50;
+					const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
+					for (const r of findRepetitions(seen, win, min)) {
+						out.push(checkMark.repeat.range(r.from, r.to));
 					}
 				}
 				return Decoration.set(out, true);
@@ -3507,9 +4584,24 @@ module.exports = class WordSmith extends Plugin {
 			if (s.typoSmartQuotes && (text === '"' || text === "'")) {
 				const prev  = lookback.charAt(lookback.length - 1);
 				const opens = prev === '' || TYPO_OPENS_AFTER.test(prev);
+				const custom = s.typoCustomQuotes;
+				const pick = (key, fallback) => {
+					const v = custom ? s[key] : '';
+					return (typeof v === 'string' && v.length) ? v : fallback;
+				};
+				// After a letter, a single quote is either an apostrophe or the
+				// end of a quotation, and the character alone cannot say which:
+				// don't and 'b' look identical at the cursor. So look back for
+				// an opening quote that has not been closed yet.
+				const openCh  = pick('typoOpenSingle', '\u2018');
+				const closeCh = pick('typoCloseSingle', '\u2019');
+				const opens_  = before.split(openCh).length - 1;
+				const closes_ = openCh === closeCh ? 0 : before.split(closeCh).length - 1;
+				const inQuote = opens_ > closes_;
+				const midWord = /[\p{L}\p{N}]/u.test(prev) && !inQuote;
 				const glyph = text === '"'
-					? (opens ? '\u201c' : '\u201d')
-					: (opens ? '\u2018' : '\u2019');
+					? (opens ? pick('typoOpenDouble', '\u201c') : pick('typoCloseDouble', '\u201d'))
+					: (opens ? openCh : midWord ? pick('typoApostrophe', '\u2019') : closeCh);
 				plugin.applyTypography(view, from, to, text, text, glyph);
 				return true;
 			}
@@ -3960,6 +5052,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				'ws-markers: false',
 				'ws-typography: false',
 				'ws-goal: 2000        # word target for this note',
+				'ws-font: Literata    # font for this note only',
 				'---'
 			].join('\n')
 		});
@@ -4228,7 +5321,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.label(rb, 'Format');
 			rb.createEl('p', {
 				text: 'Tokens: {file} {words} {chars} {paragraph} {goal} {mode} {readtime} {time} {date} {battery} {caps} {num} {vim} {lock}\n'
-					+ 'Buttons: {syntax} {markers}',
+					+ 'Buttons: {syntax} {writechecks} {markers} {font} {report} {filegoal} {foldergoal}',
 				cls: 'ws-settings-note'
 			});
 			new Setting(rb).setName('Rows').setDesc('Stacked lines, each with left, center and right slots.')
@@ -4260,19 +5353,16 @@ class WordSmithSettingTab extends PluginSettingTab {
 							}));
 				});
 			});
-			// Its own container: the per-row `fmt` sub-panels are scoped to the
-			// loop above, and this setting applies across all rows.
-			const tokenOpts = this.sub(rb);
-			new Setting(tokenOpts).setName('{file} format').setDesc('What the {file} token shows.')
-				.addDropdown(d => d
-					.addOption('path', 'Full path  ~/folder/note')
-					.addOption('name', 'File name only  note')
-					.setValue(this.plugin.settings.fileTokenFormat || 'path')
-					.onChange(async v => { this.plugin.settings.fileTokenFormat = v; await this.plugin.saveSettings(); this.plugin.updateRetroStatusBar(); }));
-			this.slider(rb, 'Font size', 'Font size (8–24 px).', 'statusBarFontSize', 8, 24, 1);
-			this.slider(rb, 'Row height', 'Height of a single row (20–60 px). The bar is this tall per row.', 'statusBarHeight', 20, 60, 1);
-			this.label(rb, 'Top border');
-			const bd = this.sub(rb);
+			// ── Appearance ────────────────────────────────────────────────
+			rb.createEl('hr', { cls: 'ws-settings-hr' });
+			this.label(rb, 'Appearance');
+			const ap = this.sub(rb);
+			this.slider(ap, 'Font size',  'Text size in the bar (8\u201324 px).', 'statusBarFontSize', 8, 24, 1);
+			this.slider(ap, 'Row height', 'Height of one row (20\u201360 px). The bar is this tall per row.',
+				'statusBarHeight', 20, 60, 1);
+
+			this.label(ap, 'Top border');
+			const bd = this.sub(ap);
 			new Setting(bd).setName('Line style')
 				.addDropdown(d => d
 					.addOption('none',   'None')
@@ -4292,34 +5382,93 @@ class WordSmithSettingTab extends PluginSettingTab {
 				this.slider(bd, 'Line weight', 'Thickness (1\u20138 px).', 'statusBarBorderWidth', 1, 8, 1);
 			}
 
-			this.label(rb, 'Reading time');
-			const sp = this.sub(rb);
-			this.numInput(sp, 'Reading speed',
-				'Words per minute used by {readtime}.',
-				'readTimeWpm', 50, 1000);
 
-			this.label(rb, 'Writing goal');
+			// ── Goals ─────────────────────────────────────────────────────
+			rb.createEl('hr', { cls: 'ws-settings-hr' });
+			this.label(rb, 'Goal gauges');
 			const gs = this.sub(rb);
-			new Setting(gs).setName('Word target').setDesc('Target word count. Click the bar to reset the baseline.')
-				.addText(t => {
-					t.inputEl.type = 'number'; t.inputEl.min = '1'; t.inputEl.addClass('ws-num-input');
-					t.setValue(String(this.plugin.settings.goalTarget));
-					t.onChange(async v => { const n = parseInt(v, 10); if (!isNaN(n) && n > 0) { this.plugin.settings.goalTarget = n; await this.plugin.saveSettings(); } });
-				});
-			new Setting(gs).setName('Display style')
+			gs.createEl('p', {
+				text: 'Three goals, drawn the same way. Click any of them in the bar to set '
+					+ 'its target \u2014 including the writing goal, which is why there is no '
+					+ 'number to type here.',
+				cls: 'ws-settings-note'
+			});
+
+			new Setting(gs).setName('Label')
+				.setDesc('Shown beside the gauge \u2014 a vertical bar has no inside.')
 				.addDropdown(d => d
-					.addOption('ring',     'Ring')
-					.addOption('fraction', 'Fraction only  847/1,000')
-					.setValue(this.plugin.settings.goalDisplay)
-					.onChange(async v => { this.plugin.settings.goalDisplay = v; await this.plugin.saveSettings(); this.display(); }));
-			if (this.plugin.settings.goalDisplay !== 'fraction') {
-				this.toggle(gs, 'Percentage in the ring',
-					'Show the completed percentage inside the ring.', 'goalRingPercent');
-				this.slider(gs, 'Ring weight', 'Thickness of the ring (1\u20138).', 'goalRingWeight', 1, 8, 1);
+					.addOption('percent',  'Percentage  42%')
+					.addOption('fraction', 'Fraction  420/1,000')
+					.addOption('none',     'Gauge only')
+					.setValue(this.plugin.settings.goalLabelMode || 'percent')
+					.onChange(async v => { this.plugin.settings.goalLabelMode = v; await this.plugin.saveSettings(); }));
+
+			new Setting(gs).setName('Orientation')
+				.setDesc('Horizontal gauges carry their label inside; vertical ones beside.')
+				.addDropdown(d => d
+					.addOption('vertical',   'Vertical, fills upward')
+					.addOption('horizontal', 'Horizontal, fills rightward')
+					.setValue(this.plugin.settings.goalOrientation || 'vertical')
+					.onChange(async v => {
+						this.plugin.settings.goalOrientation = v;
+						await this.plugin.saveSettings();
+						this.display();
+					}));
+
+			this.slider(gs, 'Thickness', 'Gauge thickness for all three (1\u201316).',
+				'goalRingWeight', 1, 16, 1);
+
+			this.toggle(gs, 'Show the gauge',
+				'Off, only the label is shown \u2014 no bar at all.',
+				'goalShowGauge', () => this.display());
+
+			if (this.plugin.settings.goalShowGauge !== false &&
+				(this.plugin.settings.goalOrientation || 'vertical') === 'horizontal') {
+				this.label(gs, 'Lengths');
+				const gl = this.sub(gs);
+				gl.createEl('p', {
+					text: 'Each gauge can run a different length \u2014 a folder target usually wants '
+						+ 'more room than a note one.',
+					cls: 'ws-settings-note'
+				});
+				this.slider(gl, 'Writing goal', '', 'goalLenWriting', 30, 220, 5);
+				this.slider(gl, 'File goal',    '', 'goalLenFile',    30, 220, 5);
+				this.slider(gl, 'Folder goal',  '', 'goalLenFolder',  30, 220, 5);
 			}
 
-			this.label(rb, 'Date format');
-			const df = this.sub(rb);
+			this.toggle(gs, 'Custom colours',
+				'Off, all three take the bar\u2019s own text colour.',
+				'goalCustomColors', () => this.display());
+			if (this.plugin.settings.goalCustomColors) {
+				const gc = this.sub(gs);
+				this.colorRow(gc, 'Writing goal', '{goal}',       'goalColor');
+				this.colorRow(gc, 'File goal',    '{filegoal}',   'fileGoalColor');
+				this.colorRow(gc, 'Folder goal',  '{foldergoal}', 'folderGoalColor');
+			}
+
+			gs.createEl('p', {
+				text: 'File and folder targets are set from the bar rather than here \u2014 they belong '
+					+ 'to a particular note or folder, not to the vault.',
+				cls: 'ws-settings-note'
+			});
+
+			// ── Token formats ─────────────────────────────────────────────
+			rb.createEl('hr', { cls: 'ws-settings-hr' });
+			this.label(rb, 'Token formats');
+			const tf = this.sub(rb);
+			new Setting(tf).setName('{file}').setDesc('Full path, or the file name on its own.')
+				.addDropdown(d => d
+					.addOption('path', 'Full path  ~/folder/note')
+					.addOption('name', 'File name only  note')
+					.setValue(this.plugin.settings.fileTokenFormat || 'path')
+					.onChange(async v => {
+						this.plugin.settings.fileTokenFormat = v;
+						await this.plugin.saveSettings();
+						this.plugin.updateRetroStatusBar();
+					}));
+			this.numInput(tf, '{readtime}', 'Words per minute it divides by.', 'readTimeWpm', 50, 1000);
+			
+			const df = this.sub(tf);
 			const preview = df.createEl('code');
 			const refreshPreview = () => preview.setText(this.plugin.formatDate(new Date()));
 			new Setting(df).setName('Format string').setDesc('Tokens: dd  mm  yy  yyyy')
@@ -4335,8 +5484,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 			df.createEl('small', { text: 'Preview: ' }).appendChild(preview);
 			refreshPreview();
 
-			// ── Colors (inside retro bar) ─────────────────────────────────────────
-			this.label(rb, 'Colors');
+			// ── Colours ───────────────────────────────────────────────────
+			// Last, and at group level: sitting mid-tab with an expanding
+			// toggle, everything after it read as nested underneath.
+			rb.createEl('hr', { cls: 'ws-settings-hr' });
+			this.label(rb, 'Colours');
 			rb.createEl('p', { text: 'Dark and light variants switch automatically with your theme.', cls: 'ws-settings-note' });
 
 			this.toggle(rb, 'Custom colours',
@@ -4361,13 +5513,22 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 
 		containerEl.createEl('p', {
-			text: 'Colour words by grammatical class. The tagger is a heuristic, so treat a colour as a prompt, not a verdict.',
+			text: 'Colour words by grammatical class, and flag the patterns worth a second look. '
+				+ 'Everything runs on your machine \u2014 no network, no API, no data leaves the vault. '
+				+ 'The tagger is a heuristic, so treat a mark as a prompt, not a verdict.',
 			cls: 'ws-settings-note'
 		});
 
+		this.toggle(containerEl, 'Skip code and math',
+			'Leave code, frontmatter and math unmarked. Applies to both groups below.',
+			'syntaxSkipCode');
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
+		// ── Word classes ──────────────────────────────────────────────────────
 		new Setting(containerEl)
 			.setName('Syntax highlight')
-			.setDesc('Turn the colouring on.')
+			.setDesc('Colour words by grammatical class.')
 			.addToggle(t => t.setValue(s.posEnabled)
 				.onChange(async v => {
 					s.posEnabled = v;
@@ -4375,29 +5536,99 @@ class WordSmithSettingTab extends PluginSettingTab {
 					this.display();
 				}));
 
-		if (!s.posEnabled) return;
+		if (s.posEnabled) {
+			const ps = this.sub(containerEl);
 
-		const ps = this.sub(containerEl);
-		ps.createEl('p', {
-			text: 'One class at a time reads best. Everything at once is a rainbow.',
-			cls: 'ws-settings-note'
-		});
+			new Setting(ps).setName('Display style')
+				.setDesc('How a coloured word is drawn.')
+				.addDropdown(d => d
+					.addOption('text',      'Coloured text')
+					.addOption('highlight', 'Highlight')
+					.addOption('squiggle',  'Squiggle')
+					.addOption('line',      'Underline')
+					.setValue(s.syntaxStyle || 'text')
+					.onChange(async v => { s.syntaxStyle = v; await this.plugin.saveSettings(); }));
 
-		this.catRow(ps, 'Nouns',        'Nouns and pronouns.',                  'posNoun',        'posNounColor');
-		this.catRow(ps, 'Verbs',        'Verbs, auxiliaries and modals.',       'posVerb',        'posVerbColor');
-		this.catRow(ps, 'Adjectives',   'Adjectives. Articles are excluded.',   'posAdjective',   'posAdjectiveColor');
-		this.catRow(ps, 'Adverbs',      'All adverbs, including not and very.', 'posAdverb',      'posAdverbColor');
-		this.catRow(ps, 'Conjunctions', 'Conjunctions and prepositions.',       'posConjunction', 'posConjunctionColor');
+			ps.createEl('p', {
+				text: 'One class at a time reads best. Everything at once is a rainbow.',
+				cls: 'ws-settings-note'
+			});
+			this.catRow(ps, 'Nouns',        'Nouns and pronouns.',                  'posNoun',        'posNounColor');
+			this.catRow(ps, 'Verbs',        'Verbs, auxiliaries and modals.',       'posVerb',        'posVerbColor');
+			this.catRow(ps, 'Adjectives',   'Adjectives. Articles are excluded.',   'posAdjective',   'posAdjectiveColor');
+			this.catRow(ps, 'Adverbs',      'All adverbs, including not and very.', 'posAdverb',      'posAdverbColor');
+			this.catRow(ps, 'Conjunctions', 'Conjunctions and prepositions.',       'posConjunction', 'posConjunctionColor');
+			this.toggle(ps, 'Mute everything else',
+				'Fade everything outside the selected classes.', 'posDimOthers');
+		}
 
-		this.toggle(ps, 'Mute everything else',
-			'Fade everything outside the selected classes.',
-			'posDimOthers');
-		this.toggle(ps, 'Skip code and math',
-			'Leave code, frontmatter and math uncoloured.',
-			'syntaxSkipCode');
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
-		ps.createEl('p', {
-			text: 'Add {syntax} to the retro bar for a one-click picker.',
+		// ── Writing checks ────────────────────────────────────────────────────
+		new Setting(containerEl)
+			.setName('Writing checks')
+			.setDesc('Patterns worth rereading, not errors.')
+			.addToggle(t => t.setValue(s.checksEnabled)
+				.onChange(async v => {
+					s.checksEnabled = v;
+					await this.plugin.saveSettings(true);
+					this.display();
+				}));
+
+		if (!s.checksEnabled) return;
+
+		const ck = this.sub(containerEl);
+		new Setting(ck).setName('Display style')
+			.setDesc('Drawn separately from the word classes above.')
+			.addDropdown(d => d
+				.addOption('squiggle',  'Squiggle')
+				.addOption('line',      'Underline')
+				.addOption('highlight', 'Highlight')
+				.addOption('text',      'Coloured text')
+				.setValue(s.checkStyle || 'squiggle')
+				.onChange(async v => { s.checkStyle = v; await this.plugin.saveSettings(); }));
+
+		this.catRow(ck, 'Filler words',
+			'Hedges and intensifiers: very, really, basically, "kind of", "in order to".',
+			'checkFiller', 'checkFillerColor');
+		this.catRow(ck, 'Passive voice',
+			'A form of "to be" plus a past participle \u2014 "was written", "is being considered".',
+			'checkPassive', 'checkPassiveColor');
+		this.catRow(ck, 'Lexical illusions',
+			'The same word twice in a row. The eye skips them, which is why they survive proofreading.',
+			'checkIllusion', 'checkIllusionColor');
+		this.catRow(ck, 'Commonly misused',
+			'Pairs people reach for the wrong half of: affect/effect, its/it\u2019s, fewer/less.',
+			'checkMisused', 'checkMisusedColor');
+		this.catRow(ck, 'Loose pronouns',
+			'A pronoun opening a sentence, where the reader has to guess what it points at.',
+			'checkPronoun', 'checkPronounColor');
+
+		new Setting(ck).setName('Sentence rhythm')
+			.setDesc('Tint sentences by reading difficulty. Always a background tint \u2014 a squiggle under thirty words is noise.')
+			.addColorPicker(cp => cp.setValue(s.checkRhythmHardColor)
+				.onChange(async v => { s.checkRhythmHardColor = v; await this.plugin.saveSettings(); }))
+			.addColorPicker(cp => cp.setValue(s.checkRhythmVeryHardColor)
+				.onChange(async v => { s.checkRhythmVeryHardColor = v; await this.plugin.saveSettings(); }))
+			.addToggle(t => t.setValue(s.checkRhythm)
+				.onChange(async v => { s.checkRhythm = v; await this.plugin.saveSettings(true); this.display(); }));
+		if (s.checkRhythm) {
+			const rh = this.sub(ck);
+			this.slider(rh, 'Hard above grade', 'Flesch\u2013Kincaid grade for the first tint.', 'checkRhythmHardGrade', 6, 16, 1);
+			this.slider(rh, 'Very hard above',  'And for the second.', 'checkRhythmVeryHardGrade', 8, 22, 1);
+		}
+
+		this.catRow(ck, 'Repetition radar',
+			'The same uncommon word used twice close together \u2014 the echo you write and never see.',
+			'checkRepetition', 'checkRepetitionColor');
+		if (s.checkRepetition) {
+			const rp = this.sub(ck);
+			this.slider(rp, 'Window', 'How many words apart still counts as an echo.', 'repetitionWindow', 15, 150, 5);
+			this.slider(rp, 'Minimum length', 'Ignore words shorter than this.', 'repetitionMinLength', 3, 10, 1);
+		}
+
+		ck.createEl('p', {
+			text: 'Add {report} to the retro bar for full counts.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -4458,8 +5689,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 	// ── Text Options tab (text options + typography + word counts) ────────────
 	displayTextTab(containerEl) {
-		this.renderTypographySection(containerEl);
-		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 		new Setting(containerEl)
 			.setName('Text options')
 			.setDesc('Paragraph indent, line spacing, justification, and sidebar word counts.')
@@ -4510,8 +5739,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 			}
 
 		}
-	}
 
+		// Typography is its own master toggle, not a text option: it rewrites
+		// the document as you type, where everything above only restyles it.
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+		this.renderTypographySection(containerEl);
+	}
 	// ── Misc tab ──────────────────────────────────────────────────────────────
 	displayMiscTab(containerEl) {
 		this.label(containerEl, 'Word counts');
@@ -4554,13 +5787,42 @@ class WordSmithSettingTab extends PluginSettingTab {
 			cls: 'ws-settings-note'
 		});
 
-		this.toggle(ty, 'Curly quotes',  'Straight quotes become curly. Apostrophes too: don\u2019t.', 'typoSmartQuotes');
+		this.toggle(ty, 'Curly quotes', 'Straight quotes become curly. Apostrophes too: don\u2019t.',
+			'typoSmartQuotes', () => this.display());
+		if (s.typoSmartQuotes) {
+			const q = this.sub(ty);
+			this.toggle(q, 'Choose the characters',
+				'Off, the English convention is used. On, pick your own \u2014 useful for German, French or Hebrew quoting.',
+				'typoCustomQuotes', () => this.display());
+			if (s.typoCustomQuotes) {
+				const qc = this.sub(q);
+				const charRow = (name, desc, key) => new Setting(qc).setName(name).setDesc(desc)
+					.addText(t => {
+						t.inputEl.addClass('ws-char-input');
+						t.setValue(s[key] || '').onChange(async v => {
+							s[key] = v; await this.plugin.saveSettings();
+						});
+					});
+				charRow('Open double',  'Replaces " at the start of a quotation.', 'typoOpenDouble');
+				charRow('Close double', 'Replaces " at the end.',                  'typoCloseDouble');
+				charRow('Open single',  'Replaces the straight single quote at the start.', 'typoOpenSingle');
+				charRow('Close single', 'And at the end.',                         'typoCloseSingle');
+				charRow('Apostrophe',   'Used mid-word, where it is not a quote at all.',   'typoApostrophe');
+			}
+		}
 		this.toggle(ty, 'Ellipsis',      '... becomes \u2026', 'typoEllipsis');
 		this.toggle(ty, 'Dashes',        '-- \u2192 \u2013, --- \u2192 \u2014, ---- backs out to literal.', 'typoDashes');
 		this.toggle(ty, 'Arrows',        '-> \u2192, <- \u2190, => \u21d2', 'typoArrows');
 		this.toggle(ty, 'Comparisons',   '<= \u2264, >= \u2265, /= \u2260. Collides with <= in code.', 'typoComparisons');
 		this.toggle(ty, 'Guillemets',    '<< \u00ab and >> \u00bb', 'typoGuillemets');
 		this.toggle(ty, 'Fractions',     '1/2 \u00bd, 3/4 \u00be, and the rest.', 'typoFractions');
+	}
+
+	// A colour picker with no toggle beside it.
+	colorRow(c, name, desc, colorKey) {
+		return new Setting(c).setName(name).setDesc(desc || '')
+			.addColorPicker(cp => cp.setValue(this.plugin.settings[colorKey])
+				.onChange(async v => { this.plugin.settings[colorKey] = v; await this.plugin.saveSettings(); }));
 	}
 
 	// One row carrying both a colour picker and an on/off toggle — used by the

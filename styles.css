@@ -63,12 +63,14 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 
 .zenmode-active .mod-top-left-space .view-header { padding-left: var(--frame-left-space); }
 
-/* Native status bar: dedicated !important rule (in addition to the list
-   above and the inline style set from JS) so no theme/snippet rule that
-   also targets .status-bar can win and peek through the retro bar's
-   goal-met flash. */
-body.zenmode-hide-status-bar .status-bar {
-	display: none !important;
+/* Native status bar, hidden with specificity rather than !important so a
+   user's own snippet can still override it. Both shapes are listed because
+   the status bar moved inside .app-container in newer Obsidian versions.
+   applyNativeStatusBarVisibility() also sets it inline as a backstop for the
+   moment before this stylesheet is parsed. */
+body.zenmode-hide-status-bar .app-container .status-bar,
+body.zenmode-hide-status-bar > .status-bar {
+	display: none;
 }
 
 .zenmode-hide-properties .markdown-reading-view .metadata-container { display: none; }
@@ -150,10 +152,12 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 /* Horizontal text padding — applies everywhere, independent of zen mode.
    (Zen mode's own top/bottom padding above is intentionally still scoped to
    .zenmode-active — only the horizontal inset is a general text option.) */
+/* Logical properties, so the inset mirrors when the text runs right to left
+   rather than pinning the same physical side. */
 .markdown-source-view.mod-cm6 .cm-content,
 .markdown-reading-view .markdown-preview-view {
-	padding-left:  var(--zg-editor-padding-h);
-	padding-right: var(--zg-editor-padding-h);
+	padding-inline-start: var(--zg-editor-padding-h);
+	padding-inline-end:   var(--zg-editor-padding-h);
 }
 
 .zenmode-active .markdown-source-view.mod-cm6 .cm-content,
@@ -229,6 +233,20 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	left: 0; right: 0;
 	top: -6px; bottom: -6px;
 	pointer-events: auto;
+}
+
+/* Right-to-left. text-indent and text-align: justify are already direction
+   aware, so the work is making sure nothing here pins a physical side —
+   and mirroring the two markers that point somewhere. */
+body.zg-rtl .zg-ws-tab::before { content: '\2190'; left: auto; right: 1px; }
+
+body.zg-rtl .zg-invisible { margin-left: 0; margin-inline-start: 2px; }
+
+/* Justified RTL wants its last line at the right, which is what `start`
+   means once direction is set. */
+body.zg-rtl.zg-justify .markdown-source-view.mod-cm6 .cm-content,
+body.zg-rtl.zg-justify .markdown-reading-view .markdown-preview-view {
+	text-align-last: start;
 }
 
 /* =========================================================================
@@ -430,10 +448,10 @@ body.zg-hemingway-active .cm-editor .cm-selectionBackground {
 /* CodeMirror bottom panels — the vim ":" command line lives here — stick
    to the bottom edge of the editor, which the fixed retro bar overlays.
    While the bar is active, lift them by its height so they stay visible.
-   !important because CM's own generated theme sets bottom: 0 at matching
-   specificity. */
-body.zg-retrobar-active .cm-editor .cm-panels-bottom {
-	bottom: var(--zg-status-bar-height, 30px) !important;
+   CodeMirror's generated theme sets bottom: 0 on .cm-panels-bottom; naming
+   both classes it carries outranks that without needing !important. */
+body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
+	bottom: var(--zg-status-bar-height, 30px);
 }
 
 /* =========================================================================
@@ -497,23 +515,10 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 
 .zg-mode-badge.is-clickable:hover { opacity: 0.8; }
 
-.zg-mode-badge.is-off { opacity: 0.45; }
-
-/* A diagonal strike rather than a horizontal one: it reads as "not this"
-   instead of as a strikethrough on the letter. Overhangs the badge slightly
-   so it clearly crosses the whole shape. */
-.zg-mode-badge.is-off::after {
-	content: '';
-	position: absolute;
-	left: -12%;
-	right: -12%;
-	top: 50%;
-	height: 1.5px;
-	background: currentColor;
-	transform: rotate(-45deg);
-	transform-origin: center;
-	pointer-events: none;
-}
+/* Off modes fade rather than strike. A slash over a two-letter badge reads
+   as "broken" more readily than "not on", and at bar size it obscured the
+   letter it was meant to qualify. */
+.zg-mode-badge.is-off { opacity: 0.35; }
 
 @media (prefers-reduced-motion: reduce) {
 	.zg-mode-badge.is-clickable { transition: none; }
@@ -536,6 +541,12 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 .zg-barbtn.is-off { opacity: 0.45; }
 
 .zg-barbtn-markers { font-size: 1.15em; }
+
+/* "Aa" previews the chosen face, so the button is its own sample. */
+.zg-barbtn-font {
+	font-weight: 700;
+	letter-spacing: 0;
+}
 
 .zg-barbtn-textview .svg-icon,
 .zg-barbtn-textview svg {
@@ -590,6 +601,22 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 
 .zg-picker-label { flex: 1 1 auto; }
 
+/* Sub-options sit under the master switch at the foot of the list. The rule
+   is a left inset rather than a border: at six or seven rows a line reads as
+   a nested list, which these are not — they are peers under one switch. */
+.zg-picker-row.is-sub { padding-left: 22px; }
+
+/* And without a swatch to occupy the first column, the label needs the same
+   inset applied to itself instead. */
+.zg-picker-row.is-sub .zg-picker-label { margin-left: 0; }
+
+/* Font rows render their own name in their own face. Sizes vary wildly
+   between families, so the row height is pinned to stop the list jumping. */
+.zg-picker-row .zg-picker-label[style*="font-family"] {
+	font-size: 15px;
+	line-height: 1.4;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.zg-picker-row { transition: none; }
 }
@@ -598,29 +625,257 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
    Lock key glyphs — {caps} {num}
    ========================================================================= */
 
-/* Both are drawn rather than typed: no font carries a caps-lock glyph, and a
-   flat "CAPS" in a status bar reads as shouting rather than as a key. */
+/* The legend on two lines, unboxed. A drawn key cap reads as a button you
+   could press; these only report state. */
 .zg-keycap {
 	display: inline-flex;
+	flex-direction: column;
 	align-items: center;
+	justify-content: center;
 	vertical-align: middle;
-	line-height: 1;
+	font-size: 0.56em;
+	font-weight: 700;
+	line-height: 1.12;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
 }
 
-.zg-key { height: 1.5em; width: auto; flex: none; }
+.zg-keycap-row { display: block; }
 
-.zg-key-shape {
+/* =========================================================================
+   Report gauge + celebration
+   ========================================================================= */
+
+/* The report's ring carries its own colour, ramped from red to green by
+   progress, so a gauge at 30% and one at 90% never look alike. */
+.zg-goal-circle {
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.zg-goal-circle circle {
 	fill: none;
 	stroke: currentColor;
-	stroke-width: 1.4;
-	stroke-linejoin: round;
 }
 
-.zg-key-text {
-	fill: currentColor;
+.zg-goal-circle-track { opacity: 0.18; }
+
+.zg-goal-circle-fill {
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.4s ease;
+}
+
+.zg-goal-circle-pct {
+	fill: var(--text-normal);
 	font-family: inherit;
 	font-weight: 700;
-	letter-spacing: 0;
+	letter-spacing: -0.3px;
+}
+
+/* Fireworks over the report when a target is met. pointer-events:none so the
+   modal stays usable while it plays, and the layer removes itself after. */
+/* Covers the report body, which is emptied on every render — so the layer
+   still dies with the tab that earned it, while getting the full width and
+   height to play in.
+
+   inset must be 0, not negative. An absolutely positioned child still
+   contributes to scrollable overflow, so a layer hanging past its parent
+   gave the modal a scrollbar out of nowhere. */
+.zg-fireworks {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+	overflow: hidden;
+	z-index: 5;
+}
+
+.zg-firework {
+	position: absolute;
+	width: 0;
+	height: 0;
+}
+
+/* Two nested elements per spark. The outer flies along its own angle; the
+   inner falls and fades. One transform per element, because a second on the
+   same element would overwrite the first. */
+.zg-firework-vec {
+	position: absolute;
+	transform: rotate(var(--a)) translateY(0);
+}
+
+.zg-firework-vec.is-fly    { animation: zg-spark-fly 1.7s cubic-bezier(0.12, 0.72, 0.24, 1) forwards; }
+/* A jet decelerates less sharply than a burst — it is thrown, not exploded. */
+.zg-firework-vec.is-jet    { animation: zg-spark-fly 2.0s cubic-bezier(0.20, 0.55, 0.35, 1) forwards; }
+.zg-firework-vec.is-rocket { animation: zg-spark-fly 1.1s cubic-bezier(0.25, 0.60, 0.40, 1) forwards; }
+
+@keyframes zg-spark-fly {
+	from { transform: rotate(var(--a)) translateY(0); }
+	to   { transform: rotate(var(--a)) translateY(var(--d)); }
+}
+
+/* A rocket's break has to happen where its climb ended, so the head rides up
+   to the same height before its own sparks fire. */
+.zg-firework-head {
+	position: absolute;
+	animation: zg-rocket-rise 1s cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes zg-rocket-rise {
+	from { transform: translateY(0); }
+	to   { transform: translateY(calc(var(--rise) * -1)); }
+}
+
+/* Square, unrounded, no blur: at 2–4px that reads as a pixel rather than a
+   dot, which is the look. */
+.zg-firework-spark {
+	position: absolute;
+	border-radius: 0;
+	image-rendering: pixelated;
+	opacity: 0;
+	animation: zg-spark-fall 1.7s ease-in forwards;
+}
+
+/* Gravity plus a fade that holds bright before dropping away, so each burst
+   has a peak rather than dimming from the first frame. */
+@keyframes zg-spark-fall {
+	0%   { opacity: 0; transform: translateY(0)    scale(1.5); }
+	7%   { opacity: 1; }
+	55%  { opacity: 1; transform: translateY(4px)  scale(1);   }
+	100% { opacity: 0; transform: translateY(16px) scale(0.4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.zg-fireworks { display: none; }
+	.zg-goal-circle-fill { transition: none; }
+}
+
+/* =========================================================================
+   Text analysis report — {report} {foldergoal}
+   ========================================================================= */
+
+.zg-barbtn-report { font-weight: 700; }
+
+/* The folder ring falls back to a text prompt until a target exists, so the
+   token is never a bare ring at 0% with no way to know what it measures. */
+.zg-goal-sub .zg-goal-text {
+	font-size: 0.85em;
+	font-variant-numeric: tabular-nums;
+}
+
+/* Restored: an earlier line-wise cleanup took the modal shell rules out
+   along with the ring selectors it was actually targeting. */
+.zg-report-modal { max-width: 460px; }
+
+.zg-report-modal .modal-content { position: relative; }
+
+.zg-report-nav { margin-bottom: 4px; padding-bottom: 6px; }
+
+/* The scope line sits under the tabs, above the rule: the tab says which
+   thing, this says exactly which one. */
+.zg-report-scope {
+	font-family: var(--font-monospace, monospace);
+	font-size: 0.76em;
+	color: var(--text-muted);
+	margin: 0 0 8px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.zg-report-rule {
+	margin: 0 0 12px;
+	border: none;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.zg-report-ring {
+	position: relative;           /* the fireworks layer anchors here */
+	display: flex;
+	align-items: center;
+	justify-content: center;      /* the gauge is the centrepiece */
+	min-height: 72px;
+	margin-bottom: 14px;
+	/* Outside the bar there is no row to fit inside, so the cap is lifted. */
+	--zg-status-row-height: 999px;
+}
+
+.zg-report-ring .zg-goal {
+	width: 68px;
+	height: 68px;
+	flex: none;
+}
+
+.zg-report-ring-label {
+	font-size: 0.7em;
+	font-weight: 600;
+}
+
+.zg-report-ring-label.is-muted {
+	font-weight: 400;
+	color: var(--text-muted);
+}
+
+/* Three across, so the six figures read as two rows rather than a list. */
+.zg-report-grid {
+	display: grid;
+	/* Ten figures: five across gives two even rows rather than a row of two
+	   orphans. Labels are short because each cell explains itself on hover. */
+	grid-template-columns: repeat(5, 1fr);
+	gap: 5px;
+}
+
+.zg-report-cell {
+	padding: 7px 3px;
+	border-radius: 6px;
+	background: var(--background-secondary);
+	text-align: center;
+}
+
+.zg-report-value {
+	font-size: 1.02em;
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+	line-height: 1.15;
+}
+
+.zg-report-label {
+	margin-top: 1px;
+	font-size: 0.63em;
+	line-height: 1.2;
+	color: var(--text-muted);
+}
+
+/* A cell with an explanation behind it says so quietly: a dotted underline
+   under its label, and a lift on hover. The text itself is the title
+   attribute, so it works on touch as a long-press too. */
+.zg-report-cell.has-tip {
+	cursor: help;
+	transition: background-color 0.12s ease, transform 0.12s ease;
+}
+
+.zg-report-cell.has-tip:hover {
+	background: var(--background-modifier-hover);
+	transform: translateY(-1px);
+}
+
+.zg-report-cell.has-tip .zg-report-label {
+	text-decoration: underline dotted;
+	text-decoration-color: var(--text-faint);
+	text-underline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.zg-report-cell.has-tip { transition: none; }
+	.zg-report-cell.has-tip:hover { transform: none; }
+}
+
+.zg-report-body { position: relative; }
+
+.zg-report-loading {
+	padding: 18px 0;
+	text-align: center;
+	color: var(--text-muted);
 }
 
 /* =========================================================================
@@ -637,52 +892,69 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 	letter-spacing: 0;
 }
 
-/* Ring. Everything is stroked in currentColor so the indicator inherits
-   --zg-text and needs no colour settings of its own. Sized in em so it
-   shrinks with the bar's text when fitStatusBarText steps the font down.
-   Larger than before because the percentage now lives inside it. */
-.zg-goal-ring {
-	width: 1.85em;
-	height: 1.85em;
+/* All three goals are the same gauge, in whichever orientation is set.
+
+   The constrained dimension is capped against the row as well as the font
+   size: at a large bar font in a short row an em-sized gauge outgrew the row
+   and the bar's own overflow:hidden sliced its ends off. The viewBox fixes
+   the aspect ratio, so capping one dimension is enough. */
+.zg-goal-bar {
 	flex: none;
 	overflow: visible;
 }
 
-.zg-goal-ring circle {
-	fill: none;
-	stroke: currentColor;
+.zg-goal-bar.is-vertical {
+	height: min(1.6em, calc(var(--zg-status-row-height, 30px) - 8px));
+	width: auto;
 }
 
-.zg-goal-ring-track { opacity: 0.22; }
-
-.zg-goal-ring-fill {
-	stroke-linecap: round;
-	transition: stroke-dashoffset 0.35s ease;
+/* Horizontal gets a fixed length and takes its thickness from the viewBox. */
+/* Horizontal length comes from the viewBox, so the height cap alone controls
+   the size and the per-goal length setting shows through as width. */
+.zg-goal-bar.is-horizontal {
+	height: min(1.5em, calc(var(--zg-status-row-height, 30px) - 8px));
+	width: auto;
 }
 
-/* Sits inside the ring, outside the rotated group, so it stays upright. No
-   percent sign: at this size the ring is the unit. */
-.zg-goal-ring-pct {
-	fill: currentColor;
+/* The label rides inside a horizontal bar, so it has to clear both the fill
+   behind it and the track around it. */
+.zg-goal-bar-label {
+	fill: var(--zg-bg, var(--background-primary));
 	font-family: inherit;
 	font-weight: 700;
-	letter-spacing: -0.3px;
+	letter-spacing: -0.2px;
+	paint-order: stroke;
+	stroke: var(--zg-bg, var(--background-primary));
+	stroke-width: 0.7;
+	stroke-linejoin: round;
+}
+
+/* Square corners: at 12 units thick a rounded end reads as a lozenge rather
+   than a level. */
+.zg-goal-bar-track {
+	fill: currentColor;
+	opacity: 0.22;
+}
+
+.zg-goal-bar-fill {
+	fill: currentColor;
+	transition: y 0.35s ease, height 0.35s ease;
+}
+
+/* Each goal sets its own colour on the wrapper; currentColor carries it to
+   the track, the fill and the label together. */
+.zg-goal-writing.is-off,
+.zg-goal-file.is-off,
+.zg-goal-folder.is-off { opacity: 0.45; }
+
+.zg-goal-text {
+	font-size: 0.85em;
+	font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.zg-goal-ring-fill { transition: none; }
+	.zg-goal-bar-fill { transition: none; }
 }
-
-/* Goal reached. Two separate states, deliberately:
-
-   The persistent one is a quiet halo on the filled ring — visible if you
-   look, invisible if you don't. The old behaviour strobed the entire bar on
-   a five-second infinite loop, which is a fire alarm for a small piece of
-   good news, and unreadable to work next to.
-
-   The transient one is a single swell fired on the edge where the target is
-   crossed (see celebrateGoal in main.js), so you get the moment without
-   having to live in it. */
 
 /* Goal reached: a slow, continuous green breath. Opacity only — a growing
    drop-shadow reads as the ring swelling, and the bar clips its overflow so
@@ -692,13 +964,12 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 	50%      { opacity: 0.42; }
 }
 
-.zg-goal.is-met .zg-goal-ring-fill,
-.zg-goal.is-met .zg-goal-ring-icon {
+.zg-goal.is-met .zg-goal-bar-fill {
 	color: var(--zg-goal-met-color, #3fb950);
 	animation: zg-goal-met-breathe 2.6s ease-in-out infinite;
 }
 
-.zg-goal.is-met .zg-goal-ring-fill { stroke: var(--zg-goal-met-color, #3fb950); }
+.zg-goal.is-met .zg-goal-bar-fill { stroke: var(--zg-goal-met-color, #3fb950); }
 
 /* Fraction mode has no inside to put the glyph in, so the number turns green
    and the reset arrow sits beside it. */
@@ -718,11 +989,8 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 /* The refresh glyph replaces the percentage once the target is met: the
    number would read 100 and stay there, where the glyph says what a click
    does now. */
-.zg-goal-ring-icon { fill: currentColor; }
 
 @media (prefers-reduced-motion: reduce) {
-	.zg-goal.is-met .zg-goal-ring-fill,
-	.zg-goal.is-met .zg-goal-ring-icon,
 	.zg-goal.is-met .zg-goal-text,
 	.zg-goal-reset { animation: none; }
 }
@@ -743,8 +1011,8 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.zengrinder-status-bar.zg-goal-just-met .zg-goal-ring-fill,
-	.zengrinder-status-bar.zg-goal-just-met .zg-goal-ring-pct {
+	.zg-goal.is-met .zg-goal-bar-fill,
+	.zg-goal.is-met .zg-goal-text {
 		animation: none;
 	}
 }
@@ -818,6 +1086,13 @@ body.zg-retrobar-active .cm-editor .cm-panels-bottom {
 
 .ws-num-input {
 	width: 60px;
+}
+
+/* One or two characters, so the field should not look like a name box. */
+.ws-char-input {
+	width: 52px;
+	text-align: center;
+	font-size: 1.1em;
 }
 
 /* =========================================================================
