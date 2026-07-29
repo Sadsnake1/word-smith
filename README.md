@@ -1,14 +1,12 @@
 # Word-Smith
 
-A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, smart typography, and a configurable status bar — each independent, each toggled on its own.
+A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, writing checks, smart typography, and a configurable status bar — each independent, each toggled on its own.
 
 ## Showcase
 
 <img width="1340" height="860" alt="123" src="https://github.com/user-attachments/assets/2480ee72-4f08-41d6-ab9c-1bed61203700" />
 
 <img width="1340" height="860" alt="12331" src="https://github.com/user-attachments/assets/750db726-30d1-4a1f-9c9f-f09963c8af15" />
-
-
 
 ## Features
 
@@ -29,6 +27,7 @@ ws-hemingway: true
 ws-syntax: true
 ws-markers: false
 ws-typography: false
+ws-font: Literata     # font for this note only
 ws-goal: 2000         # word target for this note
 ---
 ```
@@ -67,7 +66,9 @@ The lock works at two levels: a high-precedence keymap for keystrokes, and a `be
 
 ### Retro bar
 
-A fixed bar at the bottom of the screen, sized to match the open note (not the full window). **One to three stacked rows**, each with independently formatted **left**, **center**, and **right** slots, each accepting any mix of tokens:
+A fixed bar at the bottom of the screen, sized to match the open note (not the full window). **One to three stacked rows**, each with independently formatted **left**, **center**, and **right** slots, each accepting any mix of tokens.
+
+**Readouts**
 
 | Token | Shows |
 |---|---|
@@ -76,44 +77,88 @@ A fixed bar at the bottom of the screen, sized to match the open note (not the f
 | `{chars}` | Character count (selection count if text is selected) |
 | `{paragraph}` | Current paragraph / total paragraphs |
 | `{readtime}` | Estimated reading time, at a configurable words-per-minute |
-| `{goal}` | Writing goal — a ring with the percentage inside, or a plain fraction |
 | `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
-| `{syntax}` | Syntax highlight picker |
-| `{markers}` | Hidden marker picker |
 | `{lock}` | `LOCK` while Hemingway mode is on |
 | `{time}` | Current time |
 | `{date}` | Current date (customizable format) |
 | `{battery}` | Battery level (⚡︎ while charging) |
-| `{caps}` | Caps Lock key glyph while it's on |
-| `{num}` | Num Lock key glyph while it's on |
+| `{caps}` | `CAPS LOCK` on two lines while it's on |
+| `{num}` | `NUM LOCK` on two lines while it's on |
 | `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, `-- COMMAND --` |
 
-Four of these are interactive:
+**Buttons** — these do something when clicked.
 
-- **`{mode}`** — click any badge to toggle that mode. Inactive ones are struck through.
-- **`{syntax}`** — opens a picker listing each word class beside its own colour, faded when off, plus a master switch.
-- **`{markers}`** — opens a picker for spaces, tabs, paragraphs and line ends.
-- **`{goal}`** — click to reset your word-goal baseline. When the target is met the ring breathes green and swaps the percentage for a reset icon.
+| Token | Does |
+|---|---|
+| `{goal}` | Writing goal gauge. Click to set the target, or rebase it |
+| `{filegoal}` | Word target for the open note. Click to set it |
+| `{foldergoal}` | Word target for the current folder, counted across every note beneath it |
+| `{syntax}` | Picker for the five word classes, each beside its own colour |
+| `{writechecks}` | Picker for all seven writing checks, with the group's master switch |
+| `{markers}` | Picker for spaces, tabs, paragraphs and line ends |
+| `{font}` | Font picker — reads `Aa` in your current face |
+| `{report}` | Opens the writing report |
 
-The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers). Configurable row height, top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
+Clicking a `{mode}` badge toggles that mode; inactive ones are faded.
+
+**Goal gauges.** All three goals are drawn the same way: a bar that fills as you write, vertical or horizontal, with the percentage or a fraction beside it — or the label alone with no bar at all. Thickness, length and colour are configurable, and each goal can carry its own colour. Neither the file nor the folder goal has a baseline; they simply count words against a target.
+
+The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers). Configurable row height, font size, and top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
+
+### Writing report
+
+`{report}` opens a panel with two tabs — the current note and its folder — each showing ten figures:
+
+**Words**, **Characters**, **No spaces**, **Syllables**, **Sentences**, **Paragraphs**, **Lines**, **Pages**, **Read time**, and a **Flesch–Kincaid grade**.
+
+Above them sits a gauge of your progress against that note's or folder's goal, coloured on a ramp that warms from red to green as it fills. Every figure explains itself on hover — what's excluded, how it's counted, what counts as a page.
+
+Hit a target and the report throws fireworks at you.
 
 ### Syntax
 
-Colours words by grammatical class — nouns, verbs, adjectives, adverbs, conjunctions — each with its own colour and toggle. Optionally mutes everything else, so one class carries the sentence. Skips code, frontmatter and math.
+Two groups, both running entirely on your machine.
 
-Turn on one class at a time to read a paragraph for it. Everything at once is a rainbow.
+**Word classes** — nouns, verbs, adjectives, adverbs, conjunctions, each with its own colour and toggle. Optionally mutes everything else, so one class carries the sentence. Turn on one at a time to read a paragraph for it; everything at once is a rainbow.
 
-The tagger is a dependency-free heuristic (lexicon + suffix + context rules), so treat a colour as a prompt to reread the sentence, not a verdict.
+**Writing checks** — patterns worth rereading, not errors:
+
+| Check | Catches |
+|---|---|
+| Filler words | Hedges and intensifiers — *very*, *really*, *basically*, *kind of*, *in order to* |
+| Passive voice | A form of *to be* plus a past participle — *was written*, *is being considered* |
+| Lexical illusions | The same word twice in a row. The eye skips them, which is why they survive proofreading |
+| Commonly misused | Pairs people reach for the wrong half of — *affect/effect*, *its/it's*, *fewer/less* |
+| Loose pronouns | A pronoun opening a sentence, where the reader has to guess what it points at |
+| Sentence rhythm | Tints sentences by reading difficulty, so monotonous prose shows as a wall of one colour |
+| Repetition radar | The same uncommon word twice close together — the echo you write and never see |
+
+Both groups can be drawn as **coloured text**, a **highlight**, a **squiggle**, or an **underline**, chosen independently. Code, frontmatter and math are skipped.
+
+Misused pairs are flagged whichever half you used — which one is right depends on the sentence, and the point is to look, not to be corrected.
 
 ### Text options
 
-- **Typography** — replaces typed shorthand with real characters as you write: curly quotes and apostrophes, ellipsis, en/em dashes, arrows, guillemets, comparison operators, and fractions. Each group toggles separately. Never fires inside code, math or frontmatter, and undo restores exactly what you typed.
+Two independent master toggles.
+
+**Text options**
+
 - **Limit line length** — cap the text column at a fixed character measure regardless of window width.
 - **Horizontal padding** — left/right text padding, applied everywhere.
 - **Paragraph indent** — first-line indent, triggered by a blank line or every line, with adjustable width. Applies to paragraphs only: lists, tasks, headings, quotes, tables and code are left alone.
 - **Line spacing** — line-height multiplier.
 - **Justify text** — full justification in both editing and reading views.
 - **Hidden markers** — reveal invisible characters, each with its own toggle: spaces (`·`), tabs (`→`), paragraph breaks (`¶`) and line endings (`↵`).
+
+**Typography** — replaces typed shorthand with real characters as you write: curly quotes and apostrophes, ellipsis, en/em dashes, arrows, guillemets, comparison operators, and fractions. Each group toggles separately. Never fires inside code, math or frontmatter, and undo restores exactly what you typed.
+
+The quote characters themselves are configurable, so `"` and `'` can produce German „…“, French « … », or anything else. The apostrophe is a separate setting from the closing single quote, and the plugin works out which you meant by looking back for an unclosed quotation — so *don't* and *'word'* both come out right.
+
+### Right-to-left
+
+If Obsidian is set to right-to-left, or the note is, the text options mirror: indentation and padding follow the text direction, justified text sets its last line to the right, and the tab and line-end markers point the other way. Word counting already works for Hebrew, Arabic and Persian.
+
+Syntax colouring and the writing checks are English-only. In a right-to-left script they simply mark nothing, rather than marking it wrongly.
 
 ### Misc
 
@@ -147,13 +192,15 @@ Word-Smith is fully local.
 
 Your note content, in memory, while the note is open — for word counts, syntax colouring and paragraph detection. It's read from the editor and discarded. It is never copied, cached, or written anywhere.
 
+The writing report additionally reads the notes in a folder when you open that tab, to total them up. Those totals are held in memory and recomputed when a file changes.
+
 It also reads a note's frontmatter, to honour the `wordsmith:` and `ws-*` overrides.
 
 ### What it stores
 
 One file: `data.json`, inside the plugin's own folder in your vault.
 
-It holds your settings. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
+It holds your settings, plus any file and folder word targets you set. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
 
 Nothing else is stored, anywhere.
 
@@ -171,7 +218,7 @@ That returns nothing. Word-Smith is MIT licensed and the full source is in this 
 
 ## How syntax highlighting works
 
-No API, no model, no bundled NLP library — it's a hand-written part-of-speech tagger, that runs entirely inside your vault.
+No API, no model, no bundled NLP library — it's a hand-written part-of-speech tagger that runs entirely inside your vault.
 
 Each visible line is tagged in three passes.
 
@@ -199,6 +246,8 @@ Each visible line is tagged in three passes.
 
 The five results — noun, verb, adjective, adverb, conjunction — are drawn as CodeMirror decorations, so they render in the editor's own pipeline and never flicker while you type.
 
+The writing checks run on the same tagged tokens. Passive voice, filler words and the rest are list-and-rule based; sentence rhythm scores each sentence with Flesch–Kincaid; repetition radar keeps a sliding window of uncommon words.
+
 ### What it deliberately doesn't colour
 
 Articles and possessive determiners. Highlighting adjectives shouldn't light up every `the`, `a` and `her` — they behave like articles, not descriptions.
@@ -207,7 +256,7 @@ Pronouns are counted as nouns, and prepositions as conjunctions.
 
 ### Accuracy
 
-Roughly nine words in ten on ordinary prose, in my own testings. It's weakest on dialogue-heavy fiction and sentence fragments, where the context rules have less to work with, and on unusual proper nouns.
+Roughly nine words in ten on ordinary prose, in my own testing — this isn't benchmarked against a tagged corpus. It's weakest on dialogue-heavy fiction and sentence fragments, where the context rules have less to work with, and on unusual proper nouns.
 
 That's why it's a writing aid rather than a grammar checker: a colour is a prompt to look at the sentence again, not a verdict. Turning on one class at a time — all your verbs, or all your adjectives — is what it's for.
 
