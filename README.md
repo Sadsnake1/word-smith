@@ -134,6 +134,87 @@ Everything else is reachable from the settings tabs or directly from the retro b
 3. Copy the files into that folder.
 4. Reload Obsidian (or restart it), then enable **Word-Smith** under **Settings → Community plugins**.
 
+## Privacy
+
+Word-Smith is fully local.
+
+- **No network access.** There are no `fetch`, `XMLHttpRequest`, `WebSocket`, or `requestUrl` calls anywhere in the plugin. The only URLs in the source are SVG namespace strings.
+- **No telemetry, analytics, or crash reporting.**
+- **No third-party dependencies.** Nothing is bundled. The only imports are `obsidian` and `@codemirror/*`, both provided by Obsidian itself.
+- **No filesystem access outside Obsidian's own API.** No `require('fs')`, no `child_process`, no Electron escapes.
+
+### What it reads
+
+Your note content, in memory, while the note is open — for word counts, syntax colouring and paragraph detection. It's read from the editor and discarded. It is never copied, cached, or written anywhere.
+
+It also reads a note's frontmatter, to honour the `wordsmith:` and `ws-*` overrides.
+
+### What it stores
+
+One file: `data.json`, inside the plugin's own folder in your vault.
+
+It holds your settings. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
+
+Nothing else is stored, anywhere.
+
+### Verify it yourself
+
+The plugin is a single readable file. Don't take my word for it:
+
+```bash
+grep -nE "fetch\(|XMLHttpRequest|WebSocket|requestUrl|sendBeacon" main.js
+```
+
+That returns nothing. Word-Smith is MIT licensed and the full source is in this repo.
+
+---
+
+## How syntax highlighting works
+
+No API, no model, no bundled NLP library — it's a hand-written part-of-speech tagger, that runs entirely inside your vault.
+
+Each visible line is tagged in three passes.
+
+**1. Lexicon.** A table of ~800 words that suffix rules can't be trusted with: determiners, pronouns, prepositions, conjunctions, auxiliaries and modals, irregular verbs, and the common nouns and adjectives that would otherwise be mis-tagged. `the`, `is`, `went`, `difficult`.
+
+**2. Suffix rules.** Anything not in the lexicon is guessed from its ending, in order of reliability:
+
+| Ending | Tag | Notes |
+|---|---|---|
+| `-ly` | adverb | minus ~90 exceptions — `family`, `reply`, `early`, `friendly` |
+| `-ing` `-ed` | verb | |
+| `-est` | adjective | |
+| `-tion` `-ment` `-ness` `-ity` `-ism` `-ology` | noun | |
+| `-ous` `-ful` `-less` `-ive` `-able` `-ical` `-ish` | adjective | |
+| `-ize` `-ate` `-ify` | verb | |
+| `-s` | noun or verb | depending on whether the singular is a known verb |
+
+**3. Context.** The pass that fixes what the first two get wrong, using the words on either side:
+
+- After a determiner or preposition, a verb becomes a noun — *the **work***, *in **place***. An `-ing` word becomes a gerund (*the **meeting***) unless a noun follows, which makes it a modifier (*the **running** water*).
+- An unknown word between a determiner and a noun is filling the adjective slot — *her **difficult** book*.
+- After `to`, a candidate becomes an infinitive — *to **write***.
+- `to` itself is a preposition unless a verb follows, which distinguishes *to **the** shop* from *to **write***.
+- A sentence-initial word followed by a determiner is an imperative verb — ***Check** the file*.
+
+The five results — noun, verb, adjective, adverb, conjunction — are drawn as CodeMirror decorations, so they render in the editor's own pipeline and never flicker while you type.
+
+### What it deliberately doesn't colour
+
+Articles and possessive determiners. Highlighting adjectives shouldn't light up every `the`, `a` and `her` — they behave like articles, not descriptions.
+
+Pronouns are counted as nouns, and prepositions as conjunctions.
+
+### Accuracy
+
+Roughly nine words in ten on ordinary prose, in my own testings. It's weakest on dialogue-heavy fiction and sentence fragments, where the context rules have less to work with, and on unusual proper nouns.
+
+That's why it's a writing aid rather than a grammar checker: a colour is a prompt to look at the sentence again, not a verdict. Turning on one class at a time — all your verbs, or all your adjectives — is what it's for.
+
+### Performance
+
+Only the lines currently on screen are tagged, and code blocks, frontmatter and math are skipped entirely. About 2ms per repaint on a 110,000-word note, so it doesn't lag typing.
+
 ## Feedback
 
 Found a bug or have an idea? Open an issue!
