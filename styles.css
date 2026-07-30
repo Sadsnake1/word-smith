@@ -504,7 +504,7 @@ body.zg-hemingway-active .cm-editor .cm-selectionBackground {
 	   selected, so the fallback chain does the switching with no extra rule.
 	   (Token names are spelled out rather than braced in comments: a stray
 	   closing brace inside a comment breaks any naive CSS parsing.) */
-	font-family: var(--zg-font, var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif))));
+	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
 	font-size: var(--zg-status-bar-font-size, 13px);
 	font-weight: 600;
 	letter-spacing: 0.3px;
@@ -892,7 +892,7 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
    --zg-font only exists while a font is chosen. */
 .zg-report-modal {
 	max-width: 460px;
-	font-family: var(--zg-font, var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif))));
+	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
 }
 
 .zg-report-modal .modal-content { position: relative; }

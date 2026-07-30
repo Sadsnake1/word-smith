@@ -705,13 +705,13 @@ const DEFAULT_SETTINGS = {
 	// default: a scope feature that starts out excluding everything would look
 	// exactly like a broken plugin.
 	scopeMode:                'include',  // 'include' | 'exclude'
-	scopePaths:               [
-
-	],
+	scopePaths:               [],
 
 	// ── Zen mode ──────────────────────────────────────────────────────────────
-	// zenMode stays false as a default even though the author writes in zen:
-	// it's a runtime mode, not a preference — defaulting it on would collapse
+	// zenEnabled ships off while zenMode ships on. That is not a contradiction:
+	// the plugin installs quietly, and the Zen tab's single switch — or the Z
+	// badge — then brings up focus mode and the letterbox together, already
+	// configured. Turning focus mode on at install would collapse
 	// sidebars and hide the entire UI the moment a new user installs the
 	// plugin, before they know what's happening or how to exit.
 	zenMode:                  true,
@@ -725,20 +725,20 @@ const DEFAULT_SETTINGS = {
 	hideScrollBar:            true,
 	hideRibbon:               true,
 	topPadding:               17,
-	bottomPadding:            21,
+	bottomPadding:            36,
 	focusedFileMode:          false,
 
 	// ── Typewriter / letterbox ────────────────────────────────────────────────
 	enableTypewriter:         false,
-	editorPaddingH:           0,
+	editorPaddingH:           50,
 	// The Zen tab's master switch. Focus mode and letterbox are its two
 	// halves; the Z badge in the bar toggles this, not focus mode alone.
-	zenEnabled:               true,
-	zenTitlebarMatch:         false,     // paint the window title bar like the editor
+	zenEnabled:               false,
+	zenTitlebarMatch:         true,     // paint the window title bar like the editor
 	enableLetterbox:          true,
 	letterboxLines:           8,
-	letterboxPx:              67,
-	maskPaddingH:             193,
+	letterboxPx:              107,
+	maskPaddingH:             213,
 	maskOverhang:             4,
 	arrowStyle:               'solid-triangle',
 	arrowLineEnds:            false,     // cap each separator line with an arrow
@@ -768,38 +768,38 @@ const DEFAULT_SETTINGS = {
 	// statusFormatLeft/Center/Right keys are folded into row 0 on load and
 	// then deleted, so there is never a second place holding the same text.
 	statusBarRows:            2,
-	statusRows: [
-		{ left: '{file}', center: '{goal}', right: ' {paragraph} | {battery} | {date} {time} ' },
-		{ left: '{num} {caps} {mode} ', center: '{words} words', right: '{markers} {syntax} {readtime} read' },
+	statusRows:               [
+		{ left: '{file}', center: '{goal} {filegoal} {foldergoal}', right: '{paragraph} | {battery} | {date} {time} {num} {caps}' },
+		{ left: '{words} words | {readtime} read', center: '{mode}', right: '{markers} {font} {syntax} {writechecks} {report}' },
 		{ left: '', center: '', right: '' }
 	],
 	readTimeWpm:              200,        // reading speed {readtime} divides by
 	fileTokenFormat:          'path',     // 'path' (~/folder/name) | 'name' (basename only)
 	statusBarBorderStyle:     'solid',     // matches the mask separator options
 	statusBarBorderWidth:     2,           // 1–8 px; 'none' style hides it
-	statusBarFontSize:        12,
-	statusBarHeight:          27,
-	statusBarPadTop:          5,         // breathing room above the rows
-	statusBarPadBottom:       5,         // and below them
+	statusBarFontSize:        14,
+	statusBarHeight:          23,
+	statusBarPadTop:          0,         // breathing room above the rows
+	statusBarPadBottom:       4,         // and below them
 	// ── Goals ────────────────────────────────────────────────────────────────
 	// Three of them, drawn the same way: the writing goal as a ring, the file
 	// goal as a triangle, the folder goal as a square. One label mode and one
 	// line weight across all three, so they never disagree about how they look.
-	goalTarget:               1000,       // the writing goal, {goal}
+	goalTarget:               1500,       // the writing goal, {goal}
 	goalBaseline:             0,          // words already written when it was last rebased
 	fileGoals:                {},         // note path   -> word target
 	folderGoals:              {},         // folder path -> word target
-	goalLabelMode:            'percent',  // 'percent' inside | 'fraction' beside | 'none'
-	goalRingWeight:           12,         // gauge thickness, in viewBox units
+	goalLabelMode:            'none',  // 'percent' inside | 'fraction' beside | 'none'
+	goalRingWeight:           16,         // gauge thickness, in viewBox units
 	goalOrientation:          'vertical', // 'vertical' | 'horizontal'
-	goalCustomColors:         false,      // off: all three inherit the bar's text colour
+	goalCustomColors:         true,      // off: all three inherit the bar's text colour
 	goalShowGauge:            true,       // off: the label alone, no bar
-	goalLenWriting:           90,         // horizontal length, in viewBox units
-	goalLenFile:              90,
-	goalLenFolder:            90,
+	goalLenWriting:           30,         // horizontal length, in viewBox units
+	goalLenFile:              40,
+	goalLenFolder:            85,
 	goalColor:                '#4caf7d',  // writing goal
 	fileGoalColor:            '#4f9dde',  // file goal
-	folderGoalColor:          '#d98cc4',  // folder goal
+	folderGoalColor:          '#e347e6',  // folder goal
 
 	dateFormat:               'dd/mm',
 	// Off by default: the bar should look like part of the app it lives in,
@@ -847,22 +847,22 @@ const DEFAULT_SETTINGS = {
 	hemBlockJumpKeys:         false,     // Home / End / PageUp / PageDown
 	hemBlockSelectAll:        false,
 	hemBlockMouse:            false,     // clicking to reposition the caret
-	hemFlashTarget:           'retrobar',  // 'none' | 'screen' | 'retrobar' | 'both'
+	hemFlashTarget:           'icon',  // 'none' | 'screen' | 'retrobar' | 'both'
 
 	// ── Syntax highlight ──────────────────────────────────────────────────────
 	syntaxSkipCode:           true,
 	syntaxStyle:              'text',     // 'text' | 'highlight' | 'squiggle' | 'line'
 	checksEnabled:            false,      // master switch over the writing checks
 	checkStyle:               'squiggle', // same options, for the writing checks
-	checkFiller:              false,
+	checkFiller:              true,
 	checkFillerColor:         '#8a7fd1',
-	checkPassive:             false,
+	checkPassive:             true,
 	checkPassiveColor:        '#c2544d',
-	checkIllusion:            false,
+	checkIllusion:            true,
 	checkIllusionColor:       '#d98cc4',
 	checkMisused:             false,
 	checkMisusedColor:        '#e0913a',
-	checkPronoun:             false,
+	checkPronoun:             true,
 	checkPronounColor:        '#4f9dde',
 	checkRhythm:              false,
 	checkRhythmHardColor:     '#d4a017',
@@ -875,15 +875,15 @@ const DEFAULT_SETTINGS = {
 	repetitionMinLength:      5,         // ignore short words
 	posEnabled:               false,
 	posDimOthers:             true,
-	posNoun:                  true,
+	posNoun:                  false,
 	posNounColor:             '#4f9dde',
-	posVerb:                  true,
+	posVerb:                  false,
 	posVerbColor:             '#4caf7d',
 	posAdjective:             true,
 	posAdjectiveColor:        '#d98cc4',
 	posAdverb:                true,
 	posAdverbColor:           '#e0913a',
-	posConjunction:           true,
+	posConjunction:           false,
 	posConjunctionColor:      '#9aa0a6',
 
 	// ── Typography ────────────────────────────────────────────────────────────
@@ -892,11 +892,11 @@ const DEFAULT_SETTINGS = {
 	typographyEnabled:        true,
 	typoSmartQuotes:          true,
 	typoCustomQuotes:         false,     // pick the characters yourself
-	typoOpenDouble:           '\u201c',
-	typoCloseDouble:          '\u201d',
-	typoOpenSingle:           '\u2018',
-	typoCloseSingle:          '\u2019',
-	typoApostrophe:           '\u2019',
+	typoOpenDouble:           '“',
+	typoCloseDouble:          '”',
+	typoOpenSingle:           '‘',
+	typoCloseSingle:          '’',
+	typoApostrophe:           '’',
 	typoEllipsis:             true,
 	typoDashes:               true,
 	typoArrows:               true,
@@ -1642,9 +1642,13 @@ module.exports = class WordSmith extends Plugin {
 			// The full chain plus the leading body class outranks the theme
 			// rules that set font-family on these same elements, so this needs
 			// no !important of its own.
+			// The theme's own font is named as a fallback: a font can be
+			// chosen and then uninstalled, or arrive from another machine's
+			// settings, and without this the browser drops to its default
+			// rather than to what the vault would otherwise use.
 			rules.push('body.zg-font-active .markdown-source-view.mod-cm6 .cm-content,\n' +
 				'body.zg-font-active .markdown-reading-view .markdown-preview-view ' +
-				'{ font-family: var(--zg-font); }');
+				'{ font-family: var(--zg-font), var(--font-text); }');
 		}
 		if (this.settings.limitLineLength) {
 			// ch is the width of a "0", which is the conventional stand-in for
