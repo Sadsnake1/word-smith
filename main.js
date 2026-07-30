@@ -734,12 +734,14 @@ const DEFAULT_SETTINGS = {
 	// The Zen tab's master switch. Focus mode and letterbox are its two
 	// halves; the Z badge in the bar toggles this, not focus mode alone.
 	zenEnabled:               true,
+	zenTitlebarMatch:         false,     // paint the window title bar like the editor
 	enableLetterbox:          true,
 	letterboxLines:           8,
 	letterboxPx:              67,
 	maskPaddingH:             193,
 	maskOverhang:             4,
 	arrowStyle:               'solid-triangle',
+	arrowLineEnds:            false,     // cap each separator line with an arrow
 	customArrowTop:           '^',
 	customArrowBottom:        'v',
 	arrowCount:               5,
@@ -758,13 +760,17 @@ const DEFAULT_SETTINGS = {
 
 	// ── Retro status bar ──────────────────────────────────────────────────────
 	enableRetroStatus:        true,
+	// Toggled by command rather than by hover. Three attempts at an
+	// auto-hiding bar all foundered on the same thing: a full-width strip
+	// living next to Obsidian's own chrome keeps colliding with it.
+	retroBarHidden:           false,
 	// statusRows is the source of truth for bar content. The old flat
 	// statusFormatLeft/Center/Right keys are folded into row 0 on load and
 	// then deleted, so there is never a second place holding the same text.
 	statusBarRows:            2,
 	statusRows: [
 		{ left: '{file}', center: '{goal}', right: ' {paragraph} | {battery} | {date} {time} ' },
-		{ left: '{num} {caps} {mode} {lock} ', center: '{words} words', right: '{markers} {syntax} {readtime} read' },
+		{ left: '{num} {caps} {mode} ', center: '{words} words', right: '{markers} {syntax} {readtime} read' },
 		{ left: '', center: '', right: '' }
 	],
 	readTimeWpm:              200,        // reading speed {readtime} divides by
@@ -773,6 +779,8 @@ const DEFAULT_SETTINGS = {
 	statusBarBorderWidth:     2,           // 1–8 px; 'none' style hides it
 	statusBarFontSize:        12,
 	statusBarHeight:          27,
+	statusBarPadTop:          5,         // breathing room above the rows
+	statusBarPadBottom:       5,         // and below them
 	// ── Goals ────────────────────────────────────────────────────────────────
 	// Three of them, drawn the same way: the writing goal as a ring, the file
 	// goal as a triangle, the folder goal as a square. One label mode and one
@@ -1000,6 +1008,11 @@ module.exports = class WordSmith extends Plugin {
 
 		// Commands
 		this.addCommand({
+			id: 'toggle-retro-bar',
+			name: 'Show or hide the retro bar',
+			callback: () => this.toggleSetting('retroBarHidden')
+		});
+		this.addCommand({
 			id: 'toggle-wordsmith',
 			name: 'Toggle Word-Smith on/off',
 			callback: () => this.toggleFullPlugin()
@@ -1171,6 +1184,7 @@ module.exports = class WordSmith extends Plugin {
 		if (this._refreshTimer) { window.clearTimeout(this._refreshTimer); this._refreshTimer = null; }
 		if (this._hemFlashTimer) { window.clearTimeout(this._hemFlashTimer); this._hemFlashTimer = null; }
 		if (this._hemScreenTimer) { window.clearTimeout(this._hemScreenTimer); this._hemScreenTimer = null; }
+		if (this._hemIconTimer) { window.clearTimeout(this._hemIconTimer); this._hemIconTimer = null; }
 		if (this._hemScreenEl) { this._hemScreenEl.remove(); this._hemScreenEl = null; }
 		this.closeBarPicker();
 		document.querySelectorAll('.cm-editor.zg-hem-blocked')
@@ -1181,14 +1195,7 @@ module.exports = class WordSmith extends Plugin {
 			this.applyBodyClasses();
 			this.setSidebarVisibility();
 		}
-		document.body.classList.remove(
-			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
-			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar',
-			'zenmode-hide-linked-mentions', 'zg-para-indent', 'zg-justify', 'zg-pos-dim',
-			'zg-hemingway-active', 'zg-line-limit'
-		);
-		document.body.removeAttribute('data-zen-hide-inline-title');
-		document.body.removeAttribute('data-zen-focused-file');
+		this.clearAllBodyState();
 		// Restore all tab containers
 		document.querySelectorAll('.workspace-tabs').forEach(el => {
 			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
@@ -1248,21 +1255,40 @@ module.exports = class WordSmith extends Plugin {
 			}
 		}
 		delete this.settings.wpmWindowSec;
-		// {nump} became {num}; {toc} and {textview} were removed. Rewrite saved
-		// rows so nobody is left with literal token text in their bar.
+		// One symmetric padding became two, so the split starts from whatever
+		// the single value was rather than snapping back to the default.
+		// Settings arrive merged over DEFAULT_SETTINGS, so the two new keys are
+		// never null by the time this runs — guarding on them would make the
+		// whole migration a no-op. The presence of the retired key is the
+		// signal, and it is enough on its own.
+		if (this.settings.statusBarPadding != null) {
+			const pad = this.settings.statusBarPadding;
+			this.settings.statusBarPadTop    = pad;
+			this.settings.statusBarPadBottom = pad;
+			delete this.settings.statusBarPadding;
+		}
+		// The auto-hiding bar was replaced by a command.
+		for (const dead of ['zenAutoHideBar', 'zenAutoHideDelay', 'zenAutoHideZone']) {
+			delete this.settings[dead];
+		}
+		// {nump} became {num}; {toc}, {textview} and {lock} were removed — the
+		// last of those because the H badge in {mode} already says the same
+		// thing. Rewrite saved rows so nobody is left with literal token text.
 		if (Array.isArray(this.settings.statusRows)) {
 			for (const row of this.settings.statusRows) {
 				if (!row) continue;
 				for (const slot of ['left', 'center', 'right']) {
 					if (typeof row[slot] !== 'string') continue;
-					let v = row[slot]
+					const before = row[slot];
+					let v = before
 						.split('{nump}').join('{num}')
-						.replace(/\s*\{(toc|textview)\}\s*/g, ' ')
+						.replace(/\s*\{(toc|textview|lock)\}\s*/g, ' ')
 						.replace(/[ \t]{2,}/g, ' ');
-					// A slot that held nothing but a removed token is empty,
-					// not a lone space. Slots with real content keep whatever
-					// padding the user deliberately typed around it.
-					if (!v.trim()) v = '';
+					// Only tidy the edges of a slot a token was actually
+					// removed from: that slot's spacing is changing anyway, and
+					// the substitution leaves a space of its own behind. Slots
+					// left alone keep whatever padding was deliberately typed.
+					if (v !== before) v = v.trim();
 					row[slot] = v;
 				}
 			}
@@ -1405,6 +1431,28 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	// Tear down everything without unloading the plugin
+	// Everything the plugin puts on <body> or :root, in one place. onunload
+	// used to keep its own shorter list, which had drifted seven classes and
+	// every custom property behind this one — so disabling from Obsidian's
+	// plugin page left the font override applied.
+	clearAllBodyState() {
+		document.body.classList.remove(
+			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
+			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
+			'zenmode-hide-linked-mentions', 'zg-para-indent', 'zg-justify',
+			'zg-masks-active', 'zg-retrobar-active', 'zg-pos-dim', 'zg-hemingway-active',
+			'zg-line-limit', 'zg-editor-focused', 'zg-font-active', 'zg-rtl',
+			'zg-bar-hidden', 'zg-titlebar-match'
+		);
+		document.body.removeAttribute('data-zen-hide-inline-title');
+		document.body.removeAttribute('data-zen-focused-file');
+		// Custom properties are set on body and :root, not by class, so the
+		// list above does not reach them.
+		for (const prop of ['--zg-bg', '--zg-text', '--zg-font']) {
+			document.body.style.removeProperty(prop);
+		}
+	}
+
 	disablePlugin() {
 		this.removeCustomElements();
 		this.stopClockTick();
@@ -1421,18 +1469,7 @@ module.exports = class WordSmith extends Plugin {
 		this._docStatsCache = null;
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 		// Strip all body classes and attributes
-		document.body.classList.remove(
-			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
-			'zenmode-hide-scroll-bar', 'zenmode-hide-linked-mentions', 'zg-para-indent',
-			'zg-justify', 'zg-masks-active', 'zenmode-hide-ribbon', 'zg-retrobar-active',
-			'zg-pos-dim', 'zg-hemingway-active', 'zg-line-limit', 'zg-editor-focused',
-			'zg-font-active', 'zg-rtl'
-		);
-		// The bar colours are stamped on <body>, so they need clearing here
-		// too — the class list above does not reach them.
-		document.body.style.removeProperty('--zg-bg');
-		document.body.style.removeProperty('--zg-text');
-		document.body.style.removeProperty('--zg-font');
+		this.clearAllBodyState();
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
 		// The horizontal padding rule is unscoped (applies always), so it
@@ -1477,6 +1514,8 @@ module.exports = class WordSmith extends Plugin {
 		body.classList.toggle('zg-justify',                 scoped && this.settings.justifyText);
 		body.classList.toggle('zg-line-limit',              scoped && this.settings.limitLineLength);
 		body.classList.toggle('zg-rtl',                     this.isRightToLeft());
+		body.classList.toggle('zg-bar-hidden', this.barIsHidden());
+		body.classList.toggle('zg-titlebar-match', zen && this.settings.zenTitlebarMatch);
 		body.classList.toggle('zg-masks-active',            scoped && this.letterboxActive());
 		body.classList.toggle('zg-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
 		body.classList.toggle('zg-hemingway-active',        scoped && this.settings.hemingwayEnabled);
@@ -1523,7 +1562,17 @@ module.exports = class WordSmith extends Plugin {
 		// working unchanged against --zg-status-bar-height.
 		const barRows = Math.max(1, Math.min(3, this.settings.statusBarRows || 1));
 		root.setProperty('--zg-status-row-height',    this.settings.statusBarHeight + 'px');
-		root.setProperty('--zg-status-bar-height',    (this.settings.statusBarHeight * barRows) + 'px');
+		// Padding is added to the bar's own height rather than eating into it,
+		// so the rows keep the height they were given and everything that
+		// measures the bar — mask placement, the cm-panels offset — still gets
+		// the true total.
+		const clampPad = v => Math.max(0, Math.min(24, v != null ? v : 5));
+		const padTop    = clampPad(this.settings.statusBarPadTop);
+		const padBottom = clampPad(this.settings.statusBarPadBottom);
+		root.setProperty('--zg-status-bar-pad-top',    padTop + 'px');
+		root.setProperty('--zg-status-bar-pad-bottom', padBottom + 'px');
+		root.setProperty('--zg-status-bar-height',
+			(this.settings.statusBarHeight * barRows + padTop + padBottom) + 'px');
 		root.setProperty('--zg-para-indent',          (this.settings.paragraphIndentEm || 2) + 'em');
 		root.setProperty('--zg-mask-overhang',        (this.settings.maskOverhang || 4) + 'px');
 
@@ -1735,6 +1784,43 @@ module.exports = class WordSmith extends Plugin {
 		this.settings[key] = !this.settings[key];
 		if (ensurePos && this.settings[key]) this.settings.posEnabled = true;
 		await this.saveSettings(true);
+	}
+
+	// What the Z badge does. toggleZenMode() only moves focus mode, which left
+	// the badge flipping a master that had no visible effect of its own; this
+	// moves both halves together and runs the same enter/exit work.
+	async toggleZenFromBar() {
+		if (this._isTogglingZen) return;
+		this._isTogglingZen = true;
+		try {
+			if (!this.settings.pluginEnabled) this.settings.pluginEnabled = true;
+			const entering = !this.zenActive();
+
+			if (entering) {
+				this.settings.zenEnabled = true;
+				this.settings.zenMode    = true;
+				if (this.settings.focusedFileMode) await this.revealPinnedTabIfExists();
+				if (this.settings.fullscreen && document.documentElement.requestFullscreen) {
+					try {
+						await document.documentElement.requestFullscreen();
+						await new Promise(r => requestAnimationFrame(r));
+					} catch (_) {}
+				}
+			} else {
+				if (document.fullscreenElement && document.exitFullscreen) {
+					try {
+						await document.exitFullscreen();
+						await new Promise(r => requestAnimationFrame(r));
+					} catch (_) {}
+				}
+				// The master goes down, taking the letterbox with it. zenMode
+				// is left alone so the next press restores what was set up.
+				this.settings.zenEnabled = false;
+			}
+			await this.saveSettings(true);
+		} finally {
+			this._isTogglingZen = false;
+		}
 	}
 
 	async toggleZenMode() {
@@ -1957,6 +2043,12 @@ module.exports = class WordSmith extends Plugin {
 
 	// The retro bar is one fixed element shared by every pane, so it follows
 	// the active file's scope rather than any single editor's.
+	// Slid out of view by command. The element stays in the DOM so the move
+	// can animate; nothing else should treat it as occupying space.
+	barIsHidden() {
+		return !!(this.settings.retroBarHidden && this.retroBarActive());
+	}
+
 	retroBarActive() {
 		return this.settings.enableRetroStatus && this.isActiveFileInScope();
 	}
@@ -2628,8 +2720,11 @@ module.exports = class WordSmith extends Plugin {
 			  on: !!this.opt('enableTypewriter') && scoped },
 			{ key: 'hem', letter: 'H', label: 'Hemingway mode',  setting: 'hemingwayEnabled',
 			  on: !!this.opt('hemingwayEnabled') && scoped },
+			// Reports whether zen is actually on, not merely permitted. The
+			// master alone is not zen: with focus mode off it lights the
+			// letterbox and nothing else.
 			{ key: 'zen', letter: 'Z', label: 'Zen',             setting: 'zenEnabled',
-			  on: !!this.opt('zenEnabled') }
+			  action: () => this.toggleZenFromBar(), on: this.zenActive() }
 		];
 	}
 
@@ -3052,7 +3147,8 @@ module.exports = class WordSmith extends Plugin {
 			if (gauge) wrap.appendChild(this.buildGoalBar(0, false, length, null));
 			else wrap.appendChild(this.makeGoalLabel('\u2014'));
 			wrap.title = !path ? 'No ' + noun + ' \u2014 open a note first'
-			                   : 'No ' + noun + ' set \u2014 click to set one';
+			                   : 'No ' + noun + ' set \u2014 click to set one, or edit them all '
+			                     + 'under Settings \u2192 Word-Smith \u2192 Misc';
 			return wrap;
 		}
 
@@ -3265,10 +3361,15 @@ module.exports = class WordSmith extends Plugin {
 				// Over the whole report, not just the gauge — see celebrate().
 				if (stats.words >= target) plugin.celebrate(body);
 			} else {
-				ringWrap.createSpan({
-					cls: 'zg-report-ring-label is-muted',
-					text: active === 'note' ? 'No goal set for this note.'
-						: 'No goal set for this folder.'
+				const none = ringWrap.createDiv({ cls: 'zg-report-ring-label is-muted' });
+				none.createDiv({
+					text: active === 'note' ? 'No word goal set for this note.'
+						: 'No word goal set for this folder.'
+				});
+				none.createDiv({
+					cls: 'zg-report-hint',
+					text: 'Add one under Settings \u2192 Word-Smith \u2192 Misc, or by clicking the '
+						+ (active === 'note' ? '{filegoal}' : '{foldergoal}') + ' token in the bar.'
 				});
 			}
 
@@ -3595,25 +3696,68 @@ module.exports = class WordSmith extends Plugin {
 		if (this._barPicker) this._barPicker._live = items;
 	}
 
-	// Badges rather than bare letters. The shapes carry the meaning at a	// Badges rather than bare letters. The shapes carry the meaning at a
-	// glance: a ring for zen, a box for the Hemingway lock, and rules above
-	// and below for typewriter — the letterbox mask in miniature. All of it
-	// is drawn from currentColor and sized in em, so it inherits the bar's
-	// palette and shrinks with fitStatusBarText like everything else.
+	// Drawn rather than set in type. Centring a capital with flexbox centres
+	// its line box, not the letter: capitals sit on the baseline with
+	// descender space beneath, so they read high, and the nudge that used to
+	// correct it was a guess that also pushed the T off-centre between its
+	// rules.
+	//
+	// One 24x24 viewBox for all three puts every letter at exactly (12,12)
+	// and every shape on the same centre, so they cannot drift apart.
+	buildModeGlyph(kind, letter) {
+		const NS = 'http://www.w3.org/2000/svg';
+		const svg = document.createElementNS(NS, 'svg');
+		svg.setAttribute('class', 'zg-mode-glyph is-' + kind);
+		svg.setAttribute('viewBox', '0 0 24 24');
+		svg.setAttribute('aria-hidden', 'true');
+
+		const el = (tag, attrs) => {
+			const n = document.createElementNS(NS, tag);
+			for (const k in attrs) n.setAttribute(k, String(attrs[k]));
+			svg.appendChild(n);
+			return n;
+		};
+
+		if (kind === 'zen') {
+			el('circle', { class: 'zg-mode-shape', cx: 12, cy: 12, r: 10.4 });
+		} else if (kind === 'hem') {
+			el('rect', { class: 'zg-mode-shape', x: 1.6, y: 1.6,
+				width: 20.8, height: 20.8, rx: 3.4 });
+		} else {
+			// Rules above and below, symmetric about the centre line, so the
+			// T sits exactly between them.
+			el('line', { class: 'zg-mode-shape', x1: 1.2, y1: 2.6, x2: 22.8, y2: 2.6 });
+			el('line', { class: 'zg-mode-shape', x1: 1.2, y1: 21.4, x2: 22.8, y2: 21.4 });
+		}
+
+		const t = el('text', {
+			class: 'zg-mode-letter',
+			x: 12, y: 12,
+			'text-anchor': 'middle',
+			'dominant-baseline': 'central',
+			'font-size': 13.5
+		});
+		t.textContent = letter;
+		return svg;
+	}
+
 	buildModeIndicator() {
 		const wrap = document.createElement('span');
 		wrap.className = 'zg-mode';
 		for (const mode of this.getAllModes()) {
 			const badge = document.createElement('span');
 			badge.className = 'zg-mode-badge is-clickable is-' + mode.key + (mode.on ? '' : ' is-off');
-			badge.textContent = mode.letter;
+			badge.appendChild(this.buildModeGlyph(mode.key, mode.letter));
 			badge.title = mode.label + (mode.on ? ' \u2014 click to turn off' : ' \u2014 click to turn on');
 			// mousedown, like every other control in the bar: a repaint
 			// between press and release swallows click entirely.
 			badge.addEventListener('mousedown', async (e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				await this.toggleSetting(mode.setting);
+				// Zen needs more than a flag flip — fullscreen, the pinned
+				// tab, the sidebars — so it carries its own action.
+				if (mode.action) await mode.action();
+				else await this.toggleSetting(mode.setting);
 			});
 			wrap.appendChild(badge);
 		}
@@ -3730,7 +3874,6 @@ module.exports = class WordSmith extends Plugin {
 			'{caps}':      this._capsLockOn ? '\x00CAPS\x00' : '',
 			'{num}':       this._numLockOn  ? '\x00NUM\x00'  : '',
 			'{vim}':       this.getVimModeLabel(),
-			'{lock}':      this.settings.hemingwayEnabled ? 'LOCK' : '',
 			'{mode}':      '\x00MODE\x00',
 			'{syntax}':    '\x00SYNTAX\x00',
 			'{markers}':   '\x00MARKERS\x00',
@@ -3924,7 +4067,12 @@ module.exports = class WordSmith extends Plugin {
 		const sr = scroller.getBoundingClientRect();
 
 		let statusH = 0;
-		if (this.settings.enableRetroStatus && this.retroStatusBarEl) {
+		// An auto-hidden bar occupies no space: the mask has to reach the
+		// window frame, not stop short at a bar that is not there. It rises
+		// over the mask on hover, which is the right way round.
+		if (this.barIsHidden()) {
+			statusH = 0;
+		} else if (this.settings.enableRetroStatus && this.retroStatusBarEl) {
 			statusH = this.retroStatusBarEl.getBoundingClientRect().height || this.settings.statusBarHeight || 30;
 		} else {
 			const nb = document.querySelector('.status-bar');
@@ -3985,7 +4133,19 @@ module.exports = class WordSmith extends Plugin {
 		const wrap   = document.body.createEl('div', { cls: 'zengrinder-arrows-wrap zengrinder-arrows-wrap-' + position + ' is-visible' });
 		const line   = wrap.createEl('div', { cls: 'zengrinder-arrow-line' });
 		const arrows = wrap.createEl('div', { cls: 'zengrinder-arrows' });
+		// End caps are the first and last members of the arrow row, not
+		// separate elements on the line. Two earlier attempts put them there —
+		// the border drew straight through them, and once that was fixed they
+		// still sat on a different baseline at a different line-height. As
+		// siblings of the other arrows they inherit every one of those things
+		// and cannot fall out of line.
+		const caps = !!this.settings.arrowLineEnds;
+		if (caps) {
+			arrows.classList.add('has-caps');
+			arrows.createEl('span', { cls: 'zengrinder-arrow-cap', text: char });
+		}
 		for (let i = 0; i < this.settings.arrowCount; i++) arrows.createEl('span', { text: char });
+		if (caps) arrows.createEl('span', { cls: 'zengrinder-arrow-cap', text: char });
 		if (position === 'top') wrap.insertBefore(arrows, line);
 
 		// Pointer events (with capture) instead of mouse events: identical on
@@ -4771,8 +4931,25 @@ module.exports = class WordSmith extends Plugin {
 	flashHemingway() {
 		const target = this.settings.hemFlashTarget || 'screen';
 		if (target === 'none') return;
-		if (target === 'screen' || target === 'both') this.flashHemingwayScreen();
+		if (target === 'icon')                          this.flashHemingwayIcon();
+		if (target === 'screen'   || target === 'both') this.flashHemingwayScreen();
 		if (target === 'retrobar' || target === 'both') this.flashHemingwayBar();
+	}
+
+	// The quietest of the three: only the H badge reddens. Needs {mode} in the
+	// bar to show at all, which the setting says.
+	flashHemingwayIcon() {
+		const el = document.querySelector('.zg-mode-badge.is-hem');
+		if (!el) return;
+		el.classList.remove('zg-hem-blocked');
+		void el.offsetWidth;   // reflow, so held keys restart the flash
+		el.classList.add('zg-hem-blocked');
+		if (this._hemIconTimer) window.clearTimeout(this._hemIconTimer);
+		this._hemIconTimer = window.setTimeout(() => {
+			const badge = document.querySelector('.zg-mode-badge.zg-hem-blocked');
+			if (badge) badge.classList.remove('zg-hem-blocked');
+			this._hemIconTimer = null;
+		}, 500);
 	}
 
 	flashHemingwayScreen() {
@@ -5138,6 +5315,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			this.toggle(z, 'Full screen', 'Enter fullscreen when enabling zen mode.', 'fullscreen');
 
+			this.toggle(z, 'Match the title bar',
+				'Paints Obsidian\u2019s title bar the same colour as the editor, so the window has no seam. '
+				+ 'Needs Obsidian\u2019s own window frame \u2014 a native OS title bar cannot be styled.',
+				'zenTitlebarMatch');
+
 			this.toggle(z, 'Focused file mode', 'Only show the active file — hide all other panes.', 'focusedFileMode');
 
 			this.label(z, 'Hide in zen mode');
@@ -5274,6 +5456,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 				}
 				this.numInput(as, 'Arrow count', 'Number per row (1–10).', 'arrowCount', 1, 10);
 				this.slider(as, 'Arrow scale', 'Size multiplier.', 'arrowScale', 0.5, 3, 0.1);
+				this.toggle(as, 'Cap the line ends',
+					'An arrow at each end of the separator line, in the same style as the row.',
+					'arrowLineEnds');
 			}
 
 			this.label(ls, 'Separator line');
@@ -5320,7 +5505,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			this.label(rb, 'Format');
 			rb.createEl('p', {
-				text: 'Tokens: {file} {words} {chars} {paragraph} {goal} {mode} {readtime} {time} {date} {battery} {caps} {num} {vim} {lock}\n'
+				text: 'Tokens: {file} {words} {chars} {paragraph} {goal} {mode} {readtime} {time} {date} {battery} {caps} {num} {vim}\n'
 					+ 'Buttons: {syntax} {writechecks} {markers} {font} {report} {filegoal} {foldergoal}',
 				cls: 'ws-settings-note'
 			});
@@ -5360,6 +5545,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.slider(ap, 'Font size',  'Text size in the bar (8\u201324 px).', 'statusBarFontSize', 8, 24, 1);
 			this.slider(ap, 'Row height', 'Height of one row (20\u201360 px). The bar is this tall per row.',
 				'statusBarHeight', 20, 60, 1);
+			this.slider(ap, 'Padding top', 'Space above the rows (0\u201324 px).',
+				'statusBarPadTop', 0, 24, 1);
+			this.slider(ap, 'Padding bottom', 'Space below the rows (0\u201324 px).',
+				'statusBarPadBottom', 0, 24, 1);
 
 			this.label(ap, 'Top border');
 			const bd = this.sub(ap);
@@ -5672,17 +5861,18 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		this.label(h, 'Feedback');
 		new Setting(h).setName('Flash when blocked')
-			.setDesc('Where to show that a key was refused.')
+			.setDesc('Where to show that a key was refused. The badge option needs {mode} in the bar.')
 			.addDropdown(d => d
 				.addOption('none',     'None')
-				.addOption('screen',   'Screen')
+				.addOption('icon',     'The H badge only')
 				.addOption('retrobar', 'Retro bar')
-				.addOption('both',     'Both')
+				.addOption('screen',   'Screen')
+				.addOption('both',     'Screen and bar')
 				.setValue(this.plugin.settings.hemFlashTarget || 'screen')
 				.onChange(async v => { this.plugin.settings.hemFlashTarget = v; await this.plugin.saveSettings(); }));
 
 		h.createEl('p', {
-			text: 'Add {lock} to the retro bar for a lock indicator.',
+			text: 'The H badge in {mode} shows the lock while it is on.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -5747,6 +5937,33 @@ class WordSmithSettingTab extends PluginSettingTab {
 	}
 	// ── Misc tab ──────────────────────────────────────────────────────────────
 	displayMiscTab(containerEl) {
+		this.label(containerEl, 'Word goals');
+		containerEl.createEl('p', {
+			text: 'The writing goal counts across every note since it was last rebased. '
+				+ 'File and folder goals count words against a target, with no baseline.',
+			cls: 'ws-settings-note'
+		});
+
+		const g = this.sub(containerEl);
+		new Setting(g).setName('Writing goal')
+			.setDesc('Target for {goal}.')
+			.addText(t => {
+				t.inputEl.type = 'number'; t.inputEl.min = '1'; t.inputEl.addClass('ws-num-input');
+				t.setValue(String(this.plugin.settings.goalTarget || 1000));
+				t.onChange(async v => {
+					const n = parseInt(v, 10);
+					if (!isNaN(n) && n > 0) {
+						this.plugin.settings.goalTarget = n;
+						await this.plugin.saveSettings();
+					}
+				});
+			});
+
+		this.renderGoalList(g, 'file',   'File goals',   'Add note');
+		this.renderGoalList(g, 'folder', 'Folder goals', 'Add folder');
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
 		this.label(containerEl, 'Word counts');
 		this.toggle(containerEl, 'File tree counts',
 			'Word count per note in the file explorer, summed into folders.',
@@ -5754,6 +5971,85 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.toggle(containerEl, 'Outline counts',
 			'Word count per heading in the outline panel.',
 			'enableOutlineCounts', () => this.display());
+	}
+
+	// One list per kind. Each row is a path, its target, and a way to drop it —
+	// the same targets the bar tokens set when you click them.
+	renderGoalList(parent, kind, title, addLabel) {
+		const store = kind === 'folder' ? 'folderGoals' : 'fileGoals';
+		const s = this.plugin.settings;
+		if (!s[store]) s[store] = {};
+		const paths = Object.keys(s[store]).sort();
+
+		const head = new Setting(parent).setName(title)
+			.setDesc(paths.length
+				? paths.length + (paths.length === 1 ? ' target set.' : ' targets set.')
+				: 'None yet. They can also be set by clicking the token in the bar.');
+
+		if (WsPathSuggestModal) {
+			head.addButton(b => b.setButtonText(addLabel).onClick(() => this.pickGoalPath(kind)));
+		}
+
+		if (!paths.length) return;
+
+		const list = parent.createEl('div', { cls: 'ws-scope-list' });
+		for (const path of paths) {
+			const row = list.createEl('div', { cls: 'ws-scope-row' });
+			row.createEl('span', {
+				cls: 'ws-scope-path' + (kind === 'folder' ? ' is-folder' : ''),
+				text: path === '/' ? 'Vault root' : path
+			});
+
+			const num = row.createEl('input', { cls: 'ws-goal-input' });
+			num.type = 'number';
+			num.min = '1';
+			num.value = String(s[store][path]);
+			num.addEventListener('change', async () => {
+				const n = parseInt(num.value, 10);
+				if (!isNaN(n) && n > 0) s[store][path] = n;
+				else delete s[store][path];
+				this.plugin._folderWordCache = null;
+				await this.plugin.saveSettings(true);
+				this.display();
+			});
+
+			const del = row.createEl('button', { cls: 'ws-scope-remove', text: '\u00d7' });
+			del.setAttribute('aria-label', 'Remove the goal for ' + path);
+			del.addEventListener('click', async () => {
+				delete s[store][path];
+				this.plugin._folderWordCache = null;
+				await this.plugin.saveSettings(true);
+				this.display();
+			});
+		}
+	}
+
+	pickGoalPath(kind) {
+		if (!WsPathSuggestModal) return;
+		const store = kind === 'folder' ? 'folderGoals' : 'fileGoals';
+		const s = this.plugin.settings;
+		const have = new Set(Object.keys(s[store] || {}));
+		let items;
+		if (kind === 'folder') {
+			items = this.app.vault.getAllLoadedFiles()
+				.filter(f => f && (TFolder ? f instanceof TFolder : f.children !== undefined))
+				.map(f => f.path)
+				.filter(p => p && p !== '/' && !have.has(p));
+			if (!have.has('/')) items.unshift('/');
+		} else {
+			items = this.app.vault.getMarkdownFiles().map(f => f.path).filter(p => !have.has(p));
+		}
+		if (!items.length) return;
+		new WsPathSuggestModal(this.app, items,
+			kind === 'folder' ? 'Choose a folder\u2026' : 'Choose a note\u2026',
+			async (picked) => {
+				if (!s[store]) s[store] = {};
+				// A sensible starting number, editable in the row that appears.
+				s[store][picked] = s.goalTarget || 1000;
+				this.plugin._folderWordCache = null;
+				await this.plugin.saveSettings(true);
+				this.display();
+			}).open();
 	}
 
 	// ── Helpers ───────────────────────────────────────────────────────────────

@@ -25,18 +25,35 @@
 	--zg-scroller-pad-bottom: 0px;
 }
 
-/* Whenever the letterbox masks are visible (typewriter mode + letterbox on)
-   AND the note editor actually has focus, raise ZenGrinder elements above
-   Cursor Smith's canvas (z:10000) so the masks fully occlude the cursor
-   while scrolling/writing. Requiring editor focus keeps this from floating
-   above the command palette, settings tab, context menus, or any other
-   modal — those all move focus away from .cm-editor, which drops us back
-   to normal stacking automatically. */
+/* Editor-focus elevation.
+
+   Some plugins paint a full-viewport fixed canvas over the workspace —
+   Cursor-Smith's is at z-index 10000 — which sits above anything in a normal
+   stacking band and covers the retro bar. The bar has to clear it whenever
+   you are actually writing.
+
+   Editor focus is the guard, and it is what makes this safe: the command
+   palette, settings, a context menu and every modal all move focus off
+   .cm-editor, which drops these straight back to the normal band so those
+   dialogs stack over the bar as they should.
+
+   Only the bar rises on focus alone. The masks rise when they exist, and the
+   titlebar drag strip rises WITH THEM and only with them.
+
+   That last part matters: the strip is full width with -webkit-app-region:
+   drag, so above Obsidian's own chrome it swallows every click at the top of
+   the window and turns it into a window drag. It exists to stay reachable
+   over the top mask, nothing more — the moment it was raised on focus alone
+   it started covering the ribbon, the tab bar and the window controls. */
+body.zg-editor-focused {
+	--zg-z-status: 10006;
+}
+
 body.zg-masks-active.zg-editor-focused {
 	--zg-z-mask:     10003;
 	--zg-z-arrows:   10004;
-	--zg-z-status:   10005;
-	--zg-z-titlebar: 10006;
+	--zg-z-torch:    10005;
+	--zg-z-titlebar: 10007;
 }
 
 /* =========================================================================
@@ -92,6 +109,39 @@ body.zenmode-hide-status-bar > .status-bar {
 .workspace-tabs.zenmode-tab-hidden { display: none; }
 .workspace-tabs.zenmode-tab-active { display: block; width: 100%; flex: 1 1 100%; }
 
+/* Paint the title bar like the editor, so the window reads as one surface
+   rather than a page under a header. Obsidian exposes these as variables, so
+   this is a re-point rather than an override — themes that set their own
+   title bar colours still win outside focus mode.
+
+   Only works with Obsidian's own window frame. A native OS title bar is
+   drawn by the system and cannot be reached from CSS. */
+body.zg-titlebar-match {
+	--titlebar-background: var(--background-primary);
+	--titlebar-background-focused: var(--background-primary);
+	--titlebar-border-width: 0px;
+	--titlebar-text-color: var(--text-muted);
+	--titlebar-text-color-focused: var(--text-normal);
+}
+
+/* ── Interop: Cursor-Smith ────────────────────────────────────────────────
+   Its torch overlay is a full-viewport multiply blend at z-index 9990, which
+   the elevated masks (10003) bury — so the darkening stopped dead at the
+   letterbox edge and the masks stayed lit. Raised above the masks and arrows
+   here, and left below the retro bar so the readouts stay legible.
+
+   Only while the masks are actually elevated. Applied unconditionally this
+   would *lower* the torch to our band in normal stacking, dropping it under
+   Cursor-Smith's own cursor canvas.
+
+   Only z-index is declared. Everything else about that overlay — its size,
+   colours and radius — is written inline from its own settings each frame,
+   and a rule here that touched those would silently win the cascade against
+   the plugin that owns them. */
+body.zg-masks-active.zg-editor-focused .torch-cursor-overlay {
+	z-index: var(--zg-z-torch, 10005);
+}
+
 /* Draggable titlebar strip (leaves OS buttons).
 
    The z-index has to clear the letterbox band, not sit below it. Electron's
@@ -101,10 +151,38 @@ body.zenmode-hide-status-bar > .status-bar {
 body:not(.is-mobile).zenmode-active .titlebar {
 	display: block; position: fixed; top: 0;
 	left: 0; width: 100%;
+	max-height: 40px;
 	z-index: var(--zg-z-titlebar, 23);
-	background: transparent; -webkit-app-region: drag;
+	background: transparent;
+	-webkit-app-region: no-drag;
 }
+
+/* The strip only becomes a drag region while the editor has focus.
+
+   -webkit-app-region is resolved by the compositor, not the DOM: a drag
+   region claims that area of the window whatever is painted above it, and
+   z-index does not save you. Left permanently draggable, this strip made the
+   close button of any dialog that reached the top of the window unclickable
+   — the click was handed to the window manager as a titlebar drag.
+
+   Editor focus is the same guard the z-index band uses: opening settings, a
+   modal or the command palette moves focus off .cm-editor, and the strip
+   stops claiming the area in the same instant. */
+body:not(.is-mobile).zenmode-active.zg-editor-focused .titlebar {
+	-webkit-app-region: drag;
+}
+
 body:not(.is-mobile).zenmode-active .titlebar * { -webkit-app-region: no-drag; }
+
+/* Belt and braces for anything that can appear over the strip while the
+   editor somehow still holds focus. */
+.modal-container,
+.suggestion-container,
+.menu,
+.prompt,
+.notice-container {
+	-webkit-app-region: no-drag;
+}
 
 /* And make the masks draggable in their own right. Raising the strip fixes
    the thin band it occupies; this makes the whole letterbox a drag handle,
@@ -226,6 +304,14 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	touch-action: none;
 }
 
+/* End caps ride in the arrow row itself, so they take its colour, size,
+   line-height and baseline without declaring any of them again. The row
+   spreads edge to edge when they are present, which is what puts one at each
+   end of the separator line below it. */
+.zengrinder-arrows.has-caps {
+	justify-content: space-between;
+}
+
 /* Wider invisible hit area for dragging. */
 .zengrinder-arrow-line::before {
 	content: '';
@@ -331,6 +417,25 @@ body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
 	to   { box-shadow: inset 0 0 0 2px transparent; }
 }
 
+/* Badge flash — the quietest option. The badge and its glyph both draw from
+   currentColor, so one property reddens the shape and the letter together;
+   the class is removed after half a second and the colour snaps back, which
+   is what makes it read as a flash rather than a state. */
+.zg-mode-badge.zg-hem-blocked {
+	color: var(--zg-hem-block-color, #c2544d);
+	animation: zg-hem-icon-pulse 0.45s ease-out;
+}
+
+@keyframes zg-hem-icon-pulse {
+	0%   { opacity: 1;    }
+	30%  { opacity: 0.35; }
+	100% { opacity: 1;    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.zg-mode-badge.zg-hem-blocked { animation: none; }
+}
+
 /* Retro bar flash. */
 .zengrinder-status-bar.zg-hem-blocked {
 	animation: zg-hem-flash 0.5s ease-out;
@@ -394,20 +499,47 @@ body.zg-hemingway-active .cm-editor .cm-selectionBackground {
 	height: var(--zg-status-bar-height, 30px);
 	background-color: var(--zg-bg);
 	color: var(--zg-text);
-	font-family: var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
+	/* Follows the font chosen through the font token, falling back to the
+	   interface font when none is set. --zg-font only exists while a font is
+	   selected, so the fallback chain does the switching with no extra rule.
+	   (Token names are spelled out rather than braced in comments: a stray
+	   closing brace inside a comment breaks any naive CSS parsing.) */
+	font-family: var(--zg-font, var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif))));
 	font-size: var(--zg-status-bar-font-size, 13px);
 	font-weight: 600;
 	letter-spacing: 0.3px;
-	padding: 0 15px;
+	padding: var(--zg-status-bar-pad-top, 5px) 15px var(--zg-status-bar-pad-bottom, 5px);
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	white-space: pre;
 	overflow: hidden;
 	z-index: var(--zg-z-status, 22);
+	/* Width, style and colour are stamped inline from settings; declaring the
+	   shorthand here keeps the box model from shifting when it appears. */
+	border-top: 0 none var(--zg-text);
 }
 
-/* One line of the bar. A single-row bar is still wrapped in one of these,
+/* Hidden by command, not by hover — three attempts at revealing it from a
+   screen-edge strip all ended up fighting Obsidian's own chrome, and an
+   invisible full-width element next to the window controls is a bad
+   neighbour however carefully it is layered.
+
+   The element stays in place and slides, so the move can animate; nothing
+   else treats it as occupying space while it is away. */
+body.zg-bar-hidden .zengrinder-status-bar {
+	transform: translateY(100%);
+}
+
+.zengrinder-status-bar {
+	transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.zengrinder-status-bar { transition: none; }
+}
+
+/* One line of the bar./* One line of the bar. A single-row bar is still wrapped in one of these,
    so there is only one layout path to reason about. */
 .zg-status-row {
 	display: flex;
@@ -439,12 +571,6 @@ body.zg-hemingway-active .cm-editor .cm-selectionBackground {
 .zg-status-center { text-align: center; }
 .zg-status-right  { text-align: right; }
 
-/* Width, style and colour are stamped inline from settings; this only keeps
-   the box model from shifting when the border appears or disappears. */
-.zengrinder-status-bar {
-	border-top: 0 none var(--zg-text);
-}
-
 /* CodeMirror bottom panels — the vim ":" command line lives here — stick
    to the bottom edge of the editor, which the fixed retro bar overlays.
    While the bar is active, lift them by its height so they stay visible.
@@ -469,40 +595,34 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 /* Sized in em against its own font-size, so the badge keeps its proportions
    whatever size fitStatusBarText settles on. 1.5px borders match the WS
    ribbon badge, which is the only other bordered glyph in the plugin. */
+/* The badge is only a hit target and a fade; the glyph inside carries all
+   the geometry, in one shared 24x24 viewBox so the three line up exactly. */
 .zg-mode-badge {
 	display: inline-flex;
 	align-items: center;
-	justify-content: center;
-	box-sizing: border-box;
-	min-width: 1.5em;
+	line-height: 0;
+}
+
+.zg-mode-glyph {
+	width: 1.5em;
 	height: 1.5em;
-	font-size: 0.76em;
+	flex: none;
+	overflow: visible;
+}
+
+.zg-mode-shape {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: butt;
+}
+
+.zg-mode-letter {
+	fill: currentColor;
+	stroke: none;
+	font-family: inherit;
 	font-weight: 700;
-	line-height: 1;
-	/* Capitals sit fractionally high inside a ring at this size; the nudge
-	   centres them optically rather than metrically. */
-	padding-top: 0.06em;
-}
-
-.zg-mode-badge.is-zen {
-	border: 1.5px solid currentColor;
-	border-radius: 50%;
-}
-
-.zg-mode-badge.is-hem {
-	border: 1.5px solid currentColor;
-	border-radius: 2px;
-}
-
-/* Rules above and below, no sides. The extra horizontal padding lets them
-   overhang the letter, which is what reads as a platen rather than a box
-   missing two edges. */
-.zg-mode-badge.is-tw {
-	border-top: 1.5px solid currentColor;
-	border-bottom: 1.5px solid currentColor;
-	border-radius: 0;
-	padding-left: 0.2em;
-	padding-right: 0.2em;
+	letter-spacing: 0;
 }
 
 /* Every mode is always shown, so the badges can act as switches — a mode you
@@ -765,7 +885,15 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 
 /* Restored: an earlier line-wise cleanup took the modal shell rules out
    along with the ring selectors it was actually targeting. */
-.zg-report-modal { max-width: 460px; }
+/* The report reads as part of the writing surface, so it takes the same face
+   as the editor and the bar. The class sits on modalEl, which holds the
+   title as well as the content, so one declaration covers the lot — and the
+   gauge's percentage inherits it too. Same fallback chain as the bar:
+   --zg-font only exists while a font is chosen. */
+.zg-report-modal {
+	max-width: 460px;
+	font-family: var(--zg-font, var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif))));
+}
 
 .zg-report-modal .modal-content { position: relative; }
 
@@ -814,6 +942,15 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 .zg-report-ring-label.is-muted {
 	font-weight: 400;
 	color: var(--text-muted);
+	text-align: center;
+}
+
+/* Where to go when there is nothing to show yet. Quieter than the line above
+   it, because it is instruction rather than information. */
+.zg-report-hint {
+	margin-top: 4px;
+	font-size: 0.86em;
+	opacity: 0.75;
 }
 
 /* Three across, so the six figures read as two rows rather than a list. */
@@ -964,12 +1101,13 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 	50%      { opacity: 0.42; }
 }
 
+/* The fill takes currentColor, so setting color here reaches it. The second
+   rule this replaces set stroke, which was left over from when the gauge was
+   a stroked ring and does nothing to a filled rect. */
 .zg-goal.is-met .zg-goal-bar-fill {
 	color: var(--zg-goal-met-color, #3fb950);
 	animation: zg-goal-met-breathe 2.6s ease-in-out infinite;
 }
-
-.zg-goal.is-met .zg-goal-bar-fill { stroke: var(--zg-goal-met-color, #3fb950); }
 
 /* Fraction mode has no inside to put the glyph in, so the number turns green
    and the reset arrow sits beside it. */
@@ -1089,6 +1227,14 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 }
 
 /* One or two characters, so the field should not look like a name box. */
+/* The number sits between the path and the remove button in a goal row. */
+.ws-goal-input {
+	width: 74px;
+	flex: none;
+	text-align: right;
+	font-variant-numeric: tabular-nums;
+}
+
 .ws-char-input {
 	width: 52px;
 	text-align: center;
