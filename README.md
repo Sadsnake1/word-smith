@@ -38,9 +38,9 @@ There's also an optional **restore cursor position**, which reopens a note where
 
 A master switch over two halves.
 
-**Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle, plus adjustable top/bottom editor padding. Press `Escape` to exit (respects vim mode and Excalidraw).
+**Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle, plus adjustable top/bottom editor padding. Obsidian's own title bar can be painted to match the editor, so the window has no seam. Press `Escape` to exit (respects vim mode and Excalidraw).
 
-**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor.
+**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, optional arrows capping each end of the row, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor.
 
 Letterbox is independent of typewriter scrolling: you can run either without the other.
 
@@ -60,7 +60,7 @@ Blocks the keys you use to go back and revise, so a draft can only move forward.
 **Removing text** — backspace (and its word/line variants), forward delete, undo and redo, cut, paste.
 **Moving the cursor** — arrow keys, Home/End/Page Up/Page Down, select all, mouse clicks.
 
-Blocked keys can flash the **screen**, the **retro bar**, both, or nothing. Nothing is permanent — switch it off from the tab, or from the `H` badge in the bar, at any time.
+A blocked key can flash the **H badge** alone, the **retro bar**, the **screen**, screen and bar together, or nothing. Nothing is permanent — switch it off from the tab, or from the `H` badge in the bar, at any time.
 
 The lock works at two levels: a high-precedence keymap for keystrokes, and a `beforeinput` layer that also catches the Edit menu, right-click, IME, and mobile keyboards.
 
@@ -78,7 +78,6 @@ A fixed bar at the bottom of the screen, sized to match the open note (not the f
 | `{paragraph}` | Current paragraph / total paragraphs |
 | `{readtime}` | Estimated reading time, at a configurable words-per-minute |
 | `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
-| `{lock}` | `LOCK` while Hemingway mode is on |
 | `{time}` | Current time |
 | `{date}` | Current date (customizable format) |
 | `{battery}` | Battery level (⚡︎ while charging) |
@@ -99,11 +98,11 @@ A fixed bar at the bottom of the screen, sized to match the open note (not the f
 | `{font}` | Font picker — reads `Aa` in your current face |
 | `{report}` | Opens the writing report |
 
-Clicking a `{mode}` badge toggles that mode; inactive ones are faded.
+Clicking a `{mode}` badge toggles that mode; inactive ones are faded. The **Z** badge moves the whole of Zen, both halves together.
 
 **Goal gauges.** All three goals are drawn the same way: a bar that fills as you write, vertical or horizontal, with the percentage or a fraction beside it — or the label alone with no bar at all. Thickness, length and colour are configurable, and each goal can carry its own colour. Neither the file nor the folder goal has a baseline; they simply count words against a target.
 
-The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers). Configurable row height, font size, and top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
+The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers), and takes whatever font you pick with `{font}`. Configurable row height, font size, top and bottom padding, and top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
 
 ### Writing report
 
@@ -162,6 +161,8 @@ Syntax colouring and the writing checks are English-only. In a right-to-left scr
 
 ### Misc
 
+**Word goals** — the writing goal's target, plus every file and folder target you've set, all editable in one list. The same targets the `{filegoal}` and `{foldergoal}` tokens set when you click them.
+
 Optional per-file word counts in the file explorer (summed into folders), and per-heading word counts in the outline panel.
 
 Word counting is markdown-aware: frontmatter, fenced code, math blocks, HTML, URLs, link targets and list markup are excluded, while headings, list text and link labels are counted. Chinese and Japanese count per character; Korean counts by word.
@@ -169,6 +170,7 @@ Word counting is markdown-aware: frontmatter, fenced code, math blocks, HTML, UR
 ## Commands
 
 - **Word-Smith: Toggle Word-Smith on/off** — master switch for the whole plugin (also available as the "WS" ribbon badge)
+- **Word-Smith: Show or hide the retro bar** — slides the bar away and back, without turning it off
 
 Everything else is reachable from the settings tabs or directly from the retro bar tokens.
 
