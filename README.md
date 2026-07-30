@@ -83,7 +83,7 @@ A fixed bar at the bottom of the screen, sized to match the open note (not the f
 | `{battery}` | Battery level (⚡︎ while charging) |
 | `{caps}` | `CAPS LOCK` on two lines while it's on |
 | `{num}` | `NUM LOCK` on two lines while it's on |
-| `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, `-- COMMAND --` |
+| `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, and `-- COMMAND --` wherever keystrokes drive an interface rather than the text — vim's `:` line, the command palette, search, the quick switcher |
 
 **Buttons** — these do something when clicked.
 
@@ -160,6 +160,8 @@ If Obsidian is set to right-to-left, or the note is, the text options mirror: in
 Syntax colouring and the writing checks are English-only. In a right-to-left script they simply mark nothing, rather than marking it wrongly.
 
 ### Misc
+
+**Vim** — an option that maps `j`, `k`, `0` and `$` to their `g`-prefixed forms so motions follow wrapped lines rather than paragraphs.
 
 **Word goals** — the writing goal's target, plus every file and folder target you've set, all editable in one list. The same targets the `{filegoal}` and `{foldergoal}` tokens set when you click them.
 
