@@ -907,6 +907,9 @@ const DEFAULT_SETTINGS = {
 	// ── Sidebar word counts ───────────────────────────────────────────────────
 	enableFileTreeCounts:     true,
 	enableOutlineCounts:      true,
+
+	// ── Vim and gutters ───────────────────────────────────────────────────────
+	vimSoftWrapMotion:        false,      // j/k move by visual line, not logical
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -952,6 +955,7 @@ module.exports = class WordSmith extends Plugin {
 		this._cursorLastFile  = null;   // note the poll is allowed to record for
 		this._cursorLoading   = false;  // true while a restore is in flight
 		this._cursorDirty     = false;  // memory changed since the last save
+		this._vimMapped       = false;  // whether our vim motion maps are installed
 		this._fmCache         = {};     // path -> frontmatter overrides
 		this._hemFlashTimer   = null;   // clears the blocked-key flash class
 		this._scopeGen        = 0;      // bumped on file/layout change; keys the per-editor scope cache
@@ -1031,6 +1035,7 @@ module.exports = class WordSmith extends Plugin {
 		this.registerEvent(this.app.workspace.on('file-open', (file) => {
 			this.syncScope();
 			this.applyEditorFont();
+			this.applyVimMotionMaps();
 			this.restoreCursorFor(file);
 			this.updateWorkspaceAesthetics();
 		}));
@@ -1038,6 +1043,8 @@ module.exports = class WordSmith extends Plugin {
 			this.flushCursorMemory();
 			this.syncScope();
 			this.applyEditorFont();
+			// Vim state is rebuilt with the editor, taking our maps with it.
+			this.applyVimMotionMaps();
 			this.updateWorkspaceAesthetics();
 			this.scheduleExplorerPatch();
 			if (this.settings.zenMode && this.settings.focusedFileMode) this.updateFocusedFileMode();
@@ -1110,6 +1117,9 @@ module.exports = class WordSmith extends Plugin {
 			const active = document.activeElement;
 			const inEditor = !!(active && active.closest && active.closest('.cm-editor'));
 			document.body.classList.toggle('zg-editor-focused', inEditor);
+			// {vim} reads focus, so the bar has to repaint on it — otherwise
+			// the label lags by up to a second behind the palette opening.
+			this.updateRetroStatusBar();
 		};
 		this.registerDomEvent(document, 'focusin', updateEditorFocusClass);
 		this.registerDomEvent(document, 'focusout', () => requestAnimationFrame(updateEditorFocusClass));
@@ -1148,6 +1158,7 @@ module.exports = class WordSmith extends Plugin {
 
 		// CM6 decoration extensions (focus dimming + hidden markers)
 		this.setupEditorExtensions();
+		this.scheduleVimMotionMaps();
 
 		this.refresh();
 	}
@@ -1195,6 +1206,8 @@ module.exports = class WordSmith extends Plugin {
 			this.applyBodyClasses();
 			this.setSidebarVisibility();
 		}
+		this.settings.vimSoftWrapMotion = false;
+		this.applyVimMotionMaps();
 		this.clearAllBodyState();
 		// Restore all tab containers
 		document.querySelectorAll('.workspace-tabs').forEach(el => {
@@ -1255,6 +1268,13 @@ module.exports = class WordSmith extends Plugin {
 			}
 		}
 		delete this.settings.wpmWindowSec;
+		// Positioning the gutter against the text column was more trouble
+		// than the distance it saved; the numbers sit where CodeMirror puts
+		// them again.
+		for (const dead of ['lineNumberGap', 'lineNumberWidth', 'showLineNumbers',
+			'lineNumberMode', 'lineNumberVisual', 'lineNumberSize']) {
+			delete this.settings[dead];
+		}
 		// One symmetric padding became two, so the split starts from whatever
 		// the single value was rather than snapping back to the default.
 		// Settings arrive merged over DEFAULT_SETTINGS, so the two new keys are
@@ -1441,7 +1461,7 @@ module.exports = class WordSmith extends Plugin {
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
 			'zenmode-hide-linked-mentions', 'zg-para-indent', 'zg-justify',
 			'zg-masks-active', 'zg-retrobar-active', 'zg-pos-dim', 'zg-hemingway-active',
-			'zg-line-limit', 'zg-editor-focused', 'zg-font-active', 'zg-rtl',
+			'zg-line-limit', 'zg-editor-focused', 'zg-font-active', 'zg-rtl', 'zg-vim-panel-open',
 			'zg-bar-hidden', 'zg-titlebar-match'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
@@ -1470,6 +1490,9 @@ module.exports = class WordSmith extends Plugin {
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 		// Strip all body classes and attributes
 		this.clearAllBodyState();
+		// Vim maps live on a global adapter, not in our extensions, so they
+		// have to be released by hand.
+		this.applyVimMotionMaps();
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
 		// The horizontal padding rule is unscoped (applies always), so it
@@ -2450,6 +2473,7 @@ module.exports = class WordSmith extends Plugin {
 		this._lastScopeInScope = inScope;
 		this.applyBodyClasses();
 		this.reconfigureEditors();
+		this.applyVimMotionMaps();
 	}
 
 	// Keep the list pointing at real paths as notes and folders move. Without
@@ -3806,10 +3830,29 @@ module.exports = class WordSmith extends Plugin {
 	// access pattern community Vim-status plugins rely on. Falls back to ''
 	// (token renders empty) any time the shape isn't what's expected, e.g.
 	// Vim mode is off, or a future Obsidian version changes internals.
+	// The caret is in the note itself, rather than in some dialog over it.
+	editorHasFocus() {
+		try {
+			const a = document.activeElement;
+			return !!(a && a.closest && a.closest('.cm-editor'));
+		} catch (_) { return true; }
+	}
+
 	getVimModeLabel() {
 		try {
 			const vault = this.app.vault;
 			if (!vault.config || vault.config.vimMode !== true) return '';
+
+			// Anywhere the next keystroke drives a command interface rather
+			// than the text: vim's own ":" line, the command palette, search,
+			// the quick switcher, a settings dialog. Vim's mode says nothing
+			// about any of those — it still reads normal or insert — but from
+			// the writer's side they are one state, and reporting the mode
+			// you left behind is worse than naming the one you are in.
+			//
+			// Checked before the vim state, so it wins over insert: with the
+			// palette open, typing does not insert anything.
+			if (this._vimPanelOpen || !this.editorHasFocus()) return '-- COMMAND --';
 
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 			const cm6  = view && view.editor && view.editor.cm;
@@ -3834,9 +3877,10 @@ module.exports = class WordSmith extends Plugin {
 				case 'replace': return '-- REPLACE --';
 				case 'visual':  return '-- VISUAL --';
 			}
-			// The ex command-line (":") prompt doesn't flip `mode` in every
-			// version of the vim layer, so also check for its dialog in the DOM.
-			if (document.querySelector('.cm-vim-panel, .CodeMirror-dialog')) return '-- COMMAND --';
+			// Fallback for the instant before the panel watcher has run.
+			if (document.querySelector('.cm-panels-bottom, .cm-vim-panel, .CodeMirror-dialog')) {
+				return '-- COMMAND --';
+			}
 			return '-- NORMAL --';
 		} catch (_) {
 			return '';
@@ -4099,8 +4143,15 @@ module.exports = class WordSmith extends Plugin {
 		maskH = Math.max(maskH, 34);
 
 		const padH      = this.settings.maskPaddingH || 0;
+		// The arrows centre on the text, so they measure the content box.
+		// sr.width is the border box and includes the vertical scrollbar,
+		// which the text column does not — centring on it put the arrow row
+		// half a scrollbar to the right of the text. The masks themselves
+		// stay on the border box: they are a backdrop and should cover the
+		// scrollbar too.
+		const innerW    = scroller.clientWidth || sWidth;
 		const arrowLeft = sLeft + padH;
-		const arrowW    = Math.max(0, sWidth - padH * 2);
+		const arrowW    = Math.max(0, innerW - padH * 2);
 		const arrowH    = maskH;
 		const overhang  = this.settings.maskOverhang != null ? this.settings.maskOverhang : 4;
 
@@ -4668,7 +4719,31 @@ module.exports = class WordSmith extends Plugin {
 		// Hemingway is concatenated ahead of the typography revert keymap so
 		// that when the lock is on, Backspace is blocked rather than quietly
 		// reverting a substitution.
-		return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin]
+		// Watches for a CodeMirror bottom panel — the vim ":" command line is
+		// one — so the bar and the bottom mask can stand down while it is up.
+		// Panels open through a state effect, so an update fires with them;
+		// reading the DOM rather than guessing at vim internals keeps this
+		// working whatever creates the panel.
+		const panelWatcher = CM.ViewPlugin.fromClass(class {
+			constructor(view) { this.sync(view); }
+			update(u) { this.sync(u.view); }
+			destroy() { document.body.classList.remove('zg-vim-panel-open'); }
+			sync(view) {
+				let open = false;
+				try { open = !!view.dom.querySelector('.cm-panels-bottom'); } catch (_) {}
+				document.body.classList.toggle('zg-vim-panel-open', open);
+				// Also the source of truth for {vim} showing COMMAND, and the
+				// reason it can: opening the ex prompt does not change vim's
+				// own mode, and nothing else would have repainted the bar
+				// until the next clock tick a second later.
+				if (open !== plugin._vimPanelOpen) {
+					plugin._vimPanelOpen = open;
+					plugin.updateRetroStatusBar();
+				}
+			}
+		});
+
+		return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher]
 			.concat(this.buildHemingwayExtensions())
 			.concat(this.buildTypographyExtension())
 			.concat(this.buildTypographyRevertKeymap());
@@ -4994,6 +5069,76 @@ module.exports = class WordSmith extends Plugin {
 	// ─────────────────────────────────────────────────────────────────────────
 	// Word count: file tree + outline
 	// ─────────────────────────────────────────────────────────────────────────
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// VIM SUPPORT: gutters and motion mapping
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	// Obsidian's vim mode is CodeMirror's own. Which object it hangs off has
+	// moved between versions, so every known route is tried rather than
+	// betting on one and failing silently.
+	vimApi() {
+		const routes = [
+			() => require('@replit/codemirror-vim').Vim,
+			() => window.CodeMirrorAdapter && window.CodeMirrorAdapter.Vim,
+			() => window.CodeMirror && window.CodeMirror.Vim,
+			() => this.app.workspace.activeEditor
+				&& this.app.workspace.activeEditor.editor
+				&& this.app.workspace.activeEditor.editor.cm
+				&& this.app.workspace.activeEditor.editor.cm.cm
+				&& this.app.workspace.activeEditor.editor.cm.cm.constructor.Vim
+		];
+		for (const get of routes) {
+			try {
+				const Vim = get();
+				if (Vim && typeof Vim.map === 'function' && typeof Vim.unmap === 'function') return Vim;
+			} catch (_) { /* route not available in this build */ }
+		}
+		return null;
+	}
+
+	// Normal and visual both: mapping only normal leaves v-j jumping over
+	// wrapped lines, which is more confusing than not mapping at all.
+	//
+	// Mapping is re-applied every time rather than guarded on a flag. It is
+	// idempotent, and Obsidian rebuilds its vim state when the editor is
+	// recreated — a leaf change, a vault reload, toggling vim mode off and on
+	// — each of which drops whatever we set. Applying once and remembering we
+	// had was why this appeared to do nothing.
+	applyVimMotionMaps() {
+		const Vim = this.vimApi();
+		if (!Vim) return false;
+		const want = !!(this.settings.pluginEnabled && this.settings.vimSoftWrapMotion);
+		const PAIRS = [['j', 'gj'], ['k', 'gk'], ['0', 'g0'], ['$', 'g$']];
+		try {
+			if (want) {
+				for (const [from, to] of PAIRS) {
+					Vim.map(from, to, 'normal');
+					Vim.map(from, to, 'visual');
+				}
+				this._vimMapped = true;
+			} else if (this._vimMapped) {
+				// Only ever released if we installed it. Unmapping a key we
+				// never claimed would tear out a binding the user set through
+				// a vimrc plugin.
+				for (const [from] of PAIRS) {
+					Vim.unmap(from, 'normal');
+					Vim.unmap(from, 'visual');
+				}
+				this._vimMapped = false;
+			}
+		} catch (_) { return false; }
+		return true;
+	}
+
+	// The adapter does not exist until vim mode has started, which can be well
+	// after onload. Retry briefly rather than silently doing nothing.
+	scheduleVimMotionMaps(tries) {
+		if (this.applyVimMotionMaps()) return;
+		const left = (tries == null ? 20 : tries) - 1;
+		if (left <= 0) return;
+		window.setTimeout(() => this.scheduleVimMotionMaps(left), 250);
+	}
 
 	// ════════════════════════════════════════════════════════════════════════
 	// SIDEBAR WORD COUNTS
@@ -5965,6 +6110,28 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		this.renderGoalList(g, 'file',   'File goals',   'Add note');
 		this.renderGoalList(g, 'folder', 'Folder goals', 'Add folder');
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
+		this.label(containerEl, 'Vim');
+		const vg = this.sub(containerEl);
+		this.toggle(vg, 'Motions follow wrapped lines',
+			'Maps j, k, 0 and $ to their g-prefixed forms, so they move by what you see '
+			+ 'rather than by paragraph. Needs Obsidian\u2019s vim mode on.',
+			'vimSoftWrapMotion', () => this.display());
+
+		if (this.plugin.settings.vimSoftWrapMotion) {
+			// Whether the mapping actually landed is otherwise invisible: a
+			// missing vim API and a working one look identical from here.
+			const found = !!this.plugin.vimApi();
+			this.sub(vg).createEl('p', {
+				text: found
+					? 'Vim keymap found \u2014 j and k are mapped to gj and gk.'
+					: 'No vim keymap found. Turn on Editor \u2192 Vim key bindings in Obsidian\u2019s '
+					  + 'settings, then reopen this tab.',
+				cls: 'ws-settings-note' + (found ? '' : ' is-warning')
+			});
+		}
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 

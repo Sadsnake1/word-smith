@@ -19,6 +19,8 @@
 	--zg-z-arrows:   21;
 	--zg-z-status:   22;
 	--zg-z-titlebar: 23;
+	--zg-z-vim:      24;
+
 	--zen-mode-top-padding:   0px;
 	--zen-mode-bottom-padding:0px;
 	--zg-scroller-pad-top:    0px;
@@ -47,6 +49,10 @@
    it started covering the ribbon, the tab bar and the window controls. */
 body.zg-editor-focused {
 	--zg-z-status: 10006;
+	/* The command line is a panel inside the editor and the editor keeps
+	   focus while it is open, so the bar's elevated band would otherwise
+	   pass straight over it. */
+	--zg-z-vim:    10008;
 }
 
 body.zg-masks-active.zg-editor-focused {
@@ -54,6 +60,7 @@ body.zg-masks-active.zg-editor-focused {
 	--zg-z-arrows:   10004;
 	--zg-z-torch:    10005;
 	--zg-z-titlebar: 10007;
+	--zg-z-vim:      10008;
 }
 
 /* =========================================================================
@@ -571,13 +578,27 @@ body.zg-bar-hidden .zengrinder-status-bar {
 .zg-status-center { text-align: center; }
 .zg-status-right  { text-align: right; }
 
-/* CodeMirror bottom panels — the vim ":" command line lives here — stick
-   to the bottom edge of the editor, which the fixed retro bar overlays.
-   While the bar is active, lift them by its height so they stay visible.
-   CodeMirror's generated theme sets bottom: 0 on .cm-panels-bottom; naming
-   both classes it carries outranks that without needing !important. */
-body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
-	bottom: var(--zg-status-bar-height, 30px);
+/* The vim command line, pinned above the bar.
+
+   Raising its z-index does not work: the panel lives inside a workspace leaf
+   that establishes its own stacking context, and the bar and mask are fixed
+   elements in the root one. Pinning it to the viewport does not reliably work
+   either — `position: fixed` is contained by any ancestor carrying a
+   transform, filter or containment, and several things in an editor pane do.
+
+   So the positioning below is the best case, and the rules after it are the
+   guarantee: while a panel is open the bar slides out of the way and the
+   bottom mask stands down. A command line you can read matters more than a
+   letterbox that never blinks, and it is open for a couple of seconds. */
+body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom,
+body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom {
+	position: fixed;
+	left: 0;
+	right: 0;
+	bottom: var(--zg-status-bar-height, 0px);
+	z-index: var(--zg-z-vim, 24);
+	background: var(--background-primary);
+	border-top: 1px solid var(--background-modifier-border);
 }
 
 /* =========================================================================
@@ -890,6 +911,18 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
    title as well as the content, so one declaration covers the lot — and the
    gauge's percentage inherits it too. Same fallback chain as the bar:
    --zg-font only exists while a font is chosen. */
+/* While the vim command line is open, nothing else may own the bottom of the
+   screen. Both restore the moment it closes. */
+body.zg-vim-panel-open .zengrinder-status-bar {
+	transform: translateY(100%);
+}
+
+body.zg-vim-panel-open .zengrinder-mask-bottom,
+body.zg-vim-panel-open .zengrinder-arrows-wrap-bottom {
+	opacity: 0;
+	pointer-events: none;
+}
+
 .zg-report-modal {
 	max-width: 460px;
 	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
@@ -1206,6 +1239,13 @@ body.zg-retrobar-active .cm-editor .cm-panels.cm-panels-bottom {
 	font-size: 0.82em;
 	color: var(--text-muted);
 	margin: 0 0 6px 0;
+}
+
+/* A note that reports something is wrong rather than explaining something
+   that is right. */
+.ws-settings-note.is-warning {
+	color: var(--text-error, #c2544d);
+	font-weight: 600;
 }
 
 .ws-fmt-row {
