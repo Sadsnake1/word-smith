@@ -4,13 +4,16 @@ A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewr
 
 ## Showcase
 
-<img width="1340" height="860" alt="123" src="https://github.com/user-attachments/assets/2480ee72-4f08-41d6-ab9c-1bed61203700" />
+<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
-<img width="1340" height="860" alt="12331" src="https://github.com/user-attachments/assets/750db726-30d1-4a1f-9c9f-f09963c8af15" />
+<img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
+
+<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
+
 
 ## Features
 
-Settings are organized into seven tabs: **Zen**, **Typewriter**, **Hemingway**, **Retro Bar**, **Syntax**, **Text Options**, and **Misc**.
+Settings are organized into seven tabs: **Retro Bar**, **Zen**, **Typewriter**, **Hemingway**, **Syntax**, **Text Options**, and **Misc**.
 
 ### Where it applies
 
@@ -34,13 +37,123 @@ ws-goal: 2000         # word target for this note
 
 There's also an optional **restore cursor position**, which reopens a note where you left the caret — including the scroll position, and in whichever pane you open it.
 
+Everything is note-only by design: open a canvas, a base, a PDF or an empty tab and the bar stands down, Obsidian's own chrome comes back, and it all swaps again the moment you return to a note.
+
+### Retro bar
+
+A fixed bar at the bottom of the screen, sized to match the open note (not the full window). **One to three stacked rows**, each with independently formatted **left**, **center**, and **right** slots, each accepting any mix of tokens.
+
+New vaults start on the **Mash** bar. Five more ship beside it — **Plain**, **DOS**, **Zero**, **Echo**, **Slant** — and you can save, share and load your own (see *Presets*, below).
+
+#### Readouts
+
+| Token | Shows |
+|---|---|
+| `{file}` | Current file — full path or filename only (configurable) |
+| `{words}` | Word count (selection count if text is selected) |
+| `{chars}` | Character count (selection count if text is selected) |
+| `{ln:col}` | Caret position |
+| `{paragraph}` | Current paragraph / total paragraphs |
+| `{readtime}` | Estimated reading time, at a configurable words-per-minute |
+| `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
+| `{time}` | Current time as text |
+| `{clock}` | The same time, drawn as a dial |
+| `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts — compose them with any separator you like |
+| `{battery}` | Battery level (⚡︎ while charging) |
+| `{caps}` | `CAPS LOCK` on two lines while it's on |
+| `{num}` | `NUM LOCK` on two lines while it's on |
+| `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, and `-- COMMAND --` wherever keystrokes drive an interface rather than the text — vim's `:` line, the command palette, search, the quick switcher |
+| `{obsidian}` | A tiny Obsidian crystal, drawn in whatever ink its segment is using |
+
+#### Buttons
+
+These do something when clicked, and they're never dropped when the bar runs out of room.
+
+| Token | Does |
+|---|---|
+| `{goal}` | Writing goal gauge. Click to set the target, or rebase it |
+| `{filegoal}` | Word target for the open note. Click to set it |
+| `{foldergoal}` | Word target for the current folder, counted across every note beneath it |
+| `{syntax}` | Picker for the five word classes, each beside its own colour |
+| `{prose}` | Picker for all seven writing checks, with the group's master switch |
+| `{markers}` | Picker for spaces, tabs, paragraphs and line ends |
+| `{font}` | Font picker — reads `Aa` in your current face |
+| `{report}` | Opens the writing report |
+
+Clicking a `{mode}` badge toggles that mode; inactive ones are faded. The **Z** badge moves the whole of Zen, both halves together.
+
+#### Spacers
+
+`{s}`, `{ss}`, `{sss}`… — a quarter-space per `s`. Empty room, nothing more. Give one a colour (`{s}:3`) and it becomes a solid sliver instead: edge shading beside a segment.
+
+#### Powerline
+
+Turn powerline on and the punctuation between your tokens becomes shape. **The character is the divider:**
+
+| | |
+|---|---|
+| `>` `<` | arrow |
+| `\|` | straight |
+| `)` `(` | round |
+| `~` | wave |
+| `/` `\` | the two angle cuts |
+
+Write `\|` for a literal pipe. At the very start or end of a row, `<` and `>` also choose which way the cap points — `<{file}` opens pointing left, `{words}>` closes pointing right.
+
+Separators are drawn as SVG, so nothing needs a patched Nerd Font, and they scale with the bar's height.
+
+**Segment colours** — a palette of seven backgrounds and four text colours, each with its own dark and light variant:
+
+| Written | Does |
+|---|---|
+| `{words}:N` | background N (1–7, wraps) |
+| `{words}:N;M` | `;M` picks text M (1–4); otherwise the ink derives itself for contrast |
+| `{ln:col}:vim` | background follows the live vim mode — a `{vim}` segment does this on its own |
+| `{words};vim` | the *text* follows the mode — alone, or beside any `:N` |
+| `{file}:b1` `{file}:b2` | the theme's page / panel colour — a segment that melts into the bar |
+| `{file};t1` `{file};t2` | the theme's normal / muted text — `:b1`/`:b2`'s twins |
+
+**The bar itself** takes the same grammar, written at the very start of row 1's left slot: `:b1` `:b2` `:N` `:vim` set its background, `;t1` `;t2` `;N` `;vim` its text. Either or both, in either order. With `:N` or `:vim` and no text written, the ink derives itself, so the bar stays readable on any background.
+
+```
+:vim {vim} > {file} :: {ln:col}
+```
+
+**Fades** — the stepped gradient, written with `{g}`:
+
+```
+{file}:3 | {g}{g}{g}{g} | {words}:5
+```
+
+A run of `{g}` with no colour of its own steps between its neighbours' colours — or into the bar itself at a group's end. One band per token, so `{g}{g}{g}` is three narrow steps and `{ggg}` is one wide one; you pick the grain. Put dividers *between* the `{g}` tokens and they keep their shape, drawn through one continuous gradient:
+
+```
+{file}:3 > {g}>{g}>{g} > {words}:5
+```
+
+**Soft marks** sit inside a single segment, drawn in its own colour rather than between two blocks: `::` is a short hairline, `>>` and `<<` are full-height chevrons matching the arrows' angle.
+
+#### Presets
+
+Save any bar as a named preset, and load it back with one click. Each preset carries the whole look — rows, colours, separator style, dimensions — and turns into a **share code** you can paste to someone else, or keep as a backup before you start experimenting.
+
+#### Sizing and behaviour
+
+Configurable row height, font size, top and bottom padding, and rule style and weight on either edge. The bar's type can instead **match the note's own text size**, so it follows Ctrl+scroll zoom and the whole view stays homogeneous.
+
+When the window narrows, the bar sheds content in a fixed order rather than wrapping or shrinking the type: the file path shortens first, then readings drop from the edges inward. Buttons always survive.
+
+It follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers), and takes whatever font you pick with `{font}`. It auto-hides Obsidian's native status bar while active, and stands aside for the vim `:` command line so that stays visible.
+
+**Goal gauges.** All three goals are drawn the same way: a bar that fills as you write, vertical or horizontal, with the percentage or a fraction beside it — or the label alone with no bar at all. Thickness, length and colour are configurable, and each goal can carry its own colour. Neither the file nor the folder goal has a baseline; they simply count words against a target.
+
 ### Zen
 
 A master switch over two halves.
 
-**Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle, plus adjustable top/bottom editor padding. Obsidian's own title bar can be painted to match the editor, so the window has no seam. Press `Escape` to exit (respects vim mode and Excalidraw).
+**Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle. Obsidian's own title bar can be painted to match the editor, so the window has no seam. Press `Escape` to exit (respects vim mode and Excalidraw).
 
-**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, optional arrows capping each end of the row, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor.
+**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, optional arrows capping each end of the row, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor. The band stays a window drag handle, so a hidden title bar costs you nothing.
 
 Letterbox is independent of typewriter scrolling: you can run either without the other.
 
@@ -63,46 +176,6 @@ Blocks the keys you use to go back and revise, so a draft can only move forward.
 A blocked key can flash the **H badge** alone, the **retro bar**, the **screen**, screen and bar together, or nothing. Nothing is permanent — switch it off from the tab, or from the `H` badge in the bar, at any time.
 
 The lock works at two levels: a high-precedence keymap for keystrokes, and a `beforeinput` layer that also catches the Edit menu, right-click, IME, and mobile keyboards.
-
-### Retro bar
-
-A fixed bar at the bottom of the screen, sized to match the open note (not the full window). **One to three stacked rows**, each with independently formatted **left**, **center**, and **right** slots, each accepting any mix of tokens.
-
-**Readouts**
-
-| Token | Shows |
-|---|---|
-| `{file}` | Current file — full path or filename only (configurable) |
-| `{words}` | Word count (selection count if text is selected) |
-| `{chars}` | Character count (selection count if text is selected) |
-| `{paragraph}` | Current paragraph / total paragraphs |
-| `{readtime}` | Estimated reading time, at a configurable words-per-minute |
-| `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
-| `{time}` | Current time |
-| `{date}` | Current date (customizable format) |
-| `{battery}` | Battery level (⚡︎ while charging) |
-| `{caps}` | `CAPS LOCK` on two lines while it's on |
-| `{num}` | `NUM LOCK` on two lines while it's on |
-| `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, and `-- COMMAND --` wherever keystrokes drive an interface rather than the text — vim's `:` line, the command palette, search, the quick switcher |
-
-**Buttons** — these do something when clicked.
-
-| Token | Does |
-|---|---|
-| `{goal}` | Writing goal gauge. Click to set the target, or rebase it |
-| `{filegoal}` | Word target for the open note. Click to set it |
-| `{foldergoal}` | Word target for the current folder, counted across every note beneath it |
-| `{syntax}` | Picker for the five word classes, each beside its own colour |
-| `{writechecks}` | Picker for all seven writing checks, with the group's master switch |
-| `{markers}` | Picker for spaces, tabs, paragraphs and line ends |
-| `{font}` | Font picker — reads `Aa` in your current face |
-| `{report}` | Opens the writing report |
-
-Clicking a `{mode}` badge toggles that mode; inactive ones are faded. The **Z** badge moves the whole of Zen, both halves together.
-
-**Goal gauges.** All three goals are drawn the same way: a bar that fills as you write, vertical or horizontal, with the percentage or a fraction beside it — or the label alone with no bar at all. Thickness, length and colour are configurable, and each goal can carry its own colour. Neither the file nor the folder goal has a baseline; they simply count words against a target.
-
-The bar follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers), and takes whatever font you pick with `{font}`. Configurable row height, font size, top and bottom padding, and top border style and weight. It auto-hides Obsidian's native status bar while active, and lifts the vim `:` command line above itself so it stays visible.
 
 ### Writing report
 
@@ -173,6 +246,7 @@ Word counting is markdown-aware: frontmatter, fenced code, math blocks, HTML, UR
 
 - **Word-Smith: Toggle Word-Smith on/off** — master switch for the whole plugin (also available as the "WS" ribbon badge)
 - **Word-Smith: Show or hide the retro bar** — slides the bar away and back, without turning it off
+- **Word-Smith: Copy bar layout diagnostic** — copies the bar's measured geometry to the clipboard, for bug reports
 
 Everything else is reachable from the settings tabs or directly from the retro bar tokens.
 
@@ -182,6 +256,8 @@ Everything else is reachable from the settings tabs or directly from the retro b
 2. Create a folder named `word-smith` inside your vault's `.obsidian/plugins/` directory.
 3. Copy the files into that folder.
 4. Reload Obsidian (or restart it), then enable **Word-Smith** under **Settings → Community plugins**.
+
+Copy all three files when you update, not just `main.js` — the plugin checks that the stylesheet matches the script and warns you at startup if it doesn't.
 
 ## Privacy
 
@@ -204,7 +280,7 @@ It also reads a note's frontmatter, to honour the `wordsmith:` and `ws-*` overri
 
 One file: `data.json`, inside the plugin's own folder in your vault.
 
-It holds your settings, plus any file and folder word targets you set. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
+It holds your settings and saved bar presets, plus any file and folder word targets you set. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
 
 Nothing else is stored, anywhere.
 
