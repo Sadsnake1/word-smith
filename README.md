@@ -1,6 +1,6 @@
 # Word-Smith
 
-A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, writing checks, smart typography, and a configurable status bar — each independent, each toggled on its own.
+A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, writing checks, smart typography, a configurable status bar, and a record of how much you write each day — each independent, each toggled on its own.
 
 ## Showcase
 
@@ -10,10 +10,9 @@ A distraction-free writing suite for Obsidian: zen mode, letterbox masks, typewr
 
 <img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
-
 ## Features
 
-Settings are organized into seven tabs: **Retro Bar**, **Zen**, **Typewriter**, **Hemingway**, **Syntax**, **Text Options**, and **Misc**.
+Settings are organised into thirteen tabs: **Retro Bar**, **Zen**, **Letter Box**, **Typewriter**, **Hemingway**, **Syntax**, **Prose Checks**, **Text Options**, **Typography**, **Goals**, **History**, **Misc**, and **Vim**.
 
 ### Where it applies
 
@@ -55,6 +54,7 @@ New vaults start on the **Mash** bar. Five more ship beside it — **Plain**, **
 | `{ln:col}` | Caret position |
 | `{paragraph}` | Current paragraph / total paragraphs |
 | `{readtime}` | Estimated reading time, at a configurable words-per-minute |
+| `{backlinks}` | How many other notes link to this one |
 | `{mode}` | Active modes as badges: **T** typewriter, **H** Hemingway, **Z** zen |
 | `{time}` | Current time as text |
 | `{clock}` | The same time, drawn as a dial |
@@ -65,20 +65,30 @@ New vaults start on the **Mash** bar. Five more ship beside it — **Plain**, **
 | `{vim}` | Current vim mode: `-- NORMAL --`, `-- INSERT --`, `-- VISUAL --`, `-- REPLACE --`, and `-- COMMAND --` wherever keystrokes drive an interface rather than the text — vim's `:` line, the command palette, search, the quick switcher |
 | `{obsidian}` | A tiny Obsidian crystal, drawn in whatever ink its segment is using |
 
+#### Headings — where you are in the note
+
+| Token | Shows |
+|---|---|
+| `{#}` `{##}` `{###}` | The heading above your cursor, at that level |
+| `{####}` `{#####}` `{######}` | And the three deeper ones |
+| `{#>}` | The whole path: `Chapter 3 › The Ferry › Beat 2` |
+
+Each heading clears the ones below it, so you always get one path down the note rather than the last heading seen at each level anywhere in it. Land under a chapter that has no scenes and the scene slot goes empty, instead of still showing the previous chapter's last scene.
+
+They're empty above the first heading, and empty at any level your cursor isn't inside — so `{#>}` on its own is often all you need.
+
 #### Buttons
 
 These do something when clicked, and they're never dropped when the bar runs out of room.
 
 | Token | Does |
 |---|---|
-| `{goal}` | Writing goal gauge. Click to set the target, or rebase it |
-| `{filegoal}` | Word target for the open note. Click to set it |
-| `{foldergoal}` | Word target for the current folder, counted across every note beneath it |
 | `{syntax}` | Picker for the five word classes, each beside its own colour |
 | `{prose}` | Picker for all seven writing checks, with the group's master switch |
 | `{markers}` | Picker for spaces, tabs, paragraphs and line ends |
 | `{font}` | Font picker — reads `Aa` in your current face |
 | `{report}` | Opens the writing report |
+| `{history}` | Opens your writing history |
 
 Clicking a `{mode}` badge toggles that mode; inactive ones are faded. The **Z** badge moves the whole of Zen, both halves together.
 
@@ -106,32 +116,36 @@ Separators are drawn as SVG, so nothing needs a patched Nerd Font, and they scal
 
 | Written | Does |
 |---|---|
-| `{words}:N` | background N (1–7, wraps) |
-| `{words}:N;M` | `;M` picks text M (1–4); otherwise the ink derives itself for contrast |
-| `{ln:col}:vim` | background follows the live vim mode — a `{vim}` segment does this on its own |
-| `{words};vim` | the *text* follows the mode — alone, or beside any `:N` |
-| `{file}:b1` `{file}:b2` | the theme's page / panel colour — a segment that melts into the bar |
-| `{file};t1` `{file};t2` | the theme's normal / muted text — `:b1`/`:b2`'s twins |
+| `{words}:N` | Background colour N (1–7; higher numbers start again at 1) |
+| `{words}:N;M` | Add `;M` to pick the text colour too (1–4) |
+| `{words};vim` | The text takes the colour of the vim mode you're in |
+| `{ln:col}:vim` | The background does — a `{vim}` segment already does this |
+| `{file}:b1` `{file}:b2` | Your theme's page and panel colours — a segment that blends into the bar |
+| `{file};t1` `{file};t2` | Your theme's normal and faded text, to match |
 
-**The bar itself** takes the same grammar, written at the very start of row 1's left slot: `:b1` `:b2` `:N` `:vim` set its background, `;t1` `;t2` `;N` `;vim` its text. Either or both, in either order. With `:N` or `:vim` and no text written, the ink derives itself, so the bar stays readable on any background.
+Leave the `;` off and the text picks itself, light or dark, so it stays readable on whatever background you chose.
+
+**The bar itself** takes the same grammar, written at the very start of row 1's left slot: `:b1` `:b2` `:N` `:vim` set its background, `;t1` `;t2` `;N` `;vim` its text. Either or both, in either order.
 
 ```
 :vim {vim} > {file} :: {ln:col}
 ```
 
-**Fades** — the stepped gradient, written with `{g}`:
+**Fades** — a colour stepping into the next, written with `{g}`:
 
 ```
 {file}:3 | {g}{g}{g}{g} | {words}:5
 ```
 
-A run of `{g}` with no colour of its own steps between its neighbours' colours — or into the bar itself at a group's end. One band per token, so `{g}{g}{g}` is three narrow steps and `{ggg}` is one wide one; you pick the grain. Put dividers *between* the `{g}` tokens and they keep their shape, drawn through one continuous gradient:
+A run of `{g}` with no colour of its own steps between its neighbours' colours — or out into the bar itself at a group's end. One step per token, so `{g}{g}{g}` is three narrow ones and `{ggg}` is one wide one; you pick the grain. Put dividers *between* the `{g}` tokens and they keep their shape, cut out of one continuous fade:
 
 ```
 {file}:3 > {g}>{g}>{g} > {words}:5
 ```
 
-**Soft marks** sit inside a single segment, drawn in its own colour rather than between two blocks: `::` is a short hairline, `>>` and `<<` are full-height chevrons matching the arrows' angle.
+**Marks inside a segment** are drawn in that segment's own colour rather than between two blocks: `::` is a short thin line, `>>` and `<<` are tall chevrons at the same angle as the arrows.
+
+Everything above is also in the plugin, under **How to write a row** in the Retro Bar tab.
 
 #### Presets
 
@@ -143,9 +157,7 @@ Configurable row height, font size, top and bottom padding, and rule style and w
 
 When the window narrows, the bar sheds content in a fixed order rather than wrapping or shrinking the type: the file path shortens first, then readings drop from the edges inward. Buttons always survive.
 
-It follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers), and takes whatever font you pick with `{font}`. It auto-hides Obsidian's native status bar while active, and stands aside for the vim `:` command line so that stays visible.
-
-**Goal gauges.** All three goals are drawn the same way: a bar that fills as you write, vertical or horizontal, with the percentage or a fraction beside it — or the label alone with no bar at all. Thickness, length and colour are configurable, and each goal can carry its own colour. Neither the file nor the folder goal has a baseline; they simply count words against a target.
+It follows your theme's background and text colours by default, with an optional custom colour override (separate dark/light pickers), and takes whatever font you pick with `{font}`. It auto-hides Obsidian's native status bar while active, and stands aside for the vim `:` command line so that stays visible. Cross one of your word targets and the bar's edges pick up a slow green pulse.
 
 ### Zen
 
@@ -153,7 +165,7 @@ A master switch over two halves.
 
 **Focus mode** hides UI chrome (tabs, view headers, ribbon, properties, scroll bar, linked mentions, native status bar), collapses both sidebars, and can enter fullscreen. Optional focused-file mode hides every other pane so only the active note remains. Each hidden element has its own toggle. Obsidian's own title bar can be painted to match the editor, so the window has no seam. Press `Escape` to exit (respects vim mode and Excalidraw).
 
-**Letterbox** frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, optional arrows capping each end of the row, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor. The band stays a window drag handle, so a hidden title bar costs you nothing.
+**Letterbox**, in its own tab, frames the writing area with top and bottom masks — adjustable height, horizontal inset, arrow style (solid/outline triangles, standard arrows, chevrons, double chevrons, or custom characters), arrow count and scale, optional arrows capping each end of the row, and separator line style and weight. Separate dark/light colours for arrows and lines. Drag the separator line to resize the mask; drag the arrow row to adjust the inset — both live, right in the editor. The band stays a window drag handle, so a hidden title bar costs you nothing.
 
 Letterbox is independent of typewriter scrolling: you can run either without the other.
 
@@ -177,23 +189,68 @@ A blocked key can flash the **H badge** alone, the **retro bar**, the **screen**
 
 The lock works at two levels: a high-precedence keymap for keystrokes, and a `beforeinput` layer that also catches the Edit menu, right-click, IME, and mobile keyboards.
 
+### Goals
+
+Give a note or a folder a word count to aim for.
+
+**Folder goals nest.** A folder goal counts every note beneath it, however deep — so a book laid out as folders inside folders can carry a target at every level at once:
+
+```
+My Book/                              90,000
+My Book/Part One/                     30,000
+My Book/Part One/Ch 03/                4,000
+My Book/Part One/Ch 03/Scene 2.md        900
+```
+
+**Goals follow your files.** Rename a note or drag a folder somewhere else and its target moves with it, along with every target nested inside.
+
+Progress shows as a gauge in the writing report, coloured on a ramp that warms from red to green as it fills, and the bar's edges pulse green once you cross a target.
+
 ### Writing report
 
-`{report}` opens a panel with two tabs — the current note and its folder — each showing ten figures:
+`{report}` opens a panel with two tabs — the current note and its folder — each showing eight figures: **Words**, **Characters**, **Syllables**, **Sentences**, **Paragraphs**, **Pages**, **Read time**, and a **Flesch–Kincaid grade**. Every figure explains itself on hover: what's excluded, how it's counted, what counts as a page.
 
-**Words**, **Characters**, **No spaces**, **Syllables**, **Sentences**, **Paragraphs**, **Lines**, **Pages**, **Read time**, and a **Flesch–Kincaid grade**.
+Above them sits the goal gauge for whatever you're looking at.
 
-Above them sits a gauge of your progress against that note's or folder's goal, coloured on a ramp that warms from red to green as it fills. Every figure explains itself on hover — what's excluded, how it's counted, what counts as a page.
+The **Folder** tab carries a breadcrumb of every folder above the note, up to the vault root — scene, chapter, part, book, vault. Click any of them to total that level instead, so *how long is this chapter* and *will the book land* are one click apart.
 
 Hit a target and the report throws fireworks at you.
 
+### Writing history
+
+Off until you switch it on, under **Settings → Word-Smith → History**. Once it's on, Word-Smith keeps a count of how much you write each day and draws it as one chart at three zooms — **Day**, **Month**, **Year**.
+
+Words you added rise from the centre line and words you cut fall from it, so a hard day of editing shows up as work rather than as a gap. Four series toggle from the legend itself: **Added**, **Deleted**, **Net**, **Average**, and your daily **Goal** if you've set one. Hovering a bar puts that day's figures in the line above the chart.
+
+Above the chart: total net words, your daily average, your best day, and your current streak.
+
+Open it with the `{history}` token, the button in the History tab, or the **Show the writing history** command.
+
+**Your history is an ordinary note in your vault.** Not `data.json`, not a hidden cache — a markdown file with a table in it, one row per day:
+
+```markdown
+### 2026 — 139 days, +33,248 net
+
+| Date | Added | Deleted | Net |
+| --- | ---: | ---: | ---: |
+| 2026-08-01 | 912 | 142 | 770 |
+```
+
+Move it, rename it, keep it next to the manuscript — Word-Smith finds it again by the markers inside it, anywhere in the vault. Anything you write outside those markers is left alone. It saves itself whenever you pause, and again when you close Obsidian.
+
+It's the only copy, so hang on to it. Uninstall the plugin and your record is still there.
+
+Two things worth knowing about what the numbers mean. A **day counts as active if you wrote *or* cut** — a day spent cutting two thousand words is a day you turned up, and it won't break your streak. And the **daily average divides by the days you actually wrote**, not by the calendar, so days off don't drag it down.
+
+Nothing before the day you switch it on can be reconstructed. A file only knows when it was touched, not how much went into it.
+
 ### Syntax
 
-Two groups, both running entirely on your machine.
+Nouns, verbs, adjectives, adverbs and conjunctions, each with its own colour and toggle. Optionally mutes everything else, so one class carries the sentence. Turn on one at a time to read a paragraph for it; everything at once is a rainbow.
 
-**Word classes** — nouns, verbs, adjectives, adverbs, conjunctions, each with its own colour and toggle. Optionally mutes everything else, so one class carries the sentence. Turn on one at a time to read a paragraph for it; everything at once is a rainbow.
+### Prose checks
 
-**Writing checks** — patterns worth rereading, not errors:
+Patterns worth a second look, not errors:
 
 | Check | Catches |
 |---|---|
@@ -205,15 +262,11 @@ Two groups, both running entirely on your machine.
 | Sentence rhythm | Tints sentences by reading difficulty, so monotonous prose shows as a wall of one colour |
 | Repetition radar | The same uncommon word twice close together — the echo you write and never see |
 
-Both groups can be drawn as **coloured text**, a **highlight**, a **squiggle**, or an **underline**, chosen independently. Code, frontmatter and math are skipped.
+Both syntax and prose checks can be drawn as **coloured text**, a **highlight**, a **squiggle**, or an **underline**, chosen independently. Code, frontmatter and math are skipped. Both run entirely on your machine.
 
 Misused pairs are flagged whichever half you used — which one is right depends on the sentence, and the point is to look, not to be corrected.
 
 ### Text options
-
-Two independent master toggles.
-
-**Text options**
 
 - **Limit line length** — cap the text column at a fixed character measure regardless of window width.
 - **Horizontal padding** — left/right text padding, applied everywhere.
@@ -222,7 +275,11 @@ Two independent master toggles.
 - **Justify text** — full justification in both editing and reading views.
 - **Hidden markers** — reveal invisible characters, each with its own toggle: spaces (`·`), tabs (`→`), paragraph breaks (`¶`) and line endings (`↵`).
 
-**Typography** — replaces typed shorthand with real characters as you write: curly quotes and apostrophes, ellipsis, en/em dashes, arrows, guillemets, comparison operators, and fractions. Each group toggles separately. Never fires inside code, math or frontmatter, and undo restores exactly what you typed.
+Per-note word counts in the file explorer (summed into folders) and per-heading counts in the outline panel live here too.
+
+### Typography
+
+Replaces typed shorthand with real characters as you write: curly quotes and apostrophes, ellipsis, en/em dashes, arrows, guillemets, comparison operators, and fractions. Each group toggles separately. Never fires inside code, math or frontmatter, and undo restores exactly what you typed.
 
 The quote characters themselves are configurable, so `"` and `'` can produce German „…“, French « … », or anything else. The apostrophe is a separate setting from the closing single quote, and the plugin works out which you meant by looking back for an unclosed quotation — so *don't* and *'word'* both come out right.
 
@@ -232,21 +289,30 @@ If Obsidian is set to right-to-left, or the note is, the text options mirror: in
 
 Syntax colouring and the writing checks are English-only. In a right-to-left script they simply mark nothing, rather than marking it wrongly.
 
+### Vim
+
+Maps `j`, `k`, `0` and `$` to their `g`-prefixed forms so motions follow wrapped lines rather than paragraphs. Needs Obsidian's own vim mode on.
+
+The `{vim}` mode labels and their colours live in the Retro Bar tab, since they're about how that token looks.
+
 ### Misc
-
-**Vim** — an option that maps `j`, `k`, `0` and `$` to their `g`-prefixed forms so motions follow wrapped lines rather than paragraphs.
-
-**Word goals** — the writing goal's target, plus every file and folder target you've set, all editable in one list. The same targets the `{filegoal}` and `{foldergoal}` tokens set when you click them.
-
-Optional per-file word counts in the file explorer (summed into folders), and per-heading word counts in the outline panel.
 
 Word counting is markdown-aware: frontmatter, fenced code, math blocks, HTML, URLs, link targets and list markup are excluded, while headings, list text and link labels are counted. Chinese and Japanese count per character; Korean counts by word.
 
 ## Commands
 
-- **Word-Smith: Toggle Word-Smith on/off** — master switch for the whole plugin (also available as the "WS" ribbon badge)
-- **Word-Smith: Show or hide the retro bar** — slides the bar away and back, without turning it off
-- **Word-Smith: Copy bar layout diagnostic** — copies the bar's measured geometry to the clipboard, for bug reports
+- **Toggle Word-Smith on/off** — master switch for the whole plugin (also the "WS" ribbon badge)
+- **Toggle zen mode**
+- **Toggle letter box mode**
+- **Toggle typewriter mode**
+- **Toggle Hemingway mode**
+- **Toggle syntax highlighting**
+- **Toggle prose checks**
+- **Show or hide the retro bar** — slides the bar away and back, without turning it off
+- **Cycle bar preset** — steps through your saved bars
+- **Show the text report**
+- **Show the writing history**
+- **Copy bar layout diagnostic** — copies the bar's measured geometry to the clipboard, for bug reports
 
 Everything else is reachable from the settings tabs or directly from the retro bar tokens.
 
@@ -274,13 +340,13 @@ Your note content, in memory, while the note is open — for word counts, syntax
 
 The writing report additionally reads the notes in a folder when you open that tab, to total them up. Those totals are held in memory and recomputed when a file changes.
 
-It also reads a note's frontmatter, to honour the `wordsmith:` and `ws-*` overrides.
+It also reads a note's frontmatter, to honour the `wordsmith:` and `ws-*` overrides, and — with the history on — a note's word count when you save it, so it can work out how much changed.
 
 ### What it stores
 
-One file: `data.json`, inside the plugin's own folder in your vault.
+**`data.json`**, inside the plugin's own folder in your vault. It holds your settings and saved bar presets, plus any file and folder word targets you set. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. With the history on it also keeps a small cache of each note's last known word count, so a save can be turned into a difference; that cache rebuilds itself and can be deleted freely.
 
-It holds your settings and saved bar presets, plus any file and folder word targets you set. If you enable **Restore cursor position**, it also stores a line number, column and scroll offset per note path — capped at the 300 most recent notes. That's file *paths* and *positions*, never file contents. Turn the setting off and delete `data.json` to clear it.
+**Your history file**, only if you switch the history on. It's a markdown note in your vault, wherever you keep it, containing one row per day: the date, and how many words you added, cut, and netted. Counts only — never a word of what you wrote, and never a file name.
 
 Nothing else is stored, anywhere.
 
