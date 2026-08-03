@@ -1153,7 +1153,48 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 23;
+const ZG_STYLESHEET_VERSION = 31;
+
+// ── Writing history ─────────────────────────────────────────────────────────
+// One measurement per typing pause, not one per autosave.
+const HISTORY_DEBOUNCE_MS = 2000;
+// How long a tally may sit unsaved. Deliberately long: this path writes
+// data.json WITHOUT the refresh() that saveSettings triggers, and half a
+// minute of tally is a cheaper thing to lose than a bar rebuild per pause.
+const HISTORY_SAVE_MS     = 30000;
+// How long a pause counts as "stopped writing". Long enough that it does not
+// fire between two sentences, short enough that the file is current whenever
+// you look away from the editor.
+const HISTORY_IDLE_MS     = 8000;
+// And the ceiling, for a session that never pauses.
+const HISTORY_MAX_UNSAVED_MS = 120000;
+// Everything between these markers in the ledger note belongs to the plugin
+// and is rewritten wholesale. Everything outside them belongs to the user and
+// is never touched.
+const HISTORY_MARK_START  = '<!-- wordsmith:history:start -->';
+const HISTORY_MARK_END    = '<!-- wordsmith:history:end -->';
+// One pixel block, in chart viewBox units. Every bar height, every line and
+// the centre line itself snap to this grid — that snapping IS the pixelated
+// look, and it is why nothing in the panel is allowed to be a stroked path.
+const HISTORY_PX          = 2;
+// Steps in the heat ramp each bar is shaded with, cool at the axis and hot at
+// the far end. Six is enough to read as a gradient and few enough to dither
+// between cleanly.
+const HISTORY_HEAT        = 6;
+// Above this the cell is coarsened rather than the chart drawing a rect per
+// square of a very large grid.
+const HISTORY_MAX_CELLS   = 30000;
+// Few buckets must not become slabs: two years of data on the Year tab would
+// otherwise draw two bars a third of the panel wide each.
+const HISTORY_BAR_MAX     = 34;
+// The chart's viewBox. Chosen to land close to 1:1 against the modal's real
+// width so a 4-unit block renders as a roughly 4-pixel square — the whole
+// pixel idiom depends on the two scales not drifting far apart.
+const HISTORY_CHART_W     = 660;
+const HISTORY_CHART_H     = 184;
+const HISTORY_DAYNAMES    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'May', 'June',
+	'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Theme surfaces, addressable as :b1 and :b2 instead of a number.
 //
@@ -1636,6 +1677,36 @@ const DEFAULT_SETTINGS = {
 	// run the seeder holds `true` in its own data.json and is untouched,
 	// so nothing a user deleted comes back.
 	barPresetsSeeded:         false,
+
+	// ── Writing history ──────────────────────────────────────────────────────
+	// The first behavioural data this plugin has ever stored, so it is OFF
+	// until asked for, and every value here is AUTHORED — none of it came from
+	// the donor vault the rest of the 1.25 defaults were taken from. Shipping
+	// the maintainer's own writing history as everyone's day one would be
+	// absurd, and these keys join zenMode/fullscreen/scopePaths/fileGoals on
+	// the list of things a donor snapshot must never supply.
+	//
+	// None of these are BAR_KEYS. A bar preset must not carry a writing
+	// history any more than it carries someone's word targets.
+	historyTracking:          false,
+	historyDailyGoal:         0,          // 0 = no goal line and no projection
+	// Which of Day / Month / Year the report opens on, and which series are
+	// drawn. Both are remembered rather than reset per opening: a writer who
+	// looks at months every morning should not have to say so every morning.
+	historyView:              'day',      // 'day' | 'month' | 'year'
+	historySeries:            null,       // filled by historySeriesOn(); see there
+	// Where the store is CREATED if none exists yet, and the first place it is
+	// looked for. Not a lock: the plugin finds the file by its marker anywhere
+	// in the vault, so moving or renaming it is expected rather than tolerated,
+	// and this key follows the file when it moves.
+	historyFilePath:          'history.md',
+	// The one history-adjacent thing left in data.json, and it is not history:
+	// path -> last known word count, the cache that turns a save into a delta.
+	// Worthless to a human, a kilobyte of JSON in the middle of a note if it
+	// were stored there, and rebuilt automatically. NULL rather than {} — the
+	// merge in loadSettings is shallow, and an object literal here would be
+	// shared by reference with every vault that has never written a word.
+	historyBaselines:         null,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2414,6 +2485,14 @@ module.exports = class WordSmith extends Plugin {
 			callback: () => this.openReportModal()
 		});
 
+		// Its own command, not a mode of the report's: they are two windows
+		// now, and one of them works with no note open.
+		this.addCommand({
+			id: 'open-history',
+			name: 'Show the writing history',
+			callback: () => this.openHistoryModal()
+		});
+
 		// "WS" badge ribbon button — toggles the whole plugin on/off.
 		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
 		// the SVG it inserts with a text badge and use a class hook for
@@ -2597,18 +2676,46 @@ module.exports = class WordSmith extends Plugin {
 		this.registerEvent(this.app.vault.on('modify', (file) => {
 			if (this.wordCountCache) this.wordCountCache.delete(file.path);
 			this.scheduleExplorerPatch();
+			// Same event, one more reader. The history is debounced and gated
+			// on its own opt-in inside historyNoteChange, so this line costs a
+			// function call in a vault that has never turned it on.
+			this.historyNoteChange(file);
+			// The store changing under us — synced from another device, or
+			// edited by hand — is read back rather than ignored. This is what
+			// replaces the "find it again" button: there is nothing to press,
+			// because the plugin notices.
+			this.historyAdopt(file);
 		}));
 		this.registerEvent(this.app.metadataCache.on('changed', (file) => {
 			if (this._fmCache && file && file.path) delete this._fmCache[file.path];
 			this._scopeGen++;
+			// {backlinks} caches a walk of the whole vault against this.
+			this._linkGen = (this._linkGen || 0) + 1;
+		}));
+		// Fired once when the vault's links have all been resolved at startup,
+		// and again after a batch of changes settles. Without it the first
+		// backlink count of a session is whatever was resolvable at load.
+		this.registerEvent(this.app.metadataCache.on('resolved', () => {
+			this._linkGen = (this._linkGen || 0) + 1;
+		}));
+		// A store that appears in the vault — first sync of a new install, or a
+		// file the user pasted in — is picked up without being asked for.
+		this.registerEvent(this.app.vault.on('create', (file) => {
+			if (this._historyPath || !this.settings.historyTracking) return;
+			this.historyAdopt(file);
 		}));
 		this.registerEvent(this.app.vault.on('rename', (file, oldPath) => {
 			if (this.wordCountCache) this.wordCountCache.delete(oldPath);
 			this.renameScopePath(oldPath, file.path);
+			this.historyRenamePath(oldPath, file.path);
+			// Folders fire this too, so a folder rename carries the goals of
+			// everything inside it.
+			if (this.renameGoalPaths(oldPath, file.path)) this.saveSettings(true);
 		}));
 		this.registerEvent(this.app.vault.on('delete', (file) => {
 			if (this.wordCountCache) this.wordCountCache.delete(file.path);
 			this.removeScopePath(file.path);
+			this.historyForgetPath(file.path);
 		}));
 
 		// Theme observer. Guarded on pluginEnabled: disablePlugin() removes
@@ -2643,6 +2750,11 @@ module.exports = class WordSmith extends Plugin {
 			if (!this.settings.pluginEnabled) return;
 			this.refresh();
 			this.checkStylesheetVersion();
+			// Read the store once the vault's file list exists — finding the
+			// file means looking through it. Nothing is recorded until this
+			// resolves; historyCapture waits on the same promise, so an edit
+			// made during startup is counted rather than dropped.
+			if (this.settings.historyTracking) this.historyLoad();
 		});
 	}
 
@@ -2681,6 +2793,17 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	onunload() {
+		// Anything counted since the last lazy save, before the timers that
+		// would have written it are torn down. Synchronous-looking on purpose:
+		// the promise is not awaited because onunload cannot await, but the
+		// saveData call is issued before anything else is dismantled.
+		if (this._historyTimers) {
+			for (const t of this._historyTimers.values()) window.clearTimeout(t);
+			this._historyTimers.clear();
+		}
+		if (this.settings && this.settings.historyTracking) {
+			try { this.historyFlush(true); } catch (_) {}
+		}
 		// The linger timer holds a reference to this plugin instance and
 		// would keep it alive past unload.
 		this.endBarPeek(true);
@@ -2751,6 +2874,13 @@ module.exports = class WordSmith extends Plugin {
 		// it there.
 		const raw = (await this.loadData()) || {};
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, raw);
+
+		// Immediately, not lazily. That merge is SHALLOW, so every nested
+		// default is shared by reference with DEFAULT_SETTINGS until something
+		// replaces it — and the baseline cache is written on a hot path.
+		// Building the real object here means no later code path can be the
+		// first to touch it and mutate the table.
+		this.historyBaselines();
 
 		// letterboxCustomColors arrived in 1.11, and the four arrow/line
 		// pickers it now gates were unconditional before it. A vault that had
@@ -4468,6 +4598,62 @@ module.exports = class WordSmith extends Plugin {
 			'.zg-liquid-canvas { display: block; width: 100%; height: 100%;'
 				+ ' image-rendering: pixelated; }',
 			'.zg-report-ring .zg-goal { display: block; width: 100%; padding: 0 2px; }',
+
+			// The history chart's STRUCTURE only — the rest of its look lives
+			// in styles.css. Here for the same reason the chevrons are:
+			// without them a stale stylesheet does not make the panel plain,
+			// it makes an unsized SVG collapse to nothing and the window reads
+			// as a broken feature rather than as a missing file.
+			// Change together with the .zg-hist- block in styles.css.
+			'.zg-report-cross { margin-left: auto; background: transparent; border-style: dashed; }',
+			'.zg-history-modal { width: 92vw; max-width: 760px;'
+				+ ' --zg-h-num: 21px; --zg-h-body: 12px; --zg-h-small: 10px;'
+				+ ' --zg-hist-add: #49a862; --zg-hist-del: #c4423e;'
+				+ ' --zg-hist-net: #3e8bcb;'
+				+ ' --zg-hist-goal: var(--color-yellow, #c9a227);'
+				+ ' --zg-hist-avg: var(--text-muted); }',
+			'.zg-hist-chart { display: block; width: 100%; height: 184px;'
+				+ ' shape-rendering: crispEdges; }',
+			'.zg-hist-plot { position: relative; padding-left: 36px; }',
+			'.zg-hist-gutter { position: absolute; left: 0; top: 0; bottom: 0; width: 33px; }',
+			'.zg-hist-ylbl { position: absolute; right: 5px; transform: translateY(-50%);'
+				+ ' font-family: var(--font-monospace, monospace); font-size: 10px;'
+				+ ' line-height: 1; color: var(--text-faint); white-space: nowrap; }',
+			'.zg-hist-px.is-added.h0 { fill: var(--zg-add-0, #1d5233); }',
+			'.zg-hist-px.is-added.h1 { fill: var(--zg-add-1, #276c41); }',
+			'.zg-hist-px.is-added.h2 { fill: var(--zg-add-2, #35894f); }',
+			'.zg-hist-px.is-added.h3 { fill: var(--zg-add-3, #49a862); }',
+			'.zg-hist-px.is-added.h4 { fill: var(--zg-add-4, #6bc77c); }',
+			'.zg-hist-px.is-added.h5 { fill: var(--zg-add-5, #99e29c); }',
+			'.zg-hist-px.is-removed.h0 { fill: var(--zg-del-0, #5e1a22); }',
+			'.zg-hist-px.is-removed.h1 { fill: var(--zg-del-1, #7e242a); }',
+			'.zg-hist-px.is-removed.h2 { fill: var(--zg-del-2, #a33033); }',
+			'.zg-hist-px.is-removed.h3 { fill: var(--zg-del-3, #c4423e); }',
+			'.zg-hist-px.is-removed.h4 { fill: var(--zg-del-4, #dd6055); }',
+			'.zg-hist-px.is-removed.h5 { fill: var(--zg-del-5, #f08d7d); }',
+			'.zg-hist-px.is-net.h0 { fill: var(--zg-net-0, #1b3a63); }',
+			'.zg-hist-px.is-net.h1 { fill: var(--zg-net-1, #245084); }',
+			'.zg-hist-px.is-net.h2 { fill: var(--zg-net-2, #2f6ba8); }',
+			'.zg-hist-px.is-net.h3 { fill: var(--zg-net-3, #3e8bcb); }',
+			'.zg-hist-px.is-net.h4 { fill: var(--zg-net-4, #5fabe4); }',
+			'.zg-hist-px.is-net.h5 { fill: var(--zg-net-5, #8fcbf4); }',
+			'.zg-hist-band.is-now { fill: var(--interactive-accent); opacity: 0.1; }',
+			'.zg-hist-zeroed { fill: var(--text-faint); opacity: 0.28; }',
+			'.zg-hist-grid { fill: var(--background-modifier-border); opacity: 0.8; }',
+			'.zg-hist-axis { fill: var(--text-muted); }',
+			'.zg-hist-avgline { fill: var(--zg-hist-avg); }',
+			'.zg-hist-goalline { fill: var(--zg-hist-goal); }',
+			'.zg-hist-hit { fill: var(--background-modifier-hover); opacity: 0; }',
+			'.zg-hist-bargroup.is-hover .zg-hist-hit { opacity: 0.5; }',
+			'.zg-hist-xwrap { padding-left: 36px; }',
+			'.zg-hist-xaxis { display: grid; font-size: 10px; line-height: 1;'
+				+ ' text-align: center; color: var(--text-faint);'
+				+ ' font-family: var(--font-monospace, monospace); overflow: hidden; }',
+			'.zg-hist-readout { min-height: 20px; font-size: 12px;'
+				+ ' font-family: var(--font-monospace, monospace); white-space: nowrap;'
+				+ ' overflow: hidden; text-overflow: ellipsis; }',
+			'.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
+			'.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
 			'.zg-jar-pct { position: absolute; inset: 0; display: flex;'
 				+ ' align-items: center; justify-content: center;'
 				+ ' font-family: var(--zg-font, var(--font-text)), var(--font-interface, sans-serif);'
@@ -5565,6 +5751,33 @@ module.exports = class WordSmith extends Plugin {
 	// Keep the list pointing at real paths as notes and folders move. Without
 	// this, renaming a folder silently orphans its entry and the plugin stops
 	// applying somewhere the user still expects it.
+	// A goal is attached to a manuscript, not to a string. Until now it was
+	// stored under a path and nothing moved it, so dragging a chapter into a
+	// folder — or renaming the folder above it — silently dropped every target
+	// underneath. Both maps are rewritten on rename, and a FOLDER rename has
+	// to rewrite the file goals nested inside it as well as its own entry,
+	// which is why this walks prefixes rather than looking for an exact key.
+	renameGoalPaths(oldPath, newPath) {
+		if (!oldPath || !newPath || oldPath === newPath) return false;
+		let changed = false;
+		for (const which of ['fileGoals', 'folderGoals']) {
+			const map = this.settings[which];
+			if (!map || typeof map !== 'object') continue;
+			for (const key of Object.keys(map)) {
+				let next = null;
+				if (key === oldPath) next = newPath;
+				else if (key.startsWith(oldPath + '/')) next = newPath + key.slice(oldPath.length);
+				if (next === null || next === key) continue;
+				// If something already sits at the destination it wins: the
+				// user set that one deliberately and more recently.
+				if (!Object.prototype.hasOwnProperty.call(map, next)) map[next] = map[key];
+				delete map[key];
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
 	async renameScopePath(oldPath, newPath) {
 		if (!this.hasScopeLimits() || !oldPath || !newPath) return;
 		const list = this.settings.scopePaths;
@@ -6581,10 +6794,1243 @@ module.exports = class WordSmith extends Plugin {
 		} finally { this._folderWordBusy = false; }
 	}
 
+	// ════════════════════════════════════════════════════════════════════════
+	// Writing history
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// The first thing Word-Smith stores about BEHAVIOUR rather than about
+	// configuration, which is why it is opt-in and why the settings row says
+	// in plain words what is kept: counts per day, never text.
+	//
+	// One record per local calendar day. Months and years roll up on READ and
+	// are never stored — a stored rollup is a second copy of the truth, and
+	// two copies of an answer is how the settings pane opened on the wrong
+	// tab for several releases.
+
+	// Local time, never UTC: a writer working at 23:40 is writing today,
+	// wherever today is. Building the key by hand rather than through
+	// toISOString(), which converts to UTC and hands back yesterday for half
+	// the planet every evening.
+	historyDateKey(d) {
+		const dt = d instanceof Date ? d : new Date();
+		const p  = (n) => (n < 10 ? '0' : '') + n;
+		return dt.getFullYear() + '-' + p(dt.getMonth() + 1) + '-' + p(dt.getDate());
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// The store: history.md IS the record
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// Until 1.28 the record lived in data.json and the note was a mirror. That
+	// is backwards for something a writer will want to keep: data.json is
+	// invisible, is deleted with the plugin, and is not a thing you can put in
+	// a folder with the manuscript it describes. So the note is now the store,
+	// and the plugin FINDS it — by its marker, anywhere in the vault, under
+	// any name. Move it, rename it, put it in a subfolder: it is still yours
+	// and it is still found.
+	//
+	// data.json keeps exactly one history-related thing, and it is not
+	// history: `historyBaselines`, the "what did this file weigh last time I
+	// looked" cache. It is worthless to a human reader, it would be a kilobyte
+	// of JSON in the middle of somebody's note, and it rebuilds itself. Delete
+	// data.json and you lose the first edit of each file in the next session.
+	// Delete history.md and you have lost the record — which is the honest
+	// shape of the thing, and is said in the settings pane in those words.
+
+	historyEnsure() {
+		let h = this._history;
+		if (!h || typeof h !== 'object') h = {};
+		if (!h.days || typeof h.days !== 'object' || Array.isArray(h.days)) h.days = {};
+		if (h.started === undefined) h.started = null;
+		if (!h.today || typeof h.today !== 'object' || !h.today.date) {
+			h.today = { date: this.historyDateKey(), a: 0, r: 0, n: 0 };
+		}
+		for (const k of ['a', 'r', 'n']) if (typeof h.today[k] !== 'number') h.today[k] = 0;
+		this._history = h;
+		return h;
+	}
+
+	// The baseline cache. Lives on settings, because it IS configuration-
+	// adjacent bookkeeping rather than a record of anything.
+	historyBaselines() {
+		const s = this.settings;
+		if (!s.historyBaselines || typeof s.historyBaselines !== 'object'
+			|| Array.isArray(s.historyBaselines)) s.historyBaselines = {};
+		return s.historyBaselines;
+	}
+
+	// No midnight timer. The date is recomputed on every event, so a laptop
+	// asleep across midnight compacts correctly on the first keystroke of the
+	// morning — which is the case a timer gets wrong.
+	historyCompact(h, key) {
+		if (!h.today || h.today.date === key) return false;
+		const t = h.today;
+		// A day with no activity is not stored. Absent means "did not write",
+		// which is what every reader of the chart assumes a gap means.
+		if (t.a || t.r) h.days[t.date] = { a: t.a, r: t.r, n: t.n };
+		h.today = { date: key, a: 0, r: 0, n: 0 };
+		return true;
+	}
+
+	// ── Finding the file ────────────────────────────────────────────────────
+
+	historyDefaultPath() {
+		let p = String(this.settings.historyFilePath || 'history.md').trim();
+		p = p.replace(/^\/+/, '');
+		if (!/\.md$/i.test(p)) p += '.md';
+		return p;
+	}
+
+	// What the settings pane shows, and null before anything has been found.
+	historyStorePath() { return this._historyPath || null; }
+
+	historyIsStoreFile(text) {
+		return String(text || '').indexOf(HISTORY_MARK_START) !== -1;
+	}
+
+	// Cheapest first, and a full scan only as a last resort. The marker is an
+	// HTML comment, so the metadata cache cannot help and the contents have to
+	// be read — but cachedRead is warm for anything Obsidian has already
+	// opened, and this runs once per session unless the file goes missing.
+	async historyFindFile() {
+		const vault = this.app.vault;
+		const check = async (file) => {
+			if (!file || !(file instanceof TFile)) return false;
+			try { return this.historyIsStoreFile(await vault.cachedRead(file)); }
+			catch (_) { return false; }
+		};
+
+		// 1. The one we were using, if it is still there and still ours.
+		if (this._historyPath) {
+			const f = vault.getAbstractFileByPath(this._historyPath);
+			if (await check(f)) return f;
+		}
+		// 2. Where the setting says it should be.
+		const want = this.historyDefaultPath();
+		const at = vault.getAbstractFileByPath(want);
+		if (await check(at)) return at;
+
+		// 3. Anything with the same FILENAME elsewhere in the vault. This is
+		//    the move-it-to-a-folder case, and it is the common one, so it is
+		//    tried before reading the whole vault.
+		const base = want.split('/').pop().toLowerCase();
+		const all  = vault.getMarkdownFiles();
+		const named = all.filter(f => f.path.toLowerCase().endsWith('/' + base)
+			|| f.path.toLowerCase() === base);
+		for (const f of named) if (await check(f)) return f;
+
+		// 4. Renamed as well as moved. Read everything, smallest first — the
+		//    store is a table of short rows, so a 2MB note is not it.
+		const rest = all.filter(f => named.indexOf(f) === -1)
+			.filter(f => !f.stat || f.stat.size < 4000000)
+			.sort((a, b) => (a.stat ? a.stat.size : 0) - (b.stat ? b.stat.size : 0));
+		for (const f of rest) if (await check(f)) return f;
+		return null;
+	}
+
+	// ── Loading ─────────────────────────────────────────────────────────────
+
+	async historyLoad() {
+		if (this._historyLoading) return this._historyLoading;
+		this._historyLoading = (async () => {
+			let file = null;
+			try { file = await this.historyFindFile(); } catch (_) {}
+			let parsed = { started: null, days: {} };
+			if (file) {
+				this._historyPath = file.path;
+				try { parsed = this.historyParse(await this.app.vault.read(file)); } catch (_) {}
+			}
+
+			const h = { started: parsed.started, days: parsed.days,
+				today: { date: this.historyDateKey(), a: 0, r: 0, n: 0 } };
+			// Today may already be in the table from earlier in the day, so it
+			// is lifted back out and carries on rather than restarting at zero
+			// because Obsidian was restarted at lunchtime.
+			const t = h.days[h.today.date];
+			if (t) {
+				h.today.a = t.a; h.today.r = t.r; h.today.n = t.n;
+				delete h.days[h.today.date];
+			}
+			this._history = h;
+			this.historyEnsure();
+
+			// One-time migration off data.json. 1.28 and earlier kept the
+			// record there; those days are real and must not be dropped on the
+			// floor by an upgrade.
+			const legacy = this.settings.historyData;
+			if (legacy && legacy.days && Object.keys(legacy.days).length) {
+				let moved = 0;
+				for (const k of Object.keys(legacy.days)) {
+					if (h.days[k] || k === h.today.date) continue;
+					h.days[k] = legacy.days[k];
+					moved++;
+				}
+				if (legacy.started && (!h.started || legacy.started < h.started)) h.started = legacy.started;
+				if (legacy.fileCounts && !Object.keys(this.historyBaselines()).length) {
+					this.settings.historyBaselines = legacy.fileCounts;
+				}
+				delete this.settings.historyData;
+				await this.saveSettings();
+				if (moved) {
+					await this.historyWrite(true);
+					new Notice('Word-Smith: moved ' + moved + ' day'
+						+ (moved === 1 ? '' : 's') + ' of writing history into '
+						+ (this._historyPath || this.historyDefaultPath()) + '.');
+				}
+			}
+
+			const keys = Object.keys(h.days).sort();
+			if (keys.length && (!h.started || keys[0] < h.started)) h.started = keys[0];
+			this._historyReady = true;
+			return h;
+		})();
+		try { return await this._historyLoading; }
+		finally { this._historyLoading = null; }
+	}
+
+	// ── Capture ─────────────────────────────────────────────────────────────
+
+	historyNoteChange(file) {
+		if (!this.settings.historyTracking) return;
+		if (!file || !file.path || !/\.md$/i.test(file.path)) return;
+		// Before the scope check, and unconditional: writing the store fires
+		// modify ON the store, and without this the history would record
+		// itself recording, forever.
+		if (file.path === this._historyPath) return;
+		if (!this.isFileInScope(file)) return;
+		if (!this._historyTimers) this._historyTimers = new Map();
+		const prev = this._historyTimers.get(file.path);
+		if (prev) window.clearTimeout(prev);
+		this._historyTimers.set(file.path, window.setTimeout(() => {
+			this._historyTimers.delete(file.path);
+			this.historyCapture(file.path);
+		}, HISTORY_DEBOUNCE_MS));
+	}
+
+	async historyCapture(path) {
+		try {
+			if (!this.settings.historyTracking) return;
+			// Nothing is recorded before the store has been read. Recording
+			// first would build an empty record and then have the load
+			// overwrite it — losing whatever was typed in the meantime.
+			if (!this._historyReady) await this.historyLoad();
+			const file = this.app.vault.getAbstractFileByPath(path);
+			if (!file || !(file instanceof TFile)) return;
+			if (path === this._historyPath) return;
+			if (!this.isFileInScope(file)) return;
+			// countWords → countProse, the single counting authority. The
+			// history must never be able to disagree with the status bar.
+			let count;
+			const hit = this.wordCountCache && this.wordCountCache.get(path);
+			if (hit && hit.mtime === file.stat.mtime) {
+				count = hit.count;
+			} else {
+				const text = await this.app.vault.cachedRead(file);
+				count = this.countWords(text);
+				if (this.wordCountCache) this.wordCountCache.set(path, { mtime: file.stat.mtime, count });
+			}
+			this.historyRecord(path, count);
+		} catch (_) { /* a note deleted mid-debounce; nothing to record */ }
+	}
+
+	historyRecord(path, count) {
+		const h    = this.historyEnsure();
+		const base = this.historyBaselines();
+		const key  = this.historyDateKey();
+		const rolled = this.historyCompact(h, key);
+		const had  = Object.prototype.hasOwnProperty.call(base, path);
+		const prev = had ? base[path] : 0;
+		base[path] = count;
+
+		// A file with no baseline records NOTHING — it only establishes one.
+		// This is what stops a fresh sync dump, or the first open of a
+		// five-year-old note, from arriving as today's heroic word count.
+		if (!had) { this.historyQueueSave(rolled); return; }
+
+		const delta = count - prev;
+		if (delta === 0) { if (rolled) this.historyQueueSave(true); return; }
+
+		const t = h.today;
+		if (delta > 0) t.a += delta; else t.r += -delta;
+		t.n += delta;
+		if (!h.started) h.started = key;
+		this.historyQueueSave(rolled);
+	}
+
+	// The store is a note in the vault, so it is written at a human cadence,
+	// not once per keystroke pause. The baseline cache rides along on the same
+	// debounce through saveData — never saveSettings, which would run the full
+	// refresh() and rebuild the mask while somebody is typing.
+	// Written when you STOP, not on a clock. A fixed interval either writes in
+	// the middle of a sentence or leaves the record stale for its whole length;
+	// the moment that is actually free is the pause between paragraphs, and
+	// that is a timer which RESETS on every change rather than one that runs
+	// down regardless. The ceiling is the safety net: if the pauses never come
+	// — a long dictated burst, a paste-heavy session — the file is written
+	// anyway rather than holding an hour of work in memory.
+	historyQueueSave(immediate) {
+		if (immediate) { this.historyFlush(true); return; }
+		if (!this._historyDirtyAt) this._historyDirtyAt = Date.now();
+		if (Date.now() - this._historyDirtyAt >= HISTORY_MAX_UNSAVED_MS) {
+			this.historyFlush(true);
+			return;
+		}
+		if (this._historySaveTimer) window.clearTimeout(this._historySaveTimer);
+		this._historySaveTimer = window.setTimeout(() => {
+			this._historySaveTimer = null;
+			this.historyFlush(true);
+		}, HISTORY_IDLE_MS);
+	}
+
+	async historyFlush(force) {
+		if (this._historySaveTimer) {
+			window.clearTimeout(this._historySaveTimer);
+			this._historySaveTimer = null;
+		}
+		this._historyDirtyAt = 0;
+		try { await this.saveData(this.settings); } catch (_) {}
+		return await this.historyWrite(force);
+	}
+
+	historyRenamePath(oldPath, newPath) {
+		// The store moving is the whole point of the feature: follow it.
+		if (this._historyPath && oldPath === this._historyPath) {
+			this._historyPath = newPath;
+			this.settings.historyFilePath = newPath;
+			this.saveSettings();
+			return;
+		}
+		const base = this.historyBaselines();
+		if (!Object.prototype.hasOwnProperty.call(base, oldPath)) return;
+		base[newPath] = base[oldPath];
+		delete base[oldPath];
+		this.historyQueueSave();
+	}
+
+	// A delete records NOTHING. Removing a 5,000-word file is housekeeping,
+	// not "deleted 5,000 words today".
+	historyForgetPath(path) {
+		if (this._historyPath && path === this._historyPath) { this._historyPath = null; return; }
+		const base = this.historyBaselines();
+		if (!Object.prototype.hasOwnProperty.call(base, path)) return;
+		delete base[path];
+		this.historyQueueSave();
+	}
+
+	// ── Reading ─────────────────────────────────────────────────────────────
+
+	historyDays() {
+		const h   = this.historyEnsure();
+		const out = Object.assign({}, h.days);
+		const t   = h.today;
+		if (t && (t.a || t.r)) out[t.date] = { a: t.a, r: t.r, n: t.n };
+		return out;
+	}
+
+	historyValue(rec, mode) {
+		if (!rec) return 0;
+		return mode === 'gross' ? (rec.a || 0) : (rec.n || 0);
+	}
+
+	// An ACTIVE day is one with any activity at all (a + r > 0), not one with
+	// a positive net. A day spent cutting 2,000 words is a day you showed up,
+	// and a streak that breaks on your hardest editing day is a metric that
+	// punishes the work it claims to measure.
+	historyIsActive(rec) {
+		return !!rec && ((rec.a || 0) + (rec.r || 0)) > 0;
+	}
+
+	historyShiftKey(key, deltaDays) {
+		const parts = String(key).split('-');
+		const d = new Date(+parts[0], +parts[1] - 1, +parts[2]);
+		d.setDate(d.getDate() + deltaDays);
+		return this.historyDateKey(d);
+	}
+
+	historyFigures(mode) {
+		const days = this.historyDays();
+		const keys = Object.keys(days).sort();
+		let total = 0, best = 0, bestKey = '', active = 0;
+		for (const k of keys) {
+			const v = this.historyValue(days[k], mode);
+			total += v;
+			if (v > best) { best = v; bestKey = k; }
+			if (this.historyIsActive(days[k])) active++;
+		}
+		let longest = 0, run = 0, prevKey = null;
+		for (const k of keys) {
+			if (!this.historyIsActive(days[k])) { run = 0; prevKey = k; continue; }
+			run = (prevKey && this.historyShiftKey(prevKey, 1) === k && run > 0) ? run + 1 : 1;
+			if (run > longest) longest = run;
+			prevKey = k;
+		}
+		// The current streak walks back from today — but starts at yesterday
+		// when today is still empty, because at nine in the morning a streak
+		// has not been broken, it has not been continued yet.
+		let cursor = this.historyDateKey();
+		if (!this.historyIsActive(days[cursor])) cursor = this.historyShiftKey(cursor, -1);
+		let current = 0;
+		while (this.historyIsActive(days[cursor])) { current++; cursor = this.historyShiftKey(cursor, -1); }
+		return {
+			total, best, bestKey, active, longest, current,
+			// Averaged over days you WROTE, not over calendar days. Dividing by
+			// the calendar punishes anyone who takes days off — and note that
+			// no weekday is special here either: an active day is any day with
+			// activity on it, so Saturday counts exactly as Tuesday does and a
+			// skipped Tuesday is excluded exactly as a skipped Sunday is. The
+			// chart makes the same promise by refusing to shade weekends; this
+			// is the arithmetic half of it.
+			average: active ? Math.round(total / active) : 0,
+			days, keys
+		};
+	}
+
+	// The RANGE, not the years that happen to hold data: a writer who stopped
+	// for all of 2025 has a 2025, and a stepper that jumps from 2024 to 2026
+	// hides the fallow year instead of showing it.
+	historyYears() {
+		const days = this.historyDays();
+		const set  = new Set();
+		for (const k of Object.keys(days)) set.add(+k.slice(0, 4));
+		set.add(new Date().getFullYear());
+		const years = Array.from(set);
+		const lo = Math.min.apply(null, years), hi = Math.max.apply(null, years);
+		const out = [];
+		for (let y = lo; y <= hi; y++) out.push(y);
+		return out;
+	}
+
+	// ── The file format ─────────────────────────────────────────────────────
+
+	historyBody() {
+		const days = this.historyDays();
+		const keys = Object.keys(days).sort().reverse();
+		const byYear = new Map();
+		for (const k of keys) {
+			const y = k.slice(0, 4);
+			if (!byYear.has(y)) byYear.set(y, []);
+			byYear.get(y).push(k);
+		}
+		const out = [];
+		out.push('This file IS your writing history \u2014 Word-Smith reads it back from here,');
+		out.push('so keep it if you keep anything. Move it or rename it freely; the plugin');
+		out.push('finds it by the markers below, anywhere in the vault. Counts only, never');
+		out.push('your text. Everything between the markers is rewritten; write what you');
+		out.push('like outside them.');
+		out.push('');
+		for (const [year, ks] of byYear) {
+			let a = 0, r = 0;
+			for (const k of ks) { a += days[k].a || 0; r += days[k].r || 0; }
+			out.push('### ' + year + ' \u2014 ' + ks.length + ' day' + (ks.length === 1 ? '' : 's') + ', '
+				+ (a - r > 0 ? '+' : '') + (a - r).toLocaleString('en-GB') + ' net');
+			out.push('');
+			out.push('| Date | Added | Deleted | Net |');
+			out.push('| --- | ---: | ---: | ---: |');
+			for (const k of ks) {
+				const d = days[k];
+				out.push('| ' + k + ' | ' + (d.a || 0) + ' | ' + (d.r || 0)
+					+ ' | ' + (d.n || 0) + ' |');
+			}
+			out.push('');
+		}
+		return out.join('\n');
+	}
+
+	historyCompose(existing) {
+		const block = HISTORY_MARK_START + '\n' + this.historyBody() + '\n' + HISTORY_MARK_END;
+		const text  = String(existing || '');
+		const i = text.indexOf(HISTORY_MARK_START);
+		const j = text.indexOf(HISTORY_MARK_END);
+		if (i !== -1 && j !== -1 && j > i) {
+			return text.slice(0, i) + block + text.slice(j + HISTORY_MARK_END.length);
+		}
+		if (!text.trim()) return block + '\n';
+		return text.replace(/\s*$/, '') + '\n\n' + block + '\n';
+	}
+
+	// Tolerant on purpose: a file half-merged by sync, or hand-edited, should
+	// give back every row that is still legible rather than nothing at all.
+	historyParse(text) {
+		const src  = String(text || '');
+		const i    = src.indexOf(HISTORY_MARK_START);
+		const j    = src.indexOf(HISTORY_MARK_END);
+		const body = (i !== -1 && j > i) ? src.slice(i + HISTORY_MARK_START.length, j) : src;
+		const days = {};
+		// Three numbers now; files-touched and active-minutes were dropped in
+		// 1.29 because nothing displayed them and they were two columns of
+		// arithmetic in somebody's note. Files written by 1.26–1.28 carry five,
+		// so the two extra are matched and thrown away rather than making the
+		// whole row unreadable.
+		const ROW = /^\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|/;
+		for (const line of body.split('\n')) {
+			const m = ROW.exec(line.trim());
+			if (!m) continue;
+			days[m[1]] = { a: +m[2], r: +m[3], n: +m[4] };
+		}
+		const keys = Object.keys(days).sort();
+		return { started: keys.length ? keys[0] : null, days };
+	}
+
+	// ── Writing ─────────────────────────────────────────────────────────────
+
+	async historyWrite(force) {
+		if (!this.settings.historyTracking) return false;
+		if (!this._historyReady) return false;
+		if (this._historyWriting) return false;
+		this._historyWriting = true;
+		try {
+			let file = this.app.vault.getAbstractFileByPath(this._historyPath || '');
+			if (!file || !(file instanceof TFile)) file = await this.historyFindFile();
+			if (file) {
+				this._historyPath = file.path;
+				const text = await this.app.vault.read(file);
+				const next = this.historyCompose(text);
+				if (next !== text) await this.app.vault.modify(file, next);
+				return true;
+			}
+			// Nowhere to write yet: make it where the setting says.
+			const path  = this.historyDefaultPath();
+			const slash = path.lastIndexOf('/');
+			if (slash > 0) {
+				const dir = path.slice(0, slash);
+				if (!this.app.vault.getAbstractFileByPath(dir)) {
+					try { await this.app.vault.createFolder(dir); } catch (_) {}
+				}
+			}
+			const made = await this.app.vault.create(path, this.historyCompose(''));
+			this._historyPath = made ? made.path : path;
+			return true;
+		} catch (e) {
+			// Losing this write means losing the record, so it is said out
+			// loud rather than swallowed the way a cache write would be.
+			new Notice('Word-Smith: could not write the writing history \u2014 '
+				+ (e && e.message ? e.message : String(e)));
+			return false;
+		} finally {
+			this._historyWriting = false;
+		}
+	}
+
+	async historyClear() {
+		this._history = null;
+		this.settings.historyBaselines = {};
+		this.historyEnsure();
+		// force, or the write cadence can swallow the erase and the next
+		// launch reads the old days straight back out of the file.
+		await this.historyFlush(true);
+	}
+
+	// Notices the store, wherever it turns up. Called from the vault's modify
+	// and create events, so moving the file on another device, restoring it
+	// from a backup, or hand-editing a row all reach the plugin without the
+	// user having to tell it anything.
+	//
+	// The guard that makes this safe is `_historyWriting`: our own write fires
+	// modify on our own file, and re-reading in the middle of writing would
+	// race the write and could hand back a half-saved table.
+	async historyAdopt(file) {
+		try {
+			if (!this.settings.historyTracking || this._historyWriting) return;
+			if (!file || !file.path || !/\.md$/i.test(file.path)) return;
+			if (!(file instanceof TFile)) return;
+			// Something we have unsaved beats something on disk: an external
+			// edit is adopted only when there is nothing of our own to lose.
+			if (this._historyDirtyAt) return;
+			const text = await this.app.vault.cachedRead(file);
+			if (!this.historyIsStoreFile(text)) return;
+			// A second file carrying the markers is a copy, a conflicted sync
+			// duplicate or a backup. Ours stays ours.
+			if (this._historyPath && this._historyPath !== file.path) return;
+			const parsed = this.historyParse(text);
+			const h = this.historyEnsure();
+			let gained = 0;
+			for (const k of Object.keys(parsed.days)) {
+				if (k === h.today.date) continue;
+				if (h.days[k]) continue;
+				h.days[k] = parsed.days[k];
+				gained++;
+			}
+			this._historyPath = file.path;
+			if (!this._historyReady) this._historyReady = true;
+			if (gained) {
+				const keys = Object.keys(h.days).sort();
+				if (keys.length && (!h.started || keys[0] < h.started)) h.started = keys[0];
+			}
+		} catch (_) { /* unreadable right now; the next event will try again */ }
+	}
+
+
+
+	// ════════════════════════════════════════════════════════════════════════
+	// History tab — the drawing
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// Three zoom levels answering three different questions. The year grid
+	// answers "am I showing up", and streaks appear in it as unbroken runs
+	// without anything having to compute them. The month answers "what is my
+	// rhythm". The year curve answers "will I finish", which is why it is a
+	// cumulative line against a projection and not twelve bars: twelve bars
+	// are a scoreboard, the curve is a forecast.
+	//
+	// Everything is drawn by hand — rects, paths and block glyphs — in the
+	// same no-library idiom as the goal gauges, so both Obsidian themes are
+	// carried by var() rather than by a palette this file invents.
+
+	// Plain DOM rather than createDiv/createEl throughout, for the reason
+	// celebrate() gives: one throw inside a renderer kills the whole view
+	// silently, and createElement cannot be broken by a class string.
+	historyEl(tag, cls, parent, text) {
+		const e = document.createElement(tag);
+		if (cls) e.className = cls;
+		if (text != null) e.textContent = text;
+		if (parent) parent.appendChild(e);
+		return e;
+	}
+
+	historySvg(tag, attrs, parent) {
+		const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+		if (attrs) for (const k of Object.keys(attrs)) e.setAttribute(k, String(attrs[k]));
+		if (parent) parent.appendChild(e);
+		return e;
+	}
+
+	// ── Buckets ─────────────────────────────────────────────────────────────
+	//
+	// One function feeds all three tabs. Day, Month and Year are the SAME
+	// chart over a different bucket size, which is the whole reason the view
+	// reads as one idea rather than three: the bars mean the same thing at
+	// every zoom, and only the width of a bar changes.
+
+	historyBuckets(view, year, month) {
+		const days = this.historyDays();
+		const goal = this.settings.historyDailyGoal || 0;
+		const out  = { view, buckets: [], label: '', goal: 0 };
+		const rightNow = new Date();
+		const nowY = rightNow.getFullYear(), nowM = rightNow.getMonth();
+		const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
+		const yearLen = (y) => (((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365);
+
+		const blank = (key, label) => ({ key, label, a: 0, r: 0, n: 0, days: 0 });
+		const add = (b, rec) => {
+			if (!rec) return;
+			b.a += rec.a || 0; b.r += rec.r || 0; b.n += rec.n || 0;
+			if ((rec.a || 0) + (rec.r || 0) > 0) b.days++;
+		};
+
+		if (view === 'day') {
+			const n = daysIn(year, month);
+			out.label = HISTORY_MONTHS[month] + ' ' + year;
+			out.goal  = goal;
+			for (let d = 1; d <= n; d++) {
+				const dt  = new Date(year, month, d);
+				const key = this.historyDateKey(dt);
+				const b = blank(key, String(d));
+				b.title = HISTORY_DAYNAMES[dt.getDay()] + ' ' + d + ' '
+					+ HISTORY_MONTHS[month].slice(0, 3) + ' ' + year;
+				add(b, days[key]);
+				out.buckets.push(b);
+			}
+		} else if (view === 'month') {
+			out.label = String(year);
+			for (let m = 0; m < 12; m++) {
+				const b = blank(year + '-' + String(m + 1).padStart(2, '0'),
+					HISTORY_MONTHS[m].slice(0, 1));
+				b.title = HISTORY_MONTHS[m] + ' ' + year;
+				b.isNow = (year === nowY && m === nowM);
+				// The goal scales with the bucket, or a 750-a-day line drawn
+				// across a month of totals is a line at nothing.
+				b.goal = goal * daysIn(year, m);
+				for (let d = 1; d <= daysIn(year, m); d++) {
+					add(b, days[this.historyDateKey(new Date(year, m, d))]);
+				}
+				out.buckets.push(b);
+			}
+			out.goal = goal * 30;   // the dashed line is a typical month
+		} else {
+			const years = this.historyYears();
+			out.label = years.length > 1 ? years[0] + '\u2013' + years[years.length - 1] : String(years[0]);
+			for (const y of years) {
+				const b = blank(String(y), String(y));
+				b.title = String(y);
+				b.isNow = (y === nowY);
+				b.goal  = goal * yearLen(y);
+				for (const k of Object.keys(days)) if (+k.slice(0, 4) === y) add(b, days[k]);
+				out.buckets.push(b);
+			}
+			out.goal = goal * 365;
+		}
+
+		const now = new Date();
+		for (const b of out.buckets) {
+			if (!b.title) b.title = b.key;
+			// The native tooltip stays for accessibility and for touch, and
+			// the readout carries the same numbers on one line for the eye.
+			const tail = (b.a || 0).toLocaleString() + ' added \u00b7 '
+				+ (b.r || 0).toLocaleString() + ' deleted \u00b7 '
+				+ (b.n >= 0 ? '+' : '') + (b.n || 0).toLocaleString() + ' net'
+				+ (view === 'day' ? '' : ' \u00b7 ' + b.days + ' day' + (b.days === 1 ? '' : 's') + ' written');
+			b.readout = b.title + ' \u00b7 ' + ((b.a || b.r) ? tail : 'nothing written');
+			b.tip = b.title + '\n' + tail.replace(/ \u00b7 /g, '\n');
+		}
+		return out;
+	}
+
+	// ── The tab ─────────────────────────────────────────────────────────────
+
+	// ── The modal ───────────────────────────────────────────────────────────
+	//
+	// Its own window rather than a third tab in the report. Three reasons, and
+	// the first is the one that decided it: the report is 460px because eight
+	// figures and a gauge is all it has to say about one file, and a month of
+	// day bars needs three times that to be readable at all. The second is
+	// that the report is about the text in front of you and asks for a file;
+	// the history is about a span of months and asks for nothing. The third is
+	// that the zoom tabs and the report's own tabs were two rows of tabs
+	// stacked on each other, which reads as one confused control.
+
+	// This month if you have written in it, otherwise the most recent month
+	// you did. Opening on a blank current month — the 1st, or after a fallow
+	// spell — puts an empty chart in front of someone whose record is full,
+	// and an empty chart reads as a broken feature rather than as a quiet
+	// week. The period label always says which month is on screen, so this
+	// cannot mislead anyone about what they are looking at.
+	historyOpeningPeriod() {
+		const now = new Date();
+		const state = { year: now.getFullYear(), month: now.getMonth() };
+		const days = this.historyDays();
+		const keys = Object.keys(days).sort();
+		if (!keys.length) return state;
+		const here = state.year + '-' + String(state.month + 1).padStart(2, '0');
+		if (keys.some(k => k.slice(0, 7) === here)) return state;
+		const last = keys[keys.length - 1];
+		return { year: +last.slice(0, 4), month: +last.slice(5, 7) - 1 };
+	}
+
+	openHistoryModal() {
+		if (!Modal) return;
+		const plugin = this;
+		const modal  = new Modal(this.app);
+		modal.titleEl.setText('Writing History');
+		modal.modalEl.addClass('zg-history-modal');
+
+		const body = modal.contentEl.createDiv({ cls: 'zg-report-body' });
+
+		// Which period is on screen belongs to this window and is forgotten
+		// when it closes; which ZOOM is on screen lives in settings and is
+		// not. Opening the history should show you the view you use, at the
+		// month you are in.
+		const state = this.historyOpeningPeriod();
+
+		const render = () => {
+			try {
+				body.empty();
+				// Opened before the store has been read — from the command
+				// palette during startup, or with tracking just switched on.
+				// Draw the wait, then draw the history, rather than drawing a
+				// blank record and correcting it a moment later.
+				if (plugin.settings.historyTracking && !plugin._historyReady) {
+					body.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
+					plugin.historyLoad().then(() => {
+						Object.assign(state, plugin.historyOpeningPeriod());
+						render();
+					});
+					return;
+				}
+				plugin.renderHistoryTab(body, state, render);
+			} catch (e) {
+				// A renderer swallows its own exceptions and leaves the modal
+				// sitting on nothing. Same guard, same reason, as the report.
+				body.empty();
+				body.createDiv({ text: 'History failed \u2014 '
+					+ (e && e.message ? e.message : String(e)) });
+			}
+		};
+		render();
+		modal.open();
+	}
+
+	renderHistoryTab(body, state, rerender) {
+		const s = this.settings;
+		state.rerender = rerender;
+
+		if (!s.historyTracking) {
+			const off = this.historyEl('div', 'zg-report-ring-label is-muted', body);
+			this.historyEl('div', '', off, 'You\u2019re not tracking your writing yet.');
+			this.historyEl('div', 'zg-report-hint', off,
+				'Switch it on under Settings \u2192 Word-Smith \u2192 History and it\u2019ll start '
+				+ 'counting how much you write each day. Counts only \u2014 never your words.');
+			return;
+		}
+
+		const h    = this.historyEnsure();
+		const figs = this.historyFigures('net');
+
+		// The view and the series live in settings, not in the modal's state:
+		// closing the report and opening it again should show you the thing
+		// you were looking at, not the thing the code prefers.
+		const view = ['day', 'month', 'year'].indexOf(s.historyView) !== -1 ? s.historyView : 'day';
+		const ser  = this.historySeriesOn();
+
+		const years = this.historyYears();
+		if (years.indexOf(state.year) === -1) state.year = years[years.length - 1];
+
+		this.historyEl('div', 'zg-report-scope', body, h.started
+			? 'Counting since ' + h.started
+			: 'Starts counting the next time you write');
+		this.historyEl('hr', 'zg-report-rule', body);
+
+		// ── Figures ─────────────────────────────────────────────────────────
+		const grid = this.historyEl('div', 'zg-report-grid zg-history-grid', body);
+		const cell = (label, value, tip) => {
+			const c = this.historyEl('div', 'zg-report-cell has-tip', grid);
+			c.setAttribute('title', tip);
+			this.historyEl('div', 'zg-report-value', c, value);
+			this.historyEl('div', 'zg-report-label', c, label);
+		};
+		cell('Words, net', (figs.total > 0 ? '+' : '') + figs.total.toLocaleString(),
+			'Everything you\u2019ve written, minus what you cut \u2014 how much it actually grew.');
+		cell('Daily average', figs.average.toLocaleString(),
+			'Across the ' + figs.active + ' day' + (figs.active === 1 ? '' : 's') + ' you actually '
+			+ 'wrote, not every day on the calendar \u2014 so days off don\u2019t drag it down, '
+			+ 'whichever days those are.');
+		cell('Best day', figs.best.toLocaleString(),
+			figs.bestKey ? 'The most you\u2019ve ever gained in one day, back on ' + figs.bestKey + '.'
+				: 'Nothing yet \u2014 this fills in after your first writing session.');
+		cell('Streak', figs.current.toLocaleString() + (figs.current === 1 ? ' day' : ' days'),
+			'Days in a row you wrote or edited. A day spent cutting still counts \u2014 you '
+			+ 'turned up. And today won\u2019t break it until it\u2019s over. Your best run so far: '
+			+ figs.longest.toLocaleString() + '.');
+
+		if (!figs.keys.length) {
+			const empty = this.historyEl('div', 'zg-report-ring-label is-muted zg-hist-empty', body);
+			this.historyEl('div', '', empty, 'Nothing here yet.');
+			this.historyEl('div', 'zg-report-hint', empty,
+				'The chart fills in as you write. There\u2019s no way to go back and work out what '
+				+ 'you did before today \u2014 a file only knows when it was touched, not how much '
+				+ 'went into it.');
+			return;
+		}
+
+		// ── Day | Month | Year ──────────────────────────────────────────────
+		// UNDER the figures, not above them. The four numbers are the answer to
+		// "how am I doing"; the zoom is how you interrogate that answer, and a
+		// control placed above the thing it controls asks to be used first.
+		const sub = this.historyEl('div', 'ws-tab-nav zg-hist-subnav', body);
+		const tab = (id, label) => {
+			const b = this.historyEl('button',
+				'ws-tab-btn zg-hist-subbtn' + (view === id ? ' is-active' : ''), sub, label);
+			b.addEventListener('click', () => {
+				if (view === id) return;
+				s.historyView = id;
+				// Redraw FIRST, persist after. The user asked for the other
+				// zoom; remembering the choice is bookkeeping, and awaiting a
+				// disk write before repainting puts lag on every click for a
+				// reason the click does not care about.
+				rerender();
+				this.saveSettings();
+			});
+		};
+		tab('day', 'Day'); tab('month', 'Month'); tab('year', 'Year');
+
+		// ── Period stepper ──────────────────────────────────────────────────
+		const data = this.historyBuckets(view, state.year, state.month);
+		const head = this.historyEl('div', 'zg-hist-periodbar', body);
+		this.historyEl('span', 'zg-hist-period', head, data.label);
+		if (view !== 'year') {
+			const nav  = this.historyEl('span', 'zg-hist-step', head);
+			const back = this.historyEl('button', 'zg-hist-arrow', nav, '\u2039');
+			const fwd  = this.historyEl('button', 'zg-hist-arrow', nav, '\u203a');
+			// One stepper, two meanings: months inside a year on the Day tab,
+			// years on the Month tab. Stepping off the end of a year rolls
+			// into the next rather than stopping, because a manuscript does
+			// not stop at 31 December.
+			const shift = (dir) => {
+				if (view === 'day') {
+					let m = state.month + dir, y = state.year;
+					if (m < 0)  { m = 11; y--; }
+					if (m > 11) { m = 0;  y++; }
+					if (years.indexOf(y) === -1) return;
+					state.year = y; state.month = m;
+				} else {
+					const i = years.indexOf(state.year) + dir;
+					if (i < 0 || i >= years.length) return;
+					state.year = years[i];
+				}
+				rerender();
+			};
+			const atStart = view === 'day'
+				? (state.year === years[0] && state.month === 0)
+				: state.year === years[0];
+			const atEnd = view === 'day'
+				? (state.year === years[years.length - 1] && state.month === 11)
+				: state.year === years[years.length - 1];
+			if (atStart) back.setAttribute('disabled', 'true');
+			if (atEnd)   fwd.setAttribute('disabled', 'true');
+			back.addEventListener('click', () => shift(-1));
+			fwd .addEventListener('click', () => shift(1));
+		}
+
+		// ── Series toggles ──────────────────────────────────────────────────
+		const legend = this.historyEl('div', 'zg-hist-series', body);
+		const pill = (id, label, tip) => {
+			const b = this.historyEl('button',
+				'zg-hist-pill is-' + id + (ser[id] ? ' is-on' : ''), legend);
+			this.historyEl('span', 'zg-hist-swatch', b);
+			this.historyEl('span', '', b, label);
+			b.setAttribute('title', tip);
+			b.addEventListener('click', () => {
+				const next = Object.assign({}, ser);
+				next[id] = !next[id];
+				// Turning the last one off leaves an empty box that reads as a
+				// broken chart, so the last one on cannot be turned off.
+				if (!next.added && !next.removed && !next.net) return;
+				s.historySeries = next;
+				rerender();          // same reasoning as the zoom tabs above
+				this.saveSettings();
+			});
+		};
+		pill('added',   'Added',   'What you wrote, going up from the line.');
+		pill('removed', 'Deleted', 'What you cut, going down from the same line \u2014 so a hard '
+			+ 'day of editing shows up as work instead of a gap.');
+		pill('net',     'Net',     'What\u2019s left after the cutting, laid over the bars.');
+		pill('average', 'Average', 'A flat line at your average, counting only the days you wrote.');
+		if (this.settings.historyDailyGoal > 0) {
+			pill('goal', 'Goal', 'Your daily goal, sized to match whichever view you\u2019re on.');
+		}
+
+		this.buildHistoryChart(body, data, ser);
+
+		// Crossing today's goal is the one moment in the report worth a fuss,
+		// same as the gauge.
+		const goal  = s.historyDailyGoal || 0;
+		const today = figs.days[this.historyDateKey()];
+		if (goal > 0 && today && (today.n || 0) >= goal) this.celebrate(body);
+	}
+
+	// Which series are drawn. Defaulted here rather than in DEFAULT_SETTINGS
+	// so a vault upgrading from 1.26 — which had no such key — gets a sensible
+	// chart instead of an empty one.
+	historySeriesOn() {
+		const raw = this.settings.historySeries;
+		const def = { added: true, removed: true, net: false, average: false, goal: true };
+		if (!raw || typeof raw !== 'object') return def;
+		const out = {};
+		for (const k of Object.keys(def)) out[k] = typeof raw[k] === 'boolean' ? raw[k] : def[k];
+		if (!out.added && !out.removed && !out.net) out.added = true;
+		return out;
+	}
+
+	// ── The chart ───────────────────────────────────────────────────────────
+	//
+	// One chart, three bucket sizes, drawn on a pixel grid: every bar is a
+	// stack of whole blocks and every line is a run of whole blocks, so the
+	// panel matches the ink tank and the goal gauges rather than looking like
+	// a dashboard that wandered in from another application.
+	//
+	// Added rises from the centre line and deleted falls from it — the same
+	// line, not two charts stacked. That is the point of the pairing: a week
+	// of hard cutting has bars, and reads as work.
+	//
+	// What makes it legible rather than merely decorative, in order of how
+	// much each one earns:
+	//
+	//   A SCALE. Until 1.28 there was none, and a bar could be 300 words or
+	//   3,000 with nothing on screen to tell you which — the chart looked like
+	//   data without carrying any. Gridlines at round numbers, labelled.
+	//   ZERO STUBS. A day you did not write draws one faint block on the axis,
+	//   so a gap is a visible absence rather than a hole where the eye cannot
+	//   tell chart from margin.
+	//   CAPPED BARS. The top block of every bar is lighter. That is the whole
+	//   difference between a flat rectangle and something that reads as drawn.
+	//   A READOUT rather than a native tooltip, which arrives after a second,
+	//   in the system font, in the wrong place.
+
+	// Round numbers a person actually thinks in: 1, 2, 2.5, 5, 10 and their
+	// decades. A gridline at 3,847 is arithmetic, not a scale.
+	historyNiceStep(rough) {
+		if (!(rough > 0)) return 1;
+		const mag  = Math.pow(10, Math.floor(Math.log10(rough)));
+		const norm = rough / mag;
+		const step = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10;
+		return step * mag;
+	}
+
+	historyShortNum(v) {
+		const a = Math.abs(v);
+		if (a >= 1000000) return (v / 1000000).toFixed(a % 1000000 ? 1 : 0) + 'M';
+		if (a >= 1000)    return (v / 1000).toFixed(a % 1000 && a < 10000 ? 1 : 0) + 'k';
+		return String(Math.round(v));
+	}
+
+	buildHistoryChart(body, data, ser) {
+		const W = HISTORY_CHART_W, H = HISTORY_CHART_H;
+		const PAD = HISTORY_PX * 3;
+		const buckets = data.buckets;
+		const n = buckets.length || 1;
+
+		let maxUp = 0, maxDn = 0;
+		for (const b of buckets) {
+			if (ser.added   && b.a > maxUp) maxUp = b.a;
+			if (ser.removed && b.r > maxDn) maxDn = b.r;
+			if (ser.net) { if (b.n > maxUp) maxUp = b.n; if (-b.n > maxDn) maxDn = -b.n; }
+		}
+		// The average and the goal are drawn INSIDE the existing scale rather
+		// than being allowed to stretch it. A 5,000-word goal against a month
+		// of 200s would otherwise flatten every real bar to nothing to make
+		// room for a line whose position you already know.
+		const active = buckets.filter(b => (b.a + b.r) > 0);
+		const avg = (ser.average && active.length)
+			? Math.round(active.reduce((t, b) => t + b.a, 0) / active.length) : 0;
+		if (!maxUp && !maxDn) maxUp = 1;
+
+		// Round the top of the scale UP to a whole gridline, so the topmost
+		// line is a number rather than a crop mark.
+		const step  = this.historyNiceStep(Math.max(maxUp, maxDn) / 3.2);
+		const topV  = Math.max(step, Math.ceil(maxUp / step) * step);
+		const botV  = maxDn > 0 ? Math.max(step, Math.ceil(maxDn / step) * step) : 0;
+
+		const plot  = H - PAD * 2;
+		const share = topV + botV || 1;
+		let zero = PAD + plot * (topV / share);
+		zero = Math.round(zero / HISTORY_PX) * HISTORY_PX;
+		const upH = zero - PAD, dnH = H - PAD - zero;
+		const yUp = (v) => zero - (topV ? (v / topV) * upH : 0);
+		const yDn = (v) => zero + (botV ? (v / botV) * dnH : 0);
+
+		const slot = W / n;
+		// One column for the added/deleted pair, one more if net is on. Every
+		// bar in the chart is then the same width, which is the only way the
+		// heights can honestly be compared by eye.
+		// One column per bucket. Net is drawn OVER the pair rather than beside
+		// it, at the same width, and that overlap is the point: net is always
+		// smaller than added (it is added minus deleted), so the blue covers
+		// the lower part of the green and what stays green is exactly the part
+		// that got cut again. The two readings are the same picture.
+		const ncol = 1;
+		// The drawing cell, the bar width and the gap between columns are
+		// solved together, because each depends on the other two. The cell is
+		// coarsened only if the view would otherwise ask for an unreasonable
+		// number of rects — and the estimate below is the WORST case, every
+		// bar full height, which is why the threshold is generous. An earlier
+		// version estimated the whole plot area as filled, which is never true
+		// and quietly doubled the cell on every chart in the plugin: the
+		// pixels were four units wide everywhere and nothing said so.
+		let cell = HISTORY_PX, bw, gap;
+		for (;;) {
+			bw = Math.floor((slot * 0.82 / ncol) / cell) * cell;
+			// Both bounds snapped to the cell as well, or the cap reintroduces
+			// a width that is not a whole number of pixels and the right-hand
+			// column of every bar sits half off the grid.
+			bw = Math.max(cell * 2, Math.min(Math.floor(HISTORY_BAR_MAX / cell) * cell, bw));
+			gap = Math.max(0, (slot - ncol * bw) / (ncol + 1));
+			const worst = n * ncol * (bw / cell) * ((H - PAD * 2) / cell);
+			if (worst <= HISTORY_MAX_CELLS || cell >= HISTORY_PX * 4) break;
+			cell *= 2;
+		}
+
+		// ── The readout ─────────────────────────────────────────────────────
+		// Above the chart, not floating over it: a value that moves under the
+		// pointer is a value you cannot read while pointing at something else.
+		let ta = 0, tr = 0;
+		for (const b of buckets) { ta += b.a; tr += b.r; }
+		const summary = data.label + ' \u00b7 ' + ta.toLocaleString() + ' added \u00b7 '
+			+ tr.toLocaleString() + ' deleted \u00b7 ' + ((ta - tr) > 0 ? '+' : '')
+			+ (ta - tr).toLocaleString() + ' net'
+			+ (avg > 0 ? ' \u00b7 averaging ' + avg.toLocaleString()
+				+ ' per active ' + (data.view === 'day' ? 'day' : data.view) : '');
+		const readout = this.historyEl('div', 'zg-hist-readout', body);
+		const setReadout = (html) => { readout.textContent = html; };
+		setReadout(summary);
+
+		// ── Plot ────────────────────────────────────────────────────────────
+		const plotWrap = this.historyEl('div', 'zg-hist-plot', body);
+		const gutter   = this.historyEl('div', 'zg-hist-gutter', plotWrap);
+
+		const svg = this.historySvg('svg', {
+			viewBox: '0 0 ' + W + ' ' + H, class: 'zg-hist-chart',
+			preserveAspectRatio: 'none', role: 'img'
+		}, plotWrap);
+
+		// One background column, and only one: the bucket you are in now. A
+		// week is seven days. Shading two of them because a calendar calls
+		// them a weekend is the chart telling a writer when they ought to be
+		// working, in a panel whose whole job is to show what they did.
+		const todayKey = this.historyDateKey();
+		for (let i = 0; i < n; i++) {
+			const b = buckets[i];
+			if (b.key !== todayKey && !b.isNow) continue;
+			this.historySvg('rect', {
+				x: (i * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: H,
+				class: 'zg-hist-band is-now'
+			}, svg);
+		}
+
+		// Gridlines, drawn as dotted runs of blocks like everything else. The
+		// labels go in the HTML gutter beside the SVG, because the viewBox is
+		// stretched horizontally and any text inside it stretches with it.
+		const rule = (v, y) => {
+			if (y < 1 || y > H - 1) return;
+			for (let x = 0; x < W; x += cell * 4) {
+				this.historySvg('rect', {
+					x: x.toFixed(2), y: (y - 0.5).toFixed(2),
+					// Clipped at the right edge: a fixed-width dash starting
+					// near the end of the run overshoots the viewBox, which is
+					// invisible on screen and a failed assertion in the probe.
+					width: Math.min(cell * 2, W - x).toFixed(2), height: 1, class: 'zg-hist-grid'
+				}, svg);
+			}
+			const lbl = this.historyEl('span', 'zg-hist-ylbl', gutter,
+				(v < 0 ? '\u2212' : '') + this.historyShortNum(Math.abs(v)));
+			lbl.style.top = ((y / H) * 100).toFixed(3) + '%';
+		};
+		for (let v = step; v <= topV + 0.001; v += step) rule(v, yUp(v));
+		for (let v = step; v <= botV + 0.001; v += step) rule(-v, yDn(v));
+
+		// ── Bars ────────────────────────────────────────────────────────────
+		// Drawn cell by cell, out of tiny squares, with an ordered dither
+		// between the steps of a heat ramp. Three earlier attempts got this
+		// wrong in the same way: a stack of blocks with gaps between them
+		// reads as an LED meter, and ONE quantised rectangle with a lighter
+		// top row is just a rectangle with a lighter top row. Neither is a
+		// pixel. A pixel is small, it has neighbours, and the shading between
+		// it and its neighbours is where the texture comes from — which is
+		// what the 2x2 Bayer threshold below is for. It is the same thing the
+		// ink tank does with a canvas at low resolution; this does it with
+		// rects because an SVG cannot be scaled up from a small buffer.
+		const px = (g, x, y, w, hh, cls) => this.historySvg('rect', {
+			x: x.toFixed(2), y: y.toFixed(2),
+			width: w.toFixed(2), height: hh.toFixed(2), class: cls
+		}, g);
+
+		const BAYER = [[0.20, 0.70], [0.95, 0.45]];
+		const pixelBar = (g, x, v, w, series, down) => {
+			const span = Math.abs((down ? yDn(v) : yUp(v)) - zero);
+			// Whole cells, never fewer than one: a day of forty words is still
+			// a day that happened, and rounding it away would be the chart
+			// tidying itself at the writer's expense.
+			const h    = Math.max(cell, Math.round(span / cell) * cell);
+			const rows = Math.round(h / cell);
+			const cols = Math.max(1, Math.round(w / cell));
+			const top  = down ? zero : zero - h;
+			for (let r = 0; r < rows; r++) {
+				// Hot at the far end, cool at the axis — in BOTH directions, so
+				// a bar of deleted words reads the same way upside down as a
+				// bar of added ones reads the right way up.
+				const away = down ? (r + 0.5) / rows : (rows - r - 0.5) / rows;
+				const t    = away * (HISTORY_HEAT - 1);
+				const base = Math.floor(t), frac = t - base;
+				for (let c = 0; c < cols; c++) {
+					let lv = base;
+					// Ordered dither: the transition between two steps is a
+					// checker of both rather than a hard seam, which is what
+					// makes the individual cells visible at all.
+					if (frac > BAYER[r & 1][c & 1]) lv++;
+					// The trailing column one step cooler: light from the left,
+					// the same bevel the goal gauges are drawn with. Skipped on
+					// a bar too narrow to spare a column.
+					if (c === cols - 1 && cols > 2) lv--;
+					lv = Math.max(0, Math.min(HISTORY_HEAT - 1, lv));
+					px(g, x + c * cell, top + r * cell, cell, cell,
+						'zg-hist-px ' + series + ' h' + lv);
+				}
+			}
+		};
+
+		const groups = [];
+		for (let i = 0; i < n; i++) {
+			const b = buckets[i];
+			const g = this.historySvg('g', { class: 'zg-hist-bargroup' }, svg);
+			groups.push(g);
+			this.historySvg('title', {}, g).textContent = b.tip;
+			this.historySvg('rect', {
+				x: (i * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: H,
+				class: 'zg-hist-hit'
+			}, g);
+
+			// Every bar in the chart is the same width. Added rises and deleted
+			// falls from the one line; net is laid over whichever of the two
+			// it shares a sign with, LAST so it sits on top.
+			const x = i * slot + gap;
+			if (ser.added   && b.a > 0) pixelBar(g, x, b.a, bw, 'is-added', false);
+			if (ser.removed && b.r > 0) pixelBar(g, x, b.r, bw, 'is-removed', true);
+			if (ser.net && b.n !== 0)   pixelBar(g, x, Math.abs(b.n), bw, 'is-net', b.n < 0);
+			if (!b.a && !b.r) px(g, x, zero - cell, bw, cell, 'zg-hist-zeroed');
+		}
+
+		// The axis over the bars, so it stays readable at every scale.
+		this.historySvg('rect', {
+			x: 0, y: (zero - 0.5).toFixed(2), width: W, height: 1, class: 'zg-hist-axis'
+		}, svg);
+
+		const dotted = (y, cls) => {
+			for (let x = 0; x < W; x += cell * 3) {
+				this.historySvg('rect', {
+					x: x.toFixed(2), y: (y - 1).toFixed(2),
+					width: Math.min(cell * 2, W - x).toFixed(2), height: 2, class: cls
+				}, svg);
+			}
+		};
+		if (avg > 0 && avg <= topV) dotted(yUp(avg), 'zg-hist-avgline');
+		if (ser.goal && data.goal > 0 && data.goal <= topV) dotted(yUp(data.goal), 'zg-hist-goalline');
+
+		// ── Hover ───────────────────────────────────────────────────────────
+		// ONE listener on the svg, and the bucket worked out from the pointer's
+		// position across it. The previous version put mouseenter on a
+		// transparent rect per bucket and it never fired in the app: an SVG
+		// shape only receives pointer events under the default
+		// `pointer-events: visiblePainted` if it is actually painted, and a
+		// fill of `transparent` is not — so the readout sat on the period
+		// total however carefully you pointed at a bar. Working out the index
+		// from one rect's geometry needs nothing to be painted at all, is one
+		// listener instead of thirty-one, and cannot be broken by whatever a
+		// theme decides to do to `pointer-events`.
+		let lastIdx = -1;
+		svg.addEventListener('mousemove', (ev) => {
+			const box = svg.getBoundingClientRect();
+			if (!box.width) return;
+			const idx = Math.floor(((ev.clientX - box.left) / box.width) * n);
+			if (idx === lastIdx) return;
+			lastIdx = idx;
+			setReadout(idx >= 0 && idx < n ? buckets[idx].readout : summary);
+			for (let k = 0; k < groups.length; k++) groups[k].classList.toggle('is-hover', k === idx);
+		});
+		svg.addEventListener('mouseleave', () => {
+			lastIdx = -1;
+			setReadout(summary);
+			for (const gg of groups) gg.classList.remove('is-hover');
+		});
+
+		// ── X axis ──────────────────────────────────────────────────────────
+		const axisWrap = this.historyEl('div', 'zg-hist-xwrap', body);
+		const axis = this.historyEl('div', 'zg-hist-xaxis', axisWrap);
+		axis.style.gridTemplateColumns = 'repeat(' + n + ', 1fr)';
+		// Stride from the FIRST bucket, not from the first multiple: the old
+		// form special-cased index 0 and then also matched index 1, so a long
+		// month printed 1, 2, 4, 6 rather than 1, 3, 5.
+		const every = data.view === 'day' ? (n > 16 ? 2 : 1) : 1;
+		for (let i = 0; i < n; i++) {
+			const show = data.view === 'day' ? (i % every === 0) : true;
+			const sp = this.historyEl('span',
+				buckets[i].key === todayKey ? 'is-now' : '', axis, show ? buckets[i].label : '');
+			void sp;
+		}
+	}
+
+
+	// Straight to the History tab rather than to the report's first tab: a
+	// writer who put {history} on the bar asked for the history, and making
+	// them click through the note counts first would make the token pointless.
+	buildHistoryIndicator() {
+		return this.buildBarButton('zg-barbtn-history',
+			(node) => { node.textContent = 'History'; },
+			'Your writing history \u2014 click to open it',
+			() => this.openHistoryModal());
+	}
+
 	buildReportIndicator() {
 		return this.buildBarButton('zg-barbtn-report',
 			(node) => { node.textContent = 'Report'; },
-			'Text analysis \u2014 click for the full report',
+			'Word counts and more \u2014 click for the full report',
 			() => this.openReportModal());
 	}
 
@@ -6613,11 +8059,35 @@ module.exports = class WordSmith extends Plugin {
 		const nav  = modal.contentEl.createDiv({ cls: 'ws-tab-nav zg-report-nav' });
 		const body = modal.contentEl.createDiv({ cls: 'zg-report-body' });
 
+		// Two tabs, both about the text in front of you. The writing HISTORY is
+		// a different question asked over a different span, it needs three
+		// times the width to answer, and it does not depend on a file being
+		// open at all — so it has its own modal rather than a third tab here.
 		const TABS = [
 			{ id: 'note',   label: baseName   },
 			{ id: 'folder', label: folderName }
 		];
 		let active = 'note';
+
+		// The chain of folders above the note, root last. A manuscript is not
+		// one folder: it is scenes inside a chapter inside a part inside the
+		// book, and "how long is this chapter" and "how long is the book" are
+		// both real questions that the single active folder could not answer.
+		// The chain is offered as a breadcrumb inside the Folder tab, so the
+		// tab count does not grow with the depth of somebody's outline.
+		const chainOf = (p) => {
+			const out = [];
+			let cur = (p && p !== '/') ? p : '';
+			while (cur) {
+				out.push(cur);
+				const cut = cur.lastIndexOf('/');
+				cur = cut > 0 ? cur.slice(0, cut) : '';
+			}
+			out.push('/');
+			return out;
+		};
+		const chain = chainOf(folderPath);
+		let folderSel = chain[0] || '/';
 
 		const render = async () => { try {
 			nav.empty();
@@ -6628,6 +8098,25 @@ module.exports = class WordSmith extends Plugin {
 				});
 				btn.addEventListener('click', () => { active = tab.id; render(); });
 			}
+
+			// The way across to the history, on the right of the tab strip.
+			// NOT a third tab: the two on the left are two views of the same
+			// question — how long is this — and a control that leaves for a
+			// different window entirely should not be sitting in that row
+			// pretending to be a sibling of them. Pushed to the far end by
+			// margin-left: auto, which is what separates going somewhere from
+			// switching between what is already here.
+			const cross = nav.createEl('button', {
+				cls: 'ws-tab-btn zg-report-cross',
+				text: 'History \u2192'
+			});
+			cross.setAttribute('title',
+				'How much you have written each day \u2014 opens in its own window.');
+			cross.addEventListener('click', () => {
+				modal.close();
+				plugin.openHistoryModal();
+			});
+
 			body.empty();
 			body.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
 
@@ -6644,14 +8133,35 @@ module.exports = class WordSmith extends Plugin {
 				scope  = file.path;
 			} else {
 				if (!folderPath) { body.empty(); body.createDiv({ text: 'No folder.' }); return; }
-				stats  = await plugin.analyzeFolder(folderPath);
-				target = plugin.folderGoalFor(folderPath);
-				scope  = (folderPath === '/' ? 'Vault root' : folderPath)
+				stats  = await plugin.analyzeFolder(folderSel);
+				target = plugin.folderGoalFor(folderSel);
+				scope  = (folderSel === '/' ? 'Vault root' : folderSel)
 					+ ' \u2014 ' + stats.files + ' note' + (stats.files === 1 ? '' : 's');
 			}
 
 			// A tab switch mid-read must not paint stale numbers.
 			body.empty();
+
+			// Scene -> Chapter -> Part -> Book -> Vault, each one clickable.
+			// Nearest first, because that is the one you were just editing.
+			if (active === 'folder' && chain.length > 1) {
+				const crumbs = body.createDiv({ cls: 'zg-report-crumbs' });
+				chain.forEach((p, i) => {
+					if (i) crumbs.createSpan({ cls: 'zg-crumb-sep', text: '\u2039' });
+					const name = p === '/' ? 'Vault' : p.split('/').pop();
+					const btn = crumbs.createEl('button', {
+						cls: 'zg-crumb' + (p === folderSel ? ' is-active' : ''),
+						text: name
+					});
+					btn.setAttribute('title', p === '/' ? 'The whole vault' : p);
+					btn.addEventListener('click', () => {
+						if (p === folderSel) return;
+						folderSel = p;
+						render();
+					});
+				});
+			}
+
 			body.createDiv({ cls: 'zg-report-scope', text: scope });
 			body.createEl('hr', { cls: 'zg-report-rule' });
 
@@ -6670,12 +8180,12 @@ module.exports = class WordSmith extends Plugin {
 			} else {
 				const none = ringWrap.createDiv({ cls: 'zg-report-ring-label is-muted' });
 				none.createDiv({
-					text: active === 'note' ? 'No word goal set for this note.'
-						: 'No word goal set for this folder.'
+					text: active === 'note' ? 'No goal set for this note yet.'
+						: 'No goal set for this folder yet.'
 				});
 				none.createDiv({
 					cls: 'zg-report-hint',
-					text: 'Add one under Settings \u2192 Word-Smith \u2192 Writing Goals.'
+					text: 'You can set one under Settings \u2192 Word-Smith \u2192 Goals.'
 				});
 			}
 
@@ -6692,25 +8202,25 @@ module.exports = class WordSmith extends Plugin {
 			// gauge: it is a word count, and that is where a reader looks.
 			cell(target > 0 ? 'of ' + target.toLocaleString() + ' words' : 'Words',
 				stats.words.toLocaleString(),
-				'Prose only. Frontmatter, code blocks, math and link targets are not counted. '
-				+ 'Chinese and Japanese count per character; Korean counts by word.');
+				'Prose only \u2014 frontmatter, code blocks, maths and link targets don\u2019t count. '
+				+ 'Chinese and Japanese are counted per character, Korean by word.');
 			cell('Characters', stats.chars.toLocaleString(),
-				'Including spaces. Same exclusions as the word count.');
+				'Spaces included. Skips the same things the word count does.');
 			cell('Syllables',  stats.syllables.toLocaleString(),
-				'Counted heuristically \u2014 a handful of unusual words will be off, which the '
-				+ 'grade averages out.');
+				'A best guess \u2014 the odd unusual word gets counted wrong, but the reading '
+				+ 'grade below evens that out.');
 			cell('Sentences',  stats.sentences.toLocaleString(),
-				'Split on full stops, question marks and exclamation marks.');
+				'Anything ending in a full stop, question mark or exclamation mark.');
 			cell('Paragraphs', stats.paragraphs.toLocaleString(),
-				'Blocks of prose separated by a blank line. Lists, headings and code do not count.');
+				'Blocks of text with a blank line between them. Lists, headings and code don\u2019t count.');
 			cell('Pages',      (stats.pages || 0).toLocaleString(),
-				'At 250 words to a page, the manuscript convention.');
+				'At 250 words a page, which is the manuscript standard.');
 			cell('Read time',  plugin.formatReadTime(stats.words),
 				'At ' + READ_WPM + ' words a minute, set under '
 				+ 'Retro Bar \u2192 Token formats.');
 			cell('Grade',      stats.sentences ? stats.grade.toFixed(1) : '\u2014',
-				'Flesch\u2013Kincaid: roughly the years of schooling needed to read this '
-				+ 'comfortably. Under 9 reads easily.');
+				'Roughly how many years of school someone needs to read this comfortably. '
+				+ 'Under 9 is easy going.');
 
 		} catch (e) {
 			// An async renderer swallows its own exceptions; without this the
@@ -7135,6 +8645,70 @@ module.exports = class WordSmith extends Plugin {
 		} catch (_) { return ''; }
 	}
 
+	// Where the caret is in the note's OUTLINE, one slot per heading level.
+	//
+	// Obsidian's metadata cache already holds every heading with its level and
+	// line, so this costs a walk over a short array rather than a parse — and
+	// it is the same list the outline pane draws, so the bar can never disagree
+	// with it.
+	//
+	// The rule that makes it a trail rather than a list: a heading CLOSES every
+	// level deeper than itself. Walking down the file, an H2 clears whatever H3
+	// and H4 were set under the previous H2, so the six slots always describe
+	// one path from the top of the document rather than the last heading seen
+	// at each level anywhere in it.
+	headingTrail(view) {
+		const out = ['', '', '', '', '', ''];
+		try {
+			if (!view || !view.file || !view.editor || !view.editor.getCursor) return out;
+			const cache = this.app.metadataCache && this.app.metadataCache.getFileCache
+				? this.app.metadataCache.getFileCache(view.file) : null;
+			const heads = cache && cache.headings;
+			if (!heads || !heads.length) return out;
+			const line = view.editor.getCursor().line;
+			for (const h of heads) {
+				const at = h && h.position && h.position.start ? h.position.start.line : -1;
+				if (at < 0) continue;
+				// The cache is in document order, so the first heading past the
+				// caret ends the walk.
+				if (at > line) break;
+				const lv = Math.max(1, Math.min(6, h.level || 1));
+				out[lv - 1] = String(h.heading == null ? '' : h.heading);
+				for (let d = lv; d < 6; d++) out[d] = '';
+			}
+		} catch (_) { /* no cache yet for a note just created */ }
+		return out;
+	}
+
+	// How many OTHER notes link here. Distinct notes, not link instances: a
+	// note that mentions this one four times is one note that points at you,
+	// which is what the backlinks pane counts and what the reading means.
+	//
+	// resolvedLinks is a map of the whole vault, so this is a walk over every
+	// note — cheap enough once, ruinous at the bar's update rate. Cached
+	// against the path and a generation the metadata cache bumps, so it is
+	// recomputed when the links actually change and not on every keystroke.
+	getBacklinkCount(view) {
+		try {
+			const f = view && view.file ? view.file : null;
+			if (!f || !f.path) return '';
+			const gen = this._linkGen || 0;
+			const hit = this._backlinkCache;
+			if (hit && hit.path === f.path && hit.gen === gen) return hit.text;
+			const resolved = (this.app.metadataCache && this.app.metadataCache.resolvedLinks) || {};
+			let n = 0;
+			for (const src of Object.keys(resolved)) {
+				// A note linking to itself is not a backlink to itself.
+				if (src === f.path) continue;
+				const targets = resolved[src];
+				if (targets && targets[f.path]) n++;
+			}
+			const text = String(n);
+			this._backlinkCache = { path: f.path, gen, text };
+			return text;
+		} catch (_) { return ''; }
+	}
+
 	// Integers shown to the reader get thousands separators. Centralised so
 	// the bar, the sidebar counts and the report cannot drift apart on it,
 	// and locale-driven rather than comma-hardcoded. Guarded: a NaN slipping
@@ -7314,6 +8888,7 @@ module.exports = class WordSmith extends Plugin {
 		}
 
 		const dp = this.dateParts(now);
+		const hTrail = this.headingTrail(view);
 		const subs = {
 			'{file}':      this.getFilePath(view),
 			// Grouped, so a five-figure manuscript reads as 12,480 rather
@@ -7339,6 +8914,17 @@ module.exports = class WordSmith extends Plugin {
 			// Built below rather than listed here, because the token's name
 			// carries its own argument and there is no fixed set of them.
 			'{ln:col}':    this.getLineColumn(view),
+			'{backlinks}': this.getBacklinkCount(view),
+			// {#} through {######}: the heading the caret sits under at each
+			// level, and {#>} for the whole trail. Listed rather than built,
+			// because six is a fixed set — markdown has no seventh level.
+			'{#}':         hTrail[0],
+			'{##}':        hTrail[1],
+			'{###}':       hTrail[2],
+			'{####}':      hTrail[3],
+			'{#####}':     hTrail[4],
+			'{######}':    hTrail[5],
+			'{#>}':        hTrail.filter(Boolean).join(' \u203a '),
 			'{caps}':      this._capsLockOn ? '\x00CAPS\x00' : '',
 			'{num}':       this._numLockOn  ? '\x00NUM\x00'  : '',
 			'{vim}':       this.getVimModeLabel(),
@@ -7353,6 +8939,7 @@ module.exports = class WordSmith extends Plugin {
 			'{writechecks}': '\x00WRITECHECKS\x00',
 			'{font}':      '\x00FONT\x00',
 			'{report}':    '\x00REPORT\x00',
+			'{history}':   '\x00HISTORY\x00',
 			'{readtime}':  this.formatReadTime(totalWC)
 		};
 
@@ -8294,6 +9881,7 @@ module.exports = class WordSmith extends Plugin {
 			WRITECHECKS: () => this.buildWriteChecksIndicator(),
 			FONT:     () => this.buildFontIndicator(),
 			REPORT:   () => this.buildReportIndicator(),
+			HISTORY:  () => this.buildHistoryIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
 			NUM:      () => this.buildNumIndicator(),
 			CLOCK:    () => this.buildClockFace(),
@@ -8301,7 +9889,7 @@ module.exports = class WordSmith extends Plugin {
 		};
 		// \x00 cannot appear in a note or a format string, so the split is
 		// unambiguous. Odd indices are the captured sentinel names.
-		const parts = out.split(/\x00(GOAL|FOLDERGOAL|FILEGOAL|MODE|SYNTAX|MARKERS|WRITECHECKS|FONT|REPORT|CAPS|NUM|CLOCK|OBSIDIAN|SP:\d+|GR:\d+)\x00/);
+		const parts = out.split(/\x00(GOAL|FOLDERGOAL|FILEGOAL|MODE|SYNTAX|MARKERS|WRITECHECKS|FONT|REPORT|HISTORY|CAPS|NUM|CLOCK|OBSIDIAN|SP:\d+|GR:\d+)\x00/);
 		for (let i = 0; i < parts.length; i++) {
 			const chunk = parts[i];
 			if (!chunk) continue;
@@ -8362,13 +9950,44 @@ module.exports = class WordSmith extends Plugin {
 		}
 	}
 
+	// A MICROTASK, not an animation frame — and that one word is the whole
+	// fix for the bar flickering on every keystroke.
+	//
+	// updateRetroStatusBar rebuilds the row synchronously: every token back,
+	// every cap back, the file path back to its full length. The fit pass then
+	// takes the width away again. Scheduling that pass with requestAnimationFrame
+	// put a PAINT between the two, so on any window narrow enough for the fit
+	// to actually cut something — sidebars open, a small window — every
+	// keystroke painted one frame of the over-full bar before the fitted one.
+	// That is the flash, and it looked like the bar trying to wrap itself
+	// because that is very nearly what it was doing: the row overflowing its
+	// sections for exactly one frame.
+	//
+	// A microtask runs after the current task and BEFORE the frame is painted,
+	// so the rebuild and the fit land in the same paint and the over-full state
+	// is never on screen. Measurement is available immediately either way:
+	// getBoundingClientRect forces layout on demand, and never needed a frame
+	// to become accurate — the frame only ever delayed it.
+	//
+	// The rAF path stays for the case it was really protecting: a bar with no
+	// layout box yet (first build, mid-teardown, hidden pane), where
+	// clientWidth is 0 and fitStatusRow would bail out anyway. There it costs
+	// nothing to wait, and waiting is what makes the first paint correct.
 	scheduleFit() {
 		if (this._fitPending) return;
 		this._fitPending = true;
-		const run = () => { this._fitPending = false; this.fitStatusBarText(); };
+		const run = () => {
+			if (!this._fitPending) return;
+			this._fitPending = false;
+			this.fitStatusBarText();
+		};
 		// Guarded: this is called from stampMaskPositions among others, and
-		// an exception here would take mask placement down with it. Any
-		// context without rAF just measures on a timer instead.
+		// an exception here would take mask placement down with it.
+		const el = this.retroStatusBarEl;
+		if (el && el.clientWidth && typeof Promise !== 'undefined') {
+			Promise.resolve().then(run).catch(() => { this._fitPending = false; });
+			return;
+		}
 		if (typeof window !== 'undefined' && window.requestAnimationFrame) {
 			window.requestAnimationFrame(run);
 		} else {
@@ -10422,7 +12041,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// ── Master on/off ──────────────────────────────────────────────────────
 		new Setting(containerEl)
 			.setName('Enable Word-Smith')
-			.setDesc('Master switch.')
+			.setDesc('Turns everything below on or off.')
 			.addToggle(t => t.setValue(this.plugin.settings.pluginEnabled)
 				.onChange(async v => {
 					this.plugin.settings.pluginEnabled = v;
@@ -10446,13 +12065,20 @@ class WordSmithSettingTab extends PluginSettingTab {
 			{ id: 'letterbox',  label: 'Letter Box',   render: this.displayLetterboxSection },
 			{ id: 'typewriter', label: 'Typewriter',   render: this.displayTypewriterTab },
 			{ id: 'hemingway',  label: 'Hemingway',    render: this.displayHemingwayTab },
-			{ id: 'goals',      label: 'Writing Goals', render: this.displayGoalsTab },
 			{ id: 'syntax',     label: 'Syntax',       render: this.displaySyntaxTab },
 			{ id: 'checks',     label: 'Prose Checks', render: this.displayChecksTab },
 			{ id: 'text',       label: 'Text Options', render: this.displayTextTab },
 			{ id: 'typography', label: 'Typography',   render: this.renderTypographySection },
-			{ id: 'vim',        label: 'Vim',          render: this.displayVimTab },
-			{ id: 'misc',       label: 'Misc',         render: this.displayMiscTab }
+			// Goals and History sit together and last-but-two: they are about
+			// what you are writing rather than how the editor looks, and the
+			// two of them read as a pair.
+			{ id: 'goals',      label: 'Goals',        render: this.displayGoalsTab },
+			{ id: 'history',    label: 'History',      render: this.displayHistoryTab },
+			{ id: 'misc',       label: 'Misc',         render: this.displayMiscTab },
+			// Vim last. It is the one tab most people will never open, and a
+			// tab nobody opens belongs at the end rather than in the middle of
+			// the ones they do.
+			{ id: 'vim',        label: 'Vim',          render: this.displayVimTab }
 		];
 		if (!this._activeTab || !TABS.some(t => t.id === this._activeTab)) this._activeTab = TABS[0].id;
 
@@ -10566,7 +12192,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// together. The Z badge in the bar toggles this.
 		new Setting(containerEl)
 			.setName('Zen')
-			.setDesc('Hide chrome, collapse sidebars.')
+			.setDesc('Clears everything away but your words.')
 			.addToggle(t => t.setValue(this.plugin.settings.zenEnabled)
 				.onChange(async v => {
 					// One switch moves both flags. A separate "Focus mode"
@@ -10585,31 +12211,31 @@ class WordSmithSettingTab extends PluginSettingTab {
 		{
 			const z = this.sub(containerEl);
 
-			this.toggle(z, 'Full screen', 'Enter fullscreen with zen mode.', 'fullscreen');
+			this.toggle(z, 'Full screen', 'Go fullscreen whenever you enter zen.', 'fullscreen');
 
 			this.toggle(z, 'Match the title bar',
 				'Paint it to match the editor.'
 				+ 'Needs Obsidian\u2019s own window frame \u2014 a native OS title bar cannot be styled.',
 				'zenTitlebarMatch');
 
-			this.toggle(z, 'Focused file mode', 'Hide all other panes.', 'focusedFileMode');
+			this.toggle(z, 'Focused file mode', 'Hides every other pane so only this note is open.', 'focusedFileMode');
 
 			this.label(z, 'Hide in zen mode');
 			const hide = this.sub(z);
 			this.toggle(hide, 'Properties',       'Properties and frontmatter.',   'hideProperties');
 			this.toggle(hide, 'Inline title',      'The title above the note.',            'hideInlineTitle');
-			this.toggle(hide, 'Native status bar', 'The retro bar hides it anyway while active.', 'hideStatusBar');
-			this.toggle(hide, 'Linked mentions',   'The panel below the note.',            'hideLinkedMentions');
+			this.toggle(hide, 'Native status bar', 'The retro bar covers it anyway while it\u2019s on.', 'hideStatusBar');
+			this.toggle(hide, 'Linked mentions',   'The list of links at the bottom of a note.',            'hideLinkedMentions');
 			this.toggle(hide, 'Scroll bar',        'The editor scroll bar. The letterbox hides it '
 				+ 'regardless \u2014 it runs straight past both masks.', 'hideScrollBar');
-			this.toggle(hide, 'Ribbon',            'The left ribbon.',               'hideRibbon');
+			this.toggle(hide, 'Ribbon',            'The strip of icons down the left.',               'hideRibbon');
 			// The one thing in this list that belongs to this plugin rather
 			// than to Obsidian. It sits here anyway: from the writer's side
 			// "what does zen hide" is one question, and splitting it by whose
 			// element each one is would be an implementation detail on
 			// display. saveSettings(true) because the bar has to move now,
 			// not on the next debounce.
-			this.toggle(hide, 'Retro bar',         'The bar this plugin draws.',
+			this.toggle(hide, 'Retro bar',         'The one this plugin draws.',
 				'zenHideBar', () => this.plugin.saveSettings(true));
 			if (this.plugin.settings.zenHideBar) {
 				this.slider(this.sub(hide), 'Bring it back on hover',
@@ -10642,7 +12268,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayTypewriterTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Typewriter mode')
-			.setDesc('Keep the cursor line centred.')
+			.setDesc('Keeps the line you\u2019re writing in the middle of the screen.')
 			.addToggle(t => t.setValue(this.plugin.settings.enableTypewriter)
 				.onChange(async v => {
 					this.plugin.settings.enableTypewriter = v;
@@ -10657,12 +12283,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			// ── Current line highlight ─────────────────────────────────────────
 			this.label(tw, 'Current line highlight');
-			this.toggle(tw, 'Highlight current line', 'Tint the line the cursor is on.', 'highlightCurrentLine', () => this.display());
+			this.toggle(tw, 'Highlight current line', 'Puts a soft tint behind whichever line you\u2019re on.', 'highlightCurrentLine', () => this.display());
 			if (this.plugin.settings.highlightCurrentLine) {
 				const hl = this.sub(tw);
 				new Setting(hl).setName('Dark theme color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineHighlightDarkColor).onChange(async v => { this.plugin.settings.lineHighlightDarkColor = v; await this.plugin.saveSettings(); }));
 				new Setting(hl).setName('Light theme color').addColorPicker(cp => cp.setValue(this.plugin.settings.lineHighlightLightColor).onChange(async v => { this.plugin.settings.lineHighlightLightColor = v; await this.plugin.saveSettings(); }));
-				this.slider(hl, 'Opacity', 'How strong the tint is.', 'lineHighlightOpacity', 0.05, 1, 0.05);
+				this.slider(hl, 'Opacity', 'How strong that tint is.', 'lineHighlightOpacity', 0.05, 1, 0.05);
 			}
 
 			// ── Cursor position ─────────────────────────────────────────────────
@@ -10674,7 +12300,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			// ── Focus dimming ────────────────────────────────────────────────────
 			this.label(tw, 'Focus dimming');
-			this.toggle(tw, 'Dim unfocused text', 'Fade text outside the focus area.', 'dimUnfocusedEnabled', () => this.display());
+			this.toggle(tw, 'Dim unfocused text', 'Fades everything outside the lines you\u2019re working on.', 'dimUnfocusedEnabled', () => this.display());
 			if (this.plugin.settings.dimUnfocusedEnabled) {
 				const dim = this.sub(tw);
 				new Setting(dim).setName('Focus area')
@@ -10683,11 +12309,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 						.addOption('sentence',  'Sentence')
 						.setValue(this.plugin.settings.dimFocusMode || 'paragraph')
 						.onChange(async v => { this.plugin.settings.dimFocusMode = v; await this.plugin.saveSettings(); }));
-				this.slider(dim, 'Opacity', 'How faded.', 'dimOpacity', 0.05, 1, 0.05);
+				this.slider(dim, 'Opacity', 'How much it fades.', 'dimOpacity', 0.05, 1, 0.05);
 			}
 		} else {
 			containerEl.createEl('p', {
-				text: 'The letterbox masks need typewriter mode active.',
+				text: 'The masks need typewriter mode switched on to work.',
 				cls: 'ws-settings-note'
 			});
 		}
@@ -10697,7 +12323,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayLetterboxSection(containerEl) {
 		new Setting(containerEl)
 			.setName('Letterbox')
-			.setDesc('Masks framing the writing area.')
+			.setDesc('Dims the top and bottom of the screen so you only see what you\u2019re working on.')
 			.addToggle(t => t.setValue(this.plugin.settings.enableLetterbox)
 				.onChange(async v => {
 					this.plugin.settings.enableLetterbox = v;
@@ -10708,7 +12334,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.enableLetterbox) {
 			const ls = this.sub(containerEl);
 
-			new Setting(ls).setName('Mask height (px)').setDesc('Drag the separator to adjust live.')
+			new Setting(ls).setName('Mask height (px)').setDesc('Or just drag the edge of the mask itself.')
 				.addSlider(s => s.setLimits(0, 400, 4)
 					.setValue(this.plugin.settings.letterboxPx != null
 						? Math.round(this.plugin.settings.letterboxPx)
@@ -10716,9 +12342,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 					.setDynamicTooltip()
 					.onChange(async v => { this.plugin.settings.letterboxPx = v; await this.plugin.saveSettings(); }));
 
-			this.slider(ls, 'Horizontal inset', 'Drag the arrow row to adjust live.', 'maskPaddingH', 0, 400, 10);
+			this.slider(ls, 'Horizontal inset', 'Or drag the row of arrows itself.', 'maskPaddingH', 0, 400, 10);
 
-			new Setting(ls).setName('Show arrows').setDesc('Along the mask edges.')
+			new Setting(ls).setName('Show arrows').setDesc('Little arrows along the edge of each mask.')
 				.addToggle(t => t.setValue(this.plugin.settings.arrowCount > 0)
 					.onChange(async v => {
 						if (!v) this._lastArrowCount = this.plugin.settings.arrowCount || 5;
@@ -10743,9 +12369,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 					new Setting(as).setName('Bottom char').addText(t => t.setValue(this.plugin.settings.customArrowBottom).onChange(async v => { this.plugin.settings.customArrowBottom = v || 'v'; await this.plugin.saveSettings(); }));
 				}
 				this.numInput(as, 'Arrow count', '1–10 per row.', 'arrowCount', 1, 10);
-				this.slider(as, 'Arrow scale', 'Size multiplier.', 'arrowScale', 0.5, 3, 0.1);
+				this.slider(as, 'Arrow scale', 'Bigger or smaller.', 'arrowScale', 0.5, 3, 0.1);
 				this.toggle(as, 'Cap the line ends',
-					'An arrow at each end of the line.',
+					'Puts an arrow on each end of the line.',
 					'arrowLineEnds');
 			}
 
@@ -10768,7 +12394,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// be touched to add the toggle.
 			this.label(ls, 'Colours');
 			this.toggle(ls, 'Custom colours',
-				'Off, the arrows and lines take your theme\u2019s text colour.',
+				'Leave this off and they borrow your theme\u2019s text colour.',
 				'letterboxCustomColors', () => this.display());
 			if (this.plugin.settings.letterboxCustomColors) {
 				this.renderArrowColors(ls);
@@ -10785,7 +12411,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// language, and | :: {s} need their characters told apart.
 	renderFormatReference(containerEl) {
 		const box = containerEl.createEl('details', { cls: 'ws-token-help' });
-		box.createEl('summary', { text: 'Format reference \u2014 tokens, colours, dividers, fades' });
+		box.createEl('summary', { text: 'How to write a row \u2014 what you can put in, and how to colour it' });
 		const H = (t) => box.createEl('p', { cls: 'ws-help-h', text: t });
 		const L = (code, gloss) => {
 			const row = box.createEl('div', { cls: 'ws-help-line' });
@@ -10793,54 +12419,67 @@ class WordSmithSettingTab extends PluginSettingTab {
 			if (gloss) row.createEl('span', { cls: 'ws-help-gloss', text: gloss });
 		};
 
-		H('Readings \u2014 live text');
-		L('{file}', 'note name, or its path \u2014 per the token format below');
-		L('{words} {chars}', 'counts; a selection counts itself while one exists');
-		L('{ln:col} {paragraph}', 'caret position; paragraph N of M');
-		L('{readtime}', 'minutes at 200 wpm');
-		L('{time} {clock}', 'the time as text, or as a drawn dial');
-		L('{dd} {mm} {yyyy} {yy}', 'date parts \u2014 compose them with any separator');
-		L('{battery} {caps} {num}', 'battery; CAPS and NUM badges, shown only while on');
-		L('{vim} {mode}', 'the vim mode label; the editing-mode button');
-		L('{obsidian}', 'a tiny Obsidian crystal, drawn in the segment\u2019s ink');
+		H('Readings \u2014 they update as you write');
+		L('{file}', 'the note\u2019s name, or its folders too \u2014 you choose above');
+		L('{words} {chars}', 'how much is in the note, or in your selection');
+		L('{ln:col} {paragraph}', 'which line and column you\u2019re on; which paragraph of how many');
+		L('{readtime}', 'how long the note takes to read');
+		L('{backlinks}', 'how many other notes link to this one');
+		L('{time} {clock}', 'the time, written out or drawn as a little dial');
+		L('{dd} {mm} {yyyy} {yy}', 'the date, a piece at a time \u2014 join them however you like');
+		L('{battery} {caps} {num}', 'battery; CAPS and NUM, which show only when they\u2019re on');
+		L('{vim} {mode}', 'which Vim mode you\u2019re in; a button to switch editing mode');
+		L('{obsidian}', 'a small Obsidian crystal, in whatever colour the segment is');
 
-		H('Buttons \u2014 they act, and are never dropped when the bar narrows');
-		L('{syntax} {prose} {markers} {font} {report}');
+		H('Headings \u2014 where you are in the note');
+		L('{#} {##} {###}', 'the heading above your cursor, at that level');
+		L('{####} {#####} {######}', 'and the three deeper ones');
+		L('{#>}', 'the whole path: Chapter \u203a Scene \u203a Beat');
+		L('', 'Each heading clears the ones below it, so you always get one');
+		L('', 'path down the note. Empty above the first heading, and empty');
+		L('', 'at any level your cursor isn\u2019t inside.');
+
+		H('Buttons \u2014 you can click these, and they never get dropped');
+		L('{syntax} {prose} {markers} {font} {report} {history}');
 
 		H('Spacers');
-		L('{s} {ss} {sss}\u2026', 'a quarter-space per s \u2014 empty room, nothing more');
-		L('{s}:N', 'a solid coloured sliver \u2014 edge shading beside a segment');
+		L('{s} {ss} {sss}\u2026', 'blank space \u2014 a quarter of a space for each s');
+		L('{s}:N', 'the same, but filled with colour N \u2014 a sliver beside a segment');
 
-		H('Dividers (powerline) \u2014 the character IS the shape');
-		L('>  <  |  )  (  ~  /  \\', 'arrow, straight, round, wave, the two angle cuts');
-		L('\\|', 'escapes a divider \u2014 a literal pipe in the text');
-		L('<{file} \u2026 {words}>', 'at the very start or end, < and > face the point');
+		H('Dividers \u2014 the character you type is the shape you get');
+		L('>  <  |  )  (  ~  /  \\', 'arrow, straight line, curve, wave, and two slanted cuts');
+		L('\\|', 'a backslash first gives you a real | in the text');
+		L('<{file} \u2026 {words}>', 'at the very start or end, < and > point outwards');
 
-		H('Segment colours');
-		L('{words}:N', 'background N (1\u2013' + PL_BG_COUNT + ', wraps)');
-		L('{words}:N;M', ';M picks text M (1\u2013' + PL_TEXT_COUNT + '); otherwise the ink derives itself');
-		L('{ln:col}:vim', 'follows the live mode \u2014 a {vim} segment does this on its own');
-		L('{words};vim', 'the TEXT follows the mode \u2014 alone, or beside any :N');
-		L('{file};t1  {file};t2', 'the theme\u2019s normal / muted text \u2014 :b1/:b2\u2019s twins');
-		L('{file}:b1   {file}:b2', 'the theme\u2019s page / panel colour \u2014 a segment that melts into the bar');
+		H('Colouring one segment');
+		L('{words}:N', 'background colour N (1\u2013' + PL_BG_COUNT + ' \u2014 higher numbers start again at 1)');
+		L('{words}:N;M', 'add ;M to pick the text colour too (1\u2013' + PL_TEXT_COUNT + ')');
+		L('', 'Leave the ; off and the text picks itself, light or dark,');
+		L('', 'so it stays readable on whatever background you chose.');
+		L('{words};vim', 'the text takes the colour of the Vim mode you\u2019re in');
+		L('{ln:col}:vim', 'the background does \u2014 a {vim} segment already does this');
+		L('{file}:b1   {file}:b2', 'your theme\u2019s page and panel colours \u2014 a segment that');
+		L('', 'blends into the bar instead of standing out from it');
+		L('{file};t1  {file};t2', 'and your theme\u2019s normal and faded text, to match');
 
-		H('The bar itself \u2014 at the very START of row 1\u2019s left slot');
-		L(':b1 :b2 :N :vim', 'the bar\u2019s own background \u2014 theme surface, palette, or live mode');
-		L(';t1 ;t2 ;N ;vim', 'its text \u2014 normal, muted, palette, or the live mode');
-		L(':3;2 {file}\u2026', 'both at once. With :N or :vim and no ; the ink derives itself');
+		H('Colouring the bar itself \u2014 put this first, in row 1\u2019s left slot');
+		L(':b1 :b2 :N :vim', 'the bar\u2019s background: a theme colour, one of yours, or the Vim mode');
+		L(';t1 ;t2 ;N ;vim', 'and its text, the same four ways');
+		L(':3;2 {file}\u2026', 'both together. Leave the ; off and the text picks itself.');
 
-		H('Fades \u2014 the stepped degrad\u00e9, written with {g}');
-		L('| {g}{g}{g} |', 'bands stepping between the neighbours\u2019 colours');
-		L('', 'one band per token \u2014 {g}{g}{g} is three steps, {ggg} one wide one');
-		L('\u2026 | {g}{g}', 'at a group\u2019s end it fades into the bar itself');
-		L('> {g}>{g}>{g} >', 'dividers between {g} keep their shape \u2014 arrows, curves,');
-		L('', 'waves or cuts drawn through one continuous gradient');
+		H('Fades \u2014 a colour stepping into the next, written with {g}');
+		L('| {g}{g}{g} |', 'steps between the colours either side of it');
+		L('', 'One step per {g}: {g}{g}{g} is three narrow ones,');
+		L('', '{ggg} is one wide one.');
+		L('\u2026 | {g}{g}', 'at the end of a group it fades out into the bar');
+		L('> {g}>{g}>{g} >', 'dividers in the middle of a fade keep their shape \u2014 arrows,');
+		L('', 'curves, waves or cuts, cut out of one continuous fade');
 
-		H('Soft marks \u2014 inside one segment, in its own colour');
-		L('::', 'a short hairline');
-		L('>>  <<', 'full-height chevrons, matching the arrows\u2019 angle');
+		H('Marks inside a segment \u2014 drawn in that segment\u2019s own colour');
+		L('::', 'a short thin line');
+		L('>>  <<', 'tall chevrons, at the same angle as the arrows');
 
-		H('Example rows');
+		H('Two rows to copy and pull apart');
 		L(':vim {vim} > {file} :: {ln:col}');
 		L('{file}:3 | {g}{g}{g}{g} | {words}:5 ) {readtime}');
 	}
@@ -10849,7 +12488,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayRetroBarTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Retro status bar')
-			.setDesc('Replaces Obsidian\u2019s status bar with one you compose.')
+			.setDesc('Swaps Obsidian\u2019s status bar for one you put together yourself.')
 			.addToggle(t => t.setValue(this.plugin.settings.enableRetroStatus)
 				.onChange(async v => {
 					this.plugin.settings.enableRetroStatus = v;
@@ -10871,7 +12510,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const s0 = this.plugin.settings;
 			new Setting(rb)
 				.setName('Powerline segments')
-				.setDesc('Draw each group as a coloured block, with a shaped join between them.')
+				.setDesc('Draws each group as a coloured block, with a shaped join between them.')
 				.addToggle(t => t.setValue(s0.powerlineEnabled)
 					.onChange(async v => {
 						s0.powerlineEnabled = v;
@@ -10891,8 +12530,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 				// is on, and keeping half the grammar inside it meant the
 				// reference lost that half whenever the toggle was off.
 				pw.createEl('p', {
-					text: 'How to write rows \u2014 dividers, :N colours, fades, soft marks \u2014 '
-						+ 'is all under \u201CFormat reference\u201D below.',
+					text: 'Everything about writing rows \u2014 dividers, colours, fades \u2014 is under '
+						+ '\u201CFormat reference\u201D further down.',
 					cls: 'ws-settings-note'
 				});
 			}
@@ -10951,28 +12590,28 @@ class WordSmithSettingTab extends PluginSettingTab {
 					this.display();
 				});
 			if (!s0.statusBarFontFollowNote) {
-				this.slider(ap, 'Font size', 'Type size throughout the bar.',
+				this.slider(ap, 'Font size', 'Text size for the whole bar.',
 					'statusBarFontSize', 8, 24, 1);
 			}
-			this.slider(ap, 'Row height', 'Height of a single row.',
+			this.slider(ap, 'Row height', 'How tall one row is.',
 				'statusBarHeight', 12, 30, 1);
-			this.slider(ap, 'Space above', 'Between the top edge and the first row.',
+			this.slider(ap, 'Space above', 'Gap above the first row.',
 				'statusBarPadTop', 0, 24, 1);
-			this.slider(ap, 'Space below', 'Between the last row and the bottom edge.',
+			this.slider(ap, 'Space below', 'Gap below the last row.',
 				'statusBarPadBottom', 0, 24, 1);
 
 			this.label(ap, 'Borders');
 			const bd = this.sub(ap);
 			bd.createEl('p', {
-				text: 'A rule along the bar\u2019s top and bottom edges. Each edge can be '
-					+ 'turned off on its own; the style and weight apply to both.',
+				text: 'A line along the top and bottom of the bar. You can switch either edge off '
+					+ 'on its own, but the style and thickness apply to both.',
 				cls: 'ws-settings-note'
 			});
-			this.toggle(bd, 'Top rule', 'Draw it above the rows.',
+			this.toggle(bd, 'Top rule', 'A line across the top.',
 				'statusBarBorderTop', () => this.plugin.saveSettings(true));
-			this.toggle(bd, 'Bottom rule', 'Draw it below the rows.',
+			this.toggle(bd, 'Bottom rule', 'And one across the bottom.',
 				'statusBarBorderBottom', () => this.plugin.saveSettings(true));
-			new Setting(bd).setName('Line style').setDesc('None removes both edges at once.')
+			new Setting(bd).setName('Line style').setDesc('Pick \u201cNone\u201d to drop both edges at once.')
 				.addDropdown(d => d
 					.addOption('none',   'None')
 					.addOption('solid',  'Solid')
@@ -10988,7 +12627,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 						this.display();
 					}));
 			if ((this.plugin.settings.statusBarBorderStyle || 'solid') !== 'none') {
-				this.slider(bd, 'Line weight', 'Thickness of the rule.',
+				this.slider(bd, 'Line weight', 'How thick those lines are.',
 					'statusBarBorderWidth', 1, 8, 1);
 			}
 
@@ -11002,7 +12641,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			rb.createEl('hr', { cls: 'ws-settings-hr' });
 			this.label(rb, 'Token formats');
 			const tf = this.sub(rb);
-			new Setting(tf).setName('{file}').setDesc('How much of the note\u2019s location to show.')
+			new Setting(tf).setName('{file}').setDesc('Just the name, or the folders it sits in as well.')
 				.addDropdown(d => d
 					.addOption('path', 'Full path  ~/folder/note')
 					.addOption('name', 'File name only  note')
@@ -11028,13 +12667,13 @@ class WordSmithSettingTab extends PluginSettingTab {
 			rb.createEl('hr', { cls: 'ws-settings-hr' });
 			this.label(rb, 'Colours');
 			rb.createEl('p', {
-				text: 'Every colour here has a dark and a light variant. Word-Smith '
-					+ 'switches between them with your theme.',
+				text: 'Every colour here comes in a dark and a light version, and Word-Smith '
+					+ 'swaps between them when your theme does.',
 				cls: 'ws-settings-note'
 			});
 
 			this.toggle(rb, 'Custom bar colours',
-				'Pick the bar\u2019s own background and text. Off, it follows your theme.',
+				'Choose the bar\u2019s background and text yourself. Off, it follows your theme.',
 				'retroCustomColors', () => this.display());
 			if (this.plugin.settings.retroCustomColors) this.renderBarThemeColors(rb);
 		}
@@ -11055,7 +12694,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		new Setting(box)
 			.setName('Save this bar as a preset')
-			.setDesc('Name it and press Save. Reusing a name overwrites that preset.')
+			.setDesc('Give it a name and press Save. Same name again replaces the old one.')
 			.addText(t => {
 				t.setPlaceholder('My bar');
 				t.setValue(plugin._pendingBarPresetName);
@@ -11078,8 +12717,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 		let importCode = '';
 		new Setting(box)
 			.setName('Import a preset')
-			.setDesc('Paste someone else\u2019s code. It joins the list below \u2014 nothing changes '
-				+ 'until you press Load.')
+			.setDesc('Paste a code someone sent you. It just joins the list below \u2014 nothing '
+				+ 'changes until you press Load.')
 			.addText(t => {
 				t.setPlaceholder('Paste code here\u2026');
 				t.onChange(v => { importCode = v.trim(); });
@@ -11102,7 +12741,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const names = Object.keys(presets);
 		if (names.length === 0) {
 			box.createEl('p', {
-				text: 'No presets yet. Compose a bar below, then save it above.',
+				text: 'Nothing saved yet. Build a bar below, then save it up here.',
 				cls: 'ws-settings-note'
 			});
 			return;
@@ -11202,12 +12841,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const cs = this.plugin.cursorSmithSettings();
 		if (cs && cs.vimModeEnabled && this.plugin.settings.vimFollowCursorSmith !== false) {
 			vl.createEl('p', {
-				text: 'Cursor-Smith is driving these colours. Switch it off below to use your own.',
+				text: 'Cursor-Smith is picking these at the moment. Switch it off below to choose your own.',
 				cls: 'ws-settings-note'
 			});
 		}
 		this.toggle(vl, 'Follow Cursor-Smith',
-			'Take its caret colours instead of the five below.',
+			'Borrow its caret colours instead of picking the five below.',
 			'vimFollowCursorSmith', () => this.plugin.saveSettings(true));
 
 		for (const [key, name, dflt, colorKey] of [
@@ -11278,7 +12917,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 	renderBarThemeColors(root) {
 		const b = this.sub(root);
-		b.createEl('p', { text: 'Background, then text \u2014 the swatch order matches the label.',
+		b.createEl('p', { text: 'Background first, then text \u2014 same order as the label.',
 			cls: 'ws-settings-note' });
 		this.bgTextRow(b, 'Dark theme',  '', 'retroDarkBgColor',  'retroDarkTextColor');
 		this.bgTextRow(b, 'Light theme', '', 'retroLightBgColor', 'retroLightTextColor');
@@ -11292,7 +12931,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.label(root, 'Arrows and separator lines');
 		const a = this.sub(root);
 		a.createEl('p', {
-			text: 'Each has a dark and a light variant; Word-Smith switches with your theme.',
+			text: 'Each one has a dark and a light version. Word-Smith swaps with your theme.',
 			cls: 'ws-settings-note'
 		});
 		pick(a, 'Arrows \u2014 dark theme',  'arrowDarkColor');
@@ -11317,8 +12956,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 			}
 		};
 		root.createEl('p', {
-			text: 'Each slot has a dark and a light swatch. Word-Smith uses whichever '
-				+ 'matches your theme, so the same row of tokens reads correctly in both.',
+			text: 'Each slot has a dark swatch and a light one. Word-Smith picks whichever suits '
+				+ 'your theme, so the same row reads properly either way.',
 			cls: 'ws-settings-note'
 		});
 		// Dark first in both pairs, because the dark set is the original —
@@ -11339,23 +12978,178 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// place, with the context that makes a colour choice meaningful.
 	}
 
-	// ── Writing Goals tab ────────────────────────────────────────────────────
+	// ── Goals tab ────────────────────────────────────────────────────────────
 	displayGoalsTab(containerEl) {
 		containerEl.createEl('p', {
-			text: 'A note target and a folder target. Progress shows on the bar\u2019s edges and in the report.',
+			text: 'Give a note or a folder a word count to aim for. You\u2019ll see how close you '
+				+ 'are on the bar and in the report.',
 			cls: 'ws-settings-note'
 		});
+
+		// FIRST, not last. It is the thing this tab is FOR — the targets below
+		// are how you configure it — and it had been sitting under a screen of
+		// configuration, which is the wrong way round for the one control here
+		// that a writer presses daily rather than once.
+		new Setting(containerEl).setName('Report')
+			.setDesc('Word and character counts, reading level, and how your goals are going.')
+			.addButton(b => b.setButtonText('Open report')
+				.onClick(() => this.plugin.openReportModal()));
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
 		this.label(containerEl, 'Targets');
 		const g = this.sub(containerEl);
 		this.renderGoalList(g, 'file',   'File goals',   'Add note');
 		this.renderGoalList(g, 'folder', 'Folder goals', 'Add folder');
 
-		new Setting(containerEl).setName('Report')
-			.setDesc('Counts, readability and goal progress.')
-			.addButton(b => b.setButtonText('Open report')
-				.onClick(() => this.plugin.openReportModal()));
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+		this.label(containerEl, 'Recommended use');
+		const rec = this.sub(containerEl);
+		rec.createEl('p', {
+			text: 'A folder goal counts everything inside it, however deep. So if your book is '
+				+ 'folders inside folders, you can set a target at every level at once.',
+			cls: 'ws-settings-note'
+		});
+		const eg = rec.createEl('ul', { cls: 'ws-settings-note zg-goal-eg' });
+		[
+			['My Book/', '90,000 \u2014 the whole thing. The only number that says whether you\u2019re done.'],
+			['My Book/Part One/', '30,000 \u2014 a part. This is the one that warns you it\u2019s bloating.'],
+			['My Book/Part One/Ch 03/', '4,000 \u2014 a chapter. Small enough to finish in a sitting or two.'],
+			['My Book/Part One/Ch 03/Scene 2.md', '900 \u2014 a single note, for a scene you can already see.']
+		].forEach(([path, why]) => {
+			const li = eg.createEl('li');
+			li.createEl('code', { text: path });
+			li.createSpan({ text: ' \u2014 ' + why });
+		});
+		rec.createEl('p', {
+			text: 'Open the report on any note and the Folder tab lets you step up the chain \u2014 '
+				+ 'scene, chapter, part, book \u2014 so you can check the chapter and the whole '
+				+ 'book without changing a thing.',
+			cls: 'ws-settings-note'
+		});
+		rec.createEl('p', {
+			text: 'Two things worth knowing. Set the big target first and add the smaller ones as '
+				+ 'you get to them \u2014 a chapter target you invent before the chapter exists is '
+				+ 'just a guess you\u2019ll end up writing towards. And move your files about as '
+				+ 'much as you like: goals follow them, along with anything inside.',
+			cls: 'ws-settings-note'
+		});
 
+	}
+
+	// ── History tab ───────────────────────────────────────────────────────────
+	// Its own tab rather than a section under Goals: it carries a store
+	// that lives in the vault, a path, and a delete, which is more than a
+	// heading inside somebody else's tab can hold legibly.
+	displayHistoryTab(containerEl) {
+		const s = this.plugin.settings;
+
+		containerEl.createEl('p', {
+			text: 'Word-Smith can keep count of how much you write each day. '
+				+ 'Words you added go above the line, words you cut go below it.',
+			cls: 'ws-settings-note'
+		});
+
+		new Setting(containerEl).setName('Writing history')
+			.setDesc('See your writing day by day, month by month, or year by year.')
+			.addButton(b => b.setButtonText('Open history')
+				.onClick(() => this.plugin.openHistoryModal()));
+
+		containerEl.createEl('p', {
+			text: 'Tip: put {history} in a retro bar row and you get a button that opens this.',
+			cls: 'ws-settings-note'
+		});
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
+		new Setting(containerEl).setName('Track writing history')
+			.setDesc('Counts only \u2014 never a word of what you wrote. It all stays on your '
+				+ 'machine. There\u2019s no way to work out what you did before today, so the '
+				+ 'record starts the moment you switch this on.')
+			.addToggle(t => t.setValue(s.historyTracking)
+				.onChange(async v => {
+					s.historyTracking = v;
+					await this.plugin.saveSettings();
+					// Find or create the file now, so the pane can say where
+					// it is instead of "not created yet" until the next save.
+					if (v) { await this.plugin.historyLoad(); await this.plugin.historyWrite(true); }
+					this.display();
+				}));
+
+		if (!s.historyTracking) return;
+
+		const hs = this.sub(containerEl);
+		hs.createEl('p', {
+			text: 'Counts the same notes the rest of the plugin works on \u2014 whatever you set '
+				+ 'under \u201cWhere Word-Smith applies\u201d.',
+			cls: 'ws-settings-note'
+		});
+
+		this.numInput(hs, 'Daily goal',
+			'How many words a day you\u2019re aiming for. Draws a line across the chart, and '
+			+ 'sets off fireworks on the days you beat it. Leave it at 0 for neither.',
+			'historyDailyGoal', 0, 100000);
+
+		// ── The file ─────────────────────────────────────────────────────────
+		this.label(hs, 'Where it lives');
+		hs.createEl('p', {
+			text: 'Your history is an ordinary note in your vault, not something hidden away. '
+				+ 'Move it, rename it, keep it next to the book \u2014 Word-Smith will still find '
+				+ 'it. It\u2019s the only copy, so hang on to it.',
+			cls: 'ws-settings-note'
+		});
+
+		const where = this.plugin.historyStorePath();
+		new Setting(hs).setName('History file')
+			.setDesc(where
+				? 'Right now it\u2019s at: ' + where
+				: 'Not made yet \u2014 it\u2019ll appear the first time you write something.')
+			.addText(t => {
+				t.inputEl.addClass('ws-row-fmt');
+				t.setValue(s.historyFilePath || 'history.md')
+					.onChange(async v => {
+						s.historyFilePath = v;
+						await this.plugin.saveSettings();
+					});
+			});
+		hs.createEl('p', {
+			text: 'This is only where the file gets made if you don\u2019t have one yet. If it '
+				+ 'already exists, Word-Smith finds it wherever you\u2019ve put it.',
+			cls: 'ws-settings-note'
+		});
+
+		hs.createEl('p', {
+			text: 'It saves itself whenever you take a break, and again when you close Obsidian. '
+				+ 'Move it and it\u2019ll be found again on its own.',
+			cls: 'ws-settings-note'
+		});
+
+		// ── Deleting it ──────────────────────────────────────────────────────
+		// Opt-in data the user chose to create is data the user can destroy,
+		// and the button says exactly what it will not touch.
+		new Setting(hs).setName('Delete all history')
+			.setDesc('Wipes every day on record, here and in the file. There\u2019s no second '
+				+ 'copy and no undo.')
+			.addButton(b => {
+				b.setButtonText('Delete').setWarning();
+				b.onClick(async () => {
+					if (this._histArmed) {
+						window.clearTimeout(this._histArmed);
+						this._histArmed = null;
+						await this.plugin.historyClear();
+						new Notice('Word-Smith: writing history deleted.');
+						this.display();
+						return;
+					}
+					b.setButtonText('Really delete?');
+					// Disarms itself, so a button left armed on a settings pane
+					// nobody closed cannot be pressed by accident an hour later.
+					this._histArmed = window.setTimeout(() => {
+						this._histArmed = null;
+						try { b.setButtonText('Delete'); } catch (_) {}
+					}, 5000);
+				});
+			});
 	}
 
 	// ── Syntax tab ────────────────────────────────────────────────────────────
@@ -11363,14 +13157,13 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 
 		containerEl.createEl('p', {
-			text: 'Colour words by grammatical class. '
-				+ 'Runs entirely on your machine. '
-				+ 'The tagger is a heuristic, so treat a mark as a prompt, not a verdict.',
+			text: 'Gives nouns, verbs and the rest their own colour. It all happens on your '
+				+ 'machine, and it\u2019s guesswork \u2014 so treat a mark as a nudge, not a verdict.',
 			cls: 'ws-settings-note'
 		});
 
 		this.toggle(containerEl, 'Skip code and math',
-			'Leave code, frontmatter and math unmarked.',
+			'Leaves code, frontmatter and maths alone.',
 			'syntaxSkipCode');
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
@@ -11378,7 +13171,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// ── Word classes ──────────────────────────────────────────────────────
 		new Setting(containerEl)
 			.setName('Syntax highlight')
-			.setDesc('Colour words by grammatical class.')
+			.setDesc('Gives nouns, verbs and the rest their own colour.')
 			.addToggle(t => t.setValue(s.posEnabled)
 				.onChange(async v => {
 					s.posEnabled = v;
@@ -11390,7 +13183,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const ps = this.sub(containerEl);
 
 			new Setting(ps).setName('Display style')
-				.setDesc('How a coloured word is drawn.')
+				.setDesc('How a marked word looks.')
 				.addDropdown(d => d
 					.addOption('text',      'Coloured text')
 					.addOption('highlight', 'Highlight')
@@ -11400,7 +13193,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 					.onChange(async v => { s.syntaxStyle = v; await this.plugin.saveSettings(); }));
 
 			ps.createEl('p', {
-				text: 'One class at a time reads best. Everything at once is a rainbow.',
+				text: 'One at a time reads best. All of them at once is a rainbow.',
 				cls: 'ws-settings-note'
 			});
 			this.catRow(ps, 'Nouns',        'Nouns and pronouns.',                  'posNoun',        'posNounColor');
@@ -11409,7 +13202,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.catRow(ps, 'Adjectives',   'Adjectives. Articles are excluded.',   'posAdjective',   'posAdjectiveColor');
 			this.catRow(ps, 'Conjunctions', 'Conjunctions and prepositions.',       'posConjunction', 'posConjunctionColor');
 			this.toggle(ps, 'Mute everything else',
-				'Fade the classes you did not select.', 'posDimOthers');
+				'Fades everything you didn\u2019t tick.', 'posDimOthers');
 		}
 
 	}
@@ -11418,10 +13211,20 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayChecksTab(containerEl) {
 		const s = this.plugin.settings;
 
+		// The same promise the Syntax tab makes, and for the same reason: both
+		// tabs read your prose and mark it up, and a reader has every right to
+		// wonder where that text is going. It is going nowhere.
+		containerEl.createEl('p', {
+			text: 'Marks patterns worth a second look \u2014 filler, passive voice, repetition. '
+				+ 'It all happens on your machine; nothing is sent anywhere. And it\u2019s '
+				+ 'guesswork, so treat a mark as a nudge, not a verdict.',
+			cls: 'ws-settings-note'
+		});
+
 		// ── Writing checks ────────────────────────────────────────────────────
 		new Setting(containerEl)
 			.setName('Prose checks')
-			.setDesc('Patterns worth rereading, not errors.')
+			.setDesc('Things worth a second look \u2014 not mistakes.')
 			.addToggle(t => t.setValue(s.checksEnabled)
 				.onChange(async v => {
 					s.checksEnabled = v;
@@ -11433,7 +13236,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		const ck = this.sub(containerEl);
 		new Setting(ck).setName('Display style')
-			.setDesc('Separate from the word classes.')
+			.setDesc('Set on its own, separately from the word colours.')
 			.addDropdown(d => d
 				.addOption('squiggle',  'Squiggle')
 				.addOption('line',      'Underline')
@@ -11443,7 +13246,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				.onChange(async v => { s.checkStyle = v; await this.plugin.saveSettings(); }));
 
 		new Setting(ck).setName('Filler words')
-			.setDesc('very, really, basically, "kind of".')
+			.setDesc('Words like very, really, basically, \u201ckind of\u201d.')
 			.addColorPicker(cp => cp.setValue(s.checkFillerColor)
 				.onChange(async v => { s.checkFillerColor = v; await this.plugin.saveSettings(); }))
 			.addToggle(t => t.setValue(s.checkFiller)
@@ -11451,7 +13254,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		if (s.checkFiller) {
 			const fl = this.sub(ck);
 			new Setting(fl).setName('Also flag vague quantifiers')
-				.setDesc('many, most, some, often. A stricter pass.')
+				.setDesc('Also many, most, some, often. Stricter, and it will flag more.')
 				.addToggle(t => t.setValue(!!s.checkFillerSoft)
 					.onChange(async v => { s.checkFillerSoft = v; await this.plugin.saveSettings(true); }));
 		}
@@ -11467,8 +13270,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 			'checkRepetition', 'checkRepetitionColor');
 		if (s.checkRepetition) {
 			const rp = this.sub(ck);
-			this.slider(rp, 'Window', 'Words apart that still count.', 'repetitionWindow', 15, 150, 5);
-			this.slider(rp, 'Minimum length', 'Ignore words shorter than this.', 'repetitionMinLength', 3, 10, 1);
+			this.slider(rp, 'Window', 'How far apart two words can be and still count as a repeat.', 'repetitionWindow', 15, 150, 5);
+			this.slider(rp, 'Minimum length', 'Skips words shorter than this.', 'repetitionMinLength', 3, 10, 1);
 		}
 
 		this.catRow(ck, 'Commonly misused',
@@ -11481,7 +13284,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			'checkIllusion', 'checkIllusionColor');
 
 		new Setting(ck).setName('Sentence rhythm')
-			.setDesc('Tint sentences by reading difficulty.')
+			.setDesc('Shades each sentence by how hard it is to read.')
 			.addColorPicker(cp => cp.setValue(s.checkRhythmHardColor)
 				.onChange(async v => { s.checkRhythmHardColor = v; await this.plugin.saveSettings(); }))
 			.addColorPicker(cp => cp.setValue(s.checkRhythmVeryHardColor)
@@ -11496,7 +13299,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 
 		ck.createEl('p', {
-			text: 'Add {report} to the retro bar for full counts.',
+			text: 'Tip: add {report} to your retro bar to get at the full counts.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -11506,14 +13309,14 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 
 		containerEl.createEl('p', {
-			text: 'Blocks the keys you use to revise, so a draft only moves forward. '
-				+ 'Switch it off here or with the command.',
+			text: 'Blocks the keys you\u2019d use to go back and fiddle, so a first draft can only '
+				+ 'move forward. Switch it off here or with the command.',
 			cls: 'ws-settings-note'
 		});
 
 		new Setting(containerEl)
 			.setName('Hemingway mode')
-			.setDesc('Lock the editor to typing forward.')
+			.setDesc('Stops you going back, so a first draft can only move forward.')
 			.addToggle(t => t.setValue(s.hemingwayEnabled)
 				.onChange(async v => {
 					s.hemingwayEnabled = v;
@@ -11526,21 +13329,21 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const h = this.sub(containerEl);
 
 		this.label(h, 'Removing text');
-		this.toggle(h, 'Block backspace',     'And the word- and line-delete variants.', 'hemBlockBackspace');
-		this.toggle(h, 'Block delete',        'Forward delete.',                                    'hemBlockDelete');
-		this.toggle(h, 'Block undo and redo', 'Including from the Edit menu.',       'hemBlockUndo');
-		this.toggle(h, 'Block cut',           'Keyboard, menu and right-click.',               'hemBlockCut');
-		this.toggle(h, 'Block paste',         'Pasting a quote is not self-editing.', 'hemBlockPaste');
+		this.toggle(h, 'Block backspace',     'And the delete-a-word and delete-a-line shortcuts.', 'hemBlockBackspace');
+		this.toggle(h, 'Block delete',        'The forward delete key too.',                                    'hemBlockDelete');
+		this.toggle(h, 'Block undo and redo', 'From the keyboard and the Edit menu.',       'hemBlockUndo');
+		this.toggle(h, 'Block cut',           'From the keyboard, the menu or a right-click.',               'hemBlockCut');
+		this.toggle(h, 'Block paste',         'You might still want this on \u2014 pasting a quote isn\u2019t really editing yourself.', 'hemBlockPaste');
 
 		this.label(h, 'Moving the cursor');
-		this.toggle(h, 'Block arrow keys',    'All four, including shift-selection.',    'hemBlockArrows');
-		this.toggle(h, 'Block jump keys',     'Home, End, Page Up, Page Down.',                  'hemBlockJumpKeys');
-		this.toggle(h, 'Block select all',    'A selection is one keystroke from a rewrite.',  'hemBlockSelectAll');
-		this.toggle(h, 'Block mouse',         'Clicks, right-click and dragging.', 'hemBlockMouse');
+		this.toggle(h, 'Block arrow keys',    'All four of them, and shift-selecting with them.',    'hemBlockArrows');
+		this.toggle(h, 'Block jump keys',     'Home, End, Page Up and Page Down.',                  'hemBlockJumpKeys');
+		this.toggle(h, 'Block select all',    'Once it\u2019s all selected you\u2019re one keystroke from losing it.',  'hemBlockSelectAll');
+		this.toggle(h, 'Block mouse',         'Clicking, right-clicking and dragging.', 'hemBlockMouse');
 
 		this.label(h, 'Feedback');
 		new Setting(h).setName('Flash when blocked')
-			.setDesc('The badge option needs {mode} in the bar.')
+			.setDesc('The badge option only shows if you have {mode} in your bar.')
 			.addDropdown(d => d
 				.addOption('none',     'None')
 				.addOption('icon',     'The Modes button only')
@@ -11551,7 +13354,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				.onChange(async v => { this.plugin.settings.hemFlashTarget = v; await this.plugin.saveSettings(); }));
 
 		h.createEl('p', {
-			text: 'The H badge in {mode} shows the lock while it is on.',
+			text: 'The H badge in {mode} lights up while the lock is on.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -11560,16 +13363,16 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayTextTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Text options')
-			.setDesc('Indent, spacing, justification, sidebar counts.')
+			.setDesc('Indents, spacing, justified text, counts in the sidebar.')
 			.addToggle(t => t.setValue(this.plugin.settings.miscEnabled)
 				.onChange(async v => { this.plugin.settings.miscEnabled = v; await this.plugin.saveSettings(); this.display(); }));
 
 		if (this.plugin.settings.miscEnabled) {
 			const mc = this.sub(containerEl);
 
-			this.slider(mc, 'Horizontal padding', 'Applies everywhere, not just zen.', 'editorPaddingH', 0, 400, 10);
+			this.slider(mc, 'Horizontal padding', 'Applies all the time, not just in zen.', 'editorPaddingH', 0, 400, 10);
 
-			this.toggle(mc, 'Paragraph indent', 'First line of each paragraph.', 'enableParagraphIndent', () => this.display());
+			this.toggle(mc, 'Paragraph indent', 'Indents the first line of every paragraph.', 'enableParagraphIndent', () => this.display());
 			if (this.plugin.settings.enableParagraphIndent) {
 				const pi = this.sub(mc);
 				new Setting(pi).setName('Indent trigger')
@@ -11578,10 +13381,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 						.addOption('single', 'Every line (single Enter)')
 						.setValue(this.plugin.settings.paragraphIndentMode || 'double')
 						.onChange(async v => { this.plugin.settings.paragraphIndentMode = v; await this.plugin.saveSettings(); }));
-				this.slider(pi, 'Indent size (em)', 'Width of the indent.', 'paragraphIndentEm', 0.5, 8, 0.5);
+				this.slider(pi, 'Indent size (em)', 'How far in it goes.', 'paragraphIndentEm', 0.5, 8, 0.5);
 			}
 			this.toggle(mc, 'Limit line length',
-				'Fix the column width.',
+				'Keeps lines from running the full width of the window.',
 				'limitLineLength', () => this.display());
 			if (this.plugin.settings.limitLineLength) {
 				this.numInput(this.sub(mc), 'Characters per line',
@@ -11589,23 +13392,23 @@ class WordSmithSettingTab extends PluginSettingTab {
 					'maxLineChars', 20, 200);
 			}
 
-			new Setting(mc).setName('Line spacing').setDesc('Multiplier, e.g. 1.5.')
+			new Setting(mc).setName('Line spacing').setDesc('A multiplier \u2014 1.5 is a comfortable place to start.')
 				.addText(t => {
 					t.inputEl.type = 'number'; t.inputEl.min = '0.8'; t.inputEl.max = '4'; t.inputEl.step = '0.1'; t.inputEl.addClass('ws-num-input');
 					t.setValue(String(this.plugin.settings.lineSpacing != null ? this.plugin.settings.lineSpacing : 1.5));
 					t.onChange(async v => { const n = parseFloat(v); if (!isNaN(n) && n >= 0.8 && n <= 4) { this.plugin.settings.lineSpacing = n; await this.plugin.saveSettings(); } });
 				});
-			this.toggle(mc, 'Justify text', 'Editing and reading views.', 'justifyText');
+			this.toggle(mc, 'Justify text', 'In both editing and reading views.', 'justifyText');
 
 			this.label(mc, 'Hidden markers');
-			this.toggle(mc, 'Show hidden markers', 'Reveal whitespace and line breaks.', 'showHiddenMarkers', () => this.display());
+			this.toggle(mc, 'Show hidden markers', 'Shows the spaces and line breaks you normally can\u2019t see.', 'showHiddenMarkers', () => this.display());
 			if (this.plugin.settings.showHiddenMarkers) {
 				const hm = this.sub(mc);
 				this.toggle(hm, 'Tabs', 'Shown as →', 'markTabs');
 				this.toggle(hm, 'Spaces', 'Shown as ·', 'markSpaces');
 				this.toggle(hm, 'End of lines', 'Shown as ↵', 'markEndOfLines');
 				this.toggle(hm, 'Paragraphs', 'Shown as ¶', 'markParagraphs');
-				this.toggle(hm, 'End of buffer', 'Tildes on the empty rows past the last line.', 'markBlankLines');
+				this.toggle(hm, 'End of buffer', 'Tildes down the empty space after your last line.', 'markBlankLines');
 			}
 
 		}
@@ -11638,8 +13441,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 		}
 
 		containerEl.createEl('p', {
-			text: 'Mode labels and their colours moved to the Retro Bar tab \u2014 '
-				+ 'they describe how the {vim} token renders, which is bar presentation.',
+			text: 'Mode labels and their colours live in the Retro Bar tab now \u2014 they\u2019re '
+				+ 'about how the {vim} token looks, so that\u2019s where they belong.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -11647,10 +13450,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 	displayMiscTab(containerEl) {
 		this.label(containerEl, 'Word counts');
 		this.toggle(containerEl, 'File tree counts',
-			'Per note, summed into folders.',
+			'Next to each note, added up for folders.',
 			'enableFileTreeCounts', () => this.display());
 		this.toggle(containerEl, 'Outline counts',
-			'Per heading in the outline.',
+			'Next to each heading in the outline.',
 			'enableOutlineCounts', () => this.display());
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
@@ -11658,7 +13461,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.label(containerEl, 'Frontmatter overrides');
 		const fmEl = this.sub(containerEl);
 		fmEl.createEl('p', {
-			text: 'Frontmatter overrides the vault-wide settings for one note.',
+			text: 'Frontmatter in a note overrides these settings, just for that note.',
 			cls: 'ws-settings-note'
 		});
 		fmEl.createEl('pre', {
@@ -11786,7 +13589,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Typography')
-			.setDesc('Typed shorthand becomes real characters.')
+			.setDesc('Turns what you type into the proper characters as you go.')
 			.addToggle(t => t.setValue(s.typographyEnabled)
 				.onChange(async v => {
 					s.typographyEnabled = v;
@@ -11798,16 +13601,16 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		const ty = this.sub(containerEl);
 		ty.createEl('p', {
-			text: 'Never applies inside code, math or frontmatter.',
+			text: 'Never touches code, maths or frontmatter.',
 			cls: 'ws-settings-note'
 		});
 
-		this.toggle(ty, 'Curly quotes', 'Straight quotes become curly.',
+		this.toggle(ty, 'Curly quotes', 'Straight quotes turn curly as you type.',
 			'typoSmartQuotes', () => this.display());
 		if (s.typoSmartQuotes) {
 			const q = this.sub(ty);
 			this.toggle(q, 'Choose the characters',
-				'For German, French or Hebrew quoting.',
+				'For German, French or Hebrew quote marks.',
 				'typoCustomQuotes', () => this.display());
 			if (s.typoCustomQuotes) {
 				const qc = this.sub(q);

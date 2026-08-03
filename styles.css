@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 23;
+	--zg-stylesheet-version: 31;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -1813,6 +1813,21 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-report-nav { margin-bottom: 4px; padding-bottom: 6px; }
 
+/* The way across to the writing history, on the right of the report's tabs.
+   Quieter than the two beside it and pushed to the far end, because it leaves
+   for another window rather than switching what this one is showing. */
+.zg-report-cross {
+	margin-left: auto;
+	background: transparent;
+	font-weight: 500;
+	border-style: dashed;
+}
+
+.zg-report-cross:hover {
+	background: var(--background-modifier-hover);
+	border-style: solid;
+}
+
 /* The scope line sits under the tabs, above the rule: the tab says which
    thing, this says exactly which one. */
 .zg-report-scope {
@@ -1929,6 +1944,368 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	text-align: center;
 	color: var(--text-muted);
 }
+
+/* =========================================================================
+   History tab
+   =========================================================================
+   One visual language, matching the ink tank and the goal gauges: everything
+   is drawn on a block grid and nothing is stroked or rounded. There is no
+   second rendering mode to keep in step, which is the point — the 1.26 pair
+   of retro/smooth modes was two of everything for one panel. */
+
+/* ── Report breadcrumb ──────────────────────────────────────────────────── */
+/* Scene, chapter, part, book, vault — the chain above the open note, nearest
+   first because that is the one you were just editing. A breadcrumb rather
+   than more tabs, so the control does not grow with the depth of an outline. */
+
+.zg-report-crumbs {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px;
+	margin-bottom: 6px;
+}
+
+.zg-crumb {
+	appearance: none;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	border-radius: 3px;
+	padding: 2px 6px;
+	font-family: var(--font-monospace, monospace);
+	font-size: 0.68em;
+	color: var(--text-muted);
+	cursor: pointer;
+	max-width: 12em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.zg-crumb:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+
+.zg-crumb.is-active {
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	font-weight: 600;
+}
+
+.zg-crumb-sep { color: var(--text-faint); font-size: 0.68em; }
+
+/* The worked example in Writing Goals. A list of paths reads as paths. */
+.zg-goal-eg { margin: 4px 0 0; padding-left: 18px; }
+.zg-goal-eg li { margin-bottom: 3px; line-height: 1.4; }
+.zg-goal-eg code { font-size: 0.92em; }
+
+/* =========================================================================
+   History window
+   =========================================================================
+   ONE type scale, three sizes, all in px. The panel previously mixed 8px
+   absolutes with em multiples between 0.6 and 1.18 — eight different sizes
+   across nine elements, which is why some labels were unreadably small next
+   to figures that shouted. Everything below picks one of these three, and
+   nothing invents a fourth.
+
+   ONE palette, five inks. Added, deleted and net each own a hue; the goal and
+   the average are the two reference lines and share the quiet end of it. Every
+   one falls back to a literal, because a theme that defines none of the
+   --color-* variables must not render a chart in black on black. */
+.zg-history-modal {
+	width: 92vw;
+	max-width: 760px;
+
+	--zg-h-num:   21px;   /* the figures, and nothing else */
+	--zg-h-body:  12px;   /* readout, period, tab labels — anything read as prose */
+	--zg-h-small: 10px;   /* axis, legend, captions — anything read as a key */
+
+	/* Three heat ramps, six steps each: cool at the axis, hot at the far end
+	   of the bar. Literal colours rather than theme variables, because a ramp
+	   is a designed sequence — a theme's single --color-green cannot supply
+	   six related shades, and interpolating from one lands somewhere muddy.
+	   The mid step of each is what the legend swatch shows. */
+	--zg-add-0: #1d5233;  --zg-add-1: #276c41;  --zg-add-2: #35894f;
+	--zg-add-3: #49a862;  --zg-add-4: #6bc77c;  --zg-add-5: #99e29c;
+
+	--zg-del-0: #5e1a22;  --zg-del-1: #7e242a;  --zg-del-2: #a33033;
+	--zg-del-3: #c4423e;  --zg-del-4: #dd6055;  --zg-del-5: #f08d7d;
+
+	--zg-net-0: #1b3a63;  --zg-net-1: #245084;  --zg-net-2: #2f6ba8;
+	--zg-net-3: #3e8bcb;  --zg-net-4: #5fabe4;  --zg-net-5: #8fcbf4;
+
+	--zg-hist-add:  var(--zg-add-3);
+	--zg-hist-del:  var(--zg-del-3);
+	--zg-hist-net:  var(--zg-net-3);
+	--zg-hist-goal: var(--color-yellow, #c9a227);
+	--zg-hist-avg:  var(--text-muted);
+
+	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
+}
+
+.zg-history-modal .modal-content { position: relative; }
+
+/* ── Figures ────────────────────────────────────────────────────────────── */
+/* Four of them. The number is the thing, so it gets the monospace face and
+   tabular figures; the label under it is a key, not a sentence. */
+
+.zg-history-grid {
+	grid-template-columns: repeat(4, 1fr);
+	gap: 2px;
+	margin-bottom: 4px;
+}
+
+@media (max-width: 620px) {
+	.zg-history-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.zg-history-modal .zg-report-cell {
+	background: transparent;
+	border-left: 2px solid var(--background-modifier-border);
+	border-radius: 0;
+	padding: 2px 0 2px 9px;
+	text-align: left;
+}
+
+.zg-history-modal .zg-report-value {
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-num);
+	font-weight: 600;
+	line-height: 1.2;
+	letter-spacing: -0.03em;
+}
+
+.zg-history-modal .zg-report-label {
+	margin-top: 2px;
+	font-size: var(--zg-h-small);
+	line-height: 1.2;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--text-faint);
+}
+
+.zg-history-modal .zg-report-cell.has-tip:hover {
+	background: var(--background-secondary);
+	border-left-color: var(--interactive-accent);
+	transform: none;
+}
+
+.zg-history-modal .zg-report-scope {
+	font-size: var(--zg-h-small);
+	letter-spacing: 0.04em;
+}
+
+/* ── Day | Month | Year ─────────────────────────────────────────────────── */
+/* Painted by .ws-tab-btn, the rule the report's own tabs use, so the two
+   windows do not disagree about what a tab looks like. */
+
+.zg-hist-subbtn {
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	letter-spacing: 0.04em;
+}
+
+/* ── Period ─────────────────────────────────────────────────────────────── */
+
+.zg-hist-periodbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin: 12px 0 0;
+}
+
+.zg-hist-period {
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	font-weight: 600;
+	color: var(--text-normal);
+	letter-spacing: 0.01em;
+}
+
+.zg-hist-step { display: inline-flex; align-items: center; gap: 2px; }
+
+.zg-hist-arrow {
+	appearance: none;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 15px;
+	line-height: 1;
+	padding: 2px 8px;
+	cursor: pointer;
+}
+
+.zg-hist-arrow:hover:not([disabled]) { color: var(--text-normal); }
+.zg-hist-arrow[disabled] { opacity: 0.25; cursor: default; }
+
+/* ── Series toggles ─────────────────────────────────────────────────────── */
+/* The legend IS the control: a swatch that explains the chart and switches
+   off the thing it explains, rather than a legend and a settings row saying
+   the same thing in two places. */
+
+.zg-hist-series {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin: 8px 0 6px;
+}
+
+.zg-hist-pill {
+	appearance: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-faint);
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-small);
+	letter-spacing: 0.04em;
+	padding: 3px 9px 3px 6px;
+	cursor: pointer;
+}
+
+.zg-hist-pill:hover { background: var(--background-modifier-hover); }
+.zg-hist-pill.is-on { color: var(--text-normal); }
+
+/* Square, never round: the swatch is one of the chart's own pixels, with the
+   same lighter top edge the bars carry. */
+.zg-hist-swatch {
+	width: 9px;
+	height: 9px;
+	flex: none;
+	background: var(--background-modifier-border);
+	/* The swatch is one of the chart's own cells, lit the way they are. */
+	box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.32);
+}
+
+.zg-hist-pill.is-added.is-on   .zg-hist-swatch { background: var(--zg-hist-add); }
+.zg-hist-pill.is-removed.is-on .zg-hist-swatch { background: var(--zg-hist-del); }
+.zg-hist-pill.is-net.is-on     .zg-hist-swatch { background: var(--zg-hist-net); }
+.zg-hist-pill.is-average.is-on .zg-hist-swatch { background: var(--zg-hist-avg); box-shadow: none; }
+.zg-hist-pill.is-goal.is-on    .zg-hist-swatch { background: var(--zg-hist-goal); box-shadow: none; }
+
+/* ── Readout ────────────────────────────────────────────────────────────── */
+/* One line above the chart carrying the period's totals, or — while the
+   pointer is over a bar — that bar's. Reserved height, so the panel does not
+   jump by a line every time the pointer crosses the plot. */
+
+.zg-hist-readout {
+	min-height: 20px;
+	display: flex;
+	align-items: center;
+	margin: 0 0 6px;
+	padding: 3px 9px;
+	border-left: 2px solid var(--zg-hist-add);
+	background: var(--background-secondary);
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	line-height: 1.35;
+	color: var(--text-normal);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* ── The chart ──────────────────────────────────────────────────────────── */
+
+/* The gutter is HTML beside the SVG rather than text inside it: the viewBox is
+   stretched horizontally to fill the panel, and anything drawn in it stretches
+   too — including glyphs. */
+.zg-hist-plot { position: relative; padding-left: 36px; }
+
+.zg-hist-gutter { position: absolute; left: 0; top: 0; bottom: 0; width: 33px; }
+
+.zg-hist-ylbl {
+	position: absolute;
+	right: 5px;
+	transform: translateY(-50%);
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-small);
+	line-height: 1;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.zg-hist-chart {
+	display: block;
+	width: 100%;
+	height: 184px;
+	/* Every edge lands on a device pixel. Without this the browser
+	   antialiases the quantised shapes back into soft ones and the whole
+	   idiom disappears at small sizes. */
+	shape-rendering: crispEdges;
+}
+
+/* Whichever bucket contains today: a column behind the bars rather than a mark
+   beside them, so it reads as ground rather than as another series. */
+.zg-hist-band.is-now { fill: var(--interactive-accent); opacity: 0.1; }
+
+/* One rule per step per series. Eighteen rules for a bar drawn out of a few
+   hundred cells is the cheap end of the trade: no per-element inline fill, no
+   colour arithmetic in JS, and a theme can override any single step. */
+.zg-hist-px.is-added.h0   { fill: var(--zg-add-0); }
+.zg-hist-px.is-added.h1   { fill: var(--zg-add-1); }
+.zg-hist-px.is-added.h2   { fill: var(--zg-add-2); }
+.zg-hist-px.is-added.h3   { fill: var(--zg-add-3); }
+.zg-hist-px.is-added.h4   { fill: var(--zg-add-4); }
+.zg-hist-px.is-added.h5   { fill: var(--zg-add-5); }
+
+.zg-hist-px.is-removed.h0 { fill: var(--zg-del-0); }
+.zg-hist-px.is-removed.h1 { fill: var(--zg-del-1); }
+.zg-hist-px.is-removed.h2 { fill: var(--zg-del-2); }
+.zg-hist-px.is-removed.h3 { fill: var(--zg-del-3); }
+.zg-hist-px.is-removed.h4 { fill: var(--zg-del-4); }
+.zg-hist-px.is-removed.h5 { fill: var(--zg-del-5); }
+
+.zg-hist-px.is-net.h0     { fill: var(--zg-net-0); }
+.zg-hist-px.is-net.h1     { fill: var(--zg-net-1); }
+.zg-hist-px.is-net.h2     { fill: var(--zg-net-2); }
+.zg-hist-px.is-net.h3     { fill: var(--zg-net-3); }
+.zg-hist-px.is-net.h4     { fill: var(--zg-net-4); }
+.zg-hist-px.is-net.h5     { fill: var(--zg-net-5); }
+
+/* A bucket with nothing in it still gets a pixel, so a gap is a visible
+   absence rather than a hole where the eye cannot tell chart from margin. */
+.zg-hist-zeroed { fill: var(--text-faint); opacity: 0.3; }
+
+.zg-hist-grid     { fill: var(--background-modifier-border); opacity: 0.8; }
+.zg-hist-axis     { fill: var(--text-muted); }
+.zg-hist-avgline  { fill: var(--zg-hist-avg); }
+.zg-hist-goalline { fill: var(--zg-hist-goal); }
+
+/* A full-height, invisible hit target per bucket, so hovering a one-pixel bar
+   still reaches the readout. */
+/* Highlighted from a class the pointer handler sets, not from :hover. A
+   transparent fill is not "painted", so an SVG rect filled with it never
+   receives the pointer under the default pointer-events — which is exactly
+   how the readout came to ignore the bar you were pointing at. */
+.zg-hist-hit { fill: var(--background-modifier-hover); opacity: 0; }
+.zg-hist-bargroup.is-hover .zg-hist-hit { opacity: 0.5; }
+
+.zg-hist-xwrap { padding-left: 36px; }
+
+.zg-hist-xaxis {
+	display: grid;
+	margin-top: 5px;
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-small);
+	line-height: 1;
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	overflow: hidden;
+}
+
+.zg-hist-xaxis span { overflow: hidden; white-space: nowrap; }
+.zg-hist-xaxis span.is-now { color: var(--text-normal); font-weight: 700; }
+
+.zg-hist-empty { margin: 18px 0; }
+.zg-history-modal .zg-report-hint { font-size: var(--zg-h-body); }
 
 /* =========================================================================
    Goal ring
