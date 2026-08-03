@@ -1153,7 +1153,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 31;
+const ZG_STYLESHEET_VERSION = 33;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1184,6 +1184,11 @@ const HISTORY_HEAT        = 6;
 // Above this the cell is coarsened rather than the chart drawing a rect per
 // square of a very large grid.
 const HISTORY_MAX_CELLS   = 30000;
+
+// How many frames the mask pass will wait for a pane to have a box before it
+// gives up. A leaf that never gets one — a background tab, a collapsed
+// sidebar — must not spin a repaint loop for the rest of the session.
+const MASK_MEASURE_RETRIES = 20;
 // Few buckets must not become slabs: two years of data on the Year tab would
 // otherwise draw two bars a third of the panel wide each.
 const HISTORY_BAR_MAX     = 34;
@@ -1351,6 +1356,13 @@ const DEFAULT_SETTINGS = {
 	// exactly like a broken plugin.
 	scopeMode:                'include',  // 'include' | 'exclude'
 	scopePaths:               [],
+	// Notes and folders that Word-Smith still WORKS in but never COUNTS: an
+	// outline, a research folder, a scratch file inside the manuscript. Kept
+	// separate from scopePaths because the two answer different questions —
+	// that one is "leave this note alone entirely", this one is "help me write
+	// it, just do not put it in the total". NULL rather than [] for the reason
+	// every nested default here is: the merge in loadSettings is shallow.
+	countExclude:             null,
 
 	// ── Zen mode ──────────────────────────────────────────────────────────────
 	// zenEnabled ships off while zenMode ships on. That is not a contradiction:
@@ -1700,6 +1712,12 @@ const DEFAULT_SETTINGS = {
 	// in the vault, so moving or renaming it is expected rather than tolerated,
 	// and this key follows the file when it moves.
 	historyFilePath:          'history.md',
+	// Whether the store also records WHICH notes each day's words happened in.
+	// On, because without it the finder in the history window has nothing to
+	// find. It is the one thing in the record that is not purely a number, and
+	// it is what makes the file grow with the notes you touch rather than only
+	// with the days you write.
+	historyPerFile:           true,
 	// The one history-adjacent thing left in data.json, and it is not history:
 	// path -> last known word count, the cache that turns a save into a delta.
 	// Worthless to a human, a kilobyte of JSON in the middle of a note if it
@@ -2533,6 +2551,17 @@ module.exports = class WordSmith extends Plugin {
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this._tabContainersCache = null;
 			this._scopeGen++;
+			// The masks come off in reading view, and that is a refresh rather
+			// than a re-measure: letterboxActive() changes answer, so the body
+			// classes and the Modes popup have to change with it.
+			this.applyBodyClasses();
+			// Switching between editing and reading is a layout change, and
+			// nothing else re-measures the masks when it happens. Without
+			// this the geometry stamped before the swap is what stays on
+			// screen until an unrelated event happens to run the pass —
+			// which is why issue #1 could be cleared by changing note or
+			// toggling zen, and by nothing you would think to try.
+			this.scheduleMaskPosition();
 			if (this.zenActive() && this.settings.focusedFileMode) this.updateFocusedFileMode();
 			// The explorer/outline observers are scoped to their leaf
 			// containers, which layout changes can recreate — re-bind them.
@@ -2854,13 +2883,9 @@ module.exports = class WordSmith extends Plugin {
 		this.settings.vimSoftWrapMotion = false;
 		this.applyVimMotionMaps();
 		this.clearAllBodyState();
-		// Restore all tab containers
-		document.querySelectorAll('.workspace-tabs').forEach(el => {
-			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
-			el.style.display = '';
-			el.style.width   = '';
-			el.style.flex    = '';
-		});
+		// Only the containers focused-file mode actually wrote to, and back to
+		// what they held before. See _focusTabRestore.
+		this._focusTabRestore();
 	}
 
 	// ════════════════════════════════════════════════════════════════════════
@@ -3798,11 +3823,11 @@ module.exports = class WordSmith extends Plugin {
 		// — the same failure mode as the note mini-theme's three.
 		document.documentElement.style.removeProperty('--zen-mode-top-padding');
 		document.documentElement.style.removeProperty('--zen-mode-bottom-padding');
-		// Restore tab containers
-		document.querySelectorAll('.workspace-tabs').forEach(el => {
-			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
-			el.style.display = ''; el.style.width = ''; el.style.flex = '';
-		});
+		// Restore tab containers — only the ones we changed, and to their own
+		// previous values. This line used to reach every .workspace-tabs in
+		// the workspace and blank its inline flex, which is where a sidebar's
+		// pane sizes went. See _focusTabRestore.
+		this._focusTabRestore();
 		// Restore sidebars
 		const ws = this.app.workspace;
 		if (ws.leftSplit && !ws.leftSplit.collapsed)   ws.leftSplit.expand();
@@ -4605,6 +4630,14 @@ module.exports = class WordSmith extends Plugin {
 			// it makes an unsized SVG collapse to nothing and the window reads
 			// as a broken feature rather than as a missing file.
 			// Change together with the .zg-hist- block in styles.css.
+			'.zg-hist-find { position: relative; }',
+			'.zg-hist-findrow { display: flex; align-items: center; gap: 6px; }',
+			'.zg-hist-search { flex: 1; font-family: var(--font-monospace, monospace); }',
+			'.zg-hist-hits { position: absolute; left: 0; right: 0; top: 100%; z-index: 5;'
+				+ ' max-height: 232px; overflow-y: auto; background: var(--background-primary);'
+				+ ' border: 1px solid var(--background-modifier-border); }',
+			'.zg-hist-hits:empty { display: none; }',
+			'.zg-hist-hitrow { display: flex; gap: 8px; width: 100%; text-align: left; }',
 			'.zg-report-cross { margin-left: auto; background: transparent; border-style: dashed; }',
 			'.zg-history-modal { width: 92vw; max-width: 760px;'
 				+ ' --zg-h-num: 21px; --zg-h-body: 12px; --zg-h-small: 10px;'
@@ -5104,6 +5137,47 @@ module.exports = class WordSmith extends Plugin {
 		} catch (_) {}
 	}
 
+	// Focused-file mode writes inline display/width/flex onto tab containers.
+	// Putting those back is NOT the same as blanking them, and blanking them
+	// is the bug reported as "zen mode breaks side tabs layouts" (#2):
+	//
+	//   document.querySelectorAll('.workspace-tabs').forEach(el => {
+	//     el.style.display = ''; el.style.width = ''; el.style.flex = '';
+	//   });
+	//
+	// `.workspace-tabs` is EVERY tab container in the workspace, including the
+	// ones stacked inside the left and right sidedocks — and Obsidian stores
+	// the size of stacked leaves as inline `flex-grow` on exactly those
+	// elements. So the restore reached past everything focused-file mode had
+	// touched, wiped the sizes Obsidian had written, and the flex container
+	// then shared the space out evenly: two differently-sized panes in a
+	// sidebar came back the same height. It fired on leaving zen whether or
+	// not focused-file mode had ever been on, because the clear branch runs
+	// whenever the mode is inactive.
+	//
+	// So: remember an element's inline values the first time we touch it, put
+	// exactly those back, and touch nothing we did not write to.
+	_focusTabRemember(el) {
+		if (!this._focusTabPrev) this._focusTabPrev = new Map();
+		if (this._focusTabPrev.has(el)) return;
+		this._focusTabPrev.set(el, {
+			display: el.style.display,
+			width:   el.style.width,
+			flex:    el.style.flex
+		});
+	}
+
+	_focusTabRestore() {
+		if (!this._focusTabPrev || !this._focusTabPrev.size) return;
+		for (const [el, prev] of this._focusTabPrev) {
+			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
+			el.style.display = prev.display;
+			el.style.width   = prev.width;
+			el.style.flex    = prev.flex;
+		}
+		this._focusTabPrev.clear();
+	}
+
 	findActiveTabContainerFromDOM() {
 		const active = document.querySelector('.workspace-tab-header.is-active');
 		if (active) {
@@ -5122,10 +5196,7 @@ module.exports = class WordSmith extends Plugin {
 		// zen is suspended, and hiding every tab container but one there
 		// would leave the writer no way back to their note.
 		if (!this.zenActive() || !this.settings.focusedFileMode) {
-			document.querySelectorAll('.workspace-tabs').forEach(el => {
-				el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
-				el.style.display = ''; el.style.width = ''; el.style.flex = '';
-			});
+			this._focusTabRestore();
 			return;
 		}
 		await this.revealPinnedTabIfExists();
@@ -5145,6 +5216,7 @@ module.exports = class WordSmith extends Plugin {
 		if (!active) active = this.findActiveTabContainerFromDOM();
 		if (!active) return;
 		all.forEach(c => {
+			this._focusTabRemember(c);
 			if (c === active) {
 				c.classList.remove('zenmode-tab-hidden');
 				c.style.display = ''; c.style.width = '100%'; c.style.flex = '1 1 100%';
@@ -5579,7 +5651,25 @@ module.exports = class WordSmith extends Plugin {
 		// A mode of its own since it joined the Modes popup. Gating it on
 		// zenEnabled meant leaving Focus killed the letterbox and made the
 		// popup's Letterbox toggle a dead switch whenever zen was off.
-		return !!this.settings.enableLetterbox;
+		if (!this.settings.enableLetterbox) return false;
+		// Not in reading view. The masks exist to hide the strip above and
+		// below the LINE YOU ARE WRITING — they are the frame around a moving
+		// caret, and reading has no caret. In preview they are two bands
+		// covering the top and bottom of something you are trying to read,
+		// with arrows pointing at nothing.
+		return !this.isReadingView();
+	}
+
+	// Reading mode, asked of the view rather than the DOM. Obsidian keeps both
+	// containers alive and toggles which is shown (see stampMaskPositions), so
+	// "is there a .markdown-preview-view" is not the question — getMode() is.
+	isReadingView() {
+		try {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (!view) return false;
+			const mode = view.getMode ? view.getMode() : null;
+			return mode === 'preview';
+		} catch (_) { return false; }
 	}
 
 	// Obsidian keeps its right-to-left preference in appearance config, and
@@ -5662,6 +5752,42 @@ module.exports = class WordSmith extends Plugin {
 	// True when the path is named by the list, either exactly (a note) or as
 	// an ancestor (a folder). Prefix matching appends the separator so that
 	// "Novel" does not also claim "Novel Ideas/draft.md".
+	countExcludeList() {
+		const s = this.settings;
+		if (!Array.isArray(s.countExclude)) s.countExclude = [];
+		return s.countExclude;
+	}
+
+	// Whole path segments only, so excluding "Book/Notes" does not also
+	// exclude "Book/Notebook.md". The same rule the goal renames and the
+	// history scoping use.
+	isPathExcludedFromCounts(path) {
+		if (!path) return false;
+		for (const entry of this.countExcludeList()) {
+			if (!entry) continue;
+			const base = String(entry).replace(/\/+$/, '');
+			if (!base) continue;
+			if (path === base || path.indexOf(base + '/') === 0) return true;
+		}
+		return false;
+	}
+
+	// The single question every counting surface should ask: the writing
+	// history, the folder totals behind a goal, and the badges in the file
+	// explorer. Scope first, because "ignore this note entirely" outranks
+	// "count it or not".
+	isFileCounted(file) {
+		if (!file || !file.path) return false;
+		// The history store is a note in the vault, and the History tab tells
+		// people to keep it beside their manuscript — so without this it lands
+		// INSIDE the folder whose goal it would then inflate, growing by a row
+		// a day while it does so. It is already excluded from the history
+		// itself by path; this is the same exclusion for every other total.
+		if (this._historyPath && file.path === this._historyPath) return false;
+		if (!this.isFileInScope(file)) return false;
+		return !this.isPathExcludedFromCounts(file.path);
+	}
+
 	pathMatchesScope(path) {
 		if (!path) return false;
 		for (const entry of this.settings.scopePaths) {
@@ -6420,7 +6546,19 @@ module.exports = class WordSmith extends Plugin {
 		// Lazily, because this is reachable from a bar token that can paint
 		// before onload has finished initialising fields on a slow vault.
 		if (!this.wordCountCache) this.wordCountCache = new Map();
-		const files = this.filesInFolder(path, true);
+		// Only the notes Word-Smith applies to.
+		//
+		// This counted every markdown file under the folder, which put the
+		// goals at odds with everything else in the plugin: a research note
+		// inside a book folder carrying `wordsmith: off` was excluded from the
+		// writing history and from the word count in the bar, and then counted
+		// in full towards the folder's target. "Ignore this note entirely" has
+		// to mean that everywhere, or it does not mean anything.
+		//
+		// Anyone using a scope list will see folder totals fall the first time
+		// they open the report after updating. The smaller number is the one
+		// they asked for.
+		const files = this.filesInFolder(path, true).filter(f => this.isFileCounted(f));
 		const total = { words: 0, chars: 0, charsNoSpaces: 0, syllables: 0, sentences: 0,
 			paragraphs: 0, lines: 0, files: files.length };
 		for (const file of files) {
@@ -6842,9 +6980,19 @@ module.exports = class WordSmith extends Plugin {
 		if (!h || typeof h !== 'object') h = {};
 		if (!h.days || typeof h.days !== 'object' || Array.isArray(h.days)) h.days = {};
 		if (h.started === undefined) h.started = null;
-		if (!h.today || typeof h.today !== 'object' || !h.today.date) {
-			h.today = { date: this.historyDateKey(), a: 0, r: 0, n: 0 };
+		if (!h.paths || typeof h.paths !== 'object' || Array.isArray(h.paths)) h.paths = {};
+		// Switching "Remember which notes" off means the note names go, not
+		// merely that no new ones are added. Anything else leaves a file full
+		// of paths that a person has just asked not to keep, and a finder
+		// still offering them.
+		if (this.settings.historyPerFile === false) {
+			if (Object.keys(h.paths).length) h.paths = {};
+			if (h.today && h.today.by && Object.keys(h.today.by).length) h.today.by = {};
 		}
+		if (!h.today || typeof h.today !== 'object' || !h.today.date) {
+			h.today = { date: this.historyDateKey(), a: 0, r: 0, n: 0, by: {} };
+		}
+		if (!h.today.by || typeof h.today.by !== 'object') h.today.by = {};
 		for (const k of ['a', 'r', 'n']) if (typeof h.today[k] !== 'number') h.today[k] = 0;
 		this._history = h;
 		return h;
@@ -6867,8 +7015,11 @@ module.exports = class WordSmith extends Plugin {
 		const t = h.today;
 		// A day with no activity is not stored. Absent means "did not write",
 		// which is what every reader of the chart assumes a gap means.
-		if (t.a || t.r) h.days[t.date] = { a: t.a, r: t.r, n: t.n };
-		h.today = { date: key, a: 0, r: 0, n: 0 };
+		if (t.a || t.r) {
+			h.days[t.date] = { a: t.a, r: t.r, n: t.n };
+			if (Object.keys(t.by).length) h.paths[t.date] = t.by;
+		}
+		h.today = { date: key, a: 0, r: 0, n: 0, by: {} };
 		return true;
 	}
 
@@ -6942,7 +7093,8 @@ module.exports = class WordSmith extends Plugin {
 			}
 
 			const h = { started: parsed.started, days: parsed.days,
-				today: { date: this.historyDateKey(), a: 0, r: 0, n: 0 } };
+				paths: parsed.paths || {},
+				today: { date: this.historyDateKey(), a: 0, r: 0, n: 0, by: {} } };
 			// Today may already be in the table from earlier in the day, so it
 			// is lifted back out and carries on rather than restarting at zero
 			// because Obsidian was restarted at lunchtime.
@@ -6950,6 +7102,10 @@ module.exports = class WordSmith extends Plugin {
 			if (t) {
 				h.today.a = t.a; h.today.r = t.r; h.today.n = t.n;
 				delete h.days[h.today.date];
+			}
+			if (h.paths[h.today.date]) {
+				h.today.by = h.paths[h.today.date];
+				delete h.paths[h.today.date];
 			}
 			this._history = h;
 			this.historyEnsure();
@@ -6997,7 +7153,7 @@ module.exports = class WordSmith extends Plugin {
 		// modify ON the store, and without this the history would record
 		// itself recording, forever.
 		if (file.path === this._historyPath) return;
-		if (!this.isFileInScope(file)) return;
+		if (!this.isFileCounted(file)) return;
 		if (!this._historyTimers) this._historyTimers = new Map();
 		const prev = this._historyTimers.get(file.path);
 		if (prev) window.clearTimeout(prev);
@@ -7017,7 +7173,7 @@ module.exports = class WordSmith extends Plugin {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (!file || !(file instanceof TFile)) return;
 			if (path === this._historyPath) return;
-			if (!this.isFileInScope(file)) return;
+			if (!this.isFileCounted(file)) return;
 			// countWords → countProse, the single counting authority. The
 			// history must never be able to disagree with the status bar.
 			let count;
@@ -7053,6 +7209,15 @@ module.exports = class WordSmith extends Plugin {
 		const t = h.today;
 		if (delta > 0) t.a += delta; else t.r += -delta;
 		t.n += delta;
+		// The per-note breakdown, which is what the search box searches. Kept
+		// beside the totals rather than replacing them: the totals are what a
+		// person reads in the file, and deriving them from this every time
+		// would make the readable half of the store a computation.
+		if (this.settings.historyPerFile !== false) {
+			const b = t.by[path] || (t.by[path] = { a: 0, r: 0, n: 0 });
+			if (delta > 0) b.a += delta; else b.r += -delta;
+			b.n += delta;
+		}
 		if (!h.started) h.started = key;
 		this.historyQueueSave(rolled);
 	}
@@ -7100,15 +7265,79 @@ module.exports = class WordSmith extends Plugin {
 			this.saveSettings();
 			return;
 		}
+		// The RECORD first, and unconditionally.
+		//
+		// This used to move the baseline cache and nothing else, and returned
+		// early when there was no baseline to move — so a note renamed in a
+		// session where it had not been edited skipped everything. With the
+		// per-note breakdown added in 1.41 that meant the history kept the old
+		// path forever: the finder offered a note that no longer existed, the
+		// renamed one looked like it had never been written in, and a folder
+		// scope silently missed every file that had ever been moved into it.
+		//
+		// Folders fire this event too, so it walks PREFIXES rather than
+		// looking for an exact key — a folder rename has to carry every note
+		// beneath it. Whole segments only, so renaming "Book" does not drag
+		// "Bookmarks" along. Same rule, same reason, as renameGoalPaths.
+		let moved = this.historyRenameRecord(oldPath, newPath);
+
 		const base = this.historyBaselines();
-		if (!Object.prototype.hasOwnProperty.call(base, oldPath)) return;
-		base[newPath] = base[oldPath];
-		delete base[oldPath];
-		this.historyQueueSave();
+		for (const key of Object.keys(base)) {
+			const next = this.historyMovedPath(key, oldPath, newPath);
+			if (next === null) continue;
+			// The destination wins if something is already there: it is the
+			// more recent measurement of whatever now lives at that path.
+			if (!Object.prototype.hasOwnProperty.call(base, next)) base[next] = base[key];
+			delete base[key];
+			moved = true;
+		}
+		if (moved) this.historyQueueSave();
+	}
+
+	// The new path for a key when `from` moves to `to`, or null if untouched.
+	// Whole path segments only: "Book" moving is not "Bookmarks" moving.
+	historyMovedPath(key, from, to) {
+		if (key === from) return to;
+		if (key.indexOf(from + '/') === 0) return to + key.slice(from.length);
+		return null;
+	}
+
+	historyRenameRecord(oldPath, newPath) {
+		const h = this.historyEnsure();
+		let changed = false;
+		const rewrite = (by) => {
+			if (!by) return;
+			for (const key of Object.keys(by)) {
+				const next = this.historyMovedPath(key, oldPath, newPath);
+				if (next === null || next === key) continue;
+				const there = by[next];
+				if (there) {
+					// A note moved onto a path that already has history for
+					// that day: both lots of words were really written, so
+					// they are summed rather than one being dropped.
+					there.a += by[key].a || 0;
+					there.r += by[key].r || 0;
+					there.n = there.a - there.r;
+				} else {
+					by[next] = by[key];
+				}
+				delete by[key];
+				changed = true;
+			}
+		};
+		for (const date of Object.keys(h.paths)) rewrite(h.paths[date]);
+		if (h.today) rewrite(h.today.by);
+		return changed;
 	}
 
 	// A delete records NOTHING. Removing a 5,000-word file is housekeeping,
 	// not "deleted 5,000 words today".
+	//
+	// It also leaves the note's PAST in the record, deliberately. Those words
+	// were written; deleting the file does not unwrite them, and a total that
+	// shrinks when you tidy up is a total nobody can trust. The finder will go
+	// on offering the name, which is the right answer for anyone asking how
+	// much went into a draft they have since cut.
 	historyForgetPath(path) {
 		if (this._historyPath && path === this._historyPath) { this._historyPath = null; return; }
 		const base = this.historyBaselines();
@@ -7119,12 +7348,68 @@ module.exports = class WordSmith extends Plugin {
 
 	// ── Reading ─────────────────────────────────────────────────────────────
 
-	historyDays() {
+	// Everything, or only what happened under one note or folder.
+	//
+	// A scope of '' is the whole vault and returns the stored totals directly.
+	// A scope with a path in it rebuilds each day from the per-note breakdown,
+	// so a day where you wrote 900 words across three notes contributes only
+	// the part that happened inside the scope. Days recorded before the
+	// breakdown existed have none, and are absent from a scoped view rather
+	// than being counted in full — which is the honest answer, and is said in
+	// words on screen rather than left for the reader to notice.
+	historyDays(scope) {
 		const h   = this.historyEnsure();
-		const out = Object.assign({}, h.days);
 		const t   = h.today;
-		if (t && (t.a || t.r)) out[t.date] = { a: t.a, r: t.r, n: t.n };
+		if (!scope) {
+			const out = Object.assign({}, h.days);
+			if (t && (t.a || t.r)) out[t.date] = { a: t.a, r: t.r, n: t.n };
+			return out;
+		}
+		const under = this.historyPathUnder(scope);
+		const out = {};
+		const add = (date, by) => {
+			let a = 0, r = 0;
+			for (const p of Object.keys(by)) {
+				if (!under(p)) continue;
+				a += by[p].a || 0;
+				r += by[p].r || 0;
+			}
+			if (a || r) out[date] = { a, r, n: a - r };
+		};
+		for (const date of Object.keys(h.paths)) add(date, h.paths[date]);
+		if (t && t.by && Object.keys(t.by).length) add(t.date, t.by);
 		return out;
+	}
+
+	// Whole path segments only, so scoping to "Book" does not sweep in
+	// "Bookmarks" — the same rule the goal renames use, and for the same
+	// reason. A scope that is a note matches only that note.
+	historyPathUnder(scope) {
+		const base = String(scope || '').replace(/\/+$/, '');
+		if (!base) return () => true;
+		const prefix = base + '/';
+		return (p) => p === base || p.indexOf(prefix) === 0;
+	}
+
+	// Every note and every folder the record has ever seen, for the finder.
+	historyKnownPaths() {
+		const h = this.historyEnsure();
+		const files = new Set();
+		const seen = (by) => { for (const p of Object.keys(by || {})) files.add(p); };
+		for (const d of Object.keys(h.paths)) seen(h.paths[d]);
+		if (h.today) seen(h.today.by);
+		const folders = new Set();
+		for (const p of files) {
+			let cut = p.lastIndexOf('/');
+			while (cut > 0) {
+				folders.add(p.slice(0, cut));
+				cut = p.lastIndexOf('/', cut - 1);
+			}
+		}
+		return {
+			files: Array.from(files).sort(),
+			folders: Array.from(folders).sort()
+		};
 	}
 
 	historyValue(rec, mode) {
@@ -7147,8 +7432,8 @@ module.exports = class WordSmith extends Plugin {
 		return this.historyDateKey(d);
 	}
 
-	historyFigures(mode) {
-		const days = this.historyDays();
+	historyFigures(mode, scope) {
+		const days = this.historyDays(scope);
 		const keys = Object.keys(days).sort();
 		let total = 0, best = 0, bestKey = '', active = 0;
 		for (const k of keys) {
@@ -7188,8 +7473,8 @@ module.exports = class WordSmith extends Plugin {
 	// The RANGE, not the years that happen to hold data: a writer who stopped
 	// for all of 2025 has a 2025, and a stepper that jumps from 2024 to 2026
 	// hides the fallow year instead of showing it.
-	historyYears() {
-		const days = this.historyDays();
+	historyYears(scope) {
+		const days = this.historyDays(scope);
 		const set  = new Set();
 		for (const k of Object.keys(days)) set.add(+k.slice(0, 4));
 		set.add(new Date().getFullYear());
@@ -7233,7 +7518,50 @@ module.exports = class WordSmith extends Plugin {
 			}
 			out.push('');
 		}
+
+		// The per-note breakdown, under its own heading and after the totals,
+		// because the totals are the half a person reads. This is the half the
+		// search box reads, and it is the reason the file grows with the number
+		// of notes you touch rather than only with the days you write.
+		const by = this.historyPathRows();
+		if (by.length) {
+			out.push('### By note');
+			out.push('');
+			out.push('| Date | Note | Added | Deleted | Net |');
+			out.push('| --- | --- | ---: | ---: | ---: |');
+			for (const row of by) {
+				// A pipe in a filename would end the cell early. Rare, legal,
+				// and silent when it goes wrong.
+				out.push('| ' + row.date + ' | ' + row.path.replace(/\|/g, '\\|')
+					+ ' | ' + row.a + ' | ' + row.r + ' | ' + row.n + ' |');
+			}
+			out.push('');
+		}
 		return out.join('\n');
+	}
+
+	historyPathRows() {
+		const h = this.historyEnsure();
+		const out = [];
+		const push = (date, by) => {
+			for (const p of Object.keys(by).sort()) {
+				const v = by[p];
+				if (!v || (!v.a && !v.r)) continue;
+				out.push({ date, path: p, a: v.a || 0, r: v.r || 0, n: v.n || 0 });
+			}
+		};
+		const dates = Object.keys(h.paths).sort().reverse();
+		for (const d of dates) push(d, h.paths[d]);
+		if (h.today && h.today.by && Object.keys(h.today.by).length) {
+			const today = [];
+			push(h.today.date, h.today.by);
+			// Today belongs at the top with the newest dates.
+			for (let i = out.length - 1; i >= 0 && out[i].date === h.today.date; i--) {
+				today.unshift(out.pop());
+			}
+			return today.concat(out);
+		}
+		return out;
 	}
 
 	historyCompose(existing) {
@@ -7262,13 +7590,26 @@ module.exports = class WordSmith extends Plugin {
 		// so the two extra are matched and thrown away rather than making the
 		// whole row unreadable.
 		const ROW = /^\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|/;
+		// The by-note row: a date, a path, then three numbers anchored at the
+		// end of the line, which is what keeps a path containing a pipe from
+		// swallowing a column.
+		const PATH_ROW = /^\|\s*(\d{4}-\d{2}-\d{2})\s*\|\s*(.+?)\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|\s*(-?\d+)\s*\|$/;
+		const paths = {};
 		for (const line of body.split('\n')) {
-			const m = ROW.exec(line.trim());
+			const t = line.trim();
+			const pm = PATH_ROW.exec(t);
+			if (pm) {
+				const date = pm[1];
+				const p = pm[2].replace(/\\\|/g, '|');
+				(paths[date] || (paths[date] = {}))[p] = { a: +pm[3], r: +pm[4], n: +pm[5] };
+				continue;
+			}
+			const m = ROW.exec(t);
 			if (!m) continue;
 			days[m[1]] = { a: +m[2], r: +m[3], n: +m[4] };
 		}
 		const keys = Object.keys(days).sort();
-		return { started: keys.length ? keys[0] : null, days };
+		return { started: keys.length ? keys[0] : null, days, paths };
 	}
 
 	// ── Writing ─────────────────────────────────────────────────────────────
@@ -7348,6 +7689,11 @@ module.exports = class WordSmith extends Plugin {
 				if (k === h.today.date) continue;
 				if (h.days[k]) continue;
 				h.days[k] = parsed.days[k];
+				// The per-note rows for that day come with it. Merging the
+				// totals and dropping these left a day that existed in the
+				// chart and in no scoped view — present in the whole vault,
+				// absent from every folder and note inside it.
+				if (parsed.paths && parsed.paths[k]) h.paths[k] = parsed.paths[k];
 				gained++;
 			}
 			this._historyPath = file.path;
@@ -7401,8 +7747,8 @@ module.exports = class WordSmith extends Plugin {
 	// reads as one idea rather than three: the bars mean the same thing at
 	// every zoom, and only the width of a bar changes.
 
-	historyBuckets(view, year, month) {
-		const days = this.historyDays();
+	historyBuckets(view, year, month, scope) {
+		const days = this.historyDays(scope);
 		const goal = this.settings.historyDailyGoal || 0;
 		const out  = { view, buckets: [], label: '', goal: 0 };
 		const rightNow = new Date();
@@ -7447,7 +7793,11 @@ module.exports = class WordSmith extends Plugin {
 			}
 			out.goal = goal * 30;   // the dashed line is a typical month
 		} else {
-			const years = this.historyYears();
+			// The scope this pass was CALLED with, not a window's state:
+			// historyBuckets is a pure reader and knows nothing about the
+			// modal. Reaching for `state` here threw the moment the Year tab
+			// was drawn, which the render probe caught on its first run.
+			const years = this.historyYears(scope);
 			out.label = years.length > 1 ? years[0] + '\u2013' + years[years.length - 1] : String(years[0]);
 			for (const y of years) {
 				const b = blank(String(y), String(y));
@@ -7477,6 +7827,64 @@ module.exports = class WordSmith extends Plugin {
 
 	// ── The tab ─────────────────────────────────────────────────────────────
 
+	// Subsequence matching, ranked. Not a substring search: a writer who
+	// types "ch3scene" should find "My Book/Part One/Ch 03/Scene 2.md", and a
+	// substring match finds nothing there at all.
+	//
+	// The score rewards the two things that separate a match you meant from a
+	// match that merely contains the right letters, in this order: how much of
+	// the query landed in one unbroken run, and how close to the START of a
+	// path segment it began. That is why typing "scene" ranks the scene files
+	// above a folder that happens to contain those letters mid-word.
+	historyFuzzy(query, candidates) {
+		const q = String(query || '').toLowerCase().replace(/\s+/g, '');
+		if (!q) return [];
+		const out = [];
+		for (const path of candidates) {
+			const lower = path.toLowerCase();
+			let qi = 0, score = 0, run = 0, last = -2;
+			for (let i = 0; i < lower.length && qi < q.length; i++) {
+				if (lower[i] !== q[qi]) continue;
+				run = (i === last + 1) ? run + 1 : 0;
+				// A character right after a separator, or at the very start,
+				// is the beginning of a word a person was aiming at.
+				const boundary = i === 0 || lower[i - 1] === '/' || lower[i - 1] === ' '
+					|| lower[i - 1] === '-' || lower[i - 1] === '_';
+				score += 1 + run * 3 + (boundary ? 6 : 0);
+				last = i;
+				qi++;
+			}
+			if (qi < q.length) continue;
+			// Did the match END on a word boundary as well as start on one?
+			// This is what separates "Scene 2.md" from "old-scenery-notes.md"
+			// when the query is "scene": both contain the letters contiguously
+			// after a boundary, so without this the shorter path wins on the
+			// length penalty alone and the writer's actual scene files rank
+			// below an archived note. A query that consumes a whole word was
+			// almost certainly aimed at that word.
+			const after = lower[last + 1];
+			if (after === undefined || after === '/' || after === ' '
+				|| after === '-' || after === '_' || after === '.') score += 8;
+			// A shorter path that matched is a tighter match than a long one
+			// that happened to have the letters spread through it.
+			score -= lower.length * 0.05;
+			out.push({ path, score });
+		}
+		out.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
+		return out;
+	}
+
+	// Folders first when they score alike: picking a folder is the broader
+	// question, and it is the one a writer usually wants from a short query.
+	historyFinderMatches(query, limit) {
+		const known = this.historyKnownPaths();
+		const tag = (list, kind) => this.historyFuzzy(query, list)
+			.map(m => ({ path: m.path, score: m.score + (kind === 'folder' ? 1.5 : 0), kind }));
+		const all = tag(known.folders, 'folder').concat(tag(known.files, 'file'));
+		all.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
+		return all.slice(0, limit || 8);
+	}
+
 	// ── The modal ───────────────────────────────────────────────────────────
 	//
 	// Its own window rather than a third tab in the report. Three reasons, and
@@ -7494,10 +7902,10 @@ module.exports = class WordSmith extends Plugin {
 	// and an empty chart reads as a broken feature rather than as a quiet
 	// week. The period label always says which month is on screen, so this
 	// cannot mislead anyone about what they are looking at.
-	historyOpeningPeriod() {
+	historyOpeningPeriod(scope) {
 		const now = new Date();
 		const state = { year: now.getFullYear(), month: now.getMonth() };
-		const days = this.historyDays();
+		const days = this.historyDays(scope);
 		const keys = Object.keys(days).sort();
 		if (!keys.length) return state;
 		const here = state.year + '-' + String(state.month + 1).padStart(2, '0');
@@ -7520,6 +7928,8 @@ module.exports = class WordSmith extends Plugin {
 		// not. Opening the history should show you the view you use, at the
 		// month you are in.
 		const state = this.historyOpeningPeriod();
+		state.scope = '';
+		state.query = '';
 
 		const render = () => {
 			try {
@@ -7552,6 +7962,11 @@ module.exports = class WordSmith extends Plugin {
 	renderHistoryTab(body, state, rerender) {
 		const s = this.settings;
 		state.rerender = rerender;
+		// The window seeds these, but the renderer is reachable from anywhere
+		// and must not throw on a state that predates them. Same repair-in-
+		// place idiom as historySeriesOn().
+		if (typeof state.scope !== 'string') state.scope = '';
+		if (typeof state.query !== 'string') state.query = '';
 
 		if (!s.historyTracking) {
 			const off = this.historyEl('div', 'zg-report-ring-label is-muted', body);
@@ -7563,7 +7978,7 @@ module.exports = class WordSmith extends Plugin {
 		}
 
 		const h    = this.historyEnsure();
-		const figs = this.historyFigures('net');
+		const figs = this.historyFigures('net', state.scope);
 
 		// The view and the series live in settings, not in the modal's state:
 		// closing the report and opening it again should show you the thing
@@ -7571,7 +7986,7 @@ module.exports = class WordSmith extends Plugin {
 		const view = ['day', 'month', 'year'].indexOf(s.historyView) !== -1 ? s.historyView : 'day';
 		const ser  = this.historySeriesOn();
 
-		const years = this.historyYears();
+		const years = this.historyYears(state.scope);
 		if (years.indexOf(state.year) === -1) state.year = years[years.length - 1];
 
 		this.historyEl('div', 'zg-report-scope', body, h.started
@@ -7580,6 +7995,83 @@ module.exports = class WordSmith extends Plugin {
 		this.historyEl('hr', 'zg-report-rule', body);
 
 		// ── Figures ─────────────────────────────────────────────────────────
+		// ── The finder ──────────────────────────────────────────────────────
+		// Above the figures, because it changes what every one of them says.
+		const find = this.historyEl('div', 'zg-hist-find', body);
+		const row  = this.historyEl('div', 'zg-hist-findrow', find);
+
+		if (state.scope) {
+			const chip = this.historyEl('div', 'zg-hist-chip', row);
+			this.historyEl('span', 'zg-hist-chipname', chip, state.scope);
+			const clear = this.historyEl('button', 'zg-hist-chipx', chip, '\u00d7');
+			clear.setAttribute('aria-label', 'Show the whole vault again');
+			clear.addEventListener('click', () => {
+				state.scope = ''; state.query = '';
+				Object.assign(state, this.historyOpeningPeriod());
+				rerender();
+			});
+		} else {
+			const input = this.historyEl('input', 'zg-hist-search', row);
+			input.setAttribute('type', 'text');
+			input.setAttribute('placeholder', 'Search a note or folder\u2026');
+			input.value = state.query || '';
+			const list = this.historyEl('div', 'zg-hist-hits', find);
+
+			const paint = () => {
+				list.textContent = '';
+				const q = state.query.trim();
+				if (!q) return;
+				const hits = this.historyFinderMatches(q, 8);
+				if (!hits.length) {
+					this.historyEl('div', 'zg-hist-nohit', list, 'Nothing by that name.');
+					return;
+				}
+				for (const hit of hits) {
+					const b = this.historyEl('button', 'zg-hist-hit-' + hit.kind + ' zg-hist-hitrow', list);
+					this.historyEl('span', 'zg-hist-hitkind', b, hit.kind === 'folder' ? 'folder' : 'note');
+					this.historyEl('span', 'zg-hist-hitpath', b, hit.path);
+					b.addEventListener('click', () => {
+						state.scope = hit.path;
+						state.query = '';
+						Object.assign(state, this.historyOpeningPeriod(hit.path));
+						state.scope = hit.path;
+						rerender();
+					});
+				}
+			};
+
+			input.addEventListener('input', () => { state.query = input.value; paint(); });
+			input.addEventListener('keydown', (e) => {
+				if (e.key === 'Escape') { state.query = ''; input.value = ''; paint(); return; }
+				if (e.key !== 'Enter') return;
+				const hits = this.historyFinderMatches(state.query.trim(), 1);
+				if (!hits.length) return;
+				state.scope = hits[0].path;
+				state.query = '';
+				Object.assign(state, this.historyOpeningPeriod(hits[0].path));
+				state.scope = hits[0].path;
+				rerender();
+			});
+			paint();
+		}
+
+		// A record that started before the per-note detail did has days that
+		// cannot be attributed to anything. Saying so is the difference
+		// between an honest chart and one that looks like you stopped writing.
+		if (state.scope) {
+			const all = Object.keys(this.historyDays()).length;
+			const attributed = Object.keys(this.historyDays(state.scope)).length;
+			const h = this.historyEnsure();
+			const detail = Object.keys(h.paths).length + (Object.keys(h.today.by).length ? 1 : 0);
+			if (all > detail) {
+				this.historyEl('div', 'zg-hist-partial', body,
+					(all - detail) + ' earlier day' + (all - detail === 1 ? '' : 's')
+					+ ' were recorded before Word-Smith started noting which note you were in, '
+					+ 'so they cannot be shown per note. They are still in the whole-vault view.');
+				void attributed;
+			}
+		}
+
 		const grid = this.historyEl('div', 'zg-report-grid zg-history-grid', body);
 		const cell = (label, value, tip) => {
 			const c = this.historyEl('div', 'zg-report-cell has-tip', grid);
@@ -7633,7 +8125,7 @@ module.exports = class WordSmith extends Plugin {
 		tab('day', 'Day'); tab('month', 'Month'); tab('year', 'Year');
 
 		// ── Period stepper ──────────────────────────────────────────────────
-		const data = this.historyBuckets(view, state.year, state.month);
+		const data = this.historyBuckets(view, state.year, state.month, state.scope);
 		const head = this.historyEl('div', 'zg-hist-periodbar', body);
 		this.historyEl('span', 'zg-hist-period', head, data.label);
 		if (view !== 'year') {
@@ -10498,10 +10990,44 @@ module.exports = class WordSmith extends Plugin {
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		if (!view) { this._maskRaf = null; return; }
 
-		const scroller = view.contentEl.querySelector('.cm-scroller')
-			|| view.contentEl.querySelector('.markdown-preview-view')
+		// The VISIBLE container, not the first one that matches.
+		//
+		// Issue #1: the masks jam to the left edge of the window after
+		// switching to reading mode, and stay there until something else
+		// re-stamps them. The cause is that Obsidian keeps BOTH the source
+		// view and the reading view in the DOM and toggles which is shown —
+		// so in reading mode `.cm-scroller` is still found by this query, and
+		// still answers getBoundingClientRect, with every value zero. Zero
+		// left, zero width: the masks were stamped exactly where they were
+		// told to go.
+		//
+		// Existence was never the question. Each candidate is measured and
+		// skipped unless it has a box, so the fallback chain falls through a
+		// hidden editor to the reading view behind it.
+		const pick = (sel) => {
+			const el = view.contentEl.querySelector(sel);
+			if (!el) return null;
+			const r = el.getBoundingClientRect();
+			return (r.width > 0 && r.height > 0) ? el : null;
+		};
+		const scroller = pick('.cm-scroller')
+			|| pick('.markdown-preview-view')
+			|| pick('.markdown-reading-view')
 			|| view.contentEl;
 		const sr = scroller.getBoundingClientRect();
+
+		// And if NOTHING has a box yet — mid-swap, a pane still opening, a
+		// leaf in a collapsed sidebar — do not stamp a degenerate rectangle
+		// and leave it there. Keep whatever is on screen and try again on the
+		// next frame. Bounded, because a leaf that never gets a box (a
+		// background tab) must not spin a repaint loop forever.
+		if (!(sr.width > 0 && sr.height > 0)) {
+			this._maskRaf = null;
+			this._maskRetries = (this._maskRetries || 0) + 1;
+			if (this._maskRetries <= MASK_MEASURE_RETRIES) this.scheduleMaskPosition();
+			return;
+		}
+		this._maskRetries = 0;
 
 		let statusH = 0;
 		// An auto-hidden bar occupies no space: the mask has to reach the
@@ -11944,6 +12470,17 @@ module.exports = class WordSmith extends Plugin {
 	async applyFileWordCount(el, path) {
 		const file = this.app.vault.getAbstractFileByPath(path);
 		if (!file || !(file instanceof TFile)) return;
+		// A note Word-Smith has been told to leave alone gets no badge, and
+		// loses one it already had. The folder sums are built by adding up the
+		// badges below them, so this is also what keeps the explorer's totals
+		// agreeing with the report's — and both agreeing with the history.
+		// The missing badge is worth something on its own: it is how you see,
+		// at a glance, which notes are outside the scope you set.
+		if (!this.isFileCounted(file)) {
+			const had = el.querySelector('.zg-count');
+			if (had) had.remove();
+			return;
+		}
 		const hit = this.wordCountCache.get(path);
 		if (hit && hit.mtime === file.stat.mtime) { this.setCountBadge(el, hit.count); return; }
 		try {
@@ -12151,6 +12688,83 @@ class WordSmithSettingTab extends PluginSettingTab {
 				this.display();
 			});
 		});
+	}
+
+	// Rendered in BOTH the Goals tab and the History tab, on purpose, because
+	// it is one list and a writer excluding their outline from the book's
+	// target almost always wants it out of the history too. Two lists would
+	// drift, and the first thing anyone would ask is which one won.
+	renderCountExclude(containerEl, where) {
+		const s = this.plugin.settings;
+		if (!Array.isArray(s.countExclude)) s.countExclude = [];
+		const paths = s.countExclude;
+
+		const setting = new Setting(containerEl)
+			.setName('Never counted')
+			.setDesc(paths.length
+				? 'These are left out of ' + where + ', and out of the word counts in the '
+					+ 'file explorer. Word-Smith still works in them normally.'
+				: 'Leave an outline, a research folder or a scratch note out of your totals '
+					+ 'without switching Word-Smith off in it. Nothing excluded yet.');
+
+		if (WsPathSuggestModal) {
+			setting
+				.addButton(b => b.setButtonText('Add folder').onClick(() => this.pickCountExclude('folder')))
+				.addButton(b => b.setButtonText('Add note').onClick(() => this.pickCountExclude('file')));
+		}
+
+		if (paths.length) {
+			const list = containerEl.createEl('div', { cls: 'ws-scope-list' });
+			paths.forEach((path, i) => {
+				const row = list.createEl('div', { cls: 'ws-scope-row' });
+				row.createEl('span', {
+					cls: 'ws-scope-path' + (path.endsWith('.md') ? '' : ' is-folder'),
+					text: path
+				});
+				const btn = row.createEl('button', { cls: 'ws-scope-remove', text: '\u00d7' });
+				btn.setAttribute('aria-label', 'Stop excluding ' + path);
+				btn.addEventListener('click', async () => {
+					s.countExclude.splice(i, 1);
+					await this.plugin.saveSettings(true);
+					this.display();
+				});
+			});
+		}
+
+		containerEl.createEl('p', {
+			text: 'One list, shared with the ' + (where.indexOf('history') === 0 ? 'Goals' : 'History')
+				+ ' tab \u2014 excluding something here excludes it there too. Words already '
+				+ 'recorded stay in the history; this stops new ones being added.',
+			cls: 'ws-settings-note'
+		});
+	}
+
+	pickCountExclude(kind) {
+		if (!WsPathSuggestModal) return;
+		const s = this.plugin.settings;
+		const have = new Set(s.countExclude || []);
+		let items;
+		if (kind === 'folder') {
+			items = this.app.vault.getAllLoadedFiles()
+				.filter(f => f && (TFolder ? f instanceof TFolder : f.children !== undefined))
+				.map(f => f.path)
+				.filter(path => path && path !== '/' && !have.has(path));
+		} else {
+			items = this.app.vault.getMarkdownFiles()
+				.map(f => f.path)
+				.filter(path => !have.has(path));
+		}
+		if (!items.length) return;
+		new WsPathSuggestModal(
+			this.app, items,
+			kind === 'folder' ? 'Never count this folder\u2026' : 'Never count this note\u2026',
+			async (picked) => {
+				if (!Array.isArray(s.countExclude)) s.countExclude = [];
+				if (!s.countExclude.includes(picked)) s.countExclude.push(picked);
+				await this.plugin.saveSettings(true);
+				this.display();
+			}
+		).open();
 	}
 
 	pickScopePath(kind) {
@@ -13003,6 +13617,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.renderGoalList(g, 'folder', 'Folder goals', 'Add folder');
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+		this.renderCountExclude(containerEl, 'every folder total');
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 		this.label(containerEl, 'Recommended use');
 		const rec = this.sub(containerEl);
 		rec.createEl('p', {
@@ -13079,6 +13696,23 @@ class WordSmithSettingTab extends PluginSettingTab {
 		if (!s.historyTracking) return;
 
 		const hs = this.sub(containerEl);
+		this.toggle(hs, 'Remember which notes',
+			'Also records which note each day\u2019s words happened in, so you can search '
+			+ 'your history for one note or one folder. Still counts only \u2014 never a word '
+			+ 'of what you wrote. Switch it off and the note names already recorded are '
+			+ 'dropped, the search box has nothing to find, and the file stops growing with '
+			+ 'the notes you touch. Your daily totals are untouched either way.',
+			'historyPerFile');
+
+		hs.createEl('p', {
+			text: 'A note\u2019s history belongs to the note, so moving or renaming one takes '
+				+ 'all of it along \u2014 including the part written before the move. Search a '
+				+ 'folder and you get what is in it now, not what was in it at the time.',
+			cls: 'ws-settings-note'
+		});
+
+		this.renderCountExclude(hs, 'the history');
+
 		hs.createEl('p', {
 			text: 'Counts the same notes the rest of the plugin works on \u2014 whatever you set '
 				+ 'under \u201cWhere Word-Smith applies\u201d.',

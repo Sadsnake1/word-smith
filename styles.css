@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 31;
+	--zg-stylesheet-version: 33;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -444,7 +444,6 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 }
 
 .zenmode-active .markdown-source-view.mod-cm6 .cm-sizer,
-.zenmode-active .markdown-reading-view .markdown-preview-sizer,
 .zenmode-active .cm-contentContainer {
 	max-width: 100%;
 	width: 100%;
@@ -455,8 +454,17 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
    .zenmode-active — only the horizontal inset is a general text option.) */
 /* Logical properties, so the inset mirrors when the text runs right to left
    rather than pinning the same physical side. */
+/* The CONTENT in both views, never the scroller.
+   Editing pads .cm-content, which is the content inside .cm-scroller. Reading
+   used to pad .markdown-preview-view, which is the scroller itself — the
+   analogue of .cm-scroller, not of .cm-content. That asymmetry is invisible
+   until something inside is wider than the pane: a table, a long task line, a
+   deeply nested list, a wide code block. Then the padding on a horizontally
+   scrolling box stops behaving like an inset and starts shifting the whole
+   column, which is the "text pads left and right when the note has tables"
+   report. .markdown-preview-sizer is the content, and pads like content. */
 .markdown-source-view.mod-cm6 .cm-content,
-.markdown-reading-view .markdown-preview-view {
+.markdown-reading-view .markdown-preview-sizer {
 	padding-inline-start: var(--zg-editor-padding-h);
 	padding-inline-end:   var(--zg-editor-padding-h);
 }
@@ -482,10 +490,19 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	--zg-editor-padding-h: 0px;
 }
 
-.zenmode-active .markdown-source-view.mod-cm6 .cm-content,
-.zenmode-active .markdown-reading-view .markdown-preview-view {
+.zenmode-active .markdown-source-view.mod-cm6 .cm-content {
 	max-width: 100%;
 	width: auto;
+	margin: 0 auto;
+}
+
+/* The reading view's own sizer widens with zen; the scroller around it is
+   left alone. `width: auto` on a scroll container was the other half of the
+   overflow problem — a scroller has to stay the width of its pane, or a wide
+   table inside it drags the column across. */
+.zenmode-active .markdown-reading-view .markdown-preview-sizer {
+	max-width: 100%;
+	width: 100%;
 	margin: 0 auto;
 }
 
@@ -588,7 +605,7 @@ body.zg-rtl .zg-invisible { margin-left: 0; margin-inline-start: 2px; }
 /* Justified RTL wants its last line at the right, which is what `start`
    means once direction is set. */
 body.zg-rtl.zg-justify .markdown-source-view.mod-cm6 .cm-content,
-body.zg-rtl.zg-justify .markdown-reading-view .markdown-preview-view {
+body.zg-rtl.zg-justify .markdown-reading-view .markdown-preview-sizer {
 	text-align-last: start;
 }
 
@@ -2043,6 +2060,137 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-history-modal .modal-content { position: relative; }
+
+/* ── The finder ─────────────────────────────────────────────────────────── */
+/* Above the figures, because it changes what all four of them say. */
+
+.zg-hist-find { margin: 0 0 10px; position: relative; }
+.zg-hist-findrow { display: flex; align-items: center; gap: 6px; }
+
+.zg-hist-search {
+	flex: 1;
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	padding: 5px 9px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.zg-hist-search:focus { border-color: var(--interactive-accent); outline: none; }
+
+/* The results sit over the figures rather than pushing them down: a list that
+   shoves the whole window about on every keystroke is unreadable while typing. */
+.zg-hist-hits {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 100%;
+	z-index: 5;
+	max-height: 232px;
+	overflow-y: auto;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+
+.zg-hist-hits:empty { display: none; }
+
+.zg-hist-hitrow {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	width: 100%;
+	appearance: none;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+	text-align: left;
+	padding: 5px 9px;
+	cursor: pointer;
+}
+
+.zg-hist-hitrow:hover { background: var(--background-modifier-hover); }
+
+.zg-hist-hitkind {
+	flex: none;
+	width: 3.4em;
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-small);
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--text-faint);
+}
+
+.zg-hist-hit-folder .zg-hist-hitkind { color: var(--zg-hist-net); }
+
+.zg-hist-hitpath {
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	direction: rtl;
+	text-align: left;
+}
+
+.zg-hist-nohit {
+	padding: 6px 9px;
+	font-size: var(--zg-h-body);
+	color: var(--text-faint);
+}
+
+/* What you are looking at, and the way back out of it. */
+.zg-hist-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	padding: 4px 4px 4px 10px;
+	border: 1px solid var(--interactive-accent);
+	border-radius: 4px;
+	background: var(--background-secondary);
+}
+
+.zg-hist-chipname {
+	font-family: var(--font-monospace, monospace);
+	font-size: var(--zg-h-body);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	direction: rtl;
+	text-align: left;
+}
+
+.zg-hist-chipx {
+	appearance: none;
+	flex: none;
+	border: none;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-muted);
+	font-size: 15px;
+	line-height: 1;
+	padding: 0 6px;
+	cursor: pointer;
+}
+
+.zg-hist-chipx:hover { color: var(--text-normal); }
+
+.zg-hist-partial {
+	margin: 0 0 8px;
+	padding: 5px 9px;
+	border-left: 2px solid var(--text-faint);
+	background: var(--background-secondary);
+	font-size: var(--zg-h-small);
+	line-height: 1.4;
+	color: var(--text-muted);
+}
 
 /* ── Figures ────────────────────────────────────────────────────────────── */
 /* Four of them. The number is the thing, so it gets the monospace face and
