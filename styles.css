@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 33;
+	--zg-stylesheet-version: 34;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -426,7 +426,9 @@ body:not(.is-mobile) .cm-editor .cm-panels.cm-panels-bottom * {
    Editor constraints (zen mode full-width)
    ========================================================================= */
 
-body.zenmode-active {
+/* Only while the padding is actually being applied: deriving a line width
+   from an inset that is not on screen widens the measure by a phantom. */
+body.zenmode-active.zg-text-pad {
 	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2));
 }
 
@@ -463,8 +465,16 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
    scrolling box stops behaving like an inset and starts shifting the whole
    column, which is the "text pads left and right when the note has tables"
    report. .markdown-preview-sizer is the content, and pads like content. */
-.markdown-source-view.mod-cm6 .cm-content,
-.markdown-reading-view .markdown-preview-sizer {
+/* Scoped to a class the plugin owns, and that is not decoration.
+   Unscoped, this rule applied whenever styles.css was loaded — which is
+   whenever the plugin is INSTALLED, not whenever it is on. :root supplies a
+   40px fallback so the variable is always defined for the calc() below, so
+   turning the plugin off with its own kill switch left 40px of its padding
+   behind, and turning Text Options off left whatever the default was. Neither
+   switch could reach it. Off now means the plugin is not touching your
+   padding at all and Obsidian's own margins apply. */
+body.zg-text-pad .markdown-source-view.mod-cm6 .cm-content,
+body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 	padding-inline-start: var(--zg-editor-padding-h);
 	padding-inline-end:   var(--zg-editor-padding-h);
 }

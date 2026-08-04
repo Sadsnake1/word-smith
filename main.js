@@ -1153,7 +1153,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 33;
+const ZG_STYLESHEET_VERSION = 34;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -3751,7 +3751,7 @@ module.exports = class WordSmith extends Plugin {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
-			'zenmode-hide-linked-mentions', 'zg-para-indent', 'zg-justify',
+			'zenmode-hide-linked-mentions', 'zg-text-pad', 'zg-para-indent', 'zg-justify',
 			'zg-masks-active', 'zg-retrobar-active', 'zg-pos-dim', 'zg-hemingway-active',
 			'zg-line-limit', 'zg-editor-focused', 'zg-font-active', 'zg-rtl', 'zg-vim-panel-open',
 				'zg-bar-hidden', 'zg-bar-anim', 'zg-bar-peek', 'zg-titlebar-match', 'zg-drag-ok'
@@ -3858,9 +3858,13 @@ module.exports = class WordSmith extends Plugin {
 		body.classList.toggle('zenmode-hide-scroll-bar',    this.shouldHideScrollBar());
 		body.classList.toggle('zenmode-hide-linked-mentions', zen && this.settings.hideLinkedMentions);
 		body.classList.toggle('zenmode-hide-ribbon',        zen && this.settings.hideRibbon);
-		body.classList.toggle('zg-para-indent',             scoped && this.settings.enableParagraphIndent);
-		body.classList.toggle('zg-justify',                 scoped && this.settings.justifyText);
-		body.classList.toggle('zg-line-limit',              scoped && this.settings.limitLineLength);
+		// The horizontal padding is applied by an otherwise unscoped rule, so
+		// this class is what makes both kill switches able to reach it — the
+		// plugin's own, and Text Options'.
+		body.classList.toggle('zg-text-pad',                scoped && !!this.settings.miscEnabled);
+		body.classList.toggle('zg-para-indent',             scoped && this.textOpt('enableParagraphIndent', false));
+		body.classList.toggle('zg-justify',                 scoped && this.textOpt('justifyText', false));
+		body.classList.toggle('zg-line-limit',              scoped && this.textOpt('limitLineLength', false));
 		body.classList.toggle('zg-rtl',                     this.isRightToLeft());
 		// The slide transition only exists while the bar is actually
 		// moving. Left on permanently, `transition: transform` promotes
@@ -4301,7 +4305,11 @@ module.exports = class WordSmith extends Plugin {
 		// inline values on :root with no setting left to change them.
 		root.removeProperty('--zen-mode-top-padding');
 		root.removeProperty('--zen-mode-bottom-padding');
-		root.setProperty('--zg-editor-padding-h',    this.settings.editorPaddingH + 'px');
+		// DEFAULT_SETTINGS' own value when the tab is off, not zero: zero would
+		// jam the text against the window edge, which is not "no text options",
+		// it is a different text option.
+		root.setProperty('--zg-editor-padding-h',
+			this.textOpt('editorPaddingH', DEFAULT_SETTINGS.editorPaddingH) + 'px');
 		// (z-index vars intentionally not stamped here — the stylesheet
 		// defaults already provide them, and inline values on :root would
 		// still lose to the elevated body.zg-masks-active values anyway.)
@@ -4733,7 +4741,7 @@ module.exports = class WordSmith extends Plugin {
 		// from the other side. These duplicate the stylesheet on purpose;
 		// identical rules cost nothing, missing ones cost a feature.
 		rules.push(this.coreFeatureCss());
-		if (this.settings.enableParagraphIndent) {
+		if (this.textOpt('enableParagraphIndent', false)) {
 			const ind = 'var(--zg-para-indent)';
 			// Source view is driven entirely by the paraPlugin decoration, so
 			// these selectors never need to know what a list line looks like.
@@ -4778,7 +4786,7 @@ module.exports = class WordSmith extends Plugin {
 				'body.zg-font-active .markdown-reading-view .markdown-preview-view ' +
 				'{ font-family: var(--zg-font), var(--font-text); }');
 		}
-		if (this.settings.limitLineLength) {
+		if (this.textOpt('limitLineLength', false)) {
 			// ch is the width of a "0", which is the conventional stand-in for
 			// a character in a proportional face. The horizontal padding is
 			// added back on top so the measure is the *text* column rather
@@ -4794,7 +4802,7 @@ module.exports = class WordSmith extends Plugin {
 			rules.push('body.zg-line-limit .markdown-reading-view .markdown-preview-view ' +
 				'{ max-width: ' + measure + '; margin-inline: auto; }');
 		}
-		if (this.settings.justifyText) {
+		if (this.textOpt('justifyText', false)) {
 			// Justify in the source editor (skip code blocks and table cells).
 			// The .cm-line selector is chained through .cm-content so it wins
 			// over theme styles without !important in most cases.
@@ -4802,11 +4810,11 @@ module.exports = class WordSmith extends Plugin {
 			// Reading view: paragraphs and list items.
 			rules.push('.zg-justify .markdown-preview-view p, .zg-justify .markdown-preview-view li { text-align: justify; }');
 		}
-		if (this.settings.lineSpacing && this.settings.lineSpacing !== 1.5) {
+		if (this.textOpt('lineSpacing', 1.5) && this.textOpt('lineSpacing', 1.5) !== 1.5) {
 			// A bare .cm-content selector loses to any theme rule that names a
 			// parent, which is why this used to need !important. The full
 			// chain wins on its own.
-			const ls = String(this.settings.lineSpacing);
+			const ls = String(this.textOpt('lineSpacing', 1.5));
 			rules.push('body .markdown-source-view.mod-cm6 .cm-content { line-height: ' + ls + '; }');
 			rules.push('body .markdown-reading-view .markdown-preview-view { line-height: ' + ls + '; }');
 		}
@@ -4899,7 +4907,8 @@ module.exports = class WordSmith extends Plugin {
 				document.head.appendChild(this.styleEl);
 			}
 		} catch (_) {}
-		if (this.settings.enableParagraphIndent && this.settings.paragraphIndentMode !== 'single') {
+		if (this.textOpt('enableParagraphIndent', false)
+			&& this.settings.paragraphIndentMode !== 'single') {
 		} else {
 		}
 	}
@@ -5242,7 +5251,8 @@ module.exports = class WordSmith extends Plugin {
 
 		// The paragraph tagger is scoped to the active editor's .cm-content,
 		// so it needs re-binding whenever the active leaf changes.
-		if (this.settings.enableParagraphIndent && this.settings.paragraphIndentMode !== 'single') {
+		if (this.textOpt('enableParagraphIndent', false)
+			&& this.settings.paragraphIndentMode !== 'single') {
 		}
 		// (Focus dimming and hidden markers are CM6 decorations registered
 		// once via registerEditorExtension — they follow every editor
@@ -5674,6 +5684,25 @@ module.exports = class WordSmith extends Plugin {
 
 	// Obsidian keeps its right-to-left preference in appearance config, and
 	// also sets it per note. Either is enough to mirror the text options.
+	// The Text Options master switch, honoured at RUNTIME rather than only in
+	// the settings pane.
+	//
+	// It used to hide the controls and nothing else: `miscEnabled` appeared
+	// exactly once outside the settings tab, in its own default. So switching
+	// the tab off left the horizontal padding, the paragraph indent, the line
+	// limit, the justification, the line spacing and the hidden markers all
+	// still applied, with no visible control left to turn any of them off
+	// again. A master switch that only hides its own controls is worse than no
+	// master switch, because it lies about what it did.
+	//
+	// Everything the tab owns is read through this one accessor, so a new
+	// setting added to that tab cannot forget to be gated — it is gated by the
+	// only route there is to its value.
+	textOpt(key, whenOff) {
+		if (!this.settings.miscEnabled) return whenOff;
+		return this.settings[key];
+	}
+
 	isRightToLeft() {
 		try {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -8982,7 +9011,7 @@ module.exports = class WordSmith extends Plugin {
 	// ¶ in the bar; the picker toggles which invisibles are drawn.
 	buildMarkersIndicator() {
 		const s = this.settings;
-		const any = s.showHiddenMarkers &&
+		const any = this.textOpt('showHiddenMarkers', false) &&
 			(s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 		return this.buildBarButton(
 			'zg-barbtn-markers' + (any ? '' : ' is-off'),
@@ -9008,10 +9037,17 @@ module.exports = class WordSmith extends Plugin {
 		const items = defs.map(d => ({
 			label: d.label,
 			sub:   true,
-			on: () => !!(s.showHiddenMarkers && s[d.key]),
+			on: () => !!(this.textOpt('showHiddenMarkers', false) && s[d.key]),
 			onClick: async () => {
 				s[d.key] = !s[d.key];
-				if (s[d.key]) s.showHiddenMarkers = true;
+				if (s[d.key]) {
+					s.showHiddenMarkers = true;
+					// Turning a marker on from the bar has to turn the tab that
+					// owns it on too, or the click sets a flag and nothing
+					// appears. Same reason the write-checks picker hands back a
+					// default rather than switching on with nothing selected.
+					s.miscEnabled = true;
+				}
 				else if (!defs.some(x => s[x.key])) s.showHiddenMarkers = false;
 				await this.saveSettings(true);
 			}
@@ -11592,7 +11628,10 @@ module.exports = class WordSmith extends Plugin {
 			}
 			build(view) {
 				const s = plugin.settings;
-				if (!s.pluginEnabled || !s.showHiddenMarkers) return Decoration.none;
+				// Through textOpt, not off `s` directly: the hidden markers are
+				// a Text Options setting, and reading the raw value here would
+				// keep drawing them after that tab's master switch is off.
+				if (!s.pluginEnabled || !plugin.textOpt('showHiddenMarkers', false)) return Decoration.none;
 				if (!plugin.isEditorInScope(view)) return Decoration.none;
 				const showSp  = s.markSpaces, showTab = s.markTabs;
 				const showPar = s.markParagraphs, showEol = s.markEndOfLines;
@@ -11790,7 +11829,7 @@ module.exports = class WordSmith extends Plugin {
 			update(u) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view); }
 			build(view) {
 				const s = plugin.settings;
-				if (!s.pluginEnabled || !s.enableParagraphIndent) return Decoration.none;
+				if (!s.pluginEnabled || !plugin.textOpt('enableParagraphIndent', false)) return Decoration.none;
 				if (!plugin.isEditorInScope(view)) return Decoration.none;
 
 				const doc    = view.state.doc;
@@ -11920,7 +11959,8 @@ module.exports = class WordSmith extends Plugin {
 			read() {
 				const view = this.view;
 				const s = plugin.settings;
-				if (!s.pluginEnabled || !s.showHiddenMarkers || !s.markBlankLines) return null;
+				if (!s.pluginEnabled || !plugin.textOpt('showHiddenMarkers', false)
+					|| !s.markBlankLines) return null;
 				if (!plugin.isEditorInScope(view)) return null;
 				const scRect  = view.scrollDOM.getBoundingClientRect();
 				const cRect   = view.contentDOM.getBoundingClientRect();
