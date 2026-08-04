@@ -1,6 +1,10 @@
 'use strict';
 
-const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon } = require('obsidian');
+// `Platform` is destructured with the rest and used only through
+// isMobileApp(), which falls back to the body class: the harness stubs
+// `obsidian` with a fixed list of exports, so anything new arrives here as
+// `undefined` rather than as a throw, and must be treated as absent.
+const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon, Platform } = require('obsidian');
 
 // Path picker for the scope list. Defined conditionally because `class X
 // extends undefined` throws at definition time, and FuzzySuggestModal is not
@@ -3190,7 +3194,13 @@ module.exports = class WordSmith extends Plugin {
 		// flag is what makes a deleted built-in stay deleted — the obvious
 		// version of this (add any name that is missing) resurrects them on
 		// every launch, so "delete" would only ever mean "until restart".
-		if (!this.settings.barPresets || typeof this.settings.barPresets !== 'object') {
+		// The identity check is the third clause for the usual reason: the
+		// merge in loadSettings is shallow, so on a vault that has never saved
+		// one, `settings.barPresets` IS the literal in DEFAULT_SETTINGS, and
+		// the seeding below would write the shipped presets into the defaults
+		// table rather than into this vault's copy.
+		if (!this.settings.barPresets || typeof this.settings.barPresets !== 'object'
+			|| this.settings.barPresets === DEFAULT_SETTINGS.barPresets) {
 			this.settings.barPresets = {};
 		}
 		if (!this.settings.barPresetsSeeded) {
@@ -3203,6 +3213,28 @@ module.exports = class WordSmith extends Plugin {
 				}
 			}
 			this.settings.barPresetsSeeded = true;
+		}
+
+		// The bar a brand-new vault comes up with.
+		//
+		// The DEFAULT_SETTINGS values for BAR_KEYS are frozen — barShareFields
+		// emits only what DIFFERS from them and the recipient fills the rest
+		// back in from their own copy, so retuning one silently changes what
+		// every share code already in the wild decodes to (see the note above
+		// BAR_KEYS). The defaults therefore stay exactly as they are, and the
+		// opening bar is chosen by APPLYING a preset over them instead. Same
+		// result on screen, no reinterpretation of anyone's code, and the
+		// presets that leave a key unstated still inherit what they always
+		// did.
+		//
+		// Guarded on the saved file being empty, not on a flag: an empty
+		// data.json means this vault has never expressed an opinion about
+		// anything, which is the only case where overwriting the bar is
+		// certainly safe. An upgrading vault — including one that never
+		// touched the Retro Bar tab — keeps the bar it has.
+		if (!Object.keys(raw).length && DEFAULT_BAR_PRESETS.Plain) {
+			this.applyBarSnapshot(DEFAULT_BAR_PRESETS.Plain);
+			this._activeBarPreset = 'Plain';
 		}
 	}
 
@@ -10819,6 +10851,43 @@ module.exports = class WordSmith extends Plugin {
 		});
 	}
 
+	// Phone or tablet. `Platform` is the app's own answer and is preferred;
+	// the body class is the fallback for an API old enough not to export it,
+	// and for the harness, where neither exists and the answer is false.
+	isMobileApp() {
+		try {
+			if (Platform && typeof Platform.isMobile === 'boolean') return Platform.isMobile;
+		} catch (_) {}
+		try { return !!(document.body && document.body.classList.contains('is-mobile')); }
+		catch (_) { return false; }
+	}
+
+	// Hands the bar back to the stylesheet — `.zengrinder-status-bar` is
+	// `left: 0; width: 100%` until something says otherwise, and that is the
+	// correct answer whenever the measurement is unavailable or untrustworthy.
+	//
+	// Idempotent, and it has to be: this is reached from the mask pass, which
+	// runs on scroll. It also drops the bounds cache, which the old inline
+	// version of this did not — so a root split that comes back at exactly
+	// the geometry it left at is stamped again instead of being mistaken for
+	// "no change" and left full width forever.
+	clearBarBounds() {
+		const el = this.retroStatusBarEl;
+		if (!el || !el.style || typeof el.style.removeProperty !== 'function') return;
+		if (this._barBoundsCleared) return;
+		this._barBoundsCleared = true;
+		this._barBoundsL = this._barBoundsW = null;
+		el.style.removeProperty('left');
+		el.style.removeProperty('width');
+		el.style.removeProperty('right');
+		const pl = this.retroPlinthEl;
+		if (pl && pl.style && typeof pl.style.removeProperty === 'function') {
+			pl.style.removeProperty('left');
+			pl.style.removeProperty('width');
+		}
+		this.scheduleFit();
+	}
+
 	stampBarBounds() {
 		const el = this.retroStatusBarEl;
 		// Guarded on the style object as well as the element: this runs from
@@ -10826,13 +10895,24 @@ module.exports = class WordSmith extends Plugin {
 		// down with it — the bar being a pixel wide is a blemish, the
 		// letterbox failing is the feature gone.
 		if (!el || !el.style || typeof el.style.removeProperty !== 'function') return;
+
+		// A phone has no side-by-side panes. The root split IS the window, so
+		// everything below can only agree with the stylesheet or be wrong —
+		// and on Android in portrait it was wrong: the bar was stamped most
+		// of a screen-width to the right, with `!important` on it, so nothing
+		// downstream could argue it back. Landscape looked fine because the
+		// offset there was small enough to read as a margin.
+		//
+		// Measuring nothing is the fix, not measuring better. There is no
+		// geometry on a phone that the stylesheet does not already have.
+		if (this.isMobileApp()) { this.clearBarBounds(); return; }
+
 		const root = document.querySelector('.workspace-split.mod-root');
 		const r = root && root.getBoundingClientRect();
 		if (!r || !r.width) {
 			// No root split (or not laid out): fall back to the stylesheet's
 			// full width rather than pinning the bar to a stale rectangle.
-			el.style.removeProperty('left');
-			el.style.removeProperty('width');
+			this.clearBarBounds();
 			return;
 		}
 		// NOT divided by the zoom factor.
@@ -10873,6 +10953,25 @@ module.exports = class WordSmith extends Plugin {
 		this._stampZoom = z;
 		const left  = Math.round(r.left);
 		const width = Math.round(r.width);
+
+		// A rectangle that does not fit in the window is not a pane, it is a
+		// bad measurement, and stamping it `!important` is how a bar ends up
+		// somewhere its own stylesheet can no longer reach it. The window is
+		// the one bound this is always allowed to assume: the root split is a
+		// child of it and cannot honestly be wider or start outside it.
+		//
+		// innerWidth rather than visualViewport.width on purpose — a fixed
+		// element at `width: 100%` is sized by the LAYOUT viewport, so that is
+		// the width this is really being compared against. visualViewport
+		// shrinks under pinch-zoom and would reject a perfectly good pane.
+		// 2px of slack for fractional geometry rounded twice.
+		const vw = Math.round(window.innerWidth || 0);
+		if (vw && (width <= 0 || left < -2 || left + width > vw + 2)) {
+			this.clearBarBounds();
+			return;
+		}
+		this._barBoundsCleared = false;
+
 		// Only touched when it actually changes: writing left/width on every
 		// mask pass would invalidate layout continuously, and the mask pass
 		// runs on scroll.
