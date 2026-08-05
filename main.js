@@ -2934,7 +2934,7 @@ module.exports = class WordSmith extends Plugin {
 				'lineDarkColor', 'lineLightColor']
 				.some(k => raw[k] !== undefined && raw[k] !== DEFAULT_SETTINGS[k]);
 		}
-		// 1.43.4: editorFont shipped with a real font name as its default, so
+		// 1.1.8: editorFont shipped with a real font name as its default, so
 		// every vault that ever saved its settings has that name written into
 		// data.json whether or not anyone chose it. Changing the default alone
 		// would therefore fix nothing for the people who reported it.
@@ -4003,7 +4003,20 @@ module.exports = class WordSmith extends Plugin {
 		const pick = sec => Array.from(sec.querySelectorAll
 			? sec.querySelectorAll('.zg-pl-seg, .zg-fit-item') : [])
 			.filter(el => !el.querySelector('.zg-barbtn')
-				&& !el.classList.contains('zg-barbtn'));
+				&& !el.classList.contains('zg-barbtn'))
+			// In a powerline row the SEGMENT is the unit — it is the thing
+			// with a colour, a shape at each end and a boundary the writer
+			// chose. Its items are the readings inside it, and hiding one of
+			// those on its own would leave a coloured box with a hole in it.
+			// Plain rows have no segments, so every item is a candidate.
+			.filter(el => el.classList.contains('zg-pl-seg')
+				|| !(el.closest && el.closest('.zg-pl-seg')))
+			// Whitespace between two buttons is an item like any other now
+			// that runs are split per token. Dropping it saves four pixels
+			// and jams two glyphs together, which is a worse row than the
+			// one that did not fit.
+			.filter(el => el.classList.contains('zg-pl-seg')
+				|| (el.textContent || '').trim() !== '');
 		const byClass = c => secs.filter(s => s.classList && s.classList.contains(c));
 		const left  = byClass('zg-status-left').flatMap(pick);
 		const right = byClass('zg-status-right').flatMap(pick).reverse();
@@ -9739,8 +9752,29 @@ module.exports = class WordSmith extends Plugin {
 	parsePowerlineSegments(formatStr) {
 		const texts = [], seps = [], dirs = [];
 		let buf = '';
+		// A divider character INSIDE a token is part of that token's name,
+		// not a boundary between segments. `{#>}` — the whole heading trail —
+		// is the only shipped token that contains one, and it was being cut
+		// in half at the `>`: the row got a segment ending `{#` , an arrow,
+		// and a segment starting `}`, neither of which substitutes, so the
+		// trail printed as literal braces and vanished the moment powerline
+		// was switched on. It worked in a plain row because a plain row has
+		// no dividers to be confused by.
+		//
+		// A brace run with no nested braces, so an unmatched `{` typed into a
+		// row cannot swallow the rest of the dividers: it simply never opens
+		// a span.
+		const inTok = new Array(formatStr.length).fill(false);
+		{
+			const tokRe = /\{[^{}]*\}/g;
+			let tm;
+			while ((tm = tokRe.exec(formatStr))) {
+				for (let k = tm.index; k < tm.index + tm[0].length; k++) inTok[k] = true;
+			}
+		}
 		for (let i = 0; i < formatStr.length; i++) {
 			const c = formatStr[i];
+			if (inTok[i]) { buf += c; continue; }
 			if (c === '\\' && i + 1 < formatStr.length && PL_DIVIDERS[formatStr[i + 1]]) {
 				buf += formatStr[i + 1]; i++; continue;
 			}
@@ -9792,7 +9826,14 @@ module.exports = class WordSmith extends Plugin {
 			// keeps its auto colour), and so is a bare ;N. A token with
 			// neither matches with both groups empty and is put back
 			// untouched, which is what makes the optionality safe.
-			const text = texts[i].replace(/(\{[a-z:]+\})(?:\s*:(\d+|vim|b[12]))?(?:\s*;\s*(\d+|vim|t[12]))?/gi, (m, tok, n, t) => {
+			// `[^{}]+`, not `[a-z:]+`. The old class knew about letters and
+			// the colon in `{ln:col}` and nothing else, so `{#}` and its five
+			// deeper siblings — and `{#>}` — matched nothing, and their
+			// suffix was left in the text: `{#}:b1` painted the heading in
+			// the auto colour and then printed ":b1" beside it. `{file}:b1`
+			// worked, which is what made it look like a colour bug rather
+			// than a token-name bug.
+			const text = texts[i].replace(/(\{[^{}]+\})(?:\s*:(\d+|vim|b[12]))?(?:\s*;\s*(\d+|vim|t[12]))?/gi, (m, tok, n, t) => {
 				if (n != null && slot === null) {
 					slot = /^vim$/i.test(n) ? 'vim'
 						: /^b[12]$/i.test(n) ? n.toLowerCase()
@@ -10446,20 +10487,70 @@ module.exports = class WordSmith extends Plugin {
 		const frag = document.createDocumentFragment();
 		if (!formatStr) return frag;
 
-		let out = formatStr;
-		// Guarded on the brace so a future non-token entry on this object
-		// cannot be substituted into the format string by accident.
-		for (const token in subs) {
-			if (token.charAt(0) !== '{') continue;
-			out = out.split(token).join(String(subs[token]));
+		// Walked token by token, rather than substituted with a chain of
+		// whole-string replaces, because the fit pass drops ELEMENTS and can
+		// only drop what the render gave it.
+		//
+		// The old version flattened the slot into one string and then wrapped
+		// each run of text BETWEEN drawn tokens in a single `.zg-fit-item`.
+		// In a powerline row that was invisible, because there the segment is
+		// the unit and a row is cut segment by segment. In a plain row it was
+		// the whole bug: a slot with no drawn tokens in it — `{file}`, or
+		// `{words} words {chars} chars` — produced exactly ONE item, so the
+		// first thing the fit pass could shed was the entire left slot. The
+		// bar did not shorten, it amputated.
+		//
+		// A second thing falls out of the walk: a token's VALUE is never
+		// rescanned, so a note named `{words}.md` is no longer substituted
+		// into a word count by a later pass over the same string.
+		const keys = Object.keys(subs).filter(k => k.charAt(0) === '{')
+			// Longest first, so no key can be stolen by a shorter one that
+			// happens to be its prefix.
+			.sort((a, b) => b.length - a.length);
+		const tokenRe = keys.length
+			? new RegExp(keys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g')
+			: null;
+
+		// nodes: { text, tok } for a run of text, { el } for a drawn token.
+		//
+		// A run keeps collecting until it already holds a token AND another
+		// token arrives. So `Words: {words}` and `{words} words` each come
+		// out as one item carrying its own label, while `{words} {chars}` is
+		// two — dropping a reading never leaves an orphaned label behind it,
+		// which is the failure mode that makes token-level shedding look
+		// broken even when it works.
+		const nodes = [];
+		let cur = null;
+		const addText = (s, isTok) => {
+			if (!s) return;
+			if (!cur || (isTok && cur.tok)) { cur = { text: '', tok: false }; nodes.push(cur); }
+			cur.text += s;
+			if (isTok) cur.tok = true;
+		};
+		const addEl = (name) => { nodes.push({ el: name }); cur = null; };
+
+		let last = 0;
+		if (tokenRe) {
+			let m;
+			while ((m = tokenRe.exec(formatStr))) {
+				addText(formatStr.slice(last, m.index), false);
+				const v = String(subs[m[0]]);
+				// Tokens that render as elements substitute to a lone
+				// sentinel; everything else is text. \x00 cannot appear in a
+				// format string or a note name, so the test is unambiguous.
+				if (v.charCodeAt(0) === 0) addEl(v.slice(1, -1));
+				else addText(v, true);
+				last = m.index + m[0].length;
+			}
 		}
+		// Whatever is left, including an unknown `{token}` nobody substituted,
+		// which stays visible as text exactly as it did before.
+		addText(formatStr.slice(last), false);
 
 		// Tokens that render as elements rather than text are substituted as
-		// sentinels above and spliced back in as real nodes here. Splitting on
-		// one combined pattern, rather than handling a single token, is what
-		// makes repeats work: the previous version took parts[0] and parts[1]
-		// only, so a second gauge token in the same slot silently swallowed
-		// everything after it.
+		// sentinels above and spliced back in as real nodes here. They are
+		// appended to the fragment DIRECTLY, never wrapped in a fit item: a
+		// {g} band carries no text, and the fade pass drops text-less items.
 		const builders = {
 			MODE:     () => this.buildModeIndicator(),
 			SYNTAX:   () => this.buildSyntaxIndicator(),
@@ -10473,39 +10564,33 @@ module.exports = class WordSmith extends Plugin {
 			CLOCK:    () => this.buildClockFace(),
 			OBSIDIAN: () => this.buildObsidianIcon()
 		};
-		// \x00 cannot appear in a note or a format string, so the split is
-		// unambiguous. Odd indices are the captured sentinel names.
-		const parts = out.split(/\x00(GOAL|FOLDERGOAL|FILEGOAL|MODE|SYNTAX|MARKERS|WRITECHECKS|FONT|REPORT|HISTORY|CAPS|NUM|CLOCK|OBSIDIAN|SP:\d+|GR:\d+)\x00/);
-		for (let i = 0; i < parts.length; i++) {
-			const chunk = parts[i];
-			if (!chunk) continue;
-			if (i % 2 === 1) {
+		for (const n of nodes) {
+			if (n.el !== undefined) {
 				// {s}, {ss}… — one unit of width per s. An element rather
 				// than characters, so the width is the same in every font.
-				if (chunk.startsWith('SP:')) {
+				if (n.el.startsWith('SP:')) {
 					const sp = document.createElement('i');
 					sp.className = 'zg-pl-space';
-					sp.style.width = (Number(chunk.slice(3)) * 0.25) + 'em';
+					sp.style.width = (Number(n.el.slice(3)) * 0.25) + 'em';
 					frag.appendChild(sp);
 				// {g} — a gradient band. Same sizing as a spacer, its own
 				// class: the fade pass paints .zg-pl-grad and must never
 				// touch a spacer, which is empty space by contract.
-				} else if (chunk.startsWith('GR:')) {
+				} else if (n.el.startsWith('GR:')) {
 					const gr = document.createElement('i');
 					gr.className = 'zg-pl-grad';
-					gr.style.width = (Number(chunk.slice(3)) * 0.25) + 'em';
+					gr.style.width = (Number(n.el.slice(3)) * 0.25) + 'em';
 					frag.appendChild(gr);
-				} else if (builders[chunk]) frag.appendChild(builders[chunk]());
-			} else {
-				// Wrapped rather than appended as a bare text node: the fit
-				// pass drops ELEMENTS, and a text node cannot be hidden or
-				// selected. In powerline the segment is already the unit, so
-				// this only matters in the plain bar.
-				const t = document.createElement('span');
-				t.className = 'zg-fit-item';
-				t.textContent = chunk;
-				frag.appendChild(t);
+				} else if (builders[n.el]) frag.appendChild(builders[n.el]());
+				continue;
 			}
+			if (!n.text) continue;
+			// Wrapped rather than appended as a bare text node: the fit pass
+			// drops elements, and a text node cannot be hidden or selected.
+			const t = document.createElement('span');
+			t.className = 'zg-fit-item';
+			t.textContent = n.text;
+			frag.appendChild(t);
 		}
 		return frag;
 	}
