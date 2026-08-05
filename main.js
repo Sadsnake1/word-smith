@@ -1581,7 +1581,16 @@ const DEFAULT_SETTINGS = {
 	paragraphIndentEm:        4,
 	paragraphIndentMode:      'single',   // 'double' | 'single'
 	lineSpacing:              1.5,
-	editorFont:               'JetBrainsMono Nerd Font',        // '' = whatever the theme sets
+	// '' = whatever the theme sets, and that is the only defensible shipped
+	// value. This held a real font name for eleven releases (issues #4 and
+	// #6): installing the plugin restyled every note in a face the writer had
+	// not chosen and, because the only control for it was the {font} button
+	// on the bar, a preset without that token left no way to find the switch.
+	// A plugin may add things to Obsidian. It may not quietly redecorate what
+	// was already there.
+	editorFont:               '',
+	// One-shot: see the migration in loadSettings.
+	editorFontDefaultCleared: false,
 	limitLineLength:          false,
 	maxLineChars:             64,
 	justifyText:              true,
@@ -2924,6 +2933,23 @@ module.exports = class WordSmith extends Plugin {
 			this.settings.letterboxCustomColors = ['arrowDarkColor', 'arrowLightColor',
 				'lineDarkColor', 'lineLightColor']
 				.some(k => raw[k] !== undefined && raw[k] !== DEFAULT_SETTINGS[k]);
+		}
+		// 1.43.4: editorFont shipped with a real font name as its default, so
+		// every vault that ever saved its settings has that name written into
+		// data.json whether or not anyone chose it. Changing the default alone
+		// would therefore fix nothing for the people who reported it.
+		//
+		// Cleared exactly once, and only when the value is still character-for
+		// -character the old default: a writer who picked "JetBrains Mono" from
+		// their own list has a different string and is not touched. Someone who
+		// deliberately chose the identical face loses it once and re-picks it
+		// from the Text Options tab — the wrong side of that trade is the one
+		// where a plugin keeps overriding a font nobody asked it to.
+		if (!this.settings.editorFontDefaultCleared) {
+			if (this.settings.editorFont === 'JetBrainsMono Nerd Font') {
+				this.settings.editorFont = '';
+			}
+			this.settings.editorFontDefaultCleared = true;
 		}
 		// Migrate old letterboxRatio
 		if (this.settings.letterboxRatio != null) {
@@ -14189,6 +14215,47 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// Typography is its own master toggle, not a text option: it rewrites
 		// the document as you type, where everything above only restyles it.
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
+		// Font is its own group, not a text option, and deliberately outside
+		// the master above: `miscEnabled` ships OFF, so gating the font on it
+		// would take the font away from everyone already using it through the
+		// {font} button. It sits on this tab because this is where the note's
+		// own type lives, next to spacing and measure.
+		//
+		// It exists at all because the {font} button was the ONLY control:
+		// a bar preset without that token, or the bar switched off, left a
+		// writer with a font they could not change from inside the plugin
+		// (issue #6 — the reporter ended up overriding --zg-font in a CSS
+		// snippet, which is a bug report written in CSS).
+		this.label(containerEl, 'Font');
+		const fg = this.sub(containerEl);
+		const fonts = this.plugin.getConfiguredFonts();
+		new Setting(fg)
+			.setName('Note font')
+			.setDesc(fonts.length
+				? 'Applies to the note in both editing and reading views. The list is your own \u2014 add faces under Appearance \u2192 Font.'
+				: 'No fonts added yet. Add them under Appearance \u2192 Font and they will appear here.')
+			.addDropdown(d => {
+				d.addOption('', 'Theme default');
+				for (const name of fonts) d.addOption(name, name);
+				// A font can be chosen and then removed from the Appearance
+				// list, or arrive from another machine. Without this the
+				// dropdown would silently show "Theme default" while the note
+				// was still being restyled — the exact complaint this whole
+				// change is about, one level down.
+				const cur = this.plugin.settings.editorFont || '';
+				if (cur && !fonts.includes(cur)) d.addOption(cur, cur + ' (not in your list)');
+				d.setValue(cur);
+				d.onChange(async v => {
+					this.plugin.settings.editorFont = v || '';
+					await this.plugin.saveSettings();
+					this.display();
+				});
+			});
+		fg.createEl('p', {
+			text: 'A single note can override this with ws-font in its frontmatter, and the {font} token puts the same picker on the bar.',
+			cls: 'ws-settings-note'
+		});
 	}
 	// ── Misc tab ──────────────────────────────────────────────────────────────
 	// ── Vim tab ──────────────────────────────────────────────────────────────
