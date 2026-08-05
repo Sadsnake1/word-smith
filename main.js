@@ -1157,7 +1157,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 34;
+const ZG_STYLESHEET_VERSION = 36;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1321,23 +1321,43 @@ const PL_THEME_BGS = {
 	b2: '--background-secondary',
 };
 
-// Doubling turns a character into a SOFT mark: drawn in the segment's own
+// Doubling turns a character into a SOFT mark: drawn in the row's own
 // foreground, inside one colour block instead of between two — the hairline
-// short and faint, the chevrons at the segment's full height as an outline
-// stroke (buildSoftChevron), the way p10k's thin dividers sit inside a
-// block. Only three
-// exist, and the set is deliberately short rather than symmetric — (( )) || ~~
-// were tried and removed. A soft mark has to stay legible at a few pixels of
-// foreground colour, and the round, twin and wave forms did not: they read as
-// specks. Chevrons keep a clear direction and the hairline is unmistakable at
-// any size, so those are what remain. Backslash is excluded regardless: a
-// doubled backslash already means a literal one.
+// short and faint, the chevrons the same line bent to a point and drawn as
+// an outline stroke (buildSoftChevron), the way p10k's thin dividers sit
+// inside a block. Only
+// three exist, and the set is deliberately short rather than symmetric —
+// (( )) || ~~ were tried and removed. A soft mark has to stay legible at a
+// few pixels of foreground colour, and the round, twin and wave forms did
+// not: they read as specks. Chevrons keep a clear direction and the hairline
+// is unmistakable at any size, so those are what remain. Backslash is
+// excluded regardless: a doubled backslash already means a literal one.
+//
+// A fourth mark, a 1px rule at the bar's full height, was built and removed.
+// Not for how it DREW — that part worked — but for how it read in the format
+// string. It was spelled `||` first, which put a third meaning on the one
+// character that is already the straight divider and the only one with an
+// escape, and then `;;`, which has none of those problems and a worse one: at
+// the size a row is written and scanned, `;;` and `::` are the same two
+// stacked dots. A grammar the writer has to squint at is not simpler than no
+// mark at all. If it comes back it needs characters that look nothing like
+// the hairline's.
 //
 // Note this means doubling is NOT universal. A doubled character with no
 // entry here falls through to the tokenizer, which splits on each half as a
 // hard divider — the empty segment between them is then dropped by the
 // collapse pass, so `{a} )) {b}` renders as a single round join rather than
 // as an error. That is the intended degradation.
+//
+// All three work in a PLAIN row as well as a powerline one. They were
+// powerline-only for no reason anyone chose: the split lived inside
+// renderPowerlineSection, so a plain row printed `::` as two colons. Nothing
+// about a mark in the row's own foreground needs a coloured block behind it —
+// that is what makes it soft. renderStatusSection now does the same split, and
+// since the powerline renderer hands it pieces that are already split, the
+// two do not collide. Sizing differs and only sizing: a segment gives the
+// marks a definite height to stretch into and a plain section does not, so
+// the stylesheet sizes them from the bar's font there (see .zg-pl-soft).
 // The official Obsidian crystal as one path, its four facets separate
 // subpaths so the facet lines are gaps in the fill. From simple-icons
 // (CC0 path data); see buildObsidianIcon for the trademark note.
@@ -1349,6 +1369,7 @@ const PL_SOFT = {
 	'<<': 'zg-pl-soft zg-pl-chev-l'
 };
 const PL_SOFT_SPLIT = /(::|>>|<<)/;
+
 
 const DEFAULT_SETTINGS = {
 	// ── Master switch ─────────────────────────────────────────────────────────
@@ -2510,9 +2531,12 @@ module.exports = class WordSmith extends Plugin {
 			callback: () => this.toggleZen()
 		});
 
+		// The id is NOT renamed with the label. It is the key a user's
+		// hotkey is bound to, and a hotkey that silently stops working is a
+		// worse defect than the wrong noun in a palette.
 		this.addCommand({
 			id: 'open-report',
-			name: 'Show the text report',
+			name: 'Show the writing report',
 			callback: () => this.openReportModal()
 		});
 
@@ -4573,6 +4597,19 @@ module.exports = class WordSmith extends Plugin {
 			// window controls unclickable, which is a broken window, not
 			// a style drift.
 			'.zengrinder-mask-guard { -webkit-app-region: no-drag; }',
+			// The BOTTOM letterbox band claims nothing. The stylesheet used
+			// to grant `drag` to both arrow wraps, and app-region hit tests
+			// ignore opacity and pointer-events — so with the bar auto-hidden
+			// (mask reaching the window edge) the bottom wrap swallowed every
+			// mouse event over the strip the bar hides in: no hover peek, and
+			// a click there dragged the window. Self-carried because the
+			// stale-stylesheet version of this is an unreachable bar, and
+			// written with the same class chain as the grant it overrides so
+			// it wins on order rather than on !important — this block is kept
+			// last in <head> (see applyInjectedStyles).
+			'body:not(.is-mobile).zenmode-active'
+				+ ':not(:has(.modal-container, .prompt, .suggestion-container, .menu))'
+				+ ' .zengrinder-arrows-wrap-bottom { -webkit-app-region: no-drag; }',
 			'body:not(.is-mobile) .zengrinder-status-bar,'
 				+ ' body:not(.is-mobile) .zengrinder-status-bar *,'
 				+ ' body:not(.is-mobile) .cm-editor .cm-panels.cm-panels-bottom,'
@@ -4667,18 +4704,32 @@ module.exports = class WordSmith extends Plugin {
 			// stone's optical centre sits above a text baseline.
 			'.zg-obsidian-icon { width: 1.05em; height: 1.05em;'
 				+ ' display: inline-block; vertical-align: -0.15em; flex: 0 0 auto; }',
-			// Chevron soft dividers: SVG strokes at the segment's FULL
-			// height (buildSoftChevron), pinned to the same rendered
-			// aspect as the hard arrows so both carry one angle. The
-			// hairline's width/background/scale are reset — this mark is
-			// a shape, not a rule. Self-carried because a stale stylesheet
-			// would otherwise leave a 10x28 fallback chevron floating mid
-			// row, which reads as a broken glyph, not as a style drift.
+			// Chevron soft dividers: SVG strokes (buildSoftChevron) at the
+			// hairline's own height and weight — 55% of the row, 1px — and
+			// pinned to the same rendered aspect as the hard arrows so both
+			// carry one angle. The hairline's width/background/scale are
+			// reset: this mark is a shape, not a rule. Self-carried because
+			// a stale stylesheet would otherwise leave the nominal fallback
+			// box floating mid row, which reads as a broken glyph rather
+			// than as a style drift.
 			'.zg-pl-soft.zg-pl-chev-r, .zg-pl-soft.zg-pl-chev-l {'
-				+ ' width: auto; height: 100%; align-self: auto; background: none;'
-				+ ' transform: none; margin: 0 7px; opacity: 0.55; flex: 0 0 auto;'
+				+ ' width: auto; height: 55%; align-self: center; background: none;'
+				+ ' transform: none; margin: 0 7px; opacity: 0.45; flex: 0 0 auto;'
 				+ ' border: 0; display: block;'
 				+ ' aspect-ratio: var(--zg-pl-sep-aspect, 0.85); }',
+			// The sizing that lets the soft marks render in a PLAIN row.
+			// Self-carried for the same reason as the chevron above, and
+			// more urgently: without these a plain row draws the hairline at
+			// ZERO height — an element that is in the DOM, takes its
+			// margins, and cannot be seen. That is a feature that looks
+			// unimplemented rather than unstyled. The chevron is worse
+			// still, falling back to its nominal box mid-row.
+			'.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft {'
+				+ ' height: 1.2em; align-self: auto; transform: none;'
+				+ ' vertical-align: -0.2em; }',
+			'.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-r,'
+				+ ' .zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-l {'
+				+ ' display: inline-block; height: 1.2em; vertical-align: -0.2em; }',
 			// The inner needs a definite full height for the chevron's 100%
 			// (and the fade bands') to resolve against. Contents stay
 			// centred — align-items is unchanged.
@@ -9869,29 +9920,38 @@ module.exports = class WordSmith extends Plugin {
 		return { segs, seps: keptSeps, lead, tail, leadDir, tailDir };
 	}
 
-	// A soft chevron at the segment's FULL height — the outline twin of the
-	// arrow separator, the way p10k draws its thin dividers between blocks
-	// of one colour.
+	// A soft chevron, sized and weighted to sit beside the hairline.
 	//
-	// An SVG stroke rather than the old border triangle: borders cannot make
-	// a LINE that spans the row, only a filled wedge, and a wedge at full
-	// height is a hard separator in the wrong colour. Stretched by
-	// preserveAspectRatio="none" like the hard shapes, with
-	// vector-effect="non-scaling-stroke" so the line stays the same weight
-	// however tall the row paints — a scaled stroke fattens with the bar and
-	// reads as a smear at large row heights.
+	// It used to run the segment's FULL height at a 1.5px stroke, which made
+	// it the loudest thing in a row that was not a colour — taller than the
+	// text it divided and heavier than the :: it is meant to be a variant
+	// of. The three marks are one family: a short faint line, and the same
+	// line bent to point somewhere. So the chevron now takes the hairline's
+	// height (55% of the row, via the stylesheet) and a 1px stroke, which is
+	// the hairline's own width exactly.
+	//
+	// An SVG stroke rather than a border triangle: borders can only make a
+	// filled wedge, and a wedge of any size is a hard separator in the wrong
+	// colour. Stretched by preserveAspectRatio="none" like the hard shapes,
+	// with vector-effect="non-scaling-stroke" so the line stays 1px however
+	// tall the row paints — a scaled stroke fattens with the bar and reads
+	// as a smear at large row heights. That is what keeps "thin" true at
+	// every row height rather than only at the default one.
 	//
 	// Same aspect as the hard arrows (--zg-pl-sep-aspect, via the
 	// stylesheet), so a soft chevron and a hard arrow in one row carry the
-	// same angle and read as two weights of one mark, not two marks.
+	// same angle and read as two weights of one mark, not two marks. Shrinking
+	// the mark does not touch the angle: the aspect is a ratio.
 	buildSoftChevron(dir) {
 		const NS = 'http://www.w3.org/2000/svg';
 		const svg = document.createElementNS(NS, 'svg');
 		svg.setAttribute('class', 'zg-pl-soft '
 			+ (dir === 'right' ? 'zg-pl-chev-r' : 'zg-pl-chev-l'));
 		// Nominal only — the stylesheet stretches it. Kept as the fallback
-		// geometry for a stale stylesheet, exactly like the hard shapes.
-		const w = 10, h = 28;
+		// geometry for a stale stylesheet, exactly like the hard shapes, and
+		// sized small for the same reason the CSS is: if it is ever the
+		// geometry anyone sees, a small mark is the right guess.
+		const w = 8, h = 16;
 		svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
 		svg.setAttribute('width', String(w));
 		svg.setAttribute('height', String(h));
@@ -9904,11 +9964,32 @@ module.exports = class WordSmith extends Plugin {
 			: 'M' + (w - 1) + ',0 L1,' + (h / 2) + ' L' + (w - 1) + ',' + h);
 		path.setAttribute('fill', 'none');
 		path.setAttribute('stroke', 'currentColor');
-		path.setAttribute('stroke-width', '1.5');
+		// 1, not 1.5: the hairline is 1px, and two marks in one family
+		// cannot be drawn at two weights.
+		path.setAttribute('stroke-width', '1');
 		path.setAttribute('vector-effect', 'non-scaling-stroke');
 		path.setAttribute('stroke-linejoin', 'round');
 		svg.appendChild(path);
 		return svg;
+	}
+
+	// One soft mark, from the characters that were typed. Both renderers go
+	// through here rather than each carrying its own if-chain: the powerline
+	// one and the plain one have to agree about what `::` IS, and they only
+	// stayed in step while there were two marks and one renderer that knew
+	// about them. Returns null for anything not in the table, so a caller can
+	// treat "is this a mark" and "build it" as one question.
+	buildSoftMark(mark) {
+		const cls = PL_SOFT[mark];
+		if (!cls) return null;
+		// The chevrons are drawn geometry; the hairline is a 1px element the
+		// stylesheet does everything to, so it needs no builder.
+		if (mark === '>>' || mark === '<<') {
+			return this.buildSoftChevron(mark === '>>' ? 'right' : 'left');
+		}
+		const i = document.createElement('i');
+		i.className = cls;
+		return i;
 	}
 
 	// One separator, drawn as SVG rather than set as a Nerd Font glyph.
@@ -10256,28 +10337,25 @@ module.exports = class WordSmith extends Plugin {
 			// Soft dividers live INSIDE a segment, drawn in its own
 			// foreground rather than as a colour boundary: they group
 			// related readings within one block instead of setting them
-			// against each other. Three of them now:
+			// against each other. Three of them:
 			//   ::  hairline
-			//   >>  chevron pointing right
-			//   <<  chevron pointing left
+			//   >>  small chevron pointing right
+			//   <<  small chevron pointing left
 			// Doubled characters, because the single forms are the arrow
 			// dividers and a soft marker has to be distinguishable from a
 			// hard one at a glance in the format string. Split on all three
 			// at once, keeping the delimiter so the renderer knows which
 			// mark to draw.
+			//
+			// The pieces BETWEEN the marks go to renderStatusSection, which
+			// now runs this same split itself — harmlessly, because the
+			// split is exhaustive: a piece that came out of it can never
+			// contain another mark.
 			const parts = parsed.segs[i].text.split(PL_SOFT_SPLIT);
 			for (let p = 0; p < parts.length; p++) {
 				const piece = parts[p];
-				if (PL_SOFT[piece]) {
-					// The hairline stays an <i>; the chevrons are drawn
-					// SVG at the segment's full height (buildSoftChevron).
-					if (piece === '>>' || piece === '<<') {
-						inner.appendChild(this.buildSoftChevron(piece === '>>' ? 'right' : 'left'));
-					} else {
-						inner.appendChild(document.createElement('i')).className = PL_SOFT[piece];
-					}
-					continue;
-				}
+				const mark  = this.buildSoftMark(piece);
+				if (mark) { inner.appendChild(mark); continue; }
 				inner.appendChild(this.renderStatusSection(piece.trim(), subs));
 			}
 			// A segment is empty when it holds no text and no elements. The
@@ -10529,23 +10607,47 @@ module.exports = class WordSmith extends Plugin {
 		};
 		const addEl = (name) => { nodes.push({ el: name }); cur = null; };
 
-		let last = 0;
-		if (tokenRe) {
-			let m;
-			while ((m = tokenRe.exec(formatStr))) {
-				addText(formatStr.slice(last, m.index), false);
-				const v = String(subs[m[0]]);
-				// Tokens that render as elements substitute to a lone
-				// sentinel; everything else is text. \x00 cannot appear in a
-				// format string or a note name, so the test is unambiguous.
-				if (v.charCodeAt(0) === 0) addEl(v.slice(1, -1));
-				else addText(v, true);
-				last = m.index + m[0].length;
+		// Soft marks (:: >> <<) first, so the token walk below never sees
+		// them. They used to be split out by the POWERLINE renderer only,
+		// which is why a plain row printed `::` as two colons — the marks
+		// were not powerline features, they were just parsed in the
+		// powerline path. Splitting here gives every row the same grammar,
+		// and costs the powerline path nothing: it hands this function
+		// pieces it has already split, and a piece that came out of an
+		// exhaustive split cannot contain another mark.
+		//
+		// A mark also ENDS the current run (cur = null via addMark), which is
+		// what the fit pass wants: `{words} :: {chars}` is two shedable
+		// items with a mark between them, not one item that can only be
+		// dropped whole.
+		const addMark = (mark) => { nodes.push({ mark }); cur = null; };
+
+		for (const chunk of String(formatStr).split(PL_SOFT_SPLIT)) {
+			if (!chunk) continue;
+			if (PL_SOFT[chunk]) { addMark(chunk); continue; }
+			let last = 0;
+			if (tokenRe) {
+				// exec is stateful and the regex is reused across chunks, so
+				// lastIndex has to be cleared or the second chunk starts
+				// scanning from wherever the first one stopped.
+				tokenRe.lastIndex = 0;
+				let m;
+				while ((m = tokenRe.exec(chunk))) {
+					addText(chunk.slice(last, m.index), false);
+					const v = String(subs[m[0]]);
+					// Tokens that render as elements substitute to a lone
+					// sentinel; everything else is text. \x00 cannot appear
+					// in a format string or a note name, so the test is
+					// unambiguous.
+					if (v.charCodeAt(0) === 0) addEl(v.slice(1, -1));
+					else addText(v, true);
+					last = m.index + m[0].length;
+				}
 			}
+			// Whatever is left, including an unknown `{token}` nobody
+			// substituted, which stays visible as text exactly as before.
+			addText(chunk.slice(last), false);
 		}
-		// Whatever is left, including an unknown `{token}` nobody substituted,
-		// which stays visible as text exactly as it did before.
-		addText(formatStr.slice(last), false);
 
 		// Tokens that render as elements rather than text are substituted as
 		// sentinels above and spliced back in as real nodes here. They are
@@ -10565,6 +10667,16 @@ module.exports = class WordSmith extends Plugin {
 			OBSIDIAN: () => this.buildObsidianIcon()
 		};
 		for (const n of nodes) {
+			// Appended straight to the fragment, never wrapped in a
+			// `.zg-fit-item`: a mark carries no text, and the fit pass sheds
+			// items by text. A row that shortened by dropping its dividers
+			// and keeping the readings would be shedding the cheapest thing
+			// on the row and the one holding it together.
+			if (n.mark !== undefined) {
+				const el = this.buildSoftMark(n.mark);
+				if (el) frag.appendChild(el);
+				continue;
+			}
 			if (n.el !== undefined) {
 				// {s}, {ss}… — one unit of width per s. An element rather
 				// than characters, so the width is the same in every font.
@@ -13339,9 +13451,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('> {g}>{g}>{g} >', 'dividers in the middle of a fade keep their shape \u2014 arrows,');
 		L('', 'curves, waves or cuts, cut out of one continuous fade');
 
-		H('Marks inside a segment \u2014 drawn in that segment\u2019s own colour');
+		H('Marks inside a row \u2014 drawn in the text\u2019s own colour');
 		L('::', 'a short thin line');
-		L('>>  <<', 'tall chevrons, at the same angle as the arrows');
+		L('>>  <<', 'the same line bent to a point, at the arrows\u2019 angle');
+		L('', 'These three work with or without powerline segments. Type');
+		L('', 'them doubled \u2014 a single > or < is a divider, and a single :');
+		L('', 'starts a colour.');
 
 		H('Two rows to copy and pull apart');
 		L(':vim {vim} > {file} :: {ln:col}');

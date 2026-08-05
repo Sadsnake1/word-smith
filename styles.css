@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 34;
+	--zg-stylesheet-version: 36;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -382,9 +382,33 @@ body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggest
    mentioning it.
 
    Gated exactly like the mask, so the band is never claimed when the mask
-   is not claiming it either. */
-body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .zengrinder-arrows-wrap {
+   is not claiming it either.
+
+   TOP ONLY, and that is a fix rather than a tidy-up. The grant exists for
+   one reason: to stop the wrap subtracting a bite out of the band the TOP
+   mask granted. Only `.zengrinder-mask-top` grants anything, so the bottom
+   wrap had nothing to counter-grant and was claiming the bottom band for
+   free — and -webkit-app-region hit tests ignore both `opacity` and
+   `pointer-events`, so an invisible, click-through wrap still swallowed
+   every mouse event over the strip it covered.
+
+   Which strip that is depends on the bar. With the bar out, the wrap stops
+   at the bar's top edge and nothing is wrong. With the bar AUTO-HIDDEN the
+   mask reaches the window edge, so the wrap covered exactly the strip the
+   hidden bar lives in — and the peek that brings it back is driven by
+   mousemove, which no longer arrived. Zen + letterbox + hide-the-bar left
+   the bar unreachable: it would not peek on hover, and a click in that band
+   dragged the window instead. */
+body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .zengrinder-arrows-wrap-top {
 	-webkit-app-region: drag;
+}
+
+/* And the bottom band is explicitly released. Not strictly needed — with the
+   grant gone the wrap inherits Obsidian's no-drag body — but this band sits
+   over the status bar, the vim gutter and the peek zone, and "nothing claims
+   it" is worth stating where the next person will look for it. */
+body:not(.is-mobile) .zengrinder-arrows-wrap-bottom {
+	-webkit-app-region: no-drag;
 }
 
 /* The window-control guards: no-drag rectangles over the minimize /
@@ -554,7 +578,23 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 
 .zengrinder-arrows {
 	display: flex;
-	justify-content: space-evenly;
+	/* The row is exactly as wide as the separator line under it, so how far
+	   the outermost arrow sits from the end of that line is decided purely
+	   by how the free space is shared out. That used to be space-evenly (a
+	   full share at each end) and then space-around (half a share), and both
+	   are the same kind of value: whatever the arithmetic happens to give
+	   for the current count. Neither is a number anyone can nudge.
+	   So the end inset is now a KNOB and the arrows are spread with
+	   space-between: --zg-arrow-end-inset is the gap at each end, the inner
+	   gaps take whatever is left, and moving the arrows in or out is one
+	   number instead of a different keyword. A percentage, so it tracks the
+	   line's own width — the inset is a proportion of the line, not of the
+	   arrow glyph, and it does not drift when the arrow scale changes.
+	   border-box, because width is 100% and content-box would push the
+	   padding out past the line ends, which is the opposite of the point. */
+	box-sizing: border-box;
+	justify-content: space-between;
+	padding-inline: var(--zg-arrow-end-inset, 5%);
 	width: 100%;
 	color: var(--zg-arrow-color, var(--text-normal));
 	/* The chosen editor font, not the interface one. The wrap is appended
@@ -591,9 +631,19 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 /* End caps ride in the arrow row itself, so they take its colour, size,
    line-height and baseline without declaring any of them again. The row
    spreads edge to edge when they are present, which is what puts one at each
-   end of the separator line below it. */
+   end of the separator line below it — so the end inset above, which exists
+   to hold the uncapped row BACK from the ends, has to come off here. A cap
+   that stopped 5% short of the line end would not be a cap. */
 .zengrinder-arrows.has-caps {
 	justify-content: space-between;
+	padding-inline: 0;
+}
+
+/* space-between puts a LONE flex item at the start, not in the middle — the
+   two spacing keywords this rule replaced both centred it for free. Arrow
+   count goes down to 1, so that case has to be said out loud. */
+.zengrinder-arrows > :only-child {
+	margin-inline: auto;
 }
 
 /* Wider invisible hit area for dragging. */
@@ -1192,21 +1242,33 @@ body.zg-bar-anim .zengrinder-status-bar {
 
 /* Chevron soft dividers (>> and <<). Same job as the hairline above — a mark
    in the segment's own foreground — but pointed, for when a group should
-   read as a progression rather than a list. Now drawn SVG at the SEGMENT'S
-   FULL HEIGHT (buildSoftChevron): the outline twin of the arrow separator,
-   the way p10k's thin dividers sit inside a block of one colour. The stroke
-   is vector-effect: non-scaling-stroke, so stretching the shape to the row
-   does not fatten the line.
+   read as a progression rather than a list. Drawn SVG (buildSoftChevron)
+   with a vector-effect: non-scaling-stroke line, so stretching the shape to
+   the row does not fatten it.
+
+   SMALL and THIN, to match the hairline. It ran the segment's full height at
+   a 1.5px stroke, which made it the loudest thing in a row that was not a
+   colour — taller than the text it divided, and heavier than the mark it is
+   a variant of. The three marks are one family, so this takes the hairline's
+   own numbers: 55% of the row (the same fraction its scaleY gives) and a 1px
+   stroke (the same width). Opacity sits a little above the hairline's 0.35
+   rather than at it — a thin diagonal covers fewer whole pixels than a
+   vertical line does, so matching the number would not match the weight.
+
+   Height, not scaleY: the mark is a stretched shape, and scaling it would
+   take the stroke with it, which is exactly what non-scaling-stroke is here
+   to prevent. Centred instead of stretched for the same reason.
 
    Pinned to the same rendered aspect as the hard arrows, so a soft chevron
-   and a hard arrow in one row carry one angle and read as two weights of
-   the same mark. The hairline's width/background/scaleY do not apply here,
-   so they are reset: this mark is a shape, not a rule. */
+   and a hard arrow in one row carry one angle and read as two weights of the
+   same mark — shrinking it does not touch that, since the aspect is a ratio.
+   The hairline's width/background/scaleY do not apply here, so they are
+   reset: this mark is a shape, not a rule. */
 .zg-pl-soft.zg-pl-chev-r,
 .zg-pl-soft.zg-pl-chev-l {
 	width: auto;
-	height: 100%;
-	align-self: auto;
+	height: 55%;
+	align-self: center;
 	background: none;
 	transform: none;
 	margin: 0 7px;
@@ -1214,7 +1276,33 @@ body.zg-bar-anim .zengrinder-status-bar {
 	display: block;
 	flex: 0 0 auto;
 	aspect-ratio: var(--zg-pl-sep-aspect, 0.85);
-	opacity: 0.55;
+	opacity: 0.45;
+}
+
+/* The soft marks in a PLAIN row.
+
+   They are drawn by the same builders as in a powerline row and differ only
+   in how they get their HEIGHT. A segment is a flex box with a definite
+   height, so there `align-self: stretch` and `height: 100%` are all the
+   marks need. A plain section is inline text with no height of its own:
+   stretch means nothing, 100% resolves against auto, and the hairline came
+   out 0px tall — present in the DOM, invisible on screen. So the plain row
+   sizes them from what it does have, the bar's font size, and aligns them to
+   the text baseline like the clock and the Obsidian stone. */
+.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft {
+	height: 1.2em;
+	align-self: auto;
+	transform: none;
+	vertical-align: -0.2em;
+}
+
+/* In a plain row the hairline is 1.2em, so the chevron is too: same height,
+   same baseline offset, one family. */
+.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-r,
+.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-l {
+	display: inline-block;
+	height: 1.2em;
+	vertical-align: -0.2em;
 }
 
 /* The inner needs a definite full height for the chevron's 100% (and a
@@ -2208,7 +2296,12 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-history-grid {
 	grid-template-columns: repeat(4, 1fr);
-	gap: 2px;
+	/* Row gap, then column gap. It was 2px both ways, which put four
+	   accent-bordered cells close enough to read as one banded block —
+	   the borders looked like a table rule rather than four marks. The
+	   column gap is what separates the figures; the row gap only shows
+	   in the two-column layout below. */
+	gap: 10px 14px;
 	margin-bottom: 4px;
 }
 
@@ -2254,7 +2347,24 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 /* ── Day | Month | Year ─────────────────────────────────────────────────── */
 /* Painted by .ws-tab-btn, the rule the report's own tabs use, so the two
-   windows do not disagree about what a tab looks like. */
+   windows do not disagree about what a tab looks like.
+
+   The SPACING is this window's own, because the shared .ws-tab-nav is
+   written for a settings pane where the tabs are the first thing on the
+   page. Here they sit under the four figures, and inherited that rule's
+   4px top margin — 8px of air between a 26px number and a row of buttons,
+   against 36px between those buttons and the chart they drive. The tabs
+   read as part of the figures, which is backwards: they are the controls
+   for everything BELOW them.
+
+   So the gaps are swapped. A wide one above separates the answer (the four
+   numbers) from the way you interrogate it, and a narrow one below binds
+   the tabs to the period line and chart they change. Proximity does the
+   grouping; no extra rules, boxes or headings are needed to say it. */
+
+.zg-history-modal .zg-hist-subnav {
+	margin: 22px 0 8px;
+}
 
 .zg-hist-subbtn {
 	font-family: var(--font-monospace, monospace);
@@ -2268,7 +2378,10 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin: 12px 0 0;
+	/* 8, not 12: the period line belongs to the tabs above it, and the
+	   gap between them has to stay clearly smaller than the one that
+	   separates the whole control group from the figures. */
+	margin: 8px 0 0;
 }
 
 .zg-hist-period {
