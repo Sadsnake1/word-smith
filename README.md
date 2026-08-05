@@ -6,19 +6,17 @@ Everything is separate, and everything can be switched off on its own.
 
 ## Showcase
 
-<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
-<img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 <img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
+<img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
-
-
+<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
 ## What it does
 
-**Zen** clears everything away but your words — tabs, headers, ribbon, sidebars, and optionally every other pane. Press `Escape` to come back.
+**Zen** clears everything away but your words — chrome, ribbon, sidebars, the scroll bar, and optionally every other pane and the retro bar itself. Press `Escape` to come back.
 
-**Letter box** dims the top and bottom of the screen so you only see what you're working on. Drag the edge to resize it, drag the arrows to change the inset. It stands down in reading view.
+**Letter box** masks the top and bottom of the screen so you only see what you're working on. Drag the line to resize the band, drag the arrows to change the inset. The arrows are yours to shape — five styles or your own characters, one to ten of them, any size. It stands down in reading view, where there is no caret to frame.
 
 **Typewriter** keeps the line you're writing in the middle of the screen. It can tint that line and fade everything outside the paragraph or sentence you're in.
 
@@ -37,6 +35,15 @@ Both of those run entirely on your machine, and both are guesswork — a mark is
 **Typography** turns what you type into the proper characters as you go: curly quotes, ellipses, en and em dashes, arrows, fractions. Never inside code, maths or frontmatter, and undo gives back exactly what you typed.
 
 **Goals** and **History** are below.
+
+## Getting started
+
+Only the retro bar is on when you install it. Zen, letter box, typewriter, Hemingway, syntax, prose checks, typography and history all start off, so there is nothing to undo while you find your way around.
+
+1. Open **Settings → Word-Smith**. It opens on the **Retro Bar** tab, which is the one with the most in it.
+2. Try a shipped bar from the preset row before writing your own — they are worked examples of the row grammar, and you can pull one apart to see how it is put together.
+3. Turn on **Zen** and **Letter box** from the same settings, from the command palette, or from the **Modes** button if your bar carries one.
+4. Leave **History** for last. It is off until you switch it on, and it can only count from the day you do.
 
 ## Where it applies
 
@@ -60,6 +67,18 @@ ws-goal: 2000         # word target for this note
 
 Open a canvas, a PDF or an empty tab and the bar stands down and Obsidian's own chrome comes back. It all returns the moment you're on a note again.
 
+## Zen and the letter box
+
+Zen is a list of things to hide, not a single mode: properties, the inline title, Obsidian's own status bar, linked mentions, the scroll bar, the ribbon and the retro bar, each with its own switch — plus **full screen**, **focused file mode** (hide every other pane so only this note is open), and a title bar painted to match the editor. So "zen" ends up meaning whatever you decide it means.
+
+`Escape` leaves it. In Vim's insert, visual and replace modes it doesn't — a writer mid-sentence pressing escape wants normal mode, not their tabs back — so there it costs one extra keystroke instead of a keybinding.
+
+**Hide the bar, and it comes back on hover.** With the retro bar hidden by zen, moving the pointer to the bottom of the window slides it up, and it lingers a moment after you move away so you can actually read it. Set that linger to 0 and it never comes back, which is the off switch.
+
+The letter box is two masks in the note's own background colour, so it reads as a narrowing page rather than a black bar laid over one. Both bands are draggable — the line resizes the mask, the arrows set the horizontal inset — and on desktop the top band moves the window itself, the way a title bar would, with the window controls left clickable.
+
+You can cap the ends of the separator lines with an arrow, give the arrows and lines their own colours for dark and light themes, and set how far the caret is kept from whatever occupies the edge of the window — the bar, the letterbox, or the Vim command line.
+
 ## The retro bar
 
 A bar at the bottom sized to match your note, not the window. One to three rows, each with a left, centre and right slot, each taking any mix of tokens.
@@ -78,7 +97,8 @@ Six bars ship with it — **Mash**, **Plain**, **DOS**, **Zero**, **Echo** and *
 | `{time}` `{clock}` | The time, written out or drawn as a dial |
 | `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts — join them however you like |
 | `{battery}` `{caps}` `{num}` | Battery; CAPS and NUM, which show only when they're on |
-| `{vim}` `{mode}` | Which vim mode you're in; badges for T, H and Z |
+| `{vim}` | Which Vim mode you're in |
+| `{mode}` | A **Modes** button — letter box, typewriter, Hemingway and the rest, switched from the bar |
 | `{obsidian}` | A small Obsidian crystal, in whatever colour the segment is |
 
 ### Where you are in the note
@@ -143,7 +163,11 @@ The bar itself takes the same grammar at the very start of row 1's left slot:
 {file}:3 > {g}>{g}>{g} > {words}:5
 ```
 
-Inside a segment, `::` is a short thin line and `>>` `<<` are tall chevrons, both in that segment's own colour.
+### Marks
+
+Marks are drawn in the text's own colour rather than as a colour boundary: `::` is a short thin line, and `>>` `<<` are the same line bent to a point, at the same angle as the arrow dividers.
+
+These work **with or without powerline** — they are marks, not segments, and need no coloured block behind them. Type them doubled: a single `>` or `<` is a divider, and a single `:` starts a colour.
 
 All of this is also in the plugin, under **How to write a row** in the Retro Bar tab.
 
@@ -152,6 +176,8 @@ All of this is also in the plugin, under **How to write a row** in the Retro Bar
 Row height, font size, padding and edge rules are all configurable. The bar's text can instead match your note's own size, so it follows Ctrl+scroll zoom.
 
 When the window narrows it sheds content in a fixed order rather than wrapping: the file path shortens first, then readouts drop from the edges inward. Buttons always survive.
+
+It can also be slid away without being switched off — from the command palette, or automatically as part of zen — and brought back by putting the pointer near the bottom of the window.
 
 ## Goals
 
@@ -204,6 +230,22 @@ Nothing before the day you switch it on can be worked out. A file only knows whe
 
 Goals and History share one list of notes and folders to leave out of your totals — an outline, a research folder, a scratch file. Word-Smith still works in them normally; they just don't count.
 
+## Word counts elsewhere
+
+Two more places the count can show, both optional and both under **Misc**:
+
+- **File tree counts** — every note and folder in the file explorer carries its word count, folders totalling what's inside them.
+- **Outline counts** — each heading in the outline pane carries the count of the section under it, which is the fastest way to see which scene ran long.
+
+## Vim
+
+If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps:
+
+- **Motions follow wrapped lines**, optionally — `j` and `k` move by what you see rather than by what the file thinks a line is, which is the difference between a long paragraph being one keystroke tall or twenty.
+- **The `:` command line gets a reserved row** under the bar, sized to what it actually measures, so opening it doesn't shove the bar or the letterbox upward. The masks stand down over it rather than covering it.
+
+`{vim}` puts the current mode on the bar, and `:vim` / `;vim` recolour a segment or the whole bar as the mode changes.
+
 ## Commands
 
 | | |
@@ -217,10 +259,30 @@ Goals and History share one list of notes and folders to leave out of your total
 | Toggle prose checks | |
 | Toggle the retro bar on/off | Slides it away without switching it off |
 | Cycle retrobar presets | Steps through your saved bars |
-| Show the text report | |
+| Show the writing report | |
 | Show the writing history | |
 
 Everything else is in the settings tabs, or on the bar itself.
+
+## Settings map
+
+Thirteen tabs, each one a feature with its own master switch:
+
+| | |
+|---|---|
+| **Retro Bar** | Rows, presets, share codes, powerline colours, and the full format reference |
+| **Zen** | What to hide, what to do with `Escape`, caret margin |
+| **Letter Box** | Mask height, arrows, separator lines, colours |
+| **Typewriter** | Where the line sits, focus area, current-line tint |
+| **Hemingway** | Which keys are locked, and what a blocked key does |
+| **Syntax** | Which word classes are coloured, and how loudly |
+| **Prose Checks** | The seven checks, each on its own |
+| **Text Options** | Line width, indents, spacing, justification, hidden characters |
+| **Typography** | Which substitutions run as you type |
+| **Goals** | Targets per note and folder, and what to leave out |
+| **History** | Tracking, the history file, and deleting it |
+| **Misc** | Word counts in the file tree and outline |
+| **Vim** | Wrapped-line motions |
 
 ## Right-to-left
 
@@ -235,6 +297,18 @@ Syntax colouring and prose checks are English-only. In a right-to-left script th
 3. Reload Obsidian, then enable **Word-Smith** under **Settings → Community plugins**.
 
 Copy all three when you update, not just `main.js` — the plugin checks they match and warns you at startup if they don't.
+
+## If something looks wrong
+
+**"Word-Smith says styles.css is out of date."** Exactly what it says: `main.js` was updated and `styles.css` wasn't. A stale stylesheet is indistinguishable from a broken feature — the rules are simply absent, everything else works, and the fix you installed appears to have done nothing. Copy all three files and reload.
+
+**The bar looks unstyled, or a mask is the wrong colour.** Same cause, same fix.
+
+**A row prints `{sometoken}` instead of a number.** That token doesn't exist. Unknown tokens are left visible on purpose, so a typo shows itself instead of silently rendering as blank.
+
+**A segment vanished.** A segment whose tokens all resolve to nothing is dropped along with its dividers — `{vim}` outside Vim mode, `{caps}` with caps lock off. That is the bar refusing to show you a coloured stub, not a bug.
+
+**Your history file is the only copy.** It's an ordinary note in your vault. Back it up with the rest of your vault, and don't delete it expecting the plugin to have another one.
 
 ## Privacy
 
