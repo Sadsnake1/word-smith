@@ -387,9 +387,7 @@ Found a bug or have an idea? Open an issue.
 
 ## Pricing
 
-Word-Smith is free.
-
-If you'd like to support it, you're welcome to buy me a coffee. Cheers!
+Word-Smith is 100% free. If you'd like to support the project and help me keep the updates coming, you're more than welcome to buy me a coffee. Your support means the world. Cheers!
 
 <div align="center">
   <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
