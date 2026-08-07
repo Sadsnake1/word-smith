@@ -1163,7 +1163,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 38;
+const ZG_STYLESHEET_VERSION = 39;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1541,14 +1541,8 @@ const DEFAULT_SETTINGS = {
 	// sets that boundary's shape (see PL_DIVIDERS). Inside a segment, ::
 	// draws a soft divider. A colour is chosen per segment by suffixing any
 	// token in it with :N — {file}:2, or {file} :2 if you want the space.
-	// Vestigial, exactly like powerlineSepWidth below. Powerline is now the
-	// only way the bar draws: there is no plain path left to fall back to,
-	// no toggle in the settings pane, and nothing at runtime reads this.
-	// The key stays because it is BAR_KEYS index 3 and share codes already
-	// carry it — it is written, encoded and decoded, and read by nothing.
-	// It stays TRUE so a code minted here keeps omitting it (barShareFields
-	// emits only what differs from the default), and an old code carrying
-	// `false` decodes to a value nothing acts on.
+	// INERT — see BAR_KEYS_INERT for what that means and why the value here
+	// still matters.
 	powerlineEnabled:         true,
 	powerlineModeColors:      true,
 	// Vestigial. The separator's angle was briefly a slider and is now the
@@ -1570,11 +1564,8 @@ const DEFAULT_SETTINGS = {
 	// Mode colours, set beside the mode labels in the Vim tab. A segment
 	// suffixed :vim follows whichever of these matches the live mode.
 	// Text colours, addressed as ;N after the background number.
-	// Vestigial, like powerlineEnabled and the retro*Colors above. There is
-	// no separate text palette any more — ;N reads the background swatches —
-	// so these eight are written, encoded, decoded and read by nothing. They
-	// keep their BAR_KEYS slots because a share code stores each field as its
-	// index into that array.
+	// INERT (BAR_KEYS_INERT). One palette now: ;N reads the background
+	// swatches, so a colour retinted there retints wherever it is used.
 	powerlineText1:           "#ffffff",
 	powerlineText2:           "#16181d",
 	powerlineText3:           "#9aa0a6",
@@ -1630,14 +1621,9 @@ const DEFAULT_SETTINGS = {
 	goalLenFile:              40,
 	goalLenFolder:            85,
 
-	// Vestigial, like powerlineEnabled above. The bar's own background and
-	// text are no longer choosable: it takes the theme's, which is what
-	// "part of the app it lives in, not a second app parked at the bottom of
-	// the window" always meant, and what the toggle was off by default for.
-	// These five keep their BAR_KEYS slots (indices 35-39) and their values
-	// so existing share codes keep decoding to the same thing; nothing reads
-	// them. A row directive (:b2, ;vim) is still how a bar gets a colour of
-	// its own, per row, visibly, in the format string.
+	// INERT (BAR_KEYS_INERT). The bar takes the theme's surface and text; a
+	// row directive (:b2, ;vim) is the only override, and it is visible in
+	// the format string rather than two tabs away.
 	retroCustomColors:        false,
 	retroDarkBgColor:         "#141010",
 	retroDarkTextColor:       "#f2f2f2",
@@ -1879,15 +1865,9 @@ const BAR_KEYS = [
 	// Layout
 	'statusBarRows', 'statusRows', 'fileTokenFormat',
 	// Powerline
-	// 'powerlineEnabled' is INERT — powerline is baked in and nothing reads
-	// it. It keeps its slot rather than being removed: a share code stores
-	// each field as its INDEX into this array, so deleting one renumbers
-	// every field after it and reinterprets every code already posted.
 	'powerlineEnabled', 'powerlineModeColors',
 	'powerlineColor1', 'powerlineColor2', 'powerlineColor3', 'powerlineColor4',
 	'powerlineColor5', 'powerlineColor6', 'powerlineColor7',
-	// INERT — the separate text palette was removed and ;N reads the
-	// background swatches. The slots stay; the indices are the wire format.
 	'powerlineText1', 'powerlineText2', 'powerlineText3', 'powerlineText4',
 	// Borders
 	'statusBarBorderStyle', 'statusBarBorderWidth',
@@ -1901,9 +1881,7 @@ const BAR_KEYS = [
 	'vimColorReplace', 'vimColorCommand',
 	'vimLabelNormal', 'vimLabelInsert', 'vimLabelVisual',
 	'vimLabelReplace', 'vimLabelCommand',
-	// Bar colours — ALL FIVE ARE INERT. Custom bar background and text were
-	// removed; the keys keep their slots because a share code stores each
-	// field as its index into this array (see the freeze note above).
+	// Bar colours
 	'retroCustomColors',
 	'retroDarkBgColor', 'retroDarkTextColor',
 	'retroLightBgColor', 'retroLightTextColor',
@@ -1933,6 +1911,42 @@ const BAR_KEYS = [
 	'barRuleLightTopColor', 'barRuleLightBottomColor',
 	'fontTokenFormat', 'markersTokenFormat',
 ];
+
+// The keys above that no longer DO anything.
+//
+// Every one belonged to a feature that was removed. None can be deleted from
+// BAR_KEYS: a share code stores each field as its INDEX into that array, so
+// removing one renumbers every field after it and silently reinterprets every
+// code anyone has already posted. They keep their slots, they keep their
+// DEFAULT_SETTINGS values (barShareFields emits only what differs from the
+// default, so sitting on it is what keeps new codes quiet about them), and
+// nothing reads them.
+//
+// ONE list, rather than a comment at each site. It was three comments in
+// three places by the time there were three families of these, each preset
+// had to be hand-stripped of them, and the fourth family would have been a
+// comment somebody forgot to write. Everything that WRITES a preset or a
+// share code now skips this set automatically; everything that reads BAR_KEYS
+// for its indices still walks the full array.
+//
+// To retire another key: add it here, remove its reads, and leave the array
+// alone. To bring one back: take it out of here. Nothing else changes.
+const BAR_KEYS_INERT = new Set([
+	// 1.2.0 — powerline is baked in; there is no plain bar to switch to.
+	'powerlineEnabled',
+	// 1.2.1 — the bar's own background and text follow the theme, and a row
+	// directive is the only override.
+	'retroCustomColors',
+	'retroDarkBgColor', 'retroDarkTextColor',
+	'retroLightBgColor', 'retroLightTextColor',
+	// 1.2.1 — one palette. ;N reads the background swatches.
+	'powerlineText1', 'powerlineText2', 'powerlineText3', 'powerlineText4',
+	'powerlineTextLight1', 'powerlineTextLight2',
+	'powerlineTextLight3', 'powerlineTextLight4',
+]);
+
+// The keys a preset or a share code should actually carry.
+const BAR_KEYS_LIVE = BAR_KEYS.filter(k => !BAR_KEYS_INERT.has(k));
 
 const BAR_SHARE_VERSION = '1';
 
@@ -2022,8 +2036,13 @@ function barCloneValue(v) {
 
 function barShareFields(bar, defaults) {
 	const fields = [];
+	// Walks the FULL array, because the index is the wire format and an
+	// inert key still occupies its slot. It just never emits one — a vault
+	// carrying a stale non-default value for a retired key would otherwise
+	// put it in every code it minted, for a recipient that does not read it.
 	for (let i = 0; i < BAR_KEYS.length; i++) {
 		const k = BAR_KEYS[i];
+		if (BAR_KEYS_INERT.has(k)) continue;
 		if (!(k in bar)) continue;
 		if (barSameValue(bar[k], defaults[k])) continue;
 		fields.push(i + barShareEncodeValue(bar[k]));
@@ -2091,11 +2110,9 @@ function barPresetWithDefaults(preset) {
 // LOADED from elsewhere (an older saved preset, a share code); these simply
 // have none.
 //
-// Fourteen keys are deliberately absent: `powerlineEnabled`, the five
-// `retro*Colors` bar background/text keys, and the eight `powerlineText*`
-// swatches. All are inert — the features they controlled were removed and the
-// keys kept only for their BAR_KEYS indices (see DEFAULT_SETTINGS). A preset
-// asserting one either way would be stating an opinion nothing reads.
+// The inert keys are absent, and no longer by hand: saveBarPreset writes
+// BAR_KEYS_LIVE, so a preset re-baked from a vault export comes out already
+// stripped. Strip them if you paste one in from an older export.
 //
 // Plain is what a brand-new vault comes up with (see loadSettings). Renaming
 // it, or removing it, changes the opening bar — the seeding below is keyed by
@@ -3549,7 +3566,10 @@ module.exports = class WordSmith extends Plugin {
 	// makes Edit work: load, adjust, save under the same name.
 	async saveBarPreset(name) {
 		const snap = {};
-		for (const k of BAR_KEYS) {
+		// LIVE keys only. A preset asserting a key nothing reads is stating
+		// an opinion with no effect, and the shipped ones had to be stripped
+		// of them by hand every time they were re-baked.
+		for (const k of BAR_KEYS_LIVE) {
 			// Deep-copied. statusRows is an array of objects, and storing the
 			// live reference would make every later edit in the panel rewrite
 			// the preset it was saved from.
@@ -4739,13 +4759,23 @@ module.exports = class WordSmith extends Plugin {
 				+ ' height: var(--zg-clock-size, 1.2cap);'
 				+ ' vertical-align: calc(0.5cap - var(--zg-clock-size, 1.2cap) / 2'
 				+ ' - var(--zg-clock-shift, 0em)); } }',
-			// {obsidian} keeps the 1.05em the pair used to share. The
+			// {obsidian}, placed exactly like the dial and wrapped for the
+			// same reason — see .zg-clock above. Its own SIZE, though: the
 			// crystal's path fills its viewBox corner to corner while the
-			// dial leaves two units of margin on every side for its stroke,
-			// so at one number the crystal already drew the larger of the
-			// two — shrinking the dial alone is what makes them match.
-			'.zg-obsidian-icon { width: 1.05em; height: 1.05em;'
-				+ ' display: inline-block; vertical-align: -0.15em; flex: 0 0 auto; }',
+			// dial leaves two units of margin all round for its stroke, so
+			// at one number the crystal draws the larger of the two.
+			// transform: none is the same stale-stylesheet reset the dial
+			// carries, for the same interim rule.
+			'.zg-obsidian-box { display: inline-block; flex: 0 0 auto; }',
+			'.zg-obsidian-icon { display: inline-block;'
+				+ ' width: var(--zg-obsidian-size, 0.8em);'
+				+ ' height: var(--zg-obsidian-size, 0.8em);'
+				+ ' vertical-align: -0.05em; transform: none; }',
+			'@supports (vertical-align: 1cap) {'
+				+ ' .zg-obsidian-icon { width: var(--zg-obsidian-size, 1.15cap);'
+				+ ' height: var(--zg-obsidian-size, 1.15cap);'
+				+ ' vertical-align: calc(0.5cap - var(--zg-obsidian-size, 1.15cap) / 2'
+				+ ' - var(--zg-obsidian-shift, 0em)); } }',
 			// Chevron soft dividers: SVG strokes (buildSoftChevron) at the
 			// hairline's own height and weight — 55% of the row, 1px — and
 			// pinned to the same rendered aspect as the hard arrows so both
@@ -4759,19 +4789,11 @@ module.exports = class WordSmith extends Plugin {
 				+ ' transform: none; margin: 0 7px; opacity: 0.45; flex: 0 0 auto;'
 				+ ' border: 0; display: block;'
 				+ ' aspect-ratio: var(--zg-pl-sep-aspect, 0.85); }',
-			// The sizing that lets the soft marks render in a PLAIN row.
-			// Self-carried for the same reason as the chevron above, and
-			// more urgently: without these a plain row draws the hairline at
-			// ZERO height — an element that is in the DOM, takes its
-			// margins, and cannot be seen. That is a feature that looks
-			// unimplemented rather than unstyled. The chevron is worse
-			// still, falling back to its nominal box mid-row.
-			'.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft {'
-				+ ' height: 1.2em; align-self: auto; transform: none;'
-				+ ' vertical-align: -0.2em; }',
-			'.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-r,'
-				+ ' .zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-l {'
-				+ ' display: inline-block; height: 1.2em; vertical-align: -0.2em; }',
+			// The plain-row soft-mark sizing that used to sit here is gone
+			// with the plain row itself (1.2.2). It matched
+			// `:not(.zg-powerline)`, and the bar has carried that class
+			// unconditionally since powerline was baked in.
+			//
 			// The inner needs a definite full height for the chevron's 100%
 			// (and the fade bands') to resolve against. Contents stay
 			// centred — align-items is unchanged.
@@ -5773,7 +5795,21 @@ module.exports = class WordSmith extends Plugin {
 		p.setAttribute('d', OBSIDIAN_ICON_PATH);
 		p.setAttribute('fill', 'currentColor');
 		svg.appendChild(p);
-		return svg;
+
+		// Wrapped, exactly as the dial is, and for the same reason: this
+		// carried a `vertical-align` for years that has done nothing since
+		// the bar became a flex row. See buildClockFace for the full
+		// argument and for the two conditions that keep it honest.
+		//
+		// The crystal's own numbers differ from the clock's because its path
+		// fills its viewBox corner to corner while the dial leaves two units
+		// of margin all round for its stroke — so at one size the crystal
+		// draws the larger of the two, and matching them means giving each
+		// its own.
+		const box = document.createElement('span');
+		box.className = 'zg-obsidian-box';
+		box.appendChild(svg);
+		return box;
 	}
 
 	buildClockFace(now) {
@@ -9813,12 +9849,10 @@ module.exports = class WordSmith extends Plugin {
 		const rowH = this.snappedRowHeight() + pad.top + pad.bottom;
 		// Unconditional now that powerline is the only way the bar draws.
 		// Still a CLASS rather than nothing: the whole stylesheet hangs off
-		// it (.zg-powerline::after is the bar's rules, and the segment
-		// padding, inner layout and fade rules are all scoped to it), and
-		// the `:not(.zg-powerline)` rules beside them are simply never
-		// matched now. Left in place rather than swept out — they are the
-		// plain-row half of a pair, and deleting half a pair is how the next
-		// person finds a rule with no counterpart and no reason.
+		// it — .zg-powerline::after is the bar's rules, and the segment
+		// padding, inner layout and fade rules are all scoped to it. The
+		// `:not(.zg-powerline)` counterparts were swept in 1.2.2; there are
+		// none left, so this class is now a hook rather than a switch.
 		this.retroStatusBarEl.classList.add('zg-powerline');
 		// The colour a separator transitions OUT of at the end of a group is
 		// the bar's own, read back rather than assumed: the bar may be on the
@@ -13341,7 +13375,13 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// it is one list and a writer excluding their outline from the book's
 	// target almost always wants it out of the history too. Two lists would
 	// drift, and the first thing anyone would ask is which one won.
-	renderCountExclude(containerEl, where) {
+	// `where` names the total the caller is showing, and is used twice in the
+	// prose. Defaulted rather than assumed: both real call sites pass it, and
+	// the one that did not was a probe walking every render method with a
+	// container and nothing else — which threw on `where.indexOf`, and was
+	// reported as a settings TAB failing to render. A method that is total
+	// over its arguments cannot be misread that way.
+	renderCountExclude(containerEl, where = 'your totals') {
 		const s = this.plugin.settings;
 		if (!Array.isArray(s.countExclude)) s.countExclude = [];
 		const paths = s.countExclude;

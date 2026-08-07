@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 38;
+	--zg-stylesheet-version: 41;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -591,10 +591,20 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 	   line's own width — the inset is a proportion of the line, not of the
 	   arrow glyph, and it does not drift when the arrow scale changes.
 	   border-box, because width is 100% and content-box would push the
-	   padding out past the line ends, which is the opposite of the point. */
+	   padding out past the line ends, which is the opposite of the point.
+
+	   7.19%: 5% -> 6.25% -> 7.19%, each step asked for by eye. The first
+	   two values this took were spacing KEYWORDS, and that is the whole
+	   argument for it being a number — "a bit further in" is a request no
+	   keyword can answer, and answering it three times running has cost one
+	   edit each rather than a rethink of how the free space is shared.
+	   (6.25 x 1.15 = 7.1875, rounded: the quarter of a thousandth of a
+	   line width dropped there is sub-pixel at any window size.)
+	   The CAPPED row is untouched and cannot be affected — see .has-caps
+	   below, which sets the padding to zero and never reads this. */
 	box-sizing: border-box;
 	justify-content: space-between;
-	padding-inline: var(--zg-arrow-end-inset, 5%);
+	padding-inline: var(--zg-arrow-end-inset, 7.19%);
 	width: 100%;
 	color: var(--zg-arrow-color, var(--text-normal));
 	/* The chosen editor font, not the interface one. The wrap is appended
@@ -633,7 +643,9 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
    spreads edge to edge when they are present, which is what puts one at each
    end of the separator line below it — so the end inset above, which exists
    to hold the uncapped row BACK from the ends, has to come off here. A cap
-   that stopped 5% short of the line end would not be a cap. */
+   that stopped short of the line end would not be a cap, at any inset.
+   This zero is why the inset can be retuned without anyone checking the
+   capped case: it does not read the knob at all. */
 .zengrinder-arrows.has-caps {
 	justify-content: space-between;
 	padding-inline: 0;
@@ -1281,31 +1293,18 @@ body.zg-bar-anim .zengrinder-status-bar {
 	opacity: 0.45;
 }
 
-/* The soft marks in a PLAIN row.
+/* The soft marks used to need a PLAIN-row variant here — sized from the bar's
+   font instead of a segment's height, because a plain section is inline text
+   with no height and the hairline came out 0px tall. Powerline is baked in as
+   of 1.2.0, so there is no plain section left to style: renderStatusSection
+   only ever runs INSIDE a segment now, and those rules matched nothing from
+   the day they were written until the day they were removed in 1.2.2. They
+   are gone rather than kept "in case": a rule with no possible match is a
+   rule the next person has to disprove.
 
-   They are drawn by the same builders as in a powerline row and differ only
-   in how they get their HEIGHT. A segment is a flex box with a definite
-   height, so there `align-self: stretch` and `height: 100%` are all the
-   marks need. A plain section is inline text with no height of its own:
-   stretch means nothing, 100% resolves against auto, and the hairline came
-   out 0px tall — present in the DOM, invisible on screen. So the plain row
-   sizes them from what it does have, the bar's font size, and aligns them to
-   the text baseline like the clock and the Obsidian stone. */
-.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft {
-	height: 1.2em;
-	align-self: auto;
-	transform: none;
-	vertical-align: -0.2em;
-}
-
-/* In a plain row the hairline is 1.2em, so the chevron is too: same height,
-   same baseline offset, one family. */
-.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-r,
-.zengrinder-status-bar:not(.zg-powerline) .zg-pl-soft.zg-pl-chev-l {
-	display: inline-block;
-	height: 1.2em;
-	vertical-align: -0.2em;
-}
+   The powerline sizing below is the only one, and it is enough on its own —
+   a segment is a flex box with a definite height, so `align-self: stretch`
+   and `height: 100%` resolve. */
 
 /* The inner needs a definite full height for the chevron's 100% (and a
    fade's bands) to resolve against. Contents stay centred — align-items on
@@ -3141,19 +3140,36 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	}
 }
 
-/* {obsidian} — a drawn token like the clock, but NOT boxed like it any
-   more. It keeps the 1.05em the pair used to share: the crystal's path
-   fills its viewBox corner to corner, while the dial leaves two units of
-   margin on every side for its stroke, so at one size the crystal already
-   rendered the larger of the two. Shrinking the dial and leaving this
-   alone is what makes them read as the same size. The element IS the svg
-   now — the setIcon wrapper is gone with the filled glyph it wrapped. */
-.zg-obsidian-icon {
-	width: 1.05em;
-	height: 1.05em;
+/* {obsidian} — a drawn token placed exactly like the clock, and wrapped for
+   the same reason: a flex item has no baseline to align to, so the wrapper
+   takes the flex item's place and the crystal is inline inside it. See the
+   .zg-clock block above for the argument in full.
+
+   Its OWN numbers, though. The crystal's path fills its viewBox corner to
+   corner while the dial leaves two units of margin all round for its stroke,
+   so at one size the crystal draws the larger of the two — 1.15cap of ink
+   against the dial's 1cap is what makes them read as matched. The alignment
+   is the same arithmetic over that size: box bottom at cap/2 − size/2. */
+.zg-obsidian-box {
 	display: inline-block;
-	vertical-align: -0.15em;
 	flex: 0 0 auto;
+}
+
+.zg-obsidian-icon {
+	display: inline-block;
+	width:  var(--zg-obsidian-size, 0.8em);
+	height: var(--zg-obsidian-size, 0.8em);
+	vertical-align: -0.05em;
+	transform: none;
+}
+
+@supports (vertical-align: 1cap) {
+	.zg-obsidian-icon {
+		width:  var(--zg-obsidian-size, 1.15cap);
+		height: var(--zg-obsidian-size, 1.15cap);
+		vertical-align: calc(0.5cap - var(--zg-obsidian-size, 1.15cap) / 2
+			- var(--zg-obsidian-shift, 0em));
+	}
 }
 
 
