@@ -6,11 +6,13 @@ Everything is separate, and everything can be switched off on its own.
 
 ## Showcase
 
-<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
 <img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
 <img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
+
+
+<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
 ## What it does
 
