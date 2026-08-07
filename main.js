@@ -1141,7 +1141,13 @@ const FIT_SLACK = 4;
 const FIT_RESTORE_MARGIN = 24;
 
 const PL_BG_COUNT = 7;
-const PL_TEXT_COUNT = 4;
+// ;N and :N now index THE SAME palette. There is no separate text palette any
+// more: it was four more swatches to keep in step with the seven backgrounds,
+// in two theme variants, for a question ("what colour is this text") that a
+// writer answers by pointing at a colour they can already see in the row.
+// Kept as a name rather than replaced by PL_BG_COUNT at each site, because the
+// two counts being equal is now a fact worth stating once.
+const PL_TEXT_COUNT = PL_BG_COUNT;
 
 const PL_DIVIDERS = { '>': 'arrow', '<': 'arrow', '|': 'straight',
 	')': 'round', '(': 'round', '~': 'wave', '/': 'angleF', '\\': 'angleB' };
@@ -1157,7 +1163,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 36;
+const ZG_STYLESHEET_VERSION = 38;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1223,11 +1229,12 @@ const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'May', 'Ju
 // colours from the theme, the palette, or the live mode rather than a
 // segment's.
 //
-//   :b1  page colour      :b2  panel colour     (--background-primary/secondary)
+//   :b1 :b2 :b3 :b4  the theme's page, panel, alt-panel and tertiary surfaces
 //   :N   palette background N (wrapping, like a segment's :N)
 //   :vim the live vim mode colour, restamped on every repaint
-//   ;t1  normal text      ;t2  muted text       (--text-normal/--text-muted)
-//   ;N   palette text N (wrapping, like a segment's ;N)
+//   ;t1 ;t2 ;t3      the theme's normal, muted and faint text
+//   ;N   palette colour N as text (the same palette :N reads)
+//   ;vim the live vim mode colour as text
 //
 // Same grammar as the powerline suffixes on purpose — ":" is a background and
 // ";" is text everywhere in a row — but a different position: the suffix form
@@ -1241,8 +1248,22 @@ const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'May', 'Ju
 //
 // Returns the stripped string alongside the values so the caller cannot
 // render one without honouring the other.
-const BAR_DIRECTIVE_BG   = { b1: 'var(--background-primary)', b2: 'var(--background-secondary)' };
-const BAR_DIRECTIVE_TEXT = { t1: 'var(--text-normal)',        t2: 'var(--text-muted)' };
+const BAR_DIRECTIVE_BG = {
+	b1: 'var(--background-primary)',
+	b2: 'var(--background-secondary)',
+	b3: 'var(--background-secondary-alt)',
+	// Obsidian's core theme does not define --background-tertiary; plenty of
+	// community themes do. The var() fallback is the whole mechanism: on a
+	// theme that has it, b4 is that surface; on one that does not, it lands
+	// on the alt page colour, which is the nearest thing core offers and is
+	// still a real surface rather than nothing.
+	b4: 'var(--background-tertiary, var(--background-primary-alt))',
+};
+const BAR_DIRECTIVE_TEXT = {
+	t1: 'var(--text-normal)',
+	t2: 'var(--text-muted)',
+	t3: 'var(--text-faint)',
+};
 
 function readBarDirective(formatStr) {
 	let rest = String(formatStr == null ? '' : formatStr);
@@ -1316,9 +1337,28 @@ function mixColors(a, b, t) {
 // stopped being read.
 const PL_SEP_ASPECT = 0.85;
 
+// The same four surfaces as BAR_DIRECTIVE_BG, as raw variable NAMES: a
+// segment's colour ends up in an SVG `fill` attribute on its separators, and
+// custom properties do not resolve in presentation attributes — so these are
+// read from the computed style instead (themeSurfaceColor).
+//
+// A LIST per slot, tried in order, for the same reason b4 carries a var()
+// fallback above: --background-tertiary is not part of core Obsidian. The
+// first name that resolves to anything wins, and if none do the caller falls
+// through to the auto colour rather than painting a segment black.
 const PL_THEME_BGS = {
-	b1: '--background-primary',
-	b2: '--background-secondary',
+	b1: ['--background-primary'],
+	b2: ['--background-secondary'],
+	b3: ['--background-secondary-alt'],
+	b4: ['--background-tertiary', '--background-primary-alt'],
+};
+
+// A segment's ;tN, as a var() — this one can be, because it is set as the
+// `color` property rather than as an SVG attribute.
+const PL_THEME_INKS = {
+	t1: 'var(--text-normal)',
+	t2: 'var(--text-muted)',
+	t3: 'var(--text-faint)',
 };
 
 // Doubling turns a character into a SOFT mark: drawn in the row's own
@@ -1501,6 +1541,14 @@ const DEFAULT_SETTINGS = {
 	// sets that boundary's shape (see PL_DIVIDERS). Inside a segment, ::
 	// draws a soft divider. A colour is chosen per segment by suffixing any
 	// token in it with :N — {file}:2, or {file} :2 if you want the space.
+	// Vestigial, exactly like powerlineSepWidth below. Powerline is now the
+	// only way the bar draws: there is no plain path left to fall back to,
+	// no toggle in the settings pane, and nothing at runtime reads this.
+	// The key stays because it is BAR_KEYS index 3 and share codes already
+	// carry it — it is written, encoded and decoded, and read by nothing.
+	// It stays TRUE so a code minted here keeps omitting it (barShareFields
+	// emits only what differs from the default), and an old code carrying
+	// `false` decodes to a value nothing acts on.
 	powerlineEnabled:         true,
 	powerlineModeColors:      true,
 	// Vestigial. The separator's angle was briefly a slider and is now the
@@ -1522,6 +1570,11 @@ const DEFAULT_SETTINGS = {
 	// Mode colours, set beside the mode labels in the Vim tab. A segment
 	// suffixed :vim follows whichever of these matches the live mode.
 	// Text colours, addressed as ;N after the background number.
+	// Vestigial, like powerlineEnabled and the retro*Colors above. There is
+	// no separate text palette any more — ;N reads the background swatches —
+	// so these eight are written, encoded, decoded and read by nothing. They
+	// keep their BAR_KEYS slots because a share code stores each field as its
+	// index into that array.
 	powerlineText1:           "#ffffff",
 	powerlineText2:           "#16181d",
 	powerlineText3:           "#9aa0a6",
@@ -1577,13 +1630,36 @@ const DEFAULT_SETTINGS = {
 	goalLenFile:              40,
 	goalLenFolder:            85,
 
-	// Off by default: the bar should look like part of the app it lives in,
-	// not like a second app parked at the bottom of the window.
+	// Vestigial, like powerlineEnabled above. The bar's own background and
+	// text are no longer choosable: it takes the theme's, which is what
+	// "part of the app it lives in, not a second app parked at the bottom of
+	// the window" always meant, and what the toggle was off by default for.
+	// These five keep their BAR_KEYS slots (indices 35-39) and their values
+	// so existing share codes keep decoding to the same thing; nothing reads
+	// them. A row directive (:b2, ;vim) is still how a bar gets a colour of
+	// its own, per row, visibly, in the format string.
 	retroCustomColors:        false,
 	retroDarkBgColor:         "#141010",
 	retroDarkTextColor:       "#f2f2f2",
 	retroLightBgColor:        "#e9e8e8",
 	retroLightTextColor:      "#f7fb09",
+	// The bar's top and bottom rules. Their own colours now rather than
+	// var(--zg-text): the rules are the one part of the bar that reads as a
+	// frame around it, and a frame that always matches the text has no way
+	// to be quieter than the text. Top and bottom separately, because a bar
+	// sitting against the window edge usually wants only the top one to
+	// carry any weight. The defaults are the theme text colours these
+	// resolved to before, so an upgrading vault sees no change.
+	barRuleDarkTopColor:      "#fbfaf9",
+	barRuleDarkBottomColor:   "#fbfaf9",
+	barRuleLightTopColor:     "#16181d",
+	barRuleLightBottomColor:  "#16181d",
+	// What the {font} and {markers} buttons say. 'glyph' is the specimen
+	// ("Aa", "\u00b6"); 'word' spells it out. Two settings rather than one,
+	// because the buttons are different widths and a writer trading room
+	// for legibility does it one button at a time.
+	fontTokenFormat:          'glyph',   // 'glyph' (Aa) | 'word' (Fonts)
+	markersTokenFormat:       'glyph',   // 'glyph' (\u00b6) | 'word' (Markers)
 	// Off, the arrows and the separator lines take the theme's text colour —
 	// they are furniture around the writing, not a feature that should be
 	// announcing itself in a colour of its own. The four pickers below are
@@ -1696,6 +1772,12 @@ const DEFAULT_SETTINGS = {
 	typoFractions:            true,
 
 	// ── Sidebar word counts ───────────────────────────────────────────────────
+	// Quick panels. Off by default: they add two commands, and a palette
+	// that grew entries nobody asked for on upgrade would be the wrong kind
+	// of surprise. Switching one on is what puts its command in the palette
+	// (see the checkCallback in onload).
+	quickExplorer:            false,
+	quickOutline:             false,
 	enableFileTreeCounts:     false,
 	enableOutlineCounts:      false,
 
@@ -1797,9 +1879,15 @@ const BAR_KEYS = [
 	// Layout
 	'statusBarRows', 'statusRows', 'fileTokenFormat',
 	// Powerline
+	// 'powerlineEnabled' is INERT — powerline is baked in and nothing reads
+	// it. It keeps its slot rather than being removed: a share code stores
+	// each field as its INDEX into this array, so deleting one renumbers
+	// every field after it and reinterprets every code already posted.
 	'powerlineEnabled', 'powerlineModeColors',
 	'powerlineColor1', 'powerlineColor2', 'powerlineColor3', 'powerlineColor4',
 	'powerlineColor5', 'powerlineColor6', 'powerlineColor7',
+	// INERT — the separate text palette was removed and ;N reads the
+	// background swatches. The slots stay; the indices are the wire format.
 	'powerlineText1', 'powerlineText2', 'powerlineText3', 'powerlineText4',
 	// Borders
 	'statusBarBorderStyle', 'statusBarBorderWidth',
@@ -1813,7 +1901,9 @@ const BAR_KEYS = [
 	'vimColorReplace', 'vimColorCommand',
 	'vimLabelNormal', 'vimLabelInsert', 'vimLabelVisual',
 	'vimLabelReplace', 'vimLabelCommand',
-	// Bar colours
+	// Bar colours — ALL FIVE ARE INERT. Custom bar background and text were
+	// removed; the keys keep their slots because a share code stores each
+	// field as its index into this array (see the freeze note above).
 	'retroCustomColors',
 	'retroDarkBgColor', 'retroDarkTextColor',
 	'retroLightBgColor', 'retroLightTextColor',
@@ -1834,6 +1924,14 @@ const BAR_KEYS = [
 	'powerlineSepWidth',
 	// 1.21
 	'statusBarFontFollowNote',
+	// 1.2.1: the bar's rule colours, which replaced the removed custom
+	// background/text pair, and the two button-label formats. Appended, so
+	// every code already in the wild simply does not mention indices 58-63
+	// and lands on the defaults — which are the values the rules resolved
+	// to before they were choosable.
+	'barRuleDarkTopColor', 'barRuleDarkBottomColor',
+	'barRuleLightTopColor', 'barRuleLightBottomColor',
+	'fontTokenFormat', 'markersTokenFormat',
 ];
 
 const BAR_SHARE_VERSION = '1';
@@ -1987,81 +2085,35 @@ function barPresetWithDefaults(preset) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Shipped presets
 // ─────────────────────────────────────────────────────────────────────────────
-// Sparse on purpose: each lists only what it changes, and barPresetWithDefaults
-// fills the rest in. That keeps them readable as *statements of intent* — you
-// can see at a glance that Plain is "one row, no powerline" rather than reading
-// forty keys to find the three that matter — and it means a preset written
-// today does not pin values it never had an opinion about.
+// FULL snapshots, not sparse. The two here were exported from a working
+// vault's data.json rather than written by hand, so each states all 58
+// BAR_KEYS explicitly. barPresetWithDefaults still fills gaps for anything
+// LOADED from elsewhere (an older saved preset, a share code); these simply
+// have none.
+//
+// Fourteen keys are deliberately absent: `powerlineEnabled`, the five
+// `retro*Colors` bar background/text keys, and the eight `powerlineText*`
+// swatches. All are inert — the features they controlled were removed and the
+// keys kept only for their BAR_KEYS indices (see DEFAULT_SETTINGS). A preset
+// asserting one either way would be stating an opinion nothing reads.
+//
+// Plain is what a brand-new vault comes up with (see loadSettings). Renaming
+// it, or removing it, changes the opening bar — the seeding below is keyed by
+// name and so is that lookup.
+//
+// Re-exported from the same vault at 1.2.1, so both now exercise the grammar
+// this release added: Code opens on :b4 and carries ;6 ink and a three-step
+// fade ({ggg}>{gg}>{g}), Plain sets both button labels to the word form. If a
+// future change breaks one of those, a fresh install shows it on first run.
 //
 // Seeded into the library once (see barPresetsSeeded), never re-seeded, so a
 // deleted one stays deleted.
 const DEFAULT_BAR_PRESETS = {
-	"Mash": {
-		"statusBarRows": 1,
-		"statusRows": [{"left": ":b2{obsidian}:6>{ggggg}{ggggg}{ggggg}|{file}:vim>{ggggg}>{ggggg}>{ggggg}>{ggggg}~", "center": "<{ss}{mode}:7/{syntax}::{prose}:2|{font}\\{report}:vim<", "right": "~{markers}{paragraph}~{words} words){clock}{time}"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "path",
-		"powerlineEnabled": true,
-		"powerlineModeColors": true,
-		"powerlineColor1": "#4f9dde",
-		"powerlineColor2": "#3f4550",
-		"powerlineColor3": "#2f333c",
-		"powerlineColor4": "#4caf7d",
-		"powerlineColor5": "#307853",
-		"powerlineColor6": "#8a7fd1",
-		"powerlineColor7": "#cc141d",
-		"powerlineText1": "#ffffff",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
-		"statusBarBorderStyle": "none",
-		"statusBarBorderWidth": 1,
-		"statusBarBorderTop": true,
-		"statusBarBorderBottom": false,
-		"statusBarFontSize": 15,
-		"statusBarHeight": 16,
-		"statusBarPadTop": 2,
-		"statusBarPadBottom": 2,
-		"vimFollowCursorSmith": true,
-		"vimColorNormal": "#4f9dde",
-		"vimColorInsert": "#4caf7d",
-		"vimColorVisual": "#8a7fd1",
-		"vimColorReplace": "#c2544d",
-		"vimColorCommand": "#e0913a",
-		"vimLabelNormal": "NORMAL",
-		"vimLabelInsert": "INSERT",
-		"vimLabelVisual": "VISUAL",
-		"vimLabelReplace": "REPLACE",
-		"vimLabelCommand": "COMMAND",
-		"retroCustomColors": false,
-		"retroDarkBgColor": "#141010",
-		"retroDarkTextColor": "#f2f2f2",
-		"retroLightBgColor": "#e9e8e8",
-		"retroLightTextColor": "#f7fb09",
-		"powerlineColorLight1": "#2d6da4",
-		"powerlineColorLight2": "#d9dce1",
-		"powerlineColorLight3": "#eceef1",
-		"powerlineColorLight4": "#2f8a5b",
-		"powerlineColorLight5": "#b96f1e",
-		"powerlineColorLight6": "#6a5cb8",
-		"powerlineColorLight7": "#a2404f",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
-		"vimColorNormalLight": "#2d6da4",
-		"vimColorInsertLight": "#2f8a5b",
-		"vimColorVisualLight": "#6a5cb8",
-		"vimColorReplaceLight": "#a03c36",
-		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
-		"statusBarFontFollowNote": true,
-	},
 	"Plain": {
 		"statusBarRows": 1,
-		"statusRows": [{"left": "{file}", "center": "{mode} {syntax} {prose} {report} ", "right": "{words} words"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "path",
-		"powerlineEnabled": false,
-		"powerlineModeColors": true,
+		"statusRows": [{"left":"{vim}:b2|{file}:b1::{#>}","center":"","right":"{mode}:b1 {syntax} {prose} {report} :: {font} {markers} :: {words} words"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"fileTokenFormat": "name",
+		"powerlineModeColors": false,
 		"powerlineColor1": "#4f9dde",
 		"powerlineColor2": "#3f4550",
 		"powerlineColor3": "#2f333c",
@@ -2069,12 +2121,8 @@ const DEFAULT_BAR_PRESETS = {
 		"powerlineColor5": "#e0913a",
 		"powerlineColor6": "#8a7fd1",
 		"powerlineColor7": "#b5566b",
-		"powerlineText1": "#f7f7f5",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
 		"statusBarBorderStyle": "solid",
-		"statusBarBorderWidth": 2,
+		"statusBarBorderWidth": 1,
 		"statusBarBorderTop": true,
 		"statusBarBorderBottom": true,
 		"statusBarFontSize": 14,
@@ -2092,11 +2140,6 @@ const DEFAULT_BAR_PRESETS = {
 		"vimLabelVisual": "-- VISUAL --",
 		"vimLabelReplace": "-- REPLACE --",
 		"vimLabelCommand": "-- COMMAND --",
-		"retroCustomColors": false,
-		"retroDarkBgColor": "#000000",
-		"retroDarkTextColor": "#fbfaf9",
-		"retroLightBgColor": "#f5f0e8",
-		"retroLightTextColor": "#000000",
 		"powerlineColorLight1": "#2d6da4",
 		"powerlineColorLight2": "#d9dce1",
 		"powerlineColorLight3": "#eceef1",
@@ -2104,10 +2147,6 @@ const DEFAULT_BAR_PRESETS = {
 		"powerlineColorLight5": "#b96f1e",
 		"powerlineColorLight6": "#6a5cb8",
 		"powerlineColorLight7": "#a2404f",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
 		"vimColorNormalLight": "#2d6da4",
 		"vimColorInsertLight": "#2f8a5b",
 		"vimColorVisualLight": "#6a5cb8",
@@ -2115,29 +2154,30 @@ const DEFAULT_BAR_PRESETS = {
 		"vimColorCommandLight": "#b96f1e",
 		"powerlineSepWidth": 78,
 		"statusBarFontFollowNote": false,
+		"barRuleDarkTopColor": "#fbfaf9",
+		"barRuleDarkBottomColor": "#fbfaf9",
+		"barRuleLightTopColor": "#16181d",
+		"barRuleLightBottomColor": "#16181d",
+		"fontTokenFormat": "word",
+		"markersTokenFormat": "word",
 	},
-	"DOS": {
+	"Code": {
 		"statusBarRows": 1,
-		"statusRows": [{"left": "|Ln {ln:col}:1 Col|{s}:6|", "center": "{s}:6|file path = {file}:1|{s}:6|{font}:3|{s}:6|", "right": "|{s}:6|{s}:1^P=Command ^O=Files"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "path",
-		"powerlineEnabled": true,
+		"statusRows": [{"left":":b4{obsidian}:b2;6|{vim}|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}","center":"","right":"{mode}:b2 {syntax} {prose} {report}\\ {font}:b1 {markers}\\{words}:b2 words\\{clock}{time}:5"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"fileTokenFormat": "name",
 		"powerlineModeColors": true,
-		"powerlineColor1": "#00aaaa",
+		"powerlineColor1": "#4f9dde",
 		"powerlineColor2": "#3f4550",
-		"powerlineColor3": "#000000",
-		"powerlineColor4": "#fff700",
-		"powerlineColor5": "#001eff",
-		"powerlineColor6": "#ffffff",
-		"powerlineColor7": "#ff0000",
-		"powerlineText1": "#f7f7f5",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
-		"statusBarBorderStyle": "solid",
-		"statusBarBorderWidth": 2,
-		"statusBarBorderTop": true,
-		"statusBarBorderBottom": true,
-		"statusBarFontSize": 19,
+		"powerlineColor3": "#2f333c",
+		"powerlineColor4": "#4caf7d",
+		"powerlineColor5": "#e0913a",
+		"powerlineColor6": "#8a7fd1",
+		"powerlineColor7": "#b5566b",
+		"statusBarBorderStyle": "none",
+		"statusBarBorderWidth": 1,
+		"statusBarBorderTop": false,
+		"statusBarBorderBottom": false,
+		"statusBarFontSize": 14,
 		"statusBarHeight": 20,
 		"statusBarPadTop": 4,
 		"statusBarPadBottom": 4,
@@ -2147,147 +2187,18 @@ const DEFAULT_BAR_PRESETS = {
 		"vimColorVisual": "#8a7fd1",
 		"vimColorReplace": "#c2544d",
 		"vimColorCommand": "#e0913a",
-		"vimLabelNormal": "-- NORMAL --",
-		"vimLabelInsert": "-- INSERT --",
-		"vimLabelVisual": "-- VISUAL --",
-		"vimLabelReplace": "-- REPLACE --",
-		"vimLabelCommand": "-- COMMAND --",
-		"retroCustomColors": true,
-		"retroDarkBgColor": "#00aaaa",
-		"retroDarkTextColor": "#e3e0de",
-		"retroLightBgColor": "#f5f0e8",
-		"retroLightTextColor": "#000000",
-		"powerlineColorLight1": "#2d6da4",
-		"powerlineColorLight2": "#d9dce1",
-		"powerlineColorLight3": "#eceef1",
-		"powerlineColorLight4": "#2f8a5b",
-		"powerlineColorLight5": "#b96f1e",
-		"powerlineColorLight6": "#6a5cb8",
-		"powerlineColorLight7": "#a2404f",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
-		"vimColorNormalLight": "#2d6da4",
-		"vimColorInsertLight": "#2f8a5b",
-		"vimColorVisualLight": "#6a5cb8",
-		"vimColorReplaceLight": "#a03c36",
-		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
-		"statusBarFontFollowNote": false,
-	},
-	"Zero": {
-		"statusBarRows": 1,
-		"statusRows": [{"left": ":b2{vim}:b2;vim | {file}:b2;t1", "center": "", "right": "{ln:col}:b2;t1"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "name",
-		"powerlineEnabled": true,
-		"powerlineModeColors": true,
-		"powerlineColor1": "#cf1717",
-		"powerlineColor2": "#d06106",
-		"powerlineColor3": "#dade17",
-		"powerlineColor4": "#21b552",
-		"powerlineColor5": "#2a72cf",
-		"powerlineColor6": "#1a1a1a",
-		"powerlineColor7": "#f2eef1",
-		"powerlineText1": "#ffffff",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
-		"statusBarBorderStyle": "none",
-		"statusBarBorderWidth": 1,
-		"statusBarBorderTop": true,
-		"statusBarBorderBottom": false,
-		"statusBarFontSize": 15,
-		"statusBarHeight": 16,
-		"statusBarPadTop": 2,
-		"statusBarPadBottom": 2,
-		"vimFollowCursorSmith": true,
-		"vimColorNormal": "#4f9dde",
-		"vimColorInsert": "#4caf7d",
-		"vimColorVisual": "#8a7fd1",
-		"vimColorReplace": "#c2544d",
-		"vimColorCommand": "#e0913a",
 		"vimLabelNormal": "NORMAL",
 		"vimLabelInsert": "INSERT",
 		"vimLabelVisual": "VISUAL",
 		"vimLabelReplace": "REPLACE",
 		"vimLabelCommand": "COMMAND",
-		"retroCustomColors": false,
-		"retroDarkBgColor": "#141010",
-		"retroDarkTextColor": "#f2f2f2",
-		"retroLightBgColor": "#e9e8e8",
-		"retroLightTextColor": "#f7fb09",
-		"powerlineColorLight1": "#c44040",
-		"powerlineColorLight2": "#c47b40",
-		"powerlineColorLight3": "#cacb6c",
-		"powerlineColorLight4": "#21b584",
-		"powerlineColorLight5": "#6294d5",
-		"powerlineColorLight6": "#828282",
-		"powerlineColorLight7": "#4d4c4c",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
-		"vimColorNormalLight": "#2d6da4",
-		"vimColorInsertLight": "#2f8a5b",
-		"vimColorVisualLight": "#6a5cb8",
-		"vimColorReplaceLight": "#a03c36",
-		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
-		"statusBarFontFollowNote": false,
-	},
-	"Echo": {
-		"statusBarRows": 1,
-		"statusRows": [{"left": ":b2|{gggg}|{gggg}{gggg}|{file}:5", "center": "{vim}:vim", "right": "{ln:col}:~{clock}:7{ggg}~{ggg}~{ggg}~{ggg}"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "path",
-		"powerlineEnabled": true,
-		"powerlineModeColors": true,
-		"powerlineColor1": "#4f9dde",
-		"powerlineColor2": "#3f4550",
-		"powerlineColor3": "#2f333c",
-		"powerlineColor4": "#4caf7d",
-		"powerlineColor5": "#cfa32a",
-		"powerlineColor6": "#8a7fd1",
-		"powerlineColor7": "#cc141d",
-		"powerlineText1": "#ffffff",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
-		"statusBarBorderStyle": "none",
-		"statusBarBorderWidth": 1,
-		"statusBarBorderTop": true,
-		"statusBarBorderBottom": false,
-		"statusBarFontSize": 15,
-		"statusBarHeight": 16,
-		"statusBarPadTop": 2,
-		"statusBarPadBottom": 2,
-		"vimFollowCursorSmith": true,
-		"vimColorNormal": "#4f9dde",
-		"vimColorInsert": "#4caf7d",
-		"vimColorVisual": "#8a7fd1",
-		"vimColorReplace": "#c2544d",
-		"vimColorCommand": "#e0913a",
-		"vimLabelNormal": "NORMAL",
-		"vimLabelInsert": "INSERT",
-		"vimLabelVisual": "VISUAL",
-		"vimLabelReplace": "REPLACE",
-		"vimLabelCommand": "COMMAND",
-		"retroCustomColors": false,
-		"retroDarkBgColor": "#141010",
-		"retroDarkTextColor": "#f2f2f2",
-		"retroLightBgColor": "#e9e8e8",
-		"retroLightTextColor": "#f7fb09",
 		"powerlineColorLight1": "#2d6da4",
 		"powerlineColorLight2": "#d9dce1",
 		"powerlineColorLight3": "#eceef1",
 		"powerlineColorLight4": "#2f8a5b",
-		"powerlineColorLight5": "#b96f1e",
+		"powerlineColorLight5": "#d79956",
 		"powerlineColorLight6": "#6a5cb8",
 		"powerlineColorLight7": "#a2404f",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
 		"vimColorNormalLight": "#2d6da4",
 		"vimColorInsertLight": "#2f8a5b",
 		"vimColorVisualLight": "#6a5cb8",
@@ -2295,66 +2206,12 @@ const DEFAULT_BAR_PRESETS = {
 		"vimColorCommandLight": "#b96f1e",
 		"powerlineSepWidth": 78,
 		"statusBarFontFollowNote": true,
-	},
-	"Slant": {
-		"statusBarRows": 1,
-		"statusRows": [{"left": ":b2/{vim}:vim|{file}:b1>{ln:col}/", "center": "/{report}:vim", "right": ">{words}:b1w<<{chars}c"}, {"left": "", "center": "", "right": ""}, {"left": "", "center": "", "right": ""}],
-		"fileTokenFormat": "path",
-		"powerlineEnabled": true,
-		"powerlineModeColors": true,
-		"powerlineColor1": "#4f9dde",
-		"powerlineColor2": "#3f4550",
-		"powerlineColor3": "#2f333c",
-		"powerlineColor4": "#4caf7d",
-		"powerlineColor5": "#307853",
-		"powerlineColor6": "#8a7fd1",
-		"powerlineColor7": "#cc141d",
-		"powerlineText1": "#ffffff",
-		"powerlineText2": "#16181d",
-		"powerlineText3": "#9aa0a6",
-		"powerlineText4": "#4f9dde",
-		"statusBarBorderStyle": "none",
-		"statusBarBorderWidth": 1,
-		"statusBarBorderTop": true,
-		"statusBarBorderBottom": false,
-		"statusBarFontSize": 15,
-		"statusBarHeight": 16,
-		"statusBarPadTop": 2,
-		"statusBarPadBottom": 2,
-		"vimFollowCursorSmith": true,
-		"vimColorNormal": "#4f9dde",
-		"vimColorInsert": "#4caf7d",
-		"vimColorVisual": "#8a7fd1",
-		"vimColorReplace": "#c2544d",
-		"vimColorCommand": "#e0913a",
-		"vimLabelNormal": "NORMAL",
-		"vimLabelInsert": "INSERT",
-		"vimLabelVisual": "VISUAL",
-		"vimLabelReplace": "REPLACE",
-		"vimLabelCommand": "COMMAND",
-		"retroCustomColors": false,
-		"retroDarkBgColor": "#141010",
-		"retroDarkTextColor": "#f2f2f2",
-		"retroLightBgColor": "#e9e8e8",
-		"retroLightTextColor": "#f7fb09",
-		"powerlineColorLight1": "#2d6da4",
-		"powerlineColorLight2": "#d9dce1",
-		"powerlineColorLight3": "#eceef1",
-		"powerlineColorLight4": "#2f8a5b",
-		"powerlineColorLight5": "#b96f1e",
-		"powerlineColorLight6": "#6a5cb8",
-		"powerlineColorLight7": "#a2404f",
-		"powerlineTextLight1": "#16181d",
-		"powerlineTextLight2": "#f7f7f5",
-		"powerlineTextLight3": "#5c636b",
-		"powerlineTextLight4": "#2d6da4",
-		"vimColorNormalLight": "#2d6da4",
-		"vimColorInsertLight": "#2f8a5b",
-		"vimColorVisualLight": "#6a5cb8",
-		"vimColorReplaceLight": "#a03c36",
-		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
-		"statusBarFontFollowNote": true,
+		"barRuleDarkTopColor": "#fbfaf9",
+		"barRuleDarkBottomColor": "#fbfaf9",
+		"barRuleLightTopColor": "#16181d",
+		"barRuleLightBottomColor": "#16181d",
+		"fontTokenFormat": "glyph",
+		"markersTokenFormat": "glyph",
 	},
 };
 
@@ -2547,6 +2404,27 @@ module.exports = class WordSmith extends Plugin {
 			name: 'Show the writing history',
 			callback: () => this.openHistoryModal()
 		});
+
+		// Quick panels — the left/right sidebar toggle and "reveal the view"
+		// as one keystroke, with the sidebar closing again once you have
+		// picked something.
+		//
+		// checkCallback, not callback: returning false while `checking` is
+		// true takes the command OUT of the palette, which is the official
+		// way to make one conditional. Obsidian has no public
+		// removeCommand, so a plain callback gated on the setting would
+		// leave a dead entry in the palette whenever the toggle was off.
+		const quickCmd = (id, name, key, viewType) => this.addCommand({
+			id, name,
+			checkCallback: (checking) => {
+				if (!this.settings[key]) return false;
+				if (!checking) this.toggleQuickPanel(viewType);
+				return true;
+			}
+		});
+		quickCmd('quick-file-explorer', 'Quick file explorer',
+			'quickExplorer', 'file-explorer');
+		quickCmd('quick-outline', 'Quick outline', 'quickOutline', 'outline');
 
 		// "WS" badge ribbon button — toggles the whole plugin on/off.
 		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
@@ -3136,6 +3014,25 @@ module.exports = class WordSmith extends Plugin {
 			this.settings.statusBarHeight =
 				Math.max(12, Math.min(30, this.settings.statusBarHeight));
 		}
+		// Groove and Ridge were removed from the Line style dropdown. This
+		// has to be a REWRITE, not a delete: the value is stamped straight
+		// into a CSS border-style, so a saved 'groove' would keep rendering
+		// while the dropdown — asked to select a value it no longer offers —
+		// showed whatever its first option is. Solid is the nearest thing
+		// either of them was pretending to be, and both were fetched by
+		// someone who wanted a line there.
+		if (this.settings.statusBarBorderStyle === 'groove'
+			|| this.settings.statusBarBorderStyle === 'ridge') {
+			this.settings.statusBarBorderStyle = 'solid';
+		}
+		// The same value can arrive inside a SAVED PRESET, which is applied
+		// wholesale and never passes through the check above.
+		for (const snap of Object.values(this.settings.barPresets || {})) {
+			if (snap && (snap.statusBarBorderStyle === 'groove'
+				|| snap.statusBarBorderStyle === 'ridge')) {
+				snap.statusBarBorderStyle = 'solid';
+			}
+		}
 		// {date} in saved rows would otherwise render as the literal text
 		// "{date}" forever. Rewritten to the pair it almost always meant;
 		// anyone wanting a different order edits the row.
@@ -3678,6 +3575,17 @@ module.exports = class WordSmith extends Plugin {
 	applyBarSnapshot(preset) {
 		const full = barPresetWithDefaults(preset);
 		for (const k of BAR_KEYS) this.settings[k] = full[k];
+		// A snapshot can carry a border style the dropdown no longer offers
+		// — an old saved preset, or a share code from someone still on a
+		// build that had Groove and Ridge. loadSettings sweeps the stored
+		// value and the stored presets, but neither runs on a code applied
+		// mid-session, and a dropdown asked to select a value it has no
+		// option for lands on its first one ("None") and silently drops
+		// both edges.
+		if (this.settings.statusBarBorderStyle === 'groove'
+			|| this.settings.statusBarBorderStyle === 'ridge') {
+			this.settings.statusBarBorderStyle = 'solid';
+		}
 		// getStatusRows() and the panel both assume three row objects exist
 		// whatever statusBarRows says, so a code carrying a short (or absent)
 		// array must not leave the panel reading row 2 of undefined.
@@ -4062,6 +3970,48 @@ module.exports = class WordSmith extends Plugin {
 		return edges.concat(other, mid);
 	}
 
+	// Everything belonging to a FADE — the gradient segments and the shapes
+	// that only exist to stand against them.
+	//
+	// A fade is a run of {g} bands with no text in it at all: a colour
+	// stepping into its neighbour, or out into the bar at a group's end. It
+	// is the one thing on a row that carries no reading, no label and no
+	// boundary — a `|` between two segments at least says where one ends,
+	// and a fade does not even do that, because its whole job is to make
+	// the join invisible. So when a row runs out of width it is the first
+	// thing that should go, and it goes before the caps rather than after:
+	// a default row spends ~130px on fades and ~40px on caps.
+	//
+	// The SEPARATORS ON BOTH SIDES go with it, which is the one place this
+	// differs from the ordinary shed loop below (which takes one). A
+	// separator is built to blend the colour on its left into the colour on
+	// its right, and a fade's edge colours are its outermost bands — so a
+	// separator left behind is a shape drawn in a colour no remaining box
+	// is wearing, which reads as exactly the glitch the blend exists to
+	// avoid. Two real segments left directly adjacent is a state the bar
+	// already handles: the segment bleed covers it (see
+	// renderPowerlineSection), because an empty segment collapsing at build
+	// time produces the same thing.
+	//
+	// A {g} with an explicit :N is NOT a fade and is not collected here. It
+	// is a solid sliver — edge shading the writer chose a colour for — and
+	// renderPowerlineSection is careful to keep that meaning separate.
+	fadeCandidates(rowEl) {
+		const out = [];
+		const fades = rowEl.querySelectorAll
+			? Array.from(rowEl.querySelectorAll('.zg-pl-fade')) : [];
+		for (const fade of fades) {
+			out.push(fade);
+			for (const sib of [fade.previousElementSibling, fade.nextElementSibling]) {
+				if (sib && sib.classList && sib.classList.contains('zg-pl-sep')
+					&& out.indexOf(sib) === -1) {
+					out.push(sib);
+				}
+			}
+		}
+		return out;
+	}
+
 	// True when the row's content fits — which is the same question as
 	// "do the sections still clear one another". Nothing degrades until
 	// they actually touch: a centre with air either side of it, or a left
@@ -4169,7 +4119,29 @@ module.exports = class WordSmith extends Plugin {
 
 		if (fits(rowEl)) return;
 
-		// Rule two: shed the caps before any token goes.
+		// Rule two: shed the fades before anything else on the row.
+		//
+		// ALL of them, in one step, rather than one at a time from the
+		// margins in like the readings below. A fade is one graded object —
+		// its bands' colours are computed across the whole run, each strictly
+		// between the two ends — so dropping half a run leaves a gradient
+		// with a step in the middle of it, which is worse to look at than
+		// either the full fade or none. The unit here is the decoration, not
+		// the band.
+		//
+		// The cost of being wholesale is that a row five pixels over loses
+		// every band it has. That is the right trade for this particular
+		// thing and not for anything else on the bar: a fade carries no
+		// information, so the row loses nothing but its shading, and it all
+		// comes back in the same frame the window widens (clearFitHidden at
+		// the top of every pass unhides everything before remeasuring).
+		const fades = this.fadeCandidates(rowEl);
+		if (fades.length) {
+			for (const el of fades) el.classList.add('zg-fit-hidden');
+			if (fits(rowEl)) return;
+		}
+
+		// Rule three: shed the caps before any token goes.
 		//
 		// A cap is the shape where a group meets the bar — the point at the
 		// very start or end of a run. It carries nothing: no reading, no
@@ -4190,6 +4162,9 @@ module.exports = class WordSmith extends Plugin {
 		}
 
 		for (const el of this.fitCandidates(rowEl)) {
+			// A fade already went with rule two, and its separators with it.
+			// Re-hiding it would cost a measure and free nothing.
+			if (el.classList.contains('zg-fit-hidden')) continue;
 			el.classList.add('zg-fit-hidden');
 			// The separator facing the rest of the row goes with it: left
 			// behind, the shape hangs off nothing and reads as a glitch.
@@ -4235,10 +4210,21 @@ module.exports = class WordSmith extends Plugin {
 	// every segment — those styles keep the full band and, with it, the
 	// theoretical hairline, which inside a broken line pattern has nothing
 	// to read as.
+	// The border style as it is actually allowed to render.
+	//
+	// Normalised at the point of USE as well as migrated on load, because
+	// the value can arrive by a route that never passes through loadSettings
+	// — an applied share code, a preset saved by an older install, a
+	// hand-edited data.json. The migration keeps the dropdown honest; this
+	// keeps the paint honest, and neither is redundant.
+	barBorderStyle() {
+		const st = this.settings.statusBarBorderStyle || 'solid';
+		return (st === 'groove' || st === 'ridge') ? 'solid' : st;
+	}
+
 	barRuleWidths() {
 		const s = this.settings;
-		if (!s.powerlineEnabled) return { top: 0, bottom: 0, bandTop: 0, bandBottom: 0 };
-		const style = s.statusBarBorderStyle || 'solid';
+		const style = this.barBorderStyle();
 		if (style === 'none') return { top: 0, bottom: 0, bandTop: 0, bandBottom: 0 };
 		const w = Math.max(1, Math.min(8, s.statusBarBorderWidth || 1));
 		const band = style === 'solid' ? Math.max(0, w - 1) : w;
@@ -4496,15 +4482,38 @@ module.exports = class WordSmith extends Plugin {
 		// having on a bar that is otherwise hand-coloured.
 		const dir = this.resolveBarDirective(
 			readBarDirective((this.getStatusRows()[0] || {}).left));
-		if (this.settings.retroCustomColors) {
-			barRoot.setProperty('--zg-bg',   dir.bg
-				|| (isDark ? this.settings.retroDarkBgColor   : this.settings.retroLightBgColor));
-			barRoot.setProperty('--zg-text', dir.text
-				|| (isDark ? this.settings.retroDarkTextColor : this.settings.retroLightTextColor));
-		} else {
-			barRoot.setProperty('--zg-bg',   dir.bg   || 'var(--background-primary)');
-			barRoot.setProperty('--zg-text', dir.text || 'var(--text-normal)');
-		}
+		// No picker branch any more: the bar takes the theme's surface and
+		// text unless the ROW says otherwise. The directive is the only way
+		// to colour the bar itself now, which is the right place for it —
+		// it is visible, it sits at the front of the format it applies to,
+		// and it is per row rather than global.
+		barRoot.setProperty('--zg-bg',   dir.bg   || 'var(--background-primary)');
+		barRoot.setProperty('--zg-text', dir.text || 'var(--text-normal)');
+		// The bar's top and bottom rules, each its own colour per theme.
+		//
+		// HERE, with the other theme-dependent colours, and not in
+		// updateStatusBar beside the width and style they share a border
+		// shorthand with. The split is deliberate and cost one bug to find:
+		// updateStatusBar runs when the bar is built or its settings change,
+		// while a theme switch reaches only the observer, which calls this
+		// method and updateStyleEl. Stamped there, the rules kept the
+		// OUTGOING theme's pair — and not briefly: the clock tick calls
+		// updateRetroStatusBar, which is a different method, so nothing on a
+		// timer would have corrected it. Width and style are theme-
+		// independent, so they stay where they are.
+		//
+		// On body, like --zg-bg and --zg-text above and for the same reason:
+		// custom properties inherit, the ::after resolves them from here,
+		// and the fallback it uses if they are missing — var(--zg-text) — is
+		// itself declared on body. A stale styles.css therefore renders what
+		// the rules looked like before they were choosable, rather than an
+		// invalid border.
+		barRoot.setProperty('--zg-bar-rule-top-color',
+			this.settings[isDark ? 'barRuleDarkTopColor' : 'barRuleLightTopColor']
+			|| 'var(--zg-text)');
+		barRoot.setProperty('--zg-bar-rule-bottom-color',
+			this.settings[isDark ? 'barRuleDarkBottomColor' : 'barRuleLightBottomColor']
+			|| 'var(--zg-text)');
 		// The note surface. Written on body for the same reason as the bar's
 		// pair above, and cleared rather than left at a stale value when the
 		// toggle goes off — an inline custom property outlives the
@@ -4674,8 +4683,10 @@ module.exports = class WordSmith extends Plugin {
 			// from styles.css per the stale-stylesheet rule below.
 			'.zengrinder-status-bar.zg-powerline::after { content: \'\';'
 				+ ' position: absolute; inset: 0; pointer-events: none; z-index: 3;'
-				+ ' border-top: var(--zg-bar-rule-top-width, 0px) var(--zg-bar-rule-style, none) var(--zg-text);'
-				+ ' border-bottom: var(--zg-bar-rule-bottom-width, 0px) var(--zg-bar-rule-style, none) var(--zg-text); }',
+				+ ' border-top: var(--zg-bar-rule-top-width, 0px) var(--zg-bar-rule-style, none)'
+				+ ' var(--zg-bar-rule-top-color, var(--zg-text));'
+				+ ' border-bottom: var(--zg-bar-rule-bottom-width, 0px) var(--zg-bar-rule-style, none)'
+				+ ' var(--zg-bar-rule-bottom-color, var(--zg-text)); }',
 			// Powerline: the bar keeps no padding of its own — the segments
 			// carry it, so their colour reaches the bar's edges.
 			// Vertical padding equal to the rule widths, so the segments end
@@ -4694,14 +4705,45 @@ module.exports = class WordSmith extends Plugin {
 			// so the element gives its width back — hiding it while it still
 			// occupies space would defeat the entire point.
 			'.zg-fit-hidden { display: none !important; }',
-			// Sized in em so the dial tracks the bar's font size, and shifted
-			// down a hair: a circle's optical centre sits above a text
-			// baseline, so aligning it geometrically leaves it floating.
-			'.zg-clock { width: 1.05em; height: 1.05em; display: inline-block;'
-				+ ' vertical-align: -0.15em; flex: 0 0 auto; }',
-			// {obsidian}'s box, sized like the clock and for the same
-			// reason: a drawn token tracks the bar's font size, and a
-			// stone's optical centre sits above a text baseline.
+			// The {clock} dial, sized and placed from the FONT rather than
+			// from the box it happens to be in. See buildClockFace for why
+			// there is a wrapper at all; this is what the wrapper buys.
+			//
+			// cap unit = the font's cap height, the height of a digit. The
+			// dial's ink is 20 of its 24 viewBox units across (radius 9 plus
+			// a 2-wide stroke), so a box of 1.2cap draws a dial exactly as
+			// tall as the figures beside it, in any face, at any size.
+			//
+			// The alignment is then arithmetic rather than taste. Digits are
+			// centred on their ink at cap/2 above the baseline; the dial is
+			// centred in its box; so the box's bottom belongs at
+			// cap/2 - size/2, which is what vertical-align takes. Written as
+			// a calc over the same variable, so changing the size re-centres
+			// it automatically instead of needing a second number retuned.
+			//
+			// The em block is the fallback for a renderer without cap units.
+			// Its numbers are the old measured ones and are approximate by
+			// nature — that approximation is precisely what cap removes.
+			'.zg-clock-box { display: inline-block; flex: 0 0 auto; }',
+			// transform: none is a RESET, not a default. 1.2.1 shipped an
+			// interim rule that offset the dial with a translateY, and a
+			// stale styles.css still carries it — without this, that
+			// measured offset survives underneath the baseline alignment
+			// that replaced it and the dial moves twice.
+			'.zg-clock { display: inline-block;'
+				+ ' width: var(--zg-clock-size, 0.92em);'
+				+ ' height: var(--zg-clock-size, 0.92em);'
+				+ ' vertical-align: -0.1em; transform: none; }',
+			'@supports (vertical-align: 1cap) {'
+				+ ' .zg-clock { width: var(--zg-clock-size, 1.2cap);'
+				+ ' height: var(--zg-clock-size, 1.2cap);'
+				+ ' vertical-align: calc(0.5cap - var(--zg-clock-size, 1.2cap) / 2'
+				+ ' - var(--zg-clock-shift, 0em)); } }',
+			// {obsidian} keeps the 1.05em the pair used to share. The
+			// crystal's path fills its viewBox corner to corner while the
+			// dial leaves two units of margin on every side for its stroke,
+			// so at one number the crystal already drew the larger of the
+			// two — shrinking the dial alone is what makes them match.
 			'.zg-obsidian-icon { width: 1.05em; height: 1.05em;'
 				+ ' display: inline-block; vertical-align: -0.15em; flex: 0 0 auto; }',
 			// Chevron soft dividers: SVG strokes (buildSoftChevron) at the
@@ -5175,6 +5217,115 @@ module.exports = class WordSmith extends Plugin {
 		return !!(this.settings.zenEnabled && this.settings.zenMode);
 	}
 
+	// ── Quick panels ─────────────────────────────────────────────────────────
+	//
+	// One keystroke for what is otherwise three: open the sidebar, click
+	// through to the file explorer (or the outline), and close the sidebar
+	// again once you have picked something. Obsidian ships all the parts —
+	// this only puts them in a sequence and hangs a one-shot listener off
+	// the end of it.
+	//
+	// Which SIDE is never assumed. The outline is a right-sidebar view by
+	// default and the explorer a left one, but either can be dragged across,
+	// and a command that hardcoded the side would silently stop working for
+	// anyone who had. The leaf is asked what root it is under instead.
+
+	// The split a leaf lives in, or null if it is in the main area.
+	quickPanelSplit(leaf) {
+		const ws = this.app.workspace;
+		const root = (leaf && leaf.getRoot) ? leaf.getRoot() : null;
+		if (!root) return null;
+		if (root === ws.leftSplit)  return ws.leftSplit;
+		if (root === ws.rightSplit) return ws.rightSplit;
+		return null;
+	}
+
+	async toggleQuickPanel(viewType) {
+		const ws = this.app.workspace;
+		let leaf = ws.getLeavesOfType(viewType)[0] || null;
+
+		// Already showing? Then this is the close half of the toggle, and it
+		// closes whether or not this command is what opened it.
+		if (leaf) {
+			const split = this.quickPanelSplit(leaf);
+			const host  = leaf.containerEl || (leaf.view && leaf.view.containerEl);
+			const shown = split && !split.collapsed && host && host.offsetHeight > 0;
+			if (shown) {
+				this.disarmQuickPanel();
+				split.collapse();
+				return;
+			}
+		}
+
+		// No leaf of this type anywhere — the writer closed it, or never had
+		// it. Make one rather than doing nothing: a command that silently
+		// fails is indistinguishable from a broken hotkey.
+		if (!leaf) {
+			const side = viewType === 'outline' ? ws.getRightLeaf(false) : ws.getLeftLeaf(false);
+			if (!side) return;
+			leaf = side;
+			try { await leaf.setViewState({ type: viewType, active: true }); } catch (_) { return; }
+		}
+
+		// revealLeaf expands whichever split it is in and brings its tab to
+		// the front; setActiveLeaf is what actually puts the caret in it, so
+		// the panel can be driven with arrows and Enter.
+		try { await ws.revealLeaf(leaf); } catch (_) {}
+		try { ws.setActiveLeaf(leaf, { focus: true }); } catch (_) {}
+		this.armQuickPanel(leaf, viewType);
+	}
+
+	// Close the panel again the moment something is chosen in it.
+	//
+	// A DOM listener on the leaf, not a workspace event. `file-open` looks
+	// like the right hook for the explorer and is not: it does not fire when
+	// the clicked file is the one already open, so picking the note you were
+	// on would leave the sidebar hanging. The outline has no event at all —
+	// clicking a heading scrolls the editor and announces nothing. A click
+	// (and Enter, since the panel now has focus) covers both, and covers the
+	// already-open case for free.
+	armQuickPanel(leaf, viewType) {
+		this.disarmQuickPanel();
+		const split = this.quickPanelSplit(leaf);
+		const host  = leaf.containerEl || (leaf.view && leaf.view.containerEl);
+		if (!split || !host) return;
+
+		// A FOLDER is not a choice. Expanding one in the explorer would
+		// otherwise dismiss the panel you are still navigating. The outline
+		// is all headings, so anything in its tree counts.
+		const sel = viewType === 'file-explorer' ? '.nav-file-title' : '.tree-item-self';
+		const close = () => {
+			this.disarmQuickPanel();
+			if (!split.collapsed) split.collapse();
+		};
+		// Deferred by a tick so Obsidian's own handler runs FIRST. Collapsing
+		// the split inside the click takes the element out from under the
+		// handler that was going to open the file.
+		const later = () => window.setTimeout(close, 0);
+		const onClick = (e) => {
+			const t = e.target;
+			if (t && t.closest && t.closest(sel)) later();
+		};
+		const onKey = (e) => { if (e.key === 'Enter') later(); };
+		host.addEventListener('click', onClick, true);
+		host.addEventListener('keydown', onKey, true);
+		this._quickPanel = {
+			off: () => {
+				host.removeEventListener('click', onClick, true);
+				host.removeEventListener('keydown', onKey, true);
+			}
+		};
+	}
+
+	// Armed only between opening the panel and picking something in it, so a
+	// file opened from the quick switcher an hour later collapses nothing.
+	disarmQuickPanel() {
+		if (this._quickPanel && this._quickPanel.off) {
+			try { this._quickPanel.off(); } catch (_) {}
+		}
+		this._quickPanel = null;
+	}
+
 	setSidebarVisibility() {
 		// zenOn(), not settings.zenMode. Leaving zen drops the MASTER and
 		// leaves zenMode where it was, so that raw flag does not change on
@@ -5461,14 +5612,15 @@ module.exports = class WordSmith extends Plugin {
 			this.stopClockTick();
 		}
 		if (this.retroStatusBarEl) {
-			// Powerline segments are the bar's surface, so the bar's own
-			// rules are dropped while it is on: a 2px line in the text
-			// colour along the top and bottom is exactly the strip the
-			// segment colour was stopping short of. The segments carry
-			// their own edges — that is what the shapes are for.
-			const pl    = !!this.settings.powerlineEnabled;
+			// Powerline segments are the bar's surface, so the bar never
+			// draws rules of its own: a 2px line in the text colour along
+			// the top and bottom is exactly the strip the segment colour
+			// was stopping short of. The segments carry their own edges —
+			// that is what the shapes are for. The bar's own borders are
+			// therefore stamped to zero unconditionally below, rather than
+			// only while a toggle was on.
 			const bwSet = Math.max(1, Math.min(8, this.settings.statusBarBorderWidth || 2));
-			const stSet = this.settings.statusBarBorderStyle || 'solid';
+			const stSet = this.barBorderStyle();
 			// Each edge can be turned off on its own; the style dropdown's
 			// "None" still turns both off at once.
 			const onTop = stSet !== 'none' && this.settings.statusBarBorderTop    !== false;
@@ -5485,29 +5637,27 @@ module.exports = class WordSmith extends Plugin {
 			// ask for through the variables stamped here, and the segment
 			// colour still runs to the edge underneath it. Borders on an
 			// overlay also honour dashed/dotted, which a shadow never could.
-			if (pl) {
-				const S = this.retroStatusBarEl.style;
-				S.setProperty('--zg-bar-rule-top-width',    onTop ? bwSet + 'px' : '0px');
-				S.setProperty('--zg-bar-rule-bottom-width', onBot ? bwSet + 'px' : '0px');
-				S.setProperty('--zg-bar-rule-style',        (onTop || onBot) ? stSet : 'none');
-			} else {
-				for (const v of ['--zg-bar-rule-top-width', '--zg-bar-rule-bottom-width',
-					'--zg-bar-rule-style']) {
-					this.retroStatusBarEl.style.removeProperty(v);
-				}
-			}
+			const S = this.retroStatusBarEl.style;
+			S.setProperty('--zg-bar-rule-top-width',    onTop ? bwSet + 'px' : '0px');
+			S.setProperty('--zg-bar-rule-bottom-width', onBot ? bwSet + 'px' : '0px');
+			S.setProperty('--zg-bar-rule-style',        (onTop || onBot) ? stSet : 'none');
+			// The rules' COLOURS are not stamped here. They are
+			// theme-dependent, and this method runs on a bar rebuild, not on
+			// a theme change — see applyCssVariables, which the theme
+			// observer does call. Width and style are theme-independent and
+			// stay on the element.
 			// The stylesheet's box-shadow (the gutter plinth) is left alone
 			// in both modes now that no inline shadow is written — an inline
 			// value would replace it outright and silently remove the mask
 			// under the bar (see invariant 4).
 			this.retroStatusBarEl.style.boxShadow = '';
-			this.retroStatusBarEl.style.borderTopWidth = (!pl && onTop) ? bwSet + 'px' : '0';
-			this.retroStatusBarEl.style.borderTopStyle = (!pl && onTop) ? stSet : 'none';
+			this.retroStatusBarEl.style.borderTopWidth = '0';
+			this.retroStatusBarEl.style.borderTopStyle = 'none';
 			this.retroStatusBarEl.style.borderTopColor = 'var(--zg-text)';
 			// And the same rule along the bottom, closing the bar off from
 			// the vim gutter beneath it.
-			this.retroStatusBarEl.style.borderBottomWidth = (!pl && onBot) ? bwSet + 'px' : '0';
-			this.retroStatusBarEl.style.borderBottomStyle = (!pl && onBot) ? stSet : 'none';
+			this.retroStatusBarEl.style.borderBottomWidth = '0';
+			this.retroStatusBarEl.style.borderBottomStyle = 'none';
 			this.retroStatusBarEl.style.borderBottomColor = 'var(--zg-text)';
 			// Those borders change the bar's height, and the bottom mask
 			// ends at the bar's top edge — so the mask has to be restamped
@@ -5662,7 +5812,37 @@ module.exports = class WordSmith extends Plugin {
 		hand(hours * 30, 4);   // 30 degrees an hour, short hand
 		hand(mins * 6,  6.5);  // 6 degrees a minute, long hand
 		svg.setAttribute('aria-label', this.formatTime(t));
-		return svg;
+
+		// WRAPPED, and the wrapper is the whole point of it.
+		//
+		// The dial has to sit on the text's baseline to look level with the
+		// time beside it, and `vertical-align` is the only thing in CSS that
+		// positions against a baseline. It does nothing on a flex item — and
+		// a drawn token appended straight into `.zg-pl-inner` (inline-flex,
+		// align-items: center) is exactly that, which is why the dial has
+		// been centred on a BOX rather than a baseline ever since powerline
+		// became the only way the bar draws.
+		//
+		// So: the wrapper becomes the flex item and gets centred, and the
+		// SVG is inline INSIDE it, where vertical-align works again. That
+		// lands the alignment on real font metrics instead of a fudge
+		// factor, which is the fix — the fudge factor had to point in
+		// opposite directions in two different fonts.
+		//
+		// It only works because the wrapper's line box comes out the same
+		// height as a text item's. Two things make that true and both are
+		// worth knowing before changing either: the bar leaves line-height
+		// at `normal`, so the strut is comfortably taller than the dial and
+		// the dial does not stretch the line box; and the wrapper holds no
+		// text of its own, so its baseline is the strut's, in the same place
+		// as every neighbouring reading's. A line-height of 1 on the bar
+		// would make the dial the tallest thing in its line box and shift
+		// its baseline by a fraction of a pixel — survivable, but it is the
+		// thing that would start the drift.
+		const box = document.createElement('span');
+		box.className = 'zg-clock-box';
+		box.appendChild(svg);
+		return box;
 	}
 
 	formatTime(now) {
@@ -8926,14 +9106,18 @@ module.exports = class WordSmith extends Plugin {
 		const el = this.buildBarButton(
 			'zg-barbtn-font' + (current ? '' : ' is-off'),
 			(node) => {
-				// "Aa" rather than the word "Font": it is the specimen every
-				// word processor uses for a type control, it reads at a
-				// glance without being read, and because the button renders
-				// in the chosen face it SHOWS the font instead of naming it.
-				// Also the narrowest label of the five buttons, which
-				// matters now that buttons are the last thing dropped when
-				// the bar runs out of room.
-				node.textContent = 'Aa';
+				// "Aa" by default rather than the word: it is the specimen
+				// every word processor uses for a type control, it reads at
+				// a glance without being read, and because the button
+				// renders in the chosen face it SHOWS the font instead of
+				// naming it. Also the narrowest label of the five buttons,
+				// which matters now that buttons are the last thing dropped
+				// when the bar runs out of room.
+				//
+				// A writer can ask for the word instead (Token formats).
+				// The chosen face is applied EITHER way — "Fonts" set in
+				// the font is still showing it, just less compactly.
+				node.textContent = this.settings.fontTokenFormat === 'word' ? 'Fonts' : 'Aa';
 				if (current) node.style.fontFamily = current;
 			},
 			current ? 'Font: ' + current + ' \u2014 click to change' : 'Font \u2014 click to choose',
@@ -9130,14 +9314,18 @@ module.exports = class WordSmith extends Plugin {
 		this.openPickerLive(anchor, items, 'toggle');
 	}
 
-	// ¶ in the bar; the picker toggles which invisibles are drawn.
+	// ¶ in the bar — or the word "Markers", per the Token formats setting;
+	// the picker toggles which invisibles are drawn either way.
 	buildMarkersIndicator() {
 		const s = this.settings;
 		const any = this.textOpt('showHiddenMarkers', false) &&
 			(s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 		return this.buildBarButton(
 			'zg-barbtn-markers' + (any ? '' : ' is-off'),
-			(node) => { node.textContent = '\u00b6'; },
+			(node) => {
+				node.textContent = this.settings.markersTokenFormat === 'word'
+					? 'Markers' : '\u00b6';
+			},
 			any ? 'Hidden markers \u2014 click to change' : 'Hidden markers are off',
 			(anchor) => this.openMarkersPicker(anchor)
 		);
@@ -9617,25 +9805,30 @@ module.exports = class WordSmith extends Plugin {
 
 		this.retroStatusBarEl.empty();
 		this._statusRowEls = [];
-		const pl   = this.settings.powerlineEnabled;
 		// Powerline segments own the whole bar box including its padding, so
 		// a row is that much taller and the separators have to be drawn at
 		// the same height — an SVG built for the unpadded row and stretched
 		// by CSS comes out distorted.
 		const pad  = this.barPadding();
-		const rowH = this.snappedRowHeight() + (pl ? pad.top + pad.bottom : 0);
-		this.retroStatusBarEl.classList.toggle('zg-powerline', !!pl);
+		const rowH = this.snappedRowHeight() + pad.top + pad.bottom;
+		// Unconditional now that powerline is the only way the bar draws.
+		// Still a CLASS rather than nothing: the whole stylesheet hangs off
+		// it (.zg-powerline::after is the bar's rules, and the segment
+		// padding, inner layout and fade rules are all scoped to it), and
+		// the `:not(.zg-powerline)` rules beside them are simply never
+		// matched now. Left in place rather than swept out — they are the
+		// plain-row half of a pair, and deleting half a pair is how the next
+		// person finds a rule with no counterpart and no reason.
+		this.retroStatusBarEl.classList.add('zg-powerline');
 		// The colour a separator transitions OUT of at the end of a group is
 		// the bar's own, read back rather than assumed: the bar may be on the
 		// theme colours or on the retro custom pair, and a hardcoded guess
 		// would leave a visible step at every cap.
 		let barColor = 'transparent';
-		if (pl) {
-			try {
-				const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;
-				if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') barColor = c;
-			} catch (_) {}
-		}
+		try {
+			const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;
+			if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') barColor = c;
+		} catch (_) {}
 		// Spacer tokens. Every distinct {s+} written anywhere in the bar gets
 		// an entry, so the existing substitution machinery does the work and
 		// they behave like any other token — including taking a :N colour,
@@ -9669,9 +9862,11 @@ module.exports = class WordSmith extends Plugin {
 				}
 			}
 		}
-		const section = (fmt, side) => pl
-			? this.renderPowerlineSection(fmt, subs, side, rowH, barColor)
-			: this.renderStatusSection(fmt, subs);
+		// renderStatusSection is not dead: renderPowerlineSection calls it for
+		// the CONTENTS of each segment. It is no longer a top-level renderer,
+		// which is the only thing that changed here.
+		const section = (fmt, side) =>
+			this.renderPowerlineSection(fmt, subs, side, rowH, barColor);
 		for (let ri = 0; ri < rows.length; ri++) {
 			const row = rows[ri];
 			const rowEl = this.retroStatusBarEl.createDiv({ cls: 'zg-status-row' });
@@ -9745,26 +9940,35 @@ module.exports = class WordSmith extends Plugin {
 		return out;
 	}
 
-	// The four text colours, addressed as ;N. Separate from the backgrounds
-	// so that ":2;2" is legal and means what it says rather than being a
-	// same-colour-on-itself trap. Fewer than the backgrounds on purpose:
-	// text on a coloured block only ever needs a light, a dark and an
-	// accent or two, and the index wraps, so ;5 lands on ;1 rather than
-	// failing.
+	// ;N — text in palette colour N. THE SAME palette :N reads.
+	//
+	// There used to be a second, separate set of four text swatches. It was
+	// dropped: keeping two palettes in step, in two theme variants, is work
+	// the writer does for no gain, and the question ;N actually answers is
+	// "which of the colours already in this bar" — which wants the colours
+	// already in the bar. It also means a swatch retinted in the palette
+	// retints everywhere it is used at once, foreground and background.
+	//
+	// ":2;2" is now same-colour-on-itself, i.e. invisible text. That is a
+	// legible thing to have written and to undo, unlike the old trap of two
+	// palettes whose numbering did not line up. Out-of-range still wraps.
 	powerlineTextColor(n1) {
-		const s = this.settings;
-		const dark = this.isDarkTheme();
-		const list = [];
-		for (let n = 1; n <= PL_TEXT_COUNT; n++) {
-			const c = s[dark ? 'powerlineText' + n : 'powerlineTextLight' + n];
-			list.push((typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c))
-				? c : (dark ? '#f7f7f5' : '#16181d'));
-		}
+		const list = this.powerlineColors();
 		return list[(((n1 - 1) % list.length) + list.length) % list.length];
 	}
 
+	// Powerline is baked in, so this is now only asking whether the bar
+	// exists at all.
+	//
+	// Kept rather than deleted, and deliberately: it has NO callers in the
+	// working set — it had none before this change either — and the six
+	// probes that are still absent (plbg_probe, cascade_check and the rest)
+	// have not been run against anything since 1.26. Removing a public-ish
+	// method to tidy up, while the things that might call it are off the
+	// table, is how a probe comes back red for a reason nobody can see.
+	// Delete it once those are uploaded and green.
 	powerlineActive() {
-		return !!(this.settings.powerlineEnabled && this.retroStatusBarEl);
+		return !!this.retroStatusBarEl;
 	}
 
 	// Text colour for a segment, derived rather than picked.
@@ -9862,15 +10066,16 @@ module.exports = class WordSmith extends Plugin {
 			// {token}:2 picks background 2; {token}:2;3 also picks text
 			// colour 3. {token}:vim follows the live vim mode instead of a
 			// fixed background, and :vim;3 pins the text while the
-			// background moves. {token}:b1 and :b2 take the theme's own
-			// page and panel colours (PL_THEME_BGS). The space in
-			// {token} :2 is allowed because it reads better in a row and
-			// someone will type it either way.
+			// background moves. {token}:b1 through :b4 take the theme's own
+			// surfaces (PL_THEME_BGS) and ;t1 through ;t3 its text colours.
+			// The space in {token} :2 is allowed because it reads better in a
+			// row and someone will type it either way.
 			//
-			// Only b1 and b2 are matched, not b<any>. An unrecognised one is
-			// left in the text where the writer can see it, which is how they
-			// find out it is not a thing — silently swallowing :b7 would make
-			// it look like a colour that happens to render as the auto pick.
+			// The b and t classes are BOUNDED, not b<any>/t<any>. An
+			// unrecognised one is left in the text where the writer can see
+			// it, which is how they find out it is not a thing — silently
+			// swallowing :b9 would make it look like a colour that happens to
+			// render as the auto pick.
 			let ink = null;
 			// Both suffixes are OPTIONAL and independent now: {file};vim is
 			// legal (the ink follows the live mode while the background
@@ -9884,10 +10089,10 @@ module.exports = class WordSmith extends Plugin {
 			// the auto colour and then printed ":b1" beside it. `{file}:b1`
 			// worked, which is what made it look like a colour bug rather
 			// than a token-name bug.
-			const text = texts[i].replace(/(\{[^{}]+\})(?:\s*:(\d+|vim|b[12]))?(?:\s*;\s*(\d+|vim|t[12]))?/gi, (m, tok, n, t) => {
+			const text = texts[i].replace(/(\{[^{}]+\})(?:\s*:(\d+|vim|b[1-4]))?(?:\s*;\s*(\d+|vim|t[1-3]))?/gi, (m, tok, n, t) => {
 				if (n != null && slot === null) {
 					slot = /^vim$/i.test(n) ? 'vim'
-						: /^b[12]$/i.test(n) ? n.toLowerCase()
+						: /^b[1-4]$/i.test(n) ? n.toLowerCase()
 						: parseInt(n, 10);
 				}
 				// The ink channel mirrors the background one, value for
@@ -9899,7 +10104,7 @@ module.exports = class WordSmith extends Plugin {
 				// worked as a bar directive and printed as a suffix.
 				if (t != null && ink === null) {
 					ink = /^vim$/i.test(t) ? 'vim'
-						: /^t[12]$/i.test(t) ? t.toLowerCase()
+						: /^t[1-3]$/i.test(t) ? t.toLowerCase()
 						: parseInt(t, 10);
 				}
 				return tok;
@@ -10004,6 +10209,16 @@ module.exports = class WordSmith extends Plugin {
 	// their own direction because the writer picked / or \ to say so.
 	buildPowerlineSep(fromColor, toColor, dir, h, shape) {
 		const style = shape || 'arrow';
+		// An SVG fill attribute that is empty, undefined or unparseable does
+		// not paint nothing — it paints BLACK, the SVG default. Every colour
+		// reaching this method has been through a theme lookup or a fade mix,
+		// both of which have an honest '' for "could not work it out", so the
+		// last step before it becomes an attribute is where that has to be
+		// caught. transparent is the right answer: it shows the bar, which is
+		// what a shape with no colour to be was always trying to say.
+		const paint = (c) => (typeof c === 'string' && c.trim()) ? c.trim() : 'transparent';
+		fromColor = paint(fromColor);
+		toColor   = paint(toColor);
 		// The width IS the apex angle: a triangle from (0,0) to (w,h/2) to
 		// (0,h) has a nose of 2·atan((h/2)/w), so a narrow separator is a
 		// blunt one. 0.55 gave 95°, which is what "not pointy" meant.
@@ -10184,12 +10399,17 @@ module.exports = class WordSmith extends Plugin {
 		// Checked before the numeric branch: pick() does arithmetic, and 'b1'
 		// through it is NaN, which is a segment painted nothing at all.
 		if (typeof seg.slot === 'string' && PL_THEME_BGS[seg.slot]) {
-			const c = this.themeSurfaceColor(PL_THEME_BGS[seg.slot]);
-			// An empty read means the theme does not define it (or the style
-			// is not resolvable yet). Fall through to the auto colour rather
-			// than returning '' — an empty fill paints black, which is a
-			// worse answer than the colour the segment would have had.
-			if (c) return c;
+			// Each slot is a LIST of variable names, tried in order: b4 asks
+			// for --background-tertiary, which core Obsidian does not define,
+			// and falls back to --background-primary-alt on a theme without
+			// it. An empty read means none of them resolved (or the style is
+			// not available yet). Fall through to the auto colour rather than
+			// returning '' — an empty fill paints black, which is a worse
+			// answer than the colour the segment would have had.
+			for (const name of PL_THEME_BGS[seg.slot]) {
+				const c = this.themeSurfaceColor(name);
+				if (c) return c;
+			}
 		} else if (seg.slot != null) {
 			return pick(seg.slot);
 		}
@@ -10231,11 +10451,69 @@ module.exports = class WordSmith extends Plugin {
 		}
 		let val = '';
 		try {
-			val = getComputedStyle(document.body).getPropertyValue(varName).trim();
+			// Read through a PROBE rather than off the custom property.
+			//
+			// getPropertyValue('--background-secondary-alt') hands back the
+			// token stream the theme wrote, in the syntax the theme wrote it
+			// in: hsl(), color-mix(), oklch(), a bare colour name, or a
+			// var() chain. That value is fine as a `background-color` and
+			// useless everywhere else this colour goes, and it goes two
+			// places that cannot take it:
+			//
+			//   • mixColors/parseColorRGB, which reads #hex and rgb() only.
+			//     Anything else parses as null, and a fade whose endpoint is
+			//     null renders every band the SAME colour — a gradient that
+			//     does not gradate.
+			//   • an SVG `fill` ATTRIBUTE on the separators. An unparseable
+			//     fill is not ignored, it falls back to the SVG default,
+			//     which is BLACK. That is the reported symptom, and it is
+			//     why :b3/:b4 looked broken while :b1/:b2 did not — nothing
+			//     about the slots differed except which syntax the theme
+			//     happened to declare them in.
+			//
+			// Assigning `var(--name)` to a real element's background-color
+			// and reading the computed value back makes the engine do the
+			// whole job: nested vars, color-mix, any colour space, all
+			// normalised to rgb()/rgba(). One syntax reaches everything
+			// downstream, so neither consumer has to widen its parser.
+			const probe = this.colorProbeEl();
+			probe.style.backgroundColor = '';
+			probe.style.backgroundColor = 'var(' + varName + ')';
+			const out = (getComputedStyle(probe).backgroundColor || '').trim();
+			// An undefined variable is invalid at computed-value time, so
+			// background-color falls to its initial value — fully
+			// transparent. Indistinguishable from a theme that really did
+			// declare the surface transparent, which is the price of not
+			// having to special-case every colour syntax; a transparent
+			// surface would paint nothing anyway, and '' is what the caller
+			// already knows how to fall through on.
+			val = (!out || out === 'rgba(0, 0, 0, 0)' || out === 'transparent') ? '' : out;
 		} catch (_) { val = ''; }
 		if (!this._themeSurfaceCache) this._themeSurfaceCache = {};
 		this._themeSurfaceCache[varName] = val;
 		return val;
+	}
+
+	// A hidden element that exists only to be asked what a colour resolves
+	// to. Kept and reused rather than created per read: it is touched once
+	// per surface per repaint, and the bar repaints on a timer.
+	//
+	// On body, because that is where Obsidian defines the theme variables
+	// (body.theme-dark / body.theme-light) — a probe parked anywhere that
+	// does not inherit from it would resolve every var to nothing.
+	colorProbeEl() {
+		if (!this._colorProbeEl || !this._colorProbeEl.isConnected) {
+			const el = document.createElement('span');
+			el.className = 'zg-color-probe';
+			// Not display:none — a probe has to be a real box for the
+			// computed style to be worth reading. Off-canvas and zero-sized
+			// costs nothing and cannot be clicked.
+			el.style.cssText = 'position:fixed;left:-9999px;top:0;width:0;height:0;'
+				+ 'pointer-events:none;';
+			document.body.appendChild(el);
+			this._colorProbeEl = el;
+		}
+		return this._colorProbeEl;
 	}
 
 	// ── Cursor-Smith bridge ───────────────────────────────────────────────
@@ -10534,8 +10812,7 @@ module.exports = class WordSmith extends Plugin {
 			// events either way.
 			const segInk = built[i].seg.ink;
 			el.style.color = segInk === 'vim' ? this.vimModeColor()
-				: segInk === 't1' ? 'var(--text-normal)'
-				: segInk === 't2' ? 'var(--text-muted)'
+				: (typeof segInk === 'string' && PL_THEME_INKS[segInk]) ? PL_THEME_INKS[segInk]
 				: segInk != null ? this.powerlineTextColor(segInk)
 				: this.powerlineSegInk(built[i].seg, segColors[i]);
 			}
@@ -11400,14 +11677,12 @@ module.exports = class WordSmith extends Plugin {
 			// padding; the settings-derived fallback beside it does not, so
 			// the borders are added back there — --zg-status-bar-height is
 			// only the row plus its vertical padding.
-			// Only the edges actually drawn add to the fallback height, and
-			// only in the plain bar — powerline draws its rules as an
-			// overlay, which takes no space in the box at all.
-			const st = this.settings.statusBarBorderStyle || 'solid';
-			const one = (st === 'none' || this.settings.powerlineEnabled)
-				? 0 : Math.max(1, Math.min(8, this.settings.statusBarBorderWidth || 2));
-			const borderTotal = (this.settings.statusBarBorderTop    !== false ? one : 0)
-				+ (this.settings.statusBarBorderBottom !== false ? one : 0);
+			// The bar's edge rules add NOTHING to the fallback height now
+			// that powerline is baked in: they are drawn by the
+			// .zg-powerline::after overlay, which takes no space in the
+			// box at all. The border-width arithmetic that used to sit
+			// here was the plain bar's, and the plain bar is gone.
+			//
 			// The fallback uses the SNAPPED height, not the raw setting: the
 			// parity snap can add a pixel, and a mask placed one pixel short
 			// of the bar leaves a hairline of editor showing. One row,
@@ -11415,7 +11690,7 @@ module.exports = class WordSmith extends Plugin {
 			// measures zero — bar hidden or not yet laid out — but that is
 			// exactly when a wrong number persists unnoticed.
 			statusH = (this.retroStatusBarEl.getBoundingClientRect().height
-				|| (this.snappedRowHeight() + borderTotal))
+				|| this.snappedRowHeight())
 				+ this.vimGutterHeight();
 		} else {
 			const nb = document.querySelector('.status-bar');
@@ -11706,6 +11981,16 @@ module.exports = class WordSmith extends Plugin {
 		if (this.retroStatusBarEl) { this.retroStatusBarEl.remove(); this.retroStatusBarEl = null; }
 		if (this.retroPlinthEl) { this.retroPlinthEl.remove(); this.retroPlinthEl = null; }
 		this._statusRowEls = [];
+		// The colour probe is appended to body and would otherwise outlive
+		// the plugin — invisible and harmless, but it is ours and it is a
+		// node in someone's document. The cache goes with it: a stale entry
+		// read after a reload would be answering about a theme that may have
+		// changed in between.
+		if (this._colorProbeEl) { this._colorProbeEl.remove(); this._colorProbeEl = null; }
+		// A quick panel's listeners are on a leaf Obsidian owns, so they
+		// outlive the plugin unless they are taken off explicitly.
+		this.disarmQuickPanel();
+		this._themeSurfaceCache = null;
 		document.body.classList.remove('zg-retrobar-active');
 		this.stopClockTick();
 		// Tear down masks
@@ -13190,8 +13475,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.toggle(z, 'Full screen', 'Go fullscreen whenever you enter zen.', 'fullscreen');
 
 			this.toggle(z, 'Match the title bar',
-				'Paint it to match the editor.'
-				+ 'Needs Obsidian\u2019s own window frame \u2014 a native OS title bar cannot be styled.',
+				'Needs Obsidian\u2019s own window frame \u2014 a native one cannot be styled.',
 				'zenTitlebarMatch');
 
 			this.toggle(z, 'Focused file mode', 'Hides every other pane so only this note is open.', 'focusedFileMode');
@@ -13202,8 +13486,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.toggle(hide, 'Inline title',      'The title above the note.',            'hideInlineTitle');
 			this.toggle(hide, 'Native status bar', 'The retro bar covers it anyway while it\u2019s on.', 'hideStatusBar');
 			this.toggle(hide, 'Linked mentions',   'The list of links at the bottom of a note.',            'hideLinkedMentions');
-			this.toggle(hide, 'Scroll bar',        'The editor scroll bar. The letterbox hides it '
-				+ 'regardless \u2014 it runs straight past both masks.', 'hideScrollBar');
+			this.toggle(hide, 'Scroll bar',        'The letterbox hides it regardless.',              'hideScrollBar');
 			this.toggle(hide, 'Ribbon',            'The strip of icons down the left.',               'hideRibbon');
 			// The one thing in this list that belongs to this plugin rather
 			// than to Obsidian. It sits here anyway: from the writer's side
@@ -13229,8 +13512,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.label(z, 'Leaving');
 			const leave = this.sub(z);
 			this.toggle(leave, 'Escape exits zen',
-				'With Vim keys on, only from Normal mode \\u2014 the first Escape is '
-					+ 'still Vim\\u2019s, the second leaves zen.',
+				'With Vim keys on, the second Escape \u2014 the first is still Vim\u2019s.',
 				'zenEscExits');
 
 		}
@@ -13429,18 +13711,18 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		H('Colouring one segment');
 		L('{words}:N', 'background colour N (1\u2013' + PL_BG_COUNT + ' \u2014 higher numbers start again at 1)');
-		L('{words}:N;M', 'add ;M to pick the text colour too (1\u2013' + PL_TEXT_COUNT + ')');
+		L('{words}:N;M', 'add ;M for the text \u2014 the same palette, the same numbers');
 		L('', 'Leave the ; off and the text picks itself, light or dark,');
 		L('', 'so it stays readable on whatever background you chose.');
 		L('{words};vim', 'the text takes the colour of the Vim mode you\u2019re in');
 		L('{ln:col}:vim', 'the background does \u2014 a {vim} segment already does this');
-		L('{file}:b1   {file}:b2', 'your theme\u2019s page and panel colours \u2014 a segment that');
-		L('', 'blends into the bar instead of standing out from it');
-		L('{file};t1  {file};t2', 'and your theme\u2019s normal and faded text, to match');
+		L('{file}:b1 :b2 :b3 :b4', 'your theme\u2019s own surfaces: page, panel, alt panel,');
+		L('', 'tertiary \u2014 a segment that blends into the bar');
+		L('{file};t1 ;t2 ;t3', 'and its normal, muted and faint text, to match');
 
 		H('Colouring the bar itself \u2014 put this first, in row 1\u2019s left slot');
-		L(':b1 :b2 :N :vim', 'the bar\u2019s background: a theme colour, one of yours, or the Vim mode');
-		L(';t1 ;t2 ;N ;vim', 'and its text, the same four ways');
+		L(':b1\u2026:b4  :N  :vim', 'the bar\u2019s background: a theme surface, one of yours, or the mode');
+		L(';t1\u2026;t3  ;N  ;vim', 'and its text, the same three ways');
 		L(':3;2 {file}\u2026', 'both together. Leave the ; off and the text picks itself.');
 
 		H('Fades \u2014 a colour stepping into the next, written with {g}');
@@ -13450,13 +13732,17 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('\u2026 | {g}{g}', 'at the end of a group it fades out into the bar');
 		L('> {g}>{g}>{g} >', 'dividers in the middle of a fade keep their shape \u2014 arrows,');
 		L('', 'curves, waves or cuts, cut out of one continuous fade');
+		L('', 'A fade is the FIRST thing dropped when the window narrows,');
+		L('', 'before the end points and long before any reading. Give a {g}');
+		L('', 'a colour of its own and it stops being a fade \u2014 it becomes a');
+		L('', 'solid sliver, and it stays.');
 
 		H('Marks inside a row \u2014 drawn in the text\u2019s own colour');
 		L('::', 'a short thin line');
 		L('>>  <<', 'the same line bent to a point, at the arrows\u2019 angle');
-		L('', 'These three work with or without powerline segments. Type');
-		L('', 'them doubled \u2014 a single > or < is a divider, and a single :');
-		L('', 'starts a colour.');
+		L('', 'A mark is drawn in the row\u2019s own foreground, not as a colour');
+		L('', 'boundary, so it needs no segment behind it. Type them doubled');
+		L('', '\u2014 a single > or < is a divider, and a single : starts a colour.');
 
 		H('Two rows to copy and pull apart');
 		L(':vim {vim} > {file} :: {ln:col}');
@@ -13482,38 +13768,34 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		if (this.plugin.settings.enableRetroStatus) {
 			const rb = this.sub(containerEl);
+			const s0 = this.plugin.settings;
 
 			this.renderBarPresets(rb);
 
+			// No on/off switch here any more: powerline is how the bar
+			// draws, full stop. The toggle was a fork in every layout
+			// question the bar asks — rules as borders or as an overlay,
+			// padding in the bar or in the segments, marks sized from a
+			// segment's height or from the row's font — and one of the two
+			// answers was the one nobody was looking at.
 			this.label(rb, 'Powerline');
-			const s0 = this.plugin.settings;
-			new Setting(rb)
-				.setName('Powerline segments')
-				.setDesc('Draws each group as a coloured block, with a shaped join between them.')
-				.addToggle(t => t.setValue(s0.powerlineEnabled)
-					.onChange(async v => {
-						s0.powerlineEnabled = v;
-						await this.plugin.saveSettings(true);
-						this.display();
-					}));
-			if (s0.powerlineEnabled) {
-				const pw = this.sub(rb);
-				this.toggle(pw, 'Follow the Vim mode',
-					'Recolour the {vim} segment as the mode changes. The five colours are below.',
-					'powerlineModeColors', () => this.plugin.saveSettings(true));
+			const pw = this.sub(rb);
+			this.toggle(pw, 'Follow the Vim mode',
+				'Recolours the {vim} segment as the mode changes.',
+				'powerlineModeColors', () => this.plugin.saveSettings(true));
 
-				this.label(pw, 'Segment colours');
-				this.renderPowerlineColors(this.sub(pw));
-				// The divider/colour grammar lives in the Format reference
-				// below, NOT here: this block only renders while powerline
-				// is on, and keeping half the grammar inside it meant the
-				// reference lost that half whenever the toggle was off.
-				pw.createEl('p', {
-					text: 'Everything about writing rows \u2014 dividers, colours, fades \u2014 is under '
-						+ '\u201CFormat reference\u201D further down.',
-					cls: 'ws-settings-note'
-				});
-			}
+			this.label(pw, 'Segment colours');
+			this.renderPowerlineColors(this.sub(pw));
+			// The divider/colour grammar lives in the Format reference
+			// below, NOT here. It was moved out when this block was
+			// conditional and the reference lost half its content whenever
+			// the toggle was off; it stays out because the reference is
+			// where someone looks for it.
+			pw.createEl('p', {
+				text: 'Everything about writing rows \u2014 dividers, colours, fades \u2014 is under '
+					+ '\u201CFormat reference\u201D further down.',
+				cls: 'ws-settings-note'
+			});
 
 			this.label(rb, 'Format');
 			// ── Format reference ──────────────────────────────────────────
@@ -13557,8 +13839,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// shows its value on drag, and "8-24 px" told the writer nothing
 			// they could not see. What each one moves is the useful part.
 			this.toggle(ap, 'Match the note\u2019s text size',
-				'The bar follows the editor\u2019s font size \u2014 Ctrl+scroll zoom included \u2014 '
-					+ 'so the whole view stays homogeneous. Raise Row height if you zoom large.',
+				'Follows the editor, Ctrl+scroll zoom included. Raise Row height if you zoom large.',
 				'statusBarFontFollowNote', () => {
 					// Both application sites restamped immediately: the var
 					// reference in applyCssVariables and the inline size the
@@ -13583,22 +13864,30 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const bd = this.sub(ap);
 			bd.createEl('p', {
 				text: 'A line along the top and bottom of the bar. You can switch either edge off '
-					+ 'on its own, but the style and thickness apply to both.',
+					+ 'on its own, and give each its own colour, but the style and thickness '
+					+ 'apply to both.',
 				cls: 'ws-settings-note'
 			});
 			this.toggle(bd, 'Top rule', 'A line across the top.',
 				'statusBarBorderTop', () => this.plugin.saveSettings(true));
 			this.toggle(bd, 'Bottom rule', 'And one across the bottom.',
 				'statusBarBorderBottom', () => this.plugin.saveSettings(true));
-			new Setting(bd).setName('Line style').setDesc('Pick \u201cNone\u201d to drop both edges at once.')
+			// Groove and Ridge are gone. Both are CSS border styles that fake
+			// a bevel by splitting the width into a light half and a dark
+			// half derived from the border COLOUR — so at 1px, which is the
+			// default and what most bars use, they render as a single line
+			// in an arbitrary shade of the colour asked for, and at any
+			// width they carry a 3D convention nothing else in the plugin
+			// uses. Now that the rule has its own colour pickers, a style
+			// that quietly modifies that colour is actively in the way.
+			// A saved 'groove'/'ridge' is migrated to 'solid' on load.
+			new Setting(bd).setName('Line style').setDesc('\u201cNone\u201d drops both edges.')
 				.addDropdown(d => d
 					.addOption('none',   'None')
 					.addOption('solid',  'Solid')
 					.addOption('dashed', 'Dashed')
 					.addOption('dotted', 'Dotted')
 					.addOption('double', 'Double')
-					.addOption('groove', 'Groove')
-					.addOption('ridge',  'Ridge')
 					.setValue(this.plugin.settings.statusBarBorderStyle || 'solid')
 					.onChange(async v => {
 						this.plugin.settings.statusBarBorderStyle = v;
@@ -13608,6 +13897,20 @@ class WordSmithSettingTab extends PluginSettingTab {
 			if ((this.plugin.settings.statusBarBorderStyle || 'solid') !== 'none') {
 				this.slider(bd, 'Line weight', 'How thick those lines are.',
 					'statusBarBorderWidth', 1, 8, 1);
+				// Directly under the style and weight they belong to, and
+				// hidden with them when the style is None: a colour picker
+				// for a line nobody is drawing is a control that does
+				// nothing, and this pane already hides the weight slider on
+				// exactly that reasoning.
+				bd.createEl('p', {
+					text: 'Top rule first, then the bottom one \u2014 same order as the '
+						+ 'toggles above. Each theme keeps its own pair.',
+					cls: 'ws-settings-note'
+				});
+				this.colorPairRow(bd, 'Dark theme',  '',
+					'barRuleDarkTopColor',  'barRuleDarkBottomColor');
+				this.colorPairRow(bd, 'Light theme', '',
+					'barRuleLightTopColor', 'barRuleLightBottomColor');
 			}
 
 
@@ -13631,6 +13934,29 @@ class WordSmithSettingTab extends PluginSettingTab {
 						this.plugin.updateRetroStatusBar();
 					}));
 
+			// What the two glyph buttons say. Both default to the specimen,
+			// which is what they have always shown; the word is for a bar
+			// with room, or a writer who does not want to learn two symbols.
+			// Separate settings, not one shared switch: the buttons are
+			// different widths and “Fonts” costs three times what
+			// “Aa” does, so trading room for legibility is a decision
+			// worth making one button at a time.
+			const btnFmt = (name, desc, key, glyph, word) =>
+				new Setting(tf).setName(name).setDesc(desc)
+					.addDropdown(d => d
+						.addOption('glyph', glyph)
+						.addOption('word',  word)
+						.setValue(this.plugin.settings[key] || 'glyph')
+						.onChange(async v => {
+							this.plugin.settings[key] = v;
+							await this.plugin.saveSettings();
+							this.plugin.updateRetroStatusBar();
+						}));
+			btnFmt('{font}', 'The specimen, or the word. Either one still renders in the '
+				+ 'font you have chosen.', 'fontTokenFormat', 'Aa', 'Fonts');
+			btnFmt('{markers}', 'The pilcrow, or the word.',
+				'markersTokenFormat', '\u00b6  Pilcrow', 'Markers');
+
 			const df = this.sub(tf);
 			df.createEl('p', {
 				text: 'Dates have no format setting \u2014 write the parts you want in a row, '
@@ -13640,21 +13966,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 				cls: 'ws-settings-note'
 			});
 
-			// ── Colours ───────────────────────────────────────────────────
-			// Last, and at group level: sitting mid-tab with an expanding
-			// toggle, everything after it read as nested underneath.
-			rb.createEl('hr', { cls: 'ws-settings-hr' });
-			this.label(rb, 'Colours');
-			rb.createEl('p', {
-				text: 'Every colour here comes in a dark and a light version, and Word-Smith '
-					+ 'swaps between them when your theme does.',
-				cls: 'ws-settings-note'
-			});
-
-			this.toggle(rb, 'Custom bar colours',
-				'Choose the bar\u2019s background and text yourself. Off, it follows your theme.',
-				'retroCustomColors', () => this.display());
-			if (this.plugin.settings.retroCustomColors) this.renderBarThemeColors(rb);
 		}
 	}
 
@@ -13869,13 +14180,17 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// the method form is still the right shape — anything that ever shows a
 	// colour group in a second place gets it from here, never as a copy.
 
-	// Background and text on ONE row per theme. They are read together —
-	// the question is always "does this pair have contrast", never "what is
-	// the background alone" — and two swatches side by side answer that at
-	// a glance, where two stacked rows made you look twice. Halves the
-	// height of every colour block too, which is most of what made this tab
-	// scroll.
-	bgTextRow(root, name, desc, bgKey, textKey) {
+	// TWO related colours on ONE row. They are always read together — "does
+	// this pair have contrast", "do these two edges match" — and two
+	// swatches side by side answer that at a glance, where two stacked rows
+	// made you look twice. Halves the height of every colour block too,
+	// which is most of what made this tab scroll.
+	//
+	// Was `bgTextRow`, when its only caller was the bar's removed
+	// background/text pair. Renamed rather than kept under a name that
+	// describes one former use: it now draws the bar's top and bottom rule
+	// colours, which are neither a background nor a text.
+	colorPairRow(root, name, desc, bgKey, textKey) {
 		const row = new Setting(root).setName(name);
 		if (desc) row.setDesc(desc);
 		row.settingEl.addClass('zg-color-row');
@@ -13894,15 +14209,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 		return row;
 	}
 
-	renderBarThemeColors(root) {
-		const b = this.sub(root);
-		b.createEl('p', { text: 'Background first, then text \u2014 same order as the label.',
-			cls: 'ws-settings-note' });
-		this.bgTextRow(b, 'Dark theme',  '', 'retroDarkBgColor',  'retroDarkTextColor');
-		this.bgTextRow(b, 'Light theme', '', 'retroLightBgColor', 'retroLightTextColor');
-	}
-
-
 	renderArrowColors(root) {
 		const pick = (c, name, key) => new Setting(c).setName(name)
 			.addColorPicker(cp => cp.setValue(this.plugin.settings[key])
@@ -13919,12 +14225,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 		pick(a, 'Lines \u2014 light theme',  'lineLightColor');
 	}
 
-	// The six-swatch rows, plus the vim mode colours the :vim suffix reads.
+	// One palette, in a dark set and a light one.
 	renderPowerlineColors(root) {
 		const s0 = this.plugin.settings;
-		// Counts differ by row and are read from PL_SWATCH_COUNTS rather
-		// than hardcoded here, so the pickers, the runtime lookup and the
-		// help text cannot disagree about how many there are.
+		// The count is read from the constant the runtime lookup uses, so
+		// the pickers, the lookup and the help text cannot disagree.
 		const swatchRow = (name, desc, prefix, count) => {
 			const row = new Setting(root).setName(name).setDesc(desc);
 			row.settingEl.addClass('zg-color-row');
@@ -13935,22 +14240,18 @@ class WordSmithSettingTab extends PluginSettingTab {
 			}
 		};
 		root.createEl('p', {
-			text: 'Each slot has a dark swatch and a light one. Word-Smith picks whichever suits '
-				+ 'your theme, so the same row reads properly either way.',
+			text: 'One palette, in a dark set and a light one. Word-Smith swaps with your theme.',
 			cls: 'ws-settings-note'
 		});
-		// Dark first in both pairs, because the dark set is the original —
-		// its keys, values and BAR_KEYS indices are the ones share codes
-		// already carry, and reading the panel top to bottom in that order
-		// keeps the panel and the wire format telling the same story.
-		swatchRow('Backgrounds \u2014 dark theme',
-			'1\u2013' + PL_BG_COUNT + ', written as :N after a token.',
-			'powerlineColor', PL_BG_COUNT);
-		swatchRow('Backgrounds \u2014 light theme', '', 'powerlineColorLight', PL_BG_COUNT);
-		swatchRow('Text \u2014 dark theme',
-			'1\u2013' + PL_TEXT_COUNT + ', written as ;N after the background.',
-			'powerlineText', PL_TEXT_COUNT);
-		swatchRow('Text \u2014 light theme', '', 'powerlineTextLight', PL_TEXT_COUNT);
+		// TWO rows, not four. The separate text palette is gone: ;N now reads
+		// this one, so a swatch retinted here retints wherever it is used.
+		//
+		// Dark first, because the dark set is the original — its keys, values
+		// and BAR_KEYS indices are the ones share codes already carry, and
+		// reading the panel in that order keeps the panel and the wire
+		// format telling the same story.
+		swatchRow('Palette \u2014 dark mode',  '', 'powerlineColor',      PL_BG_COUNT);
+		swatchRow('Palette \u2014 light mode', '', 'powerlineColorLight', PL_BG_COUNT);
 		// The five vim mode swatches used to sit here as a bare row of
 		// pickers. They are set in the Retro Bar tab's mode-label block,
 		// beside the label each one colours and with its text box — one
@@ -14062,11 +14363,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		const hs = this.sub(containerEl);
 		this.toggle(hs, 'Remember which notes',
-			'Also records which note each day\u2019s words happened in, so you can search '
-			+ 'your history for one note or one folder. Still counts only \u2014 never a word '
-			+ 'of what you wrote. Switch it off and the note names already recorded are '
-			+ 'dropped, the search box has nothing to find, and the file stops growing with '
-			+ 'the notes you touch. Your daily totals are untouched either way.',
+			'Lets you search your history by note or folder. Names only, never text. '
+			+ 'Switching it off drops the names already recorded; daily totals are kept.',
 			'historyPerFile');
 
 		hs.createEl('p', {
@@ -14463,8 +14761,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.label(containerEl, 'Vim');
 		const vg = this.sub(containerEl);
 		this.toggle(vg, 'Motions follow wrapped lines',
-			'Maps j, k, 0 and $ to their g-prefixed forms.'
-			+ 'rather than by paragraph. Needs Obsidian\u2019s vim mode on.',
+			'Maps j, k, 0 and $ to their g-prefixed forms. Needs Obsidian\u2019s vim mode on.',
 			'vimSoftWrapMotion', () => this.display());
 
 		if (this.plugin.settings.vimSoftWrapMotion) {
@@ -14488,6 +14785,21 @@ class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	displayMiscTab(containerEl) {
+		this.label(containerEl, 'Quick panels');
+		const qp = this.sub(containerEl);
+		qp.createEl('p', {
+			text: 'One command each: opens the sidebar on that panel, focuses it so you can '
+				+ 'arrow around, and closes it again once you pick something. Run it again '
+				+ 'to close it. Bind a hotkey in Obsidian\u2019s Hotkeys settings.',
+			cls: 'ws-settings-note'
+		});
+		this.toggle(qp, 'Quick file explorer', 'Adds the command to the palette.',
+			'quickExplorer');
+		this.toggle(qp, 'Quick outline', 'And one for the outline.',
+			'quickOutline');
+
+		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+
 		this.label(containerEl, 'Word counts');
 		this.toggle(containerEl, 'File tree counts',
 			'Next to each note, added up for folders.',

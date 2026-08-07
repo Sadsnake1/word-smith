@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 36;
+	--zg-stylesheet-version: 38;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -1064,8 +1064,10 @@ body.zg-bar-anim .zengrinder-status-bar {
 	inset: 0;
 	pointer-events: none;
 	z-index: 3;
-	border-top:    var(--zg-bar-rule-top-width, 0px) var(--zg-bar-rule-style, none) var(--zg-text);
-	border-bottom: var(--zg-bar-rule-bottom-width, 0px) var(--zg-bar-rule-style, none) var(--zg-text);
+	border-top:    var(--zg-bar-rule-top-width, 0px) var(--zg-bar-rule-style, none)
+	               var(--zg-bar-rule-top-color, var(--zg-text));
+	border-bottom: var(--zg-bar-rule-bottom-width, 0px) var(--zg-bar-rule-style, none)
+	               var(--zg-bar-rule-bottom-color, var(--zg-text));
 }
 
 /* Rows share the bar's height and their contents stretch to fill it. The
@@ -3081,20 +3083,70 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	display: none !important;
 }
 
-/* The {clock} dial. Sized in em so it tracks the bar's font size, and nudged
-   below the geometric centre because a circle's optical centre sits above a
-   text baseline — aligned geometrically it looks like it is floating. */
-.zg-clock {
-	width: 1.05em;
-	height: 1.05em;
+/* The {clock} dial, sized and placed from the FONT rather than from the box
+   it happens to sit in.
+
+   The wrapper exists so that `vertical-align` works at all. It is the only
+   thing in CSS that positions against a baseline, and it does nothing on a
+   flex item — which is what a drawn token appended straight into
+   `.zg-pl-inner` (inline-flex, align-items: center) is. So the wrapper takes
+   the flex item's place and gets centred, and the dial is inline inside it,
+   back in a context where a baseline exists. buildClockFace carries the
+   conditions that keep the wrapper's line box the same height as a reading's.
+
+   Then the numbers stop being taste. `cap` is the font's cap height — the
+   height of a digit. The dial's ink is 20 of its 24 viewBox units across
+   (radius 9 plus a 2-wide stroke), so a 1.2cap box draws a dial exactly as
+   tall as the figures beside it, in any face at any size. Digits are centred
+   on that ink, at cap/2 above the baseline; the dial is centred in its box;
+   so the box's bottom belongs at cap/2 − size/2, which is what vertical-align
+   takes. Written as a calc over the same variable, so changing the size
+   re-centres it rather than needing a second number retuned.
+
+   This replaced a measured translateY offset, and the reason it had to is
+   worth keeping: flex had been centring the dial's box on the line box, whose
+   middle sits at (ascent − descent) / 2 — a per-font number with no fixed
+   relationship to cap height. So the correction was not merely imprecise
+   between faces, it changed SIGN between them: 2px low in one, 1.5px high in
+   the next. No single offset exists to be tuned. --zg-clock-shift survives as
+   taste on top (positive is down) and should not need to be set.
+
+   The em rule below is the fallback where cap units are unavailable; its
+   numbers are the old measured ones, and their approximateness is the whole
+   thing cap removes. */
+.zg-clock-box {
 	display: inline-block;
-	vertical-align: -0.15em;
 	flex: 0 0 auto;
 }
 
-/* {obsidian} — a drawn token exactly like the clock, and boxed like it:
-   sized in em so it tracks the bar's font, nudged below the baseline
-   because a stone's optical centre sits above it. The element IS the svg
+.zg-clock {
+	display: inline-block;
+	width:  var(--zg-clock-size, 0.92em);
+	height: var(--zg-clock-size, 0.92em);
+	vertical-align: -0.1em;
+	/* 1.2.1 shipped an interim version of this rule that offset the dial
+	   with a translateY. Declared here so the self-carried copy in
+	   coreFeatureCss() actively CLEARS it against a stale stylesheet,
+	   rather than letting a measured offset survive underneath the
+	   baseline alignment that replaced it and shift the dial twice. */
+	transform: none;
+}
+
+@supports (vertical-align: 1cap) {
+	.zg-clock {
+		width:  var(--zg-clock-size, 1.2cap);
+		height: var(--zg-clock-size, 1.2cap);
+		vertical-align: calc(0.5cap - var(--zg-clock-size, 1.2cap) / 2
+			- var(--zg-clock-shift, 0em));
+	}
+}
+
+/* {obsidian} — a drawn token like the clock, but NOT boxed like it any
+   more. It keeps the 1.05em the pair used to share: the crystal's path
+   fills its viewBox corner to corner, while the dial leaves two units of
+   margin on every side for its stroke, so at one size the crystal already
+   rendered the larger of the two. Shrinking the dial and leaving this
+   alone is what makes them read as the same size. The element IS the svg
    now — the setIcon wrapper is gone with the filled glyph it wrapped. */
 .zg-obsidian-icon {
 	width: 1.05em;
