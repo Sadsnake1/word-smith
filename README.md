@@ -6,13 +6,11 @@ Everything is separate, and everything can be switched off on its own.
 
 ## Showcase
 
-<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
-
 <img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
 <img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
-
+<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
 ## What it does
 
@@ -43,7 +41,7 @@ Both of those run entirely on your machine, and both are guesswork — a mark is
 Only the retro bar is on when you install it. Zen, letter box, typewriter, Hemingway, syntax, prose checks, typography and history all start off, so there is nothing to undo while you find your way around.
 
 1. Open **Settings → Word-Smith**. It opens on the **Retro Bar** tab, which is the one with the most in it.
-2. Try a shipped bar from the preset row before writing your own — they are worked examples of the row grammar, and you can pull one apart to see how it is put together.
+2. Try one of the two shipped bars from the preset row before writing your own — they are worked examples of the row grammar, and you can pull one apart to see how it is put together.
 3. Turn on **Zen** and **Letter box** from the same settings, from the command palette, or from the **Modes** button if your bar carries one.
 4. Leave **History** for last. It is off until you switch it on, and it can only count from the day you do.
 
@@ -85,7 +83,7 @@ You can cap the ends of the separator lines with an arrow, give the arrows and l
 
 A bar at the bottom sized to match your note, not the window. One to three rows, each with a left, centre and right slot, each taking any mix of tokens.
 
-Six bars ship with it — **Mash**, **Plain**, **DOS**, **Zero**, **Echo** and **Slant**. Save your own as a preset, and turn any preset into a **share code** you can send to someone else.
+Two bars ship with it — **Plain** and **Code**. Plain is what you get on a fresh install. Save your own as a preset, and turn any preset into a **share code** you can send to someone else.
 
 ### Readouts
 
@@ -119,13 +117,15 @@ Click these. They're never dropped when the bar runs out of room.
 
 `{syntax}` `{prose}` `{markers}` `{font}` — pickers for word classes, prose checks, hidden characters, and your font.
 
+`{font}` shows **Aa** and `{markers}` shows **¶** by default; either can be set to show its name instead, under Token formats. The font button renders in the face you have chosen either way.
+
 `{report}` — the writing report. `{history}` — your writing history.
 
 ### Spacers and dividers
 
 `{s}`, `{ss}`, `{sss}`… is a quarter-space each. Give one a colour and it becomes a solid sliver instead.
 
-Turn powerline on and the punctuation between tokens becomes shape — **the character you type is the shape you get**:
+The punctuation between tokens becomes shape — **the character you type is the shape you get**:
 
 | | |
 |---|---|
@@ -141,15 +141,15 @@ Dividers are drawn as SVG, so nothing needs a patched font.
 
 ### Colour
 
-Seven backgrounds and four text colours, each with a dark and a light version.
+One palette of seven, in a dark set and a light one. `:N` paints a background and `;N` paints text — same numbers, same colours.
 
 | | |
 |---|---|
 | `{words}:N` | Background colour N |
 | `{words}:N;M` | And text colour M |
 | `{words};vim` `{ln:col}:vim` | Text, or background, follows your vim mode |
-| `{file}:b1` `{file}:b2` | Your theme's page and panel colours |
-| `{file};t1` `{file};t2` | Your theme's normal and faded text |
+| `{file}:b1` … `:b4` | Your theme's page, panel, alt panel and tertiary surfaces |
+| `{file};t1` `;t2` `;t3` | Your theme's normal, muted and faint text |
 
 Leave the `;` off and the text picks itself, light or dark, so it stays readable on whatever background you chose.
 
@@ -159,25 +159,31 @@ The bar itself takes the same grammar at the very start of row 1's left slot:
 :vim {vim} > {file} :: {ln:col}
 ```
 
+That directive is the only way to give the bar a background and text of its own. There is no picker for it: the bar takes your theme's colours unless a row says otherwise, and a row saying so is visible, sits at the front of the format it applies to, and applies per row.
+
 `{g}` is a fade — a colour stepping into the next, or out into the bar at a group's end. One step per token, so `{g}{g}{g}` is three narrow ones and `{ggg}` is one wide one. Put dividers between them and they keep their shape:
 
 ```
 {file}:3 > {g}>{g}>{g} > {words}:5
 ```
 
+A fade is decoration and the bar treats it as such: it is the first thing dropped when the window runs out of room. See **Sizing** below.
+
 ### Marks
 
 Marks are drawn in the text's own colour rather than as a colour boundary: `::` is a short thin line, and `>>` `<<` are the same line bent to a point, at the same angle as the arrow dividers.
 
-These work **with or without powerline** — they are marks, not segments, and need no coloured block behind them. Type them doubled: a single `>` or `<` is a divider, and a single `:` starts a colour.
+They are drawn in the row's own foreground and need no segment behind them. Type them doubled: a single `>` or `<` is a divider, and a single `:` starts a colour.
 
 All of this is also in the plugin, under **How to write a row** in the Retro Bar tab.
 
 ### Sizing
 
-Row height, font size, padding and edge rules are all configurable. The bar's text can instead match your note's own size, so it follows Ctrl+scroll zoom.
+Row height, font size, padding and edge rules are all configurable. The top and bottom rules take a style (solid, dashed, dotted or double), a thickness, and a colour each — top and bottom separately, with a dark-theme and a light-theme pair, so a bar sitting against the window edge can carry weight on one edge only. The bar's text can instead match your note's own size, so it follows Ctrl+scroll zoom.
 
-When the window narrows it sheds content in a fixed order rather than wrapping: the file path shortens first, then readouts drop from the edges inward. Buttons always survive.
+When the window narrows it sheds content in a fixed order rather than wrapping. The file path shortens to just the note's name first. Then the fades go — all of them at once, since a half-dropped gradient looks worse than none, and they carry nothing to lose. Then the shaped end points. Only then do readouts start dropping, from the edges inward. Buttons always survive, and everything comes straight back when the window widens.
+
+Give a `{g}` a colour of its own and it stops being a fade — it is a solid sliver you asked for, and it sheds in the ordinary order with everything else.
 
 It can also be slid away without being switched off — from the command palette, or automatically as part of zen — and brought back by putting the pointer near the bottom of the window.
 
@@ -263,8 +269,16 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps
 | Cycle retrobar presets | Steps through your saved bars |
 | Show the writing report | |
 | Show the writing history | |
+| Quick file explorer | Switch it on in **Misc** first |
+| Quick outline | |
 
 Everything else is in the settings tabs, or on the bar itself.
+
+### Quick panels
+
+Two optional commands, off until you switch them on in **Misc**. Each one opens the sidebar on that panel, focuses it so you can arrow around and press Enter, and closes the sidebar again as soon as you pick a file or a heading. Run it again to close it without picking anything.
+
+Clicking a folder in the explorer keeps the panel open, so you can dig through folders without it dismissing itself. It finds the panel wherever it lives, so dragging the outline to the left sidebar doesn't break it. Give each one a hotkey in Obsidian's Hotkeys settings.
 
 ## Settings map
 
@@ -272,7 +286,7 @@ Thirteen tabs, each one a feature with its own master switch:
 
 | | |
 |---|---|
-| **Retro Bar** | Rows, presets, share codes, powerline colours, and the full format reference |
+| **Retro Bar** | Rows, presets, share codes, powerline and rule colours, token formats, and the full format reference |
 | **Zen** | What to hide, what to do with `Escape`, caret margin |
 | **Letter Box** | Mask height, arrows, separator lines, colours |
 | **Typewriter** | Where the line sits, focus area, current-line tint |
@@ -283,7 +297,7 @@ Thirteen tabs, each one a feature with its own master switch:
 | **Typography** | Which substitutions run as you type |
 | **Goals** | Targets per note and folder, and what to leave out |
 | **History** | Tracking, the history file, and deleting it |
-| **Misc** | Word counts in the file tree and outline |
+| **Misc** | Quick panels, word counts in the file tree and outline, frontmatter overrides |
 | **Vim** | Wrapped-line motions |
 
 ## Right-to-left
