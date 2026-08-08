@@ -1163,7 +1163,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 41;
+const ZG_STYLESHEET_VERSION = 42;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -2675,6 +2675,38 @@ module.exports = class WordSmith extends Plugin {
 			// the label lags by up to a second behind the palette opening.
 			this.updateRetroStatusBar();
 		};
+		// `.zg-overlay-open` — is a modal, prompt, suggestion popover or menu
+		// ON SCREEN? A different question from the focus one above, which
+		// asks whether one HAS FOCUS: a menu can exist unfocused, and the
+		// drag grants need to stand down for it either way.
+		//
+		// This was a `:has()` in the stylesheet, which needed no JS and was
+		// the wrong tool: `body:not(:has(...))` puts the SUBJECT on body, so
+		// the engine may re-check it on any change beneath body — and
+		// beneath body is an editor whose DOM changes on every keystroke.
+		//
+		// The observer watches document.body's DIRECT CHILDREN only. That is
+		// not a shortcut; it is why this is cheap. Obsidian appends all four
+		// of these to body itself, so nothing here ever looks inside the
+		// editor, and a keystroke produces no work at all.
+		const OVERLAYS = '.modal-container, .prompt, .suggestion-container, .menu';
+		const syncOverlayClass = () => {
+			let open = false;
+			try {
+				for (const el of Array.from(document.body.children)) {
+					if (el.matches && el.matches(OVERLAYS)) { open = true; break; }
+				}
+			} catch (_) {}
+			document.body.classList.toggle('zg-overlay-open', open);
+		};
+		syncOverlayClass();
+		const overlayObserver = new MutationObserver(syncOverlayClass);
+		overlayObserver.observe(document.body, { childList: true });
+		this.register(() => {
+			overlayObserver.disconnect();
+			document.body.classList.remove('zg-overlay-open');
+		});
+
 		this.registerDomEvent(document, 'focusin', updateEditorFocusClass);
 		this.registerDomEvent(document, 'focusout', () => requestAnimationFrame(updateEditorFocusClass));
 		// Since 1.13 settings open in a separate window, which deactivates
@@ -4878,7 +4910,7 @@ module.exports = class WordSmith extends Plugin {
 			// Dropped by the fit pass. display:none rather than visibility,
 			// so the element gives its width back — hiding it while it still
 			// occupies space would defeat the entire point.
-			'.zg-fit-hidden { display: none !important; }',
+			'.zg-fit-hidden.zg-fit-hidden { display: none; }',
 			// The {clock} dial, sized and placed from the FONT rather than
 			// from the box it happens to be in. See buildClockFace for why
 			// there is a wrapper at all; this is what the wrapper buys.

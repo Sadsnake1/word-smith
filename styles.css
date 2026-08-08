@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 41;
+	--zg-stylesheet-version: 42;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -262,7 +262,7 @@ body:not(.is-mobile).zenmode-active .titlebar.zg-main-titlebar {
 
 body:not(.is-mobile).zenmode-active.zg-editor-focused .titlebar.zg-main-titlebar,
 body:not(.is-mobile).zenmode-active.zg-drag-ok .titlebar.zg-main-titlebar,
-body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .titlebar.zg-main-titlebar {
+body:not(.is-mobile).zenmode-active:not(.zg-overlay-open) .titlebar.zg-main-titlebar {
 	pointer-events: auto;
 }
 
@@ -279,7 +279,7 @@ body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggest
    stops claiming the area in the same instant. */
 body:not(.is-mobile).zenmode-active.zg-editor-focused .titlebar.zg-main-titlebar,
 body:not(.is-mobile).zenmode-active.zg-drag-ok .titlebar.zg-main-titlebar,
-body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .titlebar.zg-main-titlebar {
+body:not(.is-mobile).zenmode-active:not(.zg-overlay-open) .titlebar.zg-main-titlebar {
 	-webkit-app-region: drag;
 }
 
@@ -338,7 +338,7 @@ body.zg-masks-active .workspace-drag-region {
    dialog takes focus off .cm-editor, which releases the band here in the
    same instant. */
 body:not(.is-mobile).zenmode-active.zg-editor-focused .zengrinder-mask-top,
-body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .zengrinder-mask-top {
+body:not(.is-mobile).zenmode-active:not(.zg-overlay-open) .zengrinder-mask-top {
 	-webkit-app-region: drag;
 }
 
@@ -349,10 +349,18 @@ body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggest
    and is why the ORIGINAL rule pairs with the belt-and-braces no-drag
    blocks below rather than trying to carve the mask itself.
 
-   The :has() form is added beside the original focus form, not instead of
-   it: it grants while zen is on and no modal, prompt, suggestion popover
-   or menu exists, which is the same protection expressed without needing
-   a JS-maintained class to be correct. */
+   The second form grants while zen is on and no modal, prompt, suggestion
+   popover or menu EXISTS — a different question from the focus form beside
+   it, which asks whether one HAS FOCUS. A menu can exist unfocused.
+
+   It was written with :has() to avoid depending on a JS-maintained class.
+   It is now `.zg-overlay-open`, which is a JS-maintained class after all,
+   because `body:not(:has(...))` is the worst shape that selector takes: the
+   subject is body, so the engine may re-evaluate it on any change beneath
+   it, and beneath it is an editor whose DOM changes on every keystroke. The
+   class is kept correct by a childList observer on body ALONE — modals,
+   menus and suggestion containers are appended there directly, so the
+   observer never looks inside the editor. */
 
 /* The arrow row and separator line are resize handles — they must keep their
    own gestures rather than moving the window.
@@ -399,7 +407,7 @@ body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggest
    mousemove, which no longer arrived. Zen + letterbox + hide-the-bar left
    the bar unreachable: it would not peek on hover, and a click in that band
    dragged the window instead. */
-body:not(.is-mobile).zenmode-active:not(:has(.modal-container, .prompt, .suggestion-container, .menu)) .zengrinder-arrows-wrap-top {
+body:not(.is-mobile).zenmode-active:not(.zg-overlay-open) .zengrinder-arrows-wrap-top {
 	-webkit-app-region: drag;
 }
 
@@ -2043,7 +2051,13 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-report-cell.has-tip .zg-report-label {
-	text-decoration: underline dotted;
+	/* Longhands, not the `underline dotted` shorthand: Obsidian's lint
+	   reports the multi-value shorthand as only partly supported on the
+	   Electron it targets, and the longhands have been safe for years. Same
+	   result, no warning, and one less thing that renders differently on an
+	   older install than it does here. */
+	text-decoration-line: underline;
+	text-decoration-style: dotted;
 	text-decoration-color: var(--text-faint);
 	text-underline-offset: 2px;
 }
@@ -3078,8 +3092,14 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    rather than visibility:hidden so the element gives its width back —
    hiding it while it still occupies space would defeat the point. Buttons
    are never given this class: see fitStatusRow. */
-.zg-fit-hidden {
-	display: none !important;
+/* The class is REPEATED to raise specificity rather than using !important.
+   It has to beat the display rule on whatever it is hiding — a segment, a
+   cap, a fade — and those are single-class selectors, so 0,2,0 wins on
+   specificity alone and no longer depends on which stylesheet was injected
+   last. !important would also have beaten a theme trying to style the bar,
+   which is not something this needs to win. */
+.zg-fit-hidden.zg-fit-hidden {
+	display: none;
 }
 
 /* The {clock} dial, sized and placed from the FONT rather than from the box
