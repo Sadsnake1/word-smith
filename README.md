@@ -6,11 +6,11 @@ Everything is separate, and everything can be switched off on its own.
 
 ## Showcase
 
-<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
+<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
 <img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
-<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
+<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
 ## What it does
 
@@ -252,6 +252,8 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps
 - **Motions follow wrapped lines**, optionally — `j` and `k` move by what you see rather than by what the file thinks a line is, which is the difference between a long paragraph being one keystroke tall or twenty.
 - **The `:` command line gets a reserved row** under the bar, sized to what it actually measures, so opening it doesn't shove the bar or the letterbox upward. The masks stand down over it rather than covering it.
 
+- **`H` `J` `K` `L` work in the sidebars**, if quick cycle is on. Obsidian's file tree and outline navigate by arrow keys and nothing else; this translates the letters, so everything the arrows do still happens.
+
 `{vim}` puts the current mode on the bar, and `:vim` / `;vim` recolour a segment or the whole bar as the mode changes.
 
 ## Commands
@@ -271,14 +273,29 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps
 | Show the writing history | |
 | Quick file explorer | Switch it on in **Misc** first |
 | Quick outline | |
+| Quick cycle: focus left / right / up / down | Four commands, also **Misc**. No default keys — see below |
 
 Everything else is in the settings tabs, or on the bar itself.
 
 ### Quick panels
 
-Two optional commands, off until you switch them on in **Misc**. Each one opens the sidebar on that panel, focuses it so you can arrow around and press Enter, and closes the sidebar again as soon as you pick a file or a heading. Run it again to close it without picking anything.
+Two optional commands, off until you switch them on in **Misc**. Each opens the sidebar on that panel and focuses it, so you can arrow around and press Enter without reaching for the mouse. Run the command again to close it.
 
-Clicking a folder in the explorer keeps the panel open, so you can dig through folders without it dismissing itself. It finds the panel wherever it lives, so dragging the outline to the left sidebar doesn't break it. Give each one a hotkey in Obsidian's Hotkeys settings.
+It finds the panel wherever it lives, so dragging the outline to the left sidebar doesn't break it. Give each one a hotkey in Obsidian's Hotkeys settings.
+
+### Quick cycle
+
+Move focus between panes with a direction key — **sidebars included**, which Obsidian's own `focus-left` and friends won't do.
+
+Four commands, off until you switch them on in **Misc**, with no default keys: bind them to `Alt`+arrows, or `Alt+H/J/K/L` if you think in Vim. `Alt` is free in every Vim mode, so neither clashes.
+
+It works by geometry rather than a fixed order, so it does the right thing whatever your layout — two sidebars docked the same side, a vertical split, stacked tab groups. It takes the nearest panel that actually sits in that direction, opens a closed sidebar when there's nothing else that way, and stops at the edges rather than wrapping around.
+
+Inside a sidebar, up and down step through its tabs. Landing in the file tree reveals the note you're in. A sidebar you've visited before reopens on the tab you left it on.
+
+With Obsidian's Vim mode on, **`H` `J` `K` `L` walk the file tree and the outline** exactly as the arrow keys do — the letters are translated, so folders, collapsing and multi-select all behave as they always did. Text fields are left alone, so typing in the search box still types.
+
+There's one sub-option: **close a sidebar when you leave it**. Off by default. It fires only when you move out with a direction key, never when you pick something.
 
 ## Settings map
 
@@ -297,7 +314,7 @@ Thirteen tabs, each one a feature with its own master switch:
 | **Typography** | Which substitutions run as you type |
 | **Goals** | Targets per note and folder, and what to leave out |
 | **History** | Tracking, the history file, and deleting it |
-| **Misc** | Quick panels, word counts in the file tree and outline, frontmatter overrides |
+| **Misc** | Quick panels, quick cycle, word counts in the file tree and outline, frontmatter overrides |
 | **Vim** | Wrapped-line motions |
 
 ## Right-to-left
