@@ -1140,6 +1140,14 @@ const FIT_SLACK = 4;
 // shortened row fits would overflow it again immediately.
 const FIT_RESTORE_MARGIN = 24;
 
+// How long a parked sidebar holds focus after a selection made in it.
+//
+// Not a guess at when Obsidian will focus the editor — it is a window during
+// which any focus landing elsewhere is sent back, so the exact moment does
+// not matter. Long enough to outlast a note opening, short enough that a
+// deliberate click a beat later is not fought.
+const QUICK_PARK_HOLD_MS = 700;
+
 const PL_BG_COUNT = 7;
 // ;N and :N now index THE SAME palette. There is no separate text palette any
 // more: it was four more swatches to keep in step with the seven backgrounds,
@@ -1163,7 +1171,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 39;
+const ZG_STYLESHEET_VERSION = 41;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1248,26 +1256,51 @@ const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'May', 'Ju
 //
 // Returns the stripped string alongside the values so the caller cannot
 // render one without honouring the other.
+// Every one of these ENDS in a variable that always resolves, and that is
+// not tidiness — it is the difference between a slot the theme does not
+// define and a bar that vanishes.
+//
+// These values are stamped straight into `--zg-bg`, and the bar paints with
+// `background-color: var(--zg-bg)`. A var() that does not resolve is invalid
+// AT COMPUTED-VALUE TIME, which does not fall back to the previous
+// declaration — it falls back to the property's INITIAL value, and the
+// initial value of background-color is `transparent`. So one undefined theme
+// variable does not give a slightly wrong colour, it gives no bar at all.
+//
+// And it does not stop there, which is what made this hard to read as one
+// bug. `barColor` is then read back off the element, sees rgba(0,0,0,0), and
+// stays 'transparent' — and barColor is what a group's END CAP is drawn
+// against. For a slanted cut the SHAPE takes that colour and the backing
+// rect takes the segment's, so the cut paints invisibly over a solid
+// rectangle and the group appears to start with a straight edge instead.
+// Reported as two unrelated faults in light mode ("the middle is
+// transparent" and "the right side starts with | instead of \\"), one cause.
+//
+// Core Obsidian defines --background-primary, --background-primary-alt,
+// --background-secondary and --background-secondary-alt. It does NOT define
+// --background-tertiary; community themes often do. But a theme is free to
+// leave any of them out, and one that did took the whole bar with it — so
+// every chain below terminates at --background-primary, which is the one
+// surface nothing can render without.
 const BAR_DIRECTIVE_BG = {
 	b1: 'var(--background-primary)',
-	b2: 'var(--background-secondary)',
-	b3: 'var(--background-secondary-alt)',
-	// Obsidian's core theme does not define --background-tertiary; plenty of
-	// community themes do. The var() fallback is the whole mechanism: on a
-	// theme that has it, b4 is that surface; on one that does not, it lands
-	// on the alt page colour, which is the nearest thing core offers and is
-	// still a real surface rather than nothing.
-	b4: 'var(--background-tertiary, var(--background-primary-alt))',
+	b2: 'var(--background-secondary, var(--background-primary))',
+	b3: 'var(--background-secondary-alt, var(--background-secondary, var(--background-primary)))',
+	b4: 'var(--background-tertiary, var(--background-primary-alt, var(--background-primary)))',
 };
+// The same reasoning, one step milder: an unresolvable ink leaves `color` at
+// its initial value, which is black — wrong rather than absent, and invisible
+// on a dark bar.
 const BAR_DIRECTIVE_TEXT = {
 	t1: 'var(--text-normal)',
-	t2: 'var(--text-muted)',
-	t3: 'var(--text-faint)',
+	t2: 'var(--text-muted, var(--text-normal))',
+	t3: 'var(--text-faint, var(--text-muted, var(--text-normal)))',
 };
 
 function readBarDirective(formatStr) {
 	let rest = String(formatStr == null ? '' : formatStr);
 	let bg = null, text = null, bgSlot = null, textSlot = null;
+	let bgTheme = null, textTheme = null;
 	// Looped rather than one regex with two optional groups: that form only
 	// accepts the pair in the order it was written, and a writer who types
 	// ;t2:b2 has said exactly the same thing.
@@ -1277,19 +1310,33 @@ function readBarDirective(formatStr) {
 		if (m[1] && bg === null && bgSlot === null) {
 			if (/^\d+$/.test(m[1]))        bgSlot = parseInt(m[1], 10);
 			else if (/^vim$/i.test(m[1]))  bgSlot = 'vim';
-			else bg = BAR_DIRECTIVE_BG[m[1].toLowerCase()] || null;
+			else {
+				const k = m[1].toLowerCase();
+				bg = BAR_DIRECTIVE_BG[k] || null;
+				// The SLOT NAME as well as the var() chain. The chain is what
+				// gets stamped if nothing better is available; the name is
+				// what lets resolveBarDirective read the surface and check it
+				// is actually PAINTABLE. A var() fallback only fires for an
+				// UNDEFINED variable — one a theme defines as `transparent`
+				// resolves perfectly well and takes the whole bar with it.
+				if (bg) bgTheme = k;
+			}
 		}
 		if (m[2] && text === null && textSlot === null) {
 			if (/^\d+$/.test(m[2]))       textSlot = parseInt(m[2], 10);
 			else if (/^vim$/i.test(m[2])) textSlot = 'vim';
-			else text = BAR_DIRECTIVE_TEXT[m[2].toLowerCase()] || null;
+			else {
+				const k = m[2].toLowerCase();
+				text = BAR_DIRECTIVE_TEXT[k] || null;
+				if (text) textTheme = k;
+			}
 		}
 		// Consumed whether or not it was recognised: :b7 is a typo for a
 		// directive, and leaving it in the row would print ":b7" in the bar
 		// rather than showing the writer that it did nothing.
 		rest = rest.slice(m[0].length);
 	}
-	return { bg, text, bgSlot, textSlot, rest };
+	return { bg, text, bgSlot, textSlot, bgTheme, textTheme, rest };
 }
 
 // Parse a colour into [r, g, b]. Handles the two syntaxes that can actually
@@ -1348,9 +1395,9 @@ const PL_SEP_ASPECT = 0.85;
 // through to the auto colour rather than painting a segment black.
 const PL_THEME_BGS = {
 	b1: ['--background-primary'],
-	b2: ['--background-secondary'],
-	b3: ['--background-secondary-alt'],
-	b4: ['--background-tertiary', '--background-primary-alt'],
+	b2: ['--background-secondary', '--background-primary'],
+	b3: ['--background-secondary-alt', '--background-secondary', '--background-primary'],
+	b4: ['--background-tertiary', '--background-primary-alt', '--background-primary'],
 };
 
 // A segment's ;tN, as a var() — this one can be, because it is set as the
@@ -1359,6 +1406,15 @@ const PL_THEME_INKS = {
 	t1: 'var(--text-normal)',
 	t2: 'var(--text-muted)',
 	t3: 'var(--text-faint)',
+};
+
+// The same slots as raw variable NAMES, for the BAR directive, which has to
+// know whether a surface actually paints before it stamps one. See
+// resolveBarDirective.
+const BAR_THEME_INK_VARS = {
+	t1: ['--text-normal'],
+	t2: ['--text-muted', '--text-normal'],
+	t3: ['--text-faint', '--text-muted', '--text-normal'],
 };
 
 // Doubling turns a character into a SOFT mark: drawn in the row's own
@@ -1764,6 +1820,10 @@ const DEFAULT_SETTINGS = {
 	// (see the checkCallback in onload).
 	quickExplorer:            false,
 	quickOutline:             false,
+	quickCycle:               false,
+	// A sub-option of quickCycle, and off by default because it is the more
+	// opinionated half: the sidebar you walked out of shuts behind you.
+	quickCycleCloseOnLeave:   false,
 	enableFileTreeCounts:     false,
 	enableOutlineCounts:      false,
 
@@ -2439,9 +2499,37 @@ module.exports = class WordSmith extends Plugin {
 				return true;
 			}
 		});
+		// Focus moving away from a parked sidebar. Registered once, always:
+		// quickParkRestore is a no-op unless something is parked, and
+		// registering conditionally would mean re-registering whenever the
+		// setting changed.
+		this.registerEvent(this.app.workspace.on('active-leaf-change',
+			() => this.quickParkRestore()));
+		// file-open as well, because opening the file you are already on
+		// moves focus without changing the active leaf.
+		this.registerEvent(this.app.workspace.on('file-open',
+			() => this.quickParkRestore()));
+
 		quickCmd('quick-file-explorer', 'Quick file explorer',
 			'quickExplorer', 'file-explorer');
 		quickCmd('quick-outline', 'Quick outline', 'quickOutline', 'outline');
+
+		// Quick cycle. Four commands, no default hotkeys — Alt+arrows and
+		// Alt+hjkl are both good bindings and which one a writer wants
+		// depends on whether they think in vim, so the choice is left in
+		// Obsidian's Hotkeys pane where it can be either or both. Alt is
+		// untouched by vim mode, so neither conflicts in any mode.
+		for (const dir of ['left', 'right', 'up', 'down']) {
+			this.addCommand({
+				id: 'quick-cycle-' + dir,
+				name: 'Quick cycle: focus ' + dir,
+				checkCallback: (checking) => {
+					if (!this.settings.quickCycle) return false;
+					if (!checking) this.quickCycleMove(dir);
+					return true;
+				}
+			});
+		}
 
 		// "WS" badge ribbon button — toggles the whole plugin on/off.
 		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
@@ -4579,8 +4667,88 @@ module.exports = class WordSmith extends Plugin {
 	// separately has no reason to be readable under that choice, and an
 	// unreadable bar is a worse answer than an overridden picker. ;N (or
 	// ;t1/;t2) still wins — written text is written text.
+	// The first name in a chain that resolves to something PAINTABLE.
+	//
+	// themeSurfaceColor answers '' both for a variable the theme never
+	// defined and for one it defined as fully transparent, which is exactly
+	// the distinction that matters here and exactly the one a var() fallback
+	// cannot make: `var(--x, --y)` falls through when --x is UNDEFINED and
+	// not when --x is `transparent`. A theme that sets a surface transparent
+	// is doing something reasonable; a bar that takes it literally is not.
+	firstPaintable(names) {
+		for (const n of names || []) {
+			const c = this.themeSurfaceColor(n);
+			if (c) return c;
+		}
+		return null;
+	}
+
+	// The theme surface a :bN slot asks for, as a colour that will actually
+	// paint — or '' if none of its chain will.
+	//
+	// This exists because a var() fallback is not the guard it looks like. It
+	// fires only when a variable is UNDEFINED. A theme that defines one and
+	// gets the value wrong — `--background-secondary-alt: #grey`, where the
+	// author meant the colour NAME `grey` and the `#` makes it nothing —
+	// resolves perfectly well to garbage, no fallback triggers, and
+	// `background-color: var(--zg-bg)` is invalid at computed-value time. An
+	// invalid colour does not fall back to the previous declaration; it falls
+	// back to the property's INITIAL value, and for background-color that is
+	// `transparent`. So one typo in a theme took the whole bar away, and then
+	// the end caps with it — barColor reads back as transparent, and a cap's
+	// SHAPE is drawn in barColor, so it painted invisibly over its own
+	// backing rect and the group appeared to start with a straight edge.
+	//
+	// themeSurfaceColor answers the only question that matters — what does
+	// this actually compute to — and returns '' for undefined, transparent
+	// and invalid alike, because a browser renders all three the same way.
+	barSurfaceColor(slot) {
+		const names = PL_THEME_BGS[slot];
+		if (!names) return '';
+		for (const name of names) {
+			const c = this.themeSurfaceColor(name);
+			if (c) return c;
+		}
+		return '';
+	}
+
 	resolveBarDirective(dir) {
 		let bg = dir.bg, text = dir.text;
+		// A theme slot is RESOLVED rather than passed through as a var()
+		// chain, so an unpaintable value falls through to the next name and
+		// finally to the page colour, instead of blanking the bar. The
+		// segment path has always worked this way (powerlineSegColor walks
+		// the same list); only the bar directive trusted CSS to sort it out.
+		if (dir.bgTheme) {
+			const c = this.barSurfaceColor(dir.bgTheme);
+			bg = c || 'var(--background-primary)';
+		}
+		// A theme slot (:b1…:b4, ;t1…;t3) is RESOLVED here rather than left
+		// as the var() chain the parser produced.
+		//
+		// Left as a chain it was stamped straight into --zg-bg, and the bar
+		// paints with `background-color: var(--zg-bg)`. If that resolved to
+		// `transparent` the bar vanished — and then barColor, read back off
+		// the element, saw rgba(0,0,0,0) and stayed 'transparent' too, so
+		// every group's end cap drew its SHAPE in nothing over a rectangle
+		// of the segment colour and the group appeared to begin with a
+		// straight edge. Reported as two faults in light mode with :b3 or
+		// :b4 (":b1 and :b2 are fine, and dark mode is fine"), one cause,
+		// and one that only shows on a theme that defines those two
+		// surfaces as transparent — which is why the theme and the slot both
+		// had to be right for anyone to see it.
+		//
+		// Falling back to the chain when nothing resolves keeps the old
+		// behaviour for the case this cannot improve on: a theme where even
+		// --background-primary is unpaintable.
+		if (dir.bgTheme && PL_THEME_BGS[dir.bgTheme]) {
+			const c = this.firstPaintable(PL_THEME_BGS[dir.bgTheme]);
+			if (c) bg = c;
+		}
+		if (dir.textTheme && BAR_THEME_INK_VARS[dir.textTheme]) {
+			const c = this.firstPaintable(BAR_THEME_INK_VARS[dir.textTheme]);
+			if (c) text = c;
+		}
 		if (dir.bgSlot != null) {
 			let c = null;
 			if (dir.bgSlot === 'vim') {
@@ -4790,7 +4958,7 @@ module.exports = class WordSmith extends Plugin {
 				+ ' border: 0; display: block;'
 				+ ' aspect-ratio: var(--zg-pl-sep-aspect, 0.85); }',
 			// The plain-row soft-mark sizing that used to sit here is gone
-			// with the plain row itself (1.2.2). It matched
+			// with the plain row itself (1.2.3). It matched
 			// `:not(.zg-powerline)`, and the bar has carried that class
 			// unconditionally since powerline was baked in.
 			//
@@ -5256,24 +5424,532 @@ module.exports = class WordSmith extends Plugin {
 	quickPanelSplit(leaf) {
 		const ws = this.app.workspace;
 		const root = (leaf && leaf.getRoot) ? leaf.getRoot() : null;
-		if (!root) return null;
 		if (root === ws.leftSplit)  return ws.leftSplit;
 		if (root === ws.rightSplit) return ws.rightSplit;
+		// Identity first, CONTAINMENT second. getRoot() returning the split
+		// object itself is Obsidian's internal shape, not a promise — and
+		// every caller here treats "no split" as "this leaf is in the main
+		// area", which is a wrong answer rather than a missing one. A leaf's
+		// element being inside the sidebar's element is the same question
+		// asked in a way the DOM answers, and it cannot drift.
+		const host = leaf && leaf.containerEl;
+		if (host) {
+			for (const split of [ws.leftSplit, ws.rightSplit]) {
+				if (split && split.containerEl && split.containerEl.contains(host)) return split;
+			}
+		}
 		return null;
 	}
 
+	// ── Quick cycle ──────────────────────────────────────────────────────────
+	//
+	// Directional focus across everything on screen, including the sidebars.
+	// Obsidian ships `editor:focus-left` and friends, and they only move
+	// between MAIN-AREA tab groups — there is no built-in way to get from a
+	// note into the file explorer and back without the mouse.
+	//
+	// GEOMETRIC, not a fixed cycle. The panes are measured and the nearest
+	// one whose centre lies in the requested direction wins. A hardcoded
+	// order (left sidebar → main → right sidebar) breaks the moment the
+	// layout is not that: two sidebars docked the same side, a vertical
+	// editor split, a stacked group. Rects cannot be wrong about where
+	// things are.
+	//
+	// Three behaviours chosen deliberately, all reversible if they annoy:
+	//   • a COLLAPSED sidebar is OPENED and stepped into, once nothing
+	//     visible lies that way. This was the other way round first, on the
+	//     grounds that expanding would fight the quick panels — Alt+Left
+	//     reopening the sidebar Quick file explorer had just closed. It does
+	//     fight them, and it is still the right behaviour: a direction key
+	//     that does nothing at the edge of a workspace teaches you not to
+	//     press it, and quick cycle already disarms the panel's auto-close,
+	//     so walking back in leaves you there rather than half in.
+	//   • NO WRAP at the edges, so a direction key means a position rather
+	//     than a rotation, and holding one cannot loop.
+	//   • UP/DOWN inside a sidebar steps through its TABS (explorer, search,
+	//     tags) rather than looking for a pane above or below, because in a
+	//     sidebar there usually is not one and the tabs are what a writer
+	//     means by "the next one".
+
+	// The leaf that actually holds focus — including a sidebar's, which
+	// getMostRecentLeaf() will not report because it only tracks the main
+	// area. Asked of the DOM first: whatever contains document.activeElement
+	// is the focused leaf, whatever the workspace thinks.
+	quickCycleCurrentLeaf() {
+		const ws = this.app.workspace;
+		const active = document.activeElement;
+		let found = null;
+		if (active) {
+			try {
+				ws.iterateAllLeaves(leaf => {
+					if (found || !leaf.containerEl) return;
+					if (leaf.containerEl.contains(active)) found = leaf;
+				});
+			} catch (_) {}
+		}
+		return found || ws.activeLeaf || ws.getMostRecentLeaf() || null;
+	}
+
+	// Every pane a writer can currently SEE, with its rectangle.
+	//
+	// Visibility is measured rather than reasoned about, and that one choice
+	// does most of the work here: a collapsed sidebar has no width, and a
+	// background tab has no box, so both drop out without either being
+	// special-cased. Leaves in pop-out windows are excluded by document —
+	// they are a different screen, and "left" does not mean anything across
+	// two of them.
+	quickCycleVisibleLeaves() {
+		const out = [];
+		try {
+			this.app.workspace.iterateAllLeaves(leaf => {
+				const el = leaf && leaf.containerEl;
+				if (!el || el.ownerDocument !== document) return;
+				const r = el.getBoundingClientRect();
+				if (r.width < 1 || r.height < 1) return;
+				out.push({ leaf, r, cx: r.left + r.width / 2, cy: r.top + r.height / 2 });
+			});
+		} catch (_) {}
+		return out;
+	}
+
+	// The nearest visible pane in one direction, or null at the edge.
+	quickCycleTarget(dir) {
+		const cur = this.quickCycleCurrentLeaf();
+		const host = cur && cur.containerEl;
+		if (!host) return null;
+		const from = host.getBoundingClientRect();
+		const fx = from.left + from.width / 2, fy = from.top + from.height / 2;
+		const horizontal = (dir === 'left' || dir === 'right');
+
+		// OVERLAP first, distance second.
+		//
+		// This was centre-distance with off-axis drift weighted double, and
+		// that rule cannot express the common case. A full-height pane is
+		// never vertically aligned with stacked neighbours — its centre sits
+		// between theirs — so an adjacent stacked pane always scored worse
+		// than a distant full-height one, and Alt+Right from the middle
+		// column jumped over the column beside it and landed in the outline.
+		// The same rule, seen from the other side, is why a sidebar with
+		// stacked tabs seemed unreachable.
+		//
+		// So: a candidate whose cross-axis SPAN intersects the current pane's
+		// is a neighbour, whatever their centres do, and the nearest
+		// neighbour wins. Only when nothing overlaps — a genuinely diagonal
+		// move — does centre distance decide, and the old weighting is kept
+		// there because that is the case it was right for.
+		const lo = horizontal ? from.top : from.left;
+		const hi = horizontal ? from.bottom : from.right;
+
+		let best = null, bestScore = Infinity, bestOverlaps = false;
+		for (const c of this.quickCycleVisibleLeaves()) {
+			if (c.leaf === cur) continue;
+			const dx = c.cx - fx, dy = c.cy - fy;
+			const along  = dir === 'left' ? -dx : dir === 'right' ? dx
+				: dir === 'up' ? -dy : dy;
+			// A few pixels of tolerance: two panes can share a centre on the
+			// cross axis and still be side by side.
+			if (along <= 4) continue;
+
+			const cLo = horizontal ? c.r.top : c.r.left;
+			const cHi = horizontal ? c.r.bottom : c.r.right;
+			// A shared edge is not an overlap — two panes stacked one above
+			// the other meet exactly, and counting that would make every
+			// pane in a column a neighbour of every other.
+			const overlaps = Math.min(hi, cHi) - Math.max(lo, cLo) > 4;
+
+			const across = horizontal ? Math.abs(dy) : Math.abs(dx);
+			const score  = overlaps ? along : along + across * 2;
+
+			// Any overlapping candidate beats every non-overlapping one,
+			// however far away it is: "one pane over" is a relationship, not
+			// a distance.
+			if (overlaps && !bestOverlaps) { bestOverlaps = true; bestScore = score; best = c.leaf; continue; }
+			if (!overlaps && bestOverlaps) continue;
+			if (score < bestScore) { bestScore = score; best = c.leaf; }
+		}
+		return best;
+	}
+
+	// The leaves stacked in one sidebar, in the order their tabs sit in.
+	quickCycleSidebarLeaves(split) {
+		const out = [];
+		if (!split || !split.containerEl) return out;
+		try {
+			this.app.workspace.iterateAllLeaves(leaf => {
+				if (leaf.containerEl && split.containerEl.contains(leaf.containerEl)) out.push(leaf);
+			});
+		} catch (_) {}
+		return out;
+	}
+
+	// Open a shut sidebar and step into it. Returns false if there is no
+	// sidebar that way, or it is already open, or it holds nothing.
+	async quickCycleEnterSidebar(side) {
+		const ws = this.app.workspace;
+		const split = side === 'left' ? ws.leftSplit : ws.rightSplit;
+		if (!split || !split.collapsed) return false;
+		const leaves = this.quickCycleSidebarLeaves(split);
+		if (!leaves.length) return false;
+
+		// WHICH tab to land on. Every leaf in a shut sidebar measures zero,
+		// so the usual "the visible one" test cannot answer it — and picking
+		// the first would drop a writer on the file explorer every time,
+		// however they left the sidebar. So the last tab focused in this
+		// split is remembered and preferred; the first is only a fallback
+		// for a sidebar not visited yet this session.
+		const remembered = this._quickCycleLast && this._quickCycleLast.get(split);
+		const target = (remembered && leaves.indexOf(remembered) !== -1)
+			? remembered : leaves[0];
+		// revealLeaf expands the split as well as raising the tab, so there
+		// is no separate expand() call to keep in step with it.
+		await this.quickCycleFocus(target);
+		return true;
+	}
+
+	// Put the caret in a leaf without stealing the workspace's idea of what
+	// the ACTIVE file is.
+	//
+	// setActiveLeaf on a sidebar leaf is what a main-area leaf wants and what
+	// a sidebar one must not have. The outline, backlinks and their kind
+	// follow the active file; make the outline itself the active leaf and
+	// there is no file to follow, so it empties to "No file" — the pane you
+	// just walked into blanks as you arrive. Clicking it with a mouse does
+	// not do this, because Obsidian moves DOM focus and leaves the active
+	// leaf where it was.
+	//
+	// So: the same thing the mouse does. A tabindex is added only if the view
+	// has no focusable element of its own, and an existing one is preferred
+	// so the view's own arrow-key handling keeps working.
+	focusLeafDom(leaf) {
+		const view = leaf && leaf.view;
+		const root = (view && view.containerEl) || (leaf && leaf.containerEl);
+		if (!root) return false;
+		const doc = root.ownerDocument || document;
+
+		// TRY, then CHECK. The first version took the first `[tabindex]` in
+		// the view and called focus() on it, and reported success because
+		// focus() had not thrown. focus() does not throw on an element that
+		// cannot take focus — it does nothing at all — and the first
+		// [tabindex] in a sidebar is quite often a hidden one, a collapsed
+		// search box in the explorer's header being the case that bit.
+		//
+		// So focus stayed on <body>. Everything downstream then failed
+		// quietly and for reasons that looked unrelated: the Enter meant to
+		// arm the hold never landed inside the leaf, so nothing armed, so
+		// the sidebar never held focus, so picking a file jumped to the
+		// note. Three sessions of fixing the hold could not have worked,
+		// because focus had never arrived.
+		const took = (el) => {
+			if (!el || typeof el.focus !== 'function') return false;
+			// A zero-sized element cannot take focus, and asking is cheaper
+			// than discovering it afterwards.
+			const r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+			if (r && (r.width < 1 || r.height < 1)) return false;
+			const FOCUSABLE = /^(INPUT|TEXTAREA|BUTTON|SELECT|A)$/;
+			if (!el.hasAttribute('tabindex') && !FOCUSABLE.test(el.tagName || '')) {
+				el.setAttribute('tabindex', '-1');
+			}
+			try { el.focus({ preventScroll: true }); } catch (_) {
+				try { el.focus(); } catch (_) {}
+			}
+			// The only test that means anything: did it land?
+			return doc.activeElement === el || root.contains(doc.activeElement);
+		};
+
+		// The view's own focusable elements first — those are what its
+		// keyboard handling listens on, so landing there is what makes the
+		// arrow keys work and what draws the selection a writer can see.
+		// The containers are fallbacks for a view that offers none.
+		const attempt = () => {
+			let list = [];
+			try { list = Array.from(root.querySelectorAll('[tabindex]')); } catch (_) {}
+			for (const el of list) if (took(el)) return list.length;
+			return list.length;
+		};
+
+		if (attempt() > 0) return true;
+
+		// NONE yet. revealLeaf resolves before the view has laid itself out,
+		// so a sidebar opened from collapsed reports zero focusable elements
+		// at this instant and gains them a frame later. Landing on the
+		// wrapper is not good enough: focus is technically inside the leaf,
+		// the hold works, and the writer sees nothing — no selection in the
+		// tree, and arrow keys doing nothing, because the view's own handler
+		// is listening on an element that does not have focus.
+		//
+		// So take the wrapper now, to keep focus out of the editor, and
+		// re-aim once the view exists. Two retries: a frame for the common
+		// case, and a longer one for a view that builds its list from disk.
+		const parked = (view && view.contentEl && took(view.contentEl)) || took(root);
+		const reaim = () => {
+			// Only if focus is still ours to move — the writer may have
+			// clicked away in the meantime, and yanking it back then would
+			// be the trap this feature is careful to avoid everywhere else.
+			if (!root.contains(doc.activeElement)) return;
+			attempt();
+		};
+		try { window.requestAnimationFrame(reaim); } catch (_) {}
+		window.setTimeout(reaim, 60);
+		return parked;
+	}
+
+	// ── Staying put after a selection ────────────────────────────────────────
+	//
+	// Obsidian moves focus to the editor when a file opens, and scrolls and
+	// focuses it when an outline heading is chosen. That is right for a mouse
+	// and wrong for someone who walked into the sidebar on the keyboard and
+	// means to keep working there — they asked to leave only by a direction
+	// key.
+	//
+	// Taking focus back on EVERY focus change would be unusable: clicking
+	// into the editor would yank you straight back. So the restore is armed
+	// by an interaction INSIDE the parked leaf — an Enter or a click there —
+	// and fires only if the workspace moves focus within a moment of it.
+	// Going elsewhere deliberately is untouched, because nothing armed it.
+	//
+	// The listeners are on the leaf's own element and read no Obsidian class
+	// names. That is the difference between this and the auto-close that was
+	// deleted: that one needed `.nav-file-title` to keep existing and failed
+	// silently when such an assumption breaks. This one only needs to know
+	// that something happened in here.
+	parkQuickCycle(leaf) {
+		this.unparkQuickCycle();
+		const host = leaf && leaf.containerEl;
+		if (!host || !host.addEventListener) return;
+		const doc = host.ownerDocument || document;
+
+		// A HOLD, not a single restore.
+		//
+		// Opening a file is asynchronous — Obsidian builds the view and then
+		// focuses the editor — so a restore fired one tick after the Enter
+		// lands BEFORE the thing it is meant to undo, and Obsidian takes
+		// focus straight back. There is no delay to guess here, because the
+		// wait depends on how long the note takes to load.
+		//
+		// So instead of restoring once at a moment we hope is right, the
+		// leaf is HELD for a short window: every focus that lands outside it
+		// during the hold is sent back. That wins whenever Obsidian moves,
+		// however late.
+		const park = { leaf, holdUntil: 0, lastInside: Date.now() };
+		const hold = () => { park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS; };
+
+		// Arming does NOT depend on seeing the key.
+		//
+		// It used to: a keydown listener on the leaf, watching for Enter.
+		// Clicking a file held correctly and pressing Enter did not, and the
+		// reason is that Obsidian routes Enter through its own document-level
+		// keymap. A handler there runs before one on a descendant and can
+		// stop the event, so the listener on the leaf never saw it — and a
+		// mechanism that arms on an event somebody else may swallow is
+		// arming on someone else's goodwill.
+		//
+		// What is reliable is where focus WAS. The workspace announces that
+		// it opened a file; if the caret was in this sidebar a moment before
+		// that, the sidebar is what opened it, whether by Enter, by click,
+		// or by any keystroke the view chooses to honour. So focus position
+		// is tracked continuously and the workspace event does the arming
+		// (see quickParkRestore).
+		const onFocusIn = (e) => {
+			const inside = !!(e && e.target && host.contains(e.target));
+			if (inside) { park.lastInside = Date.now(); return; }
+			if (Date.now() > park.holdUntil) return;
+			const r = host.getBoundingClientRect();
+			if (r.width < 1) { this.unparkQuickCycle(); return; }
+			// Synchronously first — the tick's delay is what shows as a
+			// caret blinking in the note and vanishing again. Guarded by the
+			// containment check above, so this cannot trade focus forever.
+			this.focusLeafDom(leaf);
+			if (host.contains(doc.activeElement)) return;
+			// It did not take from inside another element's focus handler.
+			// Try again once that has settled.
+			window.setTimeout(() => {
+				if (this._quickPark !== park) return;
+				if (Date.now() > park.holdUntil) return;
+				this.focusLeafDom(leaf);
+			}, 0);
+		};
+		host.addEventListener('click', hold, true);
+		doc.addEventListener('focusin', onFocusIn, true);
+		park.off = () => {
+			host.removeEventListener('click', hold, true);
+			doc.removeEventListener('focusin', onFocusIn, true);
+		};
+		this._quickPark = park;
+	}
+
+	unparkQuickCycle() {
+		if (this._quickPark && this._quickPark.off) {
+			try { this._quickPark.off(); } catch (_) {}
+		}
+		this._quickPark = null;
+	}
+
+	// The workspace moved focus. Put it back only if a selection made in the
+	// parked leaf is what moved it.
+	// The workspace opened a file or changed leaf. If that happened because
+	// of a selection in the parked sidebar, EXTEND the hold: the note may
+	// still be loading, and the editor focus that has to be undone can be
+	// several hundred milliseconds away yet.
+	quickParkRestore() {
+		const park = this._quickPark;
+		if (!park || !this.settings || !this.settings.quickCycle) return;
+		// ARM here, on the workspace's own announcement, if the caret was in
+		// this sidebar just before it. That covers Enter, which the leaf's
+		// own listeners never see, and any other key the view honours.
+		if (Date.now() - (park.lastInside || 0) < QUICK_PARK_HOLD_MS) {
+			park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS;
+		}
+		if (!park.holdUntil) return;                       // nothing armed it
+		if (Date.now() > park.holdUntil) return;           // the window closed
+		const host = park.leaf && park.leaf.containerEl;
+		if (!host || host.getBoundingClientRect().width < 1) { this.unparkQuickCycle(); return; }
+		park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS;
+		window.setTimeout(() => {
+			if (this._quickPark === park) this.focusLeafDom(park.leaf);
+		}, 0);
+	}
+
+	// Reveal a leaf and focus it, by whichever route suits where it lives.
+	async revealAndFocusLeaf(leaf) {
+		const ws = this.app.workspace;
+		try { await ws.revealLeaf(leaf); } catch (_) {}
+		// Obsidian's OWN focus first, for a sidebar as well as a main pane.
+		//
+		// This was DOM focus only for sidebars, to stop the outline being
+		// made the active leaf and losing the file it was outlining. Four
+		// attempts to make hand-rolled focus behave followed, and the
+		// measurement that ended them showed why none could: at the moment
+		// revealLeaf resolves the view has no focusable elements at all, so
+		// focus landed on a wrapper — inside the leaf, but not on the tree
+		// the view listens to. No amount of choosing a better element helps
+		// when the elements do not exist yet.
+		//
+		// setActiveLeaf asks the VIEW to focus itself, which is what happens
+		// when the sidebar is clicked, and a click has always worked. The
+		// "No file" that made this look unsafe is better explained by what
+		// else was happening then — toggleQuickPanel creating a fresh
+		// outline leaf when it found none, and a new outline has no file
+		// until one opens. If it returns, that is the place to look.
+		let landed = false;
+		try {
+			ws.setActiveLeaf(leaf, { focus: true });
+			const host = leaf.containerEl;
+			landed = !!(host && host.ownerDocument
+				&& host.contains(host.ownerDocument.activeElement));
+		} catch (_) {}
+		if (landed) return;
+		// It did not land. Keep focus out of the editor by hand — the
+		// wrapper now, re-aimed onto the view's own target once that
+		// exists.
+		if (this.focusLeafDom(leaf)) return;
+	}
+
+	async quickCycleFocus(leaf) {
+		const ws = this.app.workspace;
+		// Remember where a writer was in each sidebar, so re-entering it
+		// returns them rather than resetting them.
+		const split = this.quickPanelSplit(leaf);
+		if (split) {
+			if (!this._quickCycleLast) this._quickCycleLast = new Map();
+			this._quickCycleLast.set(split, leaf);
+		}
+		await this.revealAndFocusLeaf(leaf);
+		// Park in a sidebar so a selection made there returns focus; landing
+		// anywhere else ends the parking, because leaving is the one exit
+		// the writer asked for.
+		if (split) this.parkQuickCycle(leaf);
+		else this.unparkQuickCycle();
+		void ws;
+	}
+
+	// Shut the sidebar a move has just LEFT, when the writer asked for that.
+	//
+	// Leaving is the only trigger. Picking a file or a heading does not close
+	// anything — that behaviour existed, was removed, and this is not it
+	// coming back: it fires on a direction key, which is a deliberate "I am
+	// done here", and never on a selection, which is not.
+	//
+	// Stepping between TABS of the same sidebar is not leaving it, so the
+	// destination's split is compared rather than just checking that the
+	// origin was a sidebar.
+	quickCycleCloseBehind(fromSplit, target) {
+		if (!fromSplit || !this.settings.quickCycleCloseOnLeave) return;
+		if (target && this.quickPanelSplit(target) === fromSplit) return;
+		// After the focus has moved, never before: collapsing a split while
+		// the caret is still inside it drops focus on the floor, and the
+		// next keystroke goes nowhere.
+		try { if (!fromSplit.collapsed) fromSplit.collapse(); } catch (_) {}
+		this.unparkQuickCycle();
+	}
+
+	async quickCycleMove(dir) {
+		const ws = this.app.workspace;
+		const cur = this.quickCycleCurrentLeaf();
+		// Captured BEFORE anything moves — afterwards the current leaf is
+		// the destination and the origin is unrecoverable.
+		const fromSplit = cur ? this.quickPanelSplit(cur) : null;
+
+		// Vertical inside a sidebar means the next TAB, not the next pane.
+		if ((dir === 'up' || dir === 'down') && cur) {
+			const split = this.quickPanelSplit(cur);
+			if (split) {
+				const leaves = this.quickCycleSidebarLeaves(split);
+				const at = leaves.indexOf(cur);
+				const next = leaves[at + (dir === 'down' ? 1 : -1)];
+				// No wrap: at the last tab, stop. Falling through to the
+				// geometric search instead would jump out of the sidebar
+				// sideways, which is not what a down-arrow asked for.
+				if (at !== -1) { if (next) await this.quickCycleFocus(next); return; }
+			}
+		}
+
+		const target = this.quickCycleTarget(dir);
+		if (target) {
+			await this.quickCycleFocus(target);
+			this.quickCycleCloseBehind(fromSplit, target);
+			return;
+		}
+
+		// Nothing visible that way. A shut sidebar on that side is still
+		// somewhere to go — and it is only reachable here, AFTER the
+		// geometric search has failed, which is what keeps it from stealing
+		// a move that had a real destination.
+		if (dir === 'left' || dir === 'right') {
+			const entered = await this.quickCycleEnterSidebar(dir);
+			// Crossing from one sidebar to the other still closes the first.
+			if (entered) this.quickCycleCloseBehind(fromSplit, this.quickCycleCurrentLeaf());
+		}
+		void ws;
+	}
+
+	// Open the sidebar on a panel and focus it; run it again to close.
+	//
+	// It used to close itself the moment you picked a file or a heading, on
+	// the reading that a quick panel is a dip in to fetch one thing. That is
+	// gone, at the writer's request, and removing it took more than the
+	// behaviour with it: a capture-phase click and keydown listener on a leaf
+	// Obsidian owns, a teardown path to unhook them, an armed/disarmed state
+	// that had to be cancelled whenever quick cycle stepped into the same
+	// sidebar — and a dependency on `.nav-file-title` and `.tree-item-self`
+	// staying the classes Obsidian renders, which was the most brittle thing
+	// in the feature and failed silently when it broke.
+	//
+	// What remains is a true toggle over Obsidian's own API. If a dismissing
+	// version is ever wanted back, `file-open` is NOT the hook to build it on
+	// — it does not fire when the file picked is the one already open, so
+	// choosing the note you were on leaves the sidebar hanging.
 	async toggleQuickPanel(viewType) {
 		const ws = this.app.workspace;
 		let leaf = ws.getLeavesOfType(viewType)[0] || null;
 
 		// Already showing? Then this is the close half of the toggle, and it
-		// closes whether or not this command is what opened it.
+		// closes whether or not this command is what opened it. Running the
+		// command again is now the ONLY way it closes — see below.
 		if (leaf) {
 			const split = this.quickPanelSplit(leaf);
 			const host  = leaf.containerEl || (leaf.view && leaf.view.containerEl);
 			const shown = split && !split.collapsed && host && host.offsetHeight > 0;
 			if (shown) {
-				this.disarmQuickPanel();
 				split.collapse();
 				return;
 			}
@@ -5290,62 +5966,18 @@ module.exports = class WordSmith extends Plugin {
 		}
 
 		// revealLeaf expands whichever split it is in and brings its tab to
-		// the front; setActiveLeaf is what actually puts the caret in it, so
-		// the panel can be driven with arrows and Enter.
-		try { await ws.revealLeaf(leaf); } catch (_) {}
-		try { ws.setActiveLeaf(leaf, { focus: true }); } catch (_) {}
-		this.armQuickPanel(leaf, viewType);
-	}
-
-	// Close the panel again the moment something is chosen in it.
-	//
-	// A DOM listener on the leaf, not a workspace event. `file-open` looks
-	// like the right hook for the explorer and is not: it does not fire when
-	// the clicked file is the one already open, so picking the note you were
-	// on would leave the sidebar hanging. The outline has no event at all —
-	// clicking a heading scrolls the editor and announces nothing. A click
-	// (and Enter, since the panel now has focus) covers both, and covers the
-	// already-open case for free.
-	armQuickPanel(leaf, viewType) {
-		this.disarmQuickPanel();
-		const split = this.quickPanelSplit(leaf);
-		const host  = leaf.containerEl || (leaf.view && leaf.view.containerEl);
-		if (!split || !host) return;
-
-		// A FOLDER is not a choice. Expanding one in the explorer would
-		// otherwise dismiss the panel you are still navigating. The outline
-		// is all headings, so anything in its tree counts.
-		const sel = viewType === 'file-explorer' ? '.nav-file-title' : '.tree-item-self';
-		const close = () => {
-			this.disarmQuickPanel();
-			if (!split.collapsed) split.collapse();
-		};
-		// Deferred by a tick so Obsidian's own handler runs FIRST. Collapsing
-		// the split inside the click takes the element out from under the
-		// handler that was going to open the file.
-		const later = () => window.setTimeout(close, 0);
-		const onClick = (e) => {
-			const t = e.target;
-			if (t && t.closest && t.closest(sel)) later();
-		};
-		const onKey = (e) => { if (e.key === 'Enter') later(); };
-		host.addEventListener('click', onClick, true);
-		host.addEventListener('keydown', onKey, true);
-		this._quickPanel = {
-			off: () => {
-				host.removeEventListener('click', onClick, true);
-				host.removeEventListener('keydown', onKey, true);
-			}
-		};
-	}
-
-	// Armed only between opening the panel and picking something in it, so a
-	// file opened from the quick switcher an hour later collapses nothing.
-	disarmQuickPanel() {
-		if (this._quickPanel && this._quickPanel.off) {
-			try { this._quickPanel.off(); } catch (_) {}
-		}
-		this._quickPanel = null;
+		// the front; revealAndFocusLeaf then puts the caret in it, by DOM
+		// focus rather than setActiveLeaf because this is always a sidebar
+		// and an outline made ACTIVE has no file left to outline.
+		await this.revealAndFocusLeaf(leaf);
+		// PARK here too. Arriving by this command is the same arrival as
+		// arriving by a direction key, and a writer who opened the panel
+		// deliberately is no more likely to want throwing out of it. This
+		// was missing: parking lived only in quickCycleFocus, so picking a
+		// file after opening the panel from the palette jumped to the note
+		// while picking one after Alt-ing in did not — the same gesture
+		// behaving two ways depending on how the sidebar was reached.
+		if (this.settings.quickCycle) this.parkQuickCycle(leaf);
 	}
 
 	setSidebarVisibility() {
@@ -9851,7 +10483,7 @@ module.exports = class WordSmith extends Plugin {
 		// Still a CLASS rather than nothing: the whole stylesheet hangs off
 		// it — .zg-powerline::after is the bar's rules, and the segment
 		// padding, inner layout and fade rules are all scoped to it. The
-		// `:not(.zg-powerline)` counterparts were swept in 1.2.2; there are
+		// `:not(.zg-powerline)` counterparts were swept in 1.2.3; there are
 		// none left, so this class is now a hook rather than a switch.
 		this.retroStatusBarEl.classList.add('zg-powerline');
 		// The colour a separator transitions OUT of at the end of a group is
@@ -12021,9 +12653,9 @@ module.exports = class WordSmith extends Plugin {
 		// read after a reload would be answering about a theme that may have
 		// changed in between.
 		if (this._colorProbeEl) { this._colorProbeEl.remove(); this._colorProbeEl = null; }
-		// A quick panel's listeners are on a leaf Obsidian owns, so they
-		// outlive the plugin unless they are taken off explicitly.
-		this.disarmQuickPanel();
+		// The park's listeners are on a leaf Obsidian owns and outlive the
+		// plugin unless taken off.
+		this.unparkQuickCycle();
 		this._themeSurfaceCache = null;
 		document.body.classList.remove('zg-retrobar-active');
 		this.stopClockTick();
@@ -14837,6 +15469,24 @@ class WordSmithSettingTab extends PluginSettingTab {
 			'quickExplorer');
 		this.toggle(qp, 'Quick outline', 'And one for the outline.',
 			'quickOutline');
+
+		this.toggle(qp, 'Quick cycle',
+			'Four commands: move focus left, right, up or down, sidebars included.',
+			'quickCycle');
+		if (this.plugin.settings.quickCycle) {
+			this.sub(qp).createEl('p', {
+				text: 'Bind them to Alt+arrows, or Alt+H/J/K/L if you think in Vim \u2014 Alt is '
+					+ 'free in every Vim mode. It picks the nearest panel in that direction, '
+					+ 'and opens a closed sidebar when there is nothing else that way. '
+					+ 'Inside a sidebar, up and down step through its tabs. Picking a file '
+					+ 'or a heading opens it but leaves you in the sidebar \u2014 a direction '
+					+ 'key is the only way out.',
+				cls: 'ws-settings-note'
+			});
+			this.toggle(this.sub(qp), 'Close a sidebar when you leave it',
+				'Only when you move out with a direction key, never when you pick something.',
+				'quickCycleCloseOnLeave');
+		}
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
