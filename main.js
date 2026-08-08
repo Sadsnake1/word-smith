@@ -1140,14 +1140,6 @@ const FIT_SLACK = 4;
 // shortened row fits would overflow it again immediately.
 const FIT_RESTORE_MARGIN = 24;
 
-// How long a parked sidebar holds focus after a selection made in it.
-//
-// Not a guess at when Obsidian will focus the editor — it is a window during
-// which any focus landing elsewhere is sent back, so the exact moment does
-// not matter. Long enough to outlast a note opening, short enough that a
-// deliberate click a beat later is not fought.
-const QUICK_PARK_HOLD_MS = 700;
-
 const PL_BG_COUNT = 7;
 // ;N and :N now index THE SAME palette. There is no separate text palette any
 // more: it was four more swatches to keep in step with the seven backgrounds,
@@ -2499,16 +2491,10 @@ module.exports = class WordSmith extends Plugin {
 				return true;
 			}
 		});
-		// Focus moving away from a parked sidebar. Registered once, always:
-		// quickParkRestore is a no-op unless something is parked, and
-		// registering conditionally would mean re-registering whenever the
-		// setting changed.
-		this.registerEvent(this.app.workspace.on('active-leaf-change',
-			() => this.quickParkRestore()));
-		// file-open as well, because opening the file you are already on
-		// moves focus without changing the active leaf.
-		this.registerEvent(this.app.workspace.on('file-open',
-			() => this.quickParkRestore()));
+		// Capture, so the translation happens before the view sees a letter
+		// it has no use for. Registered once and gated inside, rather than
+		// hooked and unhooked as the setting changes.
+		this.registerDomEvent(document, 'keydown', (e) => this.quickCycleVimKey(e), true);
 
 		quickCmd('quick-file-explorer', 'Quick file explorer',
 			'quickExplorer', 'file-explorer');
@@ -5487,7 +5473,20 @@ module.exports = class WordSmith extends Plugin {
 				});
 			} catch (_) {}
 		}
-		return found || ws.activeLeaf || ws.getMostRecentLeaf() || null;
+		if (found) return found;
+		// Focus is nowhere in a leaf — on <body>, or in a modal, or lost
+		// after a panel closed. This is what "it gets stuck" looks like:
+		// activeLeaf can be a pane the writer left long ago, so every press
+		// recomputes from the same wrong origin and lands in the same wrong
+		// place, or nowhere. The last pane this feature actually put them in
+		// is a better answer than the workspace's memory of an unrelated
+		// click, and it is state we own.
+		if (this._quickCycleHere && this._quickCycleHere.containerEl
+			&& this._quickCycleHere.containerEl.ownerDocument === document) {
+			const r = this._quickCycleHere.containerEl.getBoundingClientRect();
+			if (r.width > 0 && r.height > 0) return this._quickCycleHere;
+		}
+		return ws.activeLeaf || ws.getMostRecentLeaf() || null;
 	}
 
 	// Every pane a writer can currently SEE, with its rectangle.
@@ -5598,8 +5597,31 @@ module.exports = class WordSmith extends Plugin {
 		// split is remembered and preferred; the first is only a fallback
 		// for a sidebar not visited yet this session.
 		const remembered = this._quickCycleLast && this._quickCycleLast.get(split);
-		const target = (remembered && leaves.indexOf(remembered) !== -1)
-			? remembered : leaves[0];
+		let target = (remembered && leaves.indexOf(remembered) !== -1) ? remembered : null;
+
+		// Nothing remembered — a fresh Obsidian, or a sidebar not visited
+		// yet this session. leaves[0] was the fallback and it is simply
+		// iteration order, which is why a fresh start opened the sidebar on
+		// SEARCH rather than the file tree: the writer's actual tab is the
+		// one Obsidian would show if they clicked the ribbon, not the first
+		// one built.
+		//
+		// The sidebar knows which that is. `children[n].currentTab` is
+		// internal, so it is read defensively and only used when it names a
+		// leaf that is really in this split — a wrong answer here would put
+		// the writer somewhere they never chose.
+		if (!target) {
+			try {
+				for (const group of (split.children || [])) {
+					const kids = group && group.children;
+					if (!kids || !kids.length) continue;
+					const at = typeof group.currentTab === 'number' ? group.currentTab : 0;
+					const cand = kids[at] || kids[0];
+					if (cand && leaves.indexOf(cand) !== -1) { target = cand; break; }
+				}
+			} catch (_) {}
+		}
+		if (!target) target = leaves[0];
 		// revealLeaf expands the split as well as raising the tab, so there
 		// is no separate expand() call to keep in step with it.
 		await this.quickCycleFocus(target);
@@ -5693,122 +5715,6 @@ module.exports = class WordSmith extends Plugin {
 		return parked;
 	}
 
-	// ── Staying put after a selection ────────────────────────────────────────
-	//
-	// Obsidian moves focus to the editor when a file opens, and scrolls and
-	// focuses it when an outline heading is chosen. That is right for a mouse
-	// and wrong for someone who walked into the sidebar on the keyboard and
-	// means to keep working there — they asked to leave only by a direction
-	// key.
-	//
-	// Taking focus back on EVERY focus change would be unusable: clicking
-	// into the editor would yank you straight back. So the restore is armed
-	// by an interaction INSIDE the parked leaf — an Enter or a click there —
-	// and fires only if the workspace moves focus within a moment of it.
-	// Going elsewhere deliberately is untouched, because nothing armed it.
-	//
-	// The listeners are on the leaf's own element and read no Obsidian class
-	// names. That is the difference between this and the auto-close that was
-	// deleted: that one needed `.nav-file-title` to keep existing and failed
-	// silently when such an assumption breaks. This one only needs to know
-	// that something happened in here.
-	parkQuickCycle(leaf) {
-		this.unparkQuickCycle();
-		const host = leaf && leaf.containerEl;
-		if (!host || !host.addEventListener) return;
-		const doc = host.ownerDocument || document;
-
-		// A HOLD, not a single restore.
-		//
-		// Opening a file is asynchronous — Obsidian builds the view and then
-		// focuses the editor — so a restore fired one tick after the Enter
-		// lands BEFORE the thing it is meant to undo, and Obsidian takes
-		// focus straight back. There is no delay to guess here, because the
-		// wait depends on how long the note takes to load.
-		//
-		// So instead of restoring once at a moment we hope is right, the
-		// leaf is HELD for a short window: every focus that lands outside it
-		// during the hold is sent back. That wins whenever Obsidian moves,
-		// however late.
-		const park = { leaf, holdUntil: 0, lastInside: Date.now() };
-		const hold = () => { park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS; };
-
-		// Arming does NOT depend on seeing the key.
-		//
-		// It used to: a keydown listener on the leaf, watching for Enter.
-		// Clicking a file held correctly and pressing Enter did not, and the
-		// reason is that Obsidian routes Enter through its own document-level
-		// keymap. A handler there runs before one on a descendant and can
-		// stop the event, so the listener on the leaf never saw it — and a
-		// mechanism that arms on an event somebody else may swallow is
-		// arming on someone else's goodwill.
-		//
-		// What is reliable is where focus WAS. The workspace announces that
-		// it opened a file; if the caret was in this sidebar a moment before
-		// that, the sidebar is what opened it, whether by Enter, by click,
-		// or by any keystroke the view chooses to honour. So focus position
-		// is tracked continuously and the workspace event does the arming
-		// (see quickParkRestore).
-		const onFocusIn = (e) => {
-			const inside = !!(e && e.target && host.contains(e.target));
-			if (inside) { park.lastInside = Date.now(); return; }
-			if (Date.now() > park.holdUntil) return;
-			const r = host.getBoundingClientRect();
-			if (r.width < 1) { this.unparkQuickCycle(); return; }
-			// Synchronously first — the tick's delay is what shows as a
-			// caret blinking in the note and vanishing again. Guarded by the
-			// containment check above, so this cannot trade focus forever.
-			this.focusLeafDom(leaf);
-			if (host.contains(doc.activeElement)) return;
-			// It did not take from inside another element's focus handler.
-			// Try again once that has settled.
-			window.setTimeout(() => {
-				if (this._quickPark !== park) return;
-				if (Date.now() > park.holdUntil) return;
-				this.focusLeafDom(leaf);
-			}, 0);
-		};
-		host.addEventListener('click', hold, true);
-		doc.addEventListener('focusin', onFocusIn, true);
-		park.off = () => {
-			host.removeEventListener('click', hold, true);
-			doc.removeEventListener('focusin', onFocusIn, true);
-		};
-		this._quickPark = park;
-	}
-
-	unparkQuickCycle() {
-		if (this._quickPark && this._quickPark.off) {
-			try { this._quickPark.off(); } catch (_) {}
-		}
-		this._quickPark = null;
-	}
-
-	// The workspace moved focus. Put it back only if a selection made in the
-	// parked leaf is what moved it.
-	// The workspace opened a file or changed leaf. If that happened because
-	// of a selection in the parked sidebar, EXTEND the hold: the note may
-	// still be loading, and the editor focus that has to be undone can be
-	// several hundred milliseconds away yet.
-	quickParkRestore() {
-		const park = this._quickPark;
-		if (!park || !this.settings || !this.settings.quickCycle) return;
-		// ARM here, on the workspace's own announcement, if the caret was in
-		// this sidebar just before it. That covers Enter, which the leaf's
-		// own listeners never see, and any other key the view honours.
-		if (Date.now() - (park.lastInside || 0) < QUICK_PARK_HOLD_MS) {
-			park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS;
-		}
-		if (!park.holdUntil) return;                       // nothing armed it
-		if (Date.now() > park.holdUntil) return;           // the window closed
-		const host = park.leaf && park.leaf.containerEl;
-		if (!host || host.getBoundingClientRect().width < 1) { this.unparkQuickCycle(); return; }
-		park.holdUntil = Date.now() + QUICK_PARK_HOLD_MS;
-		window.setTimeout(() => {
-			if (this._quickPark === park) this.focusLeafDom(park.leaf);
-		}, 0);
-	}
-
 	// Reveal a leaf and focus it, by whichever route suits where it lives.
 	async revealAndFocusLeaf(leaf) {
 		const ws = this.app.workspace;
@@ -5844,6 +5750,115 @@ module.exports = class WordSmith extends Plugin {
 		if (this.focusLeafDom(leaf)) return;
 	}
 
+	// hjkl in the sidebars, when Vim keys are on.
+	//
+	// Obsidian's tree views navigate with the arrow keys and nothing else,
+	// so a writer who moves by hjkl everywhere has to change hands to walk a
+	// file list. The keys are free there — a tree has no text entry and no
+	// type-ahead — so this translates rather than competing with anything.
+	//
+	// A TRANSLATION, deliberately, not a reimplementation. Obsidian's arrow
+	// handling already knows about folders, collapsing, multi-select and
+	// whatever it gains next; a synthetic ArrowDown inherits all of it,
+	// where a hand-written "move to the next item" would inherit none and
+	// would need revisiting every time the tree changed.
+	quickCycleVimKey(e) {
+		if (!this.settings.quickCycle || !this.isVimKeysOn()) return;
+		// Alt is the cycle's own binding — Alt+H moves BETWEEN panes, not
+		// one row left inside one. Ctrl and Meta belong to whatever else
+		// claims them.
+		if (e.altKey || e.ctrlKey || e.metaKey) return;
+		const MAP = { h: 'ArrowLeft', j: 'ArrowDown', k: 'ArrowUp', l: 'ArrowRight' };
+		const arrow = MAP[e.key];
+		if (!arrow) return;
+
+		const target = e.target;
+		if (!target) return;
+		// Never while typing. A sidebar holds a search box, a rename field
+		// and a tag filter, and a writer typing "join" into any of them
+		// means the letters.
+		const tag = target.tagName || '';
+		if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+		if (target.isContentEditable) return;
+
+		// Which pane this key belongs to.
+		//
+		// Asking the target alone worked exactly once. Obsidian's tree
+		// handling moves the selection and focus falls off the wrapper this
+		// feature focused, onto <body> — so the first press translated and
+		// every one after it reported `leaf: NONE` and bailed. Arrows went
+		// on working throughout, because Obsidian routes THOSE through its
+		// own scope and does not care what holds focus. The guard was
+		// stricter than the behaviour it was imitating.
+		//
+		// So: the target when it is inside a leaf, and otherwise the pane
+		// this feature last moved to — state we own, rather than a focus
+		// position the tree view is entitled to drop.
+		let leaf = null;
+		try {
+			this.app.workspace.iterateAllLeaves(l => {
+				if (leaf || !l.containerEl) return;
+				if (l.containerEl.contains(target)) leaf = l;
+			});
+		} catch (_) {}
+		if (!leaf) {
+			// Only if focus is genuinely nowhere. A target inside the editor
+			// resolves to a leaf above and is left alone there; this branch
+			// must not reach past a real answer.
+			const here = this._quickCycleHere;
+			const host = here && here.containerEl;
+			if (!host || !this.quickPanelSplit(here)) return;
+			const r = host.getBoundingClientRect();
+			if (r.width < 1 || r.height < 1) return;
+			leaf = here;
+		}
+		if (!this.quickPanelSplit(leaf)) return;
+
+		e.preventDefault();
+		e.stopPropagation();
+		// The constructor comes from the TARGET'S OWN window, not from the
+		// bare global. In a pop-out window the global is the wrong realm and
+		// the event would be rejected; and a bare `new KeyboardEvent` throws
+		// a ReferenceError anywhere the global does not exist, which a
+		// try/catch then swallows — leaving a key that quietly does nothing
+		// and a probe that cannot see why.
+		const win = (target.ownerDocument && target.ownerDocument.defaultView) || window;
+		if (!win || typeof win.KeyboardEvent !== 'function') return;
+		target.dispatchEvent(new win.KeyboardEvent('keydown', {
+			key: arrow, code: arrow, bubbles: true, cancelable: true
+		}));
+	}
+
+	// Point a sidebar view at where the writer actually is.
+	//
+	// Landing in the file tree with the tree scrolled somewhere else is a
+	// half-arrival: you are in the panel but have to find yourself in it.
+	// Obsidian ships a command that reveals and selects the active file, so
+	// that is used rather than walking its DOM — it already knows how to
+	// expand the folders on the way.
+	//
+	// Only the file tree.
+	//
+	// The outline had this too, briefly: scroll to the heading the caret
+	// sits under and select it. It was measured working — the right row
+	// found, focused, carrying Obsidian's own is-active class — and it
+	// still did not do what it was for, because DOM focus is not the tree's
+	// cursor and the tree's cursor is what the arrows move from. Clicking
+	// the row moved the cursor properly and brought a scroll of the editor
+	// with it that had to be undone. Removed at the writer's request.
+	//
+	// If it is ever wanted again: the index is sound (the caret's heading is
+	// the last one at or above its line, from metadataCache, matched to the
+	// nth row because the outline renders one row per heading in order).
+	// What is not sound is any of the ways in from outside — this needs the
+	// outline view's own selection API, and there is not one.
+	revealInSidebarView(leaf) {
+		const type = leaf && leaf.view && leaf.view.getViewType && leaf.view.getViewType();
+		if (type !== 'file-explorer') return;
+		if (!this.app.workspace.getActiveFile()) return;
+		try { this.app.commands.executeCommandById('file-explorer:reveal-active-file'); } catch (_) {}
+	}
+
 	async quickCycleFocus(leaf) {
 		const ws = this.app.workspace;
 		// Remember where a writer was in each sidebar, so re-entering it
@@ -5854,11 +5869,10 @@ module.exports = class WordSmith extends Plugin {
 			this._quickCycleLast.set(split, leaf);
 		}
 		await this.revealAndFocusLeaf(leaf);
-		// Park in a sidebar so a selection made there returns focus; landing
-		// anywhere else ends the parking, because leaving is the one exit
-		// the writer asked for.
-		if (split) this.parkQuickCycle(leaf);
-		else this.unparkQuickCycle();
+		this.revealInSidebarView(leaf);
+		// Remembered as the origin for the next press, so a move still
+		// works from a pane whose view has dropped focus.
+		this._quickCycleHere = leaf;
 		void ws;
 	}
 
@@ -5879,7 +5893,6 @@ module.exports = class WordSmith extends Plugin {
 		// the caret is still inside it drops focus on the floor, and the
 		// next keystroke goes nowhere.
 		try { if (!fromSplit.collapsed) fromSplit.collapse(); } catch (_) {}
-		this.unparkQuickCycle();
 	}
 
 	async quickCycleMove(dir) {
@@ -5970,14 +5983,6 @@ module.exports = class WordSmith extends Plugin {
 		// focus rather than setActiveLeaf because this is always a sidebar
 		// and an outline made ACTIVE has no file left to outline.
 		await this.revealAndFocusLeaf(leaf);
-		// PARK here too. Arriving by this command is the same arrival as
-		// arriving by a direction key, and a writer who opened the panel
-		// deliberately is no more likely to want throwing out of it. This
-		// was missing: parking lived only in quickCycleFocus, so picking a
-		// file after opening the panel from the palette jumped to the note
-		// while picking one after Alt-ing in did not — the same gesture
-		// behaving two ways depending on how the sidebar was reached.
-		if (this.settings.quickCycle) this.parkQuickCycle(leaf);
 	}
 
 	setSidebarVisibility() {
@@ -12653,9 +12658,6 @@ module.exports = class WordSmith extends Plugin {
 		// read after a reload would be answering about a theme that may have
 		// changed in between.
 		if (this._colorProbeEl) { this._colorProbeEl.remove(); this._colorProbeEl = null; }
-		// The park's listeners are on a leaf Obsidian owns and outlive the
-		// plugin unless taken off.
-		this.unparkQuickCycle();
 		this._themeSurfaceCache = null;
 		document.body.classList.remove('zg-retrobar-active');
 		this.stopClockTick();
@@ -15478,9 +15480,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 				text: 'Bind them to Alt+arrows, or Alt+H/J/K/L if you think in Vim \u2014 Alt is '
 					+ 'free in every Vim mode. It picks the nearest panel in that direction, '
 					+ 'and opens a closed sidebar when there is nothing else that way. '
-					+ 'Inside a sidebar, up and down step through its tabs. Picking a file '
-					+ 'or a heading opens it but leaves you in the sidebar \u2014 a direction '
-					+ 'key is the only way out.',
+					+ 'Inside a sidebar, up and down step through its tabs. With Vim keys '
+					+ 'on, H/J/K/L walk the file tree and the outline just as the arrows do.',
 				cls: 'ws-settings-note'
 			});
 			this.toggle(this.sub(qp), 'Close a sidebar when you leave it',
