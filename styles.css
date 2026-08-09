@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 42;
+	--zg-stylesheet-version: 46;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -822,8 +822,29 @@ body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
 	.zg-barbtn-modes.zg-hem-blocked { animation: none; }
 }
 
-/* Retro bar flash. */
-.zengrinder-status-bar.zg-hem-blocked {
+/* Powerline bar flash, drawn ON TOP of the segments.
+   
+   It was an inset box-shadow on the bar element itself, which worked when
+   the bar was a plain strip and stopped working the day powerline became
+   the only way it draws: the segments are opaque and painted over the bar,
+   so the outline survived only where the bar showed through — the gap
+   between the left group and the right one. Reported as "it only flashes
+   the middle part", which is exactly what an outline behind opaque children
+   looks like.
+   
+   An ::after is safe here where it was not for the vim gutter: this one is
+   INSIDE the bar's box, so the bar clipping its overflow is no threat to
+   it. */
+.zengrinder-status-bar { position: relative; }
+
+.zengrinder-status-bar.zg-hem-blocked::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	/* Above the segments, which sit in the normal flow at z-index auto. */
+	z-index: 6;
+	pointer-events: none;
+	border-radius: inherit;
 	animation: zg-hem-flash 0.5s ease-out;
 }
 
@@ -832,18 +853,33 @@ body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
    likely to be running with letterbox on, so a flash underneath them would
    be invisible when it matters most. */
 @keyframes zg-hem-screen-flash {
-	0%   { opacity: 0;    }
-	18%  { opacity: 0.24; }
-	100% { opacity: 0;    }
+	0%   { opacity: 0;   }
+	18%  { opacity: 0.9; }
+	100% { opacity: 0;   }
 }
 
+/* A ring around the NOTE, not a wash over the window.
+   
+   Filling the screen at 0.24 opacity reads as an error dialog: it repaints
+   everything the writer is looking at to tell them one keystroke did
+   nothing. A thick outline says the same thing at the edge of vision and
+   leaves the words alone — which matters more here than anywhere, because
+   Hemingway is the mode you are in when you are trying not to look up.
+   
+   Traced to the note's own column via the variables stampBarBounds
+   publishes, so it frames the text rather than the window. Falls back to
+   the full width on the first paint, before any measurement exists. */
 .zg-hem-screen {
 	position: fixed;
-	inset: 0;
+	top: 0;
+	bottom: 0;
+	left: var(--zg-col-left, 0px);
+	width: var(--zg-col-width, 100%);
 	z-index: 10100;
 	pointer-events: none;
 	opacity: 0;
-	background: var(--zg-hem-block-color, #c2544d);
+	background: transparent;
+	box-shadow: inset 0 0 0 4px var(--zg-hem-block-color, #c2544d);
 }
 
 .zg-hem-screen.is-on {
@@ -851,8 +887,8 @@ body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.zengrinder-status-bar.zg-hem-blocked { animation: none; box-shadow: inset 0 0 0 2px var(--zg-hem-block-color, #c2544d); }
-	.zg-hem-screen.is-on { animation: none; opacity: 0.18; }
+	.zengrinder-status-bar.zg-hem-blocked::after { animation: none; box-shadow: inset 0 0 0 2px var(--zg-hem-block-color, #c2544d); }
+	.zg-hem-screen.is-on { animation: none; opacity: 0.7; }
 }
 
 /* The caret is the one piece of the editor that still moves while the lock
@@ -3230,4 +3266,73 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    command line, which looks like a code bug and has been chased as one. */
 body.zg-vim-panel-open .zg-bar-plinth {
 	display: none;
+}
+
+/* ── The menu ──────────────────────────────────────────────────────────────
+   Deliberately thin, because the rows inside it are `.zg-picker-row` — the
+   same class the bar's own popups use, so the swatch, the drawn icon, the
+   font preview and the 0.4 fade of an unselected row all come from the
+   stylesheet that already describes them. Anything restyled there is
+   restyled here, which is the point: the menu should not drift into looking
+   like a different plugin's dialog. */
+.zg-menu-modal {
+	max-width: 320px;
+}
+.zg-menu-content {
+	padding: 0.5em 0.4em;
+}
+.zg-menu-list {
+	display: flex;
+	flex-direction: column;
+	outline: none;
+}
+.zg-menu-row {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	padding: 0.3em 0.6em;
+	border-radius: 5px;
+	cursor: pointer;
+}
+.zg-menu-row.is-active,
+.zg-menu-sub.is-active {
+	background-color: color-mix(in srgb, currentColor 16%, transparent);
+}
+.zg-menu-row .zg-menu-label {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+/* The state sits right and quiet: for a toggle list it is a count, and for
+   Font it is the face in use. Either way it answers "what is this set to"
+   without opening the row. */
+.zg-menu-state {
+	margin-left: auto;
+	font-size: 0.82em;
+	color: var(--text-faint);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	max-width: 55%;
+}
+/* Indented under their row. The is-off fade comes from .zg-picker-row. */
+.zg-menu-sub {
+	padding-left: 1.7em;
+}
+/* Report and History: centred, because they are buttons rather than
+   settings, and a centred pair reads as a footer instead of as two more
+   rows that happen to do something different. */
+.zg-menu-row.is-wide {
+	justify-content: center;
+}
+.zg-menu-row.is-wide .zg-menu-label {
+	font-weight: 500;
+	color: var(--text-muted);
+}
+.zg-menu-row.is-wide.is-active .zg-menu-label {
+	color: var(--text-normal);
+}
+.zg-menu-rule {
+	height: 1px;
+	margin: 0.45em 0.6em;
+	background: var(--background-modifier-border);
 }

@@ -1140,6 +1140,13 @@ const FIT_SLACK = 4;
 // shortened row fits would overflow it again immediately.
 const FIT_RESTORE_MARGIN = 24;
 
+// The four value classes the fit pass sheds in. Lower goes first.
+const FIT_CLASS_DECORATION = 0;   // rules, spacer runs, slivers
+const FIT_CLASS_ORNAMENT   = 1;   // a drawn glyph and little else
+const FIT_CLASS_AMBIENT    = 1.5; // the clock: a reading you have elsewhere
+const FIT_CLASS_READING    = 2;   // counts, times, positions, headings
+const FIT_CLASS_IDENTITY   = 3;   // {file}, {vim} — where you are
+
 const PL_BG_COUNT = 7;
 // ;N and :N now index THE SAME palette. There is no separate text palette any
 // more: it was four more swatches to keep in step with the seven backgrounds,
@@ -1163,7 +1170,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 42;
+const ZG_STYLESHEET_VERSION = 46;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1812,6 +1819,11 @@ const DEFAULT_SETTINGS = {
 	// (see the checkCallback in onload).
 	quickExplorer:            false,
 	quickOutline:             false,
+	// ON by default, unlike the other Misc toggles. It is the plugin's front
+	// door — everything the bar's buttons do, reachable from one hotkey — and
+	// a front door that ships locked is a contradiction. The switch exists
+	// for anyone who wants the command out of their palette.
+	barMenu:                  true,
 	quickCycle:               false,
 	// A sub-option of quickCycle, and off by default because it is the more
 	// opinionated half: the sidebar you walked out of shuts behind you.
@@ -2398,7 +2410,7 @@ module.exports = class WordSmith extends Plugin {
 		// Commands
 		this.addCommand({
 			id: 'toggle-retro-bar',
-			name: 'Toggle the retro bar on/off',
+			name: 'Toggle the powerline bar on/off',
 			// Mirrors the settings-tab switch: flip the master, repaint, and
 			// save with a full refresh — the refresh is what lifts/reapplies
 			// the inline display:none on Obsidian's native status bar.
@@ -2416,7 +2428,7 @@ module.exports = class WordSmith extends Plugin {
 		});
 		this.addCommand({
 			id: 'cycle-bar-preset',
-			name: 'Cycle retrobar presets',
+			name: 'Cycle powerline presets',
 			callback: () => this.cycleBarPreset(1)
 		});
 
@@ -2505,6 +2517,16 @@ module.exports = class WordSmith extends Plugin {
 		// depends on whether they think in vim, so the choice is left in
 		// Obsidian's Hotkeys pane where it can be either or both. Alt is
 		// untouched by vim mode, so neither conflicts in any mode.
+		this.addCommand({
+			id: 'open-menu',
+			name: 'Menu',
+			checkCallback: (checking) => {
+				if (!this.settings.barMenu) return false;
+				if (!checking) this.openBarMenu();
+				return true;
+			}
+		});
+
 		for (const dir of ['left', 'right', 'up', 'down']) {
 			this.addCommand({
 				id: 'quick-cycle-' + dir,
@@ -2758,12 +2780,35 @@ module.exports = class WordSmith extends Plugin {
 			this._scopeGen++;
 			// {backlinks} caches a walk of the whole vault against this.
 			this._linkGen = (this._linkGen || 0) + 1;
+			// The heading tokens read this cache, and it is the only thing on
+			// the bar that does. A repaint that happened before the cache
+			// answered has no headings to show and nothing that would make it
+			// try again — see the 'resolved' handler below.
+			if (file && this.app.workspace.getActiveFile()
+				&& file.path === this.app.workspace.getActiveFile().path) {
+				this.requestBarRebuild();
+			}
 		}));
 		// Fired once when the vault's links have all been resolved at startup,
 		// and again after a batch of changes settles. Without it the first
 		// backlink count of a session is whatever was resolvable at load.
 		this.registerEvent(this.app.metadataCache.on('resolved', () => {
 			this._linkGen = (this._linkGen || 0) + 1;
+			// AND repaint the bar.
+			//
+			// The heading tokens ({#} and the rest, {#>}) resolve through
+			// metadataCache, which fills asynchronously. On a slower machine
+			// the first paint of a session lands before it has answered, so
+			// those tokens resolve to nothing — and a segment whose tokens
+			// all resolve to nothing is dropped, by design. The row comes up
+			// empty and stays empty, because nothing rebuilds it.
+			//
+			// Reported from ChromeOS, where a heading-only bar showed no left
+			// or centre section at all; Windows and Android won the race and
+			// never showed it. Forcing a repaint in the console fixed it and
+			// it then held, which is what named this as a startup race rather
+			// than a rendering fault.
+			this.requestBarRebuild();
 		}));
 		// A store that appears in the vault — first sync of a new install, or a
 		// file the user pasted in — is picked up without being asked for.
@@ -3324,7 +3369,7 @@ module.exports = class WordSmith extends Plugin {
 		const n = (v) => Math.round(v * 100) / 100;
 		try {
 			const bar = this.retroStatusBarEl;
-			if (!bar) return 'Word-Smith: the retro bar is not up.';
+			if (!bar) return 'Word-Smith: the powerline bar is not up.';
 			L.push('Word-Smith ' + (this.manifest ? this.manifest.version : '?') + ' bar geometry');
 			const ss = getComputedStyle(document.body)
 				.getPropertyValue('--zg-stylesheet-version').trim();
@@ -3745,7 +3790,7 @@ module.exports = class WordSmith extends Plugin {
 			return;
 		}
 		if (!this.settings.enableRetroStatus) {
-			new Notice('Word-Smith: the retro bar is off.');
+			new Notice('Word-Smith: the powerline bar is off.');
 			return;
 		}
 		// indexOf returns -1 for an unknown or absent name, which is exactly
@@ -4056,6 +4101,51 @@ module.exports = class WordSmith extends Plugin {
 	// its own, it clipped them. Judging the whole row at once means a
 	// crowded left section sheds text so the buttons on the right keep
 	// their room.
+	// What a segment is WORTH, as a number, so the fit pass sheds by value
+	// rather than by where a thing happens to sit.
+	//
+	// Position was the whole rule before this: readings dropped from the
+	// margins inward, so a word count at the edge of the row died before a
+	// decorative rule in the middle of it. Position is still the tie-break
+	// WITHIN a class, which is what keeps the shedding predictable — it is
+	// no longer the first question.
+	//
+	// Read from what the segment CONTAINS, once, at measure time. There is
+	// deliberately no way to declare a priority in the format string: the
+	// classes below are right nearly always, the grammar is rich enough
+	// already, and a wrong default can be fixed in one place where a knob
+	// has to be learned by everyone.
+	fitClassOf(el) {
+		if (!el || !el.classList) return FIT_CLASS_READING;
+		// 3 — identity and controls. The things that say where you are and
+		// let you act. Buttons are filtered out before this and never shed
+		// at all; this covers the rest.
+		if (el.classList.contains('zg-fit-identity')
+			|| (el.querySelector && el.querySelector('.zg-fit-identity'))) {
+			return FIT_CLASS_IDENTITY;
+		}
+		const text = (el.textContent || '').trim();
+		// 0 — decoration. A segment carrying no text at all is a rule, a
+		// spacer run or a sliver: it was asked for, and it says nothing.
+		// Fades and caps are shed wholesale before this stage ever runs.
+		if (!text) return FIT_CLASS_DECORATION;
+		// 1 — ornament with meaning. A drawn glyph and nothing else: the
+		// Obsidian crystal, a lone mode dot. Says something, but nothing a
+		// writer would miss for a minute.
+		if (el.querySelector && el.querySelector('svg') && text.length <= 2) {
+			return FIT_CLASS_ORNAMENT;
+		}
+		// 1.5 — ambient. The clock and the time: readings by shape, but the
+		// time is also on the system clock and the wall, so it is the first
+		// reading a narrow row should give up.
+		if (el.classList.contains('zg-fit-ambient')
+			|| (el.querySelector && el.querySelector('.zg-fit-ambient'))) {
+			return FIT_CLASS_AMBIENT;
+		}
+		// 2 — readings. Everything else: counts, positions, headings.
+		return FIT_CLASS_READING;
+	}
+
 	fitCandidates(rowEl) {
 		const secs = this.fitSections(rowEl);
 		const pick = sec => Array.from(sec.querySelectorAll
@@ -4093,7 +4183,22 @@ module.exports = class WordSmith extends Plugin {
 			if (left[i])  edges.push(left[i]);
 			if (right[i]) edges.push(right[i]);
 		}
-		return edges.concat(other, mid);
+		// Position order, which is now the TIE-BREAK rather than the rule.
+		const positional = edges.concat(other, mid);
+
+		// Sorted by value class, stably, so within a class the order above
+		// is exactly what it always was: margins first, alternating, then
+		// the centre. What changes is that a decorative rule anywhere on the
+		// row now goes before a word count at the edge of it.
+		//
+		// A stable sort is load-bearing here. Array.prototype.sort has been
+		// stable since ES2019, and the whole point is that equal classes
+		// keep their positional order — an unstable sort would scramble the
+		// edges-inward behaviour into something arbitrary.
+		return positional
+			.map((el, i) => ({ el, i, cls: this.fitClassOf(el) }))
+			.sort((a, b) => (a.cls - b.cls) || (a.i - b.i))
+			.map(x => x.el);
 	}
 
 	// Everything belonging to a FADE — the gradient segments and the shapes
@@ -4239,6 +4344,27 @@ module.exports = class WordSmith extends Plugin {
 		if (this._fitShortenFile && fits(rowEl)
 			&& rowEl.clientWidth > (this._fitShortenWidth || 0) + FIT_RESTORE_MARGIN) {
 			this._fitShortenFile = false;
+			this.requestBarRebuild();
+			return;
+		}
+
+		// Rule one and a half: drop a leading crumb from {#>}.
+		//
+		// After the file path and before anything is hidden, one crumb at a
+		// time so a row that only needs a little does not lose the lot. The
+		// deepest heading is the one that says where you are, so the
+		// chapter above it goes first.
+		const headCrumbs = this.headingCrumbCount();
+		if (headCrumbs > 1 && !fits(rowEl)
+			&& (this._fitShortenHead || 0) < headCrumbs - 1) {
+			this._fitShortenHead = (this._fitShortenHead || 0) + 1;
+			this._fitShortenHeadWidth = rowEl.clientWidth;
+			this.requestBarRebuild();
+			return;
+		}
+		if ((this._fitShortenHead || 0) > 0 && fits(rowEl)
+			&& rowEl.clientWidth > (this._fitShortenHeadWidth || 0) + FIT_RESTORE_MARGIN) {
+			this._fitShortenHead = 0;
 			this.requestBarRebuild();
 			return;
 		}
@@ -9745,7 +9871,7 @@ module.exports = class WordSmith extends Plugin {
 				'At 250 words a page, which is the manuscript standard.');
 			cell('Read time',  plugin.formatReadTime(stats.words),
 				'At ' + READ_WPM + ' words a minute, set under '
-				+ 'Retro Bar \u2192 Token formats.');
+				+ 'Powerline \u2192 Token formats.');
 			cell('Grade',      stats.sentences ? stats.grade.toFixed(1) : '\u2014',
 				'Roughly how many years of school someone needs to read this comfortably. '
 				+ 'Under 9 is easy going.');
@@ -9831,7 +9957,162 @@ module.exports = class WordSmith extends Plugin {
 		return el;
 	}
 
-	openFontPicker(anchor) {
+	// ── The menu ─────────────────────────────────────────────────────────────
+	//
+	// One modal, everything the bar's buttons carry, and NO SECOND POPUP.
+	//
+	// The first version routed: a row opened the same picker the bar button
+	// opens. That reused the pickers exactly, and it was wrong for the thing
+	// this is FOR — the pickers are anchored popovers built for a mouse, so
+	// "keyboard-only menu" became "keyboard until you pick something, then
+	// reach for the mouse". A front door with a mouse-shaped step in the
+	// middle is not a front door.
+	//
+	// So the rows expand IN PLACE, and the items come from the same
+	// *PickerItems() the bar buttons use — one source of truth about what a
+	// mode is and whether it is on, without inheriting the popover.
+	openBarMenu() {
+		const plugin = this;
+		const modal = new Modal(this.app);
+		modal.modalEl.addClass('zg-menu-modal');
+		modal.contentEl.addClass('zg-menu-content');
+		const list = modal.contentEl.createDiv({ cls: 'zg-menu-list' });
+
+		const ROWS = [
+			{ label: 'Modes',   items: () => plugin.modesPickerItems() },
+			{ label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
+			{ label: 'Prose',   items: () => plugin.checksPickerItems() },
+			{ label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
+			{ label: 'Markers', items: () => plugin.markersPickerItems() },
+			// Below a divider: these OPEN something rather than setting it,
+			// which is a different kind of act and reads better set apart.
+			// Centred for the same reason — they are buttons, not settings,
+			// and a centred pair reads as a footer rather than as two more
+			// rows that happen to do something else.
+			{ label: 'Report',  rule: true, wide: true, run: () => plugin.openReportModal() },
+			{ label: 'History',             wide: true, run: () => plugin.openHistoryModal() },
+		];
+
+		// One flat list of what is currently on screen, rebuilt whenever a
+		// row opens or closes. Flat because the keyboard walks it: j and k
+		// move by VISIBLE line, so a nested model would need the same list
+		// derived anyway.
+		let open = -1;       // which row is expanded, -1 for none
+		let at = 0;          // index into the flat list
+		let flat = [];
+
+		const render = () => {
+			list.empty();
+			flat = [];
+			ROWS.forEach((row, ri) => {
+				if (row.rule) list.createDiv({ cls: 'zg-menu-rule' });
+				const el = list.createDiv({ cls: 'zg-menu-row' + (row.wide ? ' is-wide' : '') });
+				el.createSpan({ cls: 'zg-menu-label', text: row.label });
+				// A count of what is on, for the rows where that is a
+				// question. NOT for Font: exactly one typeface is always
+				// selected, so "1 on" states a tautology and reads as though
+				// something might have been zero. A `choose` picker has a
+				// current value, not a count — so it shows the value.
+				if (row.items && row.count !== false) {
+					const its = row.items();
+					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
+					el.createSpan({ cls: 'zg-menu-state', text: on ? String(on) + ' on' : 'off' });
+				} else if (row.items) {
+					const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
+					if (cur) el.createSpan({ cls: 'zg-menu-state', text: cur.label });
+				}
+				flat.push({ el, kind: 'row', ri });
+				el.addEventListener('click', () => { at = flat.findIndex(f => f.el === el); activate(); });
+
+				if (open === ri && row.items) {
+					for (const item of row.items()) {
+						// Built the way the bar's own popup builds a row —
+						// same classes, so the swatch, the drawn icon, the
+						// font preview and the fade of an unselected row all
+						// come from the stylesheet that already describes
+						// them. The menu should look like the thing it
+						// replaces, and reusing the classes is the only way
+						// that stays true when the popup is restyled.
+						const isOn = (typeof item.on === 'function' ? item.on() : item.on);
+						const sub = list.createDiv({
+							cls: 'zg-menu-sub zg-picker-row' + (isOn ? '' : ' is-off')
+						});
+						if (item.color) {
+							const dot = sub.createSpan({ cls: 'zg-picker-dot' });
+							if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
+						}
+						if (item.icon) {
+							const ic = item.icon();
+							ic.classList.add('zg-picker-icon');
+							sub.appendChild(ic);
+						}
+						const lab = sub.createSpan({ cls: 'zg-picker-label', text: item.label });
+						if (item.font) lab.style.fontFamily = item.font;
+						flat.push({ el: sub, kind: 'item', item });
+						sub.addEventListener('click', () => {
+							at = flat.findIndex(f => f.el === sub); activate();
+						});
+					}
+				}
+			});
+			paint();
+		};
+
+		const paint = () => flat.forEach((f, i) => f.el.toggleClass('is-active', i === at));
+
+		const activate = async () => {
+			const cur = flat[at];
+			if (!cur) return;
+			if (cur.kind === 'item') {
+				// Applies live, behind the modal. Every one of these is a
+				// toggle or a choice, so there is nothing to confirm and
+				// nothing to cancel — which is why Escape can just close.
+				if (cur.item.onClick) await cur.item.onClick();
+				const keep = at;
+				render();
+				at = Math.min(keep, flat.length - 1);
+				paint();
+				return;
+			}
+			const row = ROWS[cur.ri];
+			if (row.run) { modal.close(); row.run(); return; }
+			open = (open === cur.ri) ? -1 : cur.ri;
+			const keep = cur.ri;
+			render();
+			at = flat.findIndex(f => f.kind === 'row' && f.ri === keep);
+			paint();
+		};
+
+		const move = (d) => { at = Math.max(0, Math.min(at + d, flat.length - 1)); paint(); };
+		const collapse = () => {
+			if (open === -1) return false;
+			const keep = open; open = -1; render();
+			at = flat.findIndex(f => f.kind === 'row' && f.ri === keep);
+			paint();
+			return true;
+		};
+
+		// Vim-shaped, because the sidebars already are, with arrows beside
+		// them so the dialect is optional.
+		for (const k of ['j', 'ArrowDown']) modal.scope.register([], k, () => { move(1);  return false; });
+		for (const k of ['k', 'ArrowUp'])   modal.scope.register([], k, () => { move(-1); return false; });
+		for (const k of ['l', 'ArrowRight', 'Enter', ' '])
+			modal.scope.register([], k, () => { activate(); return false; });
+		for (const k of ['h', 'ArrowLeft']) modal.scope.register([], k, () => { collapse(); return false; });
+		// Escape closes an open row first and the modal second, so backing
+		// out of a submenu does not throw the whole panel away.
+		modal.scope.register([], 'Escape', () => {
+			if (!collapse()) modal.close();
+			return false;
+		});
+
+		modal.onOpen = () => { list.setAttribute('tabindex', '-1'); list.focus(); };
+		render();
+		modal.open();
+		return modal;
+	}
+
+	fontPickerItems() {
 		const fonts   = this.getConfiguredFonts();
 		const current = () => this.opt('editorFont') || '';
 		const items = [{
@@ -9862,8 +10143,13 @@ module.exports = class WordSmith extends Plugin {
 				onClick: async () => {}
 			});
 		}
-		this.openPickerLive(anchor, items, 'choose');
+		return items;
 	}
+
+	openFontPicker(anchor) {
+		this.openPickerLive(anchor, this.fontPickerItems(), 'choose');
+	}
+
 
 	// The five syntax-highlight classes, in the order they appear everywhere
 	// else. The settings keys keep their pos* names: renaming them would force
@@ -9895,7 +10181,7 @@ module.exports = class WordSmith extends Plugin {
 		return el;
 	}
 
-	openSyntaxPicker(anchor) {
+	syntaxPickerItems() {
 		const s = this.settings;
 		const items = this.getSyntaxCategories().map(c => ({
 			label: c.label,
@@ -9926,8 +10212,13 @@ module.exports = class WordSmith extends Plugin {
 				await this.saveSettings(true);
 			}
 		});
-		this.openPickerLive(anchor, items, 'toggle');
+		return items;
 	}
+
+	openSyntaxPicker(anchor) {
+		this.openPickerLive(anchor, this.syntaxPickerItems(), 'toggle');
+	}
+
 
 	// Both lock indicators are the key legend on two lines, unboxed. The
 	// drawn key caps read as buttons you could press, which they are not —
@@ -9990,7 +10281,7 @@ module.exports = class WordSmith extends Plugin {
 		);
 	}
 
-	openWriteChecksPicker(anchor) {
+	checksPickerItems() {
 		const s = this.settings;
 		const items = this.getWriteChecks().map(c => ({
 			label: c.label,
@@ -10016,8 +10307,13 @@ module.exports = class WordSmith extends Plugin {
 				await this.saveSettings(true);
 			}
 		});
-		this.openPickerLive(anchor, items, 'toggle');
+		return items;
 	}
+
+	openWriteChecksPicker(anchor) {
+		this.openPickerLive(anchor, this.checksPickerItems(), 'toggle');
+	}
+
 
 	// ¶ in the bar — or the word "Markers", per the Token formats setting;
 	// the picker toggles which invisibles are drawn either way.
@@ -10036,7 +10332,7 @@ module.exports = class WordSmith extends Plugin {
 		);
 	}
 
-	openMarkersPicker(anchor) {
+	markersPickerItems() {
 		const s = this.settings;
 		// Glyph first, then the word. With the symbol trailing, each row
 		// began at a different place and ended at a different one, so the
@@ -10067,8 +10363,13 @@ module.exports = class WordSmith extends Plugin {
 				await this.saveSettings(true);
 			}
 		}));
-		this.openPickerLive(anchor, items, 'toggle');
+		return items;
 	}
+
+	openMarkersPicker(anchor) {
+		this.openPickerLive(anchor, this.markersPickerItems(), 'toggle');
+	}
+
 
 	// Small wrapper so pickers can pass live getters rather than a snapshot.
 	openPickerLive(anchor, items, mode) {
@@ -10143,7 +10444,7 @@ module.exports = class WordSmith extends Plugin {
 		);
 	}
 
-	openModesPicker(anchor) {
+	modesPickerItems() {
 		const defs = [
 			{ key: 'lb',  label: 'Letter Box',
 			  on: () => this.letterboxActive(),
@@ -10164,8 +10465,13 @@ module.exports = class WordSmith extends Plugin {
 			on:    d.on,
 			onClick: d.onClick
 		}));
-		this.openBarPicker(anchor, items, 'toggle');
+		return items;
 	}
+
+	openModesPicker(anchor) {
+		this.openBarPicker(anchor, this.modesPickerItems(), 'toggle');
+	}
+
 
 	// ════════════════════════════════════════════════════════════════════════
 	// BAR RENDERING: tokens to DOM
@@ -10467,7 +10773,21 @@ module.exports = class WordSmith extends Plugin {
 			'{####}':      hTrail[3],
 			'{#####}':     hTrail[4],
 			'{######}':    hTrail[5],
-			'{#>}':        hTrail.filter(Boolean).join(' \u203a '),
+			// The trail, LEADING CRUMBS FIRST TO GO when the row is tight.
+			//
+			// Same idea as {file} collapsing a path to the note's name, and
+			// the same reasoning: the deepest heading is the one that says
+			// where you are, and the chapter above it is context the note
+			// itself already gives you. So `Chapter 3 > The Ferry > Beat 2`
+			// becomes `The Ferry > Beat 2`, then `Beat 2` — never a
+			// truncated `Chapter 3 > The Fer...`, which keeps the least
+			// useful part and cuts the most.
+			//
+			// _fitShortenHead is set by the fit pass exactly as
+			// _fitShortenFile is, and latched the same way against the width
+			// that triggered it, so the row cannot oscillate between two
+			// lengths once per frame.
+			'{#>}':        this.headingTrailText(hTrail),
 			'{caps}':      this._capsLockOn ? '\x00CAPS\x00' : '',
 			'{num}':       this._numLockOn  ? '\x00NUM\x00'  : '',
 			'{vim}':       this.getVimModeLabel(),
@@ -11579,13 +11899,32 @@ module.exports = class WordSmith extends Plugin {
 		// broken even when it works.
 		const nodes = [];
 		let cur = null;
-		const addText = (s, isTok) => {
+		// `name` is the token this text came from, when it came from one.
+		// Carried so the fit pass can tell a note's name from a word count
+		// without guessing from the rendered text — see fitClassOf. Only
+		// the identity tokens are recorded; everything else is a reading and
+		// needs no mark.
+		const IDENTITY_TOKENS = { '{file}': 1, '{vim}': 1 };
+		// The clock goes EARLY. It is a reading by shape — it renders a
+		// number that changes — but not by use: the time is on the system
+		// clock, the phone and the wall, and a writer glancing at the bar to
+		// find it is glancing at their fourth-nearest clock. So it sits
+		// between ornament and the readings that are actually about the
+		// work, and sheds before any of them.
+		const AMBIENT_TOKENS = { '{time}': 1, '{clock}': 1 };
+		const addText = (s, isTok, name) => {
 			if (!s) return;
 			if (!cur || (isTok && cur.tok)) { cur = { text: '', tok: false }; nodes.push(cur); }
 			cur.text += s;
 			if (isTok) cur.tok = true;
+			if (name && IDENTITY_TOKENS[name]) cur.identity = true;
+			if (name && AMBIENT_TOKENS[name]) cur.ambient = true;
 		};
-		const addEl = (name) => { nodes.push({ el: name }); cur = null; };
+		// `tok` is the token that produced this element, so a drawn token can
+		// be classified the same way a written one is. {clock} is the reason:
+		// it renders as a dial rather than as text, so the text path above
+		// never sees it.
+		const addEl = (name, tok) => { nodes.push({ el: name, tok }); cur = null; };
 
 		// Soft marks (:: >> <<) first, so the token walk below never sees
 		// them. They used to be split out by the POWERLINE renderer only,
@@ -11619,8 +11958,8 @@ module.exports = class WordSmith extends Plugin {
 					// sentinel; everything else is text. \x00 cannot appear
 					// in a format string or a note name, so the test is
 					// unambiguous.
-					if (v.charCodeAt(0) === 0) addEl(v.slice(1, -1));
-					else addText(v, true);
+					if (v.charCodeAt(0) === 0) addEl(v.slice(1, -1), m[0]);
+					else addText(v, true, m[0]);
 					last = m.index + m[0].length;
 				}
 			}
@@ -11673,14 +12012,22 @@ module.exports = class WordSmith extends Plugin {
 					gr.className = 'zg-pl-grad';
 					gr.style.width = (Number(n.el.slice(3)) * 0.25) + 'em';
 					frag.appendChild(gr);
-				} else if (builders[n.el]) frag.appendChild(builders[n.el]());
+				} else if (builders[n.el]) {
+					const drawn = builders[n.el]();
+					if (drawn && drawn.classList && n.tok && AMBIENT_TOKENS[n.tok]) {
+						drawn.classList.add('zg-fit-ambient');
+					}
+					frag.appendChild(drawn);
+				}
 				continue;
 			}
 			if (!n.text) continue;
 			// Wrapped rather than appended as a bare text node: the fit pass
 			// drops elements, and a text node cannot be hidden or selected.
 			const t = document.createElement('span');
-			t.className = 'zg-fit-item';
+			t.className = 'zg-fit-item'
+				+ (n.identity ? ' zg-fit-identity' : '')
+				+ (n.ambient ? ' zg-fit-ambient' : '');
 			t.textContent = n.text;
 			frag.appendChild(t);
 		}
@@ -11699,6 +12046,24 @@ module.exports = class WordSmith extends Plugin {
 	// A reduction that changes the TEXT has to be re-rendered, not patched
 	// in place. Guarded: the rebuild schedules another fit, and without the
 	// flag a mistake in the latch above would spin.
+	// How many crumbs the caret's trail has, for the fit pass to know
+	// whether there is anything left to drop.
+	headingCrumbCount() {
+		try {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (!view) return 0;
+			return this.headingTrail(view).filter(Boolean).length;
+		} catch (_) { return 0; }
+	}
+
+	// The {#>} trail at its current shortening level.
+	headingTrailText(hTrail) {
+		const crumbs = hTrail.filter(Boolean);
+		if (!crumbs.length) return '';
+		const drop = Math.min(this._fitShortenHead || 0, crumbs.length - 1);
+		return crumbs.slice(drop).join(' \u203a ');
+	}
+
 	requestBarRebuild() {
 		if (this._barRebuilding) return;
 		this._barRebuilding = true;
@@ -12190,6 +12555,27 @@ module.exports = class WordSmith extends Plugin {
 			// is above it. `right` is cleared with them: the stylesheet does
 			// not set it, but the removed side inset did, and a stale value
 			// would fight the width.
+			// Also published as variables, so anything else that wants to
+			// trace the note's column can. The Hemingway screen flash is
+			// the first: it draws a ring around the note rather than
+			// washing the whole window, and the window is the wrong shape
+			// for that — the note is a column inside it.
+			// Named --zg-col-*, not --zg-note-*: `zg-note` is a TOMBSTONED
+			// prefix from the removed mini-theme, and removal_test forbids
+			// it in the stylesheet by name. Reusing a retired prefix would
+			// have been confusing even without the test.
+			//
+			// Guarded like everything else in this method: it runs from
+			// stampMaskPositions, and a throw here takes mask placement down
+			// with it. That is not hypothetical — this line threw in the
+			// harness the moment it was written.
+			try {
+				const b = document.body && document.body.style;
+				if (b && b.setProperty) {
+					b.setProperty('--zg-col-left',  left + 'px');
+					b.setProperty('--zg-col-width', width + 'px');
+				}
+			} catch (_) {}
 			el.style.setProperty('left',  left + 'px',  'important');
 			el.style.setProperty('width', width + 'px', 'important');
 			el.style.removeProperty('right');
@@ -13944,7 +14330,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// writer is most likely to have come here for, and — since TABS[0]
 		// is what a fresh install opens on — the best first thing to see.
 		const TABS = [
-			{ id: 'retrobar',   label: 'Retro Bar',    render: this.displayRetroBarTab },
+			{ id: 'retrobar',   label: 'Powerline',    render: this.displayRetroBarTab },
 			{ id: 'zen',        label: 'Zen',          render: this.displayZenTab },
 			{ id: 'letterbox',  label: 'Letter Box',   render: this.displayLetterboxSection },
 			{ id: 'typewriter', label: 'Typewriter',   render: this.displayTypewriterTab },
@@ -14190,7 +14576,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const hide = this.sub(z);
 			this.toggle(hide, 'Properties',       'Properties and frontmatter.',   'hideProperties');
 			this.toggle(hide, 'Inline title',      'The title above the note.',            'hideInlineTitle');
-			this.toggle(hide, 'Native status bar', 'The retro bar covers it anyway while it\u2019s on.', 'hideStatusBar');
+			this.toggle(hide, 'Native status bar', 'The powerline bar covers it anyway while it\u2019s on.', 'hideStatusBar');
 			this.toggle(hide, 'Linked mentions',   'The list of links at the bottom of a note.',            'hideLinkedMentions');
 			this.toggle(hide, 'Scroll bar',        'The letterbox hides it regardless.',              'hideScrollBar');
 			this.toggle(hide, 'Ribbon',            'The strip of icons down the left.',               'hideRibbon');
@@ -14200,7 +14586,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// element each one is would be an implementation detail on
 			// display. saveSettings(true) because the bar has to move now,
 			// not on the next debounce.
-			this.toggle(hide, 'Retro bar',         'The one this plugin draws.',
+			this.toggle(hide, 'Powerline bar',     'The one this plugin draws.',
 				'zenHideBar', () => this.plugin.saveSettings(true));
 			if (this.plugin.settings.zenHideBar) {
 				this.slider(this.sub(hide), 'Bring it back on hover',
@@ -14458,7 +14844,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// ── Retro Bar tab ──────────────────────────────────────────────────────────
 	displayRetroBarTab(containerEl) {
 		new Setting(containerEl)
-			.setName('Retro status bar')
+			.setName('Powerline status bar')
 			.setDesc('Swaps Obsidian\u2019s status bar for one you put together yourself.')
 			.addToggle(t => t.setValue(this.plugin.settings.enableRetroStatus)
 				.onChange(async v => {
@@ -15045,7 +15431,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				.onClick(() => this.plugin.openHistoryModal()));
 
 		containerEl.createEl('p', {
-			text: 'Tip: put {history} in a retro bar row and you get a button that opens this.',
+			text: 'Tip: put {history} in a powerline row and you get a button that opens this.',
 			cls: 'ws-settings-note'
 		});
 
@@ -15302,7 +15688,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 
 		ck.createEl('p', {
-			text: 'Tip: add {report} to your retro bar to get at the full counts.',
+			text: 'Tip: add {report} to your powerline bar to get at the full counts.',
 			cls: 'ws-settings-note'
 		});
 	}
@@ -15350,7 +15736,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			.addDropdown(d => d
 				.addOption('none',     'None')
 				.addOption('icon',     'The Modes button only')
-				.addOption('retrobar', 'Retro bar')
+				.addOption('retrobar', 'Powerline bar')
 				.addOption('screen',   'Screen')
 				.addOption('both',     'Screen and bar')
 				.setValue(this.plugin.settings.hemFlashTarget || 'screen')
@@ -15484,7 +15870,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		}
 
 		containerEl.createEl('p', {
-			text: 'Mode labels and their colours live in the Retro Bar tab now \u2014 they\u2019re '
+			text: 'Mode labels and their colours live in the Powerline tab now \u2014 they\u2019re '
 				+ 'about how the {vim} token looks, so that\u2019s where they belong.',
 			cls: 'ws-settings-note'
 		});
@@ -15503,6 +15889,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 			'quickExplorer');
 		this.toggle(qp, 'Quick outline', 'And one for the outline.',
 			'quickOutline');
+
+		this.toggle(qp, 'Menu',
+			'One pop-up for modes, syntax, prose, font and markers. Bind it to a '
+			+ 'key in Obsidian\u2019s Hotkeys settings \u2014 most people use Ctrl+M.',
+			'barMenu');
 
 		this.toggle(qp, 'Quick cycle',
 			'Four commands: move focus left, right, up or down, sidebars included.',
