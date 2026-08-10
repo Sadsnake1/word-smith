@@ -1,20 +1,20 @@
 # Word-Smith
 
-A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, and a record of how much you write each day.
+A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, twenty colour schemes for the whole workspace, and a record of how much you write each day.
 
 Everything is separate, and everything can be switched off on its own.
 
 ## Showcase
 
+<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
-<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 <img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
+<img width="1920" height="1080" alt="33" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
-<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 ## What it does
 
-**Zen** clears everything away but your words — chrome, ribbon, sidebars, the scroll bar, and optionally every other pane and the retro bar itself. Press `Escape` to come back.
+**Zen** clears everything away but your words — chrome, ribbon, sidebars, the scroll bar, and optionally every other pane and the powerline bar itself. Press `Escape` to come back.
 
 **Letter box** masks the top and bottom of the screen so you only see what you're working on. Drag the line to resize the band, drag the arrows to change the inset. The arrows are yours to shape — five styles or your own characters, one to ten of them, any size. It stands down in reading view, where there is no caret to frame.
 
@@ -22,7 +22,7 @@ Everything is separate, and everything can be switched off on its own.
 
 **Hemingway** blocks the keys you'd use to go back and fiddle, so a first draft can only move forward. Every lock is separate — backspace, undo, cut, paste, arrows, clicks. A blocked key can flash the screen, the bar, a badge, or nothing.
 
-**Retro bar** replaces Obsidian's status bar with one to three rows you compose yourself. More on this below.
+**Powerline** replaces Obsidian's status bar with one to three rows you compose yourself. More on this below.
 
 **Syntax** gives nouns, verbs, adjectives, adverbs and conjunctions their own colour, and can mute everything else so one class carries the sentence.
 
@@ -34,16 +34,19 @@ Both of those run entirely on your machine, and both are guesswork — a mark is
 
 **Typography** turns what you type into the proper characters as you go: curly quotes, ellipses, en and em dashes, arrows, fractions. Never inside code, maths or frontmatter, and undo gives back exactly what you typed.
 
+**Themes** dress the whole workspace — editor, sidebars, panels — in one of twenty colour schemes, each a matched dark/light pair that follows Obsidian's mode. Your bar palette is left alone.
+
 **Goals** and **History** are below.
 
 ## Getting started
 
-Only the retro bar is on when you install it. Zen, letter box, typewriter, Hemingway, syntax, prose checks, typography and history all start off, so there is nothing to undo while you find your way around.
+Only the powerline bar and the menu are on when you install it. Zen, letter box, typewriter, Hemingway, syntax, prose checks, typography and history all start off, so there is nothing to undo while you find your way around.
 
-1. Open **Settings → Word-Smith**. It opens on the **Retro Bar** tab, which is the one with the most in it.
+1. Open **Settings → Word-Smith**. It opens on the **Powerline** tab, which is the one with the most in it.
 2. Try one of the two shipped bars from the preset row before writing your own — they are worked examples of the row grammar, and you can pull one apart to see how it is put together.
 3. Turn on **Zen** and **Letter box** from the same settings, from the command palette, or from the **Modes** button if your bar carries one.
-4. Leave **History** for last. It is off until you switch it on, and it can only count from the day you do.
+4. If you want the workspace recoloured, open the **Theme** tab and pick a scheme — or press the theme row in the menu. Everything else stays as you set it.
+5. Leave **History** for last. It is off until you switch it on, and it can only count from the day you do.
 
 ## Where it applies
 
@@ -69,17 +72,17 @@ Open a canvas, a PDF or an empty tab and the bar stands down and Obsidian's own 
 
 ## Zen and the letter box
 
-Zen is a list of things to hide, not a single mode: properties, the inline title, Obsidian's own status bar, linked mentions, the scroll bar, the ribbon and the retro bar, each with its own switch — plus **full screen**, **focused file mode** (hide every other pane so only this note is open), and a title bar painted to match the editor. So "zen" ends up meaning whatever you decide it means.
+Zen is a list of things to hide, not a single mode: properties, the inline title, Obsidian's own status bar, linked mentions, the scroll bar, the ribbon and the powerline bar, each with its own switch — plus **full screen**, **focused file mode** (hide every other pane so only this note is open), and a title bar painted to match the editor. So "zen" ends up meaning whatever you decide it means.
 
 `Escape` leaves it. In Vim's insert, visual and replace modes it doesn't — a writer mid-sentence pressing escape wants normal mode, not their tabs back — so there it costs one extra keystroke instead of a keybinding.
 
-**Hide the bar, and it comes back on hover.** With the retro bar hidden by zen, moving the pointer to the bottom of the window slides it up, and it lingers a moment after you move away so you can actually read it. Set that linger to 0 and it never comes back, which is the off switch.
+**Hide the bar, and it comes back on hover.** With the powerline bar hidden by zen, moving the pointer to the bottom of the window slides it up, and it lingers a moment after you move away so you can actually read it. Set that linger to 0 and it never comes back, which is the off switch.
 
 The letter box is two masks in the note's own background colour, so it reads as a narrowing page rather than a black bar laid over one. Both bands are draggable — the line resizes the mask, the arrows set the horizontal inset — and on desktop the top band moves the window itself, the way a title bar would, with the window controls left clickable.
 
 You can cap the ends of the separator lines with an arrow, give the arrows and lines their own colours for dark and light themes, and set how far the caret is kept from whatever occupies the edge of the window — the bar, the letterbox, or the Vim command line.
 
-## The retro bar
+## The powerline bar
 
 A bar at the bottom sized to match your note, not the window. One to three rows, each with a left, centre and right slot, each taking any mix of tokens.
 
@@ -105,19 +108,21 @@ Two bars ship with it — **Plain** and **Code**. Plain is what you get on a fre
 
 | | |
 |---|---|
-| `{#}` `{##}` `{###}` | The heading above your cursor, at that level |
-| `{####}` `{#####}` `{######}` | And the three deeper ones |
 | `{#>}` | The whole path: `Chapter 3 › The Ferry › Beat 2` |
 
-Each heading clears the ones below it, so you always get one path down the note — land under a chapter with no scenes and the scene slot goes empty rather than showing the last chapter's.
+It is empty above the first heading, and the leading crumbs drop first when the row runs out of room, so the heading you are actually under survives longest.
+
+Six per-level tokens — `{#}` through `{######}` — were retired in 1.2.7 and are no longer listed anywhere. They still resolve, and they always will: an unrecognised token stays visible as text, so removing them outright would make every saved bar and posted share code holding one start printing `{##}` instead of a heading.
 
 ### Buttons
 
 Click these. They're never dropped when the bar runs out of room.
 
-`{syntax}` `{prose}` `{markers}` `{font}` — pickers for word classes, prose checks, hidden characters, and your font.
+`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` — pickers for word classes, prose checks, hidden characters, your font, and your colour scheme.
 
 `{font}` shows **Aa** and `{markers}` shows **¶** by default; either can be set to show its name instead, under Token formats. The font button renders in the face you have chosen either way.
+
+`{theme}` names the scheme you're wearing — and names the *half*, so it reads **Modus Vivendi** at night and **Modus Operandi** by day. With themes switched off it reads **Theme** and dims.
 
 `{report}` — the writing report. `{history}` — your writing history.
 
@@ -175,17 +180,59 @@ Marks are drawn in the text's own colour rather than as a colour boundary: `::` 
 
 They are drawn in the row's own foreground and need no segment behind them. Type them doubled: a single `>` or `<` is a divider, and a single `:` starts a colour.
 
-All of this is also in the plugin, under **How to write a row** in the Retro Bar tab.
+All of this is also in the plugin, under **How to write a row** in the Powerline tab.
 
 ### Sizing
 
 Row height, font size, padding and edge rules are all configurable. The top and bottom rules take a style (solid, dashed, dotted or double), a thickness, and a colour each — top and bottom separately, with a dark-theme and a light-theme pair, so a bar sitting against the window edge can carry weight on one edge only. The bar's text can instead match your note's own size, so it follows Ctrl+scroll zoom.
 
-When the window narrows it sheds content in a fixed order rather than wrapping. The file path shortens to just the note's name first. Then the fades go — all of them at once, since a half-dropped gradient looks worse than none, and they carry nothing to lose. Then the shaped end points. Only then do readouts start dropping, from the edges inward. Buttons always survive, and everything comes straight back when the window widens.
+When the window narrows it sheds content by **what a thing is worth**, not by where it sits. The file path shortens to just the note's name first, and a long `{#>}` trail drops its leading crumbs one at a time — the deepest heading is the one that says where you are, so the chapter above it goes first. Then the fades, all at once, since a half-dropped gradient looks worse than none. Then the shaped end points.
+
+Only then does anything with meaning go, and in order: decoration first (rules and slivers), then lone glyphs, then the clock — the time is on your system clock and the wall too, so the bar gives it up before anything about the work — then the rest of the readouts, and last of all the things that say where you are: the file name and the Vim mode. Within each of those, dropping still works from the edges inward. Buttons always survive, and everything comes straight back when the window widens.
 
 Give a `{g}` a colour of its own and it stops being a fade — it is a solid sliver you asked for, and it sheds in the ordinary order with everything else.
 
 It can also be slid away without being switched off — from the command palette, or automatically as part of zen — and brought back by putting the pointer near the bottom of the window.
+
+## Themes
+
+Twenty colour schemes for the whole workspace — editor, sidebars, panels — each a **matched pair** that follows Obsidian's own light/dark mode and names the half you're looking at.
+
+**Modus Vivendi / Operandi** (plain, Tinted, Deuteranopia, Tritanopia — Protesilaos Stavrou's), **Quiet**, **Habamax**, **Nord**, **Dracula**, **Gruvbox**, **Solarized**, **Catppuccin**, **Tokyo Night / Day**, **Rosé Pine**, **Monokai**, **One Dark / Light**, **Nightfox / Dayfox**, **Kanagawa Wave / Lotus**, **GitHub**, **Everforest**, **Vim Blue / Darkblue**.
+
+Where a scheme's authors never shipped a light half, the light half is an adaptation rather than a survived dark palette, and the theme's card says so.
+
+A scheme writes Obsidian's own CSS variables and **touches no bar colour** — your palette, your presets and your share codes are exactly as you left them. The bar follows along anyway, because `:b1`–`:b4` already read the surfaces a theme rewrites.
+
+### The shelf
+
+The Theme tab is a list you curate, the same way Obsidian's font list works: **drag a card and its position is its priority**, in the tab and in the menu alike. `✕` removes a scheme to a *Removed* row below; one click brings it back. Nothing is ever deleted.
+
+At the top is a master switch. Off, no scheme is applied and nothing is written anywhere — and nothing is forgotten either: your shelf, your options and your chosen scheme all wait there for it to come back on. Choosing a scheme from the bar switches it on; choosing **Default** switches it off.
+
+### Options
+
+Each one is separate, and each is off unless it says otherwise:
+
+| | |
+|---|---|
+| **Colored headings** | H1–H6 take inks derived from the scheme's own accents, each pulled toward the text ink until it actually reads |
+| **Colored code** | Code blocks sit on the scheme's panel surface, syntax inks derived the same way |
+| **Colored markdown** | Bold takes the scheme's loudest ink; italics, links and tags take its accents |
+| **Simplified theme** | One wash — sidebars, header row and title bar all take the editor's colour, and the dividers are painted out. Off, each surface gets its own step of the scheme's ramp |
+| **Hide workspace borders** | Empties the dividers and tab outlines. A look, not a scheme: it works with no scheme worn |
+| **Color the cursor** | Hands the scheme's accent to Cursor-Smith, if you have it |
+| **↳ Color Vim modes** | Under the above: each Vim mode gets its own colour, so the cursor says what the next keystroke will do |
+
+Selection, hover, the selected file and the focus outline follow the scheme in every case. Selection uses each scheme's own selection colour, with the text on it inverted to whichever ink actually reads.
+
+### Cursor-Smith
+
+If [Cursor-Smith](https://github.com/sadsnake1/cursor-smith) is installed, the scheme can colour the caret: the flat colour and all four gradient stops, in both halves, taking **the same ink an H1 takes** — Vim Darkblue's yellow, Nord's frost blue, Everforest's green.
+
+With the Vim option on, each mode gets a colour of its own — Insert green, Visual purple, Replace red, Command yellow, Normal the accent — resolved so no two modes in a scheme land on the same hue. On a monochrome scheme like Quiet they're shades of grey instead, told apart by weight: a scheme chosen for having no colour doesn't get a neon cursor.
+
+The cursor's *shape* and effects stay yours; only colour is touched. Turning the option off — or choosing **Default**, or the master switch — gives your own cursor colours back: Word-Smith records what Cursor-Smith looked like before its first write and hands it back on the way out. If the caret was coloured by a version that predates that record, it returns to Cursor-Smith's own defaults instead.
 
 ## Goals
 
@@ -254,7 +301,9 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps
 
 - **`H` `J` `K` `L` work in the sidebars**, if quick cycle is on. Obsidian's file tree and outline navigate by arrow keys and nothing else; this translates the letters, so everything the arrows do still happens.
 
-`{vim}` puts the current mode on the bar, and `:vim` / `;vim` recolour a segment or the whole bar as the mode changes.
+`{vim}` puts the current mode on the bar, and `:vim` / `;vim` recolour a segment or the whole bar as the mode changes. With a theme on and Cursor-Smith installed, the caret can carry the mode's colour too — see **Themes**.
+
+In the Word-Smith menu, `h`/`j`/`k`/`l` navigate only while Vim mode is on.
 
 ## Commands
 
@@ -267,15 +316,32 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills two gaps
 | Toggle Hemingway mode | |
 | Toggle syntax highlighting | |
 | Toggle prose checks | |
-| Toggle the retro bar on/off | Slides it away without switching it off |
-| Cycle retrobar presets | Steps through your saved bars |
+| Toggle the powerline bar on/off | Slides it away without switching it off |
+| Cycle powerline presets | Steps through your saved bars |
 | Show the writing report | |
 | Show the writing history | |
+| Menu | Modes, syntax, prose, font and markers in one pop-up |
 | Quick file explorer | Switch it on in **Misc** first |
 | Quick outline | |
 | Quick cycle: focus left / right / up / down | Four commands, also **Misc**. No default keys — see below |
 
 Everything else is in the settings tabs, or on the bar itself.
+
+### Menu
+
+One pop-up for everything you change while writing: **modes**, **syntax**, **prose checks**, **markers**, **font**, **theme**, and a **light/dark toggle** that names what pressing it does — *Light Mode* while you're dark, *Dark Mode* the moment you aren't. The rows read from the same lists the bar's buttons use, so there's one place these are defined and the menu never drifts from the bar.
+
+**Type to search.** The field at the top searches rows and their contents at once, fuzzily — `nord` finds the Nord scheme without your knowing it lives under Theme, `tky` finds Tokyo Night, `theme kan` finds Kanagawa. Each result names the row it came from, so finding something also tells you where it lives. Escape clears the query; Escape again closes the menu.
+
+It's **keyboard-only** — nothing in it needs the mouse. Rows expand in place rather than opening a second popup: the arrows move, Enter opens a row and toggles what's inside it, and Escape backs out one level at a time. Changes apply live behind the panel, so there's nothing to confirm.
+
+**`h`/`j`/`k`/`l` steer only when Obsidian's Vim mode is on** — otherwise they're letters, because the search field is full of schemes spelled with them. Even with Vim on they type while the search field has focus, and `Ctrl+J`/`Ctrl+K` move without leaving it.
+
+Below a divider sit the **writing report** and **history**, which open rather than set.
+
+Bind it in Obsidian's Hotkeys settings — most people use `Ctrl+M`.
+
+It matters most on a narrow window. The bar sheds its buttons when there isn't room for them, and without the menu those pickers were reachable only at widths that happened to fit.
 
 ### Quick panels
 
@@ -299,11 +365,12 @@ There's one sub-option: **close a sidebar when you leave it**. Off by default. I
 
 ## Settings map
 
-Thirteen tabs, each one a feature with its own master switch:
+Fourteen tabs, each one a feature with its own master switch:
 
 | | |
 |---|---|
-| **Retro Bar** | Rows, presets, share codes, powerline and rule colours, token formats, and the full format reference |
+| **Powerline** | Rows, presets, share codes, powerline and rule colours, token formats, and the full format reference |
+| **Theme** | The scheme shelf, its order, and the options above |
 | **Zen** | What to hide, what to do with `Escape`, caret margin |
 | **Letter Box** | Mask height, arrows, separator lines, colours |
 | **Typewriter** | Where the line sits, focus area, current-line tint |
@@ -314,7 +381,7 @@ Thirteen tabs, each one a feature with its own master switch:
 | **Typography** | Which substitutions run as you type |
 | **Goals** | Targets per note and folder, and what to leave out |
 | **History** | Tracking, the history file, and deleting it |
-| **Misc** | Quick panels, quick cycle, word counts in the file tree and outline, frontmatter overrides |
+| **Misc** | The menu, quick panels, quick cycle, word counts in the file tree and outline, frontmatter overrides |
 | **Vim** | Wrapped-line motions |
 
 ## Right-to-left
@@ -340,6 +407,10 @@ Copy all three when you update, not just `main.js` — the plugin checks they ma
 **A row prints `{sometoken}` instead of a number.** That token doesn't exist. Unknown tokens are left visible on purpose, so a typo shows itself instead of silently rendering as blank.
 
 **A segment vanished.** A segment whose tokens all resolve to nothing is dropped along with its dividers — `{vim}` outside Vim mode, `{caps}` with caps lock off. That is the bar refusing to show you a coloured stub, not a bug.
+
+**A theme changed nothing.** Check the master switch at the top of the Theme tab — with it off, a scheme is remembered but never painted. Picking a scheme from the menu switches it back on.
+
+**A community theme still shows through.** Word-Smith writes Obsidian's own variables, so anything a theme paints with a hard-coded colour instead of a variable stays its own. Open an issue with the theme's name — the fix is usually one more variable.
 
 **Your history file is the only copy.** It's an ordinary note in your vault. Back it up with the rest of your vault, and don't delete it expecting the plugin to have another one.
 
