@@ -1211,20 +1211,42 @@ const PL_TEXT_COUNT = PL_BG_COUNT;
 
 const BAR_THEMES = [
 	{
+		// EVERY VALUE BELOW IS UPSTREAM'S, from Protesilaos Stavrou's own
+		// published palette (protesilaos.com/emacs/modus-themes-colors,
+		// released CC0). The mapping is the interesting part, because the
+		// Modus palettes name the exact roles this table needs:
+		//
+		//   b1-b4  bg-main, bg-dim, bg-inactive, border
+		//   t1/t3  fg-main, fg-dim
+		//   t4     accent-0
+		//   sel    bg-region     bar  bg-mode-line-active
+		//   c1     bg-completion — the surface a chosen candidate wears,
+		//          which is what our selected-file slot IS
+		//   c4/c7  bg-added / bg-removed, NOT green/red by name: that pair
+		//          is where each variant states its own semantics, and on
+		//          the colour-vision variants it is deliberately not
+		//          red-and-green. Deuteranopia adds in blue and removes in
+		//          yellow; tritanopia adds in cyan and removes in red. Our
+		//          slots follow the MEANING rather than the hue, so those
+		//          variants stay legible to the eyes they were built for.
+		//   c5/c6  bg-yellow-subtle, bg-magenta-subtle
+		//
+		// Guessed approximations sat here until the palette was fetched.
 		id: 'modus', name: 'Modus',
 		names: { dark: 'Modus Vivendi', light: 'Modus Operandi' },
-		note: 'Protesilaos Stavrou\u2019s Emacs themes \u2014 Vivendi and Operandi',
-		dark:  { b1: '#000000', b2: '#100f10',
-		         b3: '#191a1b', b4: '#242526',
-		         c1: '#0a2f5c', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#00422a',
-		         c5: '#4f3d00', c6: '#3b2f5c', c7: '#620f2a',
-		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#2fafff', sel: '#3c3c3c' },
-		light: { b1: '#ffffff', b2: '#f2f2f2',
-		         b3: '#e8e8e8', b4: '#dcdcdc',
-		         c1: '#cceaff', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#c0efc0',
-		         c5: '#f0e0a0', c6: '#e0d0ff', c7: '#ffcfcf',
-		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#bcbcbc' }
+		note: 'Protesilaos Stavrou \u2014 his own published palette',
+		dark:  { b1: '#000000', b2: '#1e1e1e', b3: '#303030', b4: '#646464',
+		         c1: '#2f447f', c2: '#1e1e1e', c3: '#000000', c4: '#00422a',
+		         c5: '#4a4000', c6: '#552f5f', c7: '#620f2a',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#00bcff',
+		         sel: '#5a5a5a', bar: '#505050', cur: '#ffffff' },
+		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e0e0e0', b4: '#9f9f9f',
+		         c1: '#c0deff', c2: '#f2f2f2', c3: '#ffffff', c4: '#b3fabf',
+		         c5: '#fff576', c6: '#ffddff', c7: '#ffcfbf',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9',
+		         sel: '#bdbdbd', bar: '#c8c8c8', cur: '#000000' }
 	},
+
 	{
 		id: 'quiet', name: 'Quiet',
 		note: 'Vim\u2019s own quiet \u2014 near-monochrome, on purpose',
@@ -1237,7 +1259,7 @@ const BAR_THEMES = [
 		         b3: '#e6e6e6', b4: '#dadada',
 		         c1: '#dadada', c2: '#e6e6e6', c3: '#f0f0f0', c4: '#e0e0e0',
 		         c5: '#d8d8d8', c6: '#e4e4e4', c7: '#cccccc',
-		         t1: '#1c1c1c', t2: '#f0f0f0', t3: '#6c6c6c', t4: '#1c1c1c', sel: '#c8c8c8' }
+		         t1: '#1c1c1c', t2: '#f0f0f0', t3: '#6c6c6c', t4: '#1c1c1c', sel: '#c8c8c8', bar: '#dadada' }
 	},
 	{
 		id: 'habamax', name: 'Habamax',
@@ -1246,7 +1268,7 @@ const BAR_THEMES = [
 		         b3: '#303030', b4: '#3a3a3a',
 		         c1: '#004f71', c2: '#303030', c3: '#1c1c1c', c4: '#005454',
 		         c5: '#634500', c6: '#484867', c7: '#870000',
-		         t1: '#bcbcbc', t2: '#1c1c1c', t3: '#808080', t4: '#87afaf', sel: '#454545' },
+		         t1: '#bcbcbc', t2: '#1c1c1c', t3: '#808080', t4: '#87afaf', sel: '#454545', bar: '#9e9e9e' },
 		light: { b1: '#ffffff', b2: '#f0f0f0',
 		         b3: '#e4e4e4', b4: '#d0d0d0',
 		         c1: '#cfe4f0', c2: '#e4e4e4', c3: '#f2f2f2', c4: '#d0ecdc',
@@ -1260,12 +1282,12 @@ const BAR_THEMES = [
 		         b3: '#434c5e', b4: '#4c566a',
 		         c1: '#4c6a91', c2: '#3b4252', c3: '#2e3440', c4: '#3f6650',
 		         c5: '#7a5f34', c6: '#6b5470', c7: '#8f4148',
-		         t1: '#eceff4', t2: '#2e3440', t3: '#9aa4b6', t4: '#88c0d0', sel: '#434c5e' },
+		         t1: '#eceff4', t2: '#2e3440', t3: '#9aa4b6', t4: '#88c0d0', sel: '#434c5e', bar: '#4c566a' },
 		light: { b1: '#eceff4', b2: '#e5e9f0',
 		         b3: '#d8dee9', b4: '#c8d0dc',
 		         c1: '#c5d4e8', c2: '#d8dee9', c3: '#eceff4', c4: '#cfe0c8',
 		         c5: '#f0e2bd', c6: '#e2d3e5', c7: '#f0cdd0',
-		         t1: '#2e3440', t2: '#eceff4', t3: '#5c6779', t4: '#5e81ac', sel: '#d8dee9' }
+		         t1: '#2e3440', t2: '#eceff4', t3: '#5c6779', t4: '#5e81ac', sel: '#d8dee9', bar: '#d8dee9' }
 	},
 	{
 		id: 'dracula', name: 'Dracula',
@@ -1274,7 +1296,7 @@ const BAR_THEMES = [
 		         b3: '#44475a', b4: '#565a72',
 		         c1: '#4a3f7a', c2: '#44475a', c3: '#282a36', c4: '#2f6b46',
 		         c5: '#7a6a2a', c6: '#6b3f6b', c7: '#8b3a3a',
-		         t1: '#f8f8f2', t2: '#282a36', t3: '#a0a3b8', t4: '#bd93f9', sel: '#44475a' },
+		         t1: '#f8f8f2', t2: '#282a36', t3: '#a0a3b8', t4: '#bd93f9', sel: '#44475a', bar: '#44475a' },
 		light: { b1: '#f8f8f2', b2: '#eeeef0',
 		         b3: '#e0e0e6', b4: '#cfcfd8',
 		         c1: '#d9d0f5', c2: '#e8e8e2', c3: '#f8f8f2', c4: '#cdeed8',
@@ -1288,12 +1310,12 @@ const BAR_THEMES = [
 		         b3: '#3c3836', b4: '#504945',
 		         c1: '#376769', c2: '#504945', c3: '#282828', c4: '#65610c',
 		         c5: '#825700', c6: '#8f3f71', c7: '#9d0006',
-		         t1: '#ebdbb2', t2: '#282828', t3: '#a89984', t4: '#83a598', sel: '#504945' },
+		         t1: '#ebdbb2', t2: '#282828', t3: '#a89984', t4: '#83a598', sel: '#504945', bar: '#504945' },
 		light: { b1: '#fbf1c7', b2: '#f2e5bc',
 		         b3: '#ebdbb2', b4: '#d5c4a1',
 		         c1: '#cfe0dd', c2: '#ebdbb2', c3: '#fbf1c7', c4: '#d5e6c0',
 		         c5: '#f2e0b0', c6: '#ecd5e4', c7: '#f5d2c8',
-		         t1: '#3c3836', t2: '#fbf1c7', t3: '#7c6f64', t4: '#076678', sel: '#d5c4a1' }
+		         t1: '#3c3836', t2: '#fbf1c7', t3: '#7c6f64', t4: '#076678', sel: '#d5c4a1', bar: '#d5c4a1' }
 	},
 	{
 		id: 'solarized', name: 'Solarized',
@@ -1302,12 +1324,12 @@ const BAR_THEMES = [
 		         b3: '#0a4653', b4: '#125666',
 		         c1: '#196ba3', c2: '#073642', c3: '#002b36', c4: '#5a6a00',
 		         c5: '#7a5c00', c6: '#94275e', c7: '#99231f',
-		         t1: '#eee8d5', t2: '#002b36', t3: '#93a1a1', t4: '#2aa198', sel: '#073642' },
+		         t1: '#eee8d5', t2: '#002b36', t3: '#93a1a1', t4: '#2aa198', sel: '#073642', bar: '#839496' },
 		light: { b1: '#fdf6e3', b2: '#f5eed6',
 		         b3: '#eee8d5', b4: '#ded8c5',
 		         c1: '#cfe2f0', c2: '#eee8d5', c3: '#fdf6e3', c4: '#dfe8c0',
 		         c5: '#f2e4bb', c6: '#f5d3e2', c7: '#f7d2cf',
-		         t1: '#073642', t2: '#fdf6e3', t3: '#657b83', t4: '#268bd2', sel: '#eee8d5' }
+		         t1: '#073642', t2: '#fdf6e3', t3: '#657b83', t4: '#268bd2', sel: '#eee8d5', bar: '#073642' }
 	},
 	{
 		id: 'catppuccin', name: 'Catppuccin',
@@ -1316,12 +1338,12 @@ const BAR_THEMES = [
 		         b3: '#313244', b4: '#45475a',
 		         c1: '#3e5a8f', c2: '#313244', c3: '#1e1e2e', c4: '#39654d',
 		         c5: '#795433', c6: '#6b4a8f', c7: '#8f3f55',
-		         t1: '#cdd6f4', t2: '#1e1e2e', t3: '#9399b2', t4: '#89b4fa', sel: '#585b70' },
+		         t1: '#cdd6f4', t2: '#1e1e2e', t3: '#9399b2', t4: '#89b4fa', sel: '#585b70', bar: '#181825' },
 		light: { b1: '#eff1f5', b2: '#e6e9ef',
 		         b3: '#dce0e8', b4: '#ccd0da',
 		         c1: '#cfdcf7', c2: '#dce0e8', c3: '#eff1f5', c4: '#d3ecd0',
 		         c5: '#f5ddc8', c6: '#e6d5f7', c7: '#f7d3dc',
-		         t1: '#4c4f69', t2: '#eff1f5', t3: '#6c6f85', t4: '#1e66f5', sel: '#ccd0da' }
+		         t1: '#4c4f69', t2: '#eff1f5', t3: '#6c6f85', t4: '#1e66f5', sel: '#ccd0da', bar: '#e6e9ef' }
 	},
 	{
 		id: 'tokyonight', name: 'Tokyo Night / Day',
@@ -1331,12 +1353,12 @@ const BAR_THEMES = [
 		         b3: '#24283b', b4: '#2f334d',
 		         c1: '#385295', c2: '#292e42', c3: '#1a1b26', c4: '#3e5d37',
 		         c5: '#6a5128', c6: '#5a4380', c7: '#8a3a4a',
-		         t1: '#c0caf5', t2: '#1a1b26', t3: '#787c99', t4: '#7aa2f7', sel: '#33467c' },
+		         t1: '#c0caf5', t2: '#1a1b26', t3: '#787c99', t4: '#7aa2f7', sel: '#33467c', bar: '#16161e' },
 		light: { b1: '#e1e2e7', b2: '#d5d6db',
 		         b3: '#c8c9ce', b4: '#b6b7bd',
 		         c1: '#ccd6f5', c2: '#d8dae5', c3: '#e9e9ec', c4: '#d3e8c8',
 		         c5: '#f2e2c0', c6: '#e0d5f5', c7: '#f5d0d8',
-		         t1: '#33374c', t2: '#e9e9ec', t3: '#5a6699', t4: '#2e7de9', sel: '#b7c1e3' }
+		         t1: '#33374c', t2: '#e9e9ec', t3: '#5a6699', t4: '#2e7de9', sel: '#b7c1e3', bar: '#cfd5e3' }
 	},
 	{
 		id: 'rosepine', name: 'Ros\u00e9 Pine',
@@ -1354,54 +1376,57 @@ const BAR_THEMES = [
 	},
 	{
 		id: 'modus-tinted', name: 'Modus Tinted',
-		// sel on this LIGHT half is the dark grey the vault asked for by
-		// name — selection ink is chosen by measurement (t1 or t2,
-		// whichever reads), so dark-on-light selections get light text
-		// automatically. Every other scheme's sel is its upstream
-		// region/visual surface, or our adaptation where upstream shipped
-		// no light half.
 		names: { dark: 'Modus Vivendi Tinted', light: 'Modus Operandi Tinted' },
 		note: 'the tinted pair \u2014 warm paper by day, deep indigo night',
-		dark:  { b1: '#0d0e1c', b2: '#1d2235', b3: '#2a2e45', b4: '#3a3f58',
-		         c1: '#1d3d8f', c2: '#1d2235', c3: '#0d0e1c', c4: '#00432f',
-		         c5: '#4f3d00', c6: '#3b2f5c', c7: '#620f2a',
-		         t1: '#ffffff', t2: '#000000', t3: '#969696', t4: '#79a8ff', sel: '#41455f' },
-		light: { b1: '#fbf7f0', b2: '#efe9dd', b3: '#e8e2d4', b4: '#d8d2c4',
-		         c1: '#c6d5ff', c2: '#efe9dd', c3: '#fbf7f0', c4: '#c4e5c8',
-		         c5: '#f0e0a0', c6: '#e0d0ff', c7: '#ffcfcf',
-		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#595959' }
+		dark:  { b1: '#0d0e1c', b2: '#1d2235', b3: '#2b3045', b4: '#61647a',
+		         c1: '#483d8a', c2: '#1d2235', c3: '#0d0e1c', c4: '#00422a',
+		         c5: '#4a4000', c6: '#552f5f', c7: '#620f2a',
+		         t1: '#ffffff', t2: '#0d0e1c', t3: '#989898', t4: '#b6a0ff',
+		         sel: '#555a66', bar: '#484d67', cur: '#ff66ff' },
+		light: { b1: '#fbf7f0', b2: '#efe9dd', b3: '#dfd5cf', b4: '#9f9690',
+		         c1: '#595959', c2: '#efe9dd', c3: '#fbf7f0', c4: '#b3fabf',
+		         c5: '#fff576', c6: '#ffddff', c7: '#ffcfbf',
+		         t1: '#000000', t2: '#fbf7f0', t3: '#595959', t4: '#a0132f',
+		         sel: '#c2bcb5', bar: '#cab9b2', cur: '#d00000' }
 	},
+
 	{
-		// The accents lean on the blue\u2013yellow axis rather than red\u2013green,
-		// which is the point of the pair: values from the upstream palettes,
-		// arranged so nothing meaningful is carried by a red/green contrast.
+		// c4/c7 are bg-added/bg-removed, which upstream puts on the
+		// blue\u2013yellow axis here. Copying green and red into those slots
+		// would have undone the entire point of the variant.
 		id: 'modus-deuteranopia', name: 'Modus Deuteranopia',
 		names: { dark: 'Modus Vivendi Deuteranopia', light: 'Modus Operandi Deuteranopia' },
-		note: 'the red\u2013green\u2013safe pair, on the blue\u2013yellow axis',
-		dark:  { b1: '#000000', b2: '#100f10', b3: '#191a1b', b4: '#242526',
-		         c1: '#0a2f66', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#124f80',
-		         c5: '#5a4d00', c6: '#2c3ea8', c7: '#6f5000',
-		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#79a8ff', sel: '#3c3c3c' },
-		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e8e8e8', b4: '#dcdcdc',
-		         c1: '#cce6ff', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#bfdbf0',
-		         c5: '#efe08c', c6: '#cdd4ff', c7: '#ffe0a0',
-		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#bcbcbc' }
+		note: 'red\u2013green\u2013safe: it adds in blue and removes in yellow',
+		dark:  { b1: '#000000', b2: '#1e1e1e', b3: '#303030', b4: '#646464',
+		         c1: '#2f447f', c2: '#1e1e1e', c3: '#000000', c4: '#003066',
+		         c5: '#4a4000', c6: '#552f5f', c7: '#3d3d00',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#79a8ff',
+		         sel: '#5a5a5a', bar: '#2a2a6a', cur: '#efef00' },
+		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e0e0e0', b4: '#9f9f9f',
+		         c1: '#c0deff', c2: '#f2f2f2', c3: '#ffffff', c4: '#d5d7ff',
+		         c5: '#fff576', c6: '#ffddff', c7: '#f4f099',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#3548cf',
+		         sel: '#bdbdbd', bar: '#d0d6ff', cur: '#0000ff' }
 	},
+
 	{
-		// Same idea on the other axis: blue\u2013yellow confusion, so the pair
-		// leans red and teal.
+		// c4/c7 are bg-added/bg-removed on the red\u2013cyan axis, upstream's
+		// own answer for this deficiency.
 		id: 'modus-tritanopia', name: 'Modus Tritanopia',
 		names: { dark: 'Modus Vivendi Tritanopia', light: 'Modus Operandi Tritanopia' },
-		note: 'the blue\u2013yellow\u2013safe pair, on the red\u2013teal axis',
-		dark:  { b1: '#000000', b2: '#100f10', b3: '#191a1b', b4: '#242526',
-		         c1: '#641f2a', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#143c3c',
-		         c5: '#5b3400', c6: '#4a2a4a', c7: '#7a1030',
-		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#ff7f86', sel: '#3c3c3c' },
-		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e8e8e8', b4: '#dcdcdc',
-		         c1: '#ffd0d6', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#c8ecec',
-		         c5: '#f2ddb0', c6: '#ecd5ec', c7: '#ffc4cc',
-		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#a60000', sel: '#bcbcbc' }
+		note: 'blue\u2013yellow\u2013safe: it adds in cyan and removes in red',
+		dark:  { b1: '#000000', b2: '#1e1e1e', b3: '#303030', b4: '#646464',
+		         c1: '#004253', c2: '#1e1e1e', c3: '#000000', c4: '#004254',
+		         c5: '#4a4000', c6: '#552f5f', c7: '#4f1119',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#00d3d0',
+		         sel: '#5a5a5a', bar: '#003c52', cur: '#ff5f5f' },
+		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e0e0e0', b4: '#9f9f9f',
+		         c1: '#afdfef', c2: '#f2f2f2', c3: '#ffffff', c4: '#b5e7ff',
+		         c5: '#fff576', c6: '#ffddff', c7: '#ffd8d5',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#005e8b',
+		         sel: '#bdbdbd', bar: '#afe0f2', cur: '#d00000' }
 	},
+
 	{
 		// The dark half is Monokai; the light half is OUR adaptation of it
 		// onto paper \u2014 upstream never shipped one, and a survived dark
@@ -1424,7 +1449,7 @@ const BAR_THEMES = [
 		dark:  { b1: '#282c34', b2: '#2c313a', b3: '#333842', b4: '#3e4451',
 		         c1: '#61afef', c2: '#2c313a', c3: '#282c34', c4: '#3e6845',
 		         c5: '#7a5c26', c6: '#7e5f9e', c7: '#8f3a44',
-		         t1: '#abb2bf', t2: '#282c34', t3: '#7f848e', t4: '#61afef', sel: '#3e4451' },
+		         t1: '#abb2bf', t2: '#282c34', t3: '#7f848e', t4: '#61afef', sel: '#3e4451', bar: '#2c323c' },
 		light: { b1: '#fafafa', b2: '#f0f0f1', b3: '#e5e5e6', b4: '#d3d3d4',
 		         c1: '#cfe5fb', c2: '#f0f0f1', c3: '#fafafa', c4: '#d6e9cc',
 		         c5: '#f5e3bd', c6: '#e6d9f2', c7: '#f6d0d4',
@@ -1437,11 +1462,11 @@ const BAR_THEMES = [
 		dark:  { b1: '#192330', b2: '#212e3f', b3: '#29394f', b4: '#39506d',
 		         c1: '#2e4372', c2: '#212e3f', c3: '#192330', c4: '#2b4a3c',
 		         c5: '#574a27', c6: '#4a3a63', c7: '#5c2f39',
-		         t1: '#cdcecf', t2: '#192330', t3: '#738091', t4: '#86abdc', sel: '#2b3b51' },
+		         t1: '#cdcecf', t2: '#192330', t3: '#738091', t4: '#86abdc', sel: '#2b3b51', bar: '#131a24' },
 		light: { b1: '#f6f2ee', b2: '#efe9e3', b3: '#e7e0d9', b4: '#d6cfc7',
 		         c1: '#ccd7ee', c2: '#efe9e3', c3: '#f6f2ee', c4: '#cfe0ce',
 		         c5: '#ecdcb8', c6: '#ded2ec', c7: '#f0cdd2',
-		         t1: '#352c24', t2: '#f6f2ee', t3: '#766f68', t4: '#2848a9', sel: '#e2d9cd' }
+		         t1: '#352c24', t2: '#f6f2ee', t3: '#766f68', t4: '#2848a9', sel: '#e2d9cd', bar: '#e4dcd4' }
 	},
 	{
 		// Wave for the dark half, Lotus for the light \u2014 the upstream ink
@@ -1453,11 +1478,11 @@ const BAR_THEMES = [
 		dark:  { b1: '#1f1f28', b2: '#2a2a37', b3: '#363646', b4: '#54546d',
 		         c1: '#2d4f67', c2: '#2a2a37', c3: '#1f1f28', c4: '#33473d',
 		         c5: '#5a4a2d', c6: '#453a62', c7: '#692f36',
-		         t1: '#dcd7ba', t2: '#1f1f28', t3: '#727169', t4: '#7e9cd8', sel: '#2d4f67' },
+		         t1: '#dcd7ba', t2: '#1f1f28', t3: '#727169', t4: '#7e9cd8', sel: '#2d4f67', bar: '#16161d' },
 		light: { b1: '#f2ecbc', b2: '#eae3ae', b3: '#e0d7a0', b4: '#b8b092',
 		         c1: '#cbd8e6', c2: '#eae3ae', c3: '#f2ecbc', c4: '#d2dcae',
 		         c5: '#ecd39a', c6: '#d8cadf', c7: '#ecc2c5',
-		         t1: '#545464', t2: '#f2ecbc', t3: '#716e61', t4: '#4d699b', sel: '#c9d5de' }
+		         t1: '#545464', t2: '#f2ecbc', t3: '#716e61', t4: '#4d699b', sel: '#c9d5de', bar: '#dcd5ac' }
 	},
 	{
 		id: 'github', name: 'GitHub',
@@ -1483,11 +1508,11 @@ const BAR_THEMES = [
 		dark:  { b1: '#2d353b', b2: '#343f44', b3: '#3d484d', b4: '#475258',
 		         c1: '#384b55', c2: '#343f44', c3: '#2d353b', c4: '#425047',
 		         c5: '#514d44', c6: '#4a3f55', c7: '#563a3f',
-		         t1: '#d3c6aa', t2: '#2d353b', t3: '#859289', t4: '#a7c080', sel: '#543a48' },
+		         t1: '#d3c6aa', t2: '#2d353b', t3: '#859289', t4: '#a7c080', sel: '#543a48', bar: '#343f44' },
 		light: { b1: '#fdf6e3', b2: '#f4f0d9', b3: '#efebd4', b4: '#d8d3ba',
 		         c1: '#d6e5dc', c2: '#f4f0d9', c3: '#fdf6e3', c4: '#d1e0c2',
 		         c5: '#eee0b2', c6: '#e2d8e4', c7: '#f2d5d0',
-		         t1: '#5c6a72', t2: '#fdf6e3', t3: '#7a877e', t4: '#6c8a00', sel: '#f0f1d2' }
+		         t1: '#5c6a72', t2: '#fdf6e3', t3: '#7a877e', t4: '#6c8a00', sel: '#f0f1d2', bar: '#f2efdf' }
 	},
 	{
 		// Vim ships TWO stock blue schemes and this pair is BOTH of them,
@@ -1515,11 +1540,103 @@ const BAR_THEMES = [
 		dark:  { b1: '#000040', b2: '#000058', b3: '#10106e', b4: '#30309a',
 		         c1: '#2a2a9e', c2: '#000058', c3: '#000040', c4: '#0f6b45',
 		         c5: '#6b6b10', c6: '#4b2d9e', c7: '#8b1a3a',
-		         t1: '#c0c0c0', t2: '#000040', t3: '#8080c0', t4: '#ffff60', sel: '#2e3f9e' },
+		         t1: '#c0c0c0', t2: '#000040', t3: '#8080c0', t4: '#ffff60',
+		         // The same cyan as the day face: the reference shows both
+		         // windows wearing it, and the darker cyan this started as
+		         // measured 4.48 against this half's ink — under the floor
+		         // by two hundredths, which is still under it.
+		         sel: '#2e3f9e', bar: '#00afaf' },
 		light: { b1: '#000087', b2: '#1c1c99', b3: '#2e2eab', b4: '#5555c4',
-		         c1: '#3232b4', c2: '#1c1c99', c3: '#000087', c4: '#0f6b52',
+		         // c1 is blue.vim's CursorLine — the vivid blue band the
+		         // reference shows under the cursor — so the selected file
+		         // and the selection wear the colour the scheme uses to say
+		         // "here".
+		         c1: '#2222dd', c2: '#1c1c99', c3: '#000087', c4: '#0f6b52',
 		         c5: '#6b6b00', c6: '#4b2d9e', c7: '#8b1a3a',
-		         t1: '#ffffff', t2: '#000087', t3: '#b6b6ea', t4: '#ffff00', sel: '#4646c4' }
+		         // t3 is Comment's pale blue; t4 is Statement's yellow, which
+		         // is also what the caret takes.
+		         t1: '#ffffff', t2: '#000087', t3: '#87afd7', t4: '#ffff00',
+		         sel: '#2222dd', bar: '#00afaf' }
+	},
+	{
+		// Steph Ango's — the author of Minimal, and designed light-first
+		// with a dark twin rather than the other way round, which is why
+		// both halves are upstream's own.
+		id: 'flexoki', name: 'Flexoki',
+		note: 'Steph Ango \u2014 an inky palette for prose, both halves his',
+		dark:  { b1: '#100f0f', b2: '#1c1b1a', b3: '#282726', b4: '#343331',
+		         c1: '#21344f', c2: '#1c1b1a', c3: '#100f0f', c4: '#2b3a1e',
+		         c5: '#4a3a12', c6: '#362c52', c7: '#4d2220',
+		         t1: '#cecdc3', t2: '#100f0f', t3: '#878580', t4: '#4385be', sel: '#282726' },
+		light: { b1: '#fffcf0', b2: '#f2f0e5', b3: '#e6e4d9', b4: '#dad8ce',
+		         c1: '#d3e3f7', c2: '#f2f0e5', c3: '#fffcf0', c4: '#dbe6c4',
+		         c5: '#f2e2b0', c6: '#e2d6f0', c7: '#f6d2cd',
+		         t1: '#100f0f', t2: '#fffcf0', t3: '#6f6e69', t4: '#205ea6', sel: '#e6e4d9' }
+	},
+	{
+		// Jan Warcho\u0142's Solarized successor: the same idea \u2014 one pair,
+		// tuned together \u2014 with the contrast complaint answered.
+		id: 'selenized', name: 'Selenized',
+		note: 'Jan Warcho\u0142 \u2014 Solarized rebuilt, both halves tuned together',
+		dark:  { b1: '#103c48', b2: '#184956', b3: '#1c5460', b4: '#2d5b69',
+		         c1: '#17455a', c2: '#184956', c3: '#103c48', c4: '#1c4a35',
+		         c5: '#4a4520', c6: '#3f3560', c7: '#5c2330',
+		         // fg_1, not fg_0: Selenized ships both, and the brighter one
+		         // is what clears AAA on its own paper and carries an ink on
+		         // its own selection. fg_0 becomes the muted ink, which is
+		         // what it reads as anyway.
+		         t1: '#cad8d9', t2: '#103c48', t3: '#adbcbc', t4: '#4695f7', sel: '#184956' },
+		light: { b1: '#fbf3db', b2: '#ece3cc', b3: '#e0d7bf', b4: '#c3bba4',
+		         c1: '#cddef2', c2: '#ece3cc', c3: '#fbf3db', c4: '#d7e6c4',
+		         c5: '#f0e0a8', c6: '#ecd4e6', c7: '#f8cfc9',
+		         t1: '#3a4d53', t2: '#fbf3db', t3: '#53676d', t4: '#0072d4', sel: '#e0d7bf' }
+	},
+	{
+		// ICEBERG NAMES A MODE LINE AND DOES NOT GET ONE. Its StatusLine is
+		// `reverse`, so the rendered strip is #757ca3 on the light half — a
+		// mid slate that carries neither of this scheme's inks at 4.5:1
+		// (3.35 at best, which is what upstream itself puts there). A
+		// terminal statusline can live at that contrast; a strip we promise
+		// is legible cannot. It derives instead, and the dark half keeps
+		// its published colour, which does clear the floor.
+		id: 'iceberg', name: 'Iceberg',
+		note: 'cocopon \u2014 a bluish, low-glare pair from Vim',
+		dark:  { b1: '#161821', b2: '#1e2132', b3: '#272c42', b4: '#3d425b',
+		         c1: '#2a3a5c', c2: '#1e2132', c3: '#161821', c4: '#2c4030',
+		         c5: '#4a3a24', c6: '#3a3352', c7: '#4d2833',
+		         t1: '#c6c8d1', t2: '#161821', t3: '#6b7089', t4: '#84a0c6', sel: '#272c42', bar: '#818596' },
+		light: { b1: '#e8e9ec', b2: '#dcdfe7', b3: '#cad0de', b4: '#a7adba',
+		         c1: '#c3d0e8', c2: '#dcdfe7', c3: '#e8e9ec', c4: '#cfe0c0',
+		         c5: '#f0dcc0', c6: '#ded4ee', c7: '#f2ccd6',
+		         t1: '#33374c', t2: '#e8e9ec', t3: '#7b8296', t4: '#2d539e', sel: '#cad0de' }
+	},
+	{
+		id: 'papercolor', name: 'PaperColor',
+		note: 'NLKNguyen \u2014 Material-ish, and light-first by design',
+		dark:  { b1: '#1c1c1c', b2: '#262626', b3: '#303030', b4: '#444444',
+		         c1: '#1f3a4a', c2: '#262626', c3: '#1c1c1c', c4: '#2b3a1a',
+		         c5: '#4a4400', c6: '#3a2a4a', c7: '#4a1010',
+		         t1: '#d0d0d0', t2: '#1c1c1c', t3: '#8a8a8a', t4: '#5fafd7', sel: '#303030' },
+		light: { b1: '#eeeeee', b2: '#e4e4e4', b3: '#d0d0d0', b4: '#bcbcbc',
+		         c1: '#c6e2ee', c2: '#e4e4e4', c3: '#eeeeee', c4: '#cde8c0',
+		         c5: '#f0e4b0', c6: '#e2d0ee', c7: '#f4cccc',
+		         t1: '#444444', t2: '#eeeeee', t3: '#767676', t4: '#0087af', sel: '#d0d0d0', bar: '#005f87' }
+	},
+	{
+		// The light half's accent is OURS: upstream's orange (#fa8d3e)
+		// measures 2.4:1 on that paper and would fail the accent gate, so
+		// it is deepened to the same hue at 3.8:1. Same treatment, same
+		// disclosure, as Everforest's.
+		id: 'ayu', name: 'Ayu',
+		note: 'ayu \u2014 warm accents on cool ground; light accent deepened by us',
+		dark:  { b1: '#0b0e14', b2: '#131721', b3: '#1b1f2b', b4: '#2d3542',
+		         c1: '#1e3a52', c2: '#131721', c3: '#0b0e14', c4: '#1c3a26',
+		         c5: '#4a3c14', c6: '#33294a', c7: '#4a1f24',
+		         t1: '#bfbdb6', t2: '#0b0e14', t3: '#6c7380', t4: '#e6b450', sel: '#253a5e', bar: '#14191f' },
+		light: { b1: '#fcfcfc', b2: '#f3f4f5', b3: '#e7e8e9', b4: '#d3d4d5',
+		         c1: '#cfe3f7', c2: '#f3f4f5', c3: '#fcfcfc', c4: '#d6e8c6',
+		         c5: '#f7e3b0', c6: '#e4d8f2', c7: '#f8d0cc',
+		         t1: '#5c6166', t2: '#fcfcfc', t3: '#8a8f98', t4: '#d1650a', sel: '#e7e8e9' }
 	},
 ];
 
@@ -1537,7 +1654,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 57;
+const ZG_STYLESHEET_VERSION = 60;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1930,6 +2047,15 @@ const DEFAULT_SETTINGS = {
 	barThemeCursor:     false,
 	barThemeVim:        false,
 	barThemeBorderless: false,
+	// TOMBSTONE (1.2.8). barThemeGlass was a frosted-glass toggle, removed
+	// by vault feedback within the release. barThemeGlassStash OUTLIVES it
+	// on purpose: while Glass was on it borrowed Obsidian's own
+	// `translucency` setting, and a vault that ran it still has that
+	// borrow outstanding. Deleting the feature without repaying it would
+	// leave a writer's window translucent forever, changed by a plugin
+	// that no longer has the code to explain it. The repayment runs once,
+	// on load, and clears itself — see barThemeGlassRepay.
+	barThemeGlassStash: null,
 	// TOMBSTONE (1.2.7). barThemeSimpleTabs was REMOVED within this same
 	// release by vault feedback: the flattening rules amounted to "only an
 	// underline" under real themes — the look needs Minimal's full tab
@@ -2860,6 +2986,9 @@ module.exports = class WordSmith extends Plugin {
 		this._themeObserver   = null;
 
 		await this.loadSettings();
+		// Settle the Glass borrow, if this vault has one outstanding. Runs
+		// once and clears itself; see barThemeGlassRepay.
+		if (this.barThemeGlassRepay()) { try { await this.saveSettings(); } catch (_) {} }
 		this._wasZenMode = this.zenOn();
 
 		// Zen mode persists across restarts, but _wasZenMode above makes
@@ -11071,6 +11200,13 @@ module.exports = class WordSmith extends Plugin {
 		// block for the borders that ignore the divider variable.
 		body.classList.toggle('zg-borderless',
 			this.settings.barThemeEnabled !== false && !!this.settings.barThemeBorderless);
+		// Glass needs BOTH halves: translucent surfaces (above) and the
+		// blur behind them (this class). Neither alone is the effect.
+		// TOMBSTONE (1.2.8). zg-glass was toggled here. Actively REMOVED
+		// rather than merely not added, so a session that had it on is
+		// cleaned on the next pass instead of wearing a class no
+		// stylesheet serves.
+		body.classList.remove('zg-glass');
 		// TOMBSTONE (1.2.7). zg-simpletabs was removed by vault feedback —
 		// see DEFAULT_SETTINGS. Actively removed rather than merely no
 		// longer added, so a session that had it on is cleaned on the next
@@ -11208,8 +11344,14 @@ module.exports = class WordSmith extends Plugin {
 	// gives Modus Tinted its dark grey. The loud-red rule outlived its
 	// reason, and its cost was every other scheme.
 	barThemeCursorInk(h) {
-		if (this.barContrast(h.t4, h.b1) >= 4.5) return h.t4;
-		return this.barThemeVivify(h.t4, h.b1, h.t1);
+		// A scheme may NAME its cursor, and several do: the Modus family
+		// publishes a `cursor` mapping that is deliberately not accent-0 —
+		// Operandi Tinted's is red-intense while its accent is red-cooler,
+		// Vivendi's is plain fg-main. Deriving from the accent got the
+		// family's own answer wrong on six halves of eight.
+		const named = h.cur || h.t4;
+		if (this.barContrast(named, h.b1) >= 4.5) return named;
+		return this.barThemeVivify(named, h.b1, h.t1);
 	}
 
 	// The most colourful readable ink a half can offer — the cursor's
@@ -11310,6 +11452,42 @@ module.exports = class WordSmith extends Plugin {
 	// already in. The switch itself is barSetColorMode above.
 
 
+	// HOW TRANSPARENT THIS SCHEME CAN AFFORD TO BE.
+	//
+	// A flat alpha cannot serve both ends of the shelf: Modus reads at 21:1
+	// and could go to a third opacity without trouble, while Everforest
+	// Light reads at 5.16 and loses the floor at 0.92. One number for both
+	// is either unreadable on one or barely frosted on the other, and the
+	// first cut of this feature picked the second and still failed the
+	// worst case.
+	//
+	// So it is derived, per scheme, per half: walk from the most
+	// transparent step upward and take the FIRST that keeps body text at
+	// 4.5:1 with pure black behind the window AND with pure white — the two
+	// extremes any desktop can put there. A scheme with headroom spends it
+	// on the effect; a scheme without it keeps its legibility. Neither is a
+	// number chosen by eye.
+
+	// REPAY THE GLASS BORROW, once, and never borrow again. Glass is gone
+	// (see the tombstone in DEFAULT_SETTINGS); vaults that ran it may
+	// still have Obsidian's `translucency` switched on by us, with the
+	// original value sitting in the stash. This gives it back on the next
+	// load and spends the stash, so the debt is settled exactly once and
+	// the code can be deleted the release after this one.
+	barThemeGlassRepay() {
+		if (this.settings.barThemeGlassStash === null
+			|| this.settings.barThemeGlassStash === undefined) return false;
+		try {
+			const vault = this.app && this.app.vault;
+			if (vault && vault.setConfig) {
+				vault.setConfig('translucency', !!this.settings.barThemeGlassStash);
+			}
+		} catch (_) {}
+		this.settings.barThemeGlassStash = null;
+		return true;
+	}
+
+
 	// TAKE THE THEME OFF THE WORKSPACE, without forgetting it.
 	//
 	// The plugin's own master switch and its unload path both tear down
@@ -11331,7 +11509,7 @@ module.exports = class WordSmith extends Plugin {
 			for (const cls of Array.from(document.body.classList)) {
 				if (cls.indexOf('zg-theme-') === 0) document.body.classList.remove(cls);
 			}
-			document.body.classList.remove('zg-borderless', 'zg-simpletabs');
+			document.body.classList.remove('zg-borderless', 'zg-glass', 'zg-simpletabs');
 		} catch (_) {}
 		// And the caret, which lives in another plugin and would otherwise
 		// keep our colours after ours is gone.
@@ -11382,6 +11560,14 @@ module.exports = class WordSmith extends Plugin {
 		const darkPaper = this.barContrast('#ffffff', h.b1)
 			> this.barContrast('#000000', h.b1);
 		const hi = this.barThemeHighlight(h, S2);
+		// THE WASH BEATS THE NAMED COLOUR. A scheme's own mode-line strip is
+		// right by default and wrong under Simplified, which exists to make
+		// every surface one colour — a scheme that kept its cyan bar
+		// through the wash would be the one thing still arguing.
+		const barBg = simp ? S2 : (h.bar || h.b3);
+		// The muted ink when it reads there — a status line is quiet by
+		// nature — and the measured one when it does not.
+		const barInk = this.barContrast(h.t3, barBg) >= 4.5 ? h.t3 : inkFor(barBg);
 		const onAccent = ['#000000', '#ffffff', h.t1, h.t2]
 			.reduce((best, c) =>
 				this.barContrast(c, h.t4) > this.barContrast(best, h.t4) ? c : best);
@@ -11420,11 +11606,22 @@ module.exports = class WordSmith extends Plugin {
 			'--interactive-accent-hover':        h.c1,
 			'--interactive-normal':              S2,
 			'--interactive-hover':               S3,
-			'--status-bar-background':           S2,
 			// The bar's own ink and edge — a themed surface under unthemed
 			// grey text read as half a job.
-			'--status-bar-text-color':           h.t3,
-			'--status-bar-border-color':         h.b4,
+			// The status line, which several schemes give a surface of its
+			// own — Vim's blue pair paints it cyan, and a scheme that says
+			// so should be obeyed rather than averaged into the ramp. The
+			// slot is OPTIONAL: without it the bar sits on the chrome
+			// surface exactly as before, which is what nineteen of the
+			// twenty-five do. The ink is measured, never assumed.
+			// A named mode-line colour wins; otherwise the strip takes its
+			// OWN step of the ramp rather than the sidebar's, so it reads
+			// as a bar instead of as the bottom of a sidebar. Under the
+			// simplified wash it stays flush, because that is what that
+			// toggle means.
+			'--status-bar-background':           barBg,
+			'--status-bar-text-color':           barInk,
+			'--status-bar-border-color':         h.bar || h.b4,
 			// The powerline's optional top/bottom rule lines, THROUGH the
 			// fallback chain in the bar's own resolution: a writer's chosen
 			// colour still wins; this only answers when nothing was chosen.
@@ -11510,17 +11707,29 @@ module.exports = class WordSmith extends Plugin {
 			// whatever the underlying theme wanted, which reads as "the theme
 			// half-applied" or, on a theme that reads tokens throughout, as
 			// "nothing happened".
+			// Every step Obsidian defines, including the ones nothing here
+			// reads: a step we skip keeps the value the APP's mode gave it,
+			// and on a scheme whose paper disagrees with that mode — Vim
+			// Blue by day — a skipped step is a light-mode colour sitting
+			// in the middle of a dark ramp, reached by whichever theme rule
+			// happens to want it.
 			'--color-base-00': h.b1,
 			'--color-base-05': h.b1,
+			'--color-base-15': S2,
 			'--color-base-10': S2,
 			'--color-base-20': S2,
 			'--color-base-25': S3,
 			'--color-base-30': h.b4,
 			'--color-base-35': h.b4,
 			'--color-base-40': h.b4,
+			'--color-base-45': h.t3,
 			'--color-base-50': h.t3,
+			'--color-base-55': h.t3,
 			'--color-base-60': h.t3,
+			'--color-base-65': h.t1,
 			'--color-base-70': h.t1,
+			'--color-base-80': h.t1,
+			'--color-base-90': h.t1,
 			'--color-base-100': h.t1,
 			'--color-accent':   h.t4,
 			'--color-accent-1': h.t4,

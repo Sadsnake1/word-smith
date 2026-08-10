@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 57;
+	--zg-stylesheet-version: 60;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -3544,3 +3544,21 @@ body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-them
 body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .suggestion-item.is-selected .suggestion-flair {
 	color: var(--zg-selected-ink);
 }
+
+/* TOMBSTONE (1.2.7). A rule here restated --text-normal on every editor
+   line, written to chase a reported dark-text bug that turned out not to
+   exist. It is recorded rather than quietly dropped because the reasoning
+   was sound and the instrument was wrong: at the specificity needed to
+   outrank a theme, a blanket `color` on .cm-line also outranks the
+   typewriter's current-line tint and anything else that colours a line for
+   a reason. A fix aimed at "whatever rule might be winning" cannot help
+   hitting the rules that are winning correctly. */
+
+/* TOMBSTONE (1.2.8). The Glass block lived here: translucent surfaces,
+   backdrop blur on every container that carried a background, and a
+   transparent frame so those blurs could sample the desktop. Removed by
+   vault feedback within the release.
+
+   The body class is actively removed in applyThemeClass, and the borrowed
+   `translucency` setting is repaid once on load — a look can be deleted,
+   but a setting taken from somebody else has to be given back first. */
