@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 46;
+	--zg-stylesheet-version: 57;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -3335,4 +3335,212 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	height: 1px;
 	margin: 0.45em 0.6em;
 	background: var(--background-modifier-border);
+}
+
+/* ── The theme shelf ───────────────────────────────────────────────────────
+   Cards in the Theme tab, one per colour scheme. The working prototype of
+   this tab shipped with NO rules at all — the grid rendered as bare divs —
+   which is its own small lesson: a settings surface is a surface, and "the
+   probe saw the elements" says nothing about whether a writer can read them.
+
+   Drag is the priority control, exactly as in Obsidian's own font list:
+   where a card sits is where its scheme sits, here and in the menu row,
+   because both read the same shelf. */
+.zg-theme-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+	gap: 10px;
+	margin: 8px 0;
+}
+
+.zg-theme-card {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 10px 12px;
+	cursor: grab;
+	background: var(--background-secondary);
+}
+.zg-theme-card:hover { border-color: var(--interactive-accent); }
+.zg-theme-card.is-active {
+	border-color: var(--interactive-accent);
+	box-shadow: 0 0 0 1px var(--interactive-accent) inset;
+}
+.zg-theme-card.is-custom { cursor: default; }
+.zg-theme-card.is-dragging { opacity: 0.4; }
+.zg-theme-card.is-dropzone {
+	outline: 2px dashed var(--interactive-accent);
+	outline-offset: 2px;
+}
+
+.zg-theme-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
+
+.zg-theme-name { font-weight: 600; }
+
+.zg-theme-note {
+	font-size: 0.8em;
+	color: var(--text-muted);
+	margin: 2px 0 8px;
+	min-height: 2.2em;
+}
+
+/* Quiet until hovered: removal is offered, not advertised. */
+.zg-theme-remove {
+	background: none;
+	border: none;
+	color: var(--text-faint);
+	cursor: pointer;
+	padding: 0 2px;
+	font-size: 0.85em;
+}
+.zg-theme-remove:hover { color: var(--text-normal); }
+
+/* The seven accents of the half that is showing NOW — the card promises
+   what pressing it will actually do. */
+.zg-theme-strip { display: flex; gap: 3px; }
+.zg-theme-chip {
+	width: 18px;
+	height: 12px;
+	border-radius: 2px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.zg-theme-hiddenrow {
+	margin-top: 12px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+}
+.zg-theme-hiddenlabel { color: var(--text-muted); font-size: 0.85em; }
+.zg-theme-hiddenchip {
+	font-size: 0.8em;
+	padding: 2px 8px;
+	border-radius: 10px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+/* ── Selection, inverted ───────────────────────────────────────────────────
+   The two variables are set inline on body by applyThemeVars; this rule is
+   the one place they can land, because ::selection cannot be reached by
+   custom properties alone — a pseudo-element needs a rule.
+
+   The selector is stacked to (0,4,1) ON PURPOSE, and the first draft of
+   this rule is why the reason is written down: it used !important, and
+   selfcarry_probe's ban caught it — the ban's own remedy is specificity,
+   the narrower instrument. Sized against the real opponent: Minimal's
+   heaviest ::selection selector is THREE classes, so four attribute
+   repeats outrank every rule in that file in any source order — which
+   retires the cascade-shuffle problem without a bang. Scoped to a themed
+   body, so under Default the selector matches nothing and the underlying
+   theme keeps its own selection. If a community theme ever stacks four,
+   add a fifth repeat here rather than reaching for !important; the probe
+   will hold you to it. */
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] *::selection {
+	background-color: var(--zg-selection-bg);
+	color: var(--zg-selection-ink);
+}
+
+/* TOMBSTONE (1.2.7). The simple-tabs block lived here and was removed
+   within the same release by vault feedback: under real themes the
+   flattening amounted to "only an underline" — the look needs Minimal's
+   full tab rework or nothing. The body class is actively removed in
+   applyThemeClass so no session is left wearing a class nothing serves. */
+
+/* ── Borderless ────────────────────────────────────────────────────────────
+   The Minimal-like plainness is mostly the DIVIDER VARIABLE emptied — one
+   custom property carries nearly every pane and sidebar edge — plus the
+   few borders that do not read it. A look, not a scheme: hung on its own
+   body class, works under Default, dies with the kill switch. */
+body.zg-borderless {
+	--divider-color: transparent;
+	--divider-width: 0px;
+	/* From Minimal's own borders-none, on the recheck: the tab header's
+	   outline rides its own width variable, and it is the line this
+	   feature originally missed. */
+	--tab-outline-width: 0px;
+}
+body.zg-borderless .status-bar {
+	border: none;
+}
+body.zg-borderless .workspace-ribbon {
+	border: none;
+}
+body.zg-borderless .titlebar {
+	border: none;
+}
+
+/* TOMBSTONE (1.2.7). The group card's variant chips lived here. */
+
+/* TOMBSTONE (1.2.7). The menu folder's fold glyph and child indent. */
+
+/* TOMBSTONE (1.2.7). .zg-setting-child copied .ws-settings-sub's rules for
+   one release. The dependent Vim row uses the plugin's own sub() helper now:
+   one definition of the idiom, so it cannot drift from the rest again. */
+
+/* ── The menu's finder ─────────────────────────────────────────────────────
+   A field above the list, drawn as part of the menu rather than as a form
+   control dropped into it: no chrome of its own, one hairline under it, and
+   the same padding as a row so the caret lands where the labels start. */
+.zg-menu-search {
+	width: 100%;
+	box-sizing: border-box;
+	background: transparent;
+	border: none;
+	border-bottom: 1px solid var(--background-modifier-border);
+	border-radius: 0;
+	padding: 0.35em 0.6em;
+	margin-bottom: 0.3em;
+	font-size: inherit;
+	color: var(--text-normal);
+	outline: none;
+	box-shadow: none;
+}
+.zg-menu-search::placeholder { color: var(--text-faint); }
+.zg-menu-search:focus { box-shadow: none; }
+
+/* A result names the row it came from, so the finder teaches the menu
+   instead of bypassing it. Right-aligned and faint: it is provenance, not
+   the answer. */
+.zg-menu-in {
+	margin-left: auto;
+	padding-left: 0.8em;
+	color: var(--text-faint);
+	font-size: 0.85em;
+}
+.zg-menu-empty {
+	padding: 0.4em 0.6em;
+	color: var(--text-muted);
+}
+
+/* ── The selected row in a list ────────────────────────────────────────────
+   The command palette, the quick switcher, every suggester, and Obsidian's
+   own menus. Core paints the selected row with --background-modifier-hover,
+   which is shared with every hover in the app: loud enough to find a row in
+   a long list is a shout on every hover, so the row gets its own pair of
+   variables instead (set inline by applyThemeVars, measured against the
+   popup surface it sits on).
+
+   Stacked to outrank a community theme's own rule rather than shouting with
+   !important — the same instrument, and the same reason, as the ::selection
+   rule above; Minimal styles .suggestion-item.is-selected behind three
+   classes. Scoped to a themed body, so with no scheme worn this matches
+   nothing and the theme keeps its own palette. */
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .suggestion-item.is-selected,
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .menu-item.is-selected {
+	background-color: var(--zg-selected-bg);
+	color: var(--zg-selected-ink);
+}
+/* The matched letters keep their weight but take the row's ink, or they
+   stay the accent colour they had against the OLD background. */
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .suggestion-item.is-selected .suggestion-highlight,
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .suggestion-item.is-selected .suggestion-note,
+body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'] .suggestion-item.is-selected .suggestion-flair {
+	color: var(--zg-selected-ink);
 }

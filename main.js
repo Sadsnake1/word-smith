@@ -1156,6 +1156,373 @@ const PL_BG_COUNT = 7;
 // two counts being equal is now a fact worth stating once.
 const PL_TEXT_COUNT = PL_BG_COUNT;
 
+// ── Themes ───────────────────────────────────────────────────────────────────
+//
+// A theme is a NAMED FILL of the palette keys and nothing else. Applying one
+// writes the same twenty-two settings a writer would set by hand in the
+// pickers, and nothing more; there is no theme layer at
+// paint time, no second code path, and nothing here that the colour pickers
+// cannot also produce. That is deliberate: a shelf of palettes is worth
+// having, a parallel styling system is not.
+//
+// BOTH HALVES ARE MANDATORY. The palette comment above says why in one line —
+// "a palette that merely survives the switch is not the same as one designed
+// for it" — and it is the whole reason this is a table of pairs rather than a
+// list of colour schemes. Obsidian's own light/dark state picks the half, so
+// a writer who switches at dusk gets a bar that was designed for dusk.
+//
+// The BACKGROUNDS are the constraint, not the accents. A segment's ink is
+// derived from its background (powerlineInk) unless the row says otherwise,
+// so every c-slot has to be far enough from one of the two inks for that
+// derivation to have a readable answer — which rules out the mid-tones most
+// upstream palettes use for their accent colours. The values below are
+// therefore the upstream palette's SURFACE family where one exists, and the
+// upstream accent darkened (dark half) or tinted (light half) where it does
+// not. theme_probe asserts the result rather than trusting this paragraph.
+//
+// Slot meanings, kept identical across every theme so switching does not
+// rearrange a bar someone built:
+//   c1 accent · c2 quiet mid · c3 quiet deep · c4 green · c5 warm ·
+//   c6 violet · c7 alert
+//   t1 ink · t2 reverse ink · t3 muted ink · t4 accent ink
+//
+// Palette VALUES are used as facts, with the source named per theme. No
+// upstream code is copied.
+// TOMBSTONE (1.2.7). BAR_THEME_GROUPS collapsed the four Modus variants
+// into one shelf slot with a folder in the menu and variant chips on the
+// card. It was removed within the same release by vault feedback, and the
+// deletion is worth more than the feature was:
+//
+//   the group card could be REMOVED AND NEVER RESTORED — the hidden row
+//   looks a hidden id up in the theme table to draw its chip, and a group
+//   id is not in the table, so the chip could not render and the family
+//   was gone for good;
+//   it could not be dragged, because the drag handlers key on a theme id;
+//   and the variant chips made one card twice the height of every other.
+//
+// All three came from the same root: a pseudo-entry that is not a theme,
+// travelling through machinery that is about themes. The lesson kept here
+// is that a collection type added to a list must satisfy EVERY contract
+// the list's members satisfy — order, drag, hide, restore — and the shelf
+// already had four. Four variants, four cards, is the honest shape.
+//
+// The hidden row now also restores ids it cannot name, so nothing a
+// writer removes is ever unreachable again, whatever put it there.
+
+const BAR_THEMES = [
+	{
+		id: 'modus', name: 'Modus',
+		names: { dark: 'Modus Vivendi', light: 'Modus Operandi' },
+		note: 'Protesilaos Stavrou\u2019s Emacs themes \u2014 Vivendi and Operandi',
+		dark:  { b1: '#000000', b2: '#100f10',
+		         b3: '#191a1b', b4: '#242526',
+		         c1: '#0a2f5c', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#00422a',
+		         c5: '#4f3d00', c6: '#3b2f5c', c7: '#620f2a',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#2fafff', sel: '#3c3c3c' },
+		light: { b1: '#ffffff', b2: '#f2f2f2',
+		         b3: '#e8e8e8', b4: '#dcdcdc',
+		         c1: '#cceaff', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#c0efc0',
+		         c5: '#f0e0a0', c6: '#e0d0ff', c7: '#ffcfcf',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#bcbcbc' }
+	},
+	{
+		id: 'quiet', name: 'Quiet',
+		note: 'Vim\u2019s own quiet \u2014 near-monochrome, on purpose',
+		dark:  { b1: '#121212', b2: '#1c1c1c',
+		         b3: '#262626', b4: '#303030',
+		         c1: '#303030', c2: '#262626', c3: '#1c1c1c', c4: '#2a2a2a',
+		         c5: '#333333', c6: '#282828', c7: '#3a3a3a',
+		         t1: '#d0d0d0', t2: '#121212', t3: '#808080', t4: '#d0d0d0', sel: '#4a4a4a' },
+		light: { b1: '#f8f8f8', b2: '#f0f0f0',
+		         b3: '#e6e6e6', b4: '#dadada',
+		         c1: '#dadada', c2: '#e6e6e6', c3: '#f0f0f0', c4: '#e0e0e0',
+		         c5: '#d8d8d8', c6: '#e4e4e4', c7: '#cccccc',
+		         t1: '#1c1c1c', t2: '#f0f0f0', t3: '#6c6c6c', t4: '#1c1c1c', sel: '#c8c8c8' }
+	},
+	{
+		id: 'habamax', name: 'Habamax',
+		note: 'Vim\u2019s habamax \u2014 muted, warm-neutral',
+		dark:  { b1: '#1c1c1c', b2: '#262626',
+		         b3: '#303030', b4: '#3a3a3a',
+		         c1: '#004f71', c2: '#303030', c3: '#1c1c1c', c4: '#005454',
+		         c5: '#634500', c6: '#484867', c7: '#870000',
+		         t1: '#bcbcbc', t2: '#1c1c1c', t3: '#808080', t4: '#87afaf', sel: '#454545' },
+		light: { b1: '#ffffff', b2: '#f0f0f0',
+		         b3: '#e4e4e4', b4: '#d0d0d0',
+		         c1: '#cfe4f0', c2: '#e4e4e4', c3: '#f2f2f2', c4: '#d0ecdc',
+		         c5: '#f0e2c0', c6: '#ddd8f0', c7: '#f4d0d0',
+		         t1: '#262626', t2: '#ffffff', t3: '#626262', t4: '#005f87', sel: '#c6c6c6' }
+	},
+	{
+		id: 'nord', name: 'Nord',
+		note: 'Arctic Ice Studio \u2014 polar night and snow storm',
+		dark:  { b1: '#2e3440', b2: '#3b4252',
+		         b3: '#434c5e', b4: '#4c566a',
+		         c1: '#4c6a91', c2: '#3b4252', c3: '#2e3440', c4: '#3f6650',
+		         c5: '#7a5f34', c6: '#6b5470', c7: '#8f4148',
+		         t1: '#eceff4', t2: '#2e3440', t3: '#9aa4b6', t4: '#88c0d0', sel: '#434c5e' },
+		light: { b1: '#eceff4', b2: '#e5e9f0',
+		         b3: '#d8dee9', b4: '#c8d0dc',
+		         c1: '#c5d4e8', c2: '#d8dee9', c3: '#eceff4', c4: '#cfe0c8',
+		         c5: '#f0e2bd', c6: '#e2d3e5', c7: '#f0cdd0',
+		         t1: '#2e3440', t2: '#eceff4', t3: '#5c6779', t4: '#5e81ac', sel: '#d8dee9' }
+	},
+	{
+		id: 'dracula', name: 'Dracula',
+		note: 'Zeno Rocha\u2019s Dracula, with Alucard for the light half',
+		dark:  { b1: '#282a36', b2: '#343746',
+		         b3: '#44475a', b4: '#565a72',
+		         c1: '#4a3f7a', c2: '#44475a', c3: '#282a36', c4: '#2f6b46',
+		         c5: '#7a6a2a', c6: '#6b3f6b', c7: '#8b3a3a',
+		         t1: '#f8f8f2', t2: '#282a36', t3: '#a0a3b8', t4: '#bd93f9', sel: '#44475a' },
+		light: { b1: '#f8f8f2', b2: '#eeeef0',
+		         b3: '#e0e0e6', b4: '#cfcfd8',
+		         c1: '#d9d0f5', c2: '#e8e8e2', c3: '#f8f8f2', c4: '#cdeed8',
+		         c5: '#f2eec4', c6: '#f5d5e8', c7: '#f7cfcf',
+		         t1: '#1f1f1f', t2: '#f8f8f2', t3: '#6c6c6c', t4: '#644ac9', sel: '#d8d0e8' }
+	},
+	{
+		id: 'gruvbox', name: 'Gruvbox',
+		note: 'Pavel Pertsev \u2014 retro groove, hard contrast',
+		dark:  { b1: '#282828', b2: '#32302f',
+		         b3: '#3c3836', b4: '#504945',
+		         c1: '#376769', c2: '#504945', c3: '#282828', c4: '#65610c',
+		         c5: '#825700', c6: '#8f3f71', c7: '#9d0006',
+		         t1: '#ebdbb2', t2: '#282828', t3: '#a89984', t4: '#83a598', sel: '#504945' },
+		light: { b1: '#fbf1c7', b2: '#f2e5bc',
+		         b3: '#ebdbb2', b4: '#d5c4a1',
+		         c1: '#cfe0dd', c2: '#ebdbb2', c3: '#fbf1c7', c4: '#d5e6c0',
+		         c5: '#f2e0b0', c6: '#ecd5e4', c7: '#f5d2c8',
+		         t1: '#3c3836', t2: '#fbf1c7', t3: '#7c6f64', t4: '#076678', sel: '#d5c4a1' }
+	},
+	{
+		id: 'solarized', name: 'Solarized',
+		note: 'Ethan Schoonover \u2014 the light and dark halves are his own pairing',
+		dark:  { b1: '#002b36', b2: '#073642',
+		         b3: '#0a4653', b4: '#125666',
+		         c1: '#196ba3', c2: '#073642', c3: '#002b36', c4: '#5a6a00',
+		         c5: '#7a5c00', c6: '#94275e', c7: '#99231f',
+		         t1: '#eee8d5', t2: '#002b36', t3: '#93a1a1', t4: '#2aa198', sel: '#073642' },
+		light: { b1: '#fdf6e3', b2: '#f5eed6',
+		         b3: '#eee8d5', b4: '#ded8c5',
+		         c1: '#cfe2f0', c2: '#eee8d5', c3: '#fdf6e3', c4: '#dfe8c0',
+		         c5: '#f2e4bb', c6: '#f5d3e2', c7: '#f7d2cf',
+		         t1: '#073642', t2: '#fdf6e3', t3: '#657b83', t4: '#268bd2', sel: '#eee8d5' }
+	},
+	{
+		id: 'catppuccin', name: 'Catppuccin',
+		note: 'the Catppuccin community \u2014 Mocha dark, Latte light',
+		dark:  { b1: '#1e1e2e', b2: '#181825',
+		         b3: '#313244', b4: '#45475a',
+		         c1: '#3e5a8f', c2: '#313244', c3: '#1e1e2e', c4: '#39654d',
+		         c5: '#795433', c6: '#6b4a8f', c7: '#8f3f55',
+		         t1: '#cdd6f4', t2: '#1e1e2e', t3: '#9399b2', t4: '#89b4fa', sel: '#585b70' },
+		light: { b1: '#eff1f5', b2: '#e6e9ef',
+		         b3: '#dce0e8', b4: '#ccd0da',
+		         c1: '#cfdcf7', c2: '#dce0e8', c3: '#eff1f5', c4: '#d3ecd0',
+		         c5: '#f5ddc8', c6: '#e6d5f7', c7: '#f7d3dc',
+		         t1: '#4c4f69', t2: '#eff1f5', t3: '#6c6f85', t4: '#1e66f5', sel: '#ccd0da' }
+	},
+	{
+		id: 'tokyonight', name: 'Tokyo Night / Day',
+		names: { dark: 'Tokyo Night', light: 'Tokyo Day' },
+		note: 'enkia \u2014 Night when your mode is dark, Day when it is light',
+		dark:  { b1: '#1a1b26', b2: '#16161e',
+		         b3: '#24283b', b4: '#2f334d',
+		         c1: '#385295', c2: '#292e42', c3: '#1a1b26', c4: '#3e5d37',
+		         c5: '#6a5128', c6: '#5a4380', c7: '#8a3a4a',
+		         t1: '#c0caf5', t2: '#1a1b26', t3: '#787c99', t4: '#7aa2f7', sel: '#33467c' },
+		light: { b1: '#e1e2e7', b2: '#d5d6db',
+		         b3: '#c8c9ce', b4: '#b6b7bd',
+		         c1: '#ccd6f5', c2: '#d8dae5', c3: '#e9e9ec', c4: '#d3e8c8',
+		         c5: '#f2e2c0', c6: '#e0d5f5', c7: '#f5d0d8',
+		         t1: '#33374c', t2: '#e9e9ec', t3: '#5a6699', t4: '#2e7de9', sel: '#b7c1e3' }
+	},
+	{
+		id: 'rosepine', name: 'Ros\u00e9 Pine',
+		note: 'the Ros\u00e9 Pine team \u2014 Moon dark, Dawn light',
+		dark:  { b1: '#232136', b2: '#2a273f',
+		         b3: '#393552', b4: '#44415a',
+		         c1: '#2d6a85', c2: '#2a273f', c3: '#232136', c4: '#3a5f54',
+		         c5: '#795c32', c6: '#5f4580', c7: '#8a4155',
+		         t1: '#e0def4', t2: '#232136', t3: '#908caa', t4: '#9ccfd8', sel: '#403d52' },
+		light: { b1: '#faf4ed', b2: '#fffaf3',
+		         b3: '#f2e9e1', b4: '#e4dcd4',
+		         c1: '#cfe2ea', c2: '#f2e9e1', c3: '#faf4ed', c4: '#d5e8dd',
+		         c5: '#f5e2c2', c6: '#e5d8f0', c7: '#f7d5dd',
+		         t1: '#575279', t2: '#faf4ed', t3: '#797593', t4: '#286983', sel: '#dfdad9' }
+	},
+	{
+		id: 'modus-tinted', name: 'Modus Tinted',
+		// sel on this LIGHT half is the dark grey the vault asked for by
+		// name — selection ink is chosen by measurement (t1 or t2,
+		// whichever reads), so dark-on-light selections get light text
+		// automatically. Every other scheme's sel is its upstream
+		// region/visual surface, or our adaptation where upstream shipped
+		// no light half.
+		names: { dark: 'Modus Vivendi Tinted', light: 'Modus Operandi Tinted' },
+		note: 'the tinted pair \u2014 warm paper by day, deep indigo night',
+		dark:  { b1: '#0d0e1c', b2: '#1d2235', b3: '#2a2e45', b4: '#3a3f58',
+		         c1: '#1d3d8f', c2: '#1d2235', c3: '#0d0e1c', c4: '#00432f',
+		         c5: '#4f3d00', c6: '#3b2f5c', c7: '#620f2a',
+		         t1: '#ffffff', t2: '#000000', t3: '#969696', t4: '#79a8ff', sel: '#41455f' },
+		light: { b1: '#fbf7f0', b2: '#efe9dd', b3: '#e8e2d4', b4: '#d8d2c4',
+		         c1: '#c6d5ff', c2: '#efe9dd', c3: '#fbf7f0', c4: '#c4e5c8',
+		         c5: '#f0e0a0', c6: '#e0d0ff', c7: '#ffcfcf',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#595959' }
+	},
+	{
+		// The accents lean on the blue\u2013yellow axis rather than red\u2013green,
+		// which is the point of the pair: values from the upstream palettes,
+		// arranged so nothing meaningful is carried by a red/green contrast.
+		id: 'modus-deuteranopia', name: 'Modus Deuteranopia',
+		names: { dark: 'Modus Vivendi Deuteranopia', light: 'Modus Operandi Deuteranopia' },
+		note: 'the red\u2013green\u2013safe pair, on the blue\u2013yellow axis',
+		dark:  { b1: '#000000', b2: '#100f10', b3: '#191a1b', b4: '#242526',
+		         c1: '#0a2f66', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#124f80',
+		         c5: '#5a4d00', c6: '#2c3ea8', c7: '#6f5000',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#79a8ff', sel: '#3c3c3c' },
+		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e8e8e8', b4: '#dcdcdc',
+		         c1: '#cce6ff', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#bfdbf0',
+		         c5: '#efe08c', c6: '#cdd4ff', c7: '#ffe0a0',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#0031a9', sel: '#bcbcbc' }
+	},
+	{
+		// Same idea on the other axis: blue\u2013yellow confusion, so the pair
+		// leans red and teal.
+		id: 'modus-tritanopia', name: 'Modus Tritanopia',
+		names: { dark: 'Modus Vivendi Tritanopia', light: 'Modus Operandi Tritanopia' },
+		note: 'the blue\u2013yellow\u2013safe pair, on the red\u2013teal axis',
+		dark:  { b1: '#000000', b2: '#100f10', b3: '#191a1b', b4: '#242526',
+		         c1: '#641f2a', c2: '#2b2b2b', c3: '#1e1e1e', c4: '#143c3c',
+		         c5: '#5b3400', c6: '#4a2a4a', c7: '#7a1030',
+		         t1: '#ffffff', t2: '#000000', t3: '#989898', t4: '#ff7f86', sel: '#3c3c3c' },
+		light: { b1: '#ffffff', b2: '#f2f2f2', b3: '#e8e8e8', b4: '#dcdcdc',
+		         c1: '#ffd0d6', c2: '#e0e0e0', c3: '#f0f0f0', c4: '#c8ecec',
+		         c5: '#f2ddb0', c6: '#ecd5ec', c7: '#ffc4cc',
+		         t1: '#000000', t2: '#ffffff', t3: '#595959', t4: '#a60000', sel: '#bcbcbc' }
+	},
+	{
+		// The dark half is Monokai; the light half is OUR adaptation of it
+		// onto paper \u2014 upstream never shipped one, and a survived dark
+		// palette on white is worse than a designed light one.
+		id: 'monokai', name: 'Monokai',
+		note: 'Wimer Hazenberg \u2014 the classic; light half is our adaptation',
+		dark:  { b1: '#272822', b2: '#3e3d32', b3: '#49483e', b4: '#75715e',
+		         c1: '#66d9ef', c2: '#3e3d32', c3: '#272822', c4: '#375a2e',
+		         c5: '#7a5a1e', c6: '#6f5c9c', c7: '#8f2f3f',
+		         t1: '#f8f8f2', t2: '#272822', t3: '#a59f85', t4: '#a6e22e', sel: '#49483e' },
+		light: { b1: '#fafafa', b2: '#f0f0ee', b3: '#e6e6e2', b4: '#d0d0c8',
+		         c1: '#cdeef5', c2: '#f0f0ee', c3: '#fafafa', c4: '#dcedc8',
+		         c5: '#fde3b3', c6: '#e6dcf5', c7: '#f8ccd4',
+		         t1: '#272822', t2: '#fafafa', t3: '#75715e', t4: '#f92672', sel: '#d8d8d0' }
+	},
+	{
+		id: 'onedark', name: 'One Dark / Light',
+		names: { dark: 'One Dark', light: 'One Light' },
+		note: 'Atom\u2019s pair \u2014 One Dark when dark, One Light when light',
+		dark:  { b1: '#282c34', b2: '#2c313a', b3: '#333842', b4: '#3e4451',
+		         c1: '#61afef', c2: '#2c313a', c3: '#282c34', c4: '#3e6845',
+		         c5: '#7a5c26', c6: '#7e5f9e', c7: '#8f3a44',
+		         t1: '#abb2bf', t2: '#282c34', t3: '#7f848e', t4: '#61afef', sel: '#3e4451' },
+		light: { b1: '#fafafa', b2: '#f0f0f1', b3: '#e5e5e6', b4: '#d3d3d4',
+		         c1: '#cfe5fb', c2: '#f0f0f1', c3: '#fafafa', c4: '#d6e9cc',
+		         c5: '#f5e3bd', c6: '#e6d9f2', c7: '#f6d0d4',
+		         t1: '#383a42', t2: '#fafafa', t3: '#696c77', t4: '#4078f2', sel: '#d0d4da' }
+	},
+	{
+		id: 'nightfox', name: 'Nightfox / Dayfox',
+		names: { dark: 'Nightfox', light: 'Dayfox' },
+		note: 'EdenEast \u2014 Nightfox when dark, Dayfox when light',
+		dark:  { b1: '#192330', b2: '#212e3f', b3: '#29394f', b4: '#39506d',
+		         c1: '#2e4372', c2: '#212e3f', c3: '#192330', c4: '#2b4a3c',
+		         c5: '#574a27', c6: '#4a3a63', c7: '#5c2f39',
+		         t1: '#cdcecf', t2: '#192330', t3: '#738091', t4: '#86abdc', sel: '#2b3b51' },
+		light: { b1: '#f6f2ee', b2: '#efe9e3', b3: '#e7e0d9', b4: '#d6cfc7',
+		         c1: '#ccd7ee', c2: '#efe9e3', c3: '#f6f2ee', c4: '#cfe0ce',
+		         c5: '#ecdcb8', c6: '#ded2ec', c7: '#f0cdd2',
+		         t1: '#352c24', t2: '#f6f2ee', t3: '#766f68', t4: '#2848a9', sel: '#e2d9cd' }
+	},
+	{
+		// Wave for the dark half, Lotus for the light \u2014 the upstream ink
+		// pairing on Lotus paper sits at 6.25:1, past AA and short of AAA;
+		// named in the probe with its measurement, like Ros\u00e9 Pine Dawn.
+		id: 'kanagawa', name: 'Kanagawa',
+		names: { dark: 'Kanagawa Wave', light: 'Kanagawa Lotus' },
+		note: 'rebelot \u2014 Wave by night, Lotus by day',
+		dark:  { b1: '#1f1f28', b2: '#2a2a37', b3: '#363646', b4: '#54546d',
+		         c1: '#2d4f67', c2: '#2a2a37', c3: '#1f1f28', c4: '#33473d',
+		         c5: '#5a4a2d', c6: '#453a62', c7: '#692f36',
+		         t1: '#dcd7ba', t2: '#1f1f28', t3: '#727169', t4: '#7e9cd8', sel: '#2d4f67' },
+		light: { b1: '#f2ecbc', b2: '#eae3ae', b3: '#e0d7a0', b4: '#b8b092',
+		         c1: '#cbd8e6', c2: '#eae3ae', c3: '#f2ecbc', c4: '#d2dcae',
+		         c5: '#ecd39a', c6: '#d8cadf', c7: '#ecc2c5',
+		         t1: '#545464', t2: '#f2ecbc', t3: '#716e61', t4: '#4d699b', sel: '#c9d5de' }
+	},
+	{
+		id: 'github', name: 'GitHub',
+		note: 'Primer \u2014 the dark and light you read pull requests in',
+		dark:  { b1: '#0d1117', b2: '#161b22', b3: '#21262d', b4: '#30363d',
+		         c1: '#1c3b63', c2: '#161b22', c3: '#0d1117', c4: '#1f4529',
+		         c5: '#544000', c6: '#3c2d69', c7: '#67232b',
+		         t1: '#e6edf3', t2: '#0d1117', t3: '#8b949e', t4: '#4493f8', sel: '#264f78' },
+		light: { b1: '#ffffff', b2: '#f6f8fa', b3: '#eaeef2', b4: '#d0d7de',
+		         c1: '#cfe4fb', c2: '#f6f8fa', c3: '#ffffff', c4: '#c9edd0',
+		         c5: '#f3e29c', c6: '#e3d3f5', c7: '#f8cfcf',
+		         t1: '#1f2328', t2: '#ffffff', t3: '#656d76', t4: '#0969da', sel: '#b6d9f8' }
+	},
+	{
+		// The light half needed two ADAPTATIONS to be usable as an interface:
+		// upstream's muted grey (#939f91) and green accent (#8da101) both sit
+		// under 3:1 on the paper, so the muted ink is darkened to #7a877e and
+		// the accent to #6c8a00 \u2014 the same hue, deep enough to read. The
+		// body-ink pairing itself (#5c6a72 on #fdf6e3, 5.16:1) is upstream's
+		// own and is carried as a named exception rather than re-inked.
+		id: 'everforest', name: 'Everforest',
+		note: 'sainnhe \u2014 the forest floor, by night and by day',
+		dark:  { b1: '#2d353b', b2: '#343f44', b3: '#3d484d', b4: '#475258',
+		         c1: '#384b55', c2: '#343f44', c3: '#2d353b', c4: '#425047',
+		         c5: '#514d44', c6: '#4a3f55', c7: '#563a3f',
+		         t1: '#d3c6aa', t2: '#2d353b', t3: '#859289', t4: '#a7c080', sel: '#543a48' },
+		light: { b1: '#fdf6e3', b2: '#f4f0d9', b3: '#efebd4', b4: '#d8d3ba',
+		         c1: '#d6e5dc', c2: '#f4f0d9', c3: '#fdf6e3', c4: '#d1e0c2',
+		         c5: '#eee0b2', c6: '#e2d8e4', c7: '#f2d5d0',
+		         t1: '#5c6a72', t2: '#fdf6e3', t3: '#7a877e', t4: '#6c8a00', sel: '#f0f1d2' }
+	},
+	{
+		// Vim ships TWO stock blue schemes and this pair is BOTH of them,
+		// verbatim: blue.vim (white on #000087, yellow Statements) by day,
+		// darkblue.vim (#c0c0c0 on #000040) by night. The day face is a
+		// DARK palette in the light slot, which every other scheme on this
+		// shelf would be wrong to do — and this one is right to, because
+		// blue.vim's whole identity is that navy.
+		//
+		// It cost a real bug to make it work rather than merely declare
+		// it. Everything Word-Smith colours for itself picks a dark or a
+		// light variant, and every one of them was choosing by the APP's
+		// mode: in light mode they all took their light variants — dark
+		// inks — and painted them onto navy. See isDarkSurface, which is
+		// the fix and the general rule: the plugin's own colours follow
+		// the PAPER, the pair's half still follows the app.
+		//
+		// theme_probe carries this as the one NAMED exception to "a light
+		// half is light", beside the measured contrast exceptions. An
+		// exception with a reason and a test is a decision; an exception
+		// without one is a bug nobody noticed.
+		id: 'vimblue', name: 'Vim Blue / Darkblue',
+		names: { dark: 'Vim Darkblue', light: 'Vim Blue' },
+		note: ':colorscheme blue by day, darkblue by night \u2014 both as Vim ships them',
+		dark:  { b1: '#000040', b2: '#000058', b3: '#10106e', b4: '#30309a',
+		         c1: '#2a2a9e', c2: '#000058', c3: '#000040', c4: '#0f6b45',
+		         c5: '#6b6b10', c6: '#4b2d9e', c7: '#8b1a3a',
+		         t1: '#c0c0c0', t2: '#000040', t3: '#8080c0', t4: '#ffff60', sel: '#2e3f9e' },
+		light: { b1: '#000087', b2: '#1c1c99', b3: '#2e2eab', b4: '#5555c4',
+		         c1: '#3232b4', c2: '#1c1c99', c3: '#000087', c4: '#0f6b52',
+		         c5: '#6b6b00', c6: '#4b2d9e', c7: '#8b1a3a',
+		         t1: '#ffffff', t2: '#000087', t3: '#b6b6ea', t4: '#ffff00', sel: '#4646c4' }
+	},
+];
+
 const PL_DIVIDERS = { '>': 'arrow', '<': 'arrow', '|': 'straight',
 	')': 'round', '(': 'round', '~': 'wave', '/': 'angleF', '\\': 'angleB' };
 
@@ -1170,7 +1537,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 46;
+const ZG_STYLESHEET_VERSION = 57;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1371,6 +1738,77 @@ function mixColors(a, b, t) {
 	return 'rgb(' + m(0) + ', ' + m(1) + ', ' + m(2) + ')';
 }
 
+// HSL both ways, for the vivify stage. The tables stay upstream-faithful —
+// muted surfaces and blue accents are what those schemes ARE — so anything
+// that needs to be LOUD (the cursor, the Vim modes, selection, bold) is
+// DERIVED: take the slot's hue, raise the saturation, find a lightness that
+// reads. Colour comes from the derivation; fidelity stays in the table.
+// Subsequence fuzzy scoring: every query character must appear in order,
+// and the score rewards the two things that make a match feel right —
+// characters that land TOGETHER, and characters that land at the start of
+// a word. "tn" finds Tokyo Night, "opt" finds Operandi Tinted, and a
+// scattered coincidental match sinks below a tight one rather than being
+// excluded, because excluding it is how a finder loses the item somebody
+// is actually looking for.
+//
+// Case-insensitive; the query is pre-lowered by the caller once, rather
+// than per candidate, because this runs across every item of every row on
+// each keystroke.
+function barMenuFuzzy(q, text) {
+	if (!q) return 0;
+	const t = text.toLowerCase();
+	let ti = 0, score = 0, streak = 0;
+	for (let qi = 0; qi < q.length; qi++) {
+		const c = q[qi];
+		let found = -1;
+		for (let i = ti; i < t.length; i++) {
+			if (t[i] === c) { found = i; break; }
+		}
+		if (found === -1) return -1;
+		// A word start is worth more than a letter in the middle of one.
+		const atWordStart = found === 0 || /[\s\/\-_(]/.test(t[found - 1]);
+		score += atWordStart ? 8 : 1;
+		streak = (found === ti && qi > 0) ? streak + 1 : 0;
+		score += streak * 4;
+		ti = found + 1;
+	}
+	// Shorter labels win ties: an exact-ish hit on "Nord" should outrank
+	// the same letters scattered through a longer name.
+	return score - Math.min(t.length, 40) * 0.1;
+}
+
+function colorToHsl(str) {
+	const p = parseColorRGB(str);
+	if (!p) return null;
+	const r = p[0] / 255, g = p[1] / 255, b = p[2] / 255;
+	const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+	const l = (mx + mn) / 2, d = mx - mn;
+	const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+	let h = 0;
+	if (d !== 0) {
+		if (mx === r)      h = ((g - b) / d) % 6;
+		else if (mx === g) h = (b - r) / d + 2;
+		else               h = (r - g) / d + 4;
+		h *= 60; if (h < 0) h += 360;
+	}
+	return { h: h, s: sat, l: l };
+}
+
+function hslToHex(h, s, l) {
+	const c = (1 - Math.abs(2 * l - 1)) * s;
+	const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+	const m = l - c / 2;
+	let r = 0, g = 0, b = 0;
+	if (h < 60)       { r = c; g = x; }
+	else if (h < 120) { r = x; g = c; }
+	else if (h < 180) { g = c; b = x; }
+	else if (h < 240) { g = x; b = c; }
+	else if (h < 300) { r = x; b = c; }
+	else              { r = c; b = x; }
+	const hx = (v) => ('0' + Math.round((v + m) * 255).toString(16)).slice(-2);
+	return '#' + hx(r) + hx(g) + hx(b);
+}
+
 // Separator width as a fraction of the row's height, which is the same thing
 // as the arrow's sharpness: a triangle's nose is 2·atan((h/2)/w). 0.85 gives
 // about 61°.
@@ -1467,6 +1905,39 @@ const PL_SOFT_SPLIT = /(::|>>|<<)/;
 
 
 const DEFAULT_SETTINGS = {
+	// ── Themes ──────────────────────────────────────────────────────────────
+	// Which colour SCHEME is dressing the workspace ('custom' = none), the
+	// writer's own ordering of the shelf, and the schemes they have removed
+	// from it. Order is priority, exactly as Obsidian's own font list works:
+	// the list you see is the list you curated. None of these is in BAR_KEYS
+	// — a scheme is this vault's clothing, not a bar design to share.
+	// The kill switch. Off, the whole theme system stands down — no class,
+	// no variables, no cursor writes — while every choice below survives for
+	// the day it comes back on. A kill switch that forgot your shelf would
+	// be a reset button wearing the wrong name.
+	barThemeEnabled: true,
+	barTheme:       'custom',
+	barThemeOrder:  [],
+	barThemeHidden: [],
+	// The scheme's reach, each independently togglable in the Theme tab.
+	// SIMPLIFIED collapses every surface to the editor's colour (one wash);
+	// off, each surface takes its own step of the theme's ramp. Headings and
+	// code pull accents from the scheme. Cursor hands the scheme's inks to
+	// Cursor-Smith, if it is installed.
+	barThemeHeadings:   false,
+	barThemeCode:       false,
+	barThemeSimplified: false,
+	barThemeCursor:     false,
+	barThemeVim:        false,
+	barThemeBorderless: false,
+	// TOMBSTONE (1.2.7). barThemeSimpleTabs was REMOVED within this same
+	// release by vault feedback: the flattening rules amounted to "only an
+	// underline" under real themes — the look needs Minimal's full tab
+	// rework or nothing, and a toggle that underdelivers its name is worse
+	// than no toggle. The key is simply gone from defaults; a stale value
+	// in data.json is harmlessly ignored.
+	barThemeMarkdown:   false,
+
 	// ── Master switch ─────────────────────────────────────────────────────────
 	pluginEnabled:            true,
 
@@ -2599,6 +3070,15 @@ module.exports = class WordSmith extends Plugin {
 				this.scheduleExplorerPatch();
 			}
 		}));
+		// THE MODE-SWITCH FIX: 'css-change' is the only event that fires when
+		// the writer flips light/dark, and nothing above listens to it — which
+		// left a scheme's dark half painted onto a light workspace until some
+		// unrelated refresh happened by. See barThemeOnCssChange for why the
+		// cursor bridge is deliberately not resynced from here.
+		this.registerEvent(this.app.workspace.on('css-change', () => {
+			this.barThemeOnCssChange();
+		}));
+
 
 		// DOM events
 		this.registerDomEvent(document, 'keyup', (evt) => {
@@ -2919,6 +3399,11 @@ module.exports = class WordSmith extends Plugin {
 		// The linger timer holds a reference to this plugin instance and
 		// would keep it alive past unload.
 		this.endBarPeek(true);
+		// The theme, by name. Uninstalling or updating the plugin unloads
+		// it without ever calling disablePlugin(), and inline properties on
+		// body outlive the stylesheet — so without this a removed plugin
+		// leaves the workspace wearing a scheme it can no longer take off.
+		this.barThemeUndress();
 		// Clean up retro bar
 		this.removeCustomElements();
 		this.stopClockTick();
@@ -3945,6 +4430,10 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	disablePlugin() {
+		// The theme comes off first, and by name: clearChromeColors below
+		// is exempted from theme variables ON PURPOSE (see the janitor),
+		// so it is the one sweep that cannot do this job.
+		this.barThemeUndress();
 		// The chrome override lives on body, not in the stylesheet, so it
 		// outlives removeStyleEl() unless it is cleared by hand.
 		this.clearChromeColors();
@@ -4000,6 +4489,11 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	applyBodyClasses() {
+		// The live colour scheme, refreshed on every pass so a theme picked in
+		// one window is on the body in all of them, and a reload restores it
+		// without the picker having been touched.
+		this.applyThemeClass();
+		this.applyThemeVars();
 		const body = document.body;
 		const zen  = this.zenActive();
 		// Zen's own chrome is intentionally not scoped (see the Scope section
@@ -4625,8 +5119,23 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	clearChromeColors() {
+		// EXEMPTED BY OWNERSHIP, and the exemption is load-bearing. This
+		// janitor sweeps inline properties off body on every apply pass —
+		// installed for an older feature's leftovers — and the theme engine
+		// (applyThemeVars) writes ITS variables inline on body in the same
+		// pass, one call earlier. --background-primary is on both lists. An
+		// unexempted sweep removes the theme milliseconds after it is set,
+		// on every refresh, forever: correct in any simulation that calls
+		// the setter without running the pass that follows it, and dead in a
+		// vault. A set difference rather than a reordering, so whoever edits
+		// the refresh pass next cannot silently re-lose the fight; anything
+		// the theme does NOT own is still swept, so the upgrade-leftover
+		// problem this exists for stays solved.
 		const body = document.body.style;
-		for (const p of this.chromeProps()) body.removeProperty(p);
+		const owned = new Set(this._themeVarKeys || []);
+		for (const p of this.chromeProps()) {
+			if (!owned.has(p)) body.removeProperty(p);
+		}
 	}
 
 	applyCssVariables() {
@@ -4760,12 +5269,19 @@ module.exports = class WordSmith extends Plugin {
 		// itself declared on body. A stale styles.css therefore renders what
 		// the rules looked like before they were choosable, rather than an
 		// invalid border.
+		// The fallback is a CHAIN now: an explicitly chosen colour wins as
+		// ever; with none chosen, --zg-bar-rule-accent answers — a token
+		// the bar does not interpret and only the workspace theme sets
+		// (inline, with everything else in applyThemeVars) — and with no
+		// theme worn it ends at --zg-text, exactly as before. The bar still
+		// knows nothing about themes; it reads one more variable that may
+		// or may not exist, which is the same contract as :b1.
 		barRoot.setProperty('--zg-bar-rule-top-color',
 			this.settings[isDark ? 'barRuleDarkTopColor' : 'barRuleLightTopColor']
-			|| 'var(--zg-text)');
+			|| 'var(--zg-bar-rule-accent, var(--zg-text))');
 		barRoot.setProperty('--zg-bar-rule-bottom-color',
 			this.settings[isDark ? 'barRuleDarkBottomColor' : 'barRuleLightBottomColor']
-			|| 'var(--zg-text)');
+			|| 'var(--zg-bar-rule-accent, var(--zg-text))');
 		// The note surface. Written on body for the same reason as the bar's
 		// pair above, and cleared rather than left at a stale value when the
 		// toggle goes off — an inline custom property outlives the
@@ -9932,6 +10448,43 @@ module.exports = class WordSmith extends Plugin {
 		document.body.classList.toggle('zg-font-active', !!font);
 	}
 
+	// The {theme} button: which scheme is on, and a click to change it.
+	//
+	// It names the scheme rather than showing a glyph, because a colour
+	// scheme has no specimen the way a font has "Aa" — the workspace IS the
+	// specimen, and a swatch beside it would be one of fifteen colours
+	// chosen arbitrarily. The name is the half's name, so this button says
+	// Vivendi by night and Operandi by day, matching the picker it opens.
+	//
+	// With themes switched off it reads "Theme" and dims, like every other
+	// button whose subject is unset, and clicking it still opens the picker
+	// — where choosing a scheme switches the system back on.
+	buildThemeIndicator() {
+		const on = this.settings.barThemeEnabled !== false;
+		const id = this.settings.barTheme;
+		const theme = (on && id && id !== 'custom') ? this.barThemeById(id) : null;
+		const half = this.isDarkTheme() ? 'dark' : 'light';
+		const name = theme
+			? ((theme.names && theme.names[half]) || theme.name)
+			: null;
+		// THE BUTTON SAYS "Theme", always. It named the worn scheme for a
+		// release, which made it the one button on the bar whose WIDTH
+		// changed with its setting — "GitHub" and "Modus Vivendi
+		// Deuteranopia" are not the same object — so choosing a scheme
+		// could reflow the row and shed a reading at the far end. Every
+		// other button on this bar names its subject, not its value; the
+		// value belongs in the tooltip and in the popup, where a name has
+		// room to be a name.
+		const el = this.buildBarButton(
+			'zg-barbtn-theme' + (theme ? '' : ' is-off'),
+			(node) => { node.textContent = 'Theme'; },
+			name ? 'Theme: ' + name + ' \u2014 click to change'
+				: 'Theme \u2014 click to choose',
+			(anchor2) => this.openThemePicker(anchor2)
+		);
+		return el;
+	}
+
 	buildFontIndicator() {
 		const current = this.opt('editorFont') || '';
 		const el = this.buildBarButton(
@@ -9975,15 +10528,49 @@ module.exports = class WordSmith extends Plugin {
 		const plugin = this;
 		const modal = new Modal(this.app);
 		modal.modalEl.addClass('zg-menu-modal');
+		// The menu is a PALETTE, not an interruption: it sits beside the
+		// writing and applies live, so dimming the workspace behind it hides
+		// exactly the thing every click is changing. The scrim stays for
+		// click-to-close; only its paint goes.
+		try { modal.bgEl.style.backgroundColor = 'transparent'; } catch (_) {}
 		modal.contentEl.addClass('zg-menu-content');
+		// The finder, above the list. It searches ROWS AND THEIR ITEMS at
+		// once — a writer looking for "nord" should not have to know it
+		// lives under Theme — and each result carries the row it came from,
+		// so the answer teaches the menu instead of bypassing it.
+		const search = modal.contentEl.createEl('input', { cls: 'zg-menu-search' });
+		search.type = 'text';
+		search.placeholder = 'Search\u2026';
 		const list = modal.contentEl.createDiv({ cls: 'zg-menu-list' });
 
 		const ROWS = [
 			{ label: 'Modes',   items: () => plugin.modesPickerItems() },
 			{ label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
 			{ label: 'Prose',   items: () => plugin.checksPickerItems() },
-			{ label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
 			{ label: 'Markers', items: () => plugin.markersPickerItems() },
+			{ label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
+			// Above Theme, because it changes which HALF of a theme you are
+			// looking at: the question "dark or light" comes before the
+			// question "which scheme".
+			//
+			// A TOGGLE, not a drawer. Two items behind an expander is one
+			// keystroke too many for a binary, and the open row always
+			// showed one dead option — the mode you were already in. The
+			// label names WHAT PRESSING IT DOES, so it reads "Light Mode"
+			// while you are dark and "Dark Mode" the moment you are not; a
+			// row that named the current state would leave the writer
+			// guessing whether it was a label or a button.
+			//
+			// `label` is a function here, which is why render resolves it:
+			// the text changes with the app, not with the menu opening.
+			{
+				label: () => plugin.isDarkTheme() ? 'Light Mode' : 'Dark Mode',
+				// Both words, so the finder answers "dark" and "light"
+				// whichever one the label happens to be showing.
+				keywords: 'light dark mode appearance',
+				toggle: () => plugin.barSetColorMode(!plugin.isDarkTheme())
+			},
+			{ label: 'Theme',   items: () => plugin.themesPickerItems(), count: false },
 			// Below a divider: these OPEN something rather than setting it,
 			// which is a different kind of act and reads better set apart.
 			// Centred for the same reason — they are buttons, not settings,
@@ -10001,13 +10588,81 @@ module.exports = class WordSmith extends Plugin {
 		let at = 0;          // index into the flat list
 		let flat = [];
 
+		// A row's label may be a function of the app's state — the
+		// light/dark toggle names the mode it would switch TO.
+		const rowLabel = (row) =>
+			(typeof row.label === 'function' ? row.label() : row.label);
+
 		const render = () => {
 			list.empty();
 			flat = [];
+
+			// SEARCH MODE. Rows collapse and the matches stand alone, best
+			// first, each labelled with the row it belongs to. Results are
+			// pushed into the SAME `flat` list the browsing mode uses, with
+			// the same kinds, so every key, click and activate path below
+			// works here without knowing search exists.
+			const q = (search.value || '').trim().toLowerCase();
+			if (q) {
+				const hits = [];
+				ROWS.forEach((row, ri) => {
+					// A row that DOES something — opens a panel, or flips a
+					// toggle — is itself a result. Matched against its
+					// keywords as well as its label, so the light/dark row
+					// answers to BOTH words rather than only to the one it
+					// is currently showing.
+					if (row.run || row.toggle) {
+						const label = rowLabel(row);
+						const sc = Math.max(
+							barMenuFuzzy(q, label),
+							row.keywords ? barMenuFuzzy(q, row.keywords) - 1 : -1);
+						if (sc >= 0) hits.push({ sc, row: label, kind: 'row', ri });
+					}
+					if (!row.items) return;
+					for (const item of row.items()) {
+						// Matched against "row label + item label", so both
+						// "theme nord" and plain "nord" find the same thing.
+						const sc = Math.max(
+							barMenuFuzzy(q, item.label),
+							barMenuFuzzy(q, row.label + ' ' + item.label) - 2);
+						if (sc >= 0) hits.push({ sc, row: row.label, kind: 'item', item });
+					}
+				});
+				hits.sort((a, b) => b.sc - a.sc);
+				for (const h of hits.slice(0, 12)) {
+					const isOn = h.kind === 'item'
+						&& (typeof h.item.on === 'function' ? h.item.on() : h.item.on);
+					const sub = list.createDiv({
+						cls: 'zg-menu-sub zg-picker-row zg-menu-result'
+							+ (h.kind === 'item' && !isOn ? ' is-off' : '')
+					});
+					if (h.kind === 'item' && h.item.color) {
+						const dot = sub.createSpan({ cls: 'zg-picker-dot' });
+						if (h.item.color !== 'currentColor') dot.style.backgroundColor = h.item.color;
+					}
+					sub.createSpan({ cls: 'zg-picker-label',
+						text: h.kind === 'row' ? h.row : h.item.label });
+					if (h.kind === 'item') sub.createSpan({ cls: 'zg-menu-in', text: h.row });
+					const entry = h.kind === 'row'
+						? { el: sub, kind: 'row', ri: h.ri }
+						: { el: sub, kind: 'item', item: h.item };
+					flat.push(entry);
+					sub.addEventListener('click', () => {
+						at = flat.indexOf(entry); activate();
+					});
+				}
+				if (!flat.length) {
+					list.createDiv({ cls: 'zg-menu-empty', text: 'Nothing matches' });
+				}
+				at = Math.min(at, Math.max(0, flat.length - 1));
+				paint();
+				return;
+			}
+
 			ROWS.forEach((row, ri) => {
 				if (row.rule) list.createDiv({ cls: 'zg-menu-rule' });
 				const el = list.createDiv({ cls: 'zg-menu-row' + (row.wide ? ' is-wide' : '') });
-				el.createSpan({ cls: 'zg-menu-label', text: row.label });
+				el.createSpan({ cls: 'zg-menu-label', text: rowLabel(row) });
 				// A count of what is on, for the rows where that is a
 				// question. NOT for Font: exactly one typeface is always
 				// selected, so "1 on" states a tautology and reads as though
@@ -10025,6 +10680,8 @@ module.exports = class WordSmith extends Plugin {
 				el.addEventListener('click', () => { at = flat.findIndex(f => f.el === el); activate(); });
 
 				if (open === ri && row.items) {
+					// TOMBSTONE (1.2.7). A folder rendered here for one
+					// release — see BAR_THEME_GROUPS. Rows are flat again.
 					for (const item of row.items()) {
 						// Built the way the bar's own popup builds a row —
 						// same classes, so the swatch, the drawn icon, the
@@ -10058,10 +10715,22 @@ module.exports = class WordSmith extends Plugin {
 			paint();
 		};
 
-		const paint = () => flat.forEach((f, i) => f.el.toggleClass('is-active', i === at));
+		const paint = () => {
+			flat.forEach((f, i) => f.el.toggleClass('is-active', i === at));
+			// Follow the keys. With every row open the list outgrows the
+			// modal, and an arrow-moved selection that walks below the fold
+			// reads as "arrows don't work" — the active row must bring the
+			// scroll with it. 'nearest', so mouse users' scroll position is
+			// never yanked when a click repaints.
+			const cur = flat[at];
+			if (cur && cur.el && cur.el.scrollIntoView) {
+				try { cur.el.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+			}
+		};
 
 		const activate = async () => {
 			const cur = flat[at];
+
 			if (!cur) return;
 			if (cur.kind === 'item') {
 				// Applies live, behind the modal. Every one of these is a
@@ -10075,6 +10744,17 @@ module.exports = class WordSmith extends Plugin {
 				return;
 			}
 			const row = ROWS[cur.ri];
+			// A toggle acts and STAYS: the menu is a palette, and closing
+			// it on a mode flip would hide the thing the flip just changed.
+			// The re-render is what re-reads the label.
+			if (row.toggle) {
+				row.toggle();
+				const keep = at;
+				render();
+				at = Math.min(keep, flat.length - 1);
+				paint();
+				return;
+			}
 			if (row.run) { modal.close(); row.run(); return; }
 			open = (open === cur.ri) ? -1 : cur.ri;
 			const keep = cur.ri;
@@ -10094,19 +10774,77 @@ module.exports = class WordSmith extends Plugin {
 
 		// Vim-shaped, because the sidebars already are, with arrows beside
 		// them so the dialect is optional.
-		for (const k of ['j', 'ArrowDown']) modal.scope.register([], k, () => { move(1);  return false; });
-		for (const k of ['k', 'ArrowUp'])   modal.scope.register([], k, () => { move(-1); return false; });
-		for (const k of ['l', 'ArrowRight', 'Enter', ' '])
-			modal.scope.register([], k, () => { activate(); return false; });
-		for (const k of ['h', 'ArrowLeft']) modal.scope.register([], k, () => { collapse(); return false; });
+		// The letter keys and the finder want the same keystrokes, and the
+		// arbitration is the writer's own setting: HJKL STEER ONLY WITH
+		// OBSIDIAN'S VIM MODE ON. Off, they are letters and nothing else —
+		// which is the honest default, because a writer who never chose Vim
+		// has no reason to expect 'h' to mean anything but 'h', and the
+		// finder above them is full of schemes spelled with those letters
+		// (Habamax, Kanagawa, Light / Dark).
+		//
+		// Even with Vim on they yield while the field has focus: typing
+		// "habamax" must not collapse a row on its first character.
+		// Returning true lets the key through to the input rather than
+		// swallowing it. The arrows, Enter and Escape steer in every case,
+		// and Ctrl+j / Ctrl+k steer while typing, for hands that would
+		// rather not leave the home row.
+		const typing = () => document.activeElement === search;
+		const vimKeys = () => plugin.isVimKeysOn();
+		const letter = (fn) => () => {
+			if (typing() || !vimKeys()) return true;
+			fn(); return false;
+		};
+		// The ARROWS steer unconditionally — they are not letters and can
+		// never be typed into the field. Pairing them with hjkl in one
+		// loop, as the first draft did, put them behind the Vim gate and
+		// left a non-Vim writer with no keyboard at all; the probe caught
+		// it on the first run.
+		const always = (fn) => () => { fn(); return false; };
+		modal.scope.register([], 'ArrowDown',  always(() => move(1)));
+		modal.scope.register([], 'ArrowUp',    always(() => move(-1)));
+		modal.scope.register([], 'ArrowRight', always(() => activate()));
+		modal.scope.register([], 'ArrowLeft',  always(() => collapse()));
+		modal.scope.register([], 'j', letter(() => move(1)));
+		modal.scope.register([], 'k', letter(() => move(-1)));
+		modal.scope.register([], 'l', letter(() => activate()));
+		modal.scope.register([], 'h', letter(() => collapse()));
+		modal.scope.register([], 'Enter', () => { activate(); return false; });
+		// Space activates only when it cannot be a character: in the field
+		// it types, and with Vim off the field is where every keystroke is
+		// meant to go.
+		modal.scope.register([], ' ', () => {
+			if (typing() || !vimKeys()) return true;
+			activate(); return false;
+		});
+		modal.scope.register(['Mod'], 'j', () => { move(1);  return false; });
+		modal.scope.register(['Mod'], 'k', () => { move(-1); return false; });
 		// Escape closes an open row first and the modal second, so backing
 		// out of a submenu does not throw the whole panel away.
 		modal.scope.register([], 'Escape', () => {
-			if (!collapse()) modal.close();
+			// Escape clears a query before it closes the menu: the first
+			// press undoes the typing, the second leaves. Closing on the
+			// first press would throw away the browsing state a writer was
+			// two keystrokes from using.
+			if ((search.value || '').trim()) {
+				search.value = ''; at = 0; render();
+				try { search.focus(); } catch (_) {}
+				return false;
+			}
+			modal.close();
 			return false;
 		});
 
-		modal.onOpen = () => { list.setAttribute('tabindex', '-1'); list.focus(); };
+		// Every keystroke re-renders the results. Cheap: the lists are
+		// short and already rebuilt on every open and close.
+		search.addEventListener('input', () => { at = 0; render(); });
+
+		// Focused on open, because a finder you must click into is not one.
+		// The list keeps its tabindex so Escape-to-list still has somewhere
+		// to land.
+		modal.onOpen = () => {
+			list.setAttribute('tabindex', '-1');
+			try { search.focus(); } catch (_) { list.focus(); }
+		};
 		render();
 		modal.open();
 		return modal;
@@ -10146,8 +10884,1186 @@ module.exports = class WordSmith extends Plugin {
 		return items;
 	}
 
+
+	// ═════════════════════════════════════════════════════════════════════════
+	// Themes — colour schemes for the WORKSPACE
+	// ═════════════════════════════════════════════════════════════════════════
+	//
+	// A theme is what the whole workspace looks like — editor, sidebars,
+	// panels — not a status-bar palette. Picking one writes CSS custom
+	// properties INLINE ON BODY and nothing else, so a writer's own bar
+	// swatches survive a theme switch untouched; the bar follows along
+	// because :b1–:b4 already read the variables a theme rewrites.
+	//
+	// Three rules here are load-bearing, each the scar of a design that was
+	// correct and did not work:
+	//   INLINE, never an injected rule — `body.zg-theme-x` TIES with the
+	//   `body.theme-dark` every community theme writes its variables on, and
+	//   a tie is broken by source order, which Obsidian reshuffles. Inline
+	//   beats every non-important rule from any source in any order.
+	//   THREE VARIABLE LAYERS at once — Obsidian's named variables, its
+	//   --color-base-* token ramp, and Minimal's private ladder (--bg1…,
+	//   --tx1…), which maps ~200 variables and defines no --color-base-* at
+	//   all. A property nobody reads costs nothing; a layer nobody set reads
+	//   as "the theme half-applied".
+	//   THE MENU INVOKES item.onClick — see themesPickerItems. It was `run:`
+	//   once, and a theme clicked in the menu did nothing, silently.
+
+	barThemeById(id) {
+		for (const t of BAR_THEMES) if (t.id === id) return t;
+		return null;
+	}
+
+	// Apply a shipped theme.
+	//
+	// THIRD DESIGN, and the first two were the same mistake made twice. A
+	// theme originally wrote the seven powerline palette colours; that left
+	// the shipped presets untouched, because they are written :b2|:b1 and
+	// those slots read Obsidian's surface variables. The second attempt made
+	// :bN read the theme's surfaces instead. Both were the BAR answering a
+	// question about the APP.
+	//
+	// Modus, Nord and Dracula are not status-bar palettes. They are colour
+	// schemes for everything you are looking at, and picking one should
+	// change the editor, the sidebars and the panels — with the bar following
+	// along, because the bar already reads those variables. So a theme now
+	// writes CSS CUSTOM PROPERTIES and nothing else.
+	//
+	// Which is why it needs no settings writes at all beyond the one key
+	// naming the scheme. Nothing is copied into the palette, so nothing has
+	// to be copied back out; there is no hand-edited-palette state to
+	// reconcile; and a writer's own swatches survive a theme switch
+	// untouched. The powerline palette is the writer's. The workspace is the
+	// theme's.
+	// The shelf as this writer arranged it: their order first, anything new
+	// the table gained appended in table order, minus what they removed.
+	// Order IS priority — the same contract as Obsidian's own font list,
+	// where the list you see is the list you curated. Unknown ids in either
+	// setting are ignored rather than repaired, so a downgrade that never
+	// heard of a theme costs a preference, not a crash.
+	barThemeShelf() {
+		const hidden = new Set(this.settings.barThemeHidden || []);
+		const known  = new Map(BAR_THEMES.map(t => [t.id, t]));
+		const out = [];
+		for (const id of (this.settings.barThemeOrder || [])) {
+			if (known.has(id) && !hidden.has(id)) { out.push(known.get(id)); known.delete(id); }
+		}
+		for (const t of BAR_THEMES) {
+			if (known.has(t.id) && !hidden.has(t.id)) out.push(t);
+		}
+		return out;
+	}
+
+	// Move a theme within the shelf. Writes the FULL visible order rather
+	// than a delta, so the setting always describes the shelf as seen and
+	// two moves cannot interleave into an order nobody chose.
+	barThemeMove(id, to) {
+		const ids = this.barThemeShelf().map(t => t.id);
+		const from = ids.indexOf(id);
+		if (from === -1) return false;
+		ids.splice(from, 1);
+		ids.splice(Math.max(0, Math.min(ids.length, to)), 0, id);
+		this.settings.barThemeOrder = ids;
+		return true;
+	}
+
+	// Removing a theme from the shelf never touches the LIVE scheme except
+	// in one case: hiding the scheme you are wearing takes it off first.
+	// A workspace dressed in a theme its own picker no longer offers is a
+	// state with no way back through the UI that created it.
+	barThemeHide(id) {
+		const hidden = this.settings.barThemeHidden || [];
+		if (hidden.indexOf(id) === -1) hidden.push(id);
+		this.settings.barThemeHidden = hidden;
+		if (this.settings.barTheme === id) this.applyBarTheme('custom');
+	}
+
+	barThemeShow(id) {
+		this.settings.barThemeHidden =
+			(this.settings.barThemeHidden || []).filter(h => h !== id);
+	}
+
+	// One list, feeding both the settings cards and the menu row, in shelf
+	// order — the single-source rule the other pickers follow.
+	themesPickerItems() {
+		const live = this.settings.barTheme;
+		// DEFAULT sits first, always: it is the way OUT, and a menu that
+		// offers nineteen ways to dress and no way to undress makes the
+		// writer dig through settings to get their own theme back. It rides
+		// the same list as everything else so the menu and the cards cannot
+		// disagree about it, and it neither drags nor removes — there is no
+		// priority to give the absence of a scheme, and no meaning to
+		// removing it.
+		const items = [{
+			id:    'custom',
+			label: 'Default',
+			note:  'No scheme \u2014 the workspace is your Obsidian theme\u2019s.',
+			swatches: [],
+			on:    live === 'custom',
+			onClick: async () => {
+				// CHOOSING Default stands the system down — what the menu's
+				// Default now means: one control, reachable from the bar,
+				// that both undresses and switches off. Its pair is below:
+				// choosing a scheme switches back on.
+				this.settings.barThemeEnabled = false;
+				this.applyBarTheme('custom');
+				// Redraw first, persist after — the rule the zoom tabs follow.
+				this.updateStatusBar();
+				await this.saveSettings();
+			}
+		}];
+		const half = this.isDarkTheme() ? 'dark' : 'light';
+		// Every item carries `onClick` — the property THE MENU INVOKES.
+		// It was `run:` once and the menu path was silently dead through
+		// five designs; the full story lives on the engine header above,
+		// and theme_probe pins the contract by DRIVING it.
+		const one = (t) => ({
+			id:    t.id,
+			label: (t.names && t.names[half]) || t.name,
+			note:  t.note,
+			color: this.barThemeHalf(t).c1,
+			swatches: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
+				.map(k => this.barThemeHalf(t)[k]),
+			on:    live === t.id,
+			onClick: async () => {
+				// CHOOSING A SCHEME TURNS THE SYSTEM ON. Without this, a
+				// writer who had switched themes off found the Theme row
+				// inert: every pick applied a scheme the kill switch then
+				// refused to paint, so nothing happened and nothing said
+				// why. Picking a scheme IS asking for themes.
+				this.settings.barThemeEnabled = true;
+				this.applyBarTheme(t.id);
+				this.updateStatusBar();
+				await this.saveSettings();
+			}
+		});
+		return items.concat(this.barThemeShelf().map(t => one(t)));
+	}
+
+	applyBarTheme(id) {
+		if (id !== 'custom' && !this.barThemeById(id)) return false;
+		this.settings.barTheme = id;
+		this.applyThemeClass();
+		this.applyThemeVars();
+		// Fire-and-forget: every guard lives inside, and a scheme switch
+		// should recolour the cursor without the caller knowing cursors exist.
+		this.barThemeCursorSync();
+		return true;
+	}
+
+	// One body class per live theme. It no longer carries the colours — those
+	// are set inline, see applyThemeVars — and is kept purely so a writer's
+	// own snippet has something to target: `body.zg-theme-nord { … }` is the
+	// hook for anyone who wants to push a scheme further than we do.
+	applyThemeClass() {
+		const body = document.body;
+		if (!body || !body.classList) return;
+		for (const c of Array.from(body.classList)) {
+			if (c.indexOf('zg-theme-') === 0) body.classList.remove(c);
+		}
+		const id = this.settings.barTheme;
+		if (this.settings.barThemeEnabled !== false
+			&& id && id !== 'custom') body.classList.add('zg-theme-' + id);
+		// Borderless is a LOOK, not a scheme — like the tab experiment
+		// before it, it works under Default and dies with the kill switch.
+		// Unlike that experiment it is variables-first (Minimal's own
+		// simplicity comes mostly from emptied dividers), with a short rule
+		// block for the borders that ignore the divider variable.
+		body.classList.toggle('zg-borderless',
+			this.settings.barThemeEnabled !== false && !!this.settings.barThemeBorderless);
+		// TOMBSTONE (1.2.7). zg-simpletabs was removed by vault feedback —
+		// see DEFAULT_SETTINGS. Actively removed rather than merely no
+		// longer added, so a session that had it on is cleaned on the next
+		// pass instead of wearing a class no stylesheet serves.
+		body.classList.remove('zg-simpletabs');
+	}
+
+	// WCAG contrast between two colours parseColorRGB can read.
+	barContrast(a, b) {
+		const lum = (c) => {
+			const p = parseColorRGB(c);
+			if (!p) return 0;
+			const f = (v) => {
+				v /= 255;
+				return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+			};
+			return 0.2126 * f(p[0]) + 0.7152 * f(p[1]) + 0.0722 * f(p[2]);
+		};
+		const la = lum(a), lb = lum(b);
+		return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+	}
+
+	// Pull a colour toward the theme's own ink until it reads as TEXT.
+	//
+	// The c-slots are SURFACES — designed as bar-segment backgrounds, several
+	// of them literally the theme's own b1/b2 — so painting a heading with
+	// one straight from the table gives invisible text on half the shelf.
+	// But they carry the theme's hues, which is the whole point of "colored
+	// headings based off the theme". So: walk the colour toward t1 in tenths
+	// and stop at the first step that clears 4.5:1 on the editor surface. A
+	// colour that already reads is returned untouched; t1 itself always
+	// passes (the AAA gate in theme_probe guarantees it), so the walk always
+	// terminates with a usable ink that still remembers its hue.
+	barThemeInkify(color, bg, ink) {
+		for (let t = 0; t <= 10; t++) {
+			const c = t === 0 ? color : mixColors(color, ink, t / 10);
+			if (this.barContrast(c, bg) >= 4.5) return c;
+		}
+		return ink;
+	}
+
+	// The LOUD derivation: keep the slot's hue, raise the saturation, walk
+	// the lightness ladder toward the readable side of the surface, and
+	// return the first step that clears 4.5:1. Where a slot carries no hue
+	// to keep (Quiet is s=0 everywhere, BY DESIGN — the audit that shaped
+	// this function proved it), a fixedHue caller can supply one; without
+	// it the honest answer is the plain inkified slot, because inventing a
+	// hue for a scheme built on having none would be repainting it.
+	barThemeVivify(color, bg, ink, fixedHue) {
+		const src = colorToHsl(color);
+		if (!src) return this.barThemeInkify(color, bg, ink);
+		let hue = src.h, sat = Math.max(src.s, 0.8);
+		if (src.s < 0.15) {
+			if (fixedHue == null) return this.barThemeInkify(color, bg, ink);
+			hue = fixedHue; sat = 0.8;
+		}
+		const darkBg = this.barContrast('#ffffff', bg) > this.barContrast('#000000', bg);
+		const ladder = darkBg
+			? [0.72, 0.66, 0.78, 0.60, 0.84, 0.55, 0.88]
+			: [0.34, 0.40, 0.30, 0.46, 0.26, 0.50, 0.22];
+		for (const l of ladder) {
+			const c = hslToHex(hue, sat, l);
+			if (this.barContrast(c, bg) >= 4.5) return c;
+		}
+		return this.barThemeInkify(color, bg, ink);
+	}
+
+	// The surface for a SELECTED ROW IN A LIST — the command palette, the
+	// quick switcher, any suggester — measured against the surface it sits
+	// on rather than assumed to be visible on it.
+	//
+	// The vault sent a screenshot of the palette where the selected row
+	// was all but invisible: it reads --background-modifier-hover, which
+	// is one ramp step from the modal it sits on, and one step is exactly
+	// what a hover should be and exactly what a selection should not.
+	//
+	// Candidates in preference order, first one that clears BOTH tests:
+	// distinct enough from the surface behind it to be seen (1.6:1, about
+	// where a band stops reading as a rendering artefact), and able to
+	// carry an ink at 4.5:1. `sel` leads because a highlighted row IS a
+	// selection and the scheme already says what its selections look like.
+	// If nothing qualifies, the most distinct candidate wins: a legible
+	// row that is hard to see is worse than a visible one, because the
+	// writer is looking for WHICH row, not for what it says.
+	barThemeHighlight(h, surface) {
+		const inkFor = (bg) =>
+			(this.barContrast(h.t1, bg) >= this.barContrast(h.t2, bg)) ? h.t1 : h.t2;
+		const ok = (bg) => this.barContrast(bg, surface) >= 1.6
+			&& this.barContrast(inkFor(bg), bg) >= 4.5;
+		let best = null, bestSeen = -1;
+		for (const bg of [h.sel, h.c1, h.b4, h.b3]) {
+			const seen = this.barContrast(bg, surface);
+			if (seen > bestSeen) { bestSeen = seen; best = bg; }
+			if (ok(bg)) return { bg: bg, ink: inkFor(bg) };
+		}
+		// No slot in the table clears both bars on every scheme — Solarized
+		// Light's surfaces sit too close together to be told apart, and
+		// Kanagawa Lotus's cannot carry an ink once they are. So the
+		// highlight is DERIVED instead: walk the popup surface toward the
+		// body ink until the band is both visible and legible. The scheme's
+		// own colours are preferred and this only runs when they cannot do
+		// the job, which is the same order of preference the rest of the
+		// engine uses — table first, derivation second.
+		// The walk runs all the way to the ink itself. On a light scheme the
+		// two tests fight in the middle — the band darkens faster than the
+		// pale ink can carry it — and the window only reopens further along,
+		// where the OPPOSITE ink takes over and the row becomes a proper
+		// inversion. Stopping at the midpoint, as the first draft did, left
+		// Catppuccin Latte and Kanagawa Lotus with a band that was visible
+		// or legible but never both.
+		for (let k = 0.12; k <= 1.0001; k += 0.06) {
+			const bg = mixColors(surface, h.t1, k);
+			if (ok(bg)) return { bg: bg, ink: inkFor(bg) };
+		}
+		return { bg: best, ink: inkFor(best) };
+	}
+
+	// THE CURSOR'S INK, and it is deliberately NOT barThemeVividFor.
+	//
+	// That function answers "the loudest hue this half owns", and its
+	// red-first rule made the cursor red on nearly every dark scheme,
+	// because c7 is the table's red BY CONVENTION everywhere. The vault
+	// saw twenty schemes wearing one colour and said so. The cursor now
+	// takes THE SAME INK AS AN H1 — the scheme's accent, t4 — which is
+	// what a scheme means by "this is mine": Vim Darkblue's yellow,
+	// Nord's frost blue, Everforest's green, One Dark's blue.
+	//
+	// Vivified only when the raw accent cannot read on the editor
+	// surface, so a scheme whose accent already reads keeps its exact
+	// upstream colour rather than a saturated approximation of it.
+	//
+	// The reversal is on the record: an earlier release made this red on
+	// purpose, for Modus Tinted's "blood red" — that ask was really about
+	// SELECTION, which now carries each scheme's own `sel` surface and
+	// gives Modus Tinted its dark grey. The loud-red rule outlived its
+	// reason, and its cost was every other scheme.
+	barThemeCursorInk(h) {
+		if (this.barContrast(h.t4, h.b1) >= 4.5) return h.t4;
+		return this.barThemeVivify(h.t4, h.b1, h.t1);
+	}
+
+	// The most colourful readable ink a half can offer — the cursor's
+	// colour, selection's colour, bold's colour. Every accent slot and the
+	// accent proper are vivified, then judged by SATURATION with contrast
+	// as the tie-break: on Modus Tinted that contest is won by c7 and the
+	// answer is the blood red, not the polite blue t4 would have given. On
+	// Quiet every candidate comes back grey, and grey wins — the correct
+	// answer for Quiet.
+	barThemeVividFor(h) {
+		// "Loudest", third definition, and this one is honest about why:
+		// max-saturation TIED on the all-saturated Modus tables and the
+		// tiebreak picked green; farthest-hue-from-family crowned YELLOW,
+		// because yellow is blue's complement — mathematically the pop,
+		// and not what any eye calls loud. Two facts settle it. RED is the
+		// eye's loudest hue — it is what warning lights are — and c7 is
+		// this table's red BY CONVENTION on every scheme (the Vim Replace
+		// mode already leans on that). So: the scheme's own red, vivified,
+		// wins when it exists; otherwise the saturated candidate farthest
+		// in hue from the scheme's family; on Quiet nothing qualifies and
+		// grey wins, which is the correct answer for Quiet.
+		//
+		// The family hue is gated on CHROMA (max-min), not HSL saturation:
+		// near-white paper computes a meaningless s≈0.5 and hijacked the
+		// reference until it was.
+		const sred = this.barThemeVivify(h.c7, h.b1, h.t1);
+		const rh = colorToHsl(sred);
+		if (rh && rh.s >= 0.45 && (rh.h >= 320 || rh.h <= 25)) return sred;
+
+		const chroma = (str) => {
+			const p = parseColorRGB(str);
+			return p ? (Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2])) / 255 : 0;
+		};
+		const bH = colorToHsl(h.b1), aH = colorToHsl(h.t4);
+		const ref = chroma(h.b1) >= 0.12 ? bH.h
+			: (chroma(h.t4) >= 0.12 ? aH.h : null);
+		const dist = (x, y) => {
+			const d = Math.abs(x - y) % 360;
+			return d > 180 ? 360 - d : d;
+		};
+		let best = null, bestScore = -1;
+		let grey = null, greyScore = -1;
+		for (const k of ['c1', 'c4', 'c5', 'c6', 'c7', 't4']) {
+			const c = this.barThemeVivify(h[k], h.b1, h.t1);
+			const hs = colorToHsl(c);
+			const sat = hs ? hs.s : 0;
+			if (sat >= 0.45 && ref != null) {
+				const score = dist(hs.h, ref) + sat;
+				if (score > bestScore) { bestScore = score; best = c; }
+			}
+			const gs = sat + this.barContrast(c, h.b1) / 1000;
+			if (gs > greyScore) { greyScore = gs; grey = c; }
+		}
+		return best || grey || h.t4;
+	}
+
+	// THE MODE-SWITCH BUG's fix. Obsidian fires 'css-change' when the
+	// theme, a snippet, or the light/dark MODE changes — and none of the
+	// events the refresh pass listens to fires for that last one, which is
+	// how a writer could flip Appearance and keep the dark half of their
+	// scheme on a light workspace. Restamp the class and the variables.
+	// The cursor bridge is deliberately NOT resynced here: both halves are
+	// already written into Cursor-Smith and it follows the mode by itself —
+	// writing another plugin's disk on a mode flip would be sync-on-time,
+	// not sync-on-intent.
+	// Flip Obsidian's own light/dark mode. `changeTheme` is the app's
+	// method and 'obsidian'/'moonstone' are its two mode names — dark and
+	// light, in that order, which is worth writing down because neither
+	// name says so. The vault config path is a fallback for a build that
+	// does not expose the method: it stores the same value and then needs
+	// the css-change nudge the method fires for itself.
+	//
+	// Nothing here touches the SCHEME. Flipping the mode makes the app
+	// fire css-change, and the handler below swaps the half — one path,
+	// whether the writer flips from our row or from Appearance.
+	barSetColorMode(dark) {
+		const name = dark ? 'obsidian' : 'moonstone';
+		try {
+			if (typeof this.app.changeTheme === 'function') {
+				this.app.changeTheme(name);
+				return true;
+			}
+			if (this.app.vault && this.app.vault.setConfig) {
+				this.app.vault.setConfig('theme', name);
+				if (this.app.workspace && this.app.workspace.trigger) {
+					this.app.workspace.trigger('css-change');
+				}
+				return true;
+			}
+		} catch (_) {}
+		return false;
+	}
+
+	// TOMBSTONE (1.2.7). modePickerItems() built the light/dark row as a
+	// two-item drawer for one release. It became a single toggle by vault
+	// feedback — two items behind an expander is one keystroke too many
+	// for a binary, and one of the two was always the mode you were
+	// already in. The switch itself is barSetColorMode above.
+
+
+	// TAKE THE THEME OFF THE WORKSPACE, without forgetting it.
+	//
+	// The plugin's own master switch and its unload path both tear down
+	// everything Word-Smith put on the page, and the theme was the one
+	// thing that survived them: the chrome janitor they call is
+	// DELIBERATELY exempted from theme variables — that exemption is what
+	// keeps a theme alive through the refresh pass — so the sweep that
+	// clears everything else steps around this on purpose. A disabled
+	// plugin left the whole workspace wearing a scheme, with the settings
+	// that would have removed it now unreachable.
+	//
+	// Settings are untouched: this is undressing, not forgetting, and
+	// re-enabling repaints from applyBodyClasses as it always did.
+	barThemeUndress() {
+		try {
+			const body = document.body.style;
+			for (const k of (this._themeVarKeys || [])) body.removeProperty(k);
+			this._themeVarKeys = [];
+			for (const cls of Array.from(document.body.classList)) {
+				if (cls.indexOf('zg-theme-') === 0) document.body.classList.remove(cls);
+			}
+			document.body.classList.remove('zg-borderless', 'zg-simpletabs');
+		} catch (_) {}
+		// And the caret, which lives in another plugin and would otherwise
+		// keep our colours after ours is gone.
+		try { this.barThemeCursorSync('undress'); } catch (_) {}
+	}
+
+	barThemeOnCssChange() {
+		this.applyThemeClass();
+		this.applyThemeVars();
+	}
+
+	// The variables a theme sets, as a plain map, or null for none.
+	//
+	// THE HALF follows the app's light/dark mode, which is what makes a theme
+	// a pair rather than two entries.
+	barThemeVars() {
+		// The kill switch: stood down means NOTHING is emitted, which through
+		// applyThemeVars also strips whatever was set before — off is off.
+		if (this.settings.barThemeEnabled === false) return null;
+		const id = this.settings.barTheme;
+		if (!id || id === 'custom') return null;
+		const theme = this.barThemeById(id);
+		if (!theme) return null;
+		const h = this.barThemeHalf(theme);
+		if (!h) return null;
+		const st = this.settings;
+		// One wash, or the whole ramp. SIMPLIFIED collapses every chrome
+		// surface to the editor's own colour — the look this feature shipped
+		// with, kept as a choice — while off (the default), each surface
+		// takes its own step: editor b1, sidebars and ribbon b2, raised
+		// panels b3, borders b4. The ink and accent sets are identical in
+		// both; only the surfaces move.
+		const simp = !!st.barThemeSimplified;
+		const S2 = simp ? h.b1 : h.b2;
+		const S3 = simp ? h.b2 : h.b3;
+		const ink = (c) => this.barThemeInkify(c, h.b1, h.t1);
+		// The loudest readable ink this half owns — the cursor's colour,
+		// selection's colour, bold's colour. One derivation, used everywhere
+		// loudness is the point.
+		const viv = this.barThemeVividFor(h);
+		// Pick an ink by measurement rather than by assumption.
+		const inkFor = (bg) =>
+			(this.barContrast(h.t1, bg) >= this.barContrast(h.t2, bg)) ? h.t1 : h.t2;
+		const navBg = (this.barContrast(inkFor(h.c1), h.c1) >= 4.5) ? h.c1 : h.sel;
+		const navInk = inkFor(navBg);
+		// Measured against the popup surface, which is what a palette row
+		// actually sits on.
+		const darkPaper = this.barContrast('#ffffff', h.b1)
+			> this.barContrast('#000000', h.b1);
+		const hi = this.barThemeHighlight(h, S2);
+		const onAccent = ['#000000', '#ffffff', h.t1, h.t2]
+			.reduce((best, c) =>
+				this.barContrast(c, h.t4) > this.barContrast(best, h.t4) ? c : best);
+
+		const v = {
+			// The named surfaces, which is what most of Obsidian reads.
+			'--background-primary':              h.b1,
+			'--background-primary-alt':          S2,
+			'--background-secondary':            S2,
+			'--background-secondary-alt':        S3,
+			'--background-modifier-border':      h.b4,
+			'--background-modifier-border-hover': h.b4,
+			// (--background-modifier-hover is set once, in the interactive
+			// block below. It was declared HERE too, and the two lines sat
+			// 60 apart in one object literal where the last one silently
+			// wins — a duplicate key is not an error, it is a trap for
+			// whoever edits the first one and sees nothing change.)
+			'--background-modifier-active-hover': h.b4,
+			'--background-modifier-form-field':  h.b2,
+			'--text-normal':                     h.t1,
+			'--text-muted':                      h.t3,
+			'--text-faint':                      h.t3,
+			// Minimal paints the active nav row with --interactive-accent
+			// and --text-on-accent, so that pair is measured too. The
+			// candidates here include PURE black and white, which the
+			// scheme's own inks do not cover: seven light halves carry a
+			// mid-tone upstream accent (Nord's #5e81ac, Solarized's
+			// #268bd2) where the softened t1/t2 both stall near 3.5:1 and
+			// pure ink clears 4.9:1 at worst. Softened inks are right on a
+			// scheme's own surfaces, where they belong; on a saturated
+			// accent, legibility outranks the softening.
+			'--text-on-accent':                  onAccent,
+			'--text-accent':                     h.t4,
+			'--text-accent-hover':               h.t4,
+			'--interactive-accent':              h.t4,
+			'--interactive-accent-hover':        h.c1,
+			'--interactive-normal':              S2,
+			'--interactive-hover':               S3,
+			'--status-bar-background':           S2,
+			// The bar's own ink and edge — a themed surface under unthemed
+			// grey text read as half a job.
+			'--status-bar-text-color':           h.t3,
+			'--status-bar-border-color':         h.b4,
+			// The powerline's optional top/bottom rule lines, THROUGH the
+			// fallback chain in the bar's own resolution: a writer's chosen
+			// colour still wins; this only answers when nothing was chosen.
+			'--zg-bar-rule-accent':              h.t4,
+			// The plugin's own popups ride Obsidian's modal chrome, so the
+			// modal chrome follows the scheme: elevated one step when rich,
+			// flush with the editor when simplified.
+			'--modal-background':                S2,
+			'--prompt-background':               S2,
+			// The selected row inside those popups. Its own variables,
+			// because the one Obsidian uses for it (--background-modifier-
+			// hover) is shared with every hover in the app, and a hover
+			// loud enough to find a row in a list would be a shout
+			// everywhere else.
+			// The hint native controls read: scrollbars, form fields, the
+			// caret in a text input. Derived from the PAPER, so a dark
+			// half worn in light mode still gets dark chrome instead of a
+			// white scrollbar down the side of a navy note.
+			'color-scheme':                      darkPaper ? 'dark' : 'light',
+			'--zg-selected-bg':                  hi.bg,
+			'--zg-selected-ink':                 hi.ink,
+			'--titlebar-background':             simp ? h.b1 : h.b2,
+			'--titlebar-background-focused':     simp ? h.b1 : h.b2,
+			'--ribbon-background':               simp ? h.b1 : h.b2,
+			// RECHECKED against Minimal's own source: its flat header is
+			// the titlebar and TAB CONTAINER riding the bg ladder — which
+			// our Minimal-token layer covered under Minimal and nothing
+			// covered under stock Obsidian, where the header row kept the
+			// default theme's own colour. Set it ourselves, both modes.
+			'--tab-container-background':        simp ? h.b1 : h.b2,
+			// Dividers are STRUCTURE and belong to the borders toggle, not
+			// to this one. Simplified painted them out for a release —
+			// asked for before the two features were distinct — which made
+			// one toggle silently do the other's job and left no way to
+			// have a flat wash WITH borders. One control, one effect:
+			// surfaces here, dividers under Hide workspace borders.
+			'--divider-color':                   h.b4,
+			'--scrollbar-thumb-bg':              h.b4,
+
+			// WHERE THE EYE IS. Hover, the selected file, text selection and
+			// the focus outline are the states a writer actually watches, and
+			// a scheme that recolours the walls but not these reads as a
+			// coat of paint over somebody else's furniture. The selected nav
+			// item takes c1 — the theme's first accent SURFACE, designed to
+			// carry t1 — so "which file am I in" is answered in the scheme's
+			// own voice rather than Obsidian's purple.
+			'--background-modifier-hover':       S3,
+			'--nav-item-background-hover':       S3,
+			// THE SELECTED FILE. Both halves of this pair were assumed and
+			// both were wrong on real schemes: c1 is not always a surface
+			// (One Dark's c1 IS its accent blue) and t1 is not always the
+			// ink that reads on it (grey on that blue measures under 2:1 —
+			// the vault sent a screenshot). So the surface is c1 only when
+			// some ink reaches 4.5:1 on it, else the scheme's own selection
+			// surface; and the ink is whichever of t1/t2 measures better.
+			'--nav-item-background-active':      navBg,
+			'--nav-item-color-active':           navInk,
+			// SELECTION is the scheme's OWN surface now — the vault saw the
+			// vivid ground on Modus Tinted and asked for the upstream dark
+			// grey instead, and the generalisation holds for every scheme:
+			// each table half carries `sel`, its upstream region/visual
+			// colour (adapted where upstream shipped no light half). The
+			// ink is not assumed but MEASURED: t1 when it reads on sel, t2
+			// when it reads better — which is how the requested
+			// dark-grey-on-light selection gets light text without a
+			// special case anywhere.
+			'--text-selection':                  h.sel,
+			'--zg-selection-bg':                 h.sel,
+			'--zg-selection-ink':
+				(this.barContrast(h.t1, h.sel) >= 4.5
+					|| this.barContrast(h.t1, h.sel) >= this.barContrast(h.t2, h.sel))
+					? h.t1 : h.t2,
+			'--text-highlight-bg':               h.c5,
+			'--background-modifier-border-focus': h.t4,
+			'--list-marker-color':               h.t3,
+			// THE BASE RAMP, and this is the half that was missing.
+			//
+			// Modern Obsidian derives the named surfaces above from a
+			// numbered token ladder — --background-primary is literally
+			// var(--color-base-00) — and a great deal of chrome reads the
+			// TOKENS rather than the names. Setting only the names recolours
+			// the editor and leaves ribbons, tabs, popovers and scrollbars on
+			// whatever the underlying theme wanted, which reads as "the theme
+			// half-applied" or, on a theme that reads tokens throughout, as
+			// "nothing happened".
+			'--color-base-00': h.b1,
+			'--color-base-05': h.b1,
+			'--color-base-10': S2,
+			'--color-base-20': S2,
+			'--color-base-25': S3,
+			'--color-base-30': h.b4,
+			'--color-base-35': h.b4,
+			'--color-base-40': h.b4,
+			'--color-base-50': h.t3,
+			'--color-base-60': h.t3,
+			'--color-base-70': h.t1,
+			'--color-base-100': h.t1,
+			'--color-accent':   h.t4,
+			'--color-accent-1': h.t4,
+			'--color-accent-2': h.c1,
+
+			// MINIMAL'S TOKEN LAYER, and the reason this list has three of
+			// them. Minimal defines no --color-base-* at all; it has its own
+			// ladder — bg1-bg3, ui1-ui3, tx1-tx4, ax1-ax3 — and then maps
+			// roughly two hundred Obsidian variables onto it
+			// (`--background-primary: var(--bg1)`, `--divider-color:
+			// var(--ui1)`, `--ribbon-background: var(--bg1)`, and so on).
+			//
+			// Setting only the named variables therefore recolours the ones
+			// we happened to list and leaves the ribbon, the nav items, the
+			// tables and the popovers on Minimal's own colours — which reads
+			// as a theme that half-applied. Setting the TOKENS instead makes
+			// all two hundred follow at once, because that is precisely the
+			// seam Minimal's own colour schemes use.
+			//
+			// Harmless on any other theme: a custom property nobody reads
+			// costs nothing. This is the cheapest possible way to support the
+			// look most of these writers are actually running.
+			'--bg1': h.b1,
+			'--bg2': S2,
+			'--bg3': S3,
+			'--ui1': h.b4,
+			'--ui2': h.b4,
+			'--ui3': h.t3,
+			'--tx1': h.t1,
+			'--tx2': h.t3,
+			'--tx3': h.t3,
+			'--tx4': h.t4,
+			'--ax1': h.c1,
+			'--ax2': h.t4,
+			'--ax3': h.t4,
+			'--sp1': h.b1,
+			'--mono0': h.b1
+		};
+		// ── Headings, opt-in ────────────────────────────────────────────
+		// Six inks derived from the scheme's own accents through
+		// barThemeInkify — the c-slots are surfaces and would be invisible
+		// used raw (see the helper). h1 gets the accent proper; h6 the muted
+		// ink, because by the sixth level a heading is a whisper.
+		if (st.barThemeHeadings) {
+			v['--h1-color'] = h.t4;
+			v['--h2-color'] = ink(h.c7);
+			v['--h3-color'] = ink(h.c4);
+			v['--h4-color'] = ink(h.c5);
+			v['--h5-color'] = ink(h.c6);
+			v['--h6-color'] = h.t3;
+		}
+
+		// ── Code, opt-in ────────────────────────────────────────────────
+		// The block sits on the ramp's second step so it reads as a PANEL in
+		// the page, and the syntax inks are the same inkified accents the
+		// headings use — one derivation, one voice.
+		if (st.barThemeCode) {
+			v['--code-background']  = S2;
+			v['--code-normal']      = h.t1;
+			v['--code-comment']     = h.t3;
+			v['--code-punctuation'] = h.t3;
+			v['--code-operator']    = h.t3;
+			v['--code-function']    = h.t4;
+			v['--code-keyword']     = ink(h.c7);
+			v['--code-tag']         = ink(h.c7);
+			v['--code-important']   = ink(h.c7);
+			v['--code-string']      = ink(h.c4);
+			v['--code-value']       = ink(h.c5);
+			v['--code-property']    = ink(h.c6);
+		}
+
+		// ── Markdown, opt-in ─────────────────────────────────────────────
+		// Bold takes the vivid ink — bold IS loudness — while italic, links,
+		// tags and structure take vivified accents so they carry hue without
+		// shouting over the emphasis. Off means absent, same as the others.
+		if (st.barThemeMarkdown) {
+			v['--bold-color']             = viv;
+			v['--italic-color']           = this.barThemeVivify(h.c6, h.b1, h.t1);
+			v['--link-color']             = h.t4;
+			v['--link-color-hover']       = viv;
+			v['--link-external-color']    = this.barThemeVivify(h.c4, h.b1, h.t1);
+			v['--link-unresolved-color']  = h.t3;
+			v['--tag-color']              = this.barThemeVivify(h.c5, h.b1, h.t1);
+			v['--tag-background']         = S3;
+			v['--blockquote-border-color'] = h.t4;
+			v['--hr-color']               = h.b4;
+			v['--checklist-done-color']   = h.t3;
+		}
+
+		const out = {};
+		// Only real colours reach the DOM — #hex from the table, or the
+		// rgb() strings mixColors produces for inkified accents. A slot a
+		// theme forgot must drop out rather than arrive as "undefined",
+		// which is the failure that takes a whole workspace to unstyled and
+		// looks like the plugin broke.
+		for (const k of Object.keys(v)) {
+			// Colours, the rgb() strings mixColors produces, and now WIDTHS
+			// — the simplified dividers ride two px variables, and a filter
+			// built for colours was silently dropping them, which is this
+			// filter's whole failure mode pointed at itself.
+			if (typeof v[k] === 'string'
+				&& (/^#[0-9a-f]{3,8}$/i.test(v[k])
+					|| /^rgb\(\d+, \d+, \d+\)$/.test(v[k])
+					|| /^\d+(\.\d+)?px$/.test(v[k])
+					// color-scheme is a keyword, not a colour, and the
+					// filter that exists to keep `undefined` off the body
+					// would have dropped it silently.
+					|| v[k] === 'dark' || v[k] === 'light')) {
+				out[k] = v[k];
+			}
+		}
+		return Object.keys(out).length ? out : null;
+	}
+
+	// Set INLINE on body, not as an injected stylesheet rule.
+	//
+	// This is the fix for "the themes still don't work", and the mechanism is
+	// the whole story. The block was being emitted correctly and the class
+	// was on the body — verified — and it still lost, because
+	// `body.zg-theme-nord` scores exactly the same specificity as the
+	// `body.theme-dark` selector every community theme writes its variables
+	// on. A tie is decided by SOURCE ORDER, and a theme's stylesheet is
+	// re-injected by Obsidian whenever it changes, which puts it after ours
+	// often enough to look like the feature simply does not work.
+	//
+	// An inline property on the element beats every stylesheet rule that is
+	// not !important, from any source, in any order. It also needs no class
+	// and no injected block, so there is one mechanism instead of three.
+	// applyCssVariables next door has done exactly this since the beginning;
+	// the injected-stylesheet route was the novel choice and it was the
+	// wrong one.
+	applyThemeVars() {
+		const body = document.body;
+		if (!body || !body.style) return;
+		const vars = this.barThemeVars();
+		// Whatever was set last time comes off first, or switching from a
+		// theme that defines a slot to one that does not would leave the old
+		// colour behind — a bar wearing two schemes at once.
+		const prev = this._themeVarKeys || [];
+		for (const k of prev) body.style.removeProperty(k);
+		this._themeVarKeys = [];
+		if (!vars) return;
+		for (const k of Object.keys(vars)) {
+			body.style.setProperty(k, vars[k]);
+			this._themeVarKeys.push(k);
+		}
+	}
+
+	// A readable ink at a GIVEN hue: the vivify ladder without a source
+	// colour, for the collision resolver below, which deals in hues.
+	barThemeHueInk(hue, h) {
+		const hh = ((hue % 360) + 360) % 360;
+		const darkBg = this.barContrast('#ffffff', h.b1) > this.barContrast('#000000', h.b1);
+		const ladder = darkBg
+			? [0.72, 0.66, 0.78, 0.60, 0.84, 0.55, 0.88]
+			: [0.34, 0.40, 0.30, 0.46, 0.26, 0.50, 0.22];
+		for (const l of ladder) {
+			const c = hslToHex(hh, 0.85, l);
+			if (this.barContrast(c, h.b1) >= 4.5) return c;
+		}
+		return h.t1;
+	}
+
+	// The five Vim inks for one half, with two guarantees the first design
+	// lacked, both vault reports:
+	//
+	// TELLABLE APART. Slot-derived hues COLLIDED on real schemes — the
+	// audit found Solarized's visual/replace both pink-red at 32°,
+	// Gruvbox's insert/command both yellow at 17°, Deuteranopia packing
+	// four modes onto its two axes. Modes now claim hues in priority
+	// order (Replace first — red is the safety signal), each trying its
+	// slot's hue, then its fixed semantic hue, then steps away from it,
+	// taking the first at least 35° from everything already placed. The
+	// earlier release said a scheme's axes outrank the fixed hues; the
+	// vault said two modes wearing the same red is worse. Distinctness
+	// wins, and the reversal is recorded here on purpose.
+	//
+	// QUIET STAYS QUIET. The same earlier release forced colour onto
+	// monochrome schemes as a "safety signal"; the vault overruled that
+	// too — a writer who chose a monochrome scheme did not ask for a neon
+	// cursor. When no accent slot carries chroma, the modes wear SHADES
+	// OF GREY: distinct steps of the scheme's own ink, each still
+	// readable, told apart by weight instead of hue.
+	barThemeVimInks(h) {
+		const chroma = (str) => {
+			const p = parseColorRGB(str);
+			return p ? (Math.max(p[0], p[1], p[2]) - Math.min(p[0], p[1], p[2])) / 255 : 0;
+		};
+		// Monochrome means the slots AND the accent carry no chroma. The
+		// first classifier read only the slots and misfiled Everforest —
+		// whose deep muted surfaces sit under the threshold while its green
+		// accent and warm ink very much do not — sending a chromatic scheme
+		// down the grey path, where every "shade" of its TINTED ink shared
+		// one hue and the tellable-apart sweep caught all six pairs at once.
+		const grey = chroma(h.t4) < 0.12
+			&& ['c4', 'c5', 'c6', 'c7'].every(k => chroma(h[k]) < 0.12);
+		if (grey) {
+			const shades = [];
+			for (let t = 0; t <= 0.6 && shades.length < 4; t += 0.08) {
+				const c = mixColors(h.t1, h.b1, t);
+				if (this.barContrast(c, h.b1) >= 4.5) shades.push(c);
+			}
+			while (shades.length < 4) shades.push(h.t1);
+			return { normal: this.barThemeCursorInk(h),
+				replace: shades[0], insert: shades[1],
+				visual: shades[2], command: shades[3] };
+		}
+		const dist = (a, b) => {
+			const d = Math.abs(a - b) % 360;
+			return d > 180 ? 360 - d : d;
+		};
+		const placed = [];
+		const place = (slot, fixed) => {
+			const tries = [];
+			const sv = this.barThemeVivify(h[slot], h.b1, h.t1);
+			const sh = colorToHsl(sv);
+			if (sh && sh.s >= 0.15) tries.push(sh.h);
+			tries.push(fixed, fixed + 40, fixed - 40, fixed + 80, fixed - 80);
+			for (const cand of tries) {
+				const hh = ((cand % 360) + 360) % 360;
+				if (placed.every(p => dist(p, hh) >= 35)) {
+					placed.push(hh);
+					return this.barThemeHueInk(hh, h);
+				}
+			}
+			placed.push(fixed);
+			return this.barThemeHueInk(fixed, h);
+		};
+		return {
+			// Normal is the resting mode, so it wears the resting colour:
+			// the scheme's accent, same as the cursor's flat look.
+			normal:  this.barThemeCursorInk(h),
+			replace: place('c7', 5),
+			insert:  place('c4', 130),
+			visual:  place('c6', 275),
+			command: place('c5', 45)
+		};
+	}
+
+	// Cursor-Smith's OWN defaults for the keys this bridge writes, copied
+	// from its source (1.4.4: DEFAULT_SETTINGS and VIM_MODE_STARTERS).
+	//
+	// These are the answer to a state the stash cannot cover: a vault
+	// dressed by a build that had no stash, whose cursor is themed with no
+	// record of what it was. Without this, "give it back" has nothing to
+	// give and the cursor stays themed forever — which is exactly what a
+	// writer sees as "the toggle does nothing".
+	//
+	// The trade is deliberate and one-directional: falling back replaces a
+	// custom colour the writer may have chosen BEFORE we ever wrote, which
+	// we cannot know. It only ever runs when there is no stash at all, and
+	// returning a cursor to the plugin's own defaults is closer to what
+	// was asked than leaving our colours on it.
+	barThemeCursorDefaults() {
+		return {
+			global: {
+				colorDark: '#39ff14', colorLight: '#333333',
+				gradientDark1: '#39ff14', gradientDark2: '#00d4ff',
+				gradientDark3: '#b14aff', gradientDark4: '#ff2e88',
+				gradientLight1: '#1f8a3b', gradientLight2: '#0077b6',
+				gradientLight3: '#7028c8', gradientLight4: '#c2185b'
+			},
+			vim: {
+				normal:  { colorDark: '#4aa3ff', colorLight: '#1e6fd0' },
+				insert:  { colorDark: '#39ff14', colorLight: '#2a7d2e' },
+				visual:  { colorDark: '#f5a623', colorLight: '#b26a00' },
+				replace: { colorDark: '#ff3b3b', colorLight: '#b30000' },
+				command: { colorDark: '#c792ea', colorLight: '#7d3fbf' }
+			}
+		};
+	}
+
+	// Hand the scheme's inks to Cursor-Smith, if it is installed and asked.
+	//
+	// The shape this writes was read from cursor-smith 1.4.4, not guessed:
+	// colorDark/colorLight are its per-app-mode flat colours, and the
+	// gradient stops are SCALAR keys (gradientDark1-4 / gradientLight1-4) by
+	// that plugin's own documented design — its presets copy settings with a
+	// shallow assign, so arrays there would alias. Both halves are written,
+	// because that is how both plugins already think: a pair, chosen by the
+	// app's mode.
+	//
+	// All four stops are filled even when its gradientCount uses fewer, so
+	// widening the gradient later stays on-theme. gradientEnabled and
+	// gradientCount are deliberately NOT touched — the cursor's SHAPE is the
+	// writer's; only its colours are the scheme's.
+	//
+	// Everything goes through cs.saveSettings(), which is that plugin's one
+	// entry point and repaints everything itself. Two guards are honoured:
+	// nothing is written if the plugin is absent, and nothing is written
+	// while its settings are swapped for a Vim mode (_settingsSwapped) —
+	// its own saveSettings aborts in that state for a documented reason, and
+	// mutating the swapped object would corrupt a mode snapshot.
+	// Snapshot/restore over EXACTLY the keys the bridge touches. Each
+	// entry records presence as well as value, because the bridge ADDS
+	// keys to bare mode snapshots — restoring those means deleting them,
+	// not writing undefined into another plugin's settings.
+	barThemeCursorCapture(obj, keys) {
+		const out = {};
+		for (const k of keys) {
+			out[k] = (k in obj) ? { had: true, v: obj[k] } : { had: false };
+		}
+		return out;
+	}
+
+	barThemeCursorRestoreInto(obj, snap) {
+		for (const k of Object.keys(snap)) {
+			if (snap[k].had) obj[k] = snap[k].v;
+			else delete obj[k];
+		}
+	}
+
+	async barThemeCursorSync(force) {
+		const GLOBAL_KEYS = ['colorDark', 'colorLight',
+			'gradientDark1', 'gradientDark2', 'gradientDark3', 'gradientDark4',
+			'gradientLight1', 'gradientLight2', 'gradientLight3', 'gradientLight4'];
+		const MODES = ['normal', 'insert', 'visual', 'replace', 'command'];
+
+		// UNDRESSING comes first: whenever the dressing stops — the kill
+		// switch, the cursor toggle, or Default — the stash goes back and
+		// is cleared. The vault asked for this by name: choosing Default
+		// returns the cursor to the writer's own colours. This retires
+		// "writes-never-restores"; stashing exactly the keys we touch is a
+		// smaller liberty than permanently overwriting them turned out to
+		// be. If the plugin is absent or mid-swap at that instant, the
+		// stash is KEPT for a later chance rather than dropped.
+		const undress = async (reason) => {
+			const stash = this.settings.barThemeCursorStash;
+			let cs2 = null;
+			try { cs2 = this.app && this.app.plugins && this.app.plugins.plugins
+				&& this.app.plugins.plugins['cursor-smith']; } catch (_) {}
+			if (!cs2 || !cs2.settings || cs2._settingsSwapped) return reason;
+
+			if (stash) {
+				if (stash.global) this.barThemeCursorRestoreInto(cs2.settings, stash.global);
+				if (stash.vim && cs2.settings.vimModes) {
+					for (const mode of Object.keys(stash.vim)) {
+						const m = cs2.settings.vimModes[mode];
+						if (m) this.barThemeCursorRestoreInto(m, stash.vim[mode]);
+					}
+				}
+				this.settings.barThemeCursorStash = null;
+				this.settings.barThemeCursorDressed = false;
+				try { await cs2.saveSettings(); } catch (_) {}
+				return reason;
+			}
+
+			// NO STASH, and the caret may still be wearing our colours — a
+			// vault dressed by a build that predates the stash, which is
+			// precisely the state the vault reported. Acting blindly would
+			// reset the caret of a writer who never used this feature, so
+			// the question is answered rather than assumed, two ways:
+			//
+			//   the persisted flag says we dressed it (true going forward);
+			//   or the colour ON the caret right now IS one of ours — it
+			//   equals some scheme's cursor ink, in one half or the other.
+			//
+			// The second test is what recovers a vault dressed before the
+			// flag existed. Forty candidate colours make a coincidence
+			// vanishingly unlikely, and the cost of being wrong is a caret
+			// reset to Cursor-Smith's defaults, which is what was asked for
+			// in the first place.
+			const wearsOurs = () => {
+				const cur = cs2.settings && cs2.settings.colorDark;
+				if (!cur) return false;
+				for (const t of BAR_THEMES) {
+					if (this.barThemeCursorInk(t.dark) === cur) return true;
+					if (this.barThemeCursorInk(t.light) === cur) return true;
+				}
+				return false;
+			};
+			if (!this.settings.barThemeCursorDressed && !wearsOurs()) return reason;
+			const def = this.barThemeCursorDefaults();
+			for (const k of Object.keys(def.global)) cs2.settings[k] = def.global[k];
+			if (cs2.settings.vimModes) {
+				for (const mode of Object.keys(def.vim)) {
+					const m = cs2.settings.vimModes[mode];
+					if (!m) continue;
+					for (const k of Object.keys(def.vim[mode])) m[k] = def.vim[mode][k];
+				}
+			}
+			this.settings.barThemeCursorDressed = false;
+			try { await cs2.saveSettings(); } catch (_) {}
+			return reason;
+		};
+
+		// A forced undress is the teardown path: the settings still say
+		// "dress", and the caret must come off anyway.
+		if (force === 'undress') return undress('undressed');
+		if (this.settings.barThemeEnabled === false) return undress('disabled');
+		// The Vim consent is a SUBOPTION — the vault moved it under the
+		// cursor toggle, so vim colouring without the cursor consent is no
+		// longer a state. The setting survives a cursor-off round trip; the
+		// writing is what stops.
+		const wantCursor = !!this.settings.barThemeCursor;
+		const wantVim    = wantCursor && !!this.settings.barThemeVim;
+		if (!wantCursor) return undress('off');
+		const id = this.settings.barTheme;
+		if (!id || id === 'custom') return undress('custom');
+		const theme = this.barThemeById(id);
+		if (!theme) return undress('custom');
+		let cs = null;
+		try { cs = this.app && this.app.plugins && this.app.plugins.plugins
+			&& this.app.plugins.plugins['cursor-smith']; } catch (_) {}
+		if (!cs || !cs.settings) return 'absent';
+		if (cs._settingsSwapped) return 'swapped';
+
+		// CAPTURE ONCE, before the first write and never after: a stash
+		// taken while dressed would restore the dress. Mutation happens
+		// synchronously, before any await, so the caller's saveSettings
+		// persists it.
+		if (!this.settings.barThemeCursorStash) {
+			const stash = { global: this.barThemeCursorCapture(cs.settings, GLOBAL_KEYS) };
+			if (cs.settings.vimModes && typeof cs.settings.vimModes === 'object') {
+				stash.vim = {};
+				for (const mode of MODES) {
+					const m = cs.settings.vimModes[mode];
+					if (m && typeof m === 'object') {
+						stash.vim[mode] = this.barThemeCursorCapture(m, GLOBAL_KEYS);
+					}
+				}
+			}
+			this.settings.barThemeCursorStash = stash;
+		}
+		// A mode can be ADDED to Cursor-Smith after the stash was taken,
+		// and dressing it without recording it would leave that one mode
+		// themed forever with nothing to restore. Capture-once is per KEY
+		// SET, not per session.
+		if (this.settings.barThemeCursorStash.vim && cs.settings.vimModes) {
+			for (const mode of MODES) {
+				const m = cs.settings.vimModes[mode];
+				if (m && typeof m === 'object' && !this.settings.barThemeCursorStash.vim[mode]) {
+					this.settings.barThemeCursorStash.vim[mode] =
+						this.barThemeCursorCapture(m, GLOBAL_KEYS);
+				}
+			}
+		}
+		// Persisted alongside the stash, because the fallback path above
+		// needs to know a dress happened even when the stash is missing.
+		this.settings.barThemeCursorDressed = true;
+
+		// The SUBOPTION going off while the parent stays on gives back
+		// just the vim part of the stash, immediately.
+		if (!wantVim && this.settings.barThemeCursorStash.vim
+			&& cs.settings.vimModes) {
+			for (const mode of Object.keys(this.settings.barThemeCursorStash.vim)) {
+				const m = cs.settings.vimModes[mode];
+				if (m) this.barThemeCursorRestoreInto(m,
+					this.settings.barThemeCursorStash.vim[mode]);
+			}
+			delete this.settings.barThemeCursorStash.vim;
+		}
+		const d = theme.dark, l = theme.light;
+		const inkD  = (c) => this.barThemeInkify(c, d.b1, d.t1);
+		const inkL  = (c) => this.barThemeInkify(c, l.b1, l.t1);
+		// Vivified, not merely inkified: the audit that reshaped this bridge
+		// found t4 is a polite blue on nearly every scheme, which is why a
+		// "themed" cursor kept looking like the same cursor. The cursor gets
+		// the LOUDEST readable ink the half owns — Modus Tinted's blood
+		// red, not its blue — and the gradient stops are saturated versions
+		// of the accent slots rather than the muted surfaces themselves.
+		const vivD  = (c, hue) => this.barThemeVivify(c, d.b1, d.t1, hue);
+		const vivL  = (c, hue) => this.barThemeVivify(c, l.b1, l.t1, hue);
+		// The cursor wears the scheme's accent — the H1 ink — not the
+		// loudest hue in the table; see barThemeCursorInk.
+		const loudD = this.barThemeCursorInk(d);
+		const loudL = this.barThemeCursorInk(l);
+		if (wantCursor) {
+			cs.settings.colorDark  = loudD;
+			cs.settings.colorLight = loudL;
+			cs.settings.gradientDark1  = loudD;
+			cs.settings.gradientDark2  = vivD(d.c4);
+			cs.settings.gradientDark3  = vivD(d.c7);
+			cs.settings.gradientDark4  = vivD(d.c6);
+			cs.settings.gradientLight1 = loudL;
+			cs.settings.gradientLight2 = vivL(l.c4);
+			cs.settings.gradientLight3 = vivL(l.c7);
+			cs.settings.gradientLight4 = vivL(l.c6);
+		}
+
+		// THE VIM MODES, per cursor-smith's own shape: settings.vimModes is a
+		// map of full per-mode look snapshots, each with its own colour and
+		// gradient scalars. The colours follow Vim's conventional semantics
+		// through the table's slot convention (c4 leans green, c5 yellow, c6
+		// purple, c7 red, on every scheme): Normal wears the accent, Insert
+		// green (writing), Visual purple (selecting), Replace red
+		// (destroying), Command yellow (the prompt). Only modes that EXIST in
+		// the map are touched — inventing one would hand the other plugin a
+		// snapshot missing every look key it expects — and only colour keys
+		// are written: a mode's cursor style and effects stay the writer's,
+		// the same contract as the global shape.
+		// Per-mode inks come from barThemeVimInks — collision-resolved hues,
+		// or shades of grey on a monochrome scheme; see the resolver for both
+		// stories.
+		const vmD = this.barThemeVimInks(d);
+		const vmL = this.barThemeVimInks(l);
+		if (wantVim && cs.settings.vimModes && typeof cs.settings.vimModes === 'object') {
+			for (const mode of ['normal', 'insert', 'visual', 'replace', 'command']) {
+				const m = cs.settings.vimModes[mode];
+				if (!m || typeof m !== 'object') continue;
+				const cd = vmD[mode], cl = vmL[mode];
+				m.colorDark  = cd;
+				m.colorLight = cl;
+				// The mode's gradient leads with the mode's own colour and
+				// falls back to the OTHER modes' inks — already resolved
+				// apart, so the gradient stays tellable too.
+				m.gradientDark1  = cd;
+				m.gradientDark2  = vmD.insert;
+				m.gradientDark3  = vmD.replace;
+				m.gradientDark4  = vmD.visual;
+				m.gradientLight1 = cl;
+				m.gradientLight2 = vmL.insert;
+				m.gradientLight3 = vmL.replace;
+				m.gradientLight4 = vmL.visual;
+			}
+		}
+
+		try { await cs.saveSettings(); } catch (_) {}
+		return 'synced';
+	}
+
+	// TOMBSTONE (1.2.9). barThemeTouched() and barThemeMatches() lived here.
+	// They demoted a theme to Custom when a writer hand-edited a palette
+	// colour, which was the right answer while a theme WROTE that palette.
+	// A theme no longer touches it — the palette is the writer's, the
+	// workspace is the theme's — so there is nothing to demote over and no
+	// state to keep in step. Deleting them removed the only reason the colour
+	// pickers ever had to know a theme existed.
+
+	// The half a card should preview: what the writer will actually get if
+	// they press it now.
+	barThemeHalf(theme) {
+		return this.isDarkTheme() ? theme.dark : theme.light;
+	}
+
 	openFontPicker(anchor) {
 		this.openPickerLive(anchor, this.fontPickerItems(), 'choose');
+	}
+
+	// The same list the menu row and the settings cards read, so the bar
+	// button cannot offer a different shelf from the other two surfaces.
+	openThemePicker(anchor) {
+		this.openPickerLive(anchor, this.themesPickerItems(), 'choose');
 	}
 
 
@@ -10376,7 +12292,17 @@ module.exports = class WordSmith extends Plugin {
 		// Copy the whole item and overwrite only `on`, rather than listing the
 		// fields by hand — the hand-written version silently dropped `font`
 		// the moment a picker started using it.
-		const snapshot = items.map(i => Object.assign({}, i, { on: i.on() }));
+		//
+		// `on` may be a FUNCTION or a plain boolean, and this line assumed
+		// the first: every picker that predates the theme shelf computes it
+		// lazily, the theme items carry a value, and calling a boolean
+		// threw before the popup could open — so the {theme} button did
+		// nothing at all, silently, which is this project's oldest failure
+		// mode wearing a new hat. openBarPicker below already reads both
+		// shapes; so does the menu. This is the third surface, and now it
+		// agrees with the other two.
+		const snapshot = items.map(i => Object.assign({}, i,
+			{ on: (typeof i.on === 'function' ? i.on() : !!i.on) }));
 		this.openBarPicker(anchor, snapshot, mode);
 		if (this._barPicker) this._barPicker._live = items;
 	}
@@ -10767,6 +12693,19 @@ module.exports = class WordSmith extends Plugin {
 			// {#} through {######}: the heading the caret sits under at each
 			// level, and {#>} for the whole trail. Listed rather than built,
 			// because six is a fixed set — markdown has no seventh level.
+			//
+			// TOMBSTONE (1.2.7). The six per-level tokens were REMOVED FROM
+			// THE SURFACE — the token help, the pickers and the README no
+			// longer mention them — and they still resolve here, forever.
+			// Deleting them would not make them vanish: an unmatched token
+			// keeps its literal text (see the note at the substitution site),
+			// so every format string, saved preset and posted share code
+			// holding a {##} would start PRINTING "{##}" in the bar. Same
+			// reasoning, same treatment, as {writechecks} below.
+			//
+			// Not migrated to {#>} either: that changes the meaning (one
+			// level becomes the whole trail) and could never reach a code
+			// already posted, so it would be lossy AND incomplete.
 			'{#}':         hTrail[0],
 			'{##}':        hTrail[1],
 			'{###}':       hTrail[2],
@@ -10801,6 +12740,7 @@ module.exports = class WordSmith extends Plugin {
 			// vault. Both map to the same button.
 			'{writechecks}': '\x00WRITECHECKS\x00',
 			'{font}':      '\x00FONT\x00',
+			'{theme}':     '\x00THEME\x00',
 			'{report}':    '\x00REPORT\x00',
 			'{history}':   '\x00HISTORY\x00',
 			'{readtime}':  this.formatReadTime(totalWC)
@@ -10941,17 +12881,46 @@ module.exports = class WordSmith extends Plugin {
 		catch (_) { return true; }
 	}
 
+	// WHICH SURFACE THE PLUGIN IS PAINTING ON, which is not always the
+	// app's mode. A worn scheme replaces the workspace's paper, and one
+	// scheme's light half is deliberately dark (Vim Blue by day IS
+	// blue.vim, navy and white). Everything Word-Smith colours for itself
+	// — the bar palette, the syntax classes, the letterbox, the rules, the
+	// Vim mode inks — has a dark variant and a light one, and every one of
+	// them was choosing by the app's mode: on that scheme they all picked
+	// their LIGHT variants, which are dark inks, and painted them onto
+	// navy. That is the black-on-blue a vault screenshot caught.
+	//
+	// The half a theme SHOWS still follows the app's mode — that is what
+	// makes a theme a pair. Only the plugin's own colours follow the paper.
+	isDarkSurface() {
+		try {
+			if (this.settings && this.settings.barThemeEnabled !== false) {
+				const id = this.settings.barTheme;
+				if (id && id !== 'custom') {
+					const t = this.barThemeById(id);
+					const h = t && this.barThemeHalf(t);
+					if (h && h.b1) {
+						return this.barContrast('#ffffff', h.b1)
+							> this.barContrast('#000000', h.b1);
+					}
+				}
+			}
+		} catch (_) {}
+		return this.isDarkTheme();
+	}
+
 	// The key holding a colour for the current theme. The DARK key is the
 	// original name and the light one is that name with a suffix — a rename
 	// to a matched pair would have been tidier and would have reinterpreted
 	// every share code ever posted, since BAR_KEYS stores fields by index.
 	themedKey(darkKey, lightKey) {
-		return this.isDarkTheme() ? darkKey : lightKey;
+		return this.isDarkSurface() ? darkKey : lightKey;
 	}
 
 	powerlineColors() {
 		const s = this.settings;
-		const dark = this.isDarkTheme();
+		const dark = this.isDarkSurface();
 		const out = [];
 		for (let n = 1; n <= PL_BG_COUNT; n++) {
 			const c = s[dark ? 'powerlineColor' + n : 'powerlineColorLight' + n];
@@ -11599,7 +13568,7 @@ module.exports = class WordSmith extends Plugin {
 			if (cs) return cs;
 		}
 		const name = 'vimColor' + key.charAt(0).toUpperCase() + key.slice(1);
-		const dark = this.isDarkTheme();
+		const dark = this.isDarkSurface();
 		const c = this.settings[dark ? name : name + 'Light'];
 		return (typeof c === 'string' && /^#[0-9a-f]{3,8}$/i.test(c))
 			? c : (dark ? '#4f9dde' : '#2d6da4');
@@ -11978,6 +13947,7 @@ module.exports = class WordSmith extends Plugin {
 			MARKERS:  () => this.buildMarkersIndicator(),
 			WRITECHECKS: () => this.buildWriteChecksIndicator(),
 			FONT:     () => this.buildFontIndicator(),
+			THEME:    () => this.buildThemeIndicator(),
 			REPORT:   () => this.buildReportIndicator(),
 			HISTORY:  () => this.buildHistoryIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
@@ -14331,6 +16301,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// is what a fresh install opens on — the best first thing to see.
 		const TABS = [
 			{ id: 'retrobar',   label: 'Powerline',    render: this.displayRetroBarTab },
+			{ id: 'theme',      label: 'Theme',        render: this.displayThemeTab },
 			{ id: 'zen',        label: 'Zen',          render: this.displayZenTab },
 			{ id: 'letterbox',  label: 'Letter Box',   render: this.displayLetterboxSection },
 			{ id: 'typewriter', label: 'Typewriter',   render: this.displayTypewriterTab },
@@ -14782,15 +16753,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('{obsidian}', 'a small Obsidian crystal, in whatever colour the segment is');
 
 		H('Headings \u2014 where you are in the note');
-		L('{#} {##} {###}', 'the heading above your cursor, at that level');
-		L('{####} {#####} {######}', 'and the three deeper ones');
 		L('{#>}', 'the whole path: Chapter \u203a Scene \u203a Beat');
-		L('', 'Each heading clears the ones below it, so you always get one');
-		L('', 'path down the note. Empty above the first heading, and empty');
-		L('', 'at any level your cursor isn\u2019t inside.');
+		L('', 'Empty above the first heading. Leading crumbs drop first when');
+		L('', 'the row is tight, so the heading you are under survives longest.');
 
 		H('Buttons \u2014 you can click these, and they never get dropped');
-		L('{syntax} {prose} {markers} {font} {report} {history}');
+		L('{syntax} {prose} {markers} {font} {theme} {report} {history}');
 
 		H('Spacers');
 		L('{s} {ss} {sss}\u2026', 'blank space \u2014 a quarter of a space for each s');
@@ -14842,6 +16810,235 @@ class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// ── Retro Bar tab ──────────────────────────────────────────────────────────
+	displayThemeTab(containerEl) {
+		const plugin = this.plugin;
+		// The kill switch, before anything else: one toggle that stands the
+		// whole system down while remembering every choice below it.
+		new Setting(containerEl)
+			.setName('Themes')
+			.setDesc('The master switch. Off, no scheme is applied and nothing '
+				+ 'is written anywhere \u2014 your shelf, options and choice of '
+				+ 'scheme all wait here for it to come back on.')
+			.addToggle(t => t.setValue(plugin.settings.barThemeEnabled !== false)
+				.onChange(async (v) => {
+					plugin.settings.barThemeEnabled = v;
+					plugin.applyThemeClass();
+					plugin.applyThemeVars();
+					plugin.barThemeCursorSync();
+					await plugin.saveSettings();
+				}));
+
+		containerEl.createEl('p', {
+			text: 'A colour scheme for the whole workspace \u2014 editor, sidebars and '
+				+ 'panels \u2014 with a dark and a light half that follow Obsidian\u2019s '
+				+ 'mode. Your bar palette is left alone; set that under Typography. '
+				+ 'Drag to reorder \u2014 the order here is the order everywhere \u2014 '
+				+ 'and \u2715 removes a scheme from the shelf without touching it.',
+			cls: 'ws-settings-note'
+		});
+
+		// THE SCROLL BUG. Every handler in this tab ends by rebuilding the
+		// whole tab, and a rebuilt tab starts at the top — so a drag landed
+		// the writer back at the top of settings, and so did a removal, a
+		// restore and a card click; the drag was just where it was felt.
+		// The scroll position belongs to an ANCESTOR that survives the
+		// rebuild (Obsidian empties containerEl and refills it; the
+		// scrolling pane around it persists), so: find the nearest
+		// scrollable ancestor, remember where it was, rebuild, put it
+		// back. Guarded throughout, because test stubs have no geometry.
+		const redisplay = () => {
+			let scroller = containerEl;
+			try {
+				while (scroller && !(scroller.scrollHeight > scroller.clientHeight)) {
+					scroller = scroller.parentElement;
+				}
+			} catch (_) { scroller = null; }
+			const top = scroller ? scroller.scrollTop : 0;
+			this.display();
+			if (scroller) { try { scroller.scrollTop = top; } catch (_) {} }
+		};
+
+		const grid = containerEl.createDiv({ cls: 'zg-theme-grid' });
+
+		// The Default card arrives through the same picker items the menu
+		// reads — one list, two surfaces, and neither can disagree about what
+		// "no scheme" is called. It clicks like any card and neither drags
+		// nor removes.
+		const items = plugin.themesPickerItems();
+		items.forEach((item, sIdx) => {
+			const isDefault = item.id === 'custom';
+			// The shelf index: Default sits outside the shelf, so drops land
+			// relative to the ORDERABLE cards only.
+			const idx = sIdx - 1;
+			const card = grid.createDiv({
+				cls: 'zg-theme-card' + (item.on ? ' is-active' : '')
+					+ (isDefault ? ' is-custom' : '') });
+			// DRAG REORDERS, the same contract as Obsidian's own font list:
+			// the position IS the priority, and the menu row reads the same
+			// shelf, so a drag here reorders the menu too.
+			if (!isDefault) card.setAttribute('draggable', 'true');
+			card.addEventListener('dragstart', (e) => {
+				e.dataTransfer.setData('text/plain', item.id);
+				card.addClass('is-dragging');
+			});
+			card.addEventListener('dragend', () => card.removeClass('is-dragging'));
+			card.addEventListener('dragover', (e) => { e.preventDefault(); card.addClass('is-dropzone'); });
+			card.addEventListener('dragleave', () => card.removeClass('is-dropzone'));
+			card.addEventListener('drop', async (e) => {
+				e.preventDefault();
+				if (isDefault) return;
+				const dragged = e.dataTransfer.getData('text/plain');
+				if (!dragged || dragged === item.id || dragged === 'custom') return;
+				plugin.barThemeMove(dragged, idx);
+				await plugin.saveSettings();
+				redisplay();
+			});
+
+			const head = card.createDiv({ cls: 'zg-theme-head' });
+			head.createDiv({ cls: 'zg-theme-name', text: item.label });
+			// Removal is quiet and reversible — the scheme moves to the
+			// hidden row below, it is not deleted from anything.
+			const x = isDefault ? null
+				: head.createEl('button', { cls: 'zg-theme-remove', text: '\u2715' });
+			if (x) {
+			x.setAttribute('aria-label', 'Remove ' + item.label + ' from the shelf');
+			x.addEventListener('click', async (e) => {
+				e.stopPropagation();
+				plugin.barThemeHide(item.id);
+				await plugin.saveSettings();
+				redisplay();
+			});
+			}
+
+			card.createDiv({ cls: 'zg-theme-note', text: item.note });
+			const strip = card.createDiv({ cls: 'zg-theme-strip' });
+			// The half that is showing NOW: the card promises what pressing
+			// it will actually do. Default has no swatches — the absence of a
+			// scheme has no colours to promise.
+			for (const c of (item.swatches || [])) {
+				strip.createDiv({ cls: 'zg-theme-chip' }).style.background = c;
+			}
+			card.addEventListener('click', async () => {
+				// The same callback the menu invokes, by the same name — a
+				// settings path calling it by a private name is exactly how
+				// a broken menu path once stayed invisible.
+				await item.onClick();
+				redisplay();
+			});
+		});
+
+		// The hidden shelf: everything removed, one chip each, one click
+		// back. A removal with no route back through the UI that made it is
+		// a setting the writer has to find in data.json.
+		// EVERY removed id gets a chip, including one this build cannot
+		// name. The version that filtered unknown ids out is why a removed
+		// card could vanish for good: the entry it looked up was not in the
+		// table, the chip never rendered, and the only way back was
+		// data.json. An id we cannot name is shown as itself — ugly for one
+		// row, and reachable, which is the trade every time.
+		const hiddenIds = plugin.settings.barThemeHidden || [];
+		if (hiddenIds.length) {
+			const row = containerEl.createDiv({ cls: 'zg-theme-hiddenrow' });
+			row.createSpan({ cls: 'zg-theme-hiddenlabel', text: 'Removed:' });
+			for (const id of hiddenIds) {
+				const t = plugin.barThemeById(id);
+				const chip = row.createEl('button', { cls: 'zg-theme-hiddenchip',
+					text: (t ? t.name : id) + ' +' });
+				chip.addEventListener('click', async () => {
+					plugin.barThemeShow(id);
+					await plugin.saveSettings();
+					redisplay();
+				});
+			}
+		}
+
+		// ── The scheme's reach ──────────────────────────────────────────
+		// Four independent extensions of whatever scheme is on. Each writes
+		// through the same one pipe (applyThemeVars recomputes the whole
+		// variable set), so a toggle takes effect on the click, not on the
+		// next theme change. All four are inert under Custom, because there
+		// is no scheme to extend.
+		containerEl.createEl('h4', { text: 'Options' });
+
+		const opt = (name, desc, key, after, into) => {
+			const st = new Setting(into || containerEl).setName(name).setDesc(desc)
+				.addToggle(t => t.setValue(!!plugin.settings[key])
+					.onChange(async (v) => {
+						plugin.settings[key] = v;
+						plugin.applyThemeVars();
+						if (after) after();
+						await plugin.saveSettings();
+					}));
+			return st;
+		};
+
+		opt('Colored headings',
+			'H1\u2013H6 take inks derived from the scheme\u2019s own accents, each '
+			+ 'pulled toward the text ink until it actually reads on the page.',
+			'barThemeHeadings');
+		opt('Colored code',
+			'Code blocks sit on the scheme\u2019s panel surface, with syntax inks '
+			+ 'derived the same way the headings are.',
+			'barThemeCode');
+		opt('Simplified theme',
+			'One wash: sidebars, header row and title bar all take the '
+			+ 'editor\u2019s colour, and the dividers are painted out. Off, each '
+			+ 'surface gets its own step of the scheme\u2019s ramp \u2014 editor, '
+			+ 'sidebars, panels and borders each distinct.',
+			'barThemeSimplified');
+
+		// The cursor option names its dependency honestly rather than
+		// appearing to do nothing when Cursor-Smith is absent.
+		let csThere = false;
+		try { csThere = !!(plugin.app && plugin.app.plugins
+			&& plugin.app.plugins.plugins
+			&& plugin.app.plugins.plugins['cursor-smith']); } catch (_) {}
+		opt('Hide workspace borders',
+			'Empties the dividers between panes and the tab outlines, the way '
+			+ 'Minimal\u2019s own borders-none does. A look, not a scheme: it '
+			+ 'works under Default too, and needs no scheme to be worn.',
+			'barThemeBorderless',
+			() => { plugin.applyThemeClass(); });
+		opt('Colored markdown',
+			'Bold takes the scheme\u2019s loudest ink; italics, links, tags and '
+			+ 'structure take its accents. Off, the markdown is your theme\u2019s.',
+			'barThemeMarkdown');
+		opt('Color the cursor',
+			(csThere
+				? 'Hands the scheme\u2019s loudest ink to Cursor-Smith \u2014 flat '
+					+ 'colour and all four gradient stops, both halves. Its shape '
+					+ 'and effects stay yours, and choosing Default gives your '
+					+ 'own cursor colours back.'
+				: 'Needs the Cursor-Smith plugin, which isn\u2019t installed \u2014 the '
+					+ 'toggle will wait here until it is.'),
+			'barThemeCursor',
+			() => { plugin.barThemeCursorSync(); redisplay(); });
+		// A SUBOPTION: rendered only while the cursor consent above is on,
+		// so the tab reads as the dependency it is. The setting itself
+		// survives a cursor-off round trip.
+		if (plugin.settings.barThemeCursor) {
+			// Drawn with THE PLUGIN'S OWN dependent-block helper — the same
+			// `sub()` every other tab wraps a dependent setting in — rather
+			// than a bespoke class copying its rules. A lookalike is a
+			// second definition of one idea: it started identical and had
+			// already drifted by the time it was compared side by side.
+			// Reusing the helper makes drift impossible instead of
+			// unlikely.
+			const subEl = this.sub(containerEl);
+			opt('Color Vim modes',
+				(csThere
+					? 'Each Vim mode wears its own colour \u2014 Insert green, '
+						+ 'Visual purple, Replace red, Command yellow, Normal the '
+						+ 'scheme\u2019s loudest \u2014 so the cursor says what the '
+						+ 'next keystroke will do.'
+					: 'Needs the Cursor-Smith plugin, which isn\u2019t installed \u2014 '
+						+ 'the toggle will wait here until it is.'),
+				'barThemeVim',
+				() => { plugin.barThemeCursorSync(); },
+				subEl);
+		}
+	}
+
 	displayRetroBarTab(containerEl) {
 		new Setting(containerEl)
 			.setName('Powerline status bar')
