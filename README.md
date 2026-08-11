@@ -191,7 +191,7 @@ When the window narrows it sheds content by **what a thing is worth**, not by wh
 
 Only then does anything with meaning go, and in order: decoration first (rules and slivers), then lone glyphs, then the clock — the time is on your system clock and the wall too, so the bar gives it up before anything about the work — then the rest of the readouts, and last of all the things that say where you are: the file name and the Vim mode. Within each of those, dropping still works from the edges inward. Buttons always survive, and everything comes straight back when the window widens.
 
-Give a `{g}` a colour of its own and it stops being a fade — it is a solid sliver you asked for, and it sheds in the ordinary order with everything else.
+Give a `{g}` a colour of its own and it stops being a fade — it is a solid line.
 
 It can also be slid away without being switched off — from the command palette, or automatically as part of zen — and brought back by putting the pointer near the bottom of the window.
 
