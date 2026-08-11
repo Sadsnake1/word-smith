@@ -1248,19 +1248,35 @@ const BAR_THEMES = [
 	},
 
 	{
+		// EVERY VALUE FROM vim's own quiet.vim, both backgrounds. The papers
+		// were approximations before and both were wrong in the direction
+		// that matters most: quiet's dark half is PURE BLACK (#000000) and
+		// its light half is a definite GREY (#d7d7d7), not the near-white
+		// this table had. A monochrome scheme is nothing but its greys, so
+		// getting the paper approximately right is getting it wrong.
+		//
+		// Its accents are the three colours quiet allows itself, and each
+		// is a REVERSE pairing, so the rendered surface is the guifg:
+		// Visual is orange (#ffaf00), Search blue (#00afff), Todo mint
+		// (#00ffaf). They live in the accent slots; the ramp stays grey,
+		// which is why the Vim modes still come out as shades of grey.
 		id: 'quiet', name: 'Quiet',
-		note: 'Vim\u2019s own quiet \u2014 near-monochrome, on purpose',
-		dark:  { b1: '#121212', b2: '#1c1c1c',
-		         b3: '#262626', b4: '#303030',
-		         c1: '#303030', c2: '#262626', c3: '#1c1c1c', c4: '#2a2a2a',
-		         c5: '#333333', c6: '#282828', c7: '#3a3a3a',
-		         t1: '#d0d0d0', t2: '#121212', t3: '#808080', t4: '#d0d0d0', sel: '#4a4a4a' },
-		light: { b1: '#f8f8f8', b2: '#f0f0f0',
-		         b3: '#e6e6e6', b4: '#dadada',
-		         c1: '#dadada', c2: '#e6e6e6', c3: '#f0f0f0', c4: '#e0e0e0',
-		         c5: '#d8d8d8', c6: '#e4e4e4', c7: '#cccccc',
-		         t1: '#1c1c1c', t2: '#f0f0f0', t3: '#6c6c6c', t4: '#1c1c1c', sel: '#c8c8c8', bar: '#dadada' }
+		note: 'vim\u2019s own quiet \u2014 monochrome by design, three colours allowed',
+		dark:  { b1: '#000000', b2: '#1c1c1c', b3: '#303030', b4: '#585858',
+		         c1: '#a8a8a8', c2: '#1c1c1c', c3: '#000000', c4: '#303030',
+		         c5: '#3a3a3a', c6: '#444444', c7: '#4e4e4e',
+		         t1: '#dadada', t2: '#000000', t3: '#a8a8a8', t4: '#dadada',
+		         sel: '#ffaf00', bar: '#dadada' },
+		light: { b1: '#d7d7d7', b2: '#cccccc', b3: '#e4e4e4', b4: '#a8a8a8',
+		         // Seven steps of quiet's own grey ladder, each distinct:
+		         // on a monochrome scheme the ladder IS the palette, so two
+		         // slots landing on one value costs a whole accent.
+		         c1: '#9e9e9e', c2: '#cccccc', c3: '#d7d7d7', c4: '#c8c8c8',
+		         c5: '#bcbcbc', c6: '#b4b4b4', c7: '#a8a8a8',
+		         t1: '#000000', t2: '#d7d7d7', t3: '#626262', t4: '#000000',
+		         sel: '#ffaf00', bar: '#000000' }
 	},
+
 	{
 		id: 'habamax', name: 'Habamax',
 		note: 'Vim\u2019s habamax \u2014 muted, warm-neutral',
@@ -1290,6 +1306,10 @@ const BAR_THEMES = [
 		         t1: '#2e3440', t2: '#eceff4', t3: '#5c6779', t4: '#5e81ac', sel: '#d8dee9', bar: '#d8dee9' }
 	},
 	{
+		// The light half's mode line stays DERIVED: Alucard's open-source
+		// release ships no editor port yet (the request is an open issue
+		// on dracula/visual-studio-code), so there is no upstream value
+		// to take.
 		id: 'dracula', name: 'Dracula',
 		note: 'Zeno Rocha\u2019s Dracula, with Alucard for the light half',
 		dark:  { b1: '#282a36', b2: '#343746',
@@ -1367,12 +1387,12 @@ const BAR_THEMES = [
 		         b3: '#393552', b4: '#44415a',
 		         c1: '#2d6a85', c2: '#2a273f', c3: '#232136', c4: '#3a5f54',
 		         c5: '#795c32', c6: '#5f4580', c7: '#8a4155',
-		         t1: '#e0def4', t2: '#232136', t3: '#908caa', t4: '#9ccfd8', sel: '#403d52' },
+		         t1: '#e0def4', t2: '#232136', t3: '#908caa', t4: '#9ccfd8', sel: '#403d52', bar: '#393552' },
 		light: { b1: '#faf4ed', b2: '#fffaf3',
 		         b3: '#f2e9e1', b4: '#e4dcd4',
 		         c1: '#cfe2ea', c2: '#f2e9e1', c3: '#faf4ed', c4: '#d5e8dd',
 		         c5: '#f5e2c2', c6: '#e5d8f0', c7: '#f7d5dd',
-		         t1: '#575279', t2: '#faf4ed', t3: '#797593', t4: '#286983', sel: '#dfdad9' }
+		         t1: '#575279', t2: '#faf4ed', t3: '#797593', t4: '#286983', sel: '#dfdad9', bar: '#f2e9e1' }
 	},
 	{
 		id: 'modus-tinted', name: 'Modus Tinted',
@@ -1431,18 +1451,29 @@ const BAR_THEMES = [
 		// The dark half is Monokai; the light half is OUR adaptation of it
 		// onto paper \u2014 upstream never shipped one, and a survived dark
 		// palette on white is worse than a designed light one.
+		//
+		// The mode line: the TextMate original names none \u2014 a TextMate
+		// scheme colours text, not chrome \u2014 so the value is the canonical
+		// Emacs port's (oneKelvinSmith/monokai-emacs, mode-line background
+		// = monokai-highlight #49483E), which is Monokai's own selection
+		// grey and so still Wimer's colour, worn where Emacs wears it.
+		// The light half stays derived: no upstream light Monokai exists
+		// to name one.
 		id: 'monokai', name: 'Monokai',
 		note: 'Wimer Hazenberg \u2014 the classic; light half is our adaptation',
 		dark:  { b1: '#272822', b2: '#3e3d32', b3: '#49483e', b4: '#75715e',
 		         c1: '#66d9ef', c2: '#3e3d32', c3: '#272822', c4: '#375a2e',
 		         c5: '#7a5a1e', c6: '#6f5c9c', c7: '#8f2f3f',
-		         t1: '#f8f8f2', t2: '#272822', t3: '#a59f85', t4: '#a6e22e', sel: '#49483e' },
+		         t1: '#f8f8f2', t2: '#272822', t3: '#a59f85', t4: '#a6e22e', sel: '#49483e', bar: '#49483e' },
 		light: { b1: '#fafafa', b2: '#f0f0ee', b3: '#e6e6e2', b4: '#d0d0c8',
 		         c1: '#cdeef5', c2: '#f0f0ee', c3: '#fafafa', c4: '#dcedc8',
 		         c5: '#fde3b3', c6: '#e6dcf5', c7: '#f8ccd4',
 		         t1: '#272822', t2: '#fafafa', t3: '#75715e', t4: '#f92672', sel: '#d8d8d0' }
 	},
 	{
+		// One Light names no StatusLine of its own — onedark.vim ships the
+		// dark half only — so its bar is OURS, one step off the paper,
+		// like every scheme that names none.
 		id: 'onedark', name: 'One Dark / Light',
 		names: { dark: 'One Dark', light: 'One Light' },
 		note: 'Atom\u2019s pair \u2014 One Dark when dark, One Light when light',
@@ -1453,7 +1484,7 @@ const BAR_THEMES = [
 		light: { b1: '#fafafa', b2: '#f0f0f1', b3: '#e5e5e6', b4: '#d3d3d4',
 		         c1: '#cfe5fb', c2: '#f0f0f1', c3: '#fafafa', c4: '#d6e9cc',
 		         c5: '#f5e3bd', c6: '#e6d9f2', c7: '#f6d0d4',
-		         t1: '#383a42', t2: '#fafafa', t3: '#696c77', t4: '#4078f2', sel: '#d0d4da' }
+		         t1: '#383a42', t2: '#fafafa', t3: '#696c77', t4: '#4078f2', sel: '#d0d4da', bar: '#e5e5e6' }
 	},
 	{
 		id: 'nightfox', name: 'Nightfox / Dayfox',
@@ -1485,6 +1516,14 @@ const BAR_THEMES = [
 		         t1: '#545464', t2: '#f2ecbc', t3: '#716e61', t4: '#4d699b', sel: '#c9d5de', bar: '#dcd5ac' }
 	},
 	{
+		// GITHUB NAMES A MODE LINE AND IT IS THE PAGE. Primer's own
+		// github-vscode-theme sets statusBar.background to color.bg.canvas
+		// — the editor surface itself — and a maintainer confirms the
+		// theme deliberately has no distinct status colour. A strip equal
+		// to the page is the one thing this table's invariant refuses
+		// (“the strip is not the page”), and the popular Neovim port's
+		// blue strip is that port's computed invention, not Primer's. So
+		// GitHub derives, like every scheme that names none.
 		id: 'github', name: 'GitHub',
 		note: 'Primer \u2014 the dark and light you read pull requests in',
 		dark:  { b1: '#0d1117', b2: '#161b22', b3: '#21262d', b4: '#30363d',
@@ -1562,20 +1601,35 @@ const BAR_THEMES = [
 		// Steph Ango's — the author of Minimal, and designed light-first
 		// with a dark twin rather than the other way round, which is why
 		// both halves are upstream's own.
+		//
+		// The mode line: the spec names no status role and the Obsidian
+		// theme sets none, but the OFFICIAL Neovim port — kepano/
+		// flexoki-neovim, the one the Flexoki README links — does:
+		// `StatusLine = { fg = tx, bg = ui-3 }`. ui-3 is flexoki-800
+		// (#403E3C) on the dark half and flexoki-200 (#CECDC3) on the
+		// light — spec colours, worn where Neovim wears them.
 		id: 'flexoki', name: 'Flexoki',
 		note: 'Steph Ango \u2014 an inky palette for prose, both halves his',
 		dark:  { b1: '#100f0f', b2: '#1c1b1a', b3: '#282726', b4: '#343331',
 		         c1: '#21344f', c2: '#1c1b1a', c3: '#100f0f', c4: '#2b3a1e',
 		         c5: '#4a3a12', c6: '#362c52', c7: '#4d2220',
-		         t1: '#cecdc3', t2: '#100f0f', t3: '#878580', t4: '#4385be', sel: '#282726' },
+		         t1: '#cecdc3', t2: '#100f0f', t3: '#878580', t4: '#4385be', sel: '#282726', bar: '#403e3c' },
 		light: { b1: '#fffcf0', b2: '#f2f0e5', b3: '#e6e4d9', b4: '#dad8ce',
 		         c1: '#d3e3f7', c2: '#f2f0e5', c3: '#fffcf0', c4: '#dbe6c4',
 		         c5: '#f2e2b0', c6: '#e2d6f0', c7: '#f6d2cd',
-		         t1: '#100f0f', t2: '#fffcf0', t3: '#6f6e69', t4: '#205ea6', sel: '#e6e4d9' }
+		         t1: '#100f0f', t2: '#fffcf0', t3: '#6f6e69', t4: '#205ea6', sel: '#e6e4d9', bar: '#cecdc3' }
 	},
 	{
 		// Jan Warcho\u0142's Solarized successor: the same idea \u2014 one pair,
 		// tuned together \u2014 with the contrast complaint answered.
+		//
+		// The mode line is UPSTREAM'S OWN vim port (editors/vim in
+		// jan-warchol/selenized): `StatusLine gui=reverse` with both
+		// halves NONE, so the RENDERED strip is Normal inverted \u2014 the
+		// body ink as the surface, the paper as the text. Read as
+		// rendered, exactly as the other reverse schemes in this table
+		// are: dark wears fg_0 #adbcbc, light wears fg_0 #53676d, and
+		// each carries an ink well past the floor (6.07 and 5.37).
 		id: 'selenized', name: 'Selenized',
 		note: 'Jan Warcho\u0142 \u2014 Solarized rebuilt, both halves tuned together',
 		dark:  { b1: '#103c48', b2: '#184956', b3: '#1c5460', b4: '#2d5b69',
@@ -1585,11 +1639,11 @@ const BAR_THEMES = [
 		         // is what clears AAA on its own paper and carries an ink on
 		         // its own selection. fg_0 becomes the muted ink, which is
 		         // what it reads as anyway.
-		         t1: '#cad8d9', t2: '#103c48', t3: '#adbcbc', t4: '#4695f7', sel: '#184956' },
+		         t1: '#cad8d9', t2: '#103c48', t3: '#adbcbc', t4: '#4695f7', sel: '#184956', bar: '#adbcbc' },
 		light: { b1: '#fbf3db', b2: '#ece3cc', b3: '#e0d7bf', b4: '#c3bba4',
 		         c1: '#cddef2', c2: '#ece3cc', c3: '#fbf3db', c4: '#d7e6c4',
 		         c5: '#f0e0a8', c6: '#ecd4e6', c7: '#f8cfc9',
-		         t1: '#3a4d53', t2: '#fbf3db', t3: '#53676d', t4: '#0072d4', sel: '#e0d7bf' }
+		         t1: '#3a4d53', t2: '#fbf3db', t3: '#53676d', t4: '#0072d4', sel: '#e0d7bf', bar: '#53676d' }
 	},
 	{
 		// ICEBERG NAMES A MODE LINE AND DOES NOT GET ONE. Its StatusLine is
@@ -1616,7 +1670,7 @@ const BAR_THEMES = [
 		dark:  { b1: '#1c1c1c', b2: '#262626', b3: '#303030', b4: '#444444',
 		         c1: '#1f3a4a', c2: '#262626', c3: '#1c1c1c', c4: '#2b3a1a',
 		         c5: '#4a4400', c6: '#3a2a4a', c7: '#4a1010',
-		         t1: '#d0d0d0', t2: '#1c1c1c', t3: '#8a8a8a', t4: '#5fafd7', sel: '#303030' },
+		         t1: '#d0d0d0', t2: '#1c1c1c', t3: '#8a8a8a', t4: '#5fafd7', sel: '#303030', bar: '#5f8787' },
 		light: { b1: '#eeeeee', b2: '#e4e4e4', b3: '#d0d0d0', b4: '#bcbcbc',
 		         c1: '#c6e2ee', c2: '#e4e4e4', c3: '#eeeeee', c4: '#cde8c0',
 		         c5: '#f0e4b0', c6: '#e2d0ee', c7: '#f4cccc',
@@ -1636,7 +1690,12 @@ const BAR_THEMES = [
 		light: { b1: '#fcfcfc', b2: '#f3f4f5', b3: '#e7e8e9', b4: '#d3d4d5',
 		         c1: '#cfe3f7', c2: '#f3f4f5', c3: '#fcfcfc', c4: '#d6e8c6',
 		         c5: '#f7e3b0', c6: '#e4d8f2', c7: '#f8d0cc',
-		         t1: '#5c6166', t2: '#fcfcfc', t3: '#8a8f98', t4: '#d1650a', sel: '#e7e8e9' }
+		         t1: '#5c6166', t2: '#fcfcfc', t3: '#8a8f98', t4: '#d1650a', sel: '#e7e8e9',
+		         // statusBar.background from ayu-theme's own vscode-ayu
+		         // (ayu-light.json) — the panel shade, one visible step off
+		         // the page. The ink is measured as ever; upstream's own
+		         // #8a9199 sits under the floor and is not taken.
+		         bar: '#f8f9fa' }
 	},
 ];
 
@@ -1654,7 +1713,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 60;
+const ZG_STYLESHEET_VERSION = 63;
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1770,6 +1829,23 @@ const BAR_DIRECTIVE_BG = {
 	b2: 'var(--background-secondary, var(--background-primary))',
 	b3: 'var(--background-secondary-alt, var(--background-secondary, var(--background-primary)))',
 	b4: 'var(--background-tertiary, var(--background-primary-alt, var(--background-primary)))',
+	// :bs — THE STATUS LINE'S OWN SURFACE. Not a fifth step of the ramp: a
+	// worn scheme may NAME this colour (Vim's blue pair paints it cyan,
+	// Quiet inverts it to black, PaperColor makes it teal) and the ramp
+	// cannot express that. It falls back through the chrome surfaces, so a
+	// bar written with :bs looks sane with no scheme worn — the same
+	// contract every other slot keeps.
+	//
+	// Spelled :s until 1.2.9, and REMOVED clean rather than aliased: the
+	// grammar's rule is that an unrecognised slot prints itself, so a saved
+	// `:s` now shows ":s" in the bar — which is how its writer finds out
+	// the name changed, instead of a hidden synonym nobody can discover.
+	//
+	// :bs is also THE DEFAULT. A row that declares nothing sits on this
+	// surface (see applyCssVariables), and so does every segment with no
+	// colour of its own (powerlineSegColor) — the bar reads as one strip,
+	// the way a vim statusline does, until a colour is asked for.
+	bs: 'var(--status-bar-background, var(--background-secondary, var(--background-primary)))',
 };
 // The same reasoning, one step milder: an unresolvable ink leaves `color` at
 // its initial value, which is black — wrong rather than absent, and invisible
@@ -1788,11 +1864,23 @@ function readBarDirective(formatStr) {
 	// accepts the pair in the order it was written, and a writer who types
 	// ;t2:b2 has said exactly the same thing.
 	for (;;) {
-		const m = /^\s*(?::(b\d+|vim|\d+)|;(t\d+|vim|\d+))/i.exec(rest);
+		// `bs` and `bc` join b1-b4 as surface names, BEFORE b\d+ in the
+		// alternation so the engine need not backtrack into them. Listed
+		// rather than widened to \w+, because an unknown slot must stay
+		// unmatched and print itself: a typo that silently resolved to
+		// nothing is the failure this grammar was built to avoid. The old
+		// spelling `s` is deliberately absent — see BAR_DIRECTIVE_BG.
+		//
+		// :bc and ;bc travel the SLOT route with :vim rather than the
+		// theme-surface route with :bs, because the cursor's colour is
+		// LIVE state — Cursor-Smith repaints the caret per vim mode — and
+		// a slot is resolved on every repaint where a surface is stamped
+		// once (see cursorColor).
+		const m = /^\s*(?::(bs|bc|b\d+|vim|\d+)|;(t\d+|vim|bc|\d+))/i.exec(rest);
 		if (!m) break;
 		if (m[1] && bg === null && bgSlot === null) {
 			if (/^\d+$/.test(m[1]))        bgSlot = parseInt(m[1], 10);
-			else if (/^vim$/i.test(m[1]))  bgSlot = 'vim';
+			else if (/^(?:vim|bc)$/i.test(m[1]))  bgSlot = m[1].toLowerCase();
 			else {
 				const k = m[1].toLowerCase();
 				bg = BAR_DIRECTIVE_BG[k] || null;
@@ -1807,7 +1895,7 @@ function readBarDirective(formatStr) {
 		}
 		if (m[2] && text === null && textSlot === null) {
 			if (/^\d+$/.test(m[2]))       textSlot = parseInt(m[2], 10);
-			else if (/^vim$/i.test(m[2])) textSlot = 'vim';
+			else if (/^(?:vim|bc)$/i.test(m[2])) textSlot = m[2].toLowerCase();
 			else {
 				const k = m[2].toLowerCase();
 				text = BAR_DIRECTIVE_TEXT[k] || null;
@@ -1952,6 +2040,12 @@ const PL_THEME_BGS = {
 	b2: ['--background-secondary', '--background-primary'],
 	b3: ['--background-secondary-alt', '--background-secondary', '--background-primary'],
 	b4: ['--background-tertiary', '--background-primary-alt', '--background-primary'],
+	bs: ['--status-bar-background', '--background-secondary', '--background-primary'],
+	// The caret with no Cursor-Smith to ask: Obsidian's own — which its
+	// default theme sets to the text colour, the same value this plugin's
+	// stylesheet writes for the editor. cursorColor() walks this AFTER
+	// asking Cursor-Smith, which owns the caret whenever it is installed.
+	bc: ['--caret-color', '--text-normal'],
 };
 
 // A segment's ;tN, as a var() — this one can be, because it is set as the
@@ -2047,6 +2141,9 @@ const DEFAULT_SETTINGS = {
 	barThemeCursor:     false,
 	barThemeVim:        false,
 	barThemeBorderless: false,
+	// The shape of a task checkbox: '' leaves Obsidian's (or your theme's)
+	// alone, which is why the default is empty rather than 'square'.
+	barThemeCheckbox:   '',
 	// TOMBSTONE (1.2.8). barThemeGlass was a frosted-glass toggle, removed
 	// by vault feedback within the release. barThemeGlassStash OUTLIVES it
 	// on purpose: while Glass was on it borrowed Obsidian's own
@@ -3021,6 +3118,18 @@ module.exports = class WordSmith extends Plugin {
 				await this.saveSettings(true);
 			}
 		});
+		// A REPORT THAT ENDS AN ARGUMENT. Three separate "the text is dark"
+		// reports were diagnosed from the outside, twice wrongly, because
+		// the question — WHICH rule is painting this text — cannot be
+		// answered by reading our own source. It can be answered in one
+		// call by the browser that is doing the painting. This asks it, on
+		// desktop and on mobile alike, and shows the answer where it can be
+		// copied into an issue.
+		this.addCommand({
+			id: 'theme-diagnostics',
+			name: 'Copy theme diagnostics',
+			callback: () => this.showThemeDiagnostics()
+		});
 		this.addCommand({
 			id: 'toggle-wordsmith',
 			name: 'Toggle Word-Smith on/off',
@@ -3207,6 +3316,16 @@ module.exports = class WordSmith extends Plugin {
 		this.registerEvent(this.app.workspace.on('css-change', () => {
 			this.barThemeOnCssChange();
 		}));
+
+		// Mobile rebuilds the app container when Obsidian resumes, which
+		// discards inline body styles. These are the events that follow a
+		// rebuild; the guard is a no-op unless something actually went
+		// missing, so listening broadly costs nothing.
+		this.registerEvent(this.app.workspace.on('resize', () => this.barThemeGuard()));
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => this.barThemeGuard()));
+		this.registerDomEvent(document, 'visibilitychange', () => {
+			if (!document.hidden) this.barThemeGuard();
+		});
 
 
 		// DOM events
@@ -3447,8 +3566,11 @@ module.exports = class WordSmith extends Plugin {
 			if (!this.settings.pluginEnabled) return;
 			this.applyCssVariables();
 			this.updateStyleEl();
+			// A worn scheme has to survive whoever else writes to body.
+			this.barThemeGuard();
 		});
-		this._themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+		this._themeObserver.observe(document.body,
+			{ attributes: true, attributeFilter: ['class', 'style'] });
 
 		// CM6 decoration extensions (focus dimming + hidden markers)
 		this.setupEditorExtensions();
@@ -5370,8 +5492,20 @@ module.exports = class WordSmith extends Plugin {
 		// against it. Each half is independent — :b2 alone keeps the custom
 		// TEXT, which is the combination that makes the directive worth
 		// having on a bar that is otherwise hand-coloured.
-		const dir = this.resolveBarDirective(
-			readBarDirective((this.getStatusRows()[0] || {}).left));
+		const parsedDir = readBarDirective((this.getStatusRows()[0] || {}).left);
+		// A row that declares NOTHING defaults to :bs — the status line's
+		// own surface — rather than the page. Synthesised HERE, not in the
+		// parser: readBarDirective answers "what was written", every caller
+		// depends on null meaning "nothing was", and the default is a
+		// choice about painting, which is this method's job. Going through
+		// bgTheme means the default gets the same paintability walk an
+		// explicit :bs gets, instead of trusting a var() chain a theme can
+		// define straight into transparency.
+		if (parsedDir.bg === null && parsedDir.bgSlot === null) {
+			parsedDir.bg = BAR_DIRECTIVE_BG.bs;
+			parsedDir.bgTheme = 'bs';
+		}
+		const dir = this.resolveBarDirective(parsedDir);
 		// No picker branch any more: the bar takes the theme's surface and
 		// text unless the ROW says otherwise. The directive is the only way
 		// to colour the bar itself now, which is the right place for it —
@@ -5538,10 +5672,28 @@ module.exports = class WordSmith extends Plugin {
 			const c = this.firstPaintable(BAR_THEME_INK_VARS[dir.textTheme]);
 			if (c) text = c;
 		}
+		// :bs with no ink written pairs with the STRIP'S OWN measured ink,
+		// not --text-normal. A worn scheme's status surface can be a
+		// saturated colour none of its body inks read on (PaperColor's
+		// teal carries black at 5.30 and its softened inks at 4.30 at
+		// best) — and --status-bar-text-color is exactly the ink
+		// applyThemeVars measured against that surface. With no scheme
+		// worn the variable is Obsidian's own status-bar ink, and the
+		// chain still ends at --text-normal for a theme that defines
+		// neither. Written text (;N, ;tN, ;vim) wins as ever — this fires
+		// only when both halves of the ink decision were left blank.
+		if (dir.bgTheme === 'bs' && text === null && dir.textSlot == null) {
+			text = 'var(--status-bar-text-color, var(--text-normal))';
+		}
 		if (dir.bgSlot != null) {
 			let c = null;
 			if (dir.bgSlot === 'vim') {
 				c = this.vimModeColor();
+			} else if (dir.bgSlot === 'bc') {
+				// The caret's live colour. Null leaves bg as it stands,
+				// and the caller's floor names the page — the same
+				// contract a wholly unpaintable chain keeps.
+				c = this.cursorColor();
 			} else {
 				// Same 1-based wrap as a segment's :N — a saved :9 folds
 				// into the palette rather than failing.
@@ -5556,6 +5708,8 @@ module.exports = class WordSmith extends Plugin {
 		if (dir.textSlot != null) {
 			text = dir.textSlot === 'vim'
 				? (this.vimModeColor() || text)
+				: dir.textSlot === 'bc'
+				? (this.cursorColor() || text)
 				: this.powerlineTextColor(dir.textSlot);
 		}
 		return { bg, text, bgSlot: dir.bgSlot, textSlot: dir.textSlot, rest: dir.rest };
@@ -10970,6 +11124,24 @@ module.exports = class WordSmith extends Plugin {
 		// Focused on open, because a finder you must click into is not one.
 		// The list keeps its tabindex so Escape-to-list still has somewhere
 		// to land.
+		// RE-ASSERT ON CLOSE. A theme picked from this menu flashed on and
+		// then reverted, while the very same callback fired from the
+		// settings cards stuck — the difference is not the code, it is the
+		// container. Obsidian's mobile modals snapshot body's style
+		// attribute when they open and restore it when they close, so
+		// anything written to body WHILE a modal is open is discarded the
+		// moment it closes. A theme is written to body. That is the whole
+		// bug, and it is why a restart appeared to fix it: at load there is
+		// no modal to undo the write.
+		//
+		// The observer-driven guard catches this too, but only after the
+		// restore fires; doing it here as well means the workspace never
+		// shows the undressed frame between the two.
+		modal.onClose = () => {
+			this.barThemeOnCssChange();
+			this.barThemeGuard();
+		};
+
 		modal.onOpen = () => {
 			list.setAttribute('tabindex', '-1');
 			try { search.focus(); } catch (_) { list.focus(); }
@@ -11193,6 +11365,14 @@ module.exports = class WordSmith extends Plugin {
 		const id = this.settings.barTheme;
 		if (this.settings.barThemeEnabled !== false
 			&& id && id !== 'custom') body.classList.add('zg-theme-' + id);
+		// The checkbox shape, like borderless, is a LOOK: it works under
+		// Default and dies with the kill switch. One class per shape rather
+		// than a data attribute, to match every other look here.
+		for (const shape of ['circle', 'square', 'retro']) {
+			body.classList.toggle('zg-cb-' + shape,
+				this.settings.barThemeEnabled !== false
+				&& this.settings.barThemeCheckbox === shape);
+		}
 		// Borderless is a LOOK, not a scheme — like the tab experiment
 		// before it, it works under Default and dies with the kill switch.
 		// Unlike that experiment it is variables-first (Minimal's own
@@ -11488,6 +11668,119 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 
+	// THE THEME RE-ASSERTS ITSELF.
+	//
+	// A scheme lives as inline custom properties on body, which is what
+	// makes it beat every stylesheet in the cascade — and also what makes
+	// it fragile in exactly one way: anything that rewrites body's style
+	// attribute, or replaces body outright, takes the whole scheme with
+	// it and leaves no error behind. On desktop nothing does. On MOBILE
+	// the app container is rebuilt when Obsidian resumes from the
+	// background, and the vault saw the consequence precisely: the colours
+	// flash on, then the workspace comes back wearing nothing.
+	//
+	// So the theme is watched and restored rather than written once and
+	// hoped for. Cheap, because it only acts when a key it owns has
+	// actually gone missing: the observer fires often and this returns
+	// immediately almost every time.
+	//
+	// Guarded against its own writes — applying sets body.style, which
+	// re-enters the observer — by a re-entrancy flag rather than by
+	// disconnecting, so a strip that lands DURING a repaint is still
+	// caught on the next tick.
+	barThemeGuard() {
+		if (this._themeGuarding) return false;
+		if (!this.settings || this.settings.barThemeEnabled === false) return false;
+		const id = this.settings.barTheme;
+		if (!id || id === 'custom') return false;
+		const keys = this._themeVarKeys || [];
+		if (!keys.length) return false;
+		let missing = false;
+		try {
+			for (const k of keys) {
+				if (!document.body.style.getPropertyValue(k)) { missing = true; break; }
+			}
+			// The class hook is part of the dress; a snippet keyed on it
+			// would go quiet without this.
+			if (!missing && !document.body.classList.contains('zg-theme-' + id)) missing = true;
+		} catch (_) { return false; }
+		if (!missing) return false;
+		this._themeGuarding = true;
+		try {
+			this.applyThemeClass();
+			this.applyThemeVars();
+		} catch (_) {}
+		this._themeGuarding = false;
+		return true;
+	}
+
+	// What the plugin BELIEVES, and what the browser actually computed,
+	// side by side. Every line here exists because some report needed it:
+	// the half in use, the paper the plugin thinks it painted, the colour
+	// the editor is really rendering, and whether our variables are still
+	// on the body at all.
+	barThemeDiagnostics() {
+		const L = [];
+		const say = (k, v) => L.push(k + ': ' + v);
+		const cs = (el, prop) => {
+			try { return el ? getComputedStyle(el).getPropertyValue(prop).trim() : '(no element)'; }
+			catch (_) { return '(unreadable)'; }
+		};
+		const st = this.settings || {};
+		say('scheme', st.barTheme + (st.barThemeEnabled === false ? ' (themes OFF)' : ''));
+		say('app mode', this.isDarkTheme() ? 'dark' : 'light');
+		say('paper', this.isDarkSurface() ? 'dark' : 'light');
+		const theme = this.barThemeById(st.barTheme);
+		const h = theme ? this.barThemeHalf(theme) : null;
+		say('half b1/t1', h ? (h.b1 + ' / ' + h.t1) : '(none)');
+		say('inline --background-primary',
+			'"' + cs(document.body, '--background-primary') + '"');
+		say('inline --text-normal', '"' + cs(document.body, '--text-normal') + '"');
+		say('owned keys on body', (this._themeVarKeys || []).length);
+		let missing = 0;
+		for (const k of (this._themeVarKeys || [])) {
+			if (!document.body.style.getPropertyValue(k)) missing++;
+		}
+		say('missing from body', missing);
+		// THE ANSWER TO THE ACTUAL QUESTION: what colour is the editor
+		// painting, and is it the one we asked for?
+		const line = document.querySelector('.markdown-source-view.mod-cm6 .cm-content .cm-line')
+			|| document.querySelector('.markdown-preview-view');
+		say('editor text (computed)', cs(line, 'color'));
+		say('editor bg (computed)',
+			cs(document.querySelector('.markdown-source-view') || document.body, 'background-color'));
+		say('sidebar text (computed)',
+			cs(document.querySelector('.nav-file-title-content'), 'color'));
+		// The plugin's own editor features, which colour text themselves
+		// and are the first thing to rule out.
+		say('syntax on', !!st.posEnabled + (st.posDimOthers ? ' (dim others ON)' : ''));
+		say('prose checks on', !!st.checksEnabled);
+		say('coloured headings/code/markdown',
+			[st.barThemeHeadings, st.barThemeCode, st.barThemeMarkdown].join('/'));
+		say('body classes', Array.from(document.body.classList)
+			.filter(c => c.indexOf('zg-') === 0 || c.indexOf('theme-') === 0).join(' '));
+		say('versions', 'main ' + ZG_STYLESHEET_VERSION + ', sheet '
+			+ cs(document.body, '--zg-stylesheet-version'));
+		return L.join('\n');
+	}
+
+	showThemeDiagnostics() {
+		const text = this.barThemeDiagnostics();
+		try { console.log('[word-smith] theme diagnostics\n' + text); } catch (_) {}
+		const modal = new Modal(this.app);
+		modal.titleEl.setText('Theme diagnostics');
+		const pre = modal.contentEl.createEl('pre', { cls: 'zg-diag' });
+		pre.setText(text);
+		const btn = modal.contentEl.createEl('button', { text: 'Copy' });
+		btn.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(text);
+				new Notice('Diagnostics copied');
+			} catch (_) { new Notice('Select the text above and copy it'); }
+		});
+		modal.open();
+	}
+
 	// TAKE THE THEME OFF THE WORKSPACE, without forgetting it.
 	//
 	// The plugin's own master switch and its unload path both tear down
@@ -11510,6 +11803,13 @@ module.exports = class WordSmith extends Plugin {
 				if (cls.indexOf('zg-theme-') === 0) document.body.classList.remove(cls);
 			}
 			document.body.classList.remove('zg-borderless', 'zg-glass', 'zg-simpletabs');
+			// TOMBSTONE (1.2.9). 'pill' was a fourth shape for one release.
+			// Removed on sight; kept in this sweep so a vault that had it
+			// selected is cleaned rather than left wearing a class no
+			// stylesheet serves.
+			for (const shape of ['circle', 'square', 'retro', 'pill']) {
+				document.body.classList.remove('zg-cb-' + shape);
+			}
 		} catch (_) {}
 		// And the caret, which lives in another plugin and would otherwise
 		// keep our colours after ours is gone.
@@ -11566,8 +11866,17 @@ module.exports = class WordSmith extends Plugin {
 		// through the wash would be the one thing still arguing.
 		const barBg = simp ? S2 : (h.bar || h.b3);
 		// The muted ink when it reads there — a status line is quiet by
-		// nature — and the measured one when it does not.
-		const barInk = this.barContrast(h.t3, barBg) >= 4.5 ? h.t3 : inkFor(barBg);
+		// nature — then the scheme's own inks, then PURE black or white.
+		// The pure step is not decoration: PaperColor's dark bar is a
+		// saturated teal that carries none of its scheme's softened inks
+		// (4.30 at best) and carries black at 5.30. Softened inks belong on
+		// a scheme's own surfaces; on a saturated strip, legibility
+		// outranks the softening — the same rule --text-on-accent already
+		// follows, for the same reason.
+		const barInk = this.barContrast(h.t3, barBg) >= 4.5
+			? h.t3
+			: [h.t1, h.t2, '#000000', '#ffffff'].reduce((best, c) =>
+				this.barContrast(c, barBg) > this.barContrast(best, barBg) ? c : best);
 		const onAccent = ['#000000', '#ffffff', h.t1, h.t2]
 			.reduce((best, c) =>
 				this.barContrast(c, h.t4) > this.barContrast(best, h.t4) ? c : best);
@@ -11927,10 +12236,23 @@ module.exports = class WordSmith extends Plugin {
 		const grey = chroma(h.t4) < 0.12
 			&& ['c4', 'c5', 'c6', 'c7'].every(k => chroma(h[k]) < 0.12);
 		if (grey) {
-			const shades = [];
-			for (let t = 0; t <= 0.6 && shades.length < 4; t += 0.08) {
+			// SPREAD, not the first four steps. Walking away from the ink in
+			// small increments and stopping at four gave Quiet's light half
+			// #000, #111, #222, #343 — four values, one colour to the eye,
+			// which fails the only thing mode inks are for. Collect every
+			// step that still reads, then take four spaced ACROSS that
+			// range, so the modes differ by as much as the scheme's own
+			// contrast headroom allows.
+			const usable = [];
+			for (let t = 0; t <= 0.85; t += 0.05) {
 				const c = mixColors(h.t1, h.b1, t);
-				if (this.barContrast(c, h.b1) >= 4.5) shades.push(c);
+				if (this.barContrast(c, h.b1) >= 4.5) usable.push(c);
+			}
+			const shades = [];
+			if (usable.length) {
+				for (let i = 0; i < 4; i++) {
+					shades.push(usable[Math.round(i * (usable.length - 1) / 3)]);
+				}
 			}
 			while (shades.length < 4) shades.push(h.t1);
 			return { normal: this.barThemeCursorInk(h),
@@ -12963,7 +13285,7 @@ module.exports = class WordSmith extends Plugin {
 		// happen before barColor is read back below, or the caps would
 		// blend the separators into the colour of the previous mode.
 		const dir0 = readBarDirective((rows[0] || {}).left);
-		if (dir0.bgSlot != null || dir0.textSlot === 'vim') {
+		if (dir0.bgSlot != null || dir0.textSlot === 'vim' || dir0.textSlot === 'bc') {
 			const r = this.resolveBarDirective(dir0);
 			if (r.bg)   document.body.style.setProperty('--zg-bg',   r.bg);
 			if (r.text) document.body.style.setProperty('--zg-text', r.text);
@@ -13268,7 +13590,10 @@ module.exports = class WordSmith extends Plugin {
 			// colour 3. {token}:vim follows the live vim mode instead of a
 			// fixed background, and :vim;3 pins the text while the
 			// background moves. {token}:b1 through :b4 take the theme's own
-			// surfaces (PL_THEME_BGS) and ;t1 through ;t3 its text colours.
+			// surfaces (PL_THEME_BGS), :bs its status-line surface, and
+			// ;t1 through ;t3 its text colours. A token with NO colour at
+			// all lies flush with the bar (powerlineSegColor) — writing
+			// :bs explicitly says the same thing a bare token now says.
 			// The space in {token} :2 is allowed because it reads better in a
 			// row and someone will type it either way.
 			//
@@ -13290,10 +13615,10 @@ module.exports = class WordSmith extends Plugin {
 			// the auto colour and then printed ":b1" beside it. `{file}:b1`
 			// worked, which is what made it look like a colour bug rather
 			// than a token-name bug.
-			const text = texts[i].replace(/(\{[^{}]+\})(?:\s*:(\d+|vim|b[1-4]))?(?:\s*;\s*(\d+|vim|t[1-3]))?/gi, (m, tok, n, t) => {
+			const text = texts[i].replace(/(\{[^{}]+\})(?:\s*:(\d+|vim|b[1-4]|bs|bc))?(?:\s*;\s*(\d+|vim|bc|t[1-3]))?/gi, (m, tok, n, t) => {
 				if (n != null && slot === null) {
-					slot = /^vim$/i.test(n) ? 'vim'
-						: /^b[1-4]$/i.test(n) ? n.toLowerCase()
+					slot = /^(?:vim|bc)$/i.test(n) ? n.toLowerCase()
+						: /^(?:b[1-4]|bs)$/i.test(n) ? n.toLowerCase()
 						: parseInt(n, 10);
 				}
 				// The ink channel mirrors the background one, value for
@@ -13304,7 +13629,7 @@ module.exports = class WordSmith extends Plugin {
 				// which is exactly how ;t1 was found missing here: it
 				// worked as a bar directive and printed as a suffix.
 				if (t != null && ink === null) {
-					ink = /^vim$/i.test(t) ? 'vim'
+					ink = /^(?:vim|bc)$/i.test(t) ? t.toLowerCase()
 						: /^t[1-3]$/i.test(t) ? t.toLowerCase()
 						: parseInt(t, 10);
 				}
@@ -13592,26 +13917,48 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	// Which colour a segment gets: an explicit :N wins, then the live vim
-	// mode, then the colours in order. Numbering is 1-based because that is
-	// how it is written in a row; out-of-range wraps rather than failing.
-	powerlineSegColor(seg, index, colors, hasVim) {
+	// mode, then THE BAR'S OWN SURFACE. Numbering is 1-based because that
+	// is how it is written in a row; out-of-range wraps rather than
+	// failing.
+	//
+	// TOMBSTONE (1.2.9): the fallback used to WALK THE PALETTE —
+	// pick(2 + index) — so a bare {file} > {words} came out as a run of
+	// coloured blocks nobody asked for. An uncoloured token now lies FLUSH
+	// with the bar, the way an unhighlighted region of a vim statusline
+	// sits on StatusLine's own background: colour is something a row asks
+	// for, per segment, and silence means the strip. The walk survives
+	// only in what it was for — explicit :N still picks from the same
+	// palette with the same 1-based wrap.
+	powerlineSegColor(seg, index, colors, hasVim, barColor) {
 		const pick = (n1) => colors[(((n1 - 1) % colors.length) + colors.length) % colors.length];
 		if (seg.slot === 'vim') return this.vimModeColor();
+		// :bc is the caret's live colour — Cursor-Smith's per-mode caret in
+		// vim, its flat caret outside, the theme's own with neither — and a
+		// null answer FALLS THROUGH to the flush ending below, exactly as
+		// an unpaintable theme slot does. Checked here, not left to the
+		// PL_THEME_BGS branch its name would also match: that branch knows
+		// variables, and the caret's first owner is a plugin, not a
+		// variable.
+		if (seg.slot === 'bc') {
+			const c = this.cursorColor();
+			if (c) return c;
+		}
 		// Checked before the numeric branch: pick() does arithmetic, and 'b1'
 		// through it is NaN, which is a segment painted nothing at all.
-		if (typeof seg.slot === 'string' && PL_THEME_BGS[seg.slot]) {
+		if (typeof seg.slot === 'string' && seg.slot !== 'bc' && PL_THEME_BGS[seg.slot]) {
 			// Each slot is a LIST of variable names, tried in order: b4 asks
 			// for --background-tertiary, which core Obsidian does not define,
 			// and falls back to --background-primary-alt on a theme without
 			// it. An empty read means none of them resolved (or the style is
-			// not available yet). Fall through to the auto colour rather than
-			// returning '' — an empty fill paints black, which is a worse
-			// answer than the colour the segment would have had.
+			// not available yet). Fall through to the FLUSH answer below
+			// rather than returning '' — an empty fill paints black, which is
+			// a worse answer than the bar's own colour the segment degrades
+			// to, exactly as a segment that asked for nothing gets.
 			for (const name of PL_THEME_BGS[seg.slot]) {
 				const c = this.themeSurfaceColor(name);
 				if (c) return c;
 			}
-		} else if (seg.slot != null) {
+		} else if (seg.slot != null && seg.slot !== 'bc') {
 			return pick(seg.slot);
 		}
 		// A segment holding {vim} follows the mode without being asked to:
@@ -13620,7 +13967,17 @@ module.exports = class WordSmith extends Plugin {
 		if (hasVim && /\{vim\}/.test(seg.text) && this.settings.powerlineModeColors) {
 			return this.vimModeColor();
 		}
-		return pick(2 + (index % (colors.length - 1)));
+		// No colour asked for: the bar's own, read back off the element by
+		// the caller. When that read failed — the bar itself computed to
+		// transparent — the :bs chain is resolved directly, and a segment
+		// that still cannot name a paint stays 'transparent', which on a
+		// transparent bar is the same flush it would have been.
+		if (barColor && barColor !== 'transparent') return barColor;
+		for (const name of PL_THEME_BGS.bs) {
+			const c = this.themeSurfaceColor(name);
+			if (c) return c;
+		}
+		return 'transparent';
 	}
 
 	// The ink for a segment with no explicit ;N.
@@ -13634,8 +13991,21 @@ module.exports = class WordSmith extends Plugin {
 	//
 	// This one CAN be a var(): it is set as the `color` property, not as an
 	// SVG attribute.
-	powerlineSegInk(seg, bg) {
+	powerlineSegInk(seg, bg, barColor) {
+		// :bs pairs with the strip's own measured ink — a worn scheme's
+		// status surface can be saturated (PaperColor's teal) and carries
+		// an ink the scheme measured for it; --text-normal is only right
+		// on the surfaces body text actually sits on.
+		if (seg.slot === 'bs') return 'var(--status-bar-text-color, var(--text-normal))';
+		// :bc is a live colour — possibly a saturated caret — so its ink is
+		// MEASURED like a palette pick's, never assumed like a surface's.
+		if (seg.slot === 'bc') return this.powerlineInk(bg);
 		if (typeof seg.slot === 'string' && PL_THEME_BGS[seg.slot]) return 'var(--text-normal)';
+		// A FLUSH segment — no colour asked for, painted in the bar's own
+		// read-back colour — takes the bar's own ink, by not setting one:
+		// '' removes the inline colour and --zg-text inherits. Deriving
+		// black-or-white here would out-shout the row it sits in.
+		if (seg.slot == null && bg === barColor) return '';
 		return this.powerlineInk(bg);
 	}
 
@@ -13783,6 +14153,43 @@ module.exports = class WordSmith extends Plugin {
 			? c : (dark ? '#4f9dde' : '#2d6da4');
 	}
 
+	// The colour the CARET is wearing right now — what :bc and ;bc resolve
+	// to. Distinct from vimModeColor on purpose: that is the bar's own vim
+	// palette, gated by the Follow Cursor-Smith toggle; this is a report
+	// about the caret itself, and the caret follows Cursor-Smith whenever
+	// Cursor-Smith is installed, whatever the bar's toggle says. In vim
+	// mode with Cursor-Smith driving per-mode carets, the answer moves
+	// with the mode — which is why :bc is resolved per repaint like :vim,
+	// never stamped once like :bs.
+	//
+	// Null when nothing answers, never a guess: a :bc segment then
+	// degrades to flush exactly as an unpaintable theme slot does, and a
+	// ;bc ink inherits the bar's.
+	cursorColor() {
+		const st = this.cursorSmithSettings();
+		if (st) {
+			// The live vim mode's caret first — cursorSmithVimColor
+			// already prefers the mode's own snapshot and falls to the
+			// global caret, and answers null when vim theming is off.
+			const key = this.getVimModeKey();
+			if (key) {
+				const c = this.cursorSmithVimColor(key);
+				if (c) return c;
+			}
+			// Outside vim (or with vim theming off): the flat caret pair.
+			const dark = document.body.classList.contains('theme-dark');
+			const flat = dark ? st.colorDark : st.colorLight;
+			if (typeof flat === 'string' && /^#[0-9a-f]{3,8}$/i.test(flat)) return flat;
+		}
+		// No Cursor-Smith: the theme's own caret, resolved to paint the
+		// same way every surface slot is.
+		for (const name of PL_THEME_BGS.bc) {
+			const c = this.themeSurfaceColor(name);
+			if (c) return c;
+		}
+		return null;
+	}
+
 	// Build one slot of one row as powerline segments.
 	//
 	// `side` decides which way arrows and curves point: left-hand groups run
@@ -13877,7 +14284,7 @@ module.exports = class WordSmith extends Plugin {
 		// from its neighbours', so they have to exist. Indexing for the
 		// auto walk stays positional, exactly as before.
 		const segColors = built.map((b, i) =>
-			isFade[i] ? null : this.powerlineSegColor(b.seg, i, colors, hasVim));
+			isFade[i] ? null : this.powerlineSegColor(b.seg, i, colors, hasVim, barColor));
 
 		// CONSECUTIVE fades are one gradient RUN. The writer reaches this by
 		// putting dividers between {g} tokens — {g}>{g}>{g} parses as three
@@ -14013,9 +14420,13 @@ module.exports = class WordSmith extends Plugin {
 			// events either way.
 			const segInk = built[i].seg.ink;
 			el.style.color = segInk === 'vim' ? this.vimModeColor()
+				// ;bc: the caret's live colour as ink. Null inherits the
+				// bar's own text ('' removes the inline colour), the same
+				// quiet degradation a flush segment already makes.
+				: segInk === 'bc' ? (this.cursorColor() || '')
 				: (typeof segInk === 'string' && PL_THEME_INKS[segInk]) ? PL_THEME_INKS[segInk]
 				: segInk != null ? this.powerlineTextColor(segInk)
-				: this.powerlineSegInk(built[i].seg, segColors[i]);
+				: this.powerlineSegInk(built[i].seg, segColors[i], barColor);
 			}
 			el.appendChild(built[i].inner);
 			frag.appendChild(el);
@@ -16979,6 +17390,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('<{file} \u2026 {words}>', 'at the very start or end, < and > point outwards');
 
 		H('Colouring one segment');
+		L('{file} > {words}', 'no colour written means no colour worn: the segment lies');
+		L('', 'flush with the bar, like an unhighlighted stretch of a Vim');
+		L('', 'status line. Colour is something you ask for, per segment:');
 		L('{words}:N', 'background colour N (1\u2013' + PL_BG_COUNT + ' \u2014 higher numbers start again at 1)');
 		L('{words}:N;M', 'add ;M for the text \u2014 the same palette, the same numbers');
 		L('', 'Leave the ; off and the text picks itself, light or dark,');
@@ -16986,12 +17400,20 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('{words};vim', 'the text takes the colour of the Vim mode you\u2019re in');
 		L('{ln:col}:vim', 'the background does \u2014 a {vim} segment already does this');
 		L('{file}:b1 :b2 :b3 :b4', 'your theme\u2019s own surfaces: page, panel, alt panel,');
-		L('', 'tertiary \u2014 a segment that blends into the bar');
+		L('', 'tertiary \u2014 a segment that blends into the workspace');
+		L('{file}:bs', 'the status line\u2019s own colour \u2014 the bar\u2019s default surface,');
+		L('', 'which a scheme may name (Vim\u2019s blue pair paints it cyan)');
+		L('{file}:bc', 'the cursor\u2019s colour, live \u2014 with Cursor-Smith theming the');
+		L('', 'caret per Vim mode, this segment moves with it; ;bc is the');
+		L('', 'same colour as text');
 		L('{file};t1 ;t2 ;t3', 'and its normal, muted and faint text, to match');
 
 		H('Colouring the bar itself \u2014 put this first, in row 1\u2019s left slot');
-		L(':b1\u2026:b4  :N  :vim', 'the bar\u2019s background: a theme surface, one of yours, or the mode');
-		L(';t1\u2026;t3  ;N  ;vim', 'and its text, the same three ways');
+		L('', 'Write nothing and the bar sits on your theme\u2019s status-line');
+		L('', 'colour (:bs), with the matching text. To choose instead:');
+		L(':b1\u2026:b4 :bs :bc  :N  :vim', 'the bar\u2019s background: a theme surface, the cursor,');
+		L('', 'one of yours, or the mode');
+		L(';t1\u2026;t3  ;N  ;vim ;bc', 'and its text, the same four ways');
 		L(':3;2 {file}\u2026', 'both together. Leave the ; off and the text picks itself.');
 
 		H('Fades \u2014 a colour stepping into the next, written with {g}');
@@ -17202,6 +17624,23 @@ class WordSmithSettingTab extends PluginSettingTab {
 		try { csThere = !!(plugin.app && plugin.app.plugins
 			&& plugin.app.plugins.plugins
 			&& plugin.app.plugins.plugins['cursor-smith']); } catch (_) {}
+		new Setting(containerEl)
+			.setName('Checkbox shape')
+			.setDesc('The shape of a task checkbox. Leave it as your theme\u2019s '
+				+ 'unless you want otherwise; Retro draws a hard pixel shadow '
+				+ 'and presses in when you click it.')
+			.addDropdown(d => d
+				.addOption('', 'Theme\u2019s own')
+				.addOption('circle', 'Circle')
+				.addOption('square', 'Square')
+				.addOption('retro', 'Retro')
+				.setValue(plugin.settings.barThemeCheckbox || '')
+				.onChange(async (v) => {
+					plugin.settings.barThemeCheckbox = v;
+					plugin.applyThemeClass();
+					await plugin.saveSettings();
+				}));
+
 		opt('Hide workspace borders',
 			'Empties the dividers between panes and the tab outlines, the way '
 			+ 'Minimal\u2019s own borders-none does. A look, not a scheme: it '
@@ -17276,11 +17715,14 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// padding in the bar or in the segments, marks sized from a
 			// segment's height or from the row's font — and one of the two
 			// answers was the one nobody was looking at.
+			//
+			// (No vim toggle here either, any more: "Follow the Vim mode"
+			// moved down under "Vim mode labels", beside the labels,
+			// colours and Cursor-Smith toggle it actually governs — one
+			// heading answers every {vim} question instead of two half
+			// answers a screen apart.)
 			this.label(rb, 'Powerline');
 			const pw = this.sub(rb);
-			this.toggle(pw, 'Follow the Vim mode',
-				'Recolours the {vim} segment as the mode changes.',
-				'powerlineModeColors', () => this.plugin.saveSettings(true));
 
 			this.label(pw, 'Segment colours');
 			this.renderPowerlineColors(this.sub(pw));
@@ -17617,6 +18059,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// token renders and what colour a :vim segment takes, which is bar
 	// presentation. The Vim tab keeps what actually changes editing (the
 	// soft-wrap motion mapping).
+	//
+	// EVERYTHING {vim} answers to lives under this one heading now. "Follow
+	// the Vim mode" sat alone under the Powerline label, a screen above the
+	// labels and colours it recolours — the two toggles read top-down as a
+	// pair of questions: does {vim} wear the mode's colour at all, and if
+	// so, whose colours are they (Cursor-Smith's, or the five rows below).
 	renderVimModeLabels(containerEl) {
 		this.label(containerEl, 'Vim mode labels');
 		const vl = this.sub(containerEl);
@@ -17626,6 +18074,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 				+ 'suffixed :vim, and the {vim} block when mode colours are on.',
 			cls: 'ws-settings-note'
 		});
+		this.toggle(vl, 'Follow the Vim mode',
+			'Recolours the {vim} segment as the mode changes.',
+			'powerlineModeColors', () => this.plugin.saveSettings(true));
 		const cs = this.plugin.cursorSmithSettings();
 		if (cs && cs.vimModeEnabled && this.plugin.settings.vimFollowCursorSmith !== false) {
 			vl.createEl('p', {
@@ -17634,7 +18085,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 			});
 		}
 		this.toggle(vl, 'Follow Cursor-Smith',
-			'Borrow its caret colours instead of picking the five below.',
+			'Borrow its caret colours instead of picking the five below. '
+				+ 'A :bc segment follows the caret regardless \u2014 that is what :bc is for.',
 			'vimFollowCursorSmith', () => this.plugin.saveSettings(true));
 
 		for (const [key, name, dflt, colorKey] of [

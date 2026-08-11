@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 60;
+	--zg-stylesheet-version: 63;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -3562,3 +3562,50 @@ body[class*='zg-theme-'][class*='zg-theme-'][class*='zg-theme-'][class*='zg-them
    The body class is actively removed in applyThemeClass, and the borrowed
    `translucency` setting is repaid once on load — a look can be deleted,
    but a setting taken from somebody else has to be given back first. */
+
+/* The diagnostics report: monospaced, wrapping, selectable on a phone. */
+.zg-diag {
+	white-space: pre-wrap;
+	word-break: break-word;
+	font-family: var(--font-monospace);
+	font-size: 0.85em;
+	user-select: text;
+	-webkit-user-select: text;
+	margin: 0 0 0.8em;
+}
+
+/* ── Checkbox shapes ───────────────────────────────────────────────────────
+   Three of the four are one variable. Obsidian exposes --checkbox-radius,
+   and setting it beats every selector fight there might otherwise be: no
+   specificity race, no !important, and a theme that draws its own tick
+   keeps drawing it, because only the corner radius changed.
+
+   (A fourth, 'pill', was removed on sight — see the tombstone below.) */
+body.zg-cb-circle { --checkbox-radius: 50%; }
+body.zg-cb-square { --checkbox-radius: 0; }
+/* TOMBSTONE (1.2.9). A 'pill' shape lived here for one release. */
+
+/* RETRO is the one that needs real rules: a hard pixel-art shadow and a
+   physical press. Written from a snippet that used !important on every
+   line — selfcarry_probe bans the bang, and the ban's own remedy is
+   specificity, so the body class is repeated to outrank a theme's own
+   checkbox rules without one. The tick is left entirely alone: Obsidian
+   and most themes draw it with a pseudo-element, and redrawing it here
+   would mean re-inventing every theme's mark. */
+body.zg-cb-retro { --checkbox-radius: 0; }
+body.zg-cb-retro.zg-cb-retro input[type='checkbox'] {
+	border: 1px solid var(--text-normal);
+	box-shadow: 3px 3px 0 var(--text-normal);
+	transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+/* The press: the box moves onto its own shadow, so the travel and the
+   shadow have to be the same 3px or it slides rather than presses. */
+body.zg-cb-retro.zg-cb-retro input[type='checkbox']:active {
+	transform: translate(3px, 3px);
+	box-shadow: 0 0 0 var(--text-normal);
+}
+/* Reduced motion keeps the shadow and drops the animation — the look is
+   the shadow; the travel is the flourish. */
+@media (prefers-reduced-motion: reduce) {
+	body.zg-cb-retro.zg-cb-retro input[type='checkbox'] { transition: none; }
+}
