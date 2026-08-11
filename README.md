@@ -13,6 +13,16 @@ Every feature is separate. Use one, use all of them, or switch any of them off.
 
 <img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
 
+### Powerline
+
+From the most minimal
+<img width="1858" height="36" alt="image" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
+
+To more complex
+
+<img width="1862" height="40" alt="image" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
+
+
 ## What it does
 
 **Zen** hides everything except your words — the interface, the ribbon, the sidebars, the scroll bar, and if you like, every other pane and the status bar too. Press `Escape` to come back.
