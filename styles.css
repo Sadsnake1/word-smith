@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 71;
+	--zg-stylesheet-version: 82;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -2177,6 +2177,12 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    the average are the two reference lines and share the quiet end of it. Every
    one falls back to a literal, because a theme that defines none of the
    --color-* variables must not render a chart in black on black. */
+/* THE WRITER'S OWN FACE, throughout. The figures, the paths, the axis and
+   the period labels each named --font-monospace, which is Obsidian's code
+   font and has nothing to do with the writing — so a vault whose text
+   font is a serif read its history in two typefaces at once. They inherit
+   the modal's chain now; the ones that have to LINE UP keep tabular
+   figures, which is what monospace was really being asked for. */
 .zg-history-modal {
 	width: 92vw;
 	max-width: 760px;
@@ -2218,7 +2224,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-hist-search {
 	flex: 1;
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-body);
 	padding: 5px 9px;
 	border: 1px solid var(--background-modifier-border);
@@ -2267,7 +2273,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .zg-hist-hitkind {
 	flex: none;
 	width: 3.4em;
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-small);
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
@@ -2277,7 +2283,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .zg-hist-hit-folder .zg-hist-hitkind { color: var(--zg-hist-net); }
 
 .zg-hist-hitpath {
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-body);
 	color: var(--text-normal);
 	overflow: hidden;
@@ -2306,7 +2312,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-hist-chipname {
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-body);
 	color: var(--text-normal);
 	overflow: hidden;
@@ -2369,7 +2375,8 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-history-modal .zg-report-value {
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
+	font-variant-numeric: tabular-nums;
 	font-size: var(--zg-h-num);
 	font-weight: 600;
 	line-height: 1.2;
@@ -2418,7 +2425,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-hist-subbtn {
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-body);
 	letter-spacing: 0.04em;
 }
@@ -2436,7 +2443,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-hist-period {
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-body);
 	font-weight: 600;
 	color: var(--text-normal);
@@ -2482,7 +2489,8 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	background: transparent;
 	box-shadow: none;
 	color: var(--text-faint);
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
+	font-variant-numeric: tabular-nums;
 	font-size: var(--zg-h-small);
 	letter-spacing: 0.04em;
 	padding: 3px 9px 3px 6px;
@@ -2522,7 +2530,8 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	padding: 3px 9px;
 	border-left: 2px solid var(--zg-hist-add);
 	background: var(--background-secondary);
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
+	font-variant-numeric: tabular-nums;
 	font-size: var(--zg-h-body);
 	line-height: 1.35;
 	color: var(--text-normal);
@@ -2545,7 +2554,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	position: absolute;
 	right: 5px;
 	transform: translateY(-50%);
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
 	font-size: var(--zg-h-small);
 	line-height: 1;
 	color: var(--text-faint);
@@ -2614,7 +2623,8 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .zg-hist-xaxis {
 	display: grid;
 	margin-top: 5px;
-	font-family: var(--font-monospace, monospace);
+	font-family: inherit;
+	font-variant-numeric: tabular-nums;
 	font-size: var(--zg-h-small);
 	line-height: 1;
 	color: var(--text-faint);
@@ -2778,19 +2788,33 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    "WS" ribbon badge — toggles the entire plugin on/off
    ========================================================================= */
 
+/* THE MARK. A serif W — no box: the
+   boxed "WS" read as a label stuck on the ribbon rather than as a mark,
+   and every other icon up there is a bare glyph. currentColor, so it
+   dims with the rest of the ribbon and follows any theme. */
 .ws-ribbon-btn .ws-ribbon-badge {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
+	position: relative;
+	display: inline-block;
 	width:  18px;
 	height: 18px;
-	border: 1.5px solid currentColor;
-	border-radius: 3px;
-	font-family: var(--font-interface, var(--font-ui-small, sans-serif));
-	font-size: 9px;
-	font-weight: 700;
-	letter-spacing: 0.5px;
 	line-height: 1;
+	color: currentColor;
+}
+.ws-ribbon-btn .ws-ribbon-w {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* Serif, and the whole mark — named EXPLICITLY, never through
+	   --font-text. That variable is the writer's own text face, and a
+	   writer whose text font is JetBrains Mono got a sans W: the mark
+	   followed a setting that has nothing to do with it.
+	   (A sans S sat behind this for one build; two letters in an 18px
+	   square read as a smudge.) */
+	font-family: 'Iowan Old Style', Georgia, 'Times New Roman', 'Liberation Serif', serif;
+	font-size: 17px;
+	font-weight: 500;
 }
 
 /* Dimmed when disabled */
@@ -3294,11 +3318,33 @@ body.zg-vim-panel-open .zg-bar-plinth {
    body is re-evaluated on every keystroke). main.js removes the node
    outright anyway; this is the second belt. */
 .zg-menu-modal .modal-close-button,
-.zg-menu-container > .modal-close-button {
+.zg-menu-container > .modal-close-button,
+/* …and the one that cannot miss. The two selectors above name an
+   ANCESTOR of the button, and on some builds the ✕ sits outside both —
+   an inspector showed neither rule matching at all, which is why this was
+   reported three times. `body` is not a guess: while the menu is open the
+   modal on screen is ours, so its close button goes. The class is set in
+   openBarMenu's onOpen and dropped in onClose. */
+body.zg-menu-open .modal-close-button,
+/* …and `.modal-header-button`, which is what current Obsidian actually
+   calls it: `<div class="modal-header-button mod-raised clickable-icon">`
+   wrapping a lucide-x. Four rounds of this fix aimed at
+   `.modal-close-button` — a class the button no longer wears — which is
+   why the rule never appeared in the inspector's matched list. Both
+   names, because older builds still use the old one. */
+body.zg-menu-open .modal-header-button {
 	display: none;
 }
 .zg-menu-content {
 	padding: 0.5em 0.4em;
+	/* THE WRITER'S OWN FACE, the same chain the bar uses: the font chosen
+	   through the font token, falling back to the interface font when
+	   none is set. The menu is the bar's twin — it holds the same rows
+	   and the same pickers — and it read in Obsidian's UI face while the
+	   bar beside it read in the writer's, which made them look like two
+	   different plugins. --zg-font only exists while a font is selected,
+	   so the fallback chain does the switching with no extra rule. */
+	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
 }
 .zg-menu-list {
 	display: flex;
@@ -3358,6 +3404,67 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-row.is-wide.is-active .zg-menu-label {
 	color: var(--text-normal);
 }
+/* ── Lines (1.3.0) ────────────────────────────────────────────────────────
+   A band is one line of the menu, its cells sharing the width EVENLY —
+   a table reads as a table because the columns line up, and content-sized
+   cells would make every line a different table. A line of one gets no
+   band element at all, so every menu that has never been arranged renders
+   exactly as it always did. */
+.zg-menu-band {
+	display: grid;
+	grid-template-columns: repeat(var(--zg-menu-cells, 1), minmax(0, 1fr));
+	gap: 2px;
+}
+/* A cell is the same row, tightened: at a fifth of the width the state
+   text has to give ground before the label does. */
+.zg-menu-band .zg-menu-cell {
+	min-width: 0;
+	padding-inline: 0.45em;
+}
+.zg-menu-band .zg-menu-cell .zg-menu-state {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* THE DRAWER. One container for everything an open row holds, centred as
+   a BLOCK while its contents stay left-aligned — a column of items ragged
+   down the middle is hard to read, and the screenshot that prompted this
+   showed exactly that. `width: max-content` is what makes the block only
+   as wide as its longest item, so centring has something to centre.
+
+   And it SCROLLS rather than growing: a theme list is forty entries, and a
+   modal that stretches to hold them all stops being a palette and becomes
+   a page. */
+.zg-menu-drawer {
+	display: flex;
+	flex-direction: column;
+	width: max-content;
+	max-width: 100%;
+	margin-inline: auto;
+	text-align: start;
+	max-height: 40vh;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* TOMBSTONE: a drawer under a wide line took that line's column count for
+   part of one session. Built, probed, and dropped on sight — a list you
+   are reading down should not change shape because the row above it
+   happens to be wide. One column, always. */
+
+/* The line that owns an open drawer keeps its cell lit while the drawer
+   sits below it, so the two read as one thing. */
+.zg-menu-band.is-open {
+	border-bottom: 1px solid var(--background-modifier-border);
+	padding-bottom: 2px;
+	margin-bottom: 2px;
+}
+/* A menu holding any wide line needs the room. Set on the modal, which is
+   the element with the width. */
+.zg-menu-modal.is-tabular {
+	max-width: 460px;
+}
+
 .zg-menu-rule {
 	height: 0;
 	margin: 0.45em 0.6em;
@@ -3374,6 +3481,9 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	border-top-style: double;
 	border-top-width: 3px;
 }
+/* NONE still breaks the line and still holds its space — it is a gap you
+   asked for, not the absence of a separator. */
+.zg-menu-rule.is-none { border-top-color: transparent; }
 
 /* ── The menu's own layout (1.3.0) ─────────────────────────────────────────
    TOMBSTONE: a `.zg-menu-grid` columns layout and a `.zg-menu-centered`
@@ -3387,6 +3497,31 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-row {
 	justify-content: center;
 	text-align: center;
+}
+
+/* The shelf's lines. Each is a row of cards sharing the width evenly —
+   the same shape the menu will draw — with a thin gap above it that
+   accepts a drop meaning "your own line here". The gap is invisible until
+   something is dragged over it: a settings page striped with empty slots
+   reads as broken. */
+.zg-menu-bandrow {
+	display: grid;
+	grid-auto-flow: column;
+	grid-auto-columns: minmax(0, 1fr);
+	gap: 4px;
+}
+.zg-menu-gap {
+	height: 6px;
+	border-radius: 3px;
+}
+.zg-menu-gap.is-dropzone {
+	background: var(--interactive-accent);
+	opacity: 0.5;
+}
+/* A line already holding five says so, quietly, rather than swallowing a
+   sixth drop and rearranging itself. */
+.zg-menu-bandrow.is-full .zg-theme-card {
+	border-style: dashed;
 }
 
 /* The Menu tab's shelf — the theme cards' wardrobe, tailored down. A
@@ -3438,6 +3573,7 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	border-top-style: double;
 	border-top-width: 3px;
 }
+.zg-theme-name.is-rule-none::before { border-top-color: transparent; }
 
 /* A separator's only setting, quiet beside its line. */
 .zg-rule-style {
@@ -3479,6 +3615,13 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	padding: 0 4px;
 	font: inherit;
 	color: var(--text-normal);
+}
+
+/* The build stamp, at the top of the Menu tab: what is actually running,
+   so "did the file land" is a glance rather than an investigation. */
+.ws-build-stamp {
+	font-variant-numeric: tabular-nums;
+	opacity: 0.7;
 }
 
 /* The inline command finder. Inline because Obsidian's settings window is
@@ -3706,6 +3849,11 @@ body.zg-borderless .titlebar {
 	padding: 0.35em 0.6em;
 	margin-bottom: 0.3em;
 	font-size: inherit;
+	/* And the face, beside the size that was already inherited: a search
+	   field in a different font from the list it filters is the one place
+	   the mismatch is unmissable. An input does not inherit either by
+	   default — that is a browser rule, not an oversight. */
+	font-family: inherit;
 	color: var(--text-normal);
 	outline: none;
 	box-shadow: none;

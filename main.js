@@ -24,7 +24,25 @@ const WsPathSuggestModal = FuzzySuggestModal ? class extends FuzzySuggestModal {
 // The four ways a menu separator can draw. Named in one place so the
 // stylesheet's classes, the card's dropdown and the guard in
 // menuRuleStyle() cannot drift apart.
-const MENU_RULE_STYLES = ['solid', 'dashed', 'dotted', 'double'];
+// A separator's four looks, plus NONE — which still breaks the line and
+// still holds its space, and simply draws no rule. A band of buttons often
+// wants air above it rather than a hairline, and the alternative was a
+// second kind of divider that did nothing.
+const MENU_RULE_STYLES = ['solid', 'dashed', 'dotted', 'double', 'none'];
+
+// How many cells one line of the menu may hold. Five is the ceiling
+// because the sixth is unreadable at any modal width a palette should
+// have — and a cap the writer meets while dragging is kinder than a
+// menu that quietly becomes unusable.
+const MENU_MAX_COLS = 5;
+
+// Which menu owns Escape. The handler is a capture listener on the
+// document (see openBarMenu), so a menu opened over another — the ribbon
+// pressed twice, say — would leave two listeners racing, and the OLDER
+// one would win by being first in the list and stopping the event. The
+// newest menu is the one on screen, so the newest listener is the one
+// that answers; every other returns at once.
+let ZG_MENU_ESC = null;
 
 // TOMBSTONE (1.3.0): a WsCommandSuggestModal picked the command to pin for
 // exactly one build. Obsidian's settings window is ITSELF a modal, and
@@ -1725,7 +1743,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 71;
+const ZG_STYLESHEET_VERSION = 82;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -1735,7 +1753,7 @@ const ZG_STYLESHEET_VERSION = 71;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.0';
+const ZG_PLUGIN_VERSION = '1.3.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -2171,6 +2189,12 @@ const DEFAULT_SETTINGS = {
 	// its stripped default (menuDefaultAlias), so clearing the field is the
 	// revert path and there is no reset button to explain.
 	menuAliases:    {},
+	// Which entries CONTINUE the line above rather than starting their own.
+	// The order stays one flat list — reading order, left to right then
+	// down — and this is the only thing that says where a line breaks. An
+	// id that is absent starts a line, so an empty list is the single
+	// column the menu has always been, and every saved menu is unchanged.
+	menuJoined:     [],
 	// How each separator draws — layout id → solid / dashed / dotted /
 	// double. A rule is the one thing on this shelf with nothing to say,
 	// so its only setting is how it looks. Absent means solid.
@@ -3293,7 +3317,11 @@ module.exports = class WordSmith extends Plugin {
 			});
 		}
 
-		// "WS" badge ribbon button — toggles the whole plugin on/off.
+		// "WS" badge ribbon button — OPENS THE MENU. (It toggled the whole
+		// plugin until 1.3.0; this comment said so for a while after it
+		// stopped being true, which is its own small lesson.) On mobile
+		// Obsidian lists ribbon items by this label, so the label is the
+		// only thing a phone shows — it has to say what the button does.
 		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
 		// the SVG it inserts with a text badge and use a class hook for
 		// styling. The label doubles as the tooltip.
@@ -3307,7 +3335,17 @@ module.exports = class WordSmith extends Plugin {
 		this.wsRibbonEl = this.addRibbonIcon('type', 'Open the Word-Smith menu', () => this.openBarMenu());
 		this.wsRibbonEl.addClass('ws-ribbon-btn');
 		this.wsRibbonEl.empty();
-		this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge', text: 'WS' });
+		// A SERIF W, and nothing else. A letter rather than an SVG path so
+		// the form is the reader's own installed face: it scales with the
+		// ribbon, inherits currentColor with every other icon up there,
+		// and cannot go blurry at a size nobody drew it for.
+		//
+		// (An S sat behind it for one build. Two letters in an 18px square
+		// is a monogram at a size that cannot hold one — at ribbon scale
+		// the pair read as a smudge, and the W alone is legible and still
+		// unmistakably the plugin's.)
+		const badge = this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge' });
+		badge.createSpan({ cls: 'ws-ribbon-w', text: 'W' });
 		this.updateWsRibbonState();
 
 		// Workspace events
@@ -9989,6 +10027,7 @@ module.exports = class WordSmith extends Plugin {
 		};
 		render();
 		modal.open();
+		return modal;
 	}
 
 	renderHistoryTab(body, state, rerender) {
@@ -10755,6 +10794,9 @@ module.exports = class WordSmith extends Plugin {
 		} };
 		render();
 		modal.open();
+		// Returned so a caller can follow it — the menu reopens itself
+		// when this closes. See openBarMenu's `reopen` rows.
+		return modal;
 	}
 
 	// The fonts the user added under Appearance \u2192 Text font, not every font
@@ -10924,6 +10966,61 @@ module.exports = class WordSmith extends Plugin {
 	// Drag semantics, verbatim from barThemeMove: position IS priority, and
 	// the write is the WHOLE materialised order, so the default stops being
 	// implicit the first time anyone rearranges it.
+	// ── Lines ────────────────────────────────────────────────────────────────
+	// The visible layout, grouped into the lines it will actually draw as.
+	// Positional, so it heals itself: hide the leader of a line and the
+	// entry that was joined to it simply becomes the next leader, with no
+	// stored state to correct. A rule is always a line of its own — it IS
+	// a horizontal line, and half of one beside a button means nothing.
+	menuBands() {
+		const joined = new Set(this.settings.menuJoined || []);
+		const isRule = (id) => /^rule-\d+$/.test(id);
+		const out = [];
+		for (const id of this.menuVisibleLayout()) {
+			const band = out[out.length - 1];
+			// THE FINDER never shares a line either, and for the same
+			// reason as a rule: it is not a cell. A text field squeezed
+			// into a fifth of the width is unusable, and a writer whose
+			// line-leader gets hidden should not find their search box
+			// suddenly beside a button — which is exactly what the probe
+			// caught the first time this ran.
+			const solo = (x) => isRule(x) || x === 'search';
+			const canJoin = band && joined.has(id) && band.length < MENU_MAX_COLS
+				&& !solo(id) && !solo(band[0]);
+			if (canJoin) band.push(id); else out.push([id]);
+		}
+		return out;
+	}
+
+	menuIsJoined(id) { return (this.settings.menuJoined || []).includes(id); }
+
+	menuSetJoined(id, on) {
+		const set = new Set(this.settings.menuJoined || []);
+		if (on) set.add(id); else set.delete(id);
+		this.settings.menuJoined = [...set];
+	}
+
+	// Drop ONTO a card: the dragged entry lands directly after it and
+	// continues its line. Refused when that line is already full — the
+	// entry lands after it as a line of its own instead, which is the
+	// honest outcome of "there is no room here" and never loses the drag.
+	menuJoinAfter(id, targetId) {
+		if (id === targetId) return;
+		const band = this.menuBands().find(b => b.includes(targetId));
+		const full = band && band.length >= MENU_MAX_COLS && !band.includes(id);
+		const ids = this.menuLayout().filter(x => x !== id);
+		const at = ids.indexOf(targetId);
+		ids.splice(at < 0 ? ids.length : at + 1, 0, id);
+		this.settings.menuOrder = ids;
+		this.menuSetJoined(id, !full && !/^rule-\d+$/.test(id));
+	}
+
+	// Drop into the gap between two lines: its own line, at that point.
+	menuBreakAt(id, toIdx) {
+		this.menuMove(id, toIdx);
+		this.menuSetJoined(id, false);
+	}
+
 	menuMove(id, toIdx) {
 		const ids = this.menuLayout().filter(x => x !== id);
 		const at = Math.max(0, Math.min(toIdx, ids.length));
@@ -11062,6 +11159,7 @@ module.exports = class WordSmith extends Plugin {
 		const map = this.settings.menuAliases || {};
 		delete map[id];
 		this.settings.menuAliases = map;
+		this.menuSetJoined(id, false);
 	}
 
 	// ── How a separator draws ────────────────────────────────────────────────
@@ -11112,6 +11210,12 @@ module.exports = class WordSmith extends Plugin {
 		// emptying it with the rest would blur the field on the very
 		// keystroke that triggered the render.
 		const list = modal.contentEl.createDiv({ cls: 'zg-menu-list' });
+		// A menu with any wide line needs the width: three picker rows at a
+		// third of 320px crush the state text against the label. A menu of
+		// single lines keeps the narrow palette it has always been.
+		if (plugin.menuBands().some(b => b.length > 1)) {
+			try { modal.modalEl.addClass('is-tabular'); } catch (_) {}
+		}
 		// (A columns/centring block lived here for part of one cycle —
 		// see the tombstone on the settings. One column, row labels
 		// centred by the stylesheet, nothing to configure.)
@@ -11162,8 +11266,10 @@ module.exports = class WordSmith extends Plugin {
 			// footer. The divider that used to be Report's own flag is a
 			// layout entry now: the shipped order carries one rule above
 			// Report, and the Menu tab can move it, delete it, or add more.
-			{ id: 'report',  label: 'Report',  wide: true, run: () => plugin.openReportModal() },
-			{ id: 'history', label: 'History', wide: true, run: () => plugin.openHistoryModal() },
+			{ id: 'report',  label: 'Report',  wide: true, reopen: true,
+				run: () => plugin.openReportModal() },
+			{ id: 'history', label: 'History', wide: true, reopen: true,
+				run: () => plugin.openHistoryModal() },
 		];
 		// The rows the layout actually shows, in its order — ri, the index
 		// every keyboard path steers by, is an index into THIS.
@@ -11297,8 +11403,33 @@ module.exports = class WordSmith extends Plugin {
 				return;
 			}
 
-			layout.forEach((id) => {
-				if (id === 'search') { pastSearch = true; return; }
+			// LINES. Each band is one line of the menu: a single entry
+			// spans the width as it always has, and two to five share it
+			// evenly. The band element is what carries the grid, so a
+			// line of one costs no wrapper at all and every existing menu
+			// renders byte for byte as before.
+			//
+			// A drawer opens BENEATH THE WHOLE BAND rather than under its
+			// cell: growing one cell would leave dead space beside it and
+			// shove the line apart, and the point of a line is that it
+			// holds still while you read along it.
+			plugin.menuBands().forEach((band) => {
+				if (band.length === 1 && band[0] === 'search') { pastSearch = true; return; }
+				const multi = band.length > 1;
+				let bandEl = null;
+				if (multi) {
+					bandEl = list.createDiv({ cls: 'zg-menu-band' });
+					try { bandEl.style.setProperty('--zg-menu-cells', String(band.length)); } catch (_) {}
+					place(bandEl);
+				}
+				// Anything the band opens is collected and drawn after it,
+				// inside ONE container — which is what lets the block be
+				// centred under the line and scroll when it is long,
+				// instead of each item stretching the modal on its own.
+				const drawers = [];
+				band.forEach((id) => {
+			if (id === 'search') { pastSearch = true; return; }
+			{
 				if (/^rule-\d+$/.test(id)) {
 					place(list.createDiv({
 						cls: 'zg-menu-rule is-' + plugin.menuRuleStyle(id)
@@ -11308,8 +11439,11 @@ module.exports = class WordSmith extends Plugin {
 				const ri = RI[id];
 				if (ri == null) return;   // an id this build cannot name: inert, kept
 				const row = ROWS[ri];
-				const el = list.createDiv({ cls: 'zg-menu-row' + (row.wide ? ' is-wide' : '') });
-				place(el);
+				const el = (bandEl || list).createDiv({
+					cls: 'zg-menu-row' + (row.wide && !multi ? ' is-wide' : '')
+						+ (multi ? ' zg-menu-cell' : '')
+				});
+				if (!multi) place(el);
 				// The full name, where full names belong. The row wears the
 				// writer's short alias; hovering it says what it really runs.
 				if (row.full) {
@@ -11330,7 +11464,7 @@ module.exports = class WordSmith extends Plugin {
 					const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
 					if (cur) el.createSpan({ cls: 'zg-menu-state', text: cur.label });
 				}
-				flat.push({ el, kind: 'row', ri });
+				flat.push({ el, kind: 'row', ri, band: bandEl });
 				el.addEventListener('click', () => { at = flat.findIndex(f => f.el === el); activate(); });
 
 				if (open === ri && row.items) {
@@ -11348,7 +11482,9 @@ module.exports = class WordSmith extends Plugin {
 						const sub = list.createDiv({
 							cls: 'zg-menu-sub zg-picker-row' + (isOn ? '' : ' is-off')
 						});
-						place(sub);
+						// Parked either way: the container is built and
+						// placed once, after the loop.
+						drawers.push(sub);
 						if (item.color) {
 							const dot = sub.createSpan({ cls: 'zg-picker-dot' });
 							if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
@@ -11366,6 +11502,18 @@ module.exports = class WordSmith extends Plugin {
 						});
 					}
 				}
+			}
+				});
+				// The drawer: one container under the line that owns it,
+				// centred as a block and scrolling past a certain height.
+				// A theme list is forty entries long, and a modal that
+				// grows to hold all of them stops being a palette.
+				if (drawers.length) {
+					const box = list.createDiv({ cls: 'zg-menu-drawer' });
+					for (const d of drawers) box.appendChild(d);
+					place(box);
+				}
+				if (bandEl) bandEl.toggleClass('is-open', drawers.length > 0);
 			});
 			paint();
 		};
@@ -11410,7 +11558,45 @@ module.exports = class WordSmith extends Plugin {
 				paint();
 				return;
 			}
-			if (row.run) { modal.close(); row.run(); return; }
+			if (row.run) {
+				modal.close();
+				const opened = row.run();
+				// A row that OPENS A PANEL comes back here when the panel
+				// closes: Report and History are things you look at and
+				// leave, and leaving them should put the writer back where
+				// they were rather than in the note with the menu gone.
+				// Chained rather than replaced, so whatever the panel does
+				// on close still happens — and guarded, because a build
+				// where the opener returns nothing must simply not reopen
+				// rather than throw on the way out.
+				if (row.reopen && opened && typeof opened === 'object') {
+					// BOTH DOORS, and once only. A panel leaves by Escape,
+					// by the ✕, or by a click outside, and those do not all
+					// travel the same way on every build — onClose is the
+					// documented one, close() is the one every path calls.
+					// Wrapping only onClose left Report and History failing
+					// to come back for a writer who pressed Escape.
+					let came = false;
+					const back = () => {
+						if (came) return;
+						came = true;
+						plugin.openBarMenu();
+					};
+					const prevOnClose = opened.onClose;
+					opened.onClose = function () {
+						try { if (prevOnClose) prevOnClose.apply(this, arguments); }
+						finally { back(); }
+					};
+					const prevClose = opened.close;
+					if (typeof prevClose === 'function') {
+						opened.close = function () {
+							try { return prevClose.apply(this, arguments); }
+							finally { back(); }
+						};
+					}
+				}
+				return;
+			}
 			open = (open === cur.ri) ? -1 : cur.ri;
 			const keep = cur.ri;
 			render();
@@ -11418,7 +11604,78 @@ module.exports = class WordSmith extends Plugin {
 			paint();
 		};
 
-		const move = (d) => { at = Math.max(0, Math.min(at + d, flat.length - 1)); paint(); };
+		// The flat list, grouped back into the LINES it draws as: each entry
+		// is an array of indices into `flat`. A drawer item, a rule and a
+		// single row are lines of one; a band is a line of up to five. The
+		// keyboard reads this rather than `flat` directly, because "down"
+		// means the next LINE, not the next cell — stepping through a
+		// five-cell band with Down would be walking sideways while pressing
+		// down.
+		const lines = () => {
+			const out = [];
+			let cur = null, curBand = undefined;
+			flat.forEach((f, i) => {
+				const b = f.band || null;
+				if (b && b === curBand) { cur.push(i); return; }
+				cur = [i]; curBand = b; out.push(cur);
+			});
+			return out;
+		};
+		const wheresAt = (ls) => {
+			for (let r = 0; r < ls.length; r++) {
+				const c = ls[r].indexOf(at);
+				if (c >= 0) return { r, c };
+			}
+			return { r: 0, c: 0 };
+		};
+		// Down and up move by line, keeping the column where the next line
+		// is wide enough and clamping where it is not — so walking down a
+		// column of narrow lines does not lose your place in the wide one.
+		const move = (d) => {
+			const ls = lines();
+			if (!ls.length) return;
+			const { r, c } = wheresAt(ls);
+			const nr = Math.max(0, Math.min(r + d, ls.length - 1));
+			const line = ls[nr];
+			at = line[Math.min(c, line.length - 1)];
+			paint();
+		};
+		// Left and right walk ALONG a line when there is a line to walk.
+		// On a line of one they keep their old meanings — right opens,
+		// left closes — which is what every existing menu is, so nothing
+		// a writer already knows changes until they build a wide line.
+		const sideways = (d, fallback) => {
+			// INSIDE AN OPEN DRAWER, left and right walk the items. Each
+			// item is a line of its own, so the grid logic below would
+			// find nothing to walk and the keys would go dead — which is
+			// exactly what a writer reported: open a row, press right,
+			// nothing happens. A drawer is a list, and a list answers to
+			// both axes.
+			//
+			// Left at the FIRST item backs out to the row that owns the
+			// drawer, which is the one place left still means "out": it
+			// reads as leaving the way you came in.
+			const cur = flat[at];
+			if (cur && cur.kind === 'item') {
+				let lo = at, hi = at;
+				while (lo > 0 && flat[lo - 1].kind === 'item') lo--;
+				while (hi < flat.length - 1 && flat[hi + 1].kind === 'item') hi++;
+				const nx = at + d;
+				if (nx < lo) { fallback(); return; }
+				if (nx > hi) return;
+				at = nx;
+				paint();
+				return;
+			}
+			const ls = lines();
+			const { r, c } = wheresAt(ls);
+			const line = ls[r] || [];
+			if (line.length < 2) { fallback(); return; }
+			const nc = c + d;
+			if (nc < 0 || nc >= line.length) { fallback(); return; }
+			at = line[nc];
+			paint();
+		};
 		const collapse = () => {
 			if (open === -1) return false;
 			const keep = open; open = -1; render();
@@ -11457,12 +11714,30 @@ module.exports = class WordSmith extends Plugin {
 		const always = (fn) => () => { fn(); return false; };
 		modal.scope.register([], 'ArrowDown',  always(() => move(1)));
 		modal.scope.register([], 'ArrowUp',    always(() => move(-1)));
-		modal.scope.register([], 'ArrowRight', always(() => activate()));
-		modal.scope.register([], 'ArrowLeft',  always(() => collapse()));
+		// Right walks along a line and does NOTHING at its end. It used to
+		// open the row — which read as "sideways" on a table, where right
+		// means the next cell and a drawer appearing instead is a jolt.
+		// ENTER opens, in both dialects, and is the only thing that does.
+		// Right on a row whose drawer is OPEN steps INTO it. Opening with
+		// Enter leaves the row selected, and right then did nothing at all
+		// — the drawer was on screen with no way into it but Down, which
+		// is not what "right" means next to an open thing. At the end of a
+		// line with nothing open, right still does nothing: there is
+		// simply nowhere further right.
+		const enterDrawer = () => {
+			const cur = flat[at];
+			if (!cur || cur.kind !== 'row' || open !== cur.ri) return;
+			for (let i = at + 1; i < flat.length; i++) {
+				if (flat[i].kind === 'item') { at = i; paint(); return; }
+				if (flat[i].kind === 'row') return;
+			}
+		};
+		modal.scope.register([], 'ArrowRight', always(() => sideways(1, enterDrawer)));
+		modal.scope.register([], 'ArrowLeft',  always(() => sideways(-1, collapse)));
 		modal.scope.register([], 'j', letter(() => move(1)));
 		modal.scope.register([], 'k', letter(() => move(-1)));
-		modal.scope.register([], 'l', letter(() => activate()));
-		modal.scope.register([], 'h', letter(() => collapse()));
+		modal.scope.register([], 'l', letter(() => sideways(1, enterDrawer)));
+		modal.scope.register([], 'h', letter(() => sideways(-1, collapse)));
 		modal.scope.register([], 'Enter', () => { activate(); return false; });
 		// Space activates only when it cannot be a character: in the field
 		// it types, and with Vim off the field is where every keystroke is
@@ -11475,17 +11750,61 @@ module.exports = class WordSmith extends Plugin {
 		modal.scope.register(['Mod'], 'k', () => { move(-1); return false; });
 		// Escape closes an open row first and the modal second, so backing
 		// out of a submenu does not throw the whole panel away.
-		modal.scope.register([], 'Escape', () => {
-			// Escape clears a query before it closes the menu: the first
-			// press undoes the typing, the second leaves. Closing on the
-			// first press would throw away the browsing state a writer was
-			// two keystrokes from using.
+		// ESCAPE, ON THE DOCUMENT, IN THE CAPTURE PHASE — and that is the
+		// whole point. Obsidian's Modal registers its OWN Escape on the
+		// same scope in its constructor, before this one exists, and the
+		// scope runs handlers in registration order: its close() fired and
+		// ours never ran at all. Every backing-out step written here was
+		// dead code, which is why the drawer would not close and a typed
+		// query was thrown away with the panel.
+		//
+		// A capture listener on `document` sees the key before any scope
+		// does, so this decides. Removed on close, or it would answer for
+		// a menu that is no longer on screen.
+		const onEsc = (e) => {
+			if (e.key !== 'Escape') return;
+			// Not the menu on screen: say nothing, and above all do not
+			// stop the event on behalf of a panel that has gone.
+			if (ZG_MENU_ESC !== onEsc) return;
+			const stop = () => {
+				e.preventDefault();
+				e.stopPropagation();
+				if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+			};
+			// A query goes first: the first press undoes the typing, the
+			// second leaves. Closing on the first would throw away the
+			// browsing state a writer was two keystrokes from using.
 			if ((search.value || '').trim()) {
+				stop();
 				search.value = ''; at = 0; render();
 				try { search.focus(); } catch (_) {}
-				return false;
+				return;
 			}
+			// Then an open drawer, and the menu last — backing out of a
+			// submenu must not throw the whole panel away.
+			if (collapse()) { stop(); return; }
+			stop();
 			modal.close();
+		};
+		document.addEventListener('keydown', onEsc, true);
+		ZG_MENU_ESC = onEsc;
+		// AND the scope, with Obsidian's own Escape taken out of it first.
+		//
+		// The capture listener above should be enough — it sees the key
+		// before any scope does — but "should" has been wrong twice here
+		// already: a listener registered earlier on the SAME node can stop
+		// the event before ours is reached, and Obsidian's keymap is
+		// registered at app start. So the scope path is repaired as well:
+		// its own Escape entry is dropped, and ours takes its place. Both
+		// paths call the same handler, and the handler is idempotent —
+		// whichever arrives first does the work.
+		try {
+			if (modal.scope && Array.isArray(modal.scope.keys)) {
+				modal.scope.keys = modal.scope.keys.filter(k => k && k.key !== 'Escape');
+			}
+		} catch (_) {}
+		modal.scope.register([], 'Escape', () => {
+			onEsc({ key: 'Escape', preventDefault() {}, stopPropagation() {} });
 			return false;
 		});
 
@@ -11510,6 +11829,10 @@ module.exports = class WordSmith extends Plugin {
 		// restore fires; doing it here as well means the workspace never
 		// shows the undressed frame between the two.
 		modal.onClose = () => {
+			try { document.removeEventListener('keydown', onEsc, true); } catch (_) {}
+			if (ZG_MENU_ESC === onEsc) ZG_MENU_ESC = null;
+			try { document.body.classList.remove('zg-menu-open'); } catch (_) {}
+			try { if (closeWatcher) closeWatcher.disconnect(); } catch (_) {}
 			this.barThemeOnCssChange();
 			this.barThemeGuard();
 		};
@@ -11545,14 +11868,46 @@ module.exports = class WordSmith extends Plugin {
 					modal.modalEl && modal.modalEl.parentElement];
 				for (const root of roots) {
 					if (!root || !root.querySelectorAll) continue;
-					for (const btn of Array.from(root.querySelectorAll('.modal-close-button'))) {
+					// BOTH NAMES. Obsidian's ✕ is `.modal-header-button
+					// .mod-raised .clickable-icon` on current builds and
+					// `.modal-close-button` on older ones — which is the
+					// whole reason this took five attempts: every selector
+					// was aimed at a class the button had stopped wearing.
+					// Scoped to this modal's own roots, so no other
+					// modal's header buttons are touched.
+					for (const btn of Array.from(root.querySelectorAll(
+						'.modal-close-button, .modal-header-button'))) {
 						btn.remove();
 					}
 				}
 			} catch (_) {}
 		};
+		// …and a WATCHER, because every timed sweep is a guess about when
+		// Obsidian finishes building its chrome, and this fix has now been
+		// wrong about that guess three times. An observer is not a guess:
+		// whenever a close button appears anywhere under this modal's
+		// container, for as long as the menu is open, it goes. Disconnected
+		// on close — an observer that outlives its modal is a leak.
+		let closeWatcher = null;
+		try {
+			const target = modal.containerEl || modal.modalEl;
+			if (target && window.MutationObserver) {
+				closeWatcher = new MutationObserver(stripClose);
+				closeWatcher.observe(target, { childList: true, subtree: true });
+			}
+		} catch (_) {}
 
 		modal.onOpen = () => {
+			// A BODY CLASS, which is the one ancestor nothing can move the
+			// button out of. Every earlier selector named an ancestor that
+			// turned out to be wrong on this writer's build — the
+			// inspector showed the rule not matching AT ALL, meaning the
+			// ✕ sits outside both the modal element and the container we
+			// classed. body is not a guess: while this menu is open, the
+			// close button of the modal on screen is ours, and it goes.
+			// classList, not addClass: the sugar is Obsidian's and this line
+			// must work anywhere body does — including under a probe.
+			try { document.body.classList.add('zg-menu-open'); } catch (_) {}
 			stripClose();
 			list.setAttribute('tabindex', '-1');
 			// A hidden finder cannot take focus \u2014 the list does, so the
@@ -12238,6 +12593,35 @@ module.exports = class WordSmith extends Plugin {
 	barThemeOnCssChange() {
 		this.applyThemeClass();
 		this.applyThemeVars();
+		// AND THE BAR, which is not optional and used to be missing.
+		//
+		// The bar's own colours are RESOLVED, not inherited: `--zg-bg` holds
+		// a concrete rgb() that applyCssVariables worked out by reading the
+		// theme's surfaces, and every powerline segment is painted from a
+		// value read the same way (a var() would not survive an SVG fill).
+		// So restamping the theme's variables above changes nothing the bar
+		// is already wearing — it keeps the old half's colours until some
+		// unrelated repaint happens by.
+		//
+		// Which is exactly what the vault saw: flipping the mode from the
+		// MENU left the bar on the old colours until a click elsewhere,
+		// while flipping it from the command palette looked instant — not
+		// because that path was different, but because dismissing the
+		// palette hands focus back to the editor and the events that follow
+		// repaint the bar by accident. A fix that depends on the writer
+		// clicking somewhere is not a fix.
+		//
+		// Twice, and deliberately: once now, and once on the next frame,
+		// because Obsidian swaps its own theme class around this event and
+		// a read taken too early resolves against the half that is leaving.
+		const repaint = () => {
+			try {
+				this.applyCssVariables();
+				this.updateRetroStatusBar();
+			} catch (_) {}
+		};
+		repaint();
+		try { window.requestAnimationFrame(repaint); } catch (_) {}
 	}
 
 	// The variables a theme sets, as a plain map, or null for none.
@@ -12711,7 +13095,8 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	// Cursor-Smith's OWN defaults for the keys this bridge writes, copied
-	// from its source (1.3.0: DEFAULT_SETTINGS and VIM_MODE_STARTERS).
+	// from its source (cursor-smith 1.4.4: DEFAULT_SETTINGS and
+	// VIM_MODE_STARTERS).
 	//
 	// These are the answer to a state the stash cannot cover: a vault
 	// dressed by a build that had no stash, whose cursor is themed with no
@@ -12745,7 +13130,7 @@ module.exports = class WordSmith extends Plugin {
 
 	// Hand the scheme's inks to Cursor-Smith, if it is installed and asked.
 	//
-	// The shape this writes was read from cursor-smith 1.3.0, not guessed:
+	// The shape this writes was read from cursor-smith 1.4.4, not guessed:
 	// colorDark/colorLight are its per-app-mode flat colours, and the
 	// gradient stops are SCALAR keys (gradientDark1-4 / gradientLight1-4) by
 	// that plugin's own documented design — its presets copy settings with a
@@ -13163,7 +13548,11 @@ module.exports = class WordSmith extends Plugin {
 			}
 		}));
 		items.push({
-			label: 'Write checks',
+			// "Prose checks", the name it wears everywhere else — the
+			// settings tab, the README, the {prose} token. This one row
+			// still said "Write checks", which is the same feature under
+			// a name nothing else used.
+			label: 'Prose checks',
 			on: () => !!s.checksEnabled,
 			onClick: async () => {
 				s.checksEnabled = !s.checksEnabled;
@@ -18123,10 +18512,23 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.toggle(containerEl, 'Menu',
 			'Adds the Menu command to the palette.',
 			'barMenu');
+		// The BUILD STAMP. Small, quiet, and the fastest way to answer the
+		// question that costs the most time in a bug report: is the code
+		// running the code I copied? A writer reading a version here and a
+		// different one in the release they downloaded knows in one second
+		// that the file did not land — without a console, a reload cycle
+		// or a guess.
+		containerEl.createEl('p', {
+			text: 'Word-Smith ' + ZG_PLUGIN_VERSION,
+			cls: 'ws-settings-note ws-build-stamp'
+		});
 		containerEl.createEl('p', {
 			text: 'The menu is one pop-up for everything you change while writing. '
-				+ 'Arrange it here: drag a card to move it, press \u2715 to set one '
-				+ 'aside, and drop the Search card wherever you want the finder. '
+				+ 'Arrange it here. Drop a card ON another and the two share a '
+				+ 'line \u2014 up to five across, split evenly; drop one in the gap '
+				+ 'between two lines and it gets a line of its own. Press \u2715 to '
+				+ 'set a card aside, and put the Search card wherever you want '
+				+ 'the finder. '
 				+ 'Bind the menu itself in Obsidian\u2019s Hotkeys settings \u2014 Alt+X '
 				+ 'is a good choice: it is free in every Vim mode, and free in '
 				+ 'Obsidian\u2019s own defaults.',
@@ -18226,10 +18628,37 @@ class WordSmithSettingTab extends PluginSettingTab {
 			return d ? d.name : id;   // an unknown id is shown as itself \u2014 reachable beats pretty
 		};
 
-		const hidden = new Set(plugin.settings.menuHidden || []);
-		const layout = plugin.menuLayout().filter(id => !hidden.has(id));
 		const grid = containerEl.createDiv({ cls: 'zg-theme-grid zg-menu-shelf' });
-		layout.forEach((id, idx) => {
+
+		// THE SHELF IS THE MENU'S SHAPE, line for line. Drop a card ON
+		// another and it joins that line (up to five); drop it in the gap
+		// between two lines and it takes a line of its own. Two targets,
+		// two meanings — no modifier keys, and the shape you drag into is
+		// the shape you get.
+		const fullOrder = plugin.menuLayout();
+		const dropGap = (toIdx) => {
+			const gap = grid.createDiv({ cls: 'zg-menu-gap' });
+			gap.addEventListener('dragover', (e) => { e.preventDefault(); gap.addClass('is-dropzone'); });
+			gap.addEventListener('dragleave', () => gap.removeClass('is-dropzone'));
+			gap.addEventListener('drop', async (e) => {
+				e.preventDefault();
+				const dragged = e.dataTransfer.getData('text/plain');
+				if (!dragged) return;
+				plugin.menuBreakAt(dragged, toIdx);
+				await plugin.saveSettings();
+				redisplay();
+			});
+			return gap;
+		};
+
+		plugin.menuBands().forEach((band) => {
+			// The gap ABOVE this line, addressed by where the line begins
+			// in the FULL order — hidden entries included, so a shelved
+			// card keeps its slot.
+			dropGap(fullOrder.indexOf(band[0]));
+			const bandEl = grid.createDiv({ cls: 'zg-menu-bandrow' });
+			if (band.length >= MENU_MAX_COLS) bandEl.addClass('is-full');
+			band.forEach((id) => {
 			const isRule = /^rule-\d+$/.test(id);
 			const isCmd  = plugin.menuIsCommand(id);
 			// A pinned command whose plugin is gone: the card STAYS, wearing
@@ -18238,7 +18667,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// naming work survive the plugin's absence. Reinstall it and
 			// the row comes back. Nothing here is ever quietly deleted.
 			const isDead = isCmd && !plugin.menuCommandFor(id);
-			const card = grid.createDiv({
+			const card = bandEl.createDiv({
 				cls: 'zg-theme-card zg-menu-card' + (isRule ? ' is-rule' : '')
 					+ (isCmd ? ' is-cmd' : '') + (isDead ? ' is-dead' : '')
 			});
@@ -18255,10 +18684,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 				e.preventDefault();
 				const dragged = e.dataTransfer.getData('text/plain');
 				if (!dragged || dragged === id) return;
-				// The drop index is against the FULL order, hidden cards
-				// included, so a shelved card keeps its slot for the day
-				// it comes back.
-				plugin.menuMove(dragged, plugin.menuLayout().indexOf(id));
+				// ON a card means SHARE ITS LINE, landing to its right. A
+				// full line takes it as the next line instead — the drag
+				// is never lost, and "there is no room here" is a truthful
+				// answer rather than a rejected drop.
+				plugin.menuJoinAfter(dragged, id);
 				await plugin.saveSettings();
 				redisplay();
 			});
@@ -18353,20 +18783,10 @@ class WordSmithSettingTab extends PluginSettingTab {
 			}
 			// Name only (1.3.0): the notes made every card a paragraph and
 			// the shelf a page. A card is a handle, and a handle is a word.
-			//
-			// … with ONE exception, and it earns its line: a command that
-			// toggles something can REPORT it. Obsidian tells nobody
-			// whether a command is on — a command is a function, not a
-			// state — so the writer points at the value themselves, from
-			// the owning plugin's own settings. Bound, the menu row reads
-			// like Prose does: label left, 'on' / 'off' right (or the value
-			// itself, so a mode named vim says vim), and pressing it keeps
-			// the menu open the way every other toggle in the menu does.
-			//
-			// Only for commands whose plugin is reachable and actually
-			// keeps primitives in settings: a picker with nothing in it is
-			// a question with no answers, so it is not drawn at all.
+			});
 		});
+		// One last gap, so a card can be dropped onto its own line at the end.
+		dropGap(fullOrder.length);
 
 		// The Removed row: everything set aside, one chip each, one click
 		// back \u2014 back to the slot it left, because hiding never touched
