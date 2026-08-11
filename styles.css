@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 63;
+	--zg-stylesheet-version: 71;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -3278,6 +3278,25 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-modal {
 	max-width: 320px;
 }
+/* No ✕. Escape closes this, so does clicking away, and the menu is a
+   PALETTE — a small panel that applies live behind itself — rather than
+   a dialogue waiting to be dismissed. A close button on a palette is a
+   button that only ever undoes the act of opening it, sitting where a
+   writer's eye lands first. Hidden rather than removed: the button is
+   Obsidian's own, added after onOpen, and it keeps its keyboard route
+   for anyone who tabs to it. */
+/* …and the container as well, because on some builds Obsidian hangs the
+   button off THAT instead, as a sibling of the modal, where the selector
+   above never matched — which is why the ✕ survived a fix that looked
+   correct. The container carries its own class, set beside the modal's in
+   openBarMenu: `:has` would have expressed this in one selector and is
+   banned here for good reason (see selfcarry_probe — a :has subject near
+   body is re-evaluated on every keystroke). main.js removes the node
+   outright anyway; this is the second belt. */
+.zg-menu-modal .modal-close-button,
+.zg-menu-container > .modal-close-button {
+	display: none;
+}
 .zg-menu-content {
 	padding: 0.5em 0.4em;
 }
@@ -3301,6 +3320,14 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-row .zg-menu-label {
 	font-weight: 600;
 	color: var(--text-normal);
+	/* The fallback for a long name, and only the fallback: a pinned
+	   command wears the short alias its writer gave it, so this fires
+	   only when they kept a long one. Truncation is at the END —
+	   "Insert temp… modal" is a puzzle, and the tooltip already carries
+	   the full name for anyone who wants it. */
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 /* The state sits right and quiet: for a toggle list it is a count, and for
    Font it is the face in use. Either way it answers "what is this set to"
@@ -3332,10 +3359,191 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	color: var(--text-normal);
 }
 .zg-menu-rule {
-	height: 1px;
+	height: 0;
 	margin: 0.45em 0.6em;
-	background: var(--background-modifier-border);
+	/* border-top, not a background: dashed, dotted and double are things
+	   the browser already knows how to draw, and a background gradient
+	   would have to fake all three badly. */
+	border-top: 1px solid var(--background-modifier-border);
 }
+.zg-menu-rule.is-dashed { border-top-style: dashed; }
+.zg-menu-rule.is-dotted { border-top-style: dotted; }
+/* Double needs room to be two lines: at 1px it renders as one, which is
+   the same picture as solid and would make the setting a lie. */
+.zg-menu-rule.is-double {
+	border-top-style: double;
+	border-top-width: 3px;
+}
+
+/* ── The menu's own layout (1.3.0) ─────────────────────────────────────────
+   TOMBSTONE: a `.zg-menu-grid` columns layout and a `.zg-menu-centered`
+   toggle class lived here for part of one cycle and never shipped. One
+   column — a palette is a list — and the ROW LABELS are centred as the
+   one look, right here, no class. Only the top-level rows: an expanded
+   row's items, the search results and the finder stay left-aligned,
+   because a list you scan reads from a straight left edge, while a
+   heading can sit in the middle. is-wide already centred Report and
+   History; this makes the whole spine match them. */
+.zg-menu-row {
+	justify-content: center;
+	text-align: center;
+}
+
+/* The Menu tab's shelf — the theme cards' wardrobe, tailored down. A
+   menu card is a HANDLE, one word and a ✕, so the grid packs small and
+   the card sheds the scheme card's padding. A rule card reads as the
+   line it stands for. */
+/* ONE COLUMN, top to bottom: the shelf IS the menu's reading order, and a
+   wrapping grid made that order a puzzle — the writer had to read across
+   then down to see what their menu would look like, which is the one
+   question this list exists to answer.
+
+   BOTH CLASSES, and that is the whole fix: .zg-menu-shelf alone is the
+   same specificity as .zg-theme-grid and sits EARLIER in this file, so
+   the theme grid's auto-fill columns won every time and the shelf stayed
+   stubbornly horizontal. It looked like a CSS that had not been written;
+   it was a CSS that had been overruled. */
+.zg-theme-grid.zg-menu-shelf {
+	grid-template-columns: 1fr;
+	gap: 4px;
+}
+.zg-menu-shelf .zg-theme-card {
+	padding: 5px 8px;
+}
+.zg-menu-shelf .zg-theme-name {
+	font-size: 0.92em;
+}
+/* A separator card SHOWS A LINE and nothing else. The earlier version
+   centred the word "Separator" on the rule, which rendered as struck-out
+   text — a shape that already means "deleted" to every reader alive. */
+.zg-menu-card.is-rule .zg-theme-name {
+	flex: 1;
+	height: 1.2em;
+	position: relative;
+}
+/* The card shows the line in the style that was chosen, so the dropdown
+   beside it previews rather than promises. Drawn on a pseudo-element so
+   the four styles are the browser's own, exactly as in the menu. */
+.zg-menu-card.is-rule .zg-theme-name::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 50%;
+	border-top: 1px solid var(--background-modifier-border);
+}
+.zg-theme-name.is-rule-dashed::before { border-top-style: dashed; }
+.zg-theme-name.is-rule-dotted::before { border-top-style: dotted; }
+.zg-theme-name.is-rule-double::before {
+	border-top-style: double;
+	border-top-width: 3px;
+}
+
+/* A separator's only setting, quiet beside its line. */
+.zg-rule-style {
+	font-size: 0.75em;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	color: var(--text-muted);
+}
+
+/* A pinned command whose plugin is gone: still here, still named, plainly
+   not working. Dimmed rather than removed — reinstall the plugin and it
+   comes back, alias and position intact. */
+.zg-menu-card.is-dead { opacity: 0.5; }
+.zg-menu-card.is-cmd .zg-theme-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Rename: the pencil matches the ✕ it stands beside, and the field
+   borrows the name's own metrics so the card does not jump when it
+   opens. */
+.zg-theme-rename {
+	background: none;
+	border: none;
+	color: var(--text-faint);
+	cursor: pointer;
+	padding: 0 2px;
+	font-size: 0.85em;
+}
+.zg-theme-rename:hover { color: var(--text-normal); }
+.zg-theme-nameinput {
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--background-primary);
+	border: 1px solid var(--interactive-accent);
+	border-radius: 4px;
+	padding: 0 4px;
+	font: inherit;
+	color: var(--text-normal);
+}
+
+/* The inline command finder. Inline because Obsidian's settings window is
+   a modal and a second modal over it closes the first — see the tombstone
+   in main.js. It wears the menu finder's own clothes, being the same act. */
+.zg-cmd-search {
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 5px;
+	padding: 4px 8px;
+	font: inherit;
+	color: var(--text-normal);
+	margin-bottom: 4px;
+}
+.zg-cmd-hits {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 8px;
+}
+.zg-cmd-hit {
+	background: none;
+	border: none;
+	border-radius: 4px;
+	padding: 3px 8px;
+	text-align: left;
+	font: inherit;
+	color: var(--text-normal);
+	cursor: pointer;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.zg-cmd-hit:hover { background: var(--background-modifier-hover); }
+.zg-cmd-empty {
+	padding: 3px 8px;
+	color: var(--text-faint);
+	font-size: 0.9em;
+}
+
+/* TOMBSTONE (1.3.0): .zg-cmd-state dressed a per-command state picker
+   that lived for one build. See the tombstone in main.js. */
+
+/* A command's Removed chip carries two acts — put it back, or unpin it
+   for good — so it is a wrapper with two buttons rather than a button
+   inside a button. It wears the plain chip's own clothes. */
+.zg-theme-hiddenchip.is-pair {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	cursor: default;
+}
+.zg-chip-back,
+.zg-chip-unpin {
+	background: none;
+	border: none;
+	padding: 0;
+	font: inherit;
+	color: inherit;
+	cursor: pointer;
+}
+.zg-chip-unpin { color: var(--text-faint); }
+.zg-chip-unpin:hover { color: var(--text-error, var(--text-normal)); }
 
 /* ── The theme shelf ───────────────────────────────────────────────────────
    Cards in the Theme tab, one per colour scheme. The working prototype of

@@ -21,6 +21,18 @@ const WsPathSuggestModal = FuzzySuggestModal ? class extends FuzzySuggestModal {
 	onChooseItem(item) { this._onPick(item); }
 } : null;
 
+// The four ways a menu separator can draw. Named in one place so the
+// stylesheet's classes, the card's dropdown and the guard in
+// menuRuleStyle() cannot drift apart.
+const MENU_RULE_STYLES = ['solid', 'dashed', 'dotted', 'double'];
+
+// TOMBSTONE (1.3.0): a WsCommandSuggestModal picked the command to pin for
+// exactly one build. Obsidian's settings window is ITSELF a modal, and
+// opening a second one over it closes the first — so pinning a command
+// threw the writer out of settings and back to the note. The picker is
+// inline in the tab now (see displayMenuTab), which is also where a
+// writer can see the shelf they are adding to.
+
 // Obsidian exposes its bundled CodeMirror 6 packages to plugins via require.
 // Decorations registered through registerEditorExtension render inside CM6's
 // own pipeline, which is the only glitch-free way to do per-line styling —
@@ -1713,7 +1725,17 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 63;
+const ZG_STYLESHEET_VERSION = 71;
+
+// What manifest.json must say for this build. The stylesheet has had such
+// a check since 1.2.x; the manifest never did, and it turns out to fail
+// the same way and be harder to notice: everyone updating a plugin by hand
+// copies main.js and styles.css and forgets the third file, so the code is
+// new, the styles are new, and the version the writer READS — in
+// Community Plugins, in a bug report — is whatever it was months ago. A
+// mismatch here is not a broken plugin; it is a plugin lying about which
+// one it is, which is worse for anyone trying to help.
+const ZG_PLUGIN_VERSION = '1.3.0';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -1836,7 +1858,7 @@ const BAR_DIRECTIVE_BG = {
 	// bar written with :bs looks sane with no scheme worn — the same
 	// contract every other slot keeps.
 	//
-	// Spelled :s until 1.2.9, and REMOVED clean rather than aliased: the
+	// Spelled :s until 1.3.0, and REMOVED clean rather than aliased: the
 	// grammar's rule is that an unrecognised slot prints itself, so a saved
 	// `:s` now shows ":s" in the bar — which is how its writer finds out
 	// the name changed, instead of a hidden synonym nobody can discover.
@@ -2130,6 +2152,29 @@ const DEFAULT_SETTINGS = {
 	barTheme:       'custom',
 	barThemeOrder:  [],
 	barThemeHidden: [],
+	// ── The menu's own layout ─────────────────────────────────────────────
+	// The Alt+X palette, arranged from the Menu tab the way the theme
+	// shelf is: order is an id list ([] = the shipped order), hidden is a
+	// quiet shelf nothing is deleted from, and separators are writer-made
+	// `rule-N` ids that live in the order like anything else.
+	//
+	// TOMBSTONE (1.3.0): `menuColumns` and `menuCenterText` lived here
+	// for part of one cycle and never shipped. The menu is one column —
+	// a palette is a list, and a grid made the reading order a puzzle —
+	// and row labels are centred by the stylesheet as the one look, not
+	// a toggle. A saved value for either key is simply unread.
+	menuOrder:      [],
+	menuHidden:     [],
+	// Pinned commands are `cmd:<obsidian-command-id>` entries in the order
+	// above, and this is what each is CALLED: the writer's own short name,
+	// editable from the card whenever they like. An id with no entry wears
+	// its stripped default (menuDefaultAlias), so clearing the field is the
+	// revert path and there is no reset button to explain.
+	menuAliases:    {},
+	// How each separator draws — layout id → solid / dashed / dotted /
+	// double. A rule is the one thing on this shelf with nothing to say,
+	// so its only setting is how it looks. Absent means solid.
+	menuRuleStyles: {},
 	// The scheme's reach, each independently togglable in the Theme tab.
 	// SIMPLIFIED collapses every surface to the editor's colour (one wash);
 	// off, each surface takes its own step of the theme's ramp. Headings and
@@ -3252,7 +3297,14 @@ module.exports = class WordSmith extends Plugin {
 		// Obsidian's addRibbonIcon expects a Lucide icon name; we replace
 		// the SVG it inserts with a text badge and use a class hook for
 		// styling. The label doubles as the tooltip.
-		this.wsRibbonEl = this.addRibbonIcon('type', 'Toggle Word-Smith on/off', () => this.toggleFullPlugin());
+		//
+		// The click OPENS THE MENU (1.3.0). It toggled the whole plugin
+		// until then, which made the most visible button the most
+		// destructive one — a mis-click stripped the workspace. The
+		// master switch keeps its command and its place at the top of
+		// settings; the ribbon now does the thing a writer wants a
+		// dozen times a day instead of the thing they want twice.
+		this.wsRibbonEl = this.addRibbonIcon('type', 'Open the Word-Smith menu', () => this.openBarMenu());
 		this.wsRibbonEl.addClass('ws-ribbon-btn');
 		this.wsRibbonEl.empty();
 		this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge', text: 'WS' });
@@ -3593,6 +3645,7 @@ module.exports = class WordSmith extends Plugin {
 			if (!this.settings.pluginEnabled) return;
 			this.refresh();
 			this.checkStylesheetVersion();
+			this.checkManifestVersion();
 			// Read the store once the vault's file list exists — finding the
 			// file means looking through it. Nothing is recorded until this
 			// resolves; historyCapture waits on the same promise, so an edit
@@ -3632,6 +3685,24 @@ module.exports = class WordSmith extends Plugin {
 			+ ' — copy main.js, styles.css AND manifest.json into '
 			+ '<vault>/.obsidian/plugins/word-smith/, then reload Obsidian.');
 		new Notice('Word-Smith: ' + what + '.\nCopy styles.css into the plugin '
+			+ 'folder and reload Obsidian.', 12000);
+	}
+
+	// The same courtesy for the third file. Quiet console note plus one
+	// Notice, once a session, and never when the manifest is NEWER — that
+	// is an upgrade in the other direction and not the manifest's fault.
+	checkManifestVersion() {
+		let found = null;
+		try { found = this.manifest && this.manifest.version; } catch (_) { return; }
+		if (!found || found === ZG_PLUGIN_VERSION) return;
+		if (this._manifestWarned) return;
+		this._manifestWarned = true;
+		const what = 'manifest.json is out of date (says v' + found
+			+ ', this build is v' + ZG_PLUGIN_VERSION + ')';
+		console.warn('Word-Smith: ' + what
+			+ ' \u2014 copy main.js, styles.css AND manifest.json into '
+			+ '<vault>/.obsidian/plugins/word-smith/, then reload Obsidian.');
+		new Notice('Word-Smith: ' + what + '.\nCopy manifest.json into the plugin '
 			+ 'folder and reload Obsidian.', 12000);
 	}
 
@@ -10807,31 +10878,262 @@ module.exports = class WordSmith extends Plugin {
 	// So the rows expand IN PLACE, and the items come from the same
 	// *PickerItems() the bar buttons use — one source of truth about what a
 	// mode is and whether it is on, without inheriting the popover.
+	// ── The menu's layout ────────────────────────────────────────────────────
+	// What the menu can hold, as data the Menu tab and the menu
+	// itself both read — one list, two surfaces, the same contract the
+	// theme shelf keeps with themesPickerItems. `search` and the `rule-N`
+	// separators are POSITIONAL like everything else: the finder renders
+	// wherever its card was dropped, and a writer can own as many rules as
+	// they like, each a card of its own.
+	menuFeatureDefs() {
+		return [
+			{ id: 'search',    name: 'Search' },
+			{ id: 'modes',    name: 'Modes' },
+			{ id: 'syntax',    name: 'Syntax' },
+			{ id: 'prose',    name: 'Prose' },
+			{ id: 'markers',    name: 'Markers' },
+			{ id: 'font',    name: 'Font' },
+			{ id: 'lightdark',    name: 'Light / Dark' },
+			{ id: 'theme',    name: 'Theme' },
+			{ id: 'report',    name: 'Report' },
+			{ id: 'history',    name: 'History' }
+		];
+	}
+
+	// The full order \u2014 saved first, then anything the save does not name,
+	// in shipped order, so a feature added by an update APPEARS rather
+	// than waiting for the writer to find a reset. Unknown saved ids are
+	// kept: same rule as the theme shelf's hidden row \u2014 an id this build
+	// cannot name must stay reachable, not silently swept.
+	menuLayout() {
+		const def = ['search', 'modes', 'syntax', 'prose', 'markers', 'font',
+			'lightdark', 'theme', 'rule-1', 'report', 'history'];
+		const out = [];
+		for (const id of (this.settings.menuOrder || [])) {
+			if (!out.includes(id)) out.push(id);
+		}
+		for (const id of def) if (!out.includes(id)) out.push(id);
+		return out;
+	}
+
+	menuVisibleLayout() {
+		const hidden = new Set(this.settings.menuHidden || []);
+		return this.menuLayout().filter(id => !hidden.has(id));
+	}
+
+	// Drag semantics, verbatim from barThemeMove: position IS priority, and
+	// the write is the WHOLE materialised order, so the default stops being
+	// implicit the first time anyone rearranges it.
+	menuMove(id, toIdx) {
+		const ids = this.menuLayout().filter(x => x !== id);
+		const at = Math.max(0, Math.min(toIdx, ids.length));
+		ids.splice(at, 0, id);
+		this.settings.menuOrder = ids;
+	}
+
+	menuHide(id) {
+		const hidden = this.settings.menuHidden || [];
+		if (!hidden.includes(id)) hidden.push(id);
+		this.settings.menuHidden = hidden;
+	}
+
+	menuRestore(id) {
+		this.settings.menuHidden =
+			(this.settings.menuHidden || []).filter(h => h !== id);
+	}
+
+	// A separator is writer-made and content-free, so its \u2715 DELETES where
+	// a feature's \u2715 shelves: there is nothing in a rule worth keeping a
+	// route back to, and \u201cAdd separator\u201d remakes one in a click.
+	menuAddRule(afterIdx) {
+		let n = 1;
+		for (const id of this.menuLayout()) {
+			const m = /^rule-(\d+)$/.exec(id);
+			if (m) n = Math.max(n, parseInt(m[1], 10) + 1);
+		}
+		const ids = this.menuLayout();
+		const at = afterIdx == null ? ids.length : Math.max(0, Math.min(afterIdx, ids.length));
+		ids.splice(at, 0, 'rule-' + n);
+		this.settings.menuOrder = ids;
+		return 'rule-' + n;
+	}
+
+	// ── Pinned commands ──────────────────────────────────────────────────────
+	// Any Obsidian command can be a menu row. It rides the same order as
+	// everything else — menuLayout() already keeps ids it cannot name, so
+	// order, move, hide and restore work for these WITHOUT knowing they
+	// exist. Only naming and rendering are command-aware.
+	//
+	// The id is `cmd:` + the command's own id, and a command id contains
+	// colons of its own (`templater-obsidian:insert-templater`), so this
+	// is parsed by PREFIX and never by splitting on ':'.
+	menuIsCommand(id) { return typeof id === 'string' && id.startsWith('cmd:'); }
+	menuCommandId(id) { return this.menuIsCommand(id) ? id.slice(4) : null; }
+
+	// The live command, or null when the plugin that owned it is gone.
+	// Guarded throughout: probes stub `app` thinly, and a settings tab
+	// that throws is a settings tab nobody can open.
+	menuCommandFor(id) {
+		const cid = this.menuCommandId(id);
+		if (!cid) return null;
+		try {
+			const cmds = this.app.commands;
+			if (!cmds) return null;
+			if (cmds.commands && cmds.commands[cid]) return cmds.commands[cid];
+			if (typeof cmds.listCommands === 'function') {
+				return cmds.listCommands().find(c => c && c.id === cid) || null;
+			}
+		} catch (_) {}
+		return null;
+	}
+
+	// The name to offer when a command is first pinned: everything after
+	// the plugin's own prefix, so "Templater: Insert template modal"
+	// offers "Insert template modal". A stripped name that COLLIDES with
+	// something already on the shelf offers the full name instead — two
+	// rows called the same thing is worse than one long row, and a rare
+	// case must not complicate the common one.
+	menuDefaultAlias(name) {
+		const full = String(name == null ? '' : name).trim();
+		const cut = full.indexOf(': ');
+		const short = cut > 0 ? full.slice(cut + 2).trim() : full;
+		if (!short || short === full) return full;
+		const taken = new Set();
+		for (const f of this.menuFeatureDefs()) taken.add(f.name.toLowerCase());
+		taken.add('separator');
+		for (const v of Object.values(this.settings.menuAliases || {})) {
+			if (v) taken.add(String(v).toLowerCase());
+		}
+		return taken.has(short.toLowerCase()) ? full : short;
+	}
+
+	// What a pinned command is CALLED. Falls through: the saved alias, the
+	// stripped default from the live command, then the raw id — which is
+	// the honest name for a command this vault can no longer resolve and
+	// never pinned a name for, exactly as an unknown layout id renders.
+	menuAliasOf(id) {
+		const saved = (this.settings.menuAliases || {})[id];
+		if (saved) return saved;
+		const cmd = this.menuCommandFor(id);
+		if (cmd && cmd.name) return this.menuDefaultAlias(cmd.name);
+		return this.menuCommandId(id) || id;
+	}
+
+	// The FULL name, for the places full names belong: tooltips, aria
+	// labels, and the finder's keywords. A dead command has only its id
+	// left, which is still more use than nothing.
+	menuCommandName(id) {
+		const cmd = this.menuCommandFor(id);
+		return (cmd && cmd.name) ? cmd.name : (this.menuCommandId(id) || id);
+	}
+
+	// TOMBSTONE (1.3.0): for one build a pinned command could REPORT a
+	// value — the writer pointed it at a key in the owning plugin's own
+	// settings and the row read 'on' / 'off' beside its name. It worked,
+	// and it was still wrong: every pinned command grew a dropdown asking
+	// a question most writers have no reason to answer, to tell them
+	// something the thing itself already tells them. A pinned command is
+	// an act. `menuStates` in a vault's data.json is unread.
+	menuPinCommand(cid) {
+		const id = 'cmd:' + cid;
+		const ids = this.menuLayout();
+		if (!ids.includes(id)) ids.push(id);
+		this.settings.menuOrder = ids;
+		this.settings.menuHidden =
+			(this.settings.menuHidden || []).filter(h => h !== id);
+		return id;
+	}
+
+	// An EMPTY alias deletes the entry rather than saving a blank: that is
+	// the revert path, and it is why no card needs a reset button.
+	menuSetAlias(id, alias) {
+		const map = this.settings.menuAliases || {};
+		const val = String(alias == null ? '' : alias).trim();
+		if (val) map[id] = val; else delete map[id];
+		this.settings.menuAliases = map;
+	}
+
+	// The only true delete besides menuDeleteRule — and it lives on the
+	// Removed chip, not on the card, because a pin carries the writer's
+	// naming work and ✕ should never throw that away by accident.
+	menuUnpin(id) {
+		this.settings.menuOrder  = this.menuLayout().filter(x => x !== id);
+		this.settings.menuHidden = (this.settings.menuHidden || []).filter(h => h !== id);
+		const map = this.settings.menuAliases || {};
+		delete map[id];
+		this.settings.menuAliases = map;
+	}
+
+	// ── How a separator draws ────────────────────────────────────────────────
+	// Solid, dashed, dotted or double — the same four the bar's own edge
+	// rules offer, because a writer who has met one of these lists has met
+	// the other. Anything unrecognised reads as solid: a saved style from a
+	// newer build must not leave a gap where a line should be.
+	menuRuleStyle(id) {
+		const v = (this.settings.menuRuleStyles || {})[id];
+		return MENU_RULE_STYLES.includes(v) ? v : 'solid';
+	}
+
+	menuSetRuleStyle(id, style) {
+		const map = this.settings.menuRuleStyles || {};
+		if (MENU_RULE_STYLES.includes(style) && style !== 'solid') map[id] = style;
+		else delete map[id];   // solid is the default, and a default is not worth storing
+		this.settings.menuRuleStyles = map;
+	}
+
+	menuDeleteRule(id) {
+		this.settings.menuOrder = this.menuLayout().filter(x => x !== id);
+		this.settings.menuHidden =
+			(this.settings.menuHidden || []).filter(h => h !== id);
+		const map = this.settings.menuRuleStyles || {};
+		delete map[id];
+		this.settings.menuRuleStyles = map;
+	}
+
 	openBarMenu() {
 		const plugin = this;
 		const modal = new Modal(this.app);
 		modal.modalEl.addClass('zg-menu-modal');
+		// The container gets a class of its own so the stylesheet can reach a
+		// close button hung off IT rather than off the modal — which is where
+		// some Obsidian builds put it. A class rather than `:has`, which this
+		// stylesheet does not use anywhere near body (see selfcarry_probe).
+		try { modal.containerEl.addClass('zg-menu-container'); } catch (_) {}
 		// The menu is a PALETTE, not an interruption: it sits beside the
 		// writing and applies live, so dimming the workspace behind it hides
 		// exactly the thing every click is changing. The scrim stays for
 		// click-to-close; only its paint goes.
 		try { modal.bgEl.style.backgroundColor = 'transparent'; } catch (_) {}
 		modal.contentEl.addClass('zg-menu-content');
-		// The finder, above the list. It searches ROWS AND THEIR ITEMS at
-		// once — a writer looking for "nord" should not have to know it
-		// lives under Theme — and each result carries the row it came from,
-		// so the answer teaches the menu instead of bypassing it.
-		const search = modal.contentEl.createEl('input', { cls: 'zg-menu-search' });
+		// The list first, and the finder INSIDE it: the search is a
+		// positional entry of the layout now, rendered wherever its card
+		// was dropped in the Menu tab. It is created once and never
+		// rebuilt — render() moves its SIBLINGS around it — because
+		// emptying it with the rest would blur the field on the very
+		// keystroke that triggered the render.
+		const list = modal.contentEl.createDiv({ cls: 'zg-menu-list' });
+		// (A columns/centring block lived here for part of one cycle —
+		// see the tombstone on the settings. One column, row labels
+		// centred by the stylesheet, nothing to configure.)
+		// The finder searches ROWS AND THEIR ITEMS at once — a writer
+		// looking for "nord" should not have to know it lives under Theme
+		// — and each result carries the row it came from, so the answer
+		// teaches the menu instead of bypassing it.
+		const search = list.createEl('input', { cls: 'zg-menu-search' });
 		search.type = 'text';
 		search.placeholder = 'Search\u2026';
-		const list = modal.contentEl.createDiv({ cls: 'zg-menu-list' });
+		const layout = plugin.menuVisibleLayout();
+		// Hidden is hidden, not gone: the node stays (render() steers by
+		// it), it just neither shows nor takes the opening focus.
+		const searchShown = layout.includes('search');
+		if (!searchShown) search.style.display = 'none';
 
-		const ROWS = [
-			{ label: 'Modes',   items: () => plugin.modesPickerItems() },
-			{ label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
-			{ label: 'Prose',   items: () => plugin.checksPickerItems() },
-			{ label: 'Markers', items: () => plugin.markersPickerItems() },
-			{ label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
+		const FEATURES = [
+			{ id: 'modes',   label: 'Modes',   items: () => plugin.modesPickerItems() },
+			{ id: 'syntax',  label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
+			{ id: 'prose',   label: 'Prose',   items: () => plugin.checksPickerItems() },
+			{ id: 'markers', label: 'Markers', items: () => plugin.markersPickerItems() },
+			{ id: 'font',    label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
 			// Above Theme, because it changes which HALF of a theme you are
 			// looking at: the question "dark or light" comes before the
 			// question "which scheme".
@@ -10847,21 +11149,60 @@ module.exports = class WordSmith extends Plugin {
 			// `label` is a function here, which is why render resolves it:
 			// the text changes with the app, not with the menu opening.
 			{
+				id: 'lightdark',
 				label: () => plugin.isDarkTheme() ? 'Light Mode' : 'Dark Mode',
 				// Both words, so the finder answers "dark" and "light"
 				// whichever one the label happens to be showing.
 				keywords: 'light dark mode appearance',
 				toggle: () => plugin.barSetColorMode(!plugin.isDarkTheme())
 			},
-			{ label: 'Theme',   items: () => plugin.themesPickerItems(), count: false },
-			// Below a divider: these OPEN something rather than setting it,
-			// which is a different kind of act and reads better set apart.
-			// Centred for the same reason — they are buttons, not settings,
-			// and a centred pair reads as a footer rather than as two more
-			// rows that happen to do something else.
-			{ label: 'Report',  rule: true, wide: true, run: () => plugin.openReportModal() },
-			{ label: 'History',             wide: true, run: () => plugin.openHistoryModal() },
+			{ id: 'theme',   label: 'Theme',   items: () => plugin.themesPickerItems(), count: false },
+			// These OPEN something rather than setting it — a different
+			// kind of act, still centred (is-wide) so the pair reads as a
+			// footer. The divider that used to be Report's own flag is a
+			// layout entry now: the shipped order carries one rule above
+			// Report, and the Menu tab can move it, delete it, or add more.
+			{ id: 'report',  label: 'Report',  wide: true, run: () => plugin.openReportModal() },
+			{ id: 'history', label: 'History', wide: true, run: () => plugin.openHistoryModal() },
 		];
+		// The rows the layout actually shows, in its order — ri, the index
+		// every keyboard path steers by, is an index into THIS.
+		//
+		// A pinned command resolves to a row of the same shape as any
+		// other `run` row: the writer's ALIAS as the label, the full
+		// command name and its plugin prefix as keywords — which is the
+		// entire search story, since the finder already matches run rows
+		// against both (the light/dark toggle is the precedent). So a row
+		// reading "Template" is still found by typing "templater".
+		//
+		// A DEAD command — its plugin uninstalled — resolves to nothing,
+		// and the render loop's existing `ri == null` skip drops it with
+		// no new branch. Its card stays on the shelf; see displayMenuTab.
+		const rowFor = (id) => {
+			const feat = FEATURES.find(f => f.id === id);
+			if (feat) return feat;
+			if (!plugin.menuIsCommand(id)) return null;
+			const cmd = plugin.menuCommandFor(id);
+			if (!cmd) return null;
+			const full = plugin.menuCommandName(id);
+			const cut = full.indexOf(': ');
+			// A pinned command is an ACT — centred like Report and History,
+			// and it closes the menu on its way out.
+			return {
+				id,
+				label: plugin.menuAliasOf(id),
+				full,
+				keywords: full + ' ' + (cut > 0 ? full.slice(0, cut) : ''),
+				wide: true,
+				run: () => {
+					try { plugin.app.commands.executeCommandById(plugin.menuCommandId(id)); }
+					catch (_) {}
+				}
+			};
+		};
+		const ROWS = layout.map(rowFor).filter(Boolean);
+		const RI = {};
+		ROWS.forEach((r, i) => { RI[r.id] = i; });
 
 		// One flat list of what is currently on screen, rebuilt whenever a
 		// row opens or closes. Flat because the keyboard walks it: j and k
@@ -10876,9 +11217,23 @@ module.exports = class WordSmith extends Plugin {
 		const rowLabel = (row) =>
 			(typeof row.label === 'function' ? row.label() : row.label);
 
+		// Everything but the finder goes; the finder is the one node whose
+		// identity must survive a render, or typing into it would blur it.
+		const clearList = () => {
+			for (const el of Array.from(list.children)) {
+				if (el !== search) el.remove();
+			}
+		};
+
 		const render = () => {
-			list.empty();
+			clearList();
 			flat = [];
+			// Nodes are appended by createDiv and then, for every entry
+			// that sits BEFORE the finder in the layout, moved in front of
+			// it — which is what makes the finder's position real without
+			// ever rebuilding the finder itself.
+			let pastSearch = !searchShown;
+			const place = (el) => { if (!pastSearch) list.insertBefore(el, search); };
 
 			// SEARCH MODE. Rows collapse and the matches stand alone, best
 			// first, each labelled with the row it belongs to. Results are
@@ -10942,9 +11297,25 @@ module.exports = class WordSmith extends Plugin {
 				return;
 			}
 
-			ROWS.forEach((row, ri) => {
-				if (row.rule) list.createDiv({ cls: 'zg-menu-rule' });
+			layout.forEach((id) => {
+				if (id === 'search') { pastSearch = true; return; }
+				if (/^rule-\d+$/.test(id)) {
+					place(list.createDiv({
+						cls: 'zg-menu-rule is-' + plugin.menuRuleStyle(id)
+					}));
+					return;
+				}
+				const ri = RI[id];
+				if (ri == null) return;   // an id this build cannot name: inert, kept
+				const row = ROWS[ri];
 				const el = list.createDiv({ cls: 'zg-menu-row' + (row.wide ? ' is-wide' : '') });
+				place(el);
+				// The full name, where full names belong. The row wears the
+				// writer's short alias; hovering it says what it really runs.
+				if (row.full) {
+					el.setAttribute('title', row.full);
+					el.setAttribute('aria-label', row.full);
+				}
 				el.createSpan({ cls: 'zg-menu-label', text: rowLabel(row) });
 				// A count of what is on, for the rows where that is a
 				// question. NOT for Font: exactly one typeface is always
@@ -10977,6 +11348,7 @@ module.exports = class WordSmith extends Plugin {
 						const sub = list.createDiv({
 							cls: 'zg-menu-sub zg-picker-row' + (isOn ? '' : ' is-off')
 						});
+						place(sub);
 						if (item.color) {
 							const dot = sub.createSpan({ cls: 'zg-picker-dot' });
 							if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
@@ -11142,12 +11514,59 @@ module.exports = class WordSmith extends Plugin {
 			this.barThemeGuard();
 		};
 
+		// THE ✕ GOES, and it is REMOVED rather than hidden, from wherever
+		// Obsidian keeps it. Escape closes this, so does clicking away, and
+		// the menu is a PALETTE — a small panel that applies live behind
+		// itself — not a dialogue waiting to be dismissed. A close button
+		// on a palette only ever undoes the act of opening it, and it sits
+		// exactly where the eye lands first.
+		//
+		// This has been fixed twice and is now belt, braces and a second
+		// belt, because each earlier attempt assumed something about the
+		// button that turned out to be version-specific:
+		//
+		//   1. A stylesheet rule (`.zg-menu-modal .modal-close-button`)
+		//      assumed the button is INSIDE modalEl. On some builds it is
+		//      a child of the CONTAINER instead, a sibling of the modal,
+		//      where that selector never matches — and a CSS-only fix is
+		//      absent anyway for anyone whose styles.css did not get
+		//      copied.
+		//   2. Removing it at onOpen assumed it EXISTS by then. Obsidian
+		//      builds its chrome around the modal, and the order is not
+		//      ours to rely on.
+		//
+		// So: climb to the outermost element this modal owns, sweep it,
+		// and sweep once more on the next frame for anything added after.
+		// Guarded throughout — a menu that throws on open is worse than a
+		// menu with a ✕.
+		const stripClose = () => {
+			try {
+				const roots = [modal.modalEl, modal.containerEl,
+					modal.modalEl && modal.modalEl.parentElement];
+				for (const root of roots) {
+					if (!root || !root.querySelectorAll) continue;
+					for (const btn of Array.from(root.querySelectorAll('.modal-close-button'))) {
+						btn.remove();
+					}
+				}
+			} catch (_) {}
+		};
+
 		modal.onOpen = () => {
+			stripClose();
 			list.setAttribute('tabindex', '-1');
-			try { search.focus(); } catch (_) { list.focus(); }
+			// A hidden finder cannot take focus \u2014 the list does, so the
+			// arrows work from the first keystroke either way.
+			if (searchShown) { try { search.focus(); } catch (_) { list.focus(); } }
+			else { try { list.focus(); } catch (_) {} }
 		};
 		render();
 		modal.open();
+		// Again, now that Obsidian has finished assembling the modal, and
+		// once more on the next frame: the button may be added after
+		// onOpen, and a single early sweep would have missed it.
+		stripClose();
+		try { window.requestAnimationFrame(stripClose); } catch (_) {}
 		return modal;
 	}
 
@@ -12292,7 +12711,7 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	// Cursor-Smith's OWN defaults for the keys this bridge writes, copied
-	// from its source (1.4.4: DEFAULT_SETTINGS and VIM_MODE_STARTERS).
+	// from its source (1.3.0: DEFAULT_SETTINGS and VIM_MODE_STARTERS).
 	//
 	// These are the answer to a state the stash cannot cover: a vault
 	// dressed by a build that had no stash, whose cursor is themed with no
@@ -12326,7 +12745,7 @@ module.exports = class WordSmith extends Plugin {
 
 	// Hand the scheme's inks to Cursor-Smith, if it is installed and asked.
 	//
-	// The shape this writes was read from cursor-smith 1.4.4, not guessed:
+	// The shape this writes was read from cursor-smith 1.3.0, not guessed:
 	// colorDark/colorLight are its per-app-mode flat colours, and the
 	// gradient stops are SCALAR keys (gradientDark1-4 / gradientLight1-4) by
 	// that plugin's own documented design — its presets copy settings with a
@@ -13921,7 +14340,7 @@ module.exports = class WordSmith extends Plugin {
 	// is how it is written in a row; out-of-range wraps rather than
 	// failing.
 	//
-	// TOMBSTONE (1.2.9): the fallback used to WALK THE PALETTE —
+	// TOMBSTONE (1.3.0): the fallback used to WALK THE PALETTE —
 	// pick(2 + index) — so a bare {file} > {words} came out as a run of
 	// coloured blocks nobody asked for. An uncoloured token now lies FLUSH
 	// with the bar, the way an unhighlighted region of a vim statusline
@@ -16916,10 +17335,13 @@ class WordSmithSettingTab extends PluginSettingTab {
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
 		// ── Tab bar ──────────────────────────────────────────────────────────────
-		// Retro Bar first: it is the tab with the most in it, the one a new
-		// writer is most likely to have come here for, and — since TABS[0]
-		// is what a fresh install opens on — the best first thing to see.
+		// Menu first — TABS[0] is what a fresh install opens on, and the
+		// menu shelf is the gentlest first thing to see: a handful of
+		// cards you can drag, next to the one hint most people need (bind
+		// Alt+X). Powerline keeps second, still the tab with the most in
+		// it and the one a returning writer most likely came for.
 		const TABS = [
+			{ id: 'menu',       label: 'Menu',         render: this.displayMenuTab },
 			{ id: 'retrobar',   label: 'Powerline',    render: this.displayRetroBarTab },
 			{ id: 'theme',      label: 'Theme',        render: this.displayThemeTab },
 			{ id: 'zen',        label: 'Zen',          render: this.displayZenTab },
@@ -17684,6 +18106,310 @@ class WordSmithSettingTab extends PluginSettingTab {
 				'barThemeVim',
 				() => { plugin.barThemeCursorSync(); },
 				subEl);
+		}
+	}
+
+	// ── Menu tab ─────────────────────────────────────────────────────────────
+	// The menu, arranged the way the theme shelf is arranged:
+	// every feature is a CARD, drag order is menu order, \u2715 shelves a card
+	// to a Removed row nothing is deleted from \u2014 and the search and the
+	// separators are cards like everything else, so "where does the finder
+	// sit" is answered by dropping it there. Same classes as the theme
+	// cards on purpose: one look for "a thing you arrange".
+	displayMenuTab(containerEl) {
+		const plugin = this.plugin;
+		// The master switch, at the top like every other feature tab's.
+		// It lived under Misc's quick panels until this tab existed.
+		this.toggle(containerEl, 'Menu',
+			'Adds the Menu command to the palette.',
+			'barMenu');
+		containerEl.createEl('p', {
+			text: 'The menu is one pop-up for everything you change while writing. '
+				+ 'Arrange it here: drag a card to move it, press \u2715 to set one '
+				+ 'aside, and drop the Search card wherever you want the finder. '
+				+ 'Bind the menu itself in Obsidian\u2019s Hotkeys settings \u2014 Alt+X '
+				+ 'is a good choice: it is free in every Vim mode, and free in '
+				+ 'Obsidian\u2019s own defaults.',
+			cls: 'ws-settings-note'
+		});
+
+		// The scroll-preserving redisplay, hoisted above every handler so
+		// ALL of them go through it — the same one-bare-display discipline
+		// the theme tab keeps, and the probe counts.
+		const redisplay = () => {
+			let scroller = containerEl;
+			try {
+				while (scroller && !(scroller.scrollHeight > scroller.clientHeight)) {
+					scroller = scroller.parentElement;
+				}
+			} catch (_) { scroller = null; }
+			const top = scroller ? scroller.scrollTop : 0;
+			this.display();
+			if (scroller) { try { scroller.scrollTop = top; } catch (_) {} }
+		};
+
+		new Setting(containerEl).setName('Separators')
+			.setDesc('Add as many as you like, then drag each where a gap should read. '
+				+ 'Deleting one is fine \u2014 this button makes another.')
+			.addButton(b => b.setButtonText('Add separator').onClick(async () => {
+				plugin.menuAddRule();
+				await plugin.saveSettings();
+				redisplay();
+			}));
+
+		// PINNED COMMANDS. Any command Obsidian knows about can be a menu
+		// row — yours, another plugin's, or the app's own. No alias is
+		// asked for here: the stripped default is usually right, and the
+		// card carries the rename for the times it is not.
+		//
+		// The picker is INLINE, and that is the whole point of it: Obsidian's
+		// settings window is itself a modal, so the suggest-modal version of
+		// this threw the writer out of settings the moment they pressed the
+		// button — they picked a command and landed back in their note, with
+		// the shelf they were arranging gone. Typing here filters in place,
+		// the shelf stays visible below, and pinning changes nothing else on
+		// screen.
+		new Setting(containerEl).setName('Commands')
+			.setDesc('Pin any command to the menu — yours, another plugin’s, or '
+				+ 'Obsidian’s own. It arrives named after itself; press ✎ on its '
+				+ 'card to call it something shorter.');
+		const finder = containerEl.createDiv({ cls: 'zg-cmd-finder' });
+		const cmdSearch = finder.createEl('input', { cls: 'zg-cmd-search' });
+		cmdSearch.type = 'text';
+		cmdSearch.placeholder = 'Search commands to pin…';
+		const cmdHits = finder.createDiv({ cls: 'zg-cmd-hits' });
+		const pinnedNow = new Set(plugin.menuLayout());
+		const drawHits = () => {
+			cmdHits.empty();
+			const q = (cmdSearch.value || '').trim();
+			// Nothing typed, nothing listed: six hundred commands is not a
+			// list, it is a wall, and the writer already knows what they
+			// came for.
+			if (!q) return;
+			let cmds = [];
+			try { cmds = plugin.app.commands.listCommands() || []; } catch (_) {}
+			const hits = [];
+			for (const c of cmds) {
+				if (!c || !c.id || pinnedNow.has('cmd:' + c.id)) continue;
+				// Name AND id, so a writer finds a command by what it is
+				// called or by the plugin that owns it.
+				const sc = Math.max(barMenuFuzzy(q, c.name || ''),
+					barMenuFuzzy(q, c.id) - 1);
+				if (sc >= 0) hits.push({ sc, c });
+			}
+			hits.sort((a, b) => b.sc - a.sc);
+			if (!hits.length) {
+				cmdHits.createDiv({ cls: 'zg-cmd-empty', text: 'Nothing matches' });
+				return;
+			}
+			for (const h of hits.slice(0, 8)) {
+				// The FULL name here, always: this is where the writer
+				// decides, and the shortening happens on the card after.
+				const hit = cmdHits.createEl('button', {
+					cls: 'zg-cmd-hit', text: h.c.name || h.c.id
+				});
+				hit.addEventListener('click', async () => {
+					plugin.menuPinCommand(h.c.id);
+					await plugin.saveSettings();
+					redisplay();
+				});
+			}
+		};
+		cmdSearch.addEventListener('input', drawHits);
+
+		this.label(containerEl, 'What the menu holds \u2014 in this order');
+		const defs = plugin.menuFeatureDefs();
+		const nameOf = (id) => {
+			if (/^rule-\d+$/.test(id)) return 'Separator';
+			if (plugin.menuIsCommand(id)) return plugin.menuAliasOf(id);
+			const d = defs.find(f => f.id === id);
+			return d ? d.name : id;   // an unknown id is shown as itself \u2014 reachable beats pretty
+		};
+
+		const hidden = new Set(plugin.settings.menuHidden || []);
+		const layout = plugin.menuLayout().filter(id => !hidden.has(id));
+		const grid = containerEl.createDiv({ cls: 'zg-theme-grid zg-menu-shelf' });
+		layout.forEach((id, idx) => {
+			const isRule = /^rule-\d+$/.test(id);
+			const isCmd  = plugin.menuIsCommand(id);
+			// A pinned command whose plugin is gone: the card STAYS, wearing
+			// the name the writer gave it, dimmed — the menu row is absent
+			// (openBarMenu resolves it to nothing) but the pin and the
+			// naming work survive the plugin's absence. Reinstall it and
+			// the row comes back. Nothing here is ever quietly deleted.
+			const isDead = isCmd && !plugin.menuCommandFor(id);
+			const card = grid.createDiv({
+				cls: 'zg-theme-card zg-menu-card' + (isRule ? ' is-rule' : '')
+					+ (isCmd ? ' is-cmd' : '') + (isDead ? ' is-dead' : '')
+			});
+			if (isCmd) card.setAttribute('title', plugin.menuCommandName(id));
+			card.setAttribute('draggable', 'true');
+			card.addEventListener('dragstart', (e) => {
+				e.dataTransfer.setData('text/plain', id);
+				card.addClass('is-dragging');
+			});
+			card.addEventListener('dragend', () => card.removeClass('is-dragging'));
+			card.addEventListener('dragover', (e) => { e.preventDefault(); card.addClass('is-dropzone'); });
+			card.addEventListener('dragleave', () => card.removeClass('is-dropzone'));
+			card.addEventListener('drop', async (e) => {
+				e.preventDefault();
+				const dragged = e.dataTransfer.getData('text/plain');
+				if (!dragged || dragged === id) return;
+				// The drop index is against the FULL order, hidden cards
+				// included, so a shelved card keeps its slot for the day
+				// it comes back.
+				plugin.menuMove(dragged, plugin.menuLayout().indexOf(id));
+				await plugin.saveSettings();
+				redisplay();
+			});
+
+			const head = card.createDiv({ cls: 'zg-theme-head' });
+			// A SEPARATOR IS A LINE, so the card draws a line and says
+			// nothing: the word "Separator" written across a rule read as
+			// struck-through text, which is a thing that means something
+			// else entirely. The name lives on where names belong — the
+			// card's tooltip and the ✕'s aria label — so nothing is lost
+			// to anyone reading by ear.
+			if (isRule) card.setAttribute('title', 'Separator');
+			const nameEl = head.createDiv({
+				cls: 'zg-theme-name'
+					+ (isRule ? ' is-rule-' + plugin.menuRuleStyle(id) : ''),
+				text: isRule ? '' : nameOf(id)
+			});
+			// RENAME, whenever the writer likes — the first editable thing
+			// this shelf has ever had, so it stays quiet: a pencil beside
+			// the ✕, and the name itself becomes the field. Enter or blur
+			// saves, Escape cancels, and an EMPTY field reverts to the
+			// stripped default, which is why there is no reset button.
+			if (isCmd) {
+				const pen = head.createEl('button', { cls: 'zg-theme-rename', text: '\u270e' });
+				pen.setAttribute('aria-label', 'Rename ' + nameOf(id));
+				pen.addEventListener('click', (e) => {
+					e.stopPropagation();
+					nameEl.empty();
+					// A drag mid-rename is a bug factory: the card holds
+					// still until the field is done with.
+					card.setAttribute('draggable', 'false');
+					const inp = nameEl.createEl('input', { cls: 'zg-theme-nameinput' });
+					inp.type = 'text';
+					inp.value = nameOf(id);
+					let done = false;
+					const finish = async (save) => {
+						if (done) return;
+						done = true;
+						if (save) {
+							plugin.menuSetAlias(id, inp.value);
+							await plugin.saveSettings();
+						}
+						redisplay();
+					};
+					inp.addEventListener('click', (ev) => ev.stopPropagation());
+					inp.addEventListener('keydown', (ev) => {
+						if (ev.key === 'Enter')  { ev.preventDefault(); finish(true); }
+						if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+					});
+					inp.addEventListener('blur', () => finish(true));
+					try { inp.focus(); inp.select(); } catch (_) {}
+				});
+			}
+			const x = head.createEl('button', { cls: 'zg-theme-remove', text: '\u2715' });
+			x.setAttribute('aria-label',
+				(isRule ? 'Delete this separator' : 'Set ' + nameOf(id) + ' aside'));
+			// ✕ SHELVES a pinned command rather than unpinning it: the
+			// alias is the writer's work, and losing it to a stray click
+			// would be the one destructive act on this shelf. Unpinning
+			// lives on the Removed chip, below.
+			//
+			// (The “Shows” picker is added after the ✕, below the head, so
+			// the card keeps one shape: a name row, then whatever else.)
+			x.addEventListener('click', async (e) => {
+				e.stopPropagation();
+				// A separator deletes \u2014 it is writer-made and content-free,
+				// and the Add button remakes one. A feature shelves.
+				if (isRule) plugin.menuDeleteRule(id);
+				else plugin.menuHide(id);
+				await plugin.saveSettings();
+				redisplay();
+			});
+			// A separator's one setting is how it draws — the card shows the
+			// line ITSELF in the chosen style, so the dropdown beside it
+			// is a preview rather than a promise. Only rules get this: it
+			// is the only card with nothing to say and therefore the only
+			// one where appearance is the whole content.
+			if (isRule) {
+				const sel = head.createEl('select', { cls: 'zg-rule-style' });
+				sel.setAttribute('aria-label', 'How this separator draws');
+				for (const s of MENU_RULE_STYLES) {
+					const o = sel.createEl('option', { text: s });
+					o.value = s;
+				}
+				sel.value = plugin.menuRuleStyle(id);
+				sel.addEventListener('click', (e) => e.stopPropagation());
+				sel.addEventListener('change', async () => {
+					plugin.menuSetRuleStyle(id, sel.value);
+					await plugin.saveSettings();
+					redisplay();
+				});
+			}
+			// Name only (1.3.0): the notes made every card a paragraph and
+			// the shelf a page. A card is a handle, and a handle is a word.
+			//
+			// … with ONE exception, and it earns its line: a command that
+			// toggles something can REPORT it. Obsidian tells nobody
+			// whether a command is on — a command is a function, not a
+			// state — so the writer points at the value themselves, from
+			// the owning plugin's own settings. Bound, the menu row reads
+			// like Prose does: label left, 'on' / 'off' right (or the value
+			// itself, so a mode named vim says vim), and pressing it keeps
+			// the menu open the way every other toggle in the menu does.
+			//
+			// Only for commands whose plugin is reachable and actually
+			// keeps primitives in settings: a picker with nothing in it is
+			// a question with no answers, so it is not drawn at all.
+		});
+
+		// The Removed row: everything set aside, one chip each, one click
+		// back \u2014 back to the slot it left, because hiding never touched
+		// the order. Verbatim the theme shelf's contract.
+		const hiddenIds = plugin.settings.menuHidden || [];
+		if (hiddenIds.length) {
+			this.label(containerEl, 'Removed');
+			const row = containerEl.createDiv({ cls: 'zg-theme-hiddenrow' });
+			for (const id of hiddenIds) {
+				const restore = async () => {
+					plugin.menuRestore(id);
+					await plugin.saveSettings();
+					redisplay();
+				};
+				// A PINNED COMMAND'S chip carries a second act — unpin,
+				// the only true delete on this shelf — so it is built as a
+				// pair of buttons in a wrapper rather than a button inside
+				// a button, which no screen reader and no browser agrees
+				// about. A feature's chip stays the plain button it was.
+				if (plugin.menuIsCommand(id)) {
+					const wrap = row.createDiv({ cls: 'zg-theme-hiddenchip is-pair' });
+					wrap.setAttribute('title', plugin.menuCommandName(id));
+					const back = wrap.createEl('button', {
+						cls: 'zg-chip-back', text: nameOf(id)
+					});
+					back.setAttribute('aria-label', 'Put ' + nameOf(id) + ' back in the menu');
+					back.addEventListener('click', restore);
+					const off = wrap.createEl('button', { cls: 'zg-chip-unpin', text: '\u00d7' });
+					off.setAttribute('aria-label', 'Unpin ' + nameOf(id) + ' — forgets its name too');
+					off.addEventListener('click', async (e) => {
+						e.stopPropagation();
+						plugin.menuUnpin(id);
+						await plugin.saveSettings();
+						redisplay();
+					});
+					continue;
+				}
+				const chip = row.createEl('button', {
+					cls: 'zg-theme-hiddenchip', text: nameOf(id)
+				});
+				chip.setAttribute('aria-label', 'Put ' + nameOf(id) + ' back in the menu');
+				chip.addEventListener('click', restore);
+			}
 		}
 	}
 
@@ -18748,11 +19474,8 @@ class WordSmithSettingTab extends PluginSettingTab {
 		this.toggle(qp, 'Quick outline', 'And one for the outline.',
 			'quickOutline');
 
-		this.toggle(qp, 'Menu',
-			'One pop-up for modes, syntax, prose, font and markers. Bind it to a '
-			+ 'key in Obsidian\u2019s Hotkeys settings \u2014 most people use Ctrl+M.',
-			'barMenu');
-
+		// (The Menu toggle lived here until 1.3.0; it moved to the top of
+		// the Menu tab, where the menu's whole arrangement now lives.)
 		this.toggle(qp, 'Quick cycle',
 			'Four commands: move focus left, right, up or down, sidebars included.',
 			'quickCycle');
