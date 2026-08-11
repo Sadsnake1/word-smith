@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 82;
+	--zg-stylesheet-version: 104;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -293,6 +293,26 @@ body.zg-masks-active .titlebar-button-container,
 body.zg-masks-active .titlebar-button,
 body.zg-masks-active .workspace-drag-region {
 	z-index: var(--zg-z-titlebar, 23);
+}
+
+/* THE SIDEBARS' OWN TAB HEADERS STAY CLICKABLE IN ZEN. Raising the drag
+   region above the masks (just above) also raises it above the icons that
+   switch a sidebar between the file tree, search, bookmarks and any
+   plugin's pane — and a drag region swallows the clicks it covers, so
+   those icons went dead the moment zen was on. They were never hidden;
+   they were unreachable, which is worse, because nothing on screen says
+   why.
+   
+   Lifted over it and marked no-drag: a sidebar header is somewhere a
+   writer presses, not somewhere they pick the window up by. Both docks,
+   since either can hold the panes. */
+body.zg-masks-active .workspace-split.mod-left-split .workspace-tab-header-container,
+body.zg-masks-active .workspace-split.mod-right-split .workspace-tab-header-container,
+body.zenmode-active .workspace-split.mod-left-split .workspace-tab-header-container,
+body.zenmode-active .workspace-split.mod-right-split .workspace-tab-header-container {
+	position: relative;
+	z-index: calc(var(--zg-z-titlebar, 23) + 1);
+	-webkit-app-region: no-drag;
 }
 
 /* Belt and braces for anything that can appear over the strip while the
@@ -3451,6 +3471,273 @@ body.zg-menu-open .modal-header-button {
    part of one session. Built, probed, and dropped on sight — a list you
    are reading down should not change shape because the row above it
    happens to be wide. One column, always. */
+
+/* ── The docked panel ─────────────────────────────────────────────────────
+   The same rows in a leaf. It borrows the menu's whole wardrobe, so a
+   change to the pop-up cannot leave the panel behind; these are only the
+   differences a sidebar makes. ONE COLUMN and no finder, so nothing here
+   centres and nothing here caps a drawer's height — a panel is tall, and
+   scrolling it is the pane's own job. */
+/* THE VIEW'S OWN PADDING GOES. `view-content` carries a generous inset
+   that a file explorer removes for itself — leaving it on put the
+   scrollbar a dozen pixels in from the pane's edge, where no other pane's
+   sits, and squeezed the rows. Written with the leaf selector so it
+   outranks the app's own rule rather than hoping to. */
+.workspace-leaf-content .view-content.zg-menu-panel {
+	padding: 0;
+}
+.zg-menu-panel {
+	/* THE SIDEBAR'S OWN FACE AND SIZE, not the writer's chosen font. The
+	   pop-up takes --zg-font because it is a panel of the plugin's own,
+	   floating over the note; a docked pane sits in a column beside the
+	   file tree and the outline, and a leaf in a different typeface from
+	   its neighbours reads as something that has gone wrong. This is the
+	   one place the menu should NOT look like the bar. */
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+	/* No padding at all: `nav-files-container` brings the tree's own, and
+	   a pane that adds to it puts its scrollbar somewhere no other pane's
+	   sits. */
+	padding: 0;
+}
+/* The rows wear `tree-item-self`, so their padding, hover shape, indent
+   and colour are the app's. Ours is only what a MENU row has that a file
+   does not: a state on the right, and a label that must not push it off
+   the end. Every hand-set padding here was a few pixels out from the tree
+   beside it — measuring a screenshot is not the same as sharing a rule. */
+/* THE ROWS ARE THE APP'S NOW. Wearing `tree-item-self` inside
+   `nav-files-container` means Obsidian supplies the height, the padding,
+   the hover and active colours and the text colour — all of which were
+   being set here, each a little different from the tree beside it. What
+   is left is only what a MENU row has that a file does not: the pop-up's
+   own padding and gap have to be cancelled, because those rules match on
+   `.zg-menu-row` wherever it is. */
+.zg-menu-panel .zg-menu-row,
+.zg-menu-panel .zg-menu-sub {
+	justify-content: flex-start;
+	text-align: start;
+	padding: var(--nav-item-padding);
+	/* The pop-up's 0.5em gap is cancelled — it is sized for a palette —
+	   but NOT to nothing: an icon or a colour dot needs air before its
+	   label, and at zero they touched. The tree's own icon spacing is the
+	   measure. */
+	gap: var(--size-2-2, 4px);
+}
+.zg-menu-panel .zg-menu-row.is-active,
+.zg-menu-panel .zg-menu-sub.is-active {
+	background: var(--nav-item-background-active, var(--background-modifier-hover));
+	color: var(--nav-item-color-active, var(--text-normal));
+}
+
+/* The chevron is OBSIDIAN'S OWN triangle in Obsidian's own wrapper, so
+   the app supplies its size, colour and rotation and the panel cannot
+   drift from the file tree beside it. Only two things are ours: the
+   spacing, and a blank of the same width on rows that do not open —
+   without it every label in the panel starts at a different place. */
+/* The triangle is Obsidian's, in Obsidian's own `tree-item-icon` box, so
+   its size, colour, rotation AND the space it reserves are the app's.
+   Only the blank is ours: a row that does not open still needs the box,
+   or its label starts where no other label starts. */
+.zg-menu-panel .zg-menu-chev.is-blank > * { visibility: hidden; }
+
+/* THE TURN. Obsidian rotates its own triangles with a transition, but a
+   transition needs the same element to change state — and until the
+   toggle stopped re-rendering, every click replaced the chevron with a
+   fresh one that had no previous rotation to animate from. The class
+   moves on a surviving element now; this only names the transition, and
+   only as a fallback for a build or theme that does not set its own. */
+.zg-menu-panel .zg-menu-chev {
+	/* THE SAME CURVE AS THE DRAWER, from the same two variables. The
+	   triangle ran on --anim-duration-fast (140ms) while the drawer ran on
+	   --anim-duration-moderate (300ms): two animations started in the same
+	   frame and finishing less than half a beat apart, which is exactly
+	   the kind of mismatch the eye reads as lag without being able to name
+	   it. One duration, one easing, named once below and used by both. */
+	transition: transform var(--zg-drawer-dur) var(--zg-drawer-ease);
+}
+
+/* The drawer, indented to sit UNDER THE LABEL of the row that owns it —
+   not under the row's own left edge, which left the children looking
+   like siblings. The guide line is the app's own indentation guide,
+   which is how Obsidian shows that a group belongs to the row above. */
+/* (No panel override for .zg-menu-drawer any more — the panel's children
+   container does not wear that class. The overrides that lived here were
+   cancelling the tree's own margin-left, which is what PLACES the
+   indentation guide: three rounds of adjusting numbers could not fix a
+   line that was being moved by a rule written for a different surface.) */
+
+/* THE OPENING. Obsidian eases its children in and draws the guide down
+   with them; a container inserted whole appears in one frame, which is
+   what the vault saw beside the tree. The guide is the container's own
+   border, so animating the container's HEIGHT draws the line down and
+   eases the rows out in the same motion — one animation, not two that
+   have to be kept in step.
+
+   max-height rather than height, because the real height is unknown
+   until the rows are in it; the value is a ceiling no drawer reaches, so
+   the curve is spent on the part that shows. */
+/* HEIGHT ONLY — no fade. Obsidian's tree slides its children down at full
+   strength; the rows are simply revealed by the container growing, the
+   way a drawer reveals what is in it. Fading them in as well made the
+   panel look like a different kind of thing opening beside the tree, and
+   was the vault's second complaint about this animation. */
+@keyframes zg-drawer-in {
+	from { max-height: 0; }
+	to   { max-height: 60vh; }
+}
+/* ONE TIMING FOR THE WHOLE GESTURE. The drawer's growth and the
+   triangle's turn are two halves of one movement, and they read as one
+   only if they are one — same duration, same easing, declared here so
+   neither can drift from the other. */
+.zg-menu-panel {
+	--zg-drawer-dur:  var(--anim-duration-moderate, 300ms);
+	--zg-drawer-ease: var(--anim-motion-smooth, ease);
+	/* (TOMBSTONE: --zg-chev-size, --zg-guide-inset and --zg-drawer-indent
+	   placed the drawer's indent and its guide by hand. The list wears
+	   `nav-files-container` now, so Obsidian draws both — and draws them
+	   where the file tree's are, which four hand-built versions did not
+	   manage between them.) */
+}
+/* The growth, and the clipping it needs, ONLY WHILE IT GROWS. A permanent
+   overflow:hidden would cut off the full-bleed highlight below at the
+   drawer's own indent — the selected row would stop short of the edge
+   the file tree reaches. */
+.zg-menu-panel .zg-panel-drawer.is-opening {
+	overflow: hidden;
+	animation: zg-drawer-in var(--zg-drawer-dur) var(--zg-drawer-ease) 1;
+}
+/* A writer who asked the system for less motion gets none. */
+@media (prefers-reduced-motion: reduce) {
+	.zg-menu-panel .zg-panel-drawer.is-opening { animation: none; }
+}
+
+/* SELECTION, THE WAY THE SIDEBAR DOES IT: a rounded band that spans the
+   pane, covering the indentation guide, with the text where the indent
+   put it.
+
+   Two wrong turns are worth recording. First the row itself was stretched
+   with a 100vw negative margin and matching padding — which put every
+   chevron a screen-width off to the left, because Obsidian's collapse
+   icon sits IN THE ROW'S OWN PADDING. Then the band was moved to a
+   pseudo-element inset by -100vw, which fixed the chevrons and threw the
+   ROUNDED CORNERS off-screen with them: a shape you cannot see is not a
+   shape.
+
+   The bleed is BOUNDED now — exactly the indent the tree gave the drawer,
+   no more — so the band reaches the pane's edge and its corners are
+   still on it. Top-level rows already span the list and need nothing. */
+.zg-menu-panel .zg-menu-row,
+.zg-menu-panel .zg-menu-sub {
+	border-radius: var(--radius-s, 4px);
+}
+/* THE ROOT DRAWS NO GUIDE. Wearing the explorer's `mod-root` wrapper
+   brought its children container with it — and that container is a
+   `tree-item-children` like any other, so it drew an indentation guide
+   down the whole list. In the file tree that line is invisible because
+   the root's container is flush with the pane; here it landed a few
+   pixels in and read as a stray vertical beside every row.
+   
+   A guide means "these belong to the row above them", and the root has no
+   row above it. Suppressed, and its indent with it: top-level entries
+   are not children of anything. */
+.zg-menu-panel .mod-root > .tree-item-children {
+	margin-left: 0;
+	padding-left: 0;
+	border-left: none;
+}
+.zg-menu-panel .mod-root > .tree-item-children::before {
+	display: none;
+}
+
+/* THE DRAWER IS THE TREE'S OWN CHILDREN CONTAINER, and now that the list
+   around it is a `nav-files-container`, Obsidian draws its indent AND its
+   guide exactly as it draws the file tree's. Everything that used to be
+   here — a padded container, a hand-placed ::before, two named distances
+   derived from the chevron — was an imitation of that, and each version
+   sat a pixel or two from where the tree's line does.
+
+   The lesson, for the fourth time in this pane: the app's containers, not
+   the app's numbers. */
+
+/* AN ITEM THAT IS OFF DIMS ITS OWN TEXT, NOT ITS HIGHLIGHT. `.is-off`
+   carries opacity: 0.4, and opacity fades an element with everything in
+   it — so a selected row that happened to be off showed a washed-out
+   band, and the selection looked like it changed colour depending on
+   what it landed on. The label and the swatch dim; the row does not. */
+.zg-menu-panel .zg-menu-sub.is-off { opacity: 1; }
+.zg-menu-panel .zg-menu-sub.is-off .zg-picker-label,
+.zg-menu-panel .zg-menu-sub.is-off .zg-picker-dot,
+.zg-menu-panel .zg-menu-sub.is-off .zg-picker-icon { opacity: 0.4; }
+
+/* The panel itself must not scroll sideways because of that bleed. */
+.zg-menu-panel,
+.zg-menu-panel .zg-menu-list { overflow-x: hidden; }
+/* THE GUIDE IS THE TREE'S OWN. `tree-item-children` carries both the
+   indent and the indentation guide in every current Obsidian and in
+   every theme that restyles them — which is why three attempts at
+   placing a border by hand each landed in a different wrong place.
+   Nothing here: the class on the element is the whole implementation,
+   and a rule of ours could only fight it. (A `:not(:has(...))` fallback
+   was written and removed on sight — selfcarry_probe bans :has in this
+   stylesheet for good reason, and caught it.) */
+.zg-menu-panel .zg-menu-sub {
+	/* Nothing: `tree-item-self` and `nav-file-title` dress it, exactly as
+	   they dress a file in the tree above. */
+	min-width: 0;
+}
+
+/* THE PANE IS A COLUMN: a header that holds still, and a list that
+   scrolls under it. The finder was inside the scrolling list and inset by
+   a few pixels — so it was both narrower than the file tree's and carried
+   away by the scroll, while the tree's stays put with the scrollbar
+   starting beneath it. */
+.zg-menu-panel {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.zg-menu-panel .zg-menu-header { flex: none; }
+.zg-menu-panel .zg-menu-list {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+/* Full width, like the tree's: the app's own search container supplies
+   the shape, and the only measurement here is the breathing room under
+   it. An inset of our own is what made it visibly shorter. */
+/* The finder sits in `nav-buttons-container`, the strip the tree's own
+   header controls live in, so its side margins are the app's and the two
+   fields start and end together. Three attempts set that inset by hand
+   and each landed somewhere the tree's did not. */
+.zg-menu-panel .zg-menu-searchwrap { width: 100%; }
+.zg-menu-panel .zg-menu-search { width: 100%; }
+.zg-menu-panel .zg-menu-search {
+	font-family: inherit;
+	font-size: inherit;
+	width: 100%;
+}
+
+/* THE LABEL TAKES THE ROW'S COLOUR AND WEIGHT, which is the app's. The
+   pop-up's own label rule sets `color: var(--text-normal)` and a semibold
+   weight — right in a floating palette, and beside a file tree it made
+   every row brighter and heavier than the files above it. Inheriting is
+   the whole fix: `tree-item-self` already carries what a nav row should
+   look like, including how it changes on hover and when selected. */
+.zg-menu-panel .zg-menu-label {
+	color: inherit;
+	font-weight: inherit;
+}
+/* Same for a drawer item's label and its swatch. */
+.zg-menu-panel .zg-picker-label { color: inherit; }
+.zg-menu-panel .zg-picker-icon,
+.zg-menu-panel .zg-picker-dot { flex: none; }
+.zg-menu-panel .zg-menu-row.is-active .zg-menu-label,
+.zg-menu-panel .zg-menu-row:hover .zg-menu-label {
+	font-weight: var(--nav-item-weight-active, var(--nav-item-weight, normal));
+}
+.zg-menu-panel:focus,
+.zg-menu-panel:focus-visible { outline: none; }
 
 /* The line that owns an open drawer keeps its cell lit while the drawer
    sits below it, so the two read as one thing. */

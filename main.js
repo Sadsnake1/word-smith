@@ -4,7 +4,7 @@
 // isMobileApp(), which falls back to the body class: the harness stubs
 // `obsidian` with a fixed list of exports, so anything new arrives here as
 // `undefined` rather than as a throw, and must be treated as absent.
-const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon, Platform } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon, Platform, ItemView, addIcon } = require('obsidian');
 
 // Path picker for the scope list. Defined conditionally because `class X
 // extends undefined` throws at definition time, and FuzzySuggestModal is not
@@ -43,6 +43,601 @@ const MENU_MAX_COLS = 5;
 // newest menu is the one on screen, so the newest listener is the one
 // that answers; every other returns at once.
 let ZG_MENU_ESC = null;
+
+// ── The docked menu ─────────────────────────────────────────────────────────
+// The same rows as the pop-up, in a leaf: dockable under the file tree,
+// stacked with the outline, remembered in the workspace layout, and — the
+// point of it — reachable with the quick-cycle direction keys like any
+// other pane.
+//
+// ONE COLUMN, AND NO FINDER, deliberately. A sidebar is narrow and tall:
+// bands of five would be unreadable at 280px, and a search field is what
+// the pop-up is FOR — summon it, type, gone. A panel you keep open is for
+// reaching things by eye and by arrow, not for querying.
+//
+// Guarded like the other Obsidian classes here: `extends undefined` throws
+// at definition time, and the harness stubs a bare 'obsidian'.
+const WS_MENU_VIEW = 'word-smith-menu';
+
+// THE MARK, as an icon Obsidian can draw anywhere it draws icons — the
+// leaf's tab, its header, the quick-switcher. A serif W: the ribbon wears
+// the same letter as live text, but a view icon has to be a registered
+// SVG path, and Lucide's `type` (a T) is a perfectly good icon for
+// somebody else's plugin.
+//
+// A PATH rather than a font glyph, because this one is drawn by Obsidian
+// into contexts we do not style — currentColor and a 100x100 viewBox are
+// the contract. Traced as strokes so it keeps its serifs at 16px, where a
+// hairline serif on a filled letterform disappears.
+const WS_ICON = 'word-smith-w';
+const WS_ICON_SVG =
+	'<g fill="none" stroke="currentColor" stroke-width="9" ' +
+	'stroke-linecap="square" stroke-linejoin="miter">' +
+	// The W itself: four strokes, the middle apex stopping short of the
+	// cap line the way a serif W's does.
+	'<path d="M18 26 L34 74 L50 38 L66 74 L82 26" />' +
+	// Serifs: a bracket at each terminal, which is the whole difference
+	// between this and a sans W at icon size.
+	'<path d="M8 26 H28" /><path d="M72 26 H92" />' +
+	'</g>';
+const WsMenuView = ItemView ? class extends ItemView {
+	constructor(leaf, plugin) { super(leaf); this.plugin = plugin; }
+	getViewType()    { return WS_MENU_VIEW; }
+	getDisplayText() { return 'Word-Smith'; }
+	// The plugin's own mark, registered at load — `type` is Lucide's T,
+	// which is a perfectly good icon for somebody else's plugin.
+	getIcon()        { return WS_ICON; }
+
+	async onOpen() {
+		this.render();
+		// THE KEYBOARD. A leaf only answers while it has focus, so this
+		// needs none of the pop-up's arbitration: no scope to fight over,
+		// no vim gate, no letters standing in for arrows. The container is
+		// focusable and the keys are its own — which is why quick-cycling
+		// INTO the panel and then pressing down does what it looks like it
+		// should.
+		//
+		// hjkl steer here unconditionally, unlike in the pop-up: there is
+		// no field competing for them unless the finder itself has focus,
+		// and that case is checked first.
+		this.contentEl.setAttribute('tabindex', '-1');
+		// While a press is in progress inside this panel, a redraw asked
+		// for by anything else waits — see refreshMenuPanels. Registered
+		// on the document rather than the container so a release outside
+		// the panel still clears the flag; a stuck flag would freeze the
+		// panel's live state for the rest of the session.
+		this.contentEl.addEventListener('pointerdown', () => {
+			this.plugin._panelPointerDown = true;
+		});
+		const release = () => {
+			if (!this.plugin._panelPointerDown) return;
+			this.plugin._panelPointerDown = false;
+			if (!this.plugin._panelRefreshPending) return;
+			this.plugin._panelRefreshPending = false;
+			// AFTER THE CLICK, not on pointerup. `click` fires after
+			// `pointerup`, so redrawing here replaced the element between
+			// the two — which is the very bug this deferral was written to
+			// fix, moved a few milliseconds later. A timeout of 0 puts the
+			// redraw in the next task, by which time the click has been
+			// delivered and the row has done what it was pressed to do.
+			setTimeout(() => this.plugin.refreshMenuPanelsNow(), 0);
+		};
+		document.addEventListener('pointerup', release, true);
+		document.addEventListener('pointercancel', release, true);
+		this._releasePanelPointer = release;
+		this.contentEl.addEventListener('keydown', (e) => {
+			const typing = this.contentEl.querySelector('.zg-menu-search')
+				=== document.activeElement;
+			const k = e.key;
+			const vim = !typing && 'hjkl'.includes(k);
+			if (!['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Enter', 'Escape'].includes(k)
+				&& !vim) return;
+			const rows = this.navItems();
+			if (!rows.length) return;
+			const step = (d) => {
+				this._at = Math.max(0, Math.min((this._at || 0) + d, rows.length - 1));
+				this.paint(true);
+			};
+			if (k === 'ArrowDown' || k === 'j') { e.preventDefault(); step(1); return; }
+			if (k === 'ArrowUp'   || k === 'k') { e.preventDefault(); step(-1); return; }
+			if (k === 'Enter' || k === 'ArrowRight' || k === 'l') {
+				e.preventDefault();
+				const cur = rows[this._at || 0];
+				if (cur) cur.click();
+				return;
+			}
+			if (k === 'ArrowLeft' || k === 'h') {
+				// Out of the row the selection is in, and no further: a
+				// panel has nothing to back out TO, unlike a pop-up that
+				// can close. Only THAT row closes — the others a writer
+				// opened are none of this keystroke's business.
+				e.preventDefault();
+				const cur = rows[this._at || 0];
+				const owner = cur && cur.closest && cur.closest('.zg-menu-item');
+				const id = owner && owner.dataset ? owner.dataset.rowId : null;
+				if (id && this._openSet.has(id)) { this._openSet.delete(id); this.render(); }
+				return;
+			}
+			if (k === 'Escape') {
+				e.preventDefault();
+				if ((this._q || '').trim()) { this._q = ''; this.render(); return; }
+				// Escape closes them all: it is the "put this away" key,
+				// and putting one of five away is not what it means.
+				if (this._openSet.size) { this._openSet.clear(); this.render(); }
+			}
+		});
+	}
+	async onClose() {
+		// The document listeners are ours and outlive the leaf otherwise.
+		try {
+			if (this._releasePanelPointer) {
+				document.removeEventListener('pointerup', this._releasePanelPointer, true);
+				document.removeEventListener('pointercancel', this._releasePanelPointer, true);
+			}
+		} catch (_) {}
+		try { this.plugin._panelPointerDown = false; } catch (_) {}
+	}
+
+	// HAND THE EDITOR BACK AFTER ACTING. Every mode this panel toggles is
+	// applied to the ACTIVE editor — the letterbox masks it, the
+	// typewriter scrolls it, Hemingway locks its keys — and clicking a
+	// row in a docked leaf makes the PANEL active, so the toggle flipped
+	// and nothing on screen changed until the writer clicked back into
+	// their note. That reads as a broken switch.
+	//
+	// The pop-up never had this problem: it closes on the way out and
+	// focus returns by itself. A panel does not close, so it has to give
+	// the editor back on purpose.
+	// THE PANEL KEEPS THE FOCUS IT WAS GIVEN.
+	//
+	// It used to hand the editor back after every toggle, so a mode
+	// applied to the active editor would visibly apply. That fixed the
+	// symptom and broke the pane: a writer who quick-cycled INTO the panel
+	// was thrown out of it by their own first keystroke, with no way to
+	// stay and press a second. A pane you cannot remain in is not a pane.
+	//
+	// So the toggle applies the plugin's own state instead of moving the
+	// writer. `applyAll` is the same pass the settings tab runs after a
+	// change; it repaints from the REMEMBERED note (activeMarkdownView),
+	// which is exactly the lookup that made the Report work from here.
+	// Alt+direction is how you leave, the same as any other pane.
+	returnFocus() {
+		// `refresh()` is the plugin's own full apply pass — the same one
+		// `saveSettings(true)` runs. Every picker item already saves, so
+		// this is belt and braces for a row toggle that changes app state
+		// without going through settings (light/dark), and it costs a
+		// repaint nobody will see twice.
+		try { if (this.plugin.refresh) this.plugin.refresh(); } catch (_) {}
+	}
+
+	// WHAT CHANGED, WITHOUT REBUILDING WHAT DID NOT.
+	//
+	// Every state change used to call render(), which empties the panel and
+	// draws it again — so an open drawer was destroyed and recreated, and
+	// its opening animation replayed. On screen that is a folder closing
+	// and opening again under the pointer, which is what the vault filmed.
+	//
+	// A toggle changes what the rows SAY, not what they ARE: the counts on
+	// the right, and which drawer items read as on. Both are rewritten in
+	// place here, leaving every element — and every animation that has
+	// already played — alone.
+	refreshStates() {
+		const specs = this.plugin.menuRowSpecs();
+		const label = (row) => (typeof row.label === 'function' ? row.label() : row.label);
+		for (const node of Array.from(this.contentEl.querySelectorAll('.zg-menu-item'))) {
+			const id = node.dataset ? node.dataset.rowId : null;
+			const row = specs.find(r => r.id === id);
+			if (!row) continue;
+			const el = node.querySelector('.zg-menu-row');
+			if (!el) continue;
+			const lab = el.querySelector('.zg-menu-label');
+			if (lab) lab.textContent = label(row);
+			const state = el.querySelector('.zg-menu-state');
+			if (row.items && state) {
+				const its = row.items();
+				if (row.count !== false) {
+					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
+					state.textContent = on ? String(on) + ' on' : 'off';
+				} else {
+					const cur = its.find(i => (typeof i.on === 'function' ? i.on() : i.on));
+					if (cur) state.textContent = cur.label;
+				}
+			}
+			// The drawer's own rows, matched BY POSITION against the
+			// picker's list: the two are drawn from the same call in the
+			// same order, and a toggle changes what an item reports, never
+			// how many there are.
+			const subs = Array.from(node.querySelectorAll('.zg-menu-sub'));
+			if (subs.length && row.items) {
+				const its = row.items();
+				subs.forEach((sub, i) => {
+					const it = its[i];
+					if (!it) return;
+					const on = (typeof it.on === 'function' ? it.on() : it.on);
+					sub.toggleClass('is-off', !on);
+				});
+			}
+		}
+		this.paint();
+	}
+
+	// The children of an open row, built into the tree's own container.
+	// Called from render() and from the in-place toggle alike, so the two
+	// cannot draw a drawer differently — which is exactly the drift that
+	// made keeping this inline a bad idea once the toggle stopped
+	// re-rendering.
+	drawDrawer(node, row) {
+		// NO `zg-menu-drawer` HERE. That class belongs to the pop-up, and
+		// its rules — written for a centred, height-capped block floating
+		// over a note — were landing on the panel and cancelling the very
+		// geometry the tree supplies: `margin-inline: 0` overrode the
+		// `margin-left` Obsidian uses to PLACE the indentation guide, which
+		// is why the line kept sitting in the wrong column however the
+		// numbers were adjusted. The panel's container is tree classes and
+		// nothing else, plus a hook of its own for the opening animation.
+		const box = node.createDiv({
+			cls: 'tree-item-children nav-folder-children zg-panel-drawer is-opening'
+		});
+		// `is-opening` carries BOTH the growth animation and the clipping
+		// it needs, and is dropped the moment the animation ends. The clip
+		// cannot be permanent: a selected row paints to the pane's edge
+		// (see the full-bleed rule), and a container that clips forever
+		// would cut that bleed off at the drawer's own indent, leaving the
+		// highlight stopping short of the edge the file tree reaches.
+		const done = () => {
+			box.removeClass('is-opening');
+			box.removeEventListener('animationend', done);
+		};
+		box.addEventListener('animationend', done);
+		// A build with animations off never fires animationend, so the
+		// class would stick and clip for ever.
+		setTimeout(done, 600);
+		return this.fillDrawer(box, row);
+	}
+
+	// The rows inside a drawer. Split from drawDrawer so an opening and a
+	// redraw share one body — the two差 only in whether they animate.
+	fillDrawer(box, row) {
+		for (const item of row.items()) {
+			const isOn = (typeof item.on === 'function' ? item.on() : item.on);
+			const kid = box.createDiv({ cls: 'tree-item nav-file' });
+			const sub = kid.createDiv({
+				cls: 'tree-item-self is-clickable nav-file-title'
+					+ ' zg-menu-sub zg-picker-row' + (isOn ? '' : ' is-off')
+			});
+			if (item.color) {
+				const dot = sub.createSpan({ cls: 'zg-picker-dot' });
+				if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
+			}
+			if (item.icon) {
+				const ic = item.icon();
+				ic.classList.add('zg-picker-icon');
+				sub.appendChild(ic);
+			}
+			const lab = sub.createSpan({ cls: 'zg-picker-label', text: item.label });
+			if (item.font) lab.style.fontFamily = item.font;
+			sub.addEventListener('click', async () => {
+				const idx = this.navItems().indexOf(sub);
+				if (idx >= 0) this._at = idx;
+				if (item.onClick) await item.onClick();
+				// In place: a full render would tear this drawer down and
+				// build it again, replaying its opening animation under
+				// the pointer that just pressed it.
+				this.refreshStates();
+				// The mode was applied to the editor; give the editor back
+				// so the writer can see it happen.
+				this.returnFocus();
+			});
+		}
+		return box;
+	}
+
+	// Everything selectable on screen, in the order it is drawn — rows and
+	// the items of an open drawer alike, because the writer walking down
+	// with an arrow does not distinguish them.
+	navItems() {
+		return [...this.contentEl.querySelectorAll('.zg-menu-row, .zg-menu-sub')];
+	}
+
+	paint(scroll) {
+		const rows = this.navItems();
+		rows.forEach((el, i) => el.toggleClass('is-active', i === (this._at || 0)));
+		// SCROLL ONLY WHEN A KEY MOVED THE SELECTION. paint() runs after
+		// every click and every redraw too, and the selection it scrolls to
+		// is wherever the ARROWS last were — so clicking a row halfway down
+		// the panel yanked the view back up to a selection the writer had
+		// not touched. A key press knows it moved something; a click knows
+		// where it was aimed. Only the first has any business scrolling.
+		if (!scroll) return;
+		const cur = rows[this._at || 0];
+		if (cur && cur.scrollIntoView) {
+			try { cur.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+		}
+	}
+
+	render() {
+		const plugin = this.plugin;
+		const root = this.contentEl;
+		root.empty();
+		if (this._at == null) this._at = 0;
+		// A SET, not one id. The file tree keeps every folder you opened
+		// open; closing one because you opened another is a pop-up habit,
+		// where space is short and only one thing can be the subject. A
+		// pane has room, and a writer who opens Modes and Theme means to
+		// see both.
+		if (!this._openSet) this._openSet = new Set();
+		root.addClass('zg-menu-panel');
+		// The panel wears the menu's own classes, so one stylesheet
+		// dresses both and a change to the pop-up cannot leave the panel
+		// behind.
+		// THE FINDER SITS ABOVE THE SCROLL, like the file tree's. In the
+		// pop-up it is a layout entry and renders wherever its card was
+		// dropped — but a pop-up does not scroll. A pane does, and a
+		// finder that scrolls away with the rows is a finder you have to
+		// go back up for; the tree's own sits in a header with the scroll
+		// starting beneath it, full width.
+		//
+		// So the panel PINS it: still only present when the layout carries
+		// the Search card, still removed when that card is shelved, but
+		// always at the top. The card's position is a pop-up decision, and
+		// this is the one place the two surfaces are allowed to differ.
+		// THE FILE EXPLORER'S OWN CONTAINERS, not just its row classes.
+		// Every remaining difference — row height, text colour, the
+		// scrollbar's position, the guide lines, the search field's width
+		// — came from styling those things myself while the tree got them
+		// from `nav-header` and `nav-files-container`. Wearing the
+		// containers means the app supplies all of it, and every rule of
+		// ours that was imitating one could go.
+		const header = root.createDiv({ cls: 'zg-menu-header nav-header' });
+		const list = root.createDiv({
+			cls: 'zg-menu-list nav-files-container node-insert-event'
+		});
+		// THE ROOT WRAPPER. Obsidian's explorer does not put its folders
+		// straight into the scroller: they sit in a `mod-root` tree item
+		// whose children container holds the whole tree. Several of the app's
+		// rules are written against that SHAPE — the indentation guides among
+		// them — so getting the classes right and the structure wrong is
+		// where the last few pixels of difference kept coming from.
+		const rootItem = list.createDiv({ cls: 'tree-item nav-folder mod-root' });
+		const rows = rootItem.createDiv({ cls: 'tree-item-children nav-folder-children' });
+		const specs = plugin.menuRowSpecs();
+		const label = (row) => (typeof row.label === 'function' ? row.label() : row.label);
+
+		// THE FINDER, on trial. It was left out on the reasoning that a
+		// search field is what the pop-up is for — summon, type, gone —
+		// and that a pane you keep open is for reaching things by eye. That
+		// is an argument, not evidence, so here it is to be judged in use.
+		//
+		// It sits WHERE THE LAYOUT PUTS IT, like every other entry, and its
+		// value survives a re-render: the panel redraws on every click and
+		// on every theme change, and a query that vanished when a mode
+		// flipped would be worse than no finder at all.
+		const q = (this._q || '').trim().toLowerCase();
+
+		for (const id of plugin.menuVisibleLayout()) {
+			if (id === 'search') {
+				// Wrapped the way Obsidian wraps its own: the magnifying
+				// glass is drawn by `search-input-container`, not by the
+				// input — which is why a bare field looked like a text box
+				// beside the file tree's search. In the HEADER, so the
+				// scroll starts under it.
+				// `nav-buttons-container` is the strip the tree's own header
+				// controls sit in, and it carries the side margins that
+				// make the field start and end where the tree's does.
+				const bar = header.createDiv({ cls: 'nav-buttons-container' });
+				const wrap = bar.createDiv({ cls: 'zg-menu-searchwrap search-input-container' });
+				const inp = wrap.createEl('input', { cls: 'zg-menu-search' });
+				inp.type = 'search';
+				// Three dots, not an ellipsis: the file tree's search says
+				// "Search..." and a panel beneath it saying "Search…" is one
+				// of those differences you cannot unsee once noticed.
+				inp.placeholder = 'Search...';
+				inp.value = this._q || '';
+				inp.addEventListener('input', () => {
+					this._q = inp.value;
+					this.render();
+					// Focus and caret restored by hand: the panel rebuilds
+					// its whole list on every keystroke, so the field the
+					// writer is typing into is a NEW element each time.
+					const next = this.contentEl.querySelector('.zg-menu-search');
+					if (next) {
+						try {
+							next.focus();
+							next.setSelectionRange(next.value.length, next.value.length);
+						} catch (_) {}
+					}
+				});
+				continue;
+			}
+			if (/^rule-\d+$/.test(id)) {
+				rows.createDiv({ cls: 'zg-menu-rule is-' + plugin.menuRuleStyle(id) });
+				continue;
+			}
+			if (q) continue;   // results are drawn below, in place of the rows
+			const row = specs.find(r => r.id === id)
+				|| (plugin.menuIsCommand(id) && plugin.menuCommandFor(id) ? {
+					id,
+					label: plugin.menuAliasOf(id),
+					full: plugin.menuCommandName(id),
+					wide: true,
+					run: () => {
+						try { plugin.app.commands.executeCommandById(plugin.menuCommandId(id)); }
+						catch (_) {}
+					}
+				} : null);
+			if (!row) continue;
+
+			// OBSIDIAN'S OWN TREE MARKUP. Every attempt to MATCH the file
+			// tree's metrics by hand — padding, chevron offset, guide
+			// position — landed a few pixels out, because the tree is
+			// built from `tree-item` / `tree-item-self` / `tree-item-inner`
+			// and those carry indents, hover shapes and guide offsets that
+			// no reimplementation gets right by measuring a screenshot.
+			// Wearing the classes means the app supplies all of it, and a
+			// theme that moves any of it moves the panel too.
+			//
+			// ONE COLUMN still: `is-wide` is a pop-up idea (centred footer
+			// rows) and would centre half a sidebar.
+			// `node`, not `item`: the drawer loop below binds `item` for each
+			// picker entry, and naming the tree node the same thing meant
+			// the container was built on whichever picker item happened to
+			// be in scope. It cost two probe failures and would have cost a
+			// vault a panel with no children in it.
+			const node = rows.createDiv({ cls: 'tree-item nav-folder zg-menu-item' });
+			// The row's id on the element, so a keystroke standing on a
+			// drawer item can find the row that owns it.
+			try { node.dataset.rowId = row.id; } catch (_) {}
+			const el = node.createDiv({
+				cls: 'tree-item-self is-clickable zg-menu-row'
+					+ (row.items ? ' mod-collapsible nav-folder-title' : ' nav-file-title')
+			});
+			if (row.full) {
+				el.setAttribute('title', row.full);
+				el.setAttribute('aria-label', row.full);
+			}
+			// A CHEVRON on anything that opens, turned down when it is
+			// open — the same affordance Obsidian's own file tree and
+			// outline use, so a writer already knows what it means. Rows
+			// that ACT rather than open get a spacer of the same width,
+			// or every label in the panel would sit at a different
+			// left edge.
+			// OBSIDIAN'S OWN TRIANGLE, in Obsidian's own wrapper class, so
+			// it is the same size and the same shape as the file tree's
+			// rather than a › that resembles one. `collapse-icon` is what
+			// the app styles; `is-collapsed` is how it says which way the
+			// triangle points.
+			// `tree-item-icon` is the box the tree reserves for the
+			// triangle; `collapse-icon` is what draws and rotates it. Both,
+			// or the label starts at a different place from the tree's.
+			if (row.items) {
+				const chev = el.createDiv({
+					cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
+						+ ' zg-menu-chev'
+						+ (this._openSet.has(row.id) ? '' : ' is-collapsed')
+				});
+				try { if (setIcon) setIcon(chev, 'right-triangle'); } catch (_) {}
+			} else {
+				el.createDiv({
+					cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
+						+ ' zg-menu-chev is-blank'
+				});
+			}
+			el.createDiv({
+				cls: 'tree-item-inner nav-folder-title-content zg-menu-label',
+				text: label(row)
+			});
+			if (row.items && row.count !== false) {
+				const its = row.items();
+				const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
+				el.createSpan({ cls: 'zg-menu-state', text: on ? String(on) + ' on' : 'off' });
+			} else if (row.items) {
+				const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
+				if (cur) el.createSpan({ cls: 'zg-menu-state', text: cur.label });
+			}
+			el.addEventListener('click', async () => {
+				// The selection follows the pointer, so the next arrow
+				// press continues from where the writer is looking rather
+				// than from wherever the keyboard was left.
+				const idx = this.navItems().indexOf(el);
+				if (idx >= 0) this._at = idx;
+				if (row.toggle) { row.toggle(); this.refreshStates(); this.returnFocus(); return; }
+				if (row.run)    { row.run(); return; }
+				// OPENED IN PLACE, not by re-rendering. A CSS transition
+				// needs the SAME element to change state — and a full
+				// render replaces the chevron with a fresh one, which has
+				// no previous rotation to animate from. That is why the
+				// panel's triangles snapped while the file tree's beside
+				// them turned.
+				//
+				// So the class is toggled on the chevron that is already
+				// on screen, and the children container is added or
+				// removed beneath it. Everything else the row draws is
+				// left alone, which is also why the row does not flicker.
+				// Opening one row no longer closes another: every folder a
+				// writer opens stays open, exactly as the tree's do.
+				const opening = !this._openSet.has(row.id);
+				if (opening) this._openSet.add(row.id);
+				else this._openSet.delete(row.id);
+				const chev = el.querySelector('.zg-menu-chev');
+				if (chev) {
+					if (opening) chev.removeClass('is-collapsed');
+					else chev.addClass('is-collapsed');
+				}
+				if (opening) {
+					node.addClass('is-open');
+					this.drawDrawer(node, row);
+				} else {
+					node.removeClass('is-open');
+					const kids = node.querySelector('.tree-item-children');
+					if (kids) kids.remove();
+				}
+				this.paint();
+			});
+
+			if (this._openSet.has(row.id) && row.items) {
+				node.addClass('is-open');
+				this.drawDrawer(node, row);
+			}
+		}
+
+		// RESULTS, when a query is typed: rows and their items at once,
+		// each naming the row it came from — the same rule the pop-up
+		// keeps, so a writer who learns one has learned the other.
+		if (q) {
+			const hits = [];
+			for (const id of plugin.menuVisibleLayout()) {
+				const row = specs.find(r => r.id === id);
+				if (!row) continue;
+				const lab = label(row);
+				if (row.run || row.toggle) {
+					const sc = Math.max(barMenuFuzzy(q, lab),
+						row.keywords ? barMenuFuzzy(q, row.keywords) - 1 : -1);
+					if (sc >= 0) hits.push({ sc, kind: 'row', row, label: lab });
+				}
+				if (!row.items) continue;
+				for (const item of row.items()) {
+					const sc = Math.max(barMenuFuzzy(q, item.label),
+						barMenuFuzzy(q, lab + ' ' + item.label) - 2);
+					if (sc >= 0) hits.push({ sc, kind: 'item', item, from: lab });
+				}
+			}
+			hits.sort((a, b) => b.sc - a.sc);
+			for (const h of hits.slice(0, 12)) {
+				const isOn = h.kind === 'item'
+					&& (typeof h.item.on === 'function' ? h.item.on() : h.item.on);
+				const sub = list.createDiv({
+					cls: 'zg-menu-sub zg-picker-row zg-menu-result'
+						+ (h.kind === 'item' && !isOn ? ' is-off' : '')
+				});
+				if (h.kind === 'item' && h.item.color) {
+					const dot = sub.createSpan({ cls: 'zg-picker-dot' });
+					if (h.item.color !== 'currentColor') dot.style.backgroundColor = h.item.color;
+				}
+				sub.createSpan({ cls: 'zg-picker-label',
+					text: h.kind === 'row' ? h.label : h.item.label });
+				if (h.kind === 'item') sub.createSpan({ cls: 'zg-menu-in', text: h.from });
+				sub.addEventListener('click', async () => {
+					if (h.kind === 'item') {
+						if (h.item.onClick) await h.item.onClick();
+						this.render();
+						this.returnFocus();
+						return;
+					}
+					if (h.row.toggle) { h.row.toggle(); this.render(); this.returnFocus(); return; }
+					if (h.row.run) h.row.run();
+				});
+			}
+			if (!hits.length) list.createDiv({ cls: 'zg-menu-empty', text: 'Nothing matches' });
+		}
+
+		// The selection survives the redraw, clamped to what is left: a
+		// row that opened a drawer has more below it than it did, and a
+		// query has fewer.
+		const n = this.navItems().length;
+		if (n) this._at = Math.max(0, Math.min(this._at, n - 1));
+		this.paint();
+	}
+} : null;
 
 // TOMBSTONE (1.3.0): a WsCommandSuggestModal picked the command to pin for
 // exactly one build. Obsidian's settings window is ITSELF a modal, and
@@ -1743,7 +2338,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 82;
+const ZG_STYLESHEET_VERSION = 104;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -1753,7 +2348,7 @@ const ZG_STYLESHEET_VERSION = 82;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.1';
+const ZG_PLUGIN_VERSION = '1.3.2';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -2199,6 +2794,12 @@ const DEFAULT_SETTINGS = {
 	// double. A rule is the one thing on this shelf with nothing to say,
 	// so its only setting is how it looks. Absent means solid.
 	menuRuleStyles: {},
+	// The menu as a DOCKED PANEL as well as a pop-up: a leaf you can drag
+	// under the file tree and jump to with quick cycle, rather than a
+	// window you summon and dismiss. Off by default — a plugin that adds a
+	// pane to the workspace uninvited has taken a decision that is the
+	// writer's.
+	menuDock:       false,
 	// The scheme's reach, each independently togglable in the Theme tab.
 	// SIMPLIFIED collapses every surface to the editor's colour (one wash);
 	// off, each surface takes its own step of the theme's ramp. Headings and
@@ -2586,7 +3187,12 @@ const DEFAULT_SETTINGS = {
 	// door — everything the bar's buttons do, reachable from one hotkey — and
 	// a front door that ships locked is a contradiction. The switch exists
 	// for anyone who wants the command out of their palette.
-	barMenu:                  true,
+	// TOMBSTONE (1.3.2): `barMenu` gated whether the Menu command existed
+	// at all. It shipped true, nobody had a reason to turn it off, and the
+	// ribbon button and the docked panel both go through the menu — so the
+	// switch offered to break two other things to remove one palette entry
+	// that Obsidian's Hotkeys pane can hide anyway. A saved value is
+	// unread.
 	quickCycle:               false,
 	// A sub-option of quickCycle, and off by default because it is the more
 	// opinionated half: the sidebar you walked out of shuts behind you.
@@ -3174,6 +3780,21 @@ module.exports = class WordSmith extends Plugin {
 		this.setupBattery();
 
 		// Commands
+		// The panel: registered whenever the setting is on, so a workspace
+		// saved with the pane open restores it at startup rather than
+		// needing the writer to open it again.
+		if (this.settings.menuDock) this.registerMenuPanel();
+		this.addCommand({
+			id: 'open-menu-panel',
+			name: 'Open the Word-Smith panel',
+			callback: async () => {
+				if (!this.settings.menuDock) {
+					new Notice('Word-Smith: switch on the panel in Settings \u2192 Menu first.');
+					return;
+				}
+				await this.openMenuPanel(true);
+			}
+		});
 		this.addCommand({
 			id: 'toggle-retro-bar',
 			name: 'Toggle the powerline bar on/off',
@@ -3298,11 +3919,7 @@ module.exports = class WordSmith extends Plugin {
 		this.addCommand({
 			id: 'open-menu',
 			name: 'Menu',
-			checkCallback: (checking) => {
-				if (!this.settings.barMenu) return false;
-				if (!checking) this.openBarMenu();
-				return true;
-			}
+			callback: () => this.openBarMenu()
 		});
 
 		for (const dir of ['left', 'right', 'up', 'down']) {
@@ -3317,6 +3934,10 @@ module.exports = class WordSmith extends Plugin {
 			});
 		}
 
+		// The mark, registered before anything can ask for it.
+		try { if (addIcon) addIcon(WS_ICON, WS_ICON_SVG); } catch (_) {}
+		// The icon first: the ribbon is about to ask for it by name.
+		this.registerWsIcon();
 		// "WS" badge ribbon button — OPENS THE MENU. (It toggled the whole
 		// plugin until 1.3.0; this comment said so for a while after it
 		// stopped being true, which is its own small lesson.) On mobile
@@ -3335,17 +3956,25 @@ module.exports = class WordSmith extends Plugin {
 		this.wsRibbonEl = this.addRibbonIcon('type', 'Open the Word-Smith menu', () => this.openBarMenu());
 		this.wsRibbonEl.addClass('ws-ribbon-btn');
 		this.wsRibbonEl.empty();
-		// A SERIF W, and nothing else. A letter rather than an SVG path so
-		// the form is the reader's own installed face: it scales with the
-		// ribbon, inherits currentColor with every other icon up there,
-		// and cannot go blurry at a size nobody drew it for.
+		// A SERIF W — THE REGISTERED ICON, the same one the docked leaf
+		// wears. It was a styled text span here and a drawn glyph there,
+		// and the two sat one above the other in the sidebar looking
+		// almost but not quite alike. Almost is worse than different.
+		// One icon, set through Obsidian's own setIcon, and the question
+		// cannot come back.
 		//
 		// (An S sat behind it for one build. Two letters in an 18px square
 		// is a monogram at a size that cannot hold one — at ribbon scale
-		// the pair read as a smudge, and the W alone is legible and still
-		// unmistakably the plugin's.)
+		// the pair read as a smudge.)
 		const badge = this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge' });
-		badge.createSpan({ cls: 'ws-ribbon-w', text: 'W' });
+		let iconSet = false;
+		try {
+			if (setIcon) { setIcon(badge, WS_ICON); iconSet = !!badge.querySelector('svg'); }
+		} catch (_) {}
+		// The text span stays as the fallback for a build where the icon
+		// did not register: a blank ribbon button is worse than a letter
+		// that is merely close.
+		if (!iconSet) badge.createSpan({ cls: 'ws-ribbon-w', text: 'W' });
 		this.updateWsRibbonState();
 
 		// Workspace events
@@ -3403,6 +4032,17 @@ module.exports = class WordSmith extends Plugin {
 		// left a scheme's dark half painted onto a light workspace until some
 		// unrelated refresh happened by. See barThemeOnCssChange for why the
 		// cursor bridge is deliberately not resynced from here.
+		// Every leaf change is a chance to note which markdown view is
+		// current, so a panel click later can still answer for it.
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
+			this.rememberActiveMarkdown();
+			// The panel shows live state — word counts, the current mode —
+			// so it redraws when the writer moves, like any other pane.
+			this.refreshMenuPanels();
+		}));
+		this.registerEvent(this.app.workspace.on('file-open', () => {
+			this.rememberActiveMarkdown();
+		}));
 		this.registerEvent(this.app.workspace.on('css-change', () => {
 			this.barThemeOnCssChange();
 		}));
@@ -4708,6 +5348,11 @@ module.exports = class WordSmith extends Plugin {
 	refresh() {
 		this.updateWsRibbonState();
 		if (!this.settings.pluginEnabled) { this.disablePlugin(); this.reconfigureEditors(); return; }
+		// Back on: the ribbon returns, and the panel returns to the side it
+		// was taken from. Both are no-ops when nothing was removed, so this
+		// costs a running plugin nothing.
+		try { if (this.wsRibbonEl) this.wsRibbonEl.style.display = ''; } catch (_) {}
+		this.restoreMenuPanelSpot();
 		// Scope decides what the rest of this method may apply, and the list
 		// may have just changed, so it is resolved first.
 		this._scopeGen++;
@@ -4808,6 +5453,17 @@ module.exports = class WordSmith extends Plugin {
 		this.detachScrollHandler();
 		this.detachResizeHandler();
 		this.applyNativeStatusBarVisibility(false);
+		// THE PANEL AND THE RIBBON GO TOO. A kill switch that leaves a pane
+		// in the sidebar and a button on the ribbon has not switched the
+		// plugin off — it has switched off the parts that were easy to find,
+		// and those two are Word-Smith's most visible surfaces.
+		//
+		// The panel's SIDE is remembered first, so enabling puts it back
+		// where the writer had it rather than in Obsidian's default sidebar.
+		// A pane that returns to the wrong place is its own small insult.
+		this.rememberMenuPanelSpot();
+		this.closeMenuPanel();
+		try { if (this.wsRibbonEl) this.wsRibbonEl.style.display = 'none'; } catch (_) {}
 		// Both caches hold a reference to a CodeMirror document; drop them so
 		// a disabled plugin does not pin one.
 		this._fenceCache = null;
@@ -7792,7 +8448,14 @@ module.exports = class WordSmith extends Plugin {
 			const view = leaf && leaf.view;
 			if (!view) return false;   // no pane at all
 			const type = view.getViewType ? view.getViewType() : '';
-			return type === 'markdown';
+			// AN EMPTY TAB IS A NOTE SURFACE WAITING FOR A NOTE. A canvas,
+			// a PDF or a base is a different KIND of thing and the bar
+			// rightly stands down for them — but a new tab is where a
+			// writer lands between notes, and Obsidian's own bar reappearing
+			// there for a second read as the plugin flickering off. The
+			// bar shows what it can (the clock, the mode, the buttons) and
+			// leaves the file readouts empty, which is what they are.
+			return type === 'markdown' || type === 'empty';
 		} catch (_) { return true; }
 	}
 
@@ -10612,7 +11275,7 @@ module.exports = class WordSmith extends Plugin {
 		modal.titleEl.setText('Writing Report');
 		modal.modalEl.addClass('zg-report-modal');
 
-		const view       = this.app.workspace.getActiveViewOfType(MarkdownView);
+		const view       = this.activeMarkdownView();
 		const file       = view && view.file ? view.file : null;
 		const folderPath = this.activeFolderPath();
 		const baseName   = file ? file.path.split('/').pop() : 'Current note';
@@ -11188,6 +11851,257 @@ module.exports = class WordSmith extends Plugin {
 		this.settings.menuRuleStyles = map;
 	}
 
+	// ── The menu's rows ──────────────────────────────────────────────────────
+	// The one source both surfaces read: the pop-up menu and the docked
+	// panel. It lived inside openBarMenu as a local until the panel existed,
+	// and moving it out is the whole reason the two cannot drift — the same
+	// rows, the same pickers, the same labels, whichever surface a writer
+	// is looking at.
+	menuRowSpecs() {
+		const plugin = this;
+		return [
+		{ id: 'modes',   label: 'Modes',   items: () => plugin.modesPickerItems() },
+		{ id: 'syntax',  label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
+		{ id: 'prose',   label: 'Prose',   items: () => plugin.checksPickerItems() },
+		{ id: 'markers', label: 'Markers', items: () => plugin.markersPickerItems() },
+		{ id: 'font',    label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
+		// Above Theme, because it changes which HALF of a theme you are
+		// looking at: the question "dark or light" comes before the
+		// question "which scheme".
+		//
+		// A TOGGLE, not a drawer. Two items behind an expander is one
+		// keystroke too many for a binary, and the open row always
+		// showed one dead option — the mode you were already in. The
+		// label names WHAT PRESSING IT DOES, so it reads "Light Mode"
+		// while you are dark and "Dark Mode" the moment you are not; a
+		// row that named the current state would leave the writer
+		// guessing whether it was a label or a button.
+		//
+		// `label` is a function here, which is why render resolves it:
+		// the text changes with the app, not with the menu opening.
+		{
+			id: 'lightdark',
+			label: () => plugin.isDarkTheme() ? 'Dark Mode' : 'Light Mode',
+			// Both words, so the finder answers "dark" and "light"
+			// whichever one the label happens to be showing.
+			keywords: 'light dark mode appearance',
+			toggle: () => plugin.barSetColorMode(!plugin.isDarkTheme())
+		},
+		{ id: 'theme',   label: 'Theme',   items: () => plugin.themesPickerItems(), count: false },
+		// These OPEN something rather than setting it — a different
+		// kind of act, still centred (is-wide) so the pair reads as a
+		// footer. The divider that used to be Report's own flag is a
+		// layout entry now: the shipped order carries one rule above
+		// Report, and the Menu tab can move it, delete it, or add more.
+		{ id: 'report',  label: 'Report',  wide: true, reopen: true,
+			run: () => plugin.openReportModal() },
+		{ id: 'history', label: 'History', wide: true, reopen: true,
+			run: () => plugin.openHistoryModal() },
+		];
+	}
+
+	// THE NOTE A PANEL SHOULD ANSWER ABOUT.
+	//
+	// `getActiveViewOfType(MarkdownView)` answers null the moment focus
+	// leaves the editor — and clicking a row in a docked panel does
+	// exactly that, because the panel IS the active leaf. So the Report
+	// opened from the panel found no file and reported on "Current note",
+	// which is the emptiest possible answer to "how long is this?".
+	//
+	// The last markdown view seen is remembered instead, and consulted
+	// when the live one is gone. Obsidian's own `getActiveFile()` keeps
+	// working this way for the same reason — a sidebar click is not a
+	// change of note — so this only teaches the plugin what the app
+	// already believes.
+	rememberActiveMarkdown() {
+		try {
+			const v = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (v && v.file) this._lastMdView = v;
+		} catch (_) {}
+	}
+
+	activeMarkdownView() {
+		try {
+			const v = this.app.workspace.getActiveViewOfType(MarkdownView);
+			if (v && v.file) { this._lastMdView = v; return v; }
+		} catch (_) {}
+		// The remembered one, but only while its leaf is still open and
+		// still holds a file: a view whose tab was closed must not go on
+		// answering for a note nobody is looking at.
+		const last = this._lastMdView;
+		if (last && last.file) {
+			try {
+				const alive = this.app.workspace.getLeavesOfType('markdown')
+					.some(l => l.view === last);
+				if (alive) return last;
+			} catch (_) { return last; }
+		}
+		// Last resort: the app's own idea of the active file, which
+		// survives a sidebar click even when the view lookup does not.
+		try {
+			const f = this.app.workspace.getActiveFile();
+			if (f) return { file: f };
+		} catch (_) {}
+		return null;
+	}
+
+	// ── The docked panel ─────────────────────────────────────────────────────
+	// Registered once, at load, and only while the setting is on: an
+	// unregistered view type in a saved workspace layout is simply skipped
+	// by Obsidian, so switching this off cannot corrupt a layout — the
+	// pane goes, and comes back where it was if the setting returns.
+	// The serif W, drawn. Stroke-based rather than a glyph: an icon has no
+	// text node to hang a font on, and a path is the same shape in every
+	// vault whatever fonts are installed. The two short cross strokes are
+	// the serifs at the top terminals.
+	registerWsIcon() {
+		if (!addIcon || this._wsIconDone) return;
+		this._wsIconDone = true;
+		try {
+			// THE SAME LETTER AS THE RIBBON, and by the same means: a real
+			// glyph in a real serif face. The first version drew a W as
+			// stroked paths and did not match — a hand-drawn W is a
+			// different letter from a typeset one, and the two sat inches
+			// apart where anyone could see it. An <text> node inside the
+			// icon's SVG renders the face the ribbon renders, so they are
+			// the same shape by construction rather than by resemblance.
+			addIcon(WS_ICON,
+				'<text x="50" y="76" text-anchor="middle" fill="currentColor" '
+				+ 'font-size="84" font-weight="500" '
+				+ 'font-family="\'Iowan Old Style\', Georgia, \'Times New Roman\', '
+				+ '\'Liberation Serif\', serif">W</text>');
+		} catch (_) {}
+	}
+
+	registerMenuPanel() {
+		if (!WsMenuView || this._menuPanelRegistered) return;
+		try {
+			this.registerView(WS_MENU_VIEW, (leaf) => new WsMenuView(leaf, this));
+			this._menuPanelRegistered = true;
+		} catch (_) {}
+	}
+
+	// The panel's leaves, however the writer has arranged them — left
+	// sidebar, right, or dragged into the main area.
+	// Which side the panel was on, so switching the plugin back on returns
+	// it there. Kept in memory rather than in settings: it describes THIS
+	// session's workspace, and a saved value would fight the layout
+	// Obsidian itself restores at startup.
+	rememberMenuPanelSpot() {
+		const leaf = this.menuPanelLeaves()[0];
+		if (!leaf) return;
+		this._panelWasOpen = true;
+		this._panelSide = 'left';
+		try {
+			const root = leaf.getRoot && leaf.getRoot();
+			if (root && root === this.app.workspace.rightSplit) this._panelSide = 'right';
+		} catch (_) {}
+	}
+
+	async restoreMenuPanelSpot() {
+		if (!this._panelWasOpen || !this.settings.menuDock) return;
+		this._panelWasOpen = false;
+		try {
+			const leaf = this._panelSide === 'right'
+				? this.app.workspace.getRightLeaf(false)
+				: this.app.workspace.getLeftLeaf(false);
+			if (leaf) await leaf.setViewState({ type: WS_MENU_VIEW, active: false });
+		} catch (_) {}
+	}
+
+	menuPanelLeaves() {
+		try { return this.app.workspace.getLeavesOfType(WS_MENU_VIEW) || []; }
+		catch (_) { return []; }
+	}
+
+	async openMenuPanel(reveal) {
+		if (!WsMenuView || this.settings.menuDock === false) return null;
+		this.registerMenuPanel();
+		let leaf = this.menuPanelLeaves()[0];
+		if (!leaf) {
+			try {
+				leaf = this.app.workspace.getLeftLeaf(false);
+				if (leaf) await leaf.setViewState({ type: WS_MENU_VIEW, active: true });
+			} catch (_) { return null; }
+		}
+		if (leaf && reveal) { try { this.app.workspace.revealLeaf(leaf); } catch (_) {} }
+		return leaf;
+	}
+
+	closeMenuPanel() {
+		for (const leaf of this.menuPanelLeaves()) {
+			try { leaf.detach(); } catch (_) {}
+		}
+	}
+
+	// Every open panel redraws. Called wherever the pop-up would have been
+	// re-rendered by its own click — a mode flipped from the bar must show
+	// in the panel too, or the two surfaces disagree about the same state.
+	// A REDRAW THAT DOES NOT EAT THE CLICK THAT CAUSED IT.
+	//
+	// Clicking a row makes the panel the active leaf, which fires
+	// active-leaf-change, which redrew the panel — BETWEEN MOUSEDOWN AND
+	// MOUSEUP. A click event only fires when both land on the same
+	// element, so the element the writer pressed was gone before they let
+	// go and nothing happened. The second click worked because the leaf
+	// was already active by then and no event fired. That is the whole of
+	// "sometimes I have to click twice".
+	//
+	// So a redraw asked for while a pointer is down inside a panel is
+	// DEFERRED to pointerup. Nothing is skipped — the panel still shows
+	// live state — it simply does not rebuild the ground under a gesture
+	// that is still in progress.
+	refreshMenuPanels() {
+		if (this._panelPointerDown) { this._panelRefreshPending = true; return; }
+		this.refreshMenuPanelsNow();
+	}
+
+	// A REBUILD, unconditionally: the LAYOUT changed, not the state. Used
+	// by the Menu tab, where every edit changes which rows exist — the
+	// note-comparison in refreshMenuPanelsNow would answer "same note,
+	// nothing to redraw" and leave the panel showing the old arrangement.
+	rebuildMenuPanels() {
+		for (const leaf of this.menuPanelLeaves()) {
+			try { if (leaf.view && leaf.view.render) leaf.view.render(); } catch (_) {}
+		}
+	}
+
+	refreshMenuPanelsNow() {
+		// A REBUILD ONLY WHEN THE ROWS WOULD DIFFER. The panel redraws on
+		// active-leaf-change so its counts follow the writer — but
+		// clicking the panel IS an active-leaf-change, and rebuilding then
+		// destroys the drawer the click just opened and replays its
+		// animation. On screen: a folder closing and opening again under
+		// the pointer.
+		//
+		// The note is the only thing a leaf change can alter about these
+		// rows, so it is the whole test. Same note, nothing to rebuild —
+		// the states are refreshed in place instead, which is cheap and
+		// leaves every element where it was.
+		let file = null;
+		try {
+			const v = this.activeMarkdownView();
+			file = v && v.file ? v.file.path : null;
+		} catch (_) {}
+		void file;
+		// NEVER A REBUILD HERE. A note change alters what the rows SAY —
+		// the counts, the current font, the mode — and never which rows
+		// exist; that is the Menu tab's business, and it calls
+		// rebuildMenuPanels for it. Rebuilding on every file-open threw
+		// away open drawers and the scroll position, which is the flicker
+		// the vault filmed when clicking through the file tree.
+		//
+		// The note comparison that used to guard this is gone with it: a
+		// guard is only needed for an act that should sometimes not
+		// happen, and refreshing state is always safe.
+		for (const leaf of this.menuPanelLeaves()) {
+			try {
+				const v = leaf.view;
+				if (v && v.refreshStates) v.refreshStates();
+			} catch (_) {}
+		}
+	}
+
 	openBarMenu() {
 		const plugin = this;
 		const modal = new Modal(this.app);
@@ -11232,45 +12146,7 @@ module.exports = class WordSmith extends Plugin {
 		const searchShown = layout.includes('search');
 		if (!searchShown) search.style.display = 'none';
 
-		const FEATURES = [
-			{ id: 'modes',   label: 'Modes',   items: () => plugin.modesPickerItems() },
-			{ id: 'syntax',  label: 'Syntax',  items: () => plugin.syntaxPickerItems() },
-			{ id: 'prose',   label: 'Prose',   items: () => plugin.checksPickerItems() },
-			{ id: 'markers', label: 'Markers', items: () => plugin.markersPickerItems() },
-			{ id: 'font',    label: 'Font',    items: () => plugin.fontPickerItems(), count: false },
-			// Above Theme, because it changes which HALF of a theme you are
-			// looking at: the question "dark or light" comes before the
-			// question "which scheme".
-			//
-			// A TOGGLE, not a drawer. Two items behind an expander is one
-			// keystroke too many for a binary, and the open row always
-			// showed one dead option — the mode you were already in. The
-			// label names WHAT PRESSING IT DOES, so it reads "Light Mode"
-			// while you are dark and "Dark Mode" the moment you are not; a
-			// row that named the current state would leave the writer
-			// guessing whether it was a label or a button.
-			//
-			// `label` is a function here, which is why render resolves it:
-			// the text changes with the app, not with the menu opening.
-			{
-				id: 'lightdark',
-				label: () => plugin.isDarkTheme() ? 'Light Mode' : 'Dark Mode',
-				// Both words, so the finder answers "dark" and "light"
-				// whichever one the label happens to be showing.
-				keywords: 'light dark mode appearance',
-				toggle: () => plugin.barSetColorMode(!plugin.isDarkTheme())
-			},
-			{ id: 'theme',   label: 'Theme',   items: () => plugin.themesPickerItems(), count: false },
-			// These OPEN something rather than setting it — a different
-			// kind of act, still centred (is-wide) so the pair reads as a
-			// footer. The divider that used to be Report's own flag is a
-			// layout entry now: the shipped order carries one rule above
-			// Report, and the Menu tab can move it, delete it, or add more.
-			{ id: 'report',  label: 'Report',  wide: true, reopen: true,
-				run: () => plugin.openReportModal() },
-			{ id: 'history', label: 'History', wide: true, reopen: true,
-				run: () => plugin.openHistoryModal() },
-		];
+		const FEATURES = plugin.menuRowSpecs();
 		// The rows the layout actually shows, in its order — ri, the index
 		// every keyboard path steers by, is an index into THIS.
 		//
@@ -12169,6 +13045,98 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	// WCAG contrast between two colours parseColorRGB can read.
+	// A SELECTION THE EYE CAN FIND, and text that inverts on it.
+	//
+	// Every scheme's `sel` is its upstream region colour, and upstream
+	// chose those to sit UNDER syntax highlighting in a terminal, where
+	// the surrounding chrome is dark and busy. On a quiet page they read
+	// as a faint wash — the vault sent a screenshot of a light theme
+	// where selected text was barely distinguishable from unselected.
+	//
+	// So the surface is deepened one step away from the page, and the ink
+	// is whichever of the scheme's own inks now reads best on it: on a
+	// light half that darkens toward the text and the ink flips pale, on
+	// a dark half it deepens away from the paper. Both moves come out of
+	// the scheme's OWN colours — nothing invented, and no scheme ends up
+	// wearing a hue it never shipped.
+	//
+	// QUIET IS EXEMPT, by request and on merit: it is a monochrome scheme
+	// whose whole argument is restraint, its selection already inverts,
+	// and deepening a grey toward another grey is how a careful scheme
+	// gets muddied.
+	// WHAT SELECTED TEXT MAY BE WRITTEN IN. The scheme's own body inks
+	// first, because a selection should still look like the scheme — and
+	// then the two extremes, because INVERSION is the point: on a band
+	// deep enough to be found, the text flips to whichever end of the
+	// range reads on it. Six schemes could not be deepened at all while
+	// restricted to their own two inks; allowing the flip is what lets
+	// them move.
+	barSelectionInks(h) {
+		return [h.t1, h.t2, '#ffffff', '#000000'];
+	}
+
+	barSelectionInk(bg, h) {
+		const cands = this.barSelectionInks(h);
+		// THE FLOOR FIRST, THE PREFERENCE SECOND. Among inks that reach
+		// 4.5:1 the earliest wins — the scheme's own before the extremes,
+		// so a theme ink that reads perfectly well is not passed over for
+		// pure white a fraction better and every selection stops looking
+		// alike. Only if NONE reaches the floor does raw contrast decide.
+		//
+		// Written the other way round first, as a nearness tolerance, and
+		// it quietly chose a 4.27 theme ink over a 4.55 white: a
+		// preference that can overrule legibility is not a preference, it
+		// is a bug with a rationale.
+		for (const ink of cands) {
+			if (this.barContrast(ink, bg) >= 4.5) return ink;
+		}
+		let best = cands[0], bestC = -1;
+		for (const ink of cands) {
+			const c = this.barContrast(ink, bg);
+			if (c > bestC) { bestC = c; best = ink; }
+		}
+		return best;
+	}
+
+	barDeepenSelection(hex, paperHex, inks, amount) {
+		const c = parseColorRGB(hex);
+		const paper = parseColorRGB(paperHex);
+		if (!c || !paper) return hex;
+		const hx = (v) => ('0' + Math.max(0, Math.min(255, v)).toString(16)).slice(-2);
+		const toward = (t, k) => {
+			const m = (v) => Math.round(v + (t - v) * k);
+			return '#' + hx(m(c[0])) + hx(m(c[1])) + hx(m(c[2]));
+		};
+		// THE DIRECTION IS THE PAGE'S, and it is asked for rather than
+		// measured: darker than upstream on a light page, lighter on a
+		// dark one. Read from the PAPER, not from a lightness threshold on
+		// the selection itself — which is what makes it right on Vim
+		// Blue, whose LIGHT half is a navy: the writer looking at that
+		// page sees a dark surface and wants the lighter band, whatever
+		// the theme's slot is called.
+		//
+		// An earlier version measured BOTH directions and took whichever
+		// kept the ink legible. That was defensible and it was not what
+		// was asked for: a scheme could end up with a paler selection on a
+		// pale page because its ink happened to prefer it.
+		const pl = (paper[0] * 0.2126 + paper[1] * 0.7152 + paper[2] * 0.0722) / 255;
+		const target = pl > 0.5 ? 0 : 255;
+		// LEGIBILITY DECIDES HOW FAR, not whether. The strongest step is
+		// tried first and eased back until one of the scheme's own inks
+		// reads on the result at 4.5:1 — so a scheme with headroom gets
+		// the full move and a scheme without gets as much as it can carry.
+		// Past the gentlest step the upstream colour stands: a band nobody
+		// can read on is not an improvement, however dark it is.
+		const best = (bg) => Math.max(...(inks || []).map(i => this.barContrast(i, bg)));
+		const steps = amount != null ? [amount] : [0.26, 0.20, 0.15, 0.10, 0.06];
+
+		for (const k of steps) {
+			const cand = toward(target, k);
+			if (best(cand) >= 4.5) return cand;
+		}
+		return hex;
+	}
+
 	barContrast(a, b) {
 		const lum = (c) => {
 			const p = parseColorRGB(c);
@@ -12622,6 +13590,9 @@ module.exports = class WordSmith extends Plugin {
 		};
 		repaint();
 		try { window.requestAnimationFrame(repaint); } catch (_) {}
+		// The panel too: it shows the same rows, and a mode flipped from
+		// anywhere must read the same in both surfaces.
+		this.refreshMenuPanels();
 	}
 
 	// The variables a theme sets, as a plain map, or null for none.
@@ -12657,6 +13628,13 @@ module.exports = class WordSmith extends Plugin {
 		const inkFor = (bg) =>
 			(this.barContrast(h.t1, bg) >= this.barContrast(h.t2, bg)) ? h.t1 : h.t2;
 		const navBg = (this.barContrast(inkFor(h.c1), h.c1) >= 4.5) ? h.c1 : h.sel;
+		// The selection, deepened away from the page so it is visible on a
+		// quiet one — QUIET ITSELF EXEMPTED, by request and on merit: a
+		// monochrome scheme whose selection already inverts gains nothing
+		// from a grey pushed toward another grey.
+		const selBg = (this.settings.barTheme === 'quiet')
+			? h.sel
+			: this.barDeepenSelection(h.sel, h.b1, this.barSelectionInks(h));
 		const navInk = inkFor(navBg);
 		// Measured against the popup surface, which is what a palette row
 		// actually sits on.
@@ -12800,12 +13778,18 @@ module.exports = class WordSmith extends Plugin {
 			// when it reads better — which is how the requested
 			// dark-grey-on-light selection gets light text without a
 			// special case anywhere.
-			'--text-selection':                  h.sel,
-			'--zg-selection-bg':                 h.sel,
+			//
+			// DEEPENED, and the ink re-measured against the result — see
+			// barDeepenSelection. Quiet keeps its own, which already
+			// inverts and whose whole argument is restraint.
+			'--text-selection':                  selBg,
+			'--zg-selection-bg':                 selBg,
 			'--zg-selection-ink':
-				(this.barContrast(h.t1, h.sel) >= 4.5
-					|| this.barContrast(h.t1, h.sel) >= this.barContrast(h.t2, h.sel))
-					? h.t1 : h.t2,
+				(this.settings.barTheme === 'quiet')
+					? ((this.barContrast(h.t1, selBg) >= 4.5
+						|| this.barContrast(h.t1, selBg) >= this.barContrast(h.t2, selBg))
+						? h.t1 : h.t2)
+					: this.barSelectionInk(selBg, h),
 			'--text-highlight-bg':               h.c5,
 			'--background-modifier-border-focus': h.t4,
 			'--list-marker-color':               h.t3,
@@ -18507,11 +19491,26 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// cards on purpose: one look for "a thing you arrange".
 	displayMenuTab(containerEl) {
 		const plugin = this.plugin;
-		// The master switch, at the top like every other feature tab's.
-		// It lived under Misc's quick panels until this tab existed.
-		this.toggle(containerEl, 'Menu',
-			'Adds the Menu command to the palette.',
-			'barMenu');
+		// (No master switch. It offered to REMOVE a command from the
+		// palette, which is a thing Obsidian's own Hotkeys pane does
+		// better and which nobody had a reason to want — the menu is how
+		// the ribbon button works and how the panel is reached. A tab
+		// whose first control is "should this feature exist" wastes the
+		// place a writer looks first.)
+		// The same rows as a DOCKED PANE. One column and no finder — a
+		// sidebar is narrow and tall, and a search field is what the
+		// pop-up is for. Switching it on opens the pane; switching it off
+		// detaches it, and the arrangement below is untouched either way.
+		this.toggle(containerEl, 'Dock it as a panel',
+			'A pane you can drag under the file tree.',
+			'menuDock', async () => {
+				if (plugin.settings.menuDock) {
+					plugin.registerMenuPanel();
+					await plugin.openMenuPanel(true);
+				} else {
+					plugin.closeMenuPanel();
+				}
+			});
 		// The BUILD STAMP. Small, quiet, and the fastest way to answer the
 		// question that costs the most time in a bug report: is the code
 		// running the code I copied? A writer reading a version here and a
@@ -18522,16 +19521,17 @@ class WordSmithSettingTab extends PluginSettingTab {
 			text: 'Word-Smith ' + ZG_PLUGIN_VERSION,
 			cls: 'ws-settings-note ws-build-stamp'
 		});
+		// ONE SHORT LINE, not a paragraph. The tab explained the drag, the
+		// five-across cap, the \u2715, the Search card and the hotkey in one
+		// block of prose — and a writer who has to read an essay before
+		// dragging a card will drag the card anyway and find out. What
+		// stays is the part nobody can guess: that a card dropped ON
+		// another shares its line. Everything else is visible in the
+		// doing.
 		containerEl.createEl('p', {
-			text: 'The menu is one pop-up for everything you change while writing. '
-				+ 'Arrange it here. Drop a card ON another and the two share a '
-				+ 'line \u2014 up to five across, split evenly; drop one in the gap '
-				+ 'between two lines and it gets a line of its own. Press \u2715 to '
-				+ 'set a card aside, and put the Search card wherever you want '
-				+ 'the finder. '
-				+ 'Bind the menu itself in Obsidian\u2019s Hotkeys settings \u2014 Alt+X '
-				+ 'is a good choice: it is free in every Vim mode, and free in '
-				+ 'Obsidian\u2019s own defaults.',
+			text: 'Drag to reorder. Drop a card on another to share a line. '
+				+ '\u2715 sets one aside. Bind the menu to a key in Hotkeys \u2014 Alt+X '
+				+ 'is free in Vim mode.',
 			cls: 'ws-settings-note'
 		});
 
@@ -18548,6 +19548,14 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const top = scroller ? scroller.scrollTop : 0;
 			this.display();
 			if (scroller) { try { scroller.scrollTop = top; } catch (_) {} }
+			// AND THE DOCKED PANEL, which shows the very arrangement this
+			// tab is editing. It only redrew on a leaf change, so a card
+			// dragged, shelved, renamed or pinned here left the pane
+			// showing the old order until the writer clicked into a note
+			// and back — the settings said one thing and the panel beside
+			// them another. A rebuild, not a state refresh: the rows
+			// themselves have changed.
+			plugin.rebuildMenuPanels();
 		};
 
 		new Setting(containerEl).setName('Separators')
@@ -18619,7 +19627,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		};
 		cmdSearch.addEventListener('input', drawHits);
 
-		this.label(containerEl, 'What the menu holds \u2014 in this order');
+		this.label(containerEl, 'What the menu holds');
 		const defs = plugin.menuFeatureDefs();
 		const nameOf = (id) => {
 			if (/^rule-\d+$/.test(id)) return 'Separator';
@@ -18815,7 +19823,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 					back.setAttribute('aria-label', 'Put ' + nameOf(id) + ' back in the menu');
 					back.addEventListener('click', restore);
 					const off = wrap.createEl('button', { cls: 'zg-chip-unpin', text: '\u00d7' });
-					off.setAttribute('aria-label', 'Unpin ' + nameOf(id) + ' — forgets its name too');
+					off.setAttribute('aria-label', 'Unpin ' + nameOf(id));
 					off.addEventListener('click', async (e) => {
 						e.stopPropagation();
 						plugin.menuUnpin(id);
