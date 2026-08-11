@@ -15,7 +15,7 @@ Every feature is separate. Use one, use all of them, or switch any of them off.
 
 ### Powerline
 
-From the most minimal
+From minimal
 <img width="1858" height="36" alt="image" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 
 To more complex
