@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 119;
+	--zg-stylesheet-version: 122;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -543,10 +543,27 @@ body.zenmode-active.zg-text-pad {
 	--file-line-width: calc(100vw - (var(--zg-editor-padding-h) * 2));
 }
 
-/* Chained through the source-view + cm-editor ancestry for specificity. */
-.zenmode-active .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
-	padding-top:    50vh;
-	padding-bottom: 50vh;
+/* --- Typewriter scroll padding -------------------------------------------
+   THE PADDING BELONGS TO TYPEWRITER, NOT ZEN. It hung off `.zenmode-active`
+   at a fixed 50vh top and bottom, which was backwards on both sides:
+
+     • Typewriter WITHOUT zen had no padding at all, so `scrollTop` clamped
+       at 0 and the caret could not reach its resting height until a dozen
+       lines into the document — the feature was inert exactly where writing
+       starts, and the "cursor position" setting looked broken because it
+       was, at the only moment anyone checks it.
+     • Zen WITHOUT typewriter paid for it anyway: a note opened half a
+       screen down, for a feature that was not switched on.
+
+   Derived from the anchor rather than fixed, which is what makes the
+   setting real: the top padding is the caret's resting height and the
+   bottom is what remains, so at 30% the FIRST line can sit 30% down and the
+   LAST line can rise to 30%. Both were impossible before. The two variables
+   are stamped by applyBodyClasses and swept on disable; the fallbacks keep
+   a half-applied state harmless rather than wrong. */
+body.zg-typewriter .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
+	padding-top:    var(--zg-tw-pad-top, 50vh);
+	padding-bottom: var(--zg-tw-pad-bottom, 50vh);
 }
 
 /* Outside zen mode the masks have no built-in scroll padding — give the
@@ -2265,6 +2282,17 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+	/* THE PRECONDITION, not an optimisation — and the reason the four
+	   declarations above did nothing. A crumb is a FLEX ITEM (the path row
+	   is display: flex), and a flex item's default `min-width: auto`
+	   resolves to its own min-content width. When min-width and max-width
+	   disagree, min-width WINS: a long filename kept its full width, the
+	   box was never narrower than its text, and so there was nothing for
+	   `overflow: hidden` to hide or for the ellipsis to replace. Exactly
+	   the `min-height: 0` story on the editor scroller further up this
+	   file, one axis over. With this, 12em is a real ceiling and a long
+	   name truncates — its full path is on the button's title either way. */
+	min-width: 0;
 }
 
 .zg-crumb:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
@@ -2282,8 +2310,16 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 /* A shade bigger and heavier than the crumbs' own text — just enough for
-   the ‹ to read as a joint rather than a speck, in both windows. */
-.zg-crumb-sep { color: var(--text-faint); font-size: 0.8em; font-weight: 700; }
+   the ‹ to read as a joint rather than a speck, in both windows.
+   `flex: none` so it never shrinks: it is one glyph of structure, and a
+   joint squeezed to nothing would silently reattach two names that are
+   not adjacent in the path. The NAMES truncate; the joints do not. */
+.zg-crumb-sep {
+	flex: none;
+	color: var(--text-faint);
+	font-size: 0.8em;
+	font-weight: 700;
+}
 
 /* The head of the path is the NOTE — the row's whole subject — so it
    carries weight even when a folder crumb is the lit one. */
@@ -2837,19 +2873,18 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    receives the pointer under the default pointer-events — which is exactly
    how the readout came to ignore the bar you were pointing at. */
 .zg-hist-hit { fill: var(--background-modifier-hover); opacity: 0; }
-/* TOMBSTONE (1.3.3, same release): three animation attempts for the
-   bars' arrival. First, per-bar scaleY growths with staggered delays —
-   thirty-one transform animations over thousands of SVG rects,
-   repainting the plot every frame: the reported lag. Second, a CSS
-   clip-path wipe on the wrapper group — one property, right idea, and
-   it silently no-oped: CSS clip-path ANIMATION on an SVG <g> drops the
-   declaration, so the bars popped in finished. Third, a SMIL <animate>
-   on a <clipPath> rect — and a script-inserted SMIL animation never
-   began in the app's webview either. The wipe is JS-DRIVEN now: a tiny
-   requestAnimationFrame loop in buildHistoryChart eases the clip rect's
-   width open, the same way the ink tank drives its pour, so no
-   animation CSS is needed here at all. The .zg-hist-wipe class remains
-   on the wrapper as a styling hook only. */
+/* TOMBSTONE (1.3.3, same release): the bars briefly ANIMATED in, and no
+   longer do. Three mechanisms were tried — per-bar scaleY growths with
+   staggered delays (thirty-one transform animations over thousands of
+   SVG rects, repainting the plot every frame: the reported lag), a CSS
+   clip-path wipe on the wrapper group (the declaration silently dropped
+   on an SVG <g>: bars popped in finished), and a clipPath rect driven
+   first by SMIL and then by a requestAnimationFrame loop (neither
+   visibly ran in the app's webview). Removed by request after the
+   third: the chart's job is the numbers, and three mechanisms is the
+   budget a flourish gets. If a future session tries again, start by
+   finding out what this webview actually does to clips on dynamically
+   built SVG — do not re-walk these three. */
 
 .zg-hist-bargroup.is-hover .zg-hist-hit { opacity: 0.5; }
 

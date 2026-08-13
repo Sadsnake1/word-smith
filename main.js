@@ -2425,7 +2425,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 119;
+const ZG_STYLESHEET_VERSION = 122;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -2435,7 +2435,7 @@ const ZG_STYLESHEET_VERSION = 119;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.3';
+const ZG_PLUGIN_VERSION = '1.3.4';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -3016,8 +3016,19 @@ const DEFAULT_SETTINGS = {
 	lineHighlightDarkColor:   "#a8a8a4",
 	lineHighlightLightColor:  "#707070",
 	lineHighlightOpacity:     0.15,
-	typewriterLinesAbove:     8,
-	typewriterLinesBelow:     8,
+	// WHERE THE CARET RESTS, as a percentage of the editor's height: 0 is
+	// the very top, 50 the middle, 100 the bottom.
+	//
+	// It replaces `typewriterLinesAbove` / `typewriterLinesBelow`, which
+	// counted nothing. Those two were reduced to `above / (above + below)`
+	// and multiplied by the VIEWPORT height, so 8/8, 2/2 and 20/20 were
+	// byte-for-byte identical, and "4 lines above" actually meant "a
+	// quarter of the way down the screen" whatever the font size. Two
+	// inputs, 1681 combinations, one ratio, and a writer who changed a
+	// number and saw nothing happen. One number that says what it does.
+	// The migration in loadSettings carries every old pair over exactly,
+	// because the old pair already WAS this number.
+	typewriterAnchor:         50,
 	dimUnfocusedEnabled:      false,
 	dimFocusMode:             'paragraph', // 'paragraph' | 'sentence'
 	dimOpacity:               0.55,
@@ -3255,6 +3266,13 @@ const DEFAULT_SETTINGS = {
 	repetitionMinLength:      5,         // ignore short words
 	posEnabled:               false,
 	posDimOthers:             true,
+	// The Writing Checks counterpart of posDimOthers. Ships OFF where the
+	// syntax one ships ON, and the difference is not an oversight: syntax
+	// mode is a "show me the skeleton" view a writer turns on deliberately
+	// and reads all at once, while checks run alongside ordinary writing —
+	// fading a whole draft by default would be the plugin redecorating a
+	// document nobody asked it to.
+	checkDimOthers:           false,
 	posNoun:                  false,
 	posNounColor:             "#4f9dde",
 	posVerb:                  false,
@@ -4758,6 +4776,22 @@ module.exports = class WordSmith extends Plugin {
 			}
 			this.settings.editorFontDefaultCleared = true;
 		}
+		// TYPEWRITER: the two "lines" settings become one anchor percentage.
+		// LOSSLESS, because the old pair was never a pair of line counts —
+		// the scroll code reduced it to `above / (above + below)` and used
+		// that as a fraction of the viewport height. So the ratio IS the new
+		// number, and every existing vault keeps the caret exactly where it
+		// had it. Read from `raw` rather than from the merged settings so a
+		// vault that never touched them is not migrated onto a default.
+		if (raw.typewriterAnchor === undefined
+			&& (raw.typewriterLinesAbove !== undefined || raw.typewriterLinesBelow !== undefined)) {
+			const a = Math.max(0, Number(raw.typewriterLinesAbove) || 0);
+			const b = Math.max(0, Number(raw.typewriterLinesBelow) || 0);
+			const t = a + b;
+			this.settings.typewriterAnchor = t > 0 ? Math.round((a / t) * 100) : 50;
+		}
+		delete this.settings.typewriterLinesAbove;
+		delete this.settings.typewriterLinesBelow;
 		// Migrate old letterboxRatio
 		if (this.settings.letterboxRatio != null) {
 			if (this.settings.letterboxPx == null)
@@ -5654,8 +5688,8 @@ module.exports = class WordSmith extends Plugin {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
-			'zenmode-hide-linked-mentions', 'zg-text-pad', 'zg-para-indent', 'zg-justify',
-			'zg-masks-active', 'zg-retrobar-active', 'zg-pos-dim', 'zg-hemingway-active',
+			'zenmode-hide-linked-mentions', 'zg-text-pad', 'zg-para-indent', 'zg-justify', 'zg-typewriter',
+			'zg-masks-active', 'zg-retrobar-active', 'zg-pos-dim', 'zg-ck-dim', 'zg-hemingway-active',
 			'zg-line-limit', 'zg-editor-focused', 'zg-font-active', 'zg-rtl', 'zg-vim-panel-open',
 				'zg-bar-hidden', 'zg-bar-anim', 'zg-bar-peek', 'zg-titlebar-match', 'zg-drag-ok'
 		);
@@ -5681,6 +5715,11 @@ module.exports = class WordSmith extends Plugin {
 		// zg-retrobar-active) but the padding would survive a disable in
 		// any vault whose snippet happens to match on it.
 		document.documentElement.style.removeProperty('--zg-bar-reserve');
+		// Same species: an inline custom property on documentElement outlives
+		// the stylesheet that read it, so a disabled plugin would otherwise
+		// leave a vault's editor padded for a typewriter that is no longer on.
+		document.documentElement.style.removeProperty('--zg-tw-pad-top');
+		document.documentElement.style.removeProperty('--zg-tw-pad-bottom');
 		this._barReserve = null;
 		document.querySelectorAll('.zg-bar-overlap')
 			.forEach(el => el.classList.remove('zg-bar-overlap'));
@@ -5787,6 +5826,28 @@ module.exports = class WordSmith extends Plugin {
 		body.classList.toggle('zg-text-pad',                scoped && !!this.settings.miscEnabled);
 		body.classList.toggle('zg-para-indent',             scoped && this.textOpt('enableParagraphIndent', false));
 		body.classList.toggle('zg-justify',                 scoped && this.textOpt('justifyText', false));
+		// TYPEWRITER OWNS ITS OWN SCROLL PADDING. The 50vh top/bottom inset
+		// used to hang off `.zenmode-active`, which had it exactly backwards
+		// on both sides: in typewriter WITHOUT zen there was no padding, so
+		// scrollTop clamped at 0 and the caret could not reach its anchor
+		// until a dozen lines into the document — the setting was inert
+		// precisely where writing starts. And in zen WITHOUT typewriter the
+		// padding was pure cost: a note opening half a screen down for a
+		// feature that was not on. Same rule, wrong owner, two complaints.
+		//
+		// Derived from the anchor rather than fixed at 50/50, which is what
+		// makes the setting real: at 30% the first line can sit 30% down and
+		// the last line can rise to 30%, both impossible before.
+		const twOn = scoped && !!this.opt('enableTypewriter');
+		body.classList.toggle('zg-typewriter', twOn);
+		if (twOn) {
+			const pct = this.typewriterAnchorRatio() * 100;
+			document.documentElement.style.setProperty('--zg-tw-pad-top',    pct + 'vh');
+			document.documentElement.style.setProperty('--zg-tw-pad-bottom', (100 - pct) + 'vh');
+		} else {
+			document.documentElement.style.removeProperty('--zg-tw-pad-top');
+			document.documentElement.style.removeProperty('--zg-tw-pad-bottom');
+		}
 		body.classList.toggle('zg-line-limit',              scoped && this.textOpt('limitLineLength', false));
 		body.classList.toggle('zg-rtl',                     this.isRightToLeft());
 		// The slide transition only exists while the bar is actually
@@ -5812,6 +5873,7 @@ module.exports = class WordSmith extends Plugin {
 		this.setWindowControlColours(matchBar);
 		body.classList.toggle('zg-masks-active',            scoped && this.letterboxActive());
 		body.classList.toggle('zg-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
+		body.classList.toggle('zg-ck-dim',                  scoped && this.settings.checksEnabled && this.settings.checkDimOthers);
 		body.classList.toggle('zg-hemingway-active',        scoped && this.settings.hemingwayEnabled);
 		if (zen) {
 			body.setAttribute('data-zen-hide-inline-title', String(this.settings.hideInlineTitle));
@@ -7245,6 +7307,37 @@ module.exports = class WordSmith extends Plugin {
 			// however specific it is.
 			if (this.settings.posEnabled && this.settings.posDimOthers) {
 				rules.push('body.zg-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(--text-faint); }');
+			}
+
+			// The same for the checks — with one thing the syntax version
+			// never had to handle. Syntax defaults to COLOURED TEXT, so its
+			// marks carry a `color` of their own and a declaration on the
+			// element always beats a colour inherited from .cm-line, however
+			// specific the ancestor rule is. Checks default to SQUIGGLE, and
+			// a squiggle sets text-decoration, not colour — so those marks
+			// inherit, and dimming the line would fade the marked words along
+			// with everything else. "Mute everything else" would mute
+			// everything, which is the one thing it must not do.
+			//
+			// So when the style is not `text`, the ink is handed back to the
+			// marks explicitly. Only the checks actually switched on are
+			// named: a class listed here that paints nothing would light up
+			// text the writer never asked to see.
+			if (this.settings.checksEnabled && this.settings.checkDimOthers) {
+				rules.push('body.zg-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(--text-faint); }');
+				if (ckStyle !== 'text') {
+					const lit = [];
+					for (const entry of checks) if (entry[1]) lit.push('zg-ck-' + entry[0]);
+					// Rhythm is a background tint over a whole sentence and is
+					// a mark like any other here: a sentence flagged as hard
+					// to read is exactly what the writer is looking for.
+					if (this.settings.checkRhythm) { lit.push('zg-ck-hard'); lit.push('zg-ck-veryhard'); }
+					if (lit.length) {
+						rules.push(lit
+							.map(c => 'body.zg-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line .' + c)
+							.join(', ') + ' { color: var(--text-normal); }');
+					}
+				}
 			}
 		}
 
@@ -12148,6 +12241,34 @@ module.exports = class WordSmith extends Plugin {
 		return e;
 	}
 
+	// A CRUMB'S LABEL, SHORTENED IN THE TEXT ITSELF.
+	//
+	// The path row asked for this in CSS first — max-width, overflow: hidden,
+	// text-overflow: ellipsis, white-space: nowrap, and later min-width: 0 to
+	// let a flex item shrink past its content. None of it truncated anything
+	// in the running app: a crumb is a <button>, and between Obsidian's own
+	// button rules and the flex row it sits in, `text-overflow` is in exactly
+	// the corner of the cascade where it quietly does nothing. Two attempts
+	// is enough — the string is ours, so the string is what gets cut, and
+	// what the writer sees no longer depends on winning an argument with a
+	// stylesheet.
+	//
+	// The ellipsis is one character (…), not three dots: it is what the
+	// typography of every other label in this plugin uses, and it costs two
+	// fewer columns in a row that is short of them.
+	//
+	// The FULL name is never lost — every crumb carries its whole path on
+	// its title, which is what a shortened label makes more important, not
+	// less.
+	crumbLabel(name, max) {
+		const s = String(name == null ? '' : name);
+		const cap = Math.max(4, max || 18);
+		if (s.length <= cap) return s;
+		// Cut to cap INCLUDING the ellipsis, so a shortened label is never
+		// wider than the limit it was given — the whole point of the limit.
+		return s.slice(0, cap - 1).trimEnd() + '\u2026';
+	}
+
 	historySvg(tag, attrs, parent) {
 		const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
 		if (attrs) for (const k of Object.keys(attrs)) e.setAttribute(k, String(attrs[k]));
@@ -12591,7 +12712,8 @@ module.exports = class WordSmith extends Plugin {
 				first = false;
 				const btn = this.historyEl('button',
 					'zg-crumb' + (extra || '')
-					+ (state.scope === scopePath ? ' is-active' : ''), crumbs, label);
+					+ (state.scope === scopePath ? ' is-active' : ''), crumbs,
+					this.crumbLabel(label));
 				btn.setAttribute('title', title);
 				btn.addEventListener('click', () => {
 					if (state.scope === scopePath) return;
@@ -13408,7 +13530,7 @@ module.exports = class WordSmith extends Plugin {
 					const noteBtn = crumbs.createEl('button', {
 						cls: 'zg-crumb zg-crumb-note'
 							+ (active === 'note' ? ' is-active' : ''),
-						text: repFile.path.split('/').pop()
+						text: plugin.crumbLabel(repFile.path.split('/').pop())
 					});
 					noteBtn.setAttribute('title', repFile.path);
 					noteBtn.addEventListener('click', () => {
@@ -13423,7 +13545,7 @@ module.exports = class WordSmith extends Plugin {
 					const btn = crumbs.createEl('button', {
 						cls: 'zg-crumb'
 							+ (active === 'folder' && p === folderSel ? ' is-active' : ''),
-						text: name
+						text: plugin.crumbLabel(name)
 					});
 					btn.setAttribute('title', p === '/' ? 'The whole vault' : p);
 					btn.addEventListener('click', () => {
@@ -15573,6 +15695,7 @@ module.exports = class WordSmith extends Plugin {
 		// The plugin's own editor features, which colour text themselves
 		// and are the first thing to rule out.
 		say('syntax on', !!st.posEnabled + (st.posDimOthers ? ' (dim others ON)' : ''));
+		say('checks on', !!st.checksEnabled + (st.checkDimOthers ? ' (dim others ON)' : ''));
 		say('prose checks on', !!st.checksEnabled);
 		say('coloured headings/code/markdown',
 			[st.barThemeHeadings, st.barThemeCode, st.barThemeMarkdown].join('/'));
@@ -16590,7 +16713,7 @@ module.exports = class WordSmith extends Plugin {
 			// drives the picker, the bar tooltip AND that tab, so one
 			// sequence is the whole ordering and the three cannot
 			// disagree about it.
-			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue highlight' },
+			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue Focus'    },
 			// No colour of its own in the picker. Sentence rhythm paints in
 			// TWO (hard and very hard, and it is a background tint rather
 			// than a mark), so a single swatch picked one of them and told
@@ -19742,16 +19865,23 @@ module.exports = class WordSmith extends Plugin {
 				lineHeight = coords.bottom - coords.top;
 			} catch (_) { return; }
 		}
-		// Cursor's vertical anchor within the scroller, expressed as a ratio
-		// derived from "keep N lines above / M lines below" — defaults of 8/8
-		// reproduce the previous fixed dead-center (0.5) behaviour.
-		const linesAbove = Math.max(0, this.settings.typewriterLinesAbove != null ? this.settings.typewriterLinesAbove : 8);
-		const linesBelow = Math.max(0, this.settings.typewriterLinesBelow != null ? this.settings.typewriterLinesBelow : 8);
-		const totalLines = linesAbove + linesBelow;
-		const ratioAbove  = totalLines > 0 ? linesAbove / totalLines : 0.5;
+		// WHERE THE CARET RESTS: a percentage of the editor's height, clamped
+		// and read through one accessor so the scroll, the padding and the
+		// settings slider can never disagree about it.
+		const ratioAbove = this.typewriterAnchorRatio();
 		const target = lineTop + lineHeight / 2 - scroller.clientHeight * ratioAbove;
 		if (Math.abs(scroller.scrollTop - target) < 1) return;
 		scroller.scrollTop = target;
+	}
+
+	// 0..1. The single source of truth for the caret's resting height —
+	// typewriterScroll scrolls to it and the scroller padding is derived
+	// from it, so the caret can actually REACH it at the top and bottom of
+	// a document. Clamped here rather than at every call site.
+	typewriterAnchorRatio() {
+		const raw = this.settings.typewriterAnchor;
+		const pct = (raw == null || isNaN(Number(raw))) ? 50 : Number(raw);
+		return Math.max(0, Math.min(100, pct)) / 100;
 	}
 
 	// ─────────────────────────────────────────────────────────────────────────
@@ -21239,10 +21369,27 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			// ── Cursor position ─────────────────────────────────────────────────
 			this.label(tw, 'Cursor position');
-			tw.createEl('p', { text: 'How many lines of context to keep above/below the cursor. Equal values keep it dead-centre (the default).', cls: 'ws-settings-note' });
+			tw.createEl('p', {
+				text: 'Where the line you\u2019re writing rests on screen \u2014 0% is the very '
+					+ 'top, 50% the middle, 100% the bottom. The editor is padded to match, '
+					+ 'so the first and last lines of a note can reach it too.',
+				cls: 'ws-settings-note'
+			});
 			const pos = this.sub(tw);
-			this.numInput(pos, 'Lines above cursor', '', 'typewriterLinesAbove', 0, 40);
-			this.numInput(pos, 'Lines below cursor', '', 'typewriterLinesBelow', 0, 40);
+			// ONE NUMBER, AND IT SAYS WHAT IT DOES. This was two inputs —
+			// "Lines above cursor" and "Lines below cursor", 0–40 each — that
+			// counted no lines whatever: the scroll code reduced them to
+			// above/(above+below) and multiplied by the viewport height, so
+			// 8/8, 2/2 and 20/20 were identical and 1681 combinations
+			// expressed 41 outcomes. A writer changing a number and seeing
+			// nothing happen was the setting working as built.
+			// The slider helper takes no change callback, and does not need
+			// one: saveSettings schedules refresh(), which re-stamps the
+			// padding variables in applyBodyClasses and calls
+			// typewriterScroll — so dragging this moves the caret and the
+			// padding together, by the one route that keeps them agreeing.
+			this.slider(pos, 'Rests at', 'Percent of the editor\u2019s height.',
+				'typewriterAnchor', 0, 100, 5);
 
 			// ── Focus dimming ────────────────────────────────────────────────────
 			this.label(tw, 'Focus dimming');
@@ -22932,7 +23079,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// ABOVE Sentence rhythm, by request. It belongs next to it in the
 		// reading order too: both are about the SHAPE of the prose rather
 		// than about individual words, and both paint whole stretches.
-		this.catRow(ck, 'Dialogue highlight',
+		this.catRow(ck, 'Dialogue Focus',
 			'Everything inside quotes \u2014 straight or curly, double or single \u2014 '
 			+ 'so speech is easy to find. Apostrophes in don\u2019t and it\u2019s are left alone.',
 			'checkDialogue', 'checkDialogueColor');
@@ -22951,6 +23098,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 			this.slider(rh, 'Very hard above',  'And for the second.', 'checkRhythmVeryHardGrade', 8, 22, 1);
 		}
 
+
+		// LAST in the list, exactly where the Syntax tab puts its own: it is
+		// not a check, it is what to do with everything that is not one — so
+		// it reads after the things it refers to.
+		this.toggle(ck, 'Mute everything else',
+			'Fades everything you didn\u2019t tick, so the marks stand out.', 'checkDimOthers');
 
 		ck.createEl('p', {
 			text: 'Tip: add {report} to your powerline bar to get at the full counts.',
@@ -23015,30 +23168,54 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 	// ── Text Options tab (text options + typography + word counts) ────────────
 	displayTextTab(containerEl) {
+		// THE DESCRIPTION NAMES WHAT THIS SWITCH ACTUALLY GATES. It used to
+		// promise "counts in the sidebar", which this tab has never owned —
+		// `textOpt` (the one accessor everything here reads through) covers
+		// the padding, the indent, the line limit, the spacing, the
+		// justification and the hidden markers, and nothing else. A master
+		// switch that advertises a feature it does not control sends a
+		// writer hunting for a setting that was never on this tab.
 		new Setting(containerEl)
 			.setName('Text options')
-			.setDesc('Indents, spacing, justified text, counts in the sidebar.')
+			.setDesc('How the note itself is set: margins, indents, line length and spacing, '
+				+ 'justification, and the marks you normally can\u2019t see. Off leaves the '
+				+ 'note exactly as your theme draws it.')
 			.addToggle(t => t.setValue(this.plugin.settings.miscEnabled)
 				.onChange(async v => { this.plugin.settings.miscEnabled = v; await this.plugin.saveSettings(); this.display(); }));
 
 		if (this.plugin.settings.miscEnabled) {
 			const mc = this.sub(containerEl);
 
-			this.slider(mc, 'Horizontal padding', 'Applies all the time, not just in zen.', 'editorPaddingH', 0, 400, 10);
+			this.slider(mc, 'Horizontal padding',
+				'How far the text sits from the left and right edges of the pane. '
+				+ 'Applies all the time, not just in zen.', 'editorPaddingH', 0, 400, 10);
 
-			this.toggle(mc, 'Paragraph indent', 'Indents the first line of every paragraph.', 'enableParagraphIndent', () => this.display());
+			this.toggle(mc, 'Paragraph indent',
+				'Sets the first line of each paragraph in, the way a printed book does. '
+				+ 'Reading view only \u2014 lists, quotes and table cells are left alone.',
+				'enableParagraphIndent', () => this.display());
 			if (this.plugin.settings.enableParagraphIndent) {
 				const pi = this.sub(mc);
+				// The only row on this tab that shipped with no description at
+				// all, and the one that most needed one: the two options are
+				// indistinguishable until you know that the choice is about
+				// what COUNTS as a new paragraph in your own writing habit.
 				new Setting(pi).setName('Indent trigger')
+					.setDesc('What starts a new paragraph in your writing: a blank line between '
+						+ 'them, or every new line. Match this to how you actually type.')
 					.addDropdown(d => d
 						.addOption('double', 'Blank line (double Enter)')
 						.addOption('single', 'Every line (single Enter)')
 						.setValue(this.plugin.settings.paragraphIndentMode || 'double')
 						.onChange(async v => { this.plugin.settings.paragraphIndentMode = v; await this.plugin.saveSettings(); }));
-				this.slider(pi, 'Indent size (em)', 'How far in it goes.', 'paragraphIndentEm', 0.5, 8, 0.5);
+				this.slider(pi, 'Indent size (em)',
+					'How far in it goes, measured in the font\u2019s own width \u2014 so it '
+					+ 'holds its proportion at any type size. 1\u20132 suits prose.',
+					'paragraphIndentEm', 0.5, 8, 0.5);
 			}
 			this.toggle(mc, 'Limit line length',
-				'Keeps lines from running the full width of the window.',
+				'Keeps lines from running the full width of the window \u2014 a long line is '
+				+ 'harder to read because the eye loses its place coming back.',
 				'limitLineLength', () => this.display());
 			if (this.plugin.settings.limitLineLength) {
 				this.numInput(this.sub(mc), 'Characters per line',
@@ -23046,16 +23223,37 @@ class WordSmithSettingTab extends PluginSettingTab {
 					'maxLineChars', 20, 200);
 			}
 
-			new Setting(mc).setName('Line spacing').setDesc('A multiplier \u2014 1.5 is a comfortable place to start.')
+			new Setting(mc).setName('Line spacing')
+				.setDesc('A multiplier on the line height: 1 is the theme\u2019s own, 1.5 is a '
+					+ 'comfortable place to start for long stretches of prose.')
 				.addText(t => {
 					t.inputEl.type = 'number'; t.inputEl.min = '0.8'; t.inputEl.max = '4'; t.inputEl.step = '0.1'; t.inputEl.addClass('ws-num-input');
 					t.setValue(String(this.plugin.settings.lineSpacing != null ? this.plugin.settings.lineSpacing : 1.5));
 					t.onChange(async v => { const n = parseFloat(v); if (!isNaN(n) && n >= 0.8 && n <= 4) { this.plugin.settings.lineSpacing = n; await this.plugin.saveSettings(); } });
 				});
-			this.toggle(mc, 'Justify text', 'In both editing and reading views.', 'justifyText');
+			this.toggle(mc, 'Justify text',
+				'Flushes both margins, as a printed page does. In both editing and reading '
+				+ 'views. Without hyphenation this can open wide gaps between words.',
+				'justifyText');
+			// --- (removed) Hyphenate -----------------------------------------
+			// A "Hyphenate" suboption sat here for one build: `hyphens: auto`
+			// on the justified selectors, plus machinery to stamp a language
+			// on <html> (the property silently does nothing without one).
+			// Removed at the writer's request — it did not hyphenate in the
+			// running app. The language stamping was the suspect and could not
+			// be cleared quickly, and a switch that changes nothing visible is
+			// worse than an honest caveat in the description above.
+			//
+			// If this is ever attempted again: FIRST establish, in the running
+			// app, that `hyphens: auto` breaks a single long word in a narrow
+			// justified paragraph with a known-good lang. Do not build the
+			// setting until that one line of proof exists.
 
 			this.label(mc, 'Hidden markers');
-			this.toggle(mc, 'Show hidden markers', 'Shows the spaces and line breaks you normally can\u2019t see.', 'showHiddenMarkers', () => this.display());
+			this.toggle(mc, 'Show hidden markers',
+				'Draws the characters that take up space without printing \u2014 tabs, spaces, '
+				+ 'line breaks \u2014 so you can see stray ones. Pick which below.',
+				'showHiddenMarkers', () => this.display());
 			if (this.plugin.settings.showHiddenMarkers) {
 				const hm = this.sub(mc);
 				this.toggle(hm, 'Tabs', 'Shown as →', 'markTabs');
@@ -23067,50 +23265,30 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		}
 
+		// --- (removed) Note font ---------------------------------------------
+		// A "Note font" dropdown lived here, outside the master toggle above.
+		// It was added because the {font} bar button was once the ONLY control
+		// (issue #6: a bar preset without that token, or the bar switched off,
+		// left a writer with a font they could not change from inside the
+		// plugin — the reporter ended up overriding --zg-font in a CSS
+		// snippet, which is a bug report written in CSS).
+		//
+		// That reasoning expired. The font now has THREE controls, and the
+		// last two cannot be configured away the way a bar token can: the
+		// {font} token, the modal menu's Font row, and the same row in the
+		// docked panel (one `menuRowSpecs` entry serves both). A fourth
+		// control on a tab whose master switch does not even gate it was the
+		// odd one out, and a setting reachable four ways is a setting nobody
+		// can find.
+		//
+		// NOTHING ELSE MOVED. `editorFont` is still the setting, `ws-font` in
+		// frontmatter still overrides it per note, and applyEditorFont still
+		// stamps --zg-font. Only this one control is gone. If the menu row and
+		// the panel are ever both removable, put a control back HERE — the
+		// font must stay changeable from inside the plugin.
+		//
 		// Typography is its own master toggle, not a text option: it rewrites
 		// the document as you type, where everything above only restyles it.
-		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
-
-		// Font is its own group, not a text option, and deliberately outside
-		// the master above: `miscEnabled` ships OFF, so gating the font on it
-		// would take the font away from everyone already using it through the
-		// {font} button. It sits on this tab because this is where the note's
-		// own type lives, next to spacing and measure.
-		//
-		// It exists at all because the {font} button was the ONLY control:
-		// a bar preset without that token, or the bar switched off, left a
-		// writer with a font they could not change from inside the plugin
-		// (issue #6 — the reporter ended up overriding --zg-font in a CSS
-		// snippet, which is a bug report written in CSS).
-		this.label(containerEl, 'Font');
-		const fg = this.sub(containerEl);
-		const fonts = this.plugin.getConfiguredFonts();
-		new Setting(fg)
-			.setName('Note font')
-			.setDesc(fonts.length
-				? 'Applies to the note in both editing and reading views. The list is your own \u2014 add faces under Appearance \u2192 Font.'
-				: 'No fonts added yet. Add them under Appearance \u2192 Font and they will appear here.')
-			.addDropdown(d => {
-				d.addOption('', 'Theme default');
-				for (const name of fonts) d.addOption(name, name);
-				// A font can be chosen and then removed from the Appearance
-				// list, or arrive from another machine. Without this the
-				// dropdown would silently show "Theme default" while the note
-				// was still being restyled — the exact complaint this whole
-				// change is about, one level down.
-				const cur = this.plugin.settings.editorFont || '';
-				if (cur && !fonts.includes(cur)) d.addOption(cur, cur + ' (not in your list)');
-				d.setValue(cur);
-				d.onChange(async v => {
-					this.plugin.settings.editorFont = v || '';
-					await this.plugin.saveSettings();
-					this.display();
-				});
-			});
-		fg.createEl('p', {
-			text: 'A single note can override this with ws-font in its frontmatter, and the {font} token puts the same picker on the bar.',
-			cls: 'ws-settings-note'
-		});
 	}
 	// ── Misc tab ──────────────────────────────────────────────────────────────
 	// ── Vim tab ──────────────────────────────────────────────────────────────
