@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 104;
+	--zg-stylesheet-version: 119;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -203,12 +203,71 @@ body.zg-retrobar-active:not(.zg-bar-hidden) .workspace-leaf.zg-bar-overlap .mark
 
    Only works with Obsidian's own window frame. A native OS title bar is
    drawn by the system and cannot be reached from CSS. */
+/* This re-point wins only when NO bar theme is on. The injected palette
+   writes --titlebar-background INLINE on body (applyThemeVars), and an
+   inline custom property beats any stylesheet rule — so with a rich
+   palette active this block resolved cleanly and lost the cascade, and
+   the window-button strip kept the theme's chrome step. The palette
+   itself now yields these two slots to zen (see barThemeVars, the tbBg
+   derivation); this rule stays for the unthemed case. */
 body.zg-titlebar-match {
 	--titlebar-background: var(--background-primary);
 	--titlebar-background-focused: var(--background-primary);
 	--titlebar-border-width: 0px;
 	--titlebar-text-color: var(--text-muted);
 	--titlebar-text-color-focused: var(--text-normal);
+}
+
+/* THE WINDOW BUTTONS TOO. The variables above repoint the titlebar, and
+   the minimise/maximise/close strip is painted separately — so the bar
+   went the colour of the page and the buttons stayed on a grey plate in
+   the corner, which is the one place a writer in zen is most likely to
+   look at nothing. Painting the strip and each button transparent lets
+   the titlebar's own colour through, whatever the theme made it.
+
+   Only the SURFACE. The glyphs keep their own colour and their own hover,
+   because a close button that cannot be seen is a different problem from
+   one that does not match — and the hover is how a writer knows the
+   click will land. */
+/* EVERY SHAPE OBSIDIAN DRAWS THIS IN. The buttons live in different
+   containers depending on the window frame style, and the first version
+   named one of them — so on a frame that uses another, the rules resolved
+   and painted nothing. `body.` on each keeps the specificity above the
+   app's own single-class rules without reaching for !important, which a
+   theme could then not override.
+
+   NOTE, and it is the important one: with the frame style set to HIDDEN,
+   these buttons are not DOM at all. They are Electron's own overlay,
+   painted natively over the top-right of the window, and no stylesheet
+   can touch them — that case is handled by setWindowControlColours() in
+   main.js, which asks Electron to repaint. If the strip is still grey
+   after both, the vault's Obsidian is not exposing `remote` to plugins
+   and neither route exists. */
+body.zg-titlebar-match .titlebar,
+body.zg-titlebar-match .titlebar-inner,
+body.zg-titlebar-match .titlebar-button-container,
+body.zg-titlebar-match .titlebar-button-container.mod-right,
+body.zg-titlebar-match .titlebar-button,
+body.zg-titlebar-match .workspace > .titlebar,
+body.zg-titlebar-match .app-container > .titlebar {
+	background-color: transparent;
+}
+/* The frame itself, for the builds that paint a plate behind the strip
+   rather than behind each button. */
+body.zg-titlebar-match .titlebar {
+	background: var(--background-primary);
+}
+/* Hover stays, in the theme's own hover colour rather than the system's
+   grey, so it belongs to the same window as everything else. */
+body.zg-titlebar-match .titlebar-button:hover {
+	background-color: var(--background-modifier-hover);
+}
+/* Except close, which every platform paints red on hover and every writer
+   expects to. Matching it to the theme would be tidiness at the cost of a
+   signal that stops mistakes. */
+body.zg-titlebar-match .titlebar-button.mod-close:hover {
+	background-color: var(--color-red, #c4423e);
+	color: #fff;
 }
 
 /* ── Interop: Cursor-Smith ────────────────────────────────────────────────
@@ -583,6 +642,12 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 	pointer-events: none;
 	background-color: var(--background-primary);
 }
+
+/* Hidden, not merely emptied: a thin mask has no band for the arrows to
+   sit in, and they were spilling past it onto the page. `visibility`
+   rather than `display` so the wrap keeps its box and the layout code
+   above needs no second branch. */
+.zengrinder-arrows-wrap.is-hidden { visibility: hidden; }
 
 .zengrinder-arrows-wrap {
 	position: fixed;
@@ -1826,9 +1891,14 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
    chain as the bar, since --zg-font only exists while a font is set.
    The halo is four shadows rather than an SVG paint-order stroke, and
    it is what keeps the figure readable over both ink and empty tank. */
+/* The centring layer covers the whole gauge so the number can sit in the
+   middle of it — and it must not also CATCH the presses meant for the
+   water underneath. Every click landed on this and poured; the water could
+   not be touched at all. The number itself takes the pointer back. */
 .zg-jar-pct {
 	position: absolute;
 	inset: 0;
+	pointer-events: none;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -1844,7 +1914,12 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 		 0 -2px 3px var(--background-primary),
 		 2px 0 3px var(--background-primary),
 		-2px 0 3px var(--background-primary);
-	pointer-events: none;
+}
+
+/* The number is the button. Everything else in the gauge is water. */
+.zg-jar-pct-text {
+	pointer-events: auto;
+	cursor: pointer;
 }
 
 /* Fireworks over the report when a target is met. pointer-events:none so the
@@ -2020,10 +2095,14 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	white-space: nowrap;
 }
 
+/* NO RULE. The element stays — it is a structural separator the markup
+   still emits, and removing it there would touch three call sites — but it
+   draws nothing. A line under the path, another under the tabs and a third
+   down the side of every history figure added up to a window ruled into
+   boxes; spacing already says everything they were saying. */
 .zg-report-rule {
 	margin: 0 0 12px;
 	border: none;
-	border-top: 1px solid var(--background-modifier-border);
 }
 
 .zg-report-ring {
@@ -2065,11 +2144,14 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 /* Three across, so the six figures read as two rows rather than a list. */
 .zg-report-grid {
 	display: grid;
-	/* Eight figures: four across gives two even rows rather than a row of
-	   three orphans. Labels are short because each cell explains itself on
-	   hover. */
-	grid-template-columns: repeat(4, 1fr);
-	gap: 5px;
+	/* NINE figures, three across: the rows are the grouping — size,
+	   structure, and what it costs a reader — rather than wherever a
+	   four-column wrap happened to fall. Three columns also give each
+	   figure half again the width, which is what lets the numbers be
+	   read at arm's length instead of squinted at. Labels stay short
+	   because each cell explains itself on hover. */
+	grid-template-columns: repeat(3, 1fr);
+	gap: 7px 10px;
 }
 
 .zg-report-cell {
@@ -2079,16 +2161,29 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	text-align: center;
 }
 
+/* TOMBSTONE (1.3.3): the report's figures lifted and faded in, staggered
+   a beat apart in reading order. Built, and reverted on sight — numbers
+   are what this panel is FOR, and a figure you cannot read while it
+   travels is a figure withheld. The JAR is the thing that moves; the
+   figures are there to be read the moment they are there. */
+
 .zg-report-value {
-	font-size: 1.02em;
+	/* Bigger than the 1.02em they were — at that size the figures were
+	   the smallest thing in a panel that exists to show them — but eased
+	   back from 1.34em, which overshot. The three-column grid pays for
+	   the width either way. */
+	font-size: 1.18em;
 	font-weight: 700;
 	font-variant-numeric: tabular-nums;
 	line-height: 1.15;
 }
 
 .zg-report-label {
-	margin-top: 1px;
-	font-size: 0.63em;
+	margin-top: 2px;
+	/* Raised with the value it belongs to — a label that stays at 0.63em
+	   under a 1.34em figure reads as a footnote rather than as its
+	   name. */
+	font-size: 0.78em;
 	line-height: 1.2;
 	color: var(--text-muted);
 }
@@ -2140,16 +2235,19 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    of retro/smooth modes was two of everything for one panel. */
 
 /* ── Report breadcrumb ──────────────────────────────────────────────────── */
-/* Scene, chapter, part, book, vault — the chain above the open note, nearest
-   first because that is the one you were just editing. A breadcrumb rather
-   than more tabs, so the control does not grow with the depth of an outline. */
+/* 01.Preface.md ‹ Chapter ‹ Part ‹ Book ‹ Vault — the note at the head,
+   its folders behind it, nearest first because that is the one you were
+   just editing. This row IS the report's navigation: the tab strip, the
+   History button and the scope line are all gone, and the lit crumb is
+   what names the figures below. flex-wrap carries a deep outline onto
+   further lines instead of growing a control per level. */
 
 .zg-report-crumbs {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 2px;
-	margin-bottom: 6px;
+	margin: 0 0 8px;
 }
 
 .zg-crumb {
@@ -2171,13 +2269,25 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-crumb:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
 
-.zg-crumb.is-active {
-	background: var(--background-secondary);
-	color: var(--text-normal);
+/* The lit crumb behaves like the lit tab — Daily, Monthly, Yearly — same
+   accent, same inverted ink. It was a slightly darker grey before, which
+   read as hover, not as chosen. One rule serves both windows: the report
+   and the history share these classes. The hover repeats the colours so
+   pointing at the chosen crumb cannot wash it back to grey. */
+.zg-crumb.is-active,
+.zg-crumb.is-active:hover {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
 	font-weight: 600;
 }
 
-.zg-crumb-sep { color: var(--text-faint); font-size: 0.68em; }
+/* A shade bigger and heavier than the crumbs' own text — just enough for
+   the ‹ to read as a joint rather than a speck, in both windows. */
+.zg-crumb-sep { color: var(--text-faint); font-size: 0.8em; font-weight: 700; }
+
+/* The head of the path is the NOTE — the row's whole subject — so it
+   carries weight even when a folder crumb is the lit one. */
+.zg-crumb-note { font-weight: 600; }
 
 /* The worked example in Writing Goals. A list of paths reads as paths. */
 .zg-goal-eg { margin: 4px 0 0; padding-left: 18px; }
@@ -2207,9 +2317,14 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	width: 92vw;
 	max-width: 760px;
 
-	--zg-h-num:   21px;   /* the figures, and nothing else */
-	--zg-h-body:  12px;   /* readout, period, tab labels — anything read as prose */
-	--zg-h-small: 10px;   /* axis, legend, captions — anything read as a key */
+	/* IN LINE WITH THE REPORT. This window ran two to four points smaller
+	   than the report it opens from, so crossing between them felt like
+	   changing glasses. The report's figures sit at 1.18em of a ~16px
+	   base (~19px) with 0.78em labels (~12px); these are matched to that,
+	   and the prose and key sizes moved up with them. */
+	--zg-h-num:   19px;   /* the figures, and nothing else */
+	--zg-h-body:  13px;   /* readout, period, tab labels — anything read as prose */
+	--zg-h-small: 12px;   /* axis, legend, captions — anything read as a key */
 
 	/* Three heat ramps, six steps each: cool at the axis, hot at the far end
 	   of the bar. Literal colours rather than theme variables, because a ramp
@@ -2224,6 +2339,31 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 	--zg-net-0: #1b3a63;  --zg-net-1: #245084;  --zg-net-2: #2f6ba8;
 	--zg-net-3: #3e8bcb;  --zg-net-4: #5fabe4;  --zg-net-5: #8fcbf4;
+
+	/* THE BUCKET STILL BEING FILLED gets ramps of its own: a little
+	   A GRADIENT ALONG THE RAMP, not a flat shift. The foot of each keeps
+	   its parent's colour exactly — green, red, blue — and the hue travels
+	   as the bar climbs, arriving at the shifted one only at the crest:
+	   green→blue, red→orange, blue→cyan. Shifting every step alike made an
+	   unfinished month look like a different SERIES rather than the same
+	   one still being written; this way the bar is recognisably itself at
+	   the base and says "still going" where the eye lands, at the top.
+
+	   The hue takes the SHORT way round the wheel: deleted's foot is 353°,
+	   not 2°, and interpolating straight to 30° walks backwards through
+	   purple and blue. Ask for the arc, not the difference.
+	   
+	   Written out rather than derived. These are six related shades apiece
+	   and a filter or an opacity over the parent lands somewhere muddy —
+	   the same reason the parents are literal. */
+	--zg-add-now-0: #1d5233;  --zg-add-now-1: #276c4f;  --zg-add-now-2: #358973;
+	--zg-add-now-3: #49a8a2;  --zg-add-now-4: #76bfcb;  --zg-add-now-5: #b5d6ea;
+
+	--zg-del-now-0: #5e1a22;  --zg-del-now-1: #7e2824;  --zg-del-now-2: #a34530;
+	--zg-del-now-3: #c4683e;  --zg-del-now-4: #dd8e55;  --zg-del-now-5: #f0b67d;
+
+	--zg-net-now-0: #1b3a63;  --zg-net-now-1: #245884;  --zg-net-now-2: #2f7ca8;
+	--zg-net-now-3: #3ea5cb;  --zg-net-now-4: #5fc9e4;  --zg-net-now-5: #8fe5f4;
 
 	--zg-hist-add:  var(--zg-add-3);
 	--zg-hist-del:  var(--zg-del-3);
@@ -2241,6 +2381,11 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-hist-find { margin: 0 0 10px; position: relative; }
 .zg-hist-findrow { display: flex; align-items: center; gap: 6px; }
+
+/* The REPORT reuses the history finder's whole dress (.zg-hist-*) — one
+   search idiom across both windows — and adds only its own spacing: the
+   box sits at the top of the report body, under the tab strip. */
+.zg-report-find { margin: 2px 0 10px; }
 
 .zg-hist-search {
 	flex: 1;
@@ -2289,6 +2434,15 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-hist-hitrow:hover { background: var(--background-modifier-hover); }
+
+/* The keyboard's highlight — ↑/↓ move it, Enter takes it, and mouseenter
+   drives the same one, so pointer and keys can never disagree about
+   which row is about to be chosen. The inset accent bar marks it apart
+   from a mere hover. */
+.zg-hist-hitrow.is-selected {
+	background: var(--background-modifier-hover);
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
 
 .zg-hist-hitkind {
 	flex: none;
@@ -2386,11 +2540,13 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	.zg-history-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* NO BAR DOWN THE SIDE. Every figure carried a 2px rule on its left, so
+   four numbers read as four fenced columns rather than as one row of
+   figures. The left padding goes with it — it existed to clear the bar. */
 .zg-history-modal .zg-report-cell {
 	background: transparent;
-	border-left: 2px solid var(--background-modifier-border);
 	border-radius: 0;
-	padding: 2px 0 2px 9px;
+	padding: 2px 0;
 	text-align: left;
 }
 
@@ -2414,7 +2570,6 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-history-modal .zg-report-cell.has-tip:hover {
 	background: var(--background-secondary);
-	border-left-color: var(--interactive-accent);
 	transform: none;
 }
 
@@ -2450,16 +2605,23 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	letter-spacing: 0.04em;
 }
 
-/* ── Period ─────────────────────────────────────────────────────────────── */
+/* ── Period — living IN the tab row ─────────────────────────────────────── */
+/* Was a bar of its own under the tabs: label left, arrows right, a whole
+   extra line of height. The stepper answers the same question the zoom
+   does — which slice am I looking at — so it sits at the far end of the
+   Day|Month|Year row now, one row instead of two. The arrows are
+   ws-tab-btn like their siblings, and the period (‹ August 2026 › or
+   ‹ 2026 ›) is written between them, which is also what tells you what
+   the arrows will move. */
 
-.zg-hist-periodbar {
-	display: flex;
+.zg-hist-step {
+	display: inline-flex;
 	align-items: center;
-	justify-content: space-between;
-	/* 8, not 12: the period line belongs to the tabs above it, and the
-	   gap between them has to stay clearly smaller than the one that
-	   separates the whole control group from the figures. */
-	margin: 8px 0 0;
+	gap: 4px;
+	/* Anchored beside the Yearly tab, not pushed to the far end: the
+	   period label follows the ‹ › pair, so its width can change with
+	   the month's name without ever moving the buttons. */
+	margin-left: 8px;
 }
 
 .zg-hist-period {
@@ -2468,24 +2630,30 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	font-weight: 600;
 	color: var(--text-normal);
 	letter-spacing: 0.01em;
+	padding: 0 4px;
+	white-space: nowrap;
 }
 
-.zg-hist-step { display: inline-flex; align-items: center; gap: 2px; }
-
-.zg-hist-arrow {
-	appearance: none;
-	border: none;
-	background: transparent;
-	box-shadow: none;
-	color: var(--text-muted);
+/* Two classes, so this outranks the plain .ws-tab-btn rules it rides on:
+   a glyph needs less room than a word, and a bigger face than 0.88em or
+   ‹ › read as specks. */
+.ws-tab-btn.zg-hist-arrow {
+	padding: 5px 10px;
 	font-size: 15px;
 	line-height: 1;
-	padding: 2px 8px;
-	cursor: pointer;
 }
 
-.zg-hist-arrow:hover:not([disabled]) { color: var(--text-normal); }
-.zg-hist-arrow[disabled] { opacity: 0.25; cursor: default; }
+.ws-tab-btn.zg-hist-arrow:hover:not([disabled]) {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.ws-tab-btn.zg-hist-arrow[disabled] {
+	opacity: 0.25;
+	cursor: default;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+}
 
 /* ── Series toggles ─────────────────────────────────────────────────────── */
 /* The legend IS the control: a swatch that explains the chart and switches
@@ -2548,7 +2716,6 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	align-items: center;
 	margin: 0 0 6px;
 	padding: 3px 9px;
-	border-left: 2px solid var(--zg-hist-add);
 	background: var(--background-secondary);
 	font-family: inherit;
 	font-variant-numeric: tabular-nums;
@@ -2592,13 +2759,47 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	shape-rendering: crispEdges;
 }
 
-/* Whichever bucket contains today: a column behind the bars rather than a mark
-   beside them, so it reads as ground rather than as another series. */
-.zg-hist-band.is-now { fill: var(--interactive-accent); opacity: 0.1; }
+/* TOMBSTONE: `.zg-hist-band.is-now` tinted the current bucket's column
+   with the accent colour — red on most schemes — and read as a warning
+   about the day rather than a note that it is not over yet. The bars say
+   it themselves now: one heat step lighter, plus a touch of transparency,
+   which is how an unfinished thing looks without being an alarm. A colour
+   that means "careful" should be kept for things that are. */
+/* The in-progress ramps. Full opacity: the colour itself now says the
+   bucket is unfinished, and dimming it as well made a real value look
+   like a guess. */
+.zg-hist-px.is-now.is-added.h0   { fill: var(--zg-add-now-0); }
+.zg-hist-px.is-now.is-added.h1   { fill: var(--zg-add-now-1); }
+.zg-hist-px.is-now.is-added.h2   { fill: var(--zg-add-now-2); }
+.zg-hist-px.is-now.is-added.h3   { fill: var(--zg-add-now-3); }
+.zg-hist-px.is-now.is-added.h4   { fill: var(--zg-add-now-4); }
+.zg-hist-px.is-now.is-added.h5   { fill: var(--zg-add-now-5); }
+
+.zg-hist-px.is-now.is-removed.h0 { fill: var(--zg-del-now-0); }
+.zg-hist-px.is-now.is-removed.h1 { fill: var(--zg-del-now-1); }
+.zg-hist-px.is-now.is-removed.h2 { fill: var(--zg-del-now-2); }
+.zg-hist-px.is-now.is-removed.h3 { fill: var(--zg-del-now-3); }
+.zg-hist-px.is-now.is-removed.h4 { fill: var(--zg-del-now-4); }
+.zg-hist-px.is-now.is-removed.h5 { fill: var(--zg-del-now-5); }
+
+.zg-hist-px.is-now.is-net.h0     { fill: var(--zg-net-now-0); }
+.zg-hist-px.is-now.is-net.h1     { fill: var(--zg-net-now-1); }
+.zg-hist-px.is-now.is-net.h2     { fill: var(--zg-net-now-2); }
+.zg-hist-px.is-now.is-net.h3     { fill: var(--zg-net-now-3); }
+.zg-hist-px.is-now.is-net.h4     { fill: var(--zg-net-now-4); }
+.zg-hist-px.is-now.is-net.h5     { fill: var(--zg-net-now-5); }
 
 /* One rule per step per series. Eighteen rules for a bar drawn out of a few
    hundred cells is the cheap end of the trade: no per-element inline fill, no
-   colour arithmetic in JS, and a theme can override any single step. */
+   colour arithmetic in JS, and a theme can override any single step.
+
+   TOMBSTONE (1.3.3, same release): the tips briefly wore the tank's
+   meniscus — a brightened crest cell per column and an ordered jag that
+   ended some columns a cell short. Removed by request on first sight.
+   The kinship with the water was the idea; on bars this size it read as
+   noise on the one edge the eye uses to compare heights, and a chart's
+   edge belongs to the value, not the theme. */
+
 .zg-hist-px.is-added.h0   { fill: var(--zg-add-0); }
 .zg-hist-px.is-added.h1   { fill: var(--zg-add-1); }
 .zg-hist-px.is-added.h2   { fill: var(--zg-add-2); }
@@ -2636,6 +2837,20 @@ body.zg-vim-panel-open .zengrinder-status-bar {
    receives the pointer under the default pointer-events — which is exactly
    how the readout came to ignore the bar you were pointing at. */
 .zg-hist-hit { fill: var(--background-modifier-hover); opacity: 0; }
+/* TOMBSTONE (1.3.3, same release): three animation attempts for the
+   bars' arrival. First, per-bar scaleY growths with staggered delays —
+   thirty-one transform animations over thousands of SVG rects,
+   repainting the plot every frame: the reported lag. Second, a CSS
+   clip-path wipe on the wrapper group — one property, right idea, and
+   it silently no-oped: CSS clip-path ANIMATION on an SVG <g> drops the
+   declaration, so the bars popped in finished. Third, a SMIL <animate>
+   on a <clipPath> rect — and a script-inserted SMIL animation never
+   began in the app's webview either. The wipe is JS-DRIVEN now: a tiny
+   requestAnimationFrame loop in buildHistoryChart eases the clip rect's
+   width open, the same way the ink tank drives its pour, so no
+   animation CSS is needed here at all. The .zg-hist-wipe class remains
+   on the wrapper as a styling hook only. */
+
 .zg-hist-bargroup.is-hover .zg-hist-hit { opacity: 0.5; }
 
 .zg-hist-xwrap { padding-left: 36px; }
@@ -2858,12 +3073,23 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	margin-bottom: 8px;
 }
 
+/* A SECTION HEADING, with room to be one. At 12px of top margin it was a
+   slightly bolder line in a run of settings rather than a break between
+   topics — and the tabs that use these (Powerline has seven) were doing
+   the grouping already and not getting credit for it. The space above is
+   what does the work; the rule under it stops the eye in the right
+   place. */
 .ws-settings-label {
-	margin: 12px 0 4px;
+	margin: 26px 0 2px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
 	font-weight: 600;
 	font-size: 0.9em;
 	color: var(--text-muted);
 }
+/* The first heading on a tab needs no gap above it: there is nothing up
+   there to be separated from. */
+.ws-settings-label:first-child { margin-top: 6px; }
 
 .ws-settings-note {
 	font-size: 0.82em;
@@ -3114,7 +3340,9 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	flex-wrap: wrap;
 	gap: 4px;
 	margin: 4px 0 16px;
-	border-bottom: 1px solid var(--background-modifier-border);
+	/* No underline: the buttons are already outlined, so the rule under
+	   them was a second boundary drawn around the same edge. The padding
+	   stays — it was doing the spacing, not the line. */
 	padding-bottom: 8px;
 }
 
@@ -3322,39 +3550,14 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-modal {
 	max-width: 320px;
 }
-/* No ✕. Escape closes this, so does clicking away, and the menu is a
-   PALETTE — a small panel that applies live behind itself — rather than
-   a dialogue waiting to be dismissed. A close button on a palette is a
-   button that only ever undoes the act of opening it, sitting where a
-   writer's eye lands first. Hidden rather than removed: the button is
-   Obsidian's own, added after onOpen, and it keeps its keyboard route
-   for anyone who tabs to it. */
-/* …and the container as well, because on some builds Obsidian hangs the
-   button off THAT instead, as a sibling of the modal, where the selector
-   above never matched — which is why the ✕ survived a fix that looked
-   correct. The container carries its own class, set beside the modal's in
-   openBarMenu: `:has` would have expressed this in one selector and is
-   banned here for good reason (see selfcarry_probe — a :has subject near
-   body is re-evaluated on every keystroke). main.js removes the node
-   outright anyway; this is the second belt. */
-.zg-menu-modal .modal-close-button,
-.zg-menu-container > .modal-close-button,
-/* …and the one that cannot miss. The two selectors above name an
-   ANCESTOR of the button, and on some builds the ✕ sits outside both —
-   an inspector showed neither rule matching at all, which is why this was
-   reported three times. `body` is not a guess: while the menu is open the
-   modal on screen is ours, so its close button goes. The class is set in
-   openBarMenu's onOpen and dropped in onClose. */
-body.zg-menu-open .modal-close-button,
-/* …and `.modal-header-button`, which is what current Obsidian actually
-   calls it: `<div class="modal-header-button mod-raised clickable-icon">`
-   wrapping a lucide-x. Four rounds of this fix aimed at
-   `.modal-close-button` — a class the button no longer wears — which is
-   why the rule never appeared in the inspector's matched list. Both
-   names, because older builds still use the old one. */
-body.zg-menu-open .modal-header-button {
-	display: none;
-}
+/* TOMBSTONE: three selectors here hid Obsidian's ✕ on this modal — one
+   aimed at the modal, one at the container (some builds hang the button
+   off THAT instead), and a `body.zg-menu-open` one written because on
+   other builds it sits outside both. The ✕ is wanted back, so all three
+   are gone and the button is left alone; main.js's sweep and its
+   MutationObserver went with them. Kept as a note because the next person
+   to think "the close button is easy to hide" should know it took five
+   rounds and three ancestors the first time. */
 .zg-menu-content {
 	padding: 0.5em 0.4em;
 	/* THE WRITER'S OWN FACE, the same chain the bar uses: the font chosen
@@ -4015,6 +4218,18 @@ body.zg-menu-open .modal-header-button {
 	align-items: center;
 	justify-content: space-between;
 	gap: 6px;
+}
+
+/* The card's buttons, together at the end. Without a group the head's
+   `space-between` spread three children across the row and the pencil
+   landed wherever the name's width left it — centred on a short name,
+   against the text on a long one, different on every card. */
+.zg-theme-tools {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex: none;
+	margin-left: auto;
 }
 
 .zg-theme-name { font-weight: 600; }

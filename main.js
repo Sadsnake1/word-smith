@@ -36,6 +36,28 @@ const MENU_RULE_STYLES = ['solid', 'dashed', 'dotted', 'double', 'none'];
 // menu that quietly becomes unusable.
 const MENU_MAX_COLS = 5;
 
+// The shortest a letterbox mask may be: about a line of text. It was the
+// ARROW ROW'S height, which made the smallest usable mask three lines deep
+// — and a writer who wants a hairline of shroud should have one.
+//
+// The arrows are what needed the room, so the arrows stand down instead:
+// under ZG_ARROWS_MIN_PX there is no band to sit in, and a row of glyphs
+// floating on the page with no mask behind them is what the vault
+// photographed. A mask can be thinner than its ornament; it just cannot
+// carry it.
+// About half a line. It was 16, which is roughly one line of text — and
+// "one line" turned out to still read as two, because the mask's own
+// overhang is drawn on top of it. A writer closing the gap all the way
+// should be able to reach a hairline.
+const ZG_MASK_MIN_PX   = 6;
+const ZG_ARROWS_MIN_PX = 34;
+// The narrowest the arrow ROW may be. The horizontal inset was capped only
+// at half the window less 20px, so it could squeeze the row to about forty
+// pixels — narrower than the glyphs and the rule it carries, which then
+// overlapped, wrapped and sat on top of each other. The inset is the
+// writer's to set; how far it may go is the row's to decide.
+const ZG_ARROWS_MIN_W  = 180;
+
 // Which menu owns Escape. The handler is a capture listener on the
 // document (see openBarMenu), so a menu opened over another — the ribbon
 // pressed twice, say — would leave two listeners racing, and the OLDER
@@ -1536,6 +1558,71 @@ const REPETITION_STOPWORDS = new Set(`the a an and or but if then than that this
 // A word is an echo when the same word appeared within `window` words behind
 // it. Both occurrences are marked, because you cannot fix one without seeing
 // the other.
+// ── Dialogue ────────────────────────────────────────────────────────────────
+//
+// Every quoted stretch on a line, as {from,to} offsets INTO THAT LINE.
+//
+// Four pairs are recognised: straight double and single, and their curly
+// counterparts. Curly quotes are directional, so an opening one can only be
+// closed by its own partner — which is what makes them reliable. Straight
+// ones are ambiguous by nature, and the single straight quote is the hard
+// case: it is also the apostrophe, and "don't" is not dialogue.
+//
+// So the apostrophe rule is POSITIONAL rather than a word list: a straight
+// or curly single quote with a letter or digit on BOTH sides is an
+// apostrophe (don't, it's, o'clock, '90s is handled by the digit test on the
+// other side), and anything else is a candidate quote mark. That covers
+// contractions and possessives without a dictionary, which is the only way
+// it can work in every language the plugin counts.
+//
+// An UNCLOSED quote runs to the end of the line and no further. A speech
+// that continues over a paragraph break is real (and English typography
+// opens each paragraph without closing the last), but a highlight that
+// leaks down the rest of the note because a writer typed one quote mark is
+// far worse than one that stops early. The line is the unit here.
+function findDialogue(line) {
+	const text = String(line || '');
+	const out = [];
+	// Openers mapped to what may close them. Curly pairs are strict;
+	// straight marks close on themselves.
+	const PAIRS = {
+		'"': '"', "'": "'",
+		'\u201c': '\u201d', '\u2018': '\u2019',
+		// A few languages open with the closing-shaped mark or with
+		// guillemets; both are common enough in translated manuscripts to
+		// be worth recognising rather than leaving as stray text.
+		'\u00ab': '\u00bb', '\u201e': '\u201c'
+	};
+	const isWordish = (ch) => !!ch && /[\p{L}\p{N}]/u.test(ch);
+	let i = 0;
+	while (i < text.length) {
+		const ch = text[i];
+		const close = PAIRS[ch];
+		if (!close) { i++; continue; }
+		// An apostrophe, not an opening quote: letters or digits on both
+		// sides. Only the single marks can be one.
+		if ((ch === "'" || ch === '\u2018' || ch === '\u2019')
+			&& isWordish(text[i - 1]) && isWordish(text[i + 1])) { i++; continue; }
+		let j = -1;
+		for (let k = i + 1; k < text.length; k++) {
+			const c = text[k];
+			if (c !== close) continue;
+			// The same positional rule at the closing end, or "it's" inside
+			// a single-quoted line would end the speech early.
+			if ((close === "'" || close === '\u2019')
+				&& isWordish(text[k - 1]) && isWordish(text[k + 1])) continue;
+			j = k;
+			break;
+		}
+		// Unclosed: to the end of the line, which is as far as this can
+		// safely guess.
+		const end = j === -1 ? text.length : j + 1;
+		if (end > i + 1) out.push({ from: i, to: end });
+		i = end;
+	}
+	return out;
+}
+
 function findRepetitions(tokens, windowSize, minLength) {
 	const hits = [];
 	const lastSeen = new Map();
@@ -2338,7 +2425,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 104;
+const ZG_STYLESHEET_VERSION = 119;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -2348,7 +2435,7 @@ const ZG_STYLESHEET_VERSION = 104;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.2';
+const ZG_PLUGIN_VERSION = '1.3.3';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -2796,10 +2883,15 @@ const DEFAULT_SETTINGS = {
 	menuRuleStyles: {},
 	// The menu as a DOCKED PANEL as well as a pop-up: a leaf you can drag
 	// under the file tree and jump to with quick cycle, rather than a
-	// window you summon and dismiss. Off by default — a plugin that adds a
-	// pane to the workspace uninvited has taken a decision that is the
-	// writer's.
-	menuDock:       false,
+	// window you summon and dismiss.
+	//
+	// ON by default. It shipped off on the reasoning that a plugin adding
+	// a pane uninvited takes a decision belonging to the writer — which
+	// is true of a pane nobody asked for, and this one IS the plugin: a
+	// new install otherwise shows nothing at all until the writer finds a
+	// setting they have no reason to look for. Turning it off is one
+	// click and the pane's position is remembered.
+	menuDock:       true,
 	// The scheme's reach, each independently togglable in the Theme tab.
 	// SIMPLIFIED collapses every surface to the editor's colour (one wash);
 	// off, each surface takes its own step of the theme's ramp. Headings and
@@ -2900,6 +2992,17 @@ const DEFAULT_SETTINGS = {
 	letterboxLines:           8,
 	letterboxPx:              95.81700000000001,
 	maskPaddingH:             194,
+	// Whether the masks span the whole editor or only the TEXT COLUMN.
+	// Off is how it shipped: a backdrop across the pane. On, the mask ends
+	// where the writing ends, which reads as a frame around the page
+	// rather than a band across the window — and it follows the column
+	// when the readable-line width or the padding changes, without the
+	// writer re-measuring the horizontal inset by hand.
+	maskMatchText:            false,
+	// And whether "the text" includes the editor's own side padding. Off
+	// takes the column itself; on takes the column plus the space the
+	// editor leaves beside it, which is what the eye reads as the page.
+	maskMatchTextPadded:      true,
 	maskOverhang:             4,
 	arrowStyle:               "solid-triangle",
 	arrowLineEnds:            false,     // cap each separator line with an arrow
@@ -3136,6 +3239,11 @@ const DEFAULT_SETTINGS = {
 	checkMisusedColor:        "#e0913a",
 	checkPronoun:             true,
 	checkPronounColor:        "#4f9dde",
+	// Dialogue: everything between quotes, so speech can be found at a
+	// glance. Off by default like every other check — a plugin that starts
+	// colouring a manuscript before it is asked has overreached.
+	checkDialogue:            false,
+	checkDialogueColor:       "#4f9dd9",
 	checkRhythm:              false,
 	checkRhythmHardColor:     "#d4a017",
 	checkRhythmVeryHardColor: "#c2544d",
@@ -4129,7 +4237,14 @@ module.exports = class WordSmith extends Plugin {
 		// take focus away from .cm-editor.
 		const updateEditorFocusClass = () => {
 			const active = document.activeElement;
-			const inEditor = !!(active && active.closest && active.closest('.cm-editor'));
+			// WORD-SMITH'S OWN PANEL COUNTS AS WRITING. Focus in the docked
+			// menu is not focus taken away by a modal or a palette — it is
+			// the writer reaching for this plugin's own controls, and
+			// dropping the masks the moment they do meant the letterbox
+			// only appeared once they clicked back into the note. The pane
+			// is part of the same act.
+			const inEditor = !!(active && active.closest && (
+				active.closest('.cm-editor') || active.closest('.zg-menu-panel')));
 			document.body.classList.toggle('zg-editor-focused', inEditor);
 			// The drag handles (the titlebar strip and the top mask) are
 			// gated the OTHER way round from the z-index band: not "focus
@@ -4324,6 +4439,10 @@ module.exports = class WordSmith extends Plugin {
 			this.refresh();
 			this.checkStylesheetVersion();
 			this.checkManifestVersion();
+			// Only worth asking when the panel is on: a writer who never
+			// docks it has no stake in whether the tree's classes moved,
+			// and a notice they cannot act on is noise.
+			if (this.settings.menuDock) this.checkAppClasses();
 			// Read the store once the vault's file list exists — finding the
 			// file means looking through it. Nothing is recorded until this
 			// resolves; historyCapture waits on the same promise, so an edit
@@ -4343,6 +4462,134 @@ module.exports = class WordSmith extends Plugin {
 	//
 	// Read from a probe rather than from :root directly: a custom property is
 	// inherited, so any element resolves it, and body is guaranteed present.
+	// ── The app's own classes, checked once ──────────────────────────────────
+	//
+	// The docked panel borrows Obsidian's file-explorer structure so the
+	// app supplies its metrics — that is what finally made it match the
+	// tree, after four rounds of matching numbers by hand. The cost is a
+	// dependency on class names Obsidian may rename with no notice, and the
+	// failure mode is the worst kind: nothing throws, nothing is logged,
+	// the panel simply looks wrong and the writer has no way to know why.
+	//
+	// So it is checked, once, against a REAL file explorer — the app's own,
+	// not ours. If the tree does not have these either, they are gone from
+	// Obsidian rather than misused by us, and the notice says which. One
+	// sentence beats an afternoon.
+	checkAppClasses() {
+		if (this._appClassesChecked) return;
+		this._appClassesChecked = true;
+		let explorer = null;
+		try {
+			const leaves = this.app.workspace.getLeavesOfType('file-explorer') || [];
+			explorer = leaves.length && leaves[0].view ? leaves[0].view.containerEl : null;
+		} catch (_) { return; }
+		// No file explorer open is not a finding. It is the commonest
+		// reason to see nothing here, and reporting it would train the
+		// writer to ignore this notice.
+		if (!explorer) return;
+		// NOR IS AN EMPTY OR COLLAPSED TREE — and this is what the notice
+		// got wrong. Four of the six classes are STRUCTURAL: the app
+		// writes them for any file it draws at all. The other two are
+		// CONDITIONAL and simply do not exist in a tree with nothing to
+		// show them with — `tree-item-children` only when a folder is
+		// EXPANDED, `collapse-icon` only when a collapsible folder is
+		// drawn at all. A vault of loose notes, or one whose folders are
+		// all shut, therefore reported "Obsidian's classes have changed"
+		// truthfully-worded and completely wrong, on every single start,
+		// for a panel that was fine — the exact thing this check was
+		// written to avoid teaching the writer to ignore.
+		//
+		// So: nothing is judged until the tree has actually drawn a row
+		// (before that, absence means "not rendered yet", which at
+		// layout-ready is common), and a conditional class is only
+		// looked for when the tree HAS the thing that would carry it.
+		if (!explorer.querySelector('.tree-item')) return;
+		const need = [
+			'nav-files-container',
+			'tree-item',
+			'tree-item-self',
+			'tree-item-inner'
+		];
+		// An expanded folder is what draws a children container; a
+		// collapsible row is what draws a chevron. Obsidian marks both,
+		// so their presence is asked of the app rather than assumed.
+		if (explorer.querySelector('.mod-collapsible, .nav-folder')) {
+			need.push('collapse-icon');
+		}
+		if (explorer.querySelector('.is-collapsed') === null
+			&& explorer.querySelector('.nav-folder, .mod-collapsible')) {
+			need.push('tree-item-children');
+		}
+		const missing = need.filter(c => !explorer.querySelector('.' + c));
+		if (!missing.length) return;
+		const what = 'Obsidian\u2019s file-explorer classes have changed ('
+			+ missing.join(', ') + ')';
+		console.warn('Word-Smith: ' + what
+			+ ' \u2014 the docked panel borrows them, so it may look wrong until '
+			+ 'the plugin is updated.');
+		new Notice('Word-Smith: ' + what + '.\nThe docked panel may look wrong '
+			+ 'until the plugin is updated.', 12000);
+	}
+
+	// ── The window controls, which are not DOM ───────────────────────────────
+	//
+	// On Windows and Linux the minimise/maximise/close buttons are drawn by
+	// ELECTRON, not by Obsidian: a native overlay painted over the top-right
+	// of the frame. That is why the stylesheet could not touch them — the
+	// rules landed on nothing and the grey plate stayed exactly where it
+	// was, which is a good demonstration of a fix that "applies cleanly"
+	// and does nothing at all.
+	//
+	// Electron will repaint it on request. Reached defensively: `remote` is
+	// absent on macOS (where the buttons are the system's), absent on
+	// mobile, and may be gone in a future version — in every one of those
+	// cases this must be a no-op rather than a thrown error at load.
+	setWindowControlColours(on) {
+		// FOUR WAYS IN, because there is no one way. Obsidian has shipped
+		// `electron.remote` (older), `@electron/remote` (newer, a separate
+		// module), and builds where neither is exposed to a plugin at all.
+		// The first attempt tried one of them and quietly failed on a vault
+		// that had another — which looked exactly like the CSS failing,
+		// and cost a round to tell apart.
+		let win = null;
+		const tries = [
+			() => window.require('@electron/remote').getCurrentWindow(),
+			() => window.require('electron').remote.getCurrentWindow(),
+			() => window.require('electron').getCurrentWindow(),
+			() => require('@electron/remote').getCurrentWindow()
+		];
+		for (const t of tries) {
+			try {
+				const w2 = t();
+				if (w2 && typeof w2.setTitleBarOverlay === 'function') { win = w2; break; }
+			} catch (_) { /* next */ }
+		}
+		if (!win) return false;
+		try {
+			if (!on) {
+				// Back to what Obsidian asked for. Remembered at the first
+				// change rather than guessed, so a theme that had already
+				// customised it is not overwritten with our idea of default.
+				if (this._wcoWas) win.setTitleBarOverlay(this._wcoWas);
+				return true;
+			}
+			const cs = getComputedStyle(document.body);
+			const pick = (name, fallback) => {
+				const v = (cs.getPropertyValue(name) || '').trim();
+				return v || fallback;
+			};
+			if (!this._wcoWas) {
+				this._wcoWas = { color: pick('--titlebar-background', '#1e1e1e'),
+					symbolColor: pick('--text-muted', '#888888') };
+			}
+			win.setTitleBarOverlay({
+				color:       pick('--background-primary', '#1e1e1e'),
+				symbolColor: pick('--text-muted', '#888888')
+			});
+			return true;
+		} catch (_) { return false; }
+	}
+
 	checkStylesheetVersion() {
 		let found = null;
 		try {
@@ -4385,6 +4632,11 @@ module.exports = class WordSmith extends Plugin {
 	}
 
 	onunload() {
+		// THE WINDOW CONTROLS GO BACK. They are Electron's, not ours, and
+		// they outlive the plugin: a writer who disables Word-Smith and
+		// keeps a recoloured strip in the corner of their window has been
+		// left a mess with no way to trace it.
+		try { this.setWindowControlColours(false); } catch (_) {}
 		// Anything counted since the last lazy save, before the timers that
 		// would have written it are torn down. Synchronous-looking on purpose:
 		// the promise is not awaited because onunload cannot await, but the
@@ -5551,7 +5803,13 @@ module.exports = class WordSmith extends Plugin {
 		// Whether the bar can be peeked at, and where the strip is. Here
 		// because this is the one place that decides the bar is hidden.
 		this.syncBarPeekState();
-		body.classList.toggle('zg-titlebar-match', zen && this.settings.zenTitlebarMatch);
+		const matchBar = zen && this.settings.zenTitlebarMatch;
+		body.classList.toggle('zg-titlebar-match', matchBar);
+		// The DOM half of this is the stylesheet's; the window controls are
+		// Electron's and have to be asked. Called on every pass rather than
+		// only on the transition, because a theme change repaints the page
+		// underneath them and leaves the overlay on the old colour.
+		this.setWindowControlColours(matchBar);
 		body.classList.toggle('zg-masks-active',            scoped && this.letterboxActive());
 		body.classList.toggle('zg-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
 		body.classList.toggle('zg-hemingway-active',        scoped && this.settings.hemingwayEnabled);
@@ -6740,7 +6998,29 @@ module.exports = class WordSmith extends Plugin {
 			'.zg-hist-px.is-net.h3 { fill: var(--zg-net-3, #3e8bcb); }',
 			'.zg-hist-px.is-net.h4 { fill: var(--zg-net-4, #5fabe4); }',
 			'.zg-hist-px.is-net.h5 { fill: var(--zg-net-5, #8fcbf4); }',
-			'.zg-hist-band.is-now { fill: var(--interactive-accent); opacity: 0.1; }',
+			// The bucket still being filled: lighter, and each ramp turned a
+			// few degrees off its parent — added toward teal, deleted toward
+			// orange, net toward a paler sky. Lightness alone read as a
+			// washed-out version of the same colour; a hue shift says
+			// "different state" where lightness only says "less".
+			'.zg-hist-px.is-now.is-added.h0 { fill: var(--zg-add-now-0, #1d5233); }',
+			'.zg-hist-px.is-now.is-added.h1 { fill: var(--zg-add-now-1, #276c4f); }',
+			'.zg-hist-px.is-now.is-added.h2 { fill: var(--zg-add-now-2, #358973); }',
+			'.zg-hist-px.is-now.is-added.h3 { fill: var(--zg-add-now-3, #49a8a2); }',
+			'.zg-hist-px.is-now.is-added.h4 { fill: var(--zg-add-now-4, #76bfcb); }',
+			'.zg-hist-px.is-now.is-added.h5 { fill: var(--zg-add-now-5, #b5d6ea); }',
+			'.zg-hist-px.is-now.is-removed.h0 { fill: var(--zg-del-now-0, #5e1a22); }',
+			'.zg-hist-px.is-now.is-removed.h1 { fill: var(--zg-del-now-1, #7e2824); }',
+			'.zg-hist-px.is-now.is-removed.h2 { fill: var(--zg-del-now-2, #a34530); }',
+			'.zg-hist-px.is-now.is-removed.h3 { fill: var(--zg-del-now-3, #c4683e); }',
+			'.zg-hist-px.is-now.is-removed.h4 { fill: var(--zg-del-now-4, #dd8e55); }',
+			'.zg-hist-px.is-now.is-removed.h5 { fill: var(--zg-del-now-5, #f0b67d); }',
+			'.zg-hist-px.is-now.is-net.h0 { fill: var(--zg-net-now-0, #1b3a63); }',
+			'.zg-hist-px.is-now.is-net.h1 { fill: var(--zg-net-now-1, #245884); }',
+			'.zg-hist-px.is-now.is-net.h2 { fill: var(--zg-net-now-2, #2f7ca8); }',
+			'.zg-hist-px.is-now.is-net.h3 { fill: var(--zg-net-now-3, #3ea5cb); }',
+			'.zg-hist-px.is-now.is-net.h4 { fill: var(--zg-net-now-4, #5fc9e4); }',
+			'.zg-hist-px.is-now.is-net.h5 { fill: var(--zg-net-now-5, #8fe5f4); }',
 			'.zg-hist-zeroed { fill: var(--text-faint); opacity: 0.28; }',
 			'.zg-hist-grid { fill: var(--background-modifier-border); opacity: 0.8; }',
 			'.zg-hist-axis { fill: var(--text-muted); }',
@@ -6757,7 +7037,11 @@ module.exports = class WordSmith extends Plugin {
 				+ ' overflow: hidden; text-overflow: ellipsis; }',
 			'.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
 			'.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
+			// The centring layer covers the gauge so the number sits in the
+			// middle of it; it must not also CATCH the presses meant for
+			// the water underneath.
 			'.zg-jar-pct { position: absolute; inset: 0; display: flex;'
+				+ ' pointer-events: none;'
 				+ ' align-items: center; justify-content: center;'
 				+ ' font-family: var(--zg-font, var(--font-text)), var(--font-interface, sans-serif);'
 				+ ' font-size: 30px; font-weight: 600; line-height: 1;'
@@ -6765,6 +7049,7 @@ module.exports = class WordSmith extends Plugin {
 				+ ' text-shadow: 0 2px 3px var(--background-primary), 0 -2px 3px var(--background-primary),'
 				+ ' 2px 0 3px var(--background-primary), -2px 0 3px var(--background-primary);'
 				+ ' pointer-events: none; }',
+			'.zg-jar-pct-text { pointer-events: auto; cursor: pointer; }',
 			'.zg-firework-vec.is-ring   { animation: zg-spark-fly 1.5s cubic-bezier(0.18,0.70,0.30,1) forwards; }',
 			'.zg-firework-vec.is-willow { animation: zg-spark-fly 2.9s cubic-bezier(0.15,0.80,0.30,1) forwards; }',
 			'.zg-firework-vec.is-willow .zg-firework-spark { animation-duration: 3.4s; }',
@@ -6936,6 +7221,12 @@ module.exports = class WordSmith extends Plugin {
 				['pronoun',  this.settings.checkPronoun,  this.settings.checkPronounColor]
 			] : [];
 			checks.push(['repeat', this.settings.checkRepetition, this.settings.checkRepetitionColor]);
+			// Dialogue rides the same style choice as the rest, because
+			// the point of it is finding speech at a glance and a writer
+			// who prefers underline to squiggle means it here too.
+			if (this.settings.checksEnabled) {
+				checks.push(['dialogue', this.settings.checkDialogue, this.settings.checkDialogueColor]);
+			}
 			for (const entry of checks) {
 				if (entry[1]) rules.push(paint('zg-ck-' + entry[0], entry[2], ckStyle));
 			}
@@ -8455,6 +8746,16 @@ module.exports = class WordSmith extends Plugin {
 			// there for a second read as the plugin flickering off. The
 			// bar shows what it can (the clock, the mode, the buttons) and
 			// leaves the file readouts empty, which is what they are.
+			// WORD-SMITH'S OWN PANEL IS NOT A CHANGE OF SURFACE. Clicking a
+			// row in the docked menu makes it the most recent leaf, and
+			// this then answered "no note here" — so the masks came down
+			// and the letterbox only reappeared once the writer clicked
+			// back into the note. The pane is a control surface for the
+			// note they are still in; the question is what they are
+			// WRITING in, not what they last touched.
+			if (type === WS_MENU_VIEW) {
+				return !!this.activeNoteFile();
+			}
 			return type === 'markdown' || type === 'empty';
 		} catch (_) { return true; }
 	}
@@ -8706,7 +9007,7 @@ module.exports = class WordSmith extends Plugin {
 	countProse(text) {
 		// Same shape as the full return, or callers reading charsNoSpaces get
 		// undefined on an empty note.
-		if (!text) return { words: 0, chars: 0, charsNoSpaces: 0 };
+		if (!text) return { words: 0, chars: 0, charsNoSpaces: 0, charsWithSpaces: 0 };
 		const lines = text.split('\n');
 		const skip  = scanNonProseLines(lines);
 		const kept  = [];
@@ -8725,12 +9026,36 @@ module.exports = class WordSmith extends Plugin {
 		const runs = (rest.match(WORDISH) || []).length;
 
 		const collapsed = prose.replace(/\s+/g, ' ').trim();
+		// WHITESPACE IS NOT A CHARACTER. `chars` counted the collapsed
+		// text, so a run of four spaces, a tab, or three blank lines each
+		// scored ONE — neither the literal length a word processor gives
+		// nor the count of things a reader actually sees. By request, the
+		// plugin's character count is now the visible characters: no
+		// spaces, no tabs, no line breaks, anywhere it is shown ({chars}
+		// in the bar, the report's figure, the history's totals — they
+		// all come through here, which is why one edit moves all of them).
+		//
+		// The literal figure is kept alongside as `charsWithSpaces`, and
+		// it is the TRUE one now — every space, tab and newline counted
+		// once each — because the collapsed version was under-reporting
+		// it. That is what the report's second character cell shows.
+		const raw = String(prose || '');
 		return {
 			words: cjk + runs,
-			chars: collapsed.length,
-			// Whitespace stripped entirely, which is the figure most word
-			// processors label "characters excluding spaces".
-			charsNoSpaces: collapsed.replace(/\s+/g, '').length
+			chars: collapsed.replace(/\s+/g, '').length,
+			// Kept under its old name too: several call sites and probes
+			// read `charsNoSpaces`, and it now means exactly what `chars`
+			// does rather than something subtly different.
+			charsNoSpaces: collapsed.replace(/\s+/g, '').length,
+			// UNTRIMMED. `raw.trim().length` threw away every space, tab
+			// and newline at the two ends of the document — and the end
+			// of the document is precisely where a writer testing "does
+			// a space count now" puts one. The promise above is "every
+			// space, tab and newline counted once each", and trim was
+			// the one word in the line that broke it. The masking keeps
+			// string length, so this is the literal length of the
+			// counted lines, whitespace and all.
+			charsWithSpaces: raw.length
 		};
 	}
 
@@ -8759,6 +9084,7 @@ module.exports = class WordSmith extends Plugin {
 			words:      base.words,
 			chars:      base.chars,
 			charsNoSpaces: base.charsNoSpaces,
+			charsWithSpaces: base.charsWithSpaces,
 			syllables,
 			sentences,
 			paragraphs,
@@ -8788,7 +9114,15 @@ module.exports = class WordSmith extends Plugin {
 		const totalWC   = prose.words;
 		// Was full.length, which counted the frontmatter that totalWC strips —
 		// so {words} and {chars} described different documents.
-		const charCount = prose.chars;
+		// THE LITERAL FIGURE, spaces and all. `prose.chars` here made
+		// {chars} the visible-characters count, so typing a space or a
+		// tab moved nothing in the bar — and a counter that ignores a
+		// keystroke reads as a counter that is broken. {chars} is the
+		// word-processor figure now: every space, tab and newline in
+		// the counted lines, once each. It still skips what the word
+		// count skips (frontmatter, fences, maths), so the two tokens
+		// keep describing the same document.
+		const charCount = prose.charsWithSpaces;
 		// Paragraph ranges: contiguous runs of non-blank, non-heading lines.
 		const lines = full.split('\n');
 		const paras = [];
@@ -9075,8 +9409,16 @@ module.exports = class WordSmith extends Plugin {
 
 	// The folder a note lives in, '/' for the vault root.
 	activeFolderPath() {
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		const file = view && view.file;
+		// The same two-step read activeNoteFile does, for the same reason:
+		// getActiveViewOfType returns null whenever focus is anywhere but
+		// the editor — the command palette, a status-bar button — and this
+		// helper had no fallback while its sibling did. So the report knew
+		// WHICH note it was for and not WHERE the note lived: the Folder
+		// tab said "Vault root" over a note buried four folders deep, and
+		// the breadcrumb chain (which needs a real path to hang from)
+		// never appeared. The folder is the file's to say, whichever way
+		// the file was found.
+		const file = this.activeNoteFile();
 		if (!file || !file.path) return null;
 		const i = file.path.lastIndexOf('/');
 		return i < 0 ? '/' : file.path.slice(0, i);
@@ -9292,7 +9634,8 @@ module.exports = class WordSmith extends Plugin {
 		// they open the report after updating. The smaller number is the one
 		// they asked for.
 		const files = this.filesInFolder(path, true).filter(f => this.isFileCounted(f));
-		const total = { words: 0, chars: 0, charsNoSpaces: 0, syllables: 0, sentences: 0,
+		const total = { words: 0, chars: 0, charsNoSpaces: 0, charsWithSpaces: 0,
+			syllables: 0, sentences: 0,
 			paragraphs: 0, lines: 0, files: files.length };
 		for (const file of files) {
 			let stats = null;
@@ -9308,6 +9651,7 @@ module.exports = class WordSmith extends Plugin {
 			total.words      += stats.words;
 			total.chars      += stats.chars;
 			total.charsNoSpaces += stats.charsNoSpaces || 0;
+			total.charsWithSpaces += stats.charsWithSpaces || 0;
 			total.syllables  += stats.syllables;
 			total.sentences  += stats.sentences;
 			total.paragraphs += stats.paragraphs;
@@ -9348,9 +9692,20 @@ module.exports = class WordSmith extends Plugin {
 		canvas.className = 'zg-liquid-canvas';
 		wrap.appendChild(canvas);
 
+		// THE NUMBER IS A SPAN INSIDE A LAYER THAT IGNORES THE POINTER.
+		//
+		// `.zg-jar-pct` is `inset: 0` — it covers the whole gauge so the
+		// number can be centred in it — which meant every press anywhere on
+		// the jar landed on the number and poured. The water could not be
+		// touched at all, and pressing near the edge did something entirely
+		// different from what it looked like it would. The LAYER now lets
+		// the pointer through and the number itself catches it.
 		const pct = document.createElement('div');
 		pct.className = 'zg-jar-pct';
-		pct.textContent = Math.round(r * 100) + '%';
+		const pctText = document.createElement('span');
+		pctText.className = 'zg-jar-pct-text';
+		pctText.textContent = Math.round(r * 100) + '%';
+		pct.appendChild(pctText);
 		wrap.appendChild(pct);
 
 		const ctx = canvas.getContext ? canvas.getContext('2d') : null;
@@ -9387,8 +9742,336 @@ module.exports = class WordSmith extends Plugin {
 			}
 		} catch (_) {}
 
-		let raf = null, last = 0, w = 0, h = 0, cols = 0, rows = 0;
+		// THE PAPER THE JAR SITS ON. Everything this gauge draws was
+		// tuned against a DARK popup and read badly on a light one:
+		// half-transparent water over white goes pale and chalky (the
+		// vault's "washed out"), and a sediment that darkens by a fixed
+		// amount marches toward black, which on white paper is a bruise
+		// in the bottom of the glass. Both need to know what is behind
+		// the canvas, so it is read once, here, from the modal surface
+		// the report actually uses — falling back to the page, then to a
+		// dark assumption, because a wrong guess should be the old one.
+		let paperLig = 12;
+		try {
+			const cs2 = getComputedStyle(document.body);
+			const raw = (cs2.getPropertyValue('--modal-background') || '').trim()
+				|| (cs2.getPropertyValue('--background-primary') || '').trim();
+			const pc = parseColorRGB(raw);
+			if (pc) paperLig = this._rgbToHsl(pc[0], pc[1], pc[2])[2];
+		} catch (_) {}
+		// One threshold, one name: everything that must behave
+		// differently on white reads THIS rather than testing again.
+		const lightPaper = paperLig > 55;
+
+		// THE HUE CLIMBS WITH THE POUR. The holder's colour is the ramp's
+		// answer for the FINAL ratio, so reading it once and using it
+		// throughout would fill a good week's jar green from the first
+		// drop. The ramp starts at ember; the drawn hue walks from there
+		// to the read-back value as the level rises, so a gauge warms as
+		// it fills and arrives at the colour it means.
+		//
+		// Only the HUE travels. Saturation and lightness are the scheme's
+		// and have nothing to say about progress.
+		// THE LEVEL IS THE COLOUR. One hue for the whole liquid, walked
+		// along a ramp by how full the jar is — so a glance answers "how
+		// far am I?" before any number is read.
+		//
+		// A rainbow through the DEPTH was tried instead and is gone: eight
+		// hues in one jar is a paint chart, and it threw away the one thing
+		// this gauge was already saying well.
+		//
+		// STOPS, in order, rather than a single sweep: red at nothing,
+		// through orange and yellow, then blue, indigo and violet, and
+		// GREEN at the goal. Green last because it is the only one that
+		// means "done" to everyone; the middle of the ramp is deliberately
+		// cool so the warm end reads as "early" rather than as "wrong".
+		//
+		// Interpolated through the list in the order written, NOT by the
+		// shortest arc between two hues — that is what a naive lerp does,
+		// and it would cut from yellow straight past green to blue,
+		// skipping the half of the ramp the stops exist to visit.
+		// Written UNWRAPPED, and that is the whole trick. Hues are angles,
+		// so a plain lerp from yellow (50°) to blue (215°) takes the short
+		// way — straight through GREEN at the halfway mark, which is the
+		// one colour that has to mean "done". Continuing NEGATIVE instead
+		// sends the ramp round the other side, through magenta and violet,
+		// and green is reached only at the end where it belongs. The
+		// renderer takes the modulus; nothing else needs to know.
+		//
+		// The sweep never turns back on itself either. An earlier version
+		// visited blue, then indigo and violet, then blue again on the way
+		// to green, and a bar that walks backwards reads as indecision
+		// rather than as progress.
+		const HUE_STOPS = [
+			[0.00,    2],   // red
+			[0.14,   28],   // orange
+			[0.26,   50],   // yellow
+			[0.38,  -40],   // magenta   (320°)
+			[0.50,  -72],   // violet    (288°)
+			[0.62, -102],   // indigo    (258°)
+			[0.74, -145],   // blue      (215°)
+			[0.87, -180],   // cyan      (180°)
+			[1.00, -220]    // green     (140°) — the goal
+		];
+		const hueNow = () => {
+			// THE LEVEL, not the pour's progress. This read `rNow / r` —
+			// how far through its own pour the jar was — so every jar
+			// walked the WHOLE ramp while filling and then rested on the
+			// final stop: green at 20% exactly as at 100%, which un-says
+			// the one thing the ramp exists to say. The vault saw it
+			// precisely: "it shifts hues but stays at green indifferent
+			// of the percent." The fraction is the level itself now; a
+			// jar at 40% climbs the ramp as far as 40% and STAYS there,
+			// and green is reached only by a jar that reached the goal.
+			// THE PERCENTAGE, not the pour. This read the LEVEL, so the
+			// hue climbed the ramp as the jet rose and the liquid changed
+			// colour under the writer while it arrived — asked to stop by
+			// the vault, and right: the jar's colour states what the week
+			// came to, and that number is known before a drop is drawn.
+			// (An earlier version read `rNow / r`, which was worse still:
+			// it ended EVERY jar on the last stop, green at 20% exactly as
+			// at 100%. Both are recorded because the fix for one produced
+			// the other.)
+			const f = Math.max(0, Math.min(1, r));
+			for (let i = 1; i < HUE_STOPS.length; i++) {
+				const [p1, h1] = HUE_STOPS[i - 1];
+				const [p2, h2] = HUE_STOPS[i];
+				if (f > p2) continue;
+				const k = p2 === p1 ? 0 : (f - p1) / (p2 - p1);
+				return h1 + (h2 - h1) * k;
+			}
+			return HUE_STOPS[HUE_STOPS.length - 1][1];
+		};
+
+		let raf = null, last = 0, w = 0, h = 0, cols = 0, rows = 0, kick = () => {};
 		const t0 = performance.now();
+
+		// THE FILL POURS IN, from nothing to the number. A gauge that is
+		// simply drawn at 62% states a fact; one that climbs to 62% shows
+		// the writer their own week arriving, which is what a report is
+		// for. The hue climbs WITH it — the ember→amber→green ramp is a
+		// function of the level, so pouring the level pours the colour,
+		// and a good week warms as it fills rather than arriving green.
+		//
+		// `rNow` is what everything below reads instead of `r`. It starts
+		// at zero and eases to `r`; once there it stays, so the resting
+		// gauge is exactly what it always was.
+		// Slower than it was: the pour is the one moment the report has, and
+		// at 1100ms it was over before the eye had settled on the jar.
+		const POUR_MS = 1900;
+		let pourFrom = 0, pourStart = t0;
+		// (No drop pool. See the tombstone in the draw loop: a stream from
+		// above read as debris falling into a 76px tank.)
+		// Last frame's crest per column, to measure how fast the water is
+		// climbing at the walls. Without it a splash could only be guessed
+		// from the wave function, which is the same thing said twice and
+		// drifts out of step the moment either is touched.
+		let prevT = 0;
+		// The last surface the loop drew, so a press can throw spray from
+		// the water's actual height rather than from a guess. Read only —
+		// the loop owns it.
+		let surfaceNow = null;
+		// SLOSH. A jar that has just been filled is not calm: the water
+		// arrives with somewhere to go and takes a few seconds to stop.
+		// One extra swell, wider and slower than the three standing ones,
+		// whose amplitude decays from the moment the pour ends — so the
+		// surface settles rather than simply being still.
+		let sloshPhase = 0;
+
+		// ── THE FOUR STAGES ──────────────────────────────────────────────
+		//
+		// A jar that simply rose and then rippled for ever said one thing:
+		// "here is a number". These four say what filling something is
+		// actually like — it arrives, it hits, it sloshes, it settles.
+		//
+		//   RISE    the water climbs, overshooting its own level
+		//   SPLASH  it hits that surface, throws spray, drops back
+		//   LIVELY  the waves this gauge has always had
+		//   CALM    they fade
+		//   STILL   nothing moves again until the writer pours
+		//
+		// The overshoot is of the LEVEL THE JAR IS ACTUALLY AT, never of
+		// the top of the tank: a gauge at 40% that slams into the lid has
+		// told the writer 100% for half a second, and a number that is
+		// wrong briefly is still wrong.
+		// FAST AND HARD. At 900ms the column crept up and the splash it
+		// threw was a ripple; water that arrives slowly has nothing to give
+		// the surface afterwards. Half the time and the same distance is
+		// twice the speed, and the waves after it are the difference.
+		const S_RISE   = 480;    // ms, climbing
+		const S_SPLASH = 1150;   // hits and throws
+		const S_LIVELY = 3400;   // the waves as they were
+		const S_CALM   = 6400;   // fading to nothing
+		let stageStart = performance.now();
+		let splashed   = false;
+		// A bounded pool for the splash. Cleared on every pour, so a jar
+		// poured twice does not carry the first splash into the second.
+		// The lumps a splash tears into, as cell offsets from the piece's
+		// own cell. Four silhouettes rather than one, so a burst is not a
+		// row of identical stamps: a plus, an L, a stubby bar and a clump.
+		const BLOB_SHAPES = [
+			[[1, 0], [0, 1], [-1, 0], [0, -1]],
+			[[1, 0], [1, 1], [0, 1], [2, 1]],
+			[[1, 0], [2, 0], [0, 1], [1, 1]],
+			[[1, 0], [0, 1], [1, 1], [2, 0]]
+		];
+		const DROPS_MAX = 28;
+		const drops = [];
+		// HOW FAR THE AURORA HAS SOAKED, per column, kept BETWEEN frames.
+		// The front is measured from the column's own crest, and the crest
+		// is a wave — so at 100%, where the surface sweeps twenty-odd
+		// pixels, the front rode up and down with it and cells flipped
+		// between aurora and water every single frame. That is the
+		// "flickers a lot with white" the vault reported, and it broke the
+		// rule this dissolve was written to keep: a cell that has turned
+		// stays turned. Remembering the deepest the front has reached is
+		// what makes that true rather than merely intended. Cleared on
+		// every pour, with everything else the stages own.
+		let auroraFront = null;
+		// TOMBSTONE (1.3.3): THE MOTES, both kinds, removed by the vault
+		// in two passes. They shipped as a pair — GRAINS, near-white
+		// flecks sinking from the foam into the sediment, and BUBBLES,
+		// cells of the ramp's colour rising to pop at the surface. The
+		// grains went first: a bright cell travelling down through dark
+		// water read as debris falling into the jar, the same verdict
+		// that killed the pour stream. The bubbles followed on the next
+		// look: alone they read as specks wandering a finished picture
+		// rather than as the picture living. What KEEPS the settled jar
+		// alive now is what always did the quiet work underneath them —
+		// the caustic net, the drifting light shafts and the slow hue
+		// breath, all of which move every frame — so the loop still runs
+		// (see `busy`), and the liquid shimmers without anything ever
+		// detaching from it.
+
+		// POKES. A press anywhere on the water pushes it there — a ripple
+		// spreading out from the finger, dying away over about a second.
+		// Bounded and cheap: four sources is more than anyone can press in
+		// the time one lasts, and each is three numbers.
+		const POKES_MAX = 4;
+		const pokes = [];
+		// How much of the surface's liveliness is owed to pokes rather than
+		// to the stage. A jar that has gone still must still answer a
+		// press, so the two are taken as a MAXIMUM rather than added: a
+		// poke wakes the water without pretending the pour is happening
+		// again.
+		const pokeEnergy = (now) => {
+			let e = 0;
+			// A STILL POKE IS THE AURORA'S, NOT THE WATER'S. Presses on a
+			// lit full jar are flagged `still` (see the click handler):
+			// their colour and vortex live in the aurora pass, and the
+			// surface must not read them as energy — a filled tank has
+			// nowhere for a wave to go.
+			for (const p2 of pokes) {
+				if (p2.still) continue;
+				e = Math.max(e, Math.exp(-(now - p2.t) / 620));
+			}
+			return e;
+		};
+		// INERTIA. A single press wakes the water; presses IN A ROW must
+		// build — the vault asked for exactly this — and a maximum cannot
+		// build: under pokeEnergy alone, five rapid clicks were exactly
+		// one click. Agitation is a separate store that each press ADDS
+		// to, capped so a held-down finger cannot out-violence the pour,
+		// and decaying on its own clock so a pause hands the jar back.
+		// It rides ON TOP of the max below (see `stir`), which keeps the
+		// original promise intact: one press still does not pretend the
+		// pour is happening again — but a flurry of them earns its storm,
+		// and the spray thrown per press grows with it too.
+		let agitAt = 0, agitLevel = 0;
+		const agitNow = (now) => agitLevel * Math.exp(-(now - agitAt) / 1100);
+
+		// How lively the surface is, 0..1, and how far the level is pushed
+		// past its own mark. One function so the stages cannot disagree
+		// with each other about which one the jar is in.
+		const stageAt = (ms) => {
+			// The RISE is a column arriving in the middle, not a level
+			// lifting evenly: `jet` is how much of the surface is still
+			// piled up at the centre, and it collapses outward over the
+			// stage so the water reaches the walls last.
+			if (ms < S_RISE) {
+				const u = ms / S_RISE;
+				// NEAR-CALM WHILE THE COLUMN STANDS, CHURNING AS IT
+				// COLLAPSES. This held 0.25 for the whole rise and the
+				// splash stage opened at 3.4 — a thirteenfold amplitude
+				// step in one frame, which on screen was "the animation
+				// is cut suddenly and becomes wavy." The cubic keeps the
+				// surface quiet while the jet is still a column (the
+				// water it will disturb has not arrived yet) and hands
+				// over EXACTLY the splash stage's opening energy at
+				// u = 1: 0.25 + 3.15 = 3.4. A hand-over, not a cut —
+				// and the collapse itself is what stirs the surface,
+				// which is the right physics as well as the smooth one.
+				return { wave: 0.25 + 3.15 * u * u * u, over: ease(u) * 0.10, jet: 1 - u };
+			}
+			if (ms < S_SPLASH) {
+				const u = (ms - S_RISE) / (S_SPLASH - S_RISE);
+				void u;
+				// The overshoot collapses as the splash happens: the water
+				// is falling back through its own level, which is what
+				// throws the spray.
+				// The surface is at its most violent as the column falls
+				// back through it, and stays lively well into the next
+				// stage rather than dropping to a polite ripple: this is
+				// where the waves the writer watches come from.
+				return { wave: 3.4 - u * 1.6, over: 0.10 * (1 - u) };
+			}
+			if (ms < S_LIVELY) {
+				// Coming off the splash rather than starting flat: the
+				// water is still carrying what the column gave it, and
+				// spends this stage giving it back.
+				const u = (ms - S_SPLASH) / (S_LIVELY - S_SPLASH);
+				return { wave: 1.8 - u * 0.8, over: 0 };
+			}
+			if (ms < S_CALM) {
+				const u = (ms - S_LIVELY) / (S_CALM - S_LIVELY);
+				// Eased, not linear. A straight line to nothing reads as
+				// the animation being switched off; this reads as water
+				// running out of energy.
+				return { wave: (1 - u) * (1 - u), over: 0 };
+			}
+			return { wave: 0, over: 0 };
+		};
+		// The swirl's own phase, re-rolled on every pour so a second
+		// opening of the report does not resume the first one's current
+		// mid-turn.
+		let swirlPhase = Math.random() * Math.PI * 2;
+		// The current's own phase, re-rolled per pour like the slosh and
+		// the swirl, so two openings do not surge in step.
+		let flowPhase  = Math.random() * Math.PI * 2;
+		// (No hueSpin/hueDir. The spectrum-through-depth they randomised is
+		// gone; the hue is the LEVEL's to say, and a level that meant
+		// something different on each opening would say nothing.)
+		// TOMBSTONE (1.3.3): wall wetting drew a darker column against each
+		// side where the water had recently been. It was true to life and
+		// invisible in a 76px jar — two cells of slightly darker blue
+		// against a wall the eye reads as an edge, not a surface. Removed
+		// on sight rather than tuned: a detail nobody can see is a detail
+		// that costs frames for nothing.
+		let rNow = reduce ? r : 0;
+		// A writer who asked the system for less motion gets the answer,
+		// not the performance.
+		const pour = () => {
+			if (reduce) { rNow = r; return; }
+			pourFrom  = rNow;
+			pourStart = performance.now();
+			sloshPhase = Math.random() * Math.PI * 2;
+			swirlPhase = Math.random() * Math.PI * 2;
+			flowPhase  = Math.random() * Math.PI * 2;
+			// THE STAGES START OVER. Everything the jar does after a pour
+			// is a function of how long ago it was poured, so this one
+			// timestamp is the whole reset — including the aurora, which
+			// used to be read from the LEVEL and so showed nothing when a
+			// full jar was poured again.
+			stageStart = performance.now();
+			splashed   = false;
+			drops.length = 0;
+			auroraFront = null;
+
+			kick();
+		};
+		// easeOutCubic: fast at the start, settling at the end — water
+		// filling a jar, rather than a bar sliding to a stop.
+		const ease = (u) => 1 - Math.pow(1 - u, 3);
 
 		const resize = () => {
 			const rect = wrap.getBoundingClientRect();
@@ -9482,17 +10165,88 @@ module.exports = class WordSmith extends Plugin {
 			if (!canvas.isConnected) return;
 			resize();
 			const t = (now - t0) / 1000;
+			// Seconds since the last frame, clamped: a tab that was in the
+			// background hands back a gap of seconds, and integrating the
+			// spray over that would fire every drop into the ceiling at
+			// once the moment the writer looked back.
+			const dt = Math.min(0.05, prevT ? (now - prevT) / 1000 : 0.016);
+			prevT = now;
+			// Where in the four stages this frame falls. One read, so
+			// nothing downstream can decide it differently.
+			const stageMs = now - stageStart;
+			const stage   = stageAt(stageMs);
+			// Where the pour has got to. Clamped at both ends, so a frame
+			// that arrives late cannot overshoot the number.
+			if (!reduce && rNow !== r) {
+				const u = Math.min(1, Math.max(0, (now - pourStart) / POUR_MS));
+				rNow = pourFrom + (r - pourFrom) * ease(u);
+				if (u >= 1) rNow = r;
+			}
 			ctx.clearRect(0, 0, w, h);
 
-			if (full) {
-				for (let gy = 0; gy < rows; gy++) {
-					const v = gy / rows;
-					for (let gx = 0; gx < cols; gx++) {
-						ctx.fillStyle = auroraCell(gx / cols, v, t);
-						ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
-					}
-				}
-			} else {
+			// A FULL JAR POURS TOO, and only then turns to aurora.
+			//
+			// `full` was read once at build time and sent every frame down
+			// the aurora branch, which paints the whole tank regardless of
+			// `rNow` — so the one week a writer most wants to watch fill
+			// was the one that arrived already full. The prize was given
+			// before the race.
+			//
+			// The branch is taken on the LEVEL now, not on the target: the
+			// tank fills as water, and the moment it is full the aurora
+			// takes over. Reduced motion still starts at the answer, so it
+			// is aurora from the first frame, as before.
+			// A FULL JAR STAYS WATER, and the aurora arrives ON it.
+			//
+			// The two were alternatives: below full, waves; at full, a hard
+			// cut to the aurora painting every cell. So the last frame of
+			// the pour and the first frame of the prize had nothing in
+			// common and the jar appeared to jump. Worse, a full jar lost
+			// its surface entirely — the one that had most earned a swell.
+			//
+			// Now the water is always drawn, with a BIGGER swell at the
+			// brim (a full tank has the most to move), and the aurora is
+			// composited over it as it fades up. Nothing switches; one
+			// thing becomes another.
+			// The crossover runs over the last fifth of the pour rather than
+			// the last twelfth: a dissolve needs long enough to be seen as
+			// one, and at 8% it was over in a couple of frames.
+			// THE AURORA ARRIVES WITH THE SPLASH AND SETTLES WITH THE WATER.
+			// It used to be read from the LEVEL, which meant it was already
+			// there by the time the jar was full. It now begins the moment
+			// the water hits — everything is mixing, so the colours mix
+			// too — and finishes as the surface goes still.
+			// LATER, AND SLOWER. It began at S_RISE — the instant the
+			// column collapsed — so the aurora was already soaking down
+			// while the splash was still in the air, and it took the wave
+			// crests before the writer had seen them break. It starts
+			// after the SPLASH now, when the water is falling back, and
+			// runs to the same still point, so the whole lively stage is
+			// water and the light arrives into a settling jar.
+			const auroraMix = full
+				? Math.max(0, Math.min(1, (stageMs - S_SPLASH) / (S_CALM - S_SPLASH)))
+				: 0;
+			// HOW MUCH THE HUES ARE STILL SCATTERING. Full at the splash
+			// and gone by the end: while the water is churning the cells
+			// take random hues around the aurora's own, and as it calms
+			// they resolve into it. The mixing IS the transition rather
+			// than something laid over it.
+			// THE SCATTER, on the AURORA'S OWN CLOCK and in steps. It ran
+			// from S_RISE to S_LIVELY, which stopped being the aurora's
+			// window when the aurora moved to start at the splash — so it
+			// began already half-decayed and then crept toward zero a
+			// hair per frame, rotating every cell's hue slightly on every
+			// single frame. A continuous rotation over a quantised palette
+			// is a shimmer with no lattice to sit on. It is now the
+			// inverse of the mix (full when the light arrives, gone when
+			// it has settled) and quantised, so the scatter resolves in a
+			// few visible steps instead of creeping.
+			const auroraJitter = full ? quantA(1 - auroraMix) : 0;
+			let surfaceY = null;
+			// The flat level the water oscillates about, kept for the
+			// aurora: a front measured from a wave is a front that lurches.
+			let restNow = 0;
+			{
 				// Surface height per COLUMN, so the wave is sampled on the
 				// lattice too — the crest steps rather than curving, which
 				// is what makes it read as pixel water instead of as a
@@ -9503,80 +10257,501 @@ module.exports = class WordSmith extends Plugin {
 				// a small fast chop on top. Two waves beat against each
 				// other on a visible cycle; three do not, so the surface
 				// never looks like it is repeating.
-				const restY = h - 6 - r * (h - 16);
-				const amp   = Math.min(5, h * 0.06);
+				// FULL MEANS FULL. The rest line ran from 6px off the floor
+				// to 10px short of the ceiling, so a jar at 100% sat with a
+				// visible gap above the water — the one reading a writer
+				// most wants to be unambiguous. It now reaches ABOVE the
+				// brim by the swell's own amplitude, so the crest rides
+				// against the top and the troughs still show water rather
+				// than air.
+				// A FULL TANK SWELLS MORE. The amplitude was a flat cap, so
+				// the fullest jar — the one with the most water to move —
+				// had the same small chop as a nearly empty one. It grows
+				// with the level and is allowed a little more room at the
+				// brim, which is where the writer is looking.
+				// The stage owns how lively the surface is. At STILL it is
+				// zero and the water is flat — which is the point of the
+				// last stage, not a side effect of it.
+				const pokeE = pokeEnergy(now);
+				// The stir: the stage or a press, whichever is louder —
+				// the max keeps a settled jar's press from replaying the
+				// pour — PLUS the built-up agitation, which is the part a
+				// max could never carry. Capped just above the splash's
+				// own opening energy, so a storm of clicks reads as a
+				// storm and not as a glitch.
+				const stir  = Math.min(3.6, Math.max(stage.wave, pokeE) + agitNow(now));
+				// HOW STILL THIS FRAME IS, 0 (churning) to 1 (glass). One
+				// derivation beside `stir` itself, because two places now
+				// read it — the meniscus thins with it and the caustics
+				// climb faster — and a second copy is a second thing to
+				// forget when either is tuned.
+				const calm  = 1 - Math.min(1, stir);
+				// THE CLIMB, shared by every field that drifts. Hoisted
+				// here because the light shaft is computed per COLUMN and
+				// the caustics per CELL, and the two must rise together
+				// or the tank has two currents.
+				// THE CLIMB, and it WANDERS. A single rate is a metronome:
+				// the bands marched up at a fixed speed and read as a
+				// machine part, which is what "too robotic" meant. Two
+				// slow sines — incommensurate, so they never line up —
+				// make the current surge and ease the way water does,
+				// and the whole thing is roughly a third of the speed it
+				// was: 16px/s was a conveyor belt, ~5px/s is a drift.
+				// Still a function of t alone, so the motion stays purely
+				// vertical.
+				const climb = t * 0.34 * (1 + 0.55 * calm)
+					+ Math.sin(t * 0.19 + flowPhase) * 0.9
+					+ Math.sin(t * 0.07 + flowPhase * 1.7) * 1.6;
+				const amp   = Math.min(8, h * 0.06 * (1 + rNow * 0.8))
+					* stir;
+				// …and how far past its own level the water is riding.
+				const shown = Math.min(1, rNow + stage.over * rNow);
+				// FROM THE FLOOR. The rest line started 6px UP, so an
+				// empty jar showed a strip of nothing along the bottom
+				// and the fill began in mid-air rather than growing out
+				// of the base — the vault's "it does not start right
+				// from the bottom." The ceiling was fixed for exactly
+				// this reason a release ago (see below); the floor was
+				// left behind. Both ends are the tank's own now.
+				const restY = h - shown * (h + amp);
+				restNow = restY;
 				const tank  = Math.max(1, h - restY);
+				// The crest line, kept per column: the aurora starts AT THE
+				// SURFACE and works downward, so it needs to know where the
+				// water's top actually is in each column rather than
+				// assuming a flat line the waves have long since left.
+				surfaceY = new Array(cols);
+				// THE GEYSER'S SHAPE, hoisted: the shading pass needs to know
+				// how much of a column is jet, so the profile is computed
+				// once per column instead of living inside the surface sum.
+				//
+				// `stage.jet` is the stage's CLOCK (1 at the first frame, 0
+				// when the water meets the walls); the column's height and
+				// reach are shaped here, separately, because tying both to
+				// the clock linearly is what made it a shrinking hump — at
+				// half-time it had lost half its height and thrown half its
+				// width, and the eye read "the middle bulges", not "a column
+				// lands and collapses outward".
+				//
+				//   HEIGHT holds early, plunges late (1 - gone²): a column
+				//   is still a column at half-time.
+				//   REACH starts at two cells and ACCELERATES to the walls
+				//   (gone^1.7): slow to let go, quick to arrive, which is
+				//   what a collapse outward looks like.
+				//   CENTRED ON THE LATTICE: distance runs from the CELL'S
+				//   CENTRE to the canvas's centre. Measured from the left
+				//   edge, the peak sat one cell right of centre — a quarter
+				//   of the whole column at birth, when it is four cells
+				//   wide, which is why the eruption never read as centred.
+				//
+				// THE STAGE ONLY CARRIES `jet` DURING THE RISE — every later
+				// stage omits the key, and `1 - undefined` is NaN, which
+				// `0 · NaN` does NOT rescue. The first version of this hoist
+				// learned that on screen: from the first frame after S_RISE
+				// every column's surface came out NaN, the `y + CELL <= surf`
+				// skip never fired again, and the whole jar painted — in the
+				// last valid colour the context held, because `hsla(NaN,…)`
+				// is an assignment canvas silently ignores. Instantly full,
+				// and green for ever. Read once, defaulted once, used
+				// everywhere below; nothing else touches `stage.jet` raw.
+				const jetNow = stage.jet || 0;
+				const jetProfile = (x) => {
+					if (!jetNow) return 0;
+					const d    = Math.abs(x + CELL / 2 - w / 2);
+					const gone = 1 - jetNow;               // 0..1 outward
+					const half = CELL * 2 + Math.pow(gone, 1.7) * (w / 2);
+					if (d > half) return 0;
+					// A DOME IS A HUMP. The raw cosine carries its flanks
+					// nearly to the rim, so at any width past a few cells
+					// the eye reads "bulge" — which is what the vault
+					// reported. Raised to a power, the flanks fall away
+					// and the peak keeps its height: a jet with skirts,
+					// slimmer than its own reach all the way to the walls,
+					// at birth and mid-collapse alike.
+					return Math.pow(
+						Math.cos((d / Math.max(1, half)) * Math.PI / 2), 2.6);
+				};
 				for (let gx = 0; gx < cols; gx++) {
 					const x = gx * CELL;
+					// How much of this column is jet (0..1), and its lift.
+					// Height in TANK units, not in wave units.
+					const jetK  = jetProfile(x);
+					const rise  = (h - 12) * 0.85
+						* (1 - Math.pow(1 - jetNow, 2));
+					const jetLift = jetK * rise;
+					// STANDING WAVES, not travelling ones. `sin(kx + ωt)` walks
+					// the crest steadily from one side to the other, which
+					// is what water in an open channel does — and this is
+					// a JAR. Water in a container reflects off the sides:
+					// the pattern stays put and the whole surface rises and
+					// falls, with the WALLS as the points that move most.
+					//
+					// `cos(nπx/w) · cos(ωt)` is that shape. Three modes,
+					// their frequencies deliberately not multiples of each
+					// other so the surface never repeats, and each mode's
+					// own phase so they do not all peak together.
+					// TRAVELLING WAVES, restored. A standing pattern is what
+					// water in a container really does, and it read as the
+					// whole surface pumping up and down in place — correct
+					// and lifeless. Three drifting sines, deliberately
+					// incommensurate so the surface never repeats, are what
+					// this gauge looked right with. Physics lost to the
+					// eye, which is the right way round for an ornament.
 					const surf = restY
 						+ Math.sin(x * 0.055 + t * 1.15) * amp
 						+ Math.sin(x * 0.021 - t * 0.70) * amp * 0.7
-						+ Math.sin(x * 0.130 + t * 1.90) * amp * 0.22;
-					// Slow, wide columns of light drifting across the tank —
-					// the same trick as a light shaft through water, and
-					// what stops the fill from being uniform side to side.
-					const shaft = 0.5 + 0.5 * Math.sin(x * 0.017 + t * 0.22);
+						+ Math.sin(x * 0.130 + t * 1.90) * amp * 0.22
+						// The slosh: one long wave across the whole tank,
+						// slower than the three and dying away, so a jar
+						// just filled rocks before it settles.
+						// The slosh rides on the stage too, loudest through
+						// the splash and gone by the time the water stills.
+						+ Math.sin((x / Math.max(1, w)) * Math.PI
+							+ t * 2.6 + sloshPhase) * amp * 1.4
+							* Math.max(0, stage.wave - 0.6)
+						// EACH POKE, as a ring spreading from where it was
+						// pressed: a wave whose phase is the DISTANCE from
+						// that point, so the crest travels outward both
+						// ways rather than the whole surface moving at
+						// once. It fades with distance and with age, and
+						// the two together are what make it read as a
+						// disturbance rather than as a new mode.
+						// THE JET. While the water is arriving it is heaped in
+						// the MIDDLE and running outward — a column landing
+						// hard rather than a level rising evenly. The heap
+						// is highest at the centre, falls off with distance,
+						// and its reach grows through the stage until it
+						// meets the walls, which is where the splash comes
+						// from.
+						// THE GEYSER. Not a bulge on the waves — that is what
+						// this was, and at a quarter of the wave amplitude
+						// it came to about two pixels, which is why the
+						// water looked like it simply rose. It is measured
+						// against the TANK now: a narrow column standing
+						// most of the jar's height at the moment it starts,
+						// collapsing and spreading until it reaches the
+						// walls.
+						//
+						// Narrow first and wide later: a jet is a column
+						// when it arrives and a swell by the time it gets
+						// to the sides, and the width doing the opposite is
+						// what made the old one read as a hump.
+						- jetLift
+						+ pokes.reduce((sum, pk) => {
+							const d   = Math.abs(x - pk.x);
+							const age = (now - pk.t) / 1000;
+							if (age > 1.6) return sum;
+							return sum + Math.sin(d * 0.09 - age * 9.5)
+								* Math.exp(-d / 42)
+								* Math.exp(-age * 2.6)
+								* amp * 2.4;
+						}, 0);
+					surfaceY[gx] = surf;
+					// LANES: a phase that varies across the tank but not
+					// with time. Perfectly horizontal bands rising in
+					// lockstep are the other half of "robotic"; giving each
+					// column its own offset bends them into something that
+					// flows. This is NOT the coupling the invariant forbids
+					// — these are computed from x ALONE, so every column
+					// still moves purely vertically and at the same speed;
+					// only the phase differs. What is banned is x
+					// multiplied into the clock, which is what gives a
+					// pattern a sideways answer.
+					//
+					// Per COLUMN, not per cell: they do not vary with y, and
+					// the shaft (computed first in the cell loop) needs them
+					// too — defining them beside the caustics put one of
+					// them below its own first use.
+					const lane  = Math.sin(x * 0.031) * 2.1
+						+ Math.sin(x * 0.013 + 1.7) * 1.3;
+					const lane2 = Math.sin(x * 0.021 + 0.6) * 1.8;
 					for (let gy = 0; gy < rows; gy++) {
 						const y = gy * CELL;
 						if (y + CELL <= surf) continue;
+						// Slow, wide columns of light — the same trick as a
+						// light shaft through water, and what stops the fill
+						// from being uniform side to side. It used to sweep
+						// SIDEWAYS at 13px/s, which made it (with the hue
+						// drift) the fastest thing in the tank and the reason
+						// a still jar read as flowing right-to-left. It keeps
+						// its x term, so the shafts still differ column to
+						// column, but the phase climbs. Computed per CELL
+						// rather than per column now, because a phase that
+						// depends on y cannot be lifted out of the y loop.
+						// The shaft: a slow swell of light climbing the
+						// tank, with a STATIC side-to-side term so the
+						// columns still differ from one another. Same rule
+						// as the caustics — x never shares a sine with the
+						// clock, or the shaft slides sideways at 50px/s and
+						// takes the whole picture with it.
+						const shaft = 0.5
+							+ 0.35 * Math.sin(y * 0.070 + lane2 * 0.7 + climb * 0.55)
+							+ 0.15 * Math.sin(x * 0.017);
 						const below = y - surf;
-						// Depth below the surface, normalised on the tank. The
-						// cell the surface passes through is only partly wet,
-						// so this goes negative there — clamped, because a
-						// negative depth would brighten the ramp backwards.
-						const depth = quant(Math.max(0, Math.min(1, below / tank)));
+						// Depth below the surface, normalised on THIS COLUMN'S
+						// water rather than on the rest level alone. During
+						// the geyser the column stands most of the jar above a
+						// rest line still near the floor, so `below / tank`
+						// saturated within about one cell of the cap —
+						// everything under the crest wore full-depth shading
+						// AND the sediment block, and the eruption drew as a
+						// black pillar. Normalised on the water actually
+						// standing in the column, the ramp spreads down its
+						// height instead. Settled frames are untouched: there
+						// `h - surf` only exceeds the tank under a crest, and
+						// by at most the wave amplitude.
+						//
+						// AND THE JET IS AERATED. Rising water is full of air
+						// and light — it is the brightest thing in a real
+						// fountain, not the darkest — so the shading depth is
+						// scaled down by how much of this column is jet,
+						// fading back to honest depth as the stage hands over
+						// to the waves. Sediment follows for free: grains do
+						// not settle in an upward jet, and a shallowed depth
+						// never crosses the sediment line while the column is
+						// actually erupting.
+						//
+						// The cell the surface passes through is only partly
+						// wet, so `below` goes negative there — clamped,
+						// because a negative depth would brighten the ramp
+						// backwards.
+						// …and never deeper than the glass. A full jar's
+						// `tank` is h PLUS the swell, so the deepest cell
+						// reached only ~0.73 of the ramp: the whole tank
+						// sat mid-light with nothing dark to push against,
+						// which is the "washed out at 100%" the vault
+						// reported. Clamped to the canvas, a full jar uses
+						// the whole ramp. The geyser is unaffected — its
+						// column is aerated below, which is what keeps a
+						// deep reading from becoming a black pillar.
+						const tankCol = Math.min(h, Math.max(tank, h - surf));
+						const depth = quant(Math.max(0, Math.min(1, below / tankCol))
+							* (1 - 0.65 * jetK * jetNow));
 						// Caustics: two diagonal ripple fields crossing, which
 						// is what throws the wobbling net of light through real
 						// water. Quantised coarsely so it lands as blocks of
 						// brightness rather than a smooth sheen, and faded with
 						// depth because the light does not reach the bottom.
-						const caus = quantA((
-							Math.sin(x * 0.090 + y * 0.130 - t * 1.60) +
-							Math.sin(x * 0.050 - y * 0.070 + t * 1.10)
-						) / 4 + 0.5);
-						const causDepth = caus * (1 - depth * 0.65);
+						// DEPTH PARALLAX. The two ripple fields used to travel
+						// at the same rate, which is what makes crossing
+						// patterns read as one flat sheet. The second is
+						// slowed to 60% and given a little more scale, so
+						// it sits BEHIND the first — the cheapest depth
+						// there is, and the reason real water looks deep.
+						// THE FLOW RISES. Both fields travelled DOWNWARD —
+						// for a term in `y·k + φ(t)`, a phase that grows
+						// carries the pattern toward +y, which on a
+						// canvas is down — so a settled jar read as
+						// draining, or as something sinking through it.
+						// Water at rest convects the other way: warmth
+						// and light climb. The sign of each time term is
+						// flipped, and the climb SPEEDS UP as the surface
+						// stills, so the body of the water takes over the
+						// motion the waves are giving up. The two rates
+						// keep their ratio (0.41), so the parallax that
+						// makes the back field sit behind the front one
+						// holds at every point on that handover.
+						// THE FLOW RISES, and this is the THIRD attempt —
+						// the first two failed the same way, so the reason
+						// is written down. A sine `sin(kx·x + ky·y + wt)`
+						// is a STRIPE pattern, and stripes match themselves
+						// under any shift ALONG the stripe: "which way is
+						// it moving" has a whole family of answers. The eye
+						// takes one, and in a tank 300 wide and 45 tall it
+						// takes the cheap one — sideways. Both earlier
+						// passes flipped the time term's sign (correct, and
+						// beside the point) and then STEEPENED the wave
+						// vector, which raised the horizontal answer from
+						// 18px/s to 50px/s. The vault reported "even faster
+						// now", and it was: measured by cross-correlating
+						// two rendered frames, the picture translated 45px
+						// LEFT per second and not one pixel upward.
+						//
+						// There is no tuning out of it. While x and t share
+						// a sine there IS a horizontal answer, and it is
+						// w/kx — which grows as the pattern steepens. So x
+						// is gone from every MOVING term: the drifting
+						// fields are functions of y and t alone, which
+						// leaves the picture invariant under horizontal
+						// shift. Not "mostly vertical" — no sideways
+						// reading available at all. The side-to-side
+						// variation that kept the tank from looking uniform
+						// stays as a STATIC term in x, which textures
+						// without travelling.
+						const caus = quantA(0.5
+							+ 0.26 * Math.sin(y * 0.150 + lane + climb * 1.60)
+							+ 0.15 * Math.sin(y * 0.062 + lane2 + climb * 0.72)
+							+ 0.11 * Math.sin(y * 0.230 + lane * 1.6 + climb * 2.30)
+							+ 0.10 * Math.sin(x * 0.045));
+						// CALM WATER FOCUSES. Real caustics are crispest on a
+						// glassy surface and wash out when it churns, and
+						// the settled jar is exactly where this gauge had
+						// least to look at. The net's contrast is stretched
+						// about its own midpoint as `calm` rises — quantised
+						// again afterwards, so it stays a lattice of steps
+						// rather than becoming a gradient.
+						const causS = quantA(0.5 + (caus - 0.5) * (1 + 1.15 * calm));
+						const causDepth = causS * (1 - depth * 0.65);
 						// Hue drift: a few degrees, moving with time, depth and
 						// the caustic field. Big enough to notice on a slow
 						// look, small enough that it never reads as a cycle.
-						const hue = baseHue
+						// A RAINBOW THROUGH THE WATER. The jar used to be one
+						// hue with a few degrees of drift — honest, and
+						// flat. The spectrum now runs the whole depth of
+						// the liquid, so the level itself is read as
+						// colour: red at one end through orange, yellow,
+						// green, cyan, blue, indigo and violet at the
+						// other.
+						//
+						// The ORDER is re-rolled on every pour — a start
+						// offset and a direction — so nothing about the
+						// gauge says "green means nearly there". It is a
+						// spectrum, not a scoring scale, and a writer
+						// should not learn to read a hue as a verdict.
+						const hue = hueNow()
 							+ Math.sin(t * 0.28 + depth * 2.4) * 7
-							+ Math.sin(x * 0.01 + t * 0.16) * 4
+							// THIS ONE WAS THE FASTEST SIDEWAYS THING IN
+							// THE TANK — 16px/s, purely horizontal — and
+							// a colour drift moving crosswise pulls the
+							// whole picture with it however the light
+							// behaves. It climbs with everything else now.
+							+ Math.sin(y * 0.045 + climb * 0.30) * 4
 							+ causDepth * 4;
 						// Four bands down the column, each with its own
 						// treatment rather than one continuous ramp: the
 						// crest cap, the foam under it, open water, and the
 						// sediment at the floor.
-						const crest = below < CELL;
-						const foam  = below < CELL * 2.5;
+						// THE MENISCUS. Real water clings to what holds it, so
+						// the top row is lighter and more opaque than the
+						// water under it, and thickens toward the two
+						// walls where the clinging actually happens. It is
+						// the cheapest thing in this gauge that reads as
+						// LIQUID rather than as fill.
+						const wall = Math.min(gx, cols - 1 - gx);
+						// THE MENISCUS THINS AS THE WATER SETTLES. Real
+						// clinging does not, but the drawn one has to: at
+						// full thickness the white band is right on a
+						// churning surface — where it IS the foam of a
+						// wave — and far too heavy on a still one, where
+						// the vault read it as a thick white lid rather
+						// than as the water's edge. Both the base skin
+						// and the extra the walls get shrink toward calm,
+						// so a settled jar keeps a hairline and a moving
+						// one keeps its foam.
+						const cling = 1 + (wall < 2
+							? (2 - wall) * 0.9 * (1 - 0.72 * calm) : 0);
+						// ONE CELL AT REST, and the arithmetic is deliberate.
+						// A still surface is FLAT, so every column agrees
+						// on where it falls between two cells — the crest
+						// band is therefore all-or-nothing across the
+						// whole tank, and at the old thickness it landed
+						// TWO rows of near-white on every column: the
+						// thick white lid the vault reported. The rest
+						// threshold is pushed inside the cell the surface
+						// passes through (whose `below` is negative), so
+						// calm water wears a one-cell hairline and the
+						// wall cling cannot push it to two either.
+						const skin  = 1 - 0.82 * calm;
+						// The crest's own edge is DITHERED, and more so the
+						// livelier the water: a calm surface keeps a clean
+						// line, and a churning one breaks up into the foam
+						// under it rather than staying a drawn curve. The
+						// stage decides how much, so this is the same
+						// energy the waves and the spray are answering to.
+						// CAPPED. This scattered the crest boundary by
+						// ±0.6 cells per unit of stir, and stir runs to
+						// 3.6 — so at full pour the bright band's edge
+						// jumped two cells in and out on a per-cell
+						// pattern, which is speckle rather than foam, and
+						// it is most of what "flickers a lot with white"
+						// was. The dither still breaks the line up; it can
+						// no longer strobe across it.
+						const chop = (((gx * 5 + gy * 11) % 8) / 8 - 0.5)
+							* CELL * 1.2 * Math.min(1.35, stir);
+						const crest = below < CELL * cling * skin + chop;
+						// The foam under the crest thins with it, or the
+						// band merely moves from one white to a slightly
+						// less white one and the lid is still a lid.
+						const foam  = below < CELL * (2.5 - 1.15 * calm);
 						let lig, sat, alpha;
 						if (crest) {
 							// The lit edge of the wave. Nearly white, barely
 							// saturated, and the most opaque thing in the tank.
-							lig   = baseLig + 34 + causDepth * 6;
-							sat   = baseSat - 26;
+							// BRIGHT WATER, NOT WHITE. At +34 lightness with
+							// 26 points of chroma taken away, a crest cell
+							// was very nearly white — so a full jar, whose
+							// surface sweeps most of the tank, spent its
+							// pre-aurora seconds throwing white across the
+							// picture every frame. It is a lit crest now:
+							// bright enough to be the top of a wave, still
+							// carrying the jar's own colour.
+							lig   = baseLig + 22 + causDepth * 6;
+							sat   = baseSat - 12;
 							alpha = 0.96;
 						} else if (foam) {
-							lig   = baseLig + 19 + causDepth * 8;
-							sat   = baseSat - 10;
+							lig   = baseLig + 14 + causDepth * 8;
+							sat   = baseSat - 6;
 							alpha = quantA(0.80 + caus * 0.12);
 						} else {
 							lig   = baseLig + 12 - depth * 28
-								+ causDepth * 9 + shaft * 5;
+								+ causDepth * (9 + 6 * calm) + shaft * 5;
 							sat   = baseSat + depth * 16 - causDepth * 6;
 							// Deep water is denser: the background reads
 							// clearly through the shallows and not at all
 							// through the floor. The range is wide on
 							// purpose — a narrow one lands on two steps of
 							// the ladder and the layering disappears.
-							alpha = quantA(0.48 + depth * 0.50 + caus * 0.06);
+							//
+							// ON WHITE PAPER IT STARTS DENSER. At 0.48 the
+							// shallows were half white, which on a dark
+							// popup is depth and on a light one is chalk —
+							// the vault's "washed out". The floor rises
+							// and the range shortens to keep the same
+							// ceiling, so the layering survives; the
+							// colour is simply allowed to be a colour.
+							alpha = quantA((lightPaper ? 0.70 : 0.48)
+								+ depth * (lightPaper ? 0.28 : 0.50)
+								+ caus * 0.06);
+							// …and carries more chroma, because a light
+							// backdrop bleaches what a dark one deepens.
+							if (lightPaper) sat += 12;
 						}
 						// Sediment: the last fifth of the tank darkens and
 						// saturates further, so the fill has a floor instead
 						// of fading out at the bottom edge.
-						if (depth > 0.8) {
-							const s2 = (depth - 0.8) / 0.2;
-							lig -= s2 * 12;
-							sat += s2 * 8;
+						// THE SEDIMENT, which was there and invisible. It began at
+						// four fifths of the way down and took twelve points
+						// of lightness off — against a ramp that already
+						// darkens with depth, that is a shade on a shade, and
+						// nothing showed. It starts higher now, goes further,
+						// and carries its own DITHER, so it reads as settled
+						// grains rather than as a darker rectangle at the
+						// bottom of the tank.
+						// THE SEDIMENT SETTLES TOWARD THE PAPER, not toward
+						// black. It used to subtract a fixed 26 points of
+						// lightness on top of a ramp that had already
+						// taken 28 — on a dark popup that is a floor, on
+						// a white one it is a bruise in the bottom of the
+						// glass, which is what the vault saw. It is a
+						// LERP now: the deepest water walks most of the
+						// way to the surface the report is drawn on, so
+						// the tank fades into its own background at the
+						// bottom on either kind of theme. It still reads
+						// as a floor — the water above it is denser and
+						// more saturated — and it keeps its own DITHER,
+						// so it is settled grains rather than a band.
+						if (depth > 0.62) {
+							const s2 = (depth - 0.62) / 0.38;
+							lig += (paperLig - lig) * s2 * 0.72;
+							// Toward the paper means toward the paper's
+							// greyness too: a deep cell that keeps full
+							// chroma while walking to a pale surface goes
+							// muddy rather than quiet.
+							sat -= s2 * (lightPaper ? 22 : -14);
+							const grit = ((gx * 3 + gy * 7) % 9) / 9;
+							if (grit < s2 * 0.55) {
+								lig += (paperLig > lig ? 1 : -1) * (4 + s2 * 5);
+							}
 						}
 						ctx.fillStyle = 'hsla(' + Math.round(hue) + ','
 							+ Math.round(Math.max(0, Math.min(100, sat))) + '%,'
@@ -9586,10 +10761,394 @@ module.exports = class WordSmith extends Plugin {
 					}
 				}
 			}
+
+			// THE AURORA ARRIVES AS A PIXEL DISSOLVE, cell by cell.
+			//
+			// Two earlier versions were wrong in opposite directions: the
+			// first REPLACED the water at full, so the jar cut from waves
+			// to a flat wash in one frame; the second faded the aurora over
+			// it with globalAlpha, which blends two colours inside every
+			// cell and produces exactly the smooth in-between shades this
+			// whole gauge is drawn to avoid. A fade is not a transition
+			// pixel art can make.
+			//
+			// So each cell is either water or aurora, and the SHARE of them
+			// that has turned rises with the pour. Which cells turn is
+			// decided by an ordered dither — the same 4×4 matrix idea as
+			// the bar heat ramps — so they come on in a stable, scattered
+			// pattern rather than a wave or a random sparkle, and a cell
+			// that has turned stays turned. Nothing is ever half-coloured.
+
+			// THE SPLASH, thrown once when the water falls back through its
+			// own level. Spawned along the whole surface rather than at the
+			// two walls, because this is the water hitting ITSELF — the
+			// overshoot collapsing — and that happens everywhere at once.
+			// The cells nearest the walls go up hardest and lean inward:
+			// water with a wall behind it has one way left to go.
+			surfaceNow = surfaceY;
+			if (!splashed && stageMs >= S_RISE && surfaceY && !reduce) {
+				splashed = true;
+				// HARD ENOUGH TO SEE. The old velocities peaked around
+				// 130 up in the middle — an apex of nine pixels over a
+				// surface that is itself churning nineteen, so the spray
+				// existed and vanished into the waves, and the vault
+				// reported "there is no splash." Thrown from a collapse
+				// the height of the jar, the beads have to CLEAR the
+				// storm they came from.
+				// BLOBS, NOT ONLY BEADS. Every thrown piece was a single
+				// cell, so a collapse the height of the jar threw what
+				// looked like dust. Water does not come apart into a fine
+				// even spray: it tears into LUMPS, a few big ones with
+				// beads around them, and the big ones are what read as
+				// water leaving the surface.
+				//
+				// Each piece gets a size in cells (1–3) and a shape drawn
+				// from a tiny table of cell offsets, so a blob is a
+				// deliberate little cluster on the lattice rather than a
+				// scaled square — scaling is how pixel art stops looking
+				// like pixel art. Heavier lumps are thrown slightly
+				// slower, which is both true and what keeps them from
+				// outrunning the beads and reading as a single sheet.
+				const many = Math.min(DROPS_MAX, Math.max(10, Math.round(cols / 2.5)));
+				for (let k = 0; k < many; k++) {
+					const gx  = Math.floor((k + 0.5) * cols / many);
+					const off = Math.abs(gx / Math.max(1, cols - 1) - 0.5) * 2;
+					// A few fat ones, more middling, mostly beads.
+					const roll = Math.random();
+					const size = roll > 0.86 ? 3 : (roll > 0.58 ? 2 : 1);
+					const heavy = 1 - (size - 1) * 0.16;
+					drops.push({
+						x: gx * CELL,
+						y: (surfaceY[gx] || h) - CELL,
+						vx: (gx < cols / 2 ? 1 : -1) * off * (22 + Math.random() * 26),
+						vy: -(170 + off * 120 + Math.random() * 120) * heavy,
+						size,
+						shape: Math.floor(Math.random() * 4),
+						spin: Math.random() * 6.283,
+						life: 0
+					});
+				}
+			}
+
+			// The spray, integrated and drawn. Gravity in the same units as
+			// the velocities above; a cell dies when it falls back to the
+			// water under it or leaves the jar.
+			if (drops.length) {
+				// NEAR-WHITE, deliberately past the crest. The old fill sat
+				// at +30 lightness against crests at +34 — spray drawn in
+				// the surface's own colour is spray that cannot be seen
+				// over it. A bead in flight is a point of light.
+				ctx.fillStyle = 'hsla(' + Math.round(hueNow()) + ','
+					+ Math.round(Math.max(0, baseSat - 24)) + '%,'
+					+ band(Math.min(100, baseLig + 44)) + '%,0.95)';
+				for (let i = drops.length - 1; i >= 0; i--) {
+					const d = drops[i];
+					d.vy += 900 * dt;
+					d.x  += d.vx * dt;
+					d.y  += d.vy * dt;
+					d.life += dt;
+					const col = Math.max(0, Math.min(cols - 1, Math.round(d.x / CELL)));
+					const floorY = surfaceY ? surfaceY[col] : h;
+					if (d.life > 1.4 || d.x < -CELL || d.x > w
+						|| (d.vy > 0 && d.y >= floorY)) {
+						drops.splice(i, 1);
+						continue;
+					}
+					// DITHERED, like everything else in the tank. A drop drawn
+					// solid is a hard little square travelling over a
+					// surface built entirely from ordered patterns — it
+					// reads as a sprite laid on the water rather than as
+					// part of it. Its own cell decides its strength, and
+					// the older it is the more of the pattern shows
+					// through, so spray thins out as it flies instead of
+					// vanishing at a fixed age.
+					const dx = Math.round(d.x / CELL) * CELL;
+					const dy = Math.round(d.y / CELL) * CELL;
+					const dthr = (((dx / CELL | 0) * 7 + (dy / CELL | 0) * 13) % 16) / 16;
+					if (1 - d.life / 1.4 <= dthr) continue;
+					// THE BLOB'S OWN CELLS. Offsets rather than a scaled
+					// rect: a 3-cell lump is a plus, an L, a stubby bar or
+					// a clump, and which one it is was rolled when it was
+					// thrown so it does not change in flight. A lump also
+					// SHEDS as it flies — the outer cells drop off with
+					// age — so spray comes apart on the way up instead of
+					// vanishing whole.
+					const sz = d.size || 1;
+					ctx.fillRect(dx, dy, CELL, CELL);
+					if (sz > 1) {
+						const keep = 1 - d.life / 1.4;
+						const arms = BLOB_SHAPES[(d.shape || 0) % BLOB_SHAPES.length];
+						const take = sz === 3 ? arms.length : Math.min(2, arms.length);
+						for (let a = 0; a < take; a++) {
+							// Each arm has its own threshold, so a lump
+							// loses cells one at a time rather than all at
+							// once — and always the same ones, since the
+							// order is fixed.
+							if (keep < (a + 1) / (take + 1) * 0.85) continue;
+							ctx.fillRect(dx + arms[a][0] * CELL,
+								dy + arms[a][1] * CELL, CELL, CELL);
+						}
+					}
+				}
+			}
+
+			// TOMBSTONE (1.3.3): a stream fell from the top of the jar,
+			// split where it met the water, ran outward along the surface
+			// and threw a droplet up at each wall. It was the right
+			// PHYSICS and the wrong picture — a gauge this size cannot
+			// show a stream without it reading as debris falling into the
+			// tank, and it drew the eye away from the level, which is the
+			// only thing the gauge is for. Offered as revertible when it
+			// went in; the offer was taken.
+
+			// IT STARTS AT THE SURFACE AND SINKS. Turning the whole tank at
+			// once, evenly scattered, read as static settling over the
+			// water rather than as light entering it. The lights now
+			// appear along the CREST — which is where they would — and the
+			// front travels down as the last of the pour goes in, so the
+			// jar keeps filling while the aurora takes it.
+			//
+			// Each cell is still water OR aurora, never a blend of both:
+			// the ordered dither is what softens the front's edge, and it
+			// is the only thing pixel art can use in place of a fade.
+			if (auroraMix > 0 && surfaceY) {
+				for (let gx = 0; gx < cols; gx++) {
+					const top   = surfaceY[gx] != null ? surfaceY[gx] : 0;
+					// How far the light has reached below this column's
+					// crest. Eased so it moves quickly through the bright
+					// water near the top and slows in the depths.
+					// Past the floor, not to it. The front eased toward `h`
+					// and the dither's own soft edge meant the last few
+					// rows never crossed their threshold — so a finished
+					// jar kept a band of plain water along the bottom. It
+					// now travels beyond the base by the width of that
+					// soft edge, which is the only way the edge itself
+					// reaches the end.
+					// Well past the floor. The dither's soft edge is six
+					// cells deep, so a front that stops AT the base leaves
+					// the last six rows below their threshold for ever —
+					// which is the band of plain water the vault kept
+					// seeing at the bottom of a finished jar.
+					// FROM THE REST LINE, NOT THE CREST. Measuring the
+					// front from this column's wavy top made the light's
+					// progress a function of the wave: it lurched deeper
+					// whenever a crest peaked and — once the reach was
+					// held monotonic — those lurches never came back,
+					// so the curtain descended in steps and swallowed
+					// parts of the wave in single frames. `restNow` is
+					// the flat level the water is oscillating ABOUT, so
+					// the front travels smoothly whatever the surface is
+					// doing. The monotonic hold stays: it costs nothing
+					// now and still guarantees the dissolve's own rule,
+					// that a cell which has turned stays turned.
+					if (!auroraFront || auroraFront.length !== cols) {
+						auroraFront = new Array(cols).fill(-Infinity);
+					}
+					const from  = Math.min(top, restNow);
+					const reach = from + (h + CELL * 12 - from) * (auroraMix * auroraMix);
+					if (reach > auroraFront[gx]) auroraFront[gx] = reach;
+					const front = auroraFront[gx];
+					for (let gy = 0; gy < rows; gy++) {
+						const y = gy * CELL;
+						if (y + CELL <= top) continue;   // above the water
+						// A stable per-cell threshold in [0,1). The pair of
+						// primes keeps the pattern from lining up with the
+						// grid, which would dissolve in visible stripes.
+						const thr  = (((gx * 7 + gy * 13) % 16) + 0.5) / 16;
+						// Depth into the lit band, so the dither only
+						// scatters at the FRONT: well above it every cell
+						// has turned, below it none has.
+						// The band the front is crossing, widened: at three
+						// cells the dither had barely two rows to work in
+						// and the edge read as a line with speckle on it
+						// rather than as light soaking down.
+						// A WIDER, SOFTER EDGE. The scatter ran over three
+						// cells, which is a hard line with a few stray
+						// pixels on it; over six the front reads as light
+						// SOAKING down rather than a boundary moving. And
+						// the cells at the edge are drawn part-strength —
+						// still one colour per cell, chosen per cell, but
+						// the aurora's own alpha eased in — so the join
+						// with the water underneath is a gradient of
+						// COVERAGE rather than a change of state.
+						const into = (front - y) / Math.max(CELL * 6, 1);
+						if (into <= thr) continue;
+						// QUANTISED, like everything else in this tank. This
+						// was a continuous alpha over a palette built
+						// entirely from steps: every frame it changed by a
+						// hair, so each cell at the front was composited a
+						// fraction differently over water that is itself
+						// moving — which is what "flickers when it starts
+						// dithering down" was. On eighths a cell holds its
+						// value for many frames and then steps once.
+						// HELD, NOT SET. This wrote ctx.globalAlpha
+						// directly and the fade below then had to juggle
+						// a save/restore around it — see the note at the
+						// fill. It is a plain number now, multiplied with
+						// the cell's own fade at the one place the cell
+						// is drawn.
+						const depthA = quantA(Math.min(1, 0.35 + into * 0.9));
+						// THE SWIRL. The lights are read from a point that is
+						// dragged toward the middle of the jar and turned
+						// slowly around it, so as the aurora arrives the
+						// colours are pulled inward rather than simply
+						// switched on where they stand. Strongest as the
+						// front passes and easing off behind it, which is
+						// what makes it read as a current rather than a
+						// wobble.
+						const u = gx / cols - 0.5, v2 = gy / rows - 0.5;
+						const rad  = Math.sqrt(u * u + v2 * v2);
+						// THE SWIRL BREATHES. It used to wind one way for
+						// ever, which settles into a texture the eye stops
+						// reading after a second. A slow sine on the
+						// strength winds it in, unwinds it, and takes it
+						// round the OTHER way — the current keeps changing
+						// its mind, which is what a current does.
+						const turn = Math.sin(t * 0.42 + swirlPhase);
+						const pull = (1 - Math.min(1, rad * 2)) * 0.30 * auroraMix;
+						const ang  = Math.atan2(v2, u) + turn * 1.1 * pull;
+						// The inward drag breathes with it, so the colours
+						// are pulled in as it winds and released as it
+						// unwinds rather than staying permanently gathered.
+						const draw = pull * (0.55 + 0.45 * Math.abs(turn));
+						// `let`, not `const`: the poke loop below bends
+						// these — a press on the lit jar winds the colour
+						// field around the point pressed.
+						let su   = 0.5 + Math.cos(ang) * rad * (1 - draw);
+						let sv   = 0.5 + Math.sin(ang) * rad * (1 - draw);
+						// AND THE CELL ITSELF FADES IN. A cell that had
+						// crossed its threshold went straight to full
+						// aurora, so the front was a scatter of opaque
+						// cells over untouched water — crunchy, and
+						// nothing like light entering. Each now arrives
+						// over its own short ramp, quantised to eight
+						// steps so it is still pixel art and not a
+						// gradient: the ladder is what keeps the two
+						// readings apart.
+						const fade = quantA(Math.min(1, (into - thr) * 2.2));
+						if (fade <= 0) continue;
+						// ONE ALPHA, MULTIPLIED, AND HANDED BACK AT 1.
+						// This is where "still flickers" lived. The old
+						// code SET globalAlpha to the depth value, then
+						// REPLACED it with the fade (so the two never
+						// combined), and after the fill ran
+						//   globalAlpha = 1; if (fade < 1) globalAlpha = prevA;
+						// — a restore written backwards. Whenever the
+						// LAST cell of the pass was an edge cell, the
+						// context left the frame carrying that cell's
+						// alpha instead of 1, and nothing else in the
+						// gauge ever writes globalAlpha — so the NEXT
+						// frame painted the entire tank, water and all,
+						// through whatever fraction the dither happened
+						// to end on. That fraction changed frame to
+						// frame, which is exactly a full-jar strobe.
+						// Depth and fade are one multiplied alpha now,
+						// applied for the fill and returned to 1 right
+						// after it, unconditionally.
+						ctx.globalAlpha = Math.min(1, depthA * fade);
+						// WHILE IT IS MIXING, each cell takes a hue near the
+						// aurora's rather than exactly it — a scatter that
+						// shrinks to nothing as the water calms, so the jar
+						// resolves INTO the aurora instead of cutting to
+						// it. The offset is per cell and stable frame to
+						// frame (the same ordered value the dither uses),
+						// or the whole tank would fizz.
+						// The scatter while it mixes, PLUS whatever the writer
+						// has stirred in: a poke's colour spreads from where
+						// it landed and fades with distance and with age, so
+						// a press on a lit jar puts a bloom of another hue
+						// into the aurora rather than nudging the surface
+						// and doing nothing visible.
+						let rot = 0;
+						if (auroraJitter > 0.01) {
+							const j = ((gx * 11 + gy * 17) % 32) / 32 - 0.5;
+							rot += j * 220 * auroraJitter;
+						}
+						for (const pk of pokes) {
+							if (pk.hue == null) continue;
+							const age = (now - pk.t) / 1000;
+							if (age > 2.4) continue;
+							// ROUND, NOT A COLUMN. With only x recorded, the
+							// bloom coloured the jar's full height under the
+							// finger — a stripe, not an injection. The press
+							// records y now, so the colour spreads from the
+							// POINT pressed; pokes from before y existed fall
+							// back to the column read rather than throwing.
+							const d = pk.y != null
+								? Math.hypot(gx * CELL - pk.x, y - pk.y)
+								: Math.abs(gx * CELL - pk.x);
+							const reach = Math.exp(-d / 46) * Math.exp(-age / 1.5);
+							if (reach < 0.02) continue;
+							rot += (pk.hue - hueNow()) * reach;
+							// …AND IT SWIRLS WHERE IT LANDED. The injected
+							// colour is stirred in, not stamped on: the
+							// field's sample point is rotated about the
+							// press, hardest at the centre and dying with
+							// distance and age, so the curtains wind into a
+							// little vortex there and let go over a couple
+							// of seconds. This is the whole answer a press
+							// on a FULL jar gets — the water has nowhere to
+							// go, so the light moves instead — and on a
+							// part-lit jar it simply rides along with the
+							// ripple the same press still makes.
+							if (pk.y != null) {
+								const cu = pk.x / w, cv = pk.y / h;
+								const du = su - cu, dv = sv - cv;
+								const dd = Math.hypot(du, dv);
+								const sw = Math.exp(-dd * 7) * Math.exp(-age / 1.2) * 2.6;
+								if (sw > 0.03) {
+									const ca = Math.cos(sw), sa = Math.sin(sw);
+									su = cu + du * ca - dv * sa;
+									sv = cv + du * sa + dv * ca;
+								}
+							}
+						}
+						if (rot !== 0) ctx.filter = 'hue-rotate(' + Math.round(rot) + 'deg)';
+						ctx.fillStyle = auroraCell(su, sv, t);
+						ctx.fillRect(gx * CELL, y, CELL, CELL);
+						if (rot !== 0) ctx.filter = 'none';
+						ctx.globalAlpha = 1;
+					}
+				}
+			}
 			// ~30fps. The lattice cannot show more, and this is a modal
 			// that may sit open for minutes.
 			if (reduce) return;
 			last = now;
+			// STILL MEANS STILL. Once the water has stopped and there is
+			// nothing left in the air, the loop stops with it — a report
+			// left open should not hold a frame timer for a picture that
+			// is not changing. A full jar keeps drawing, because the
+			// aurora is the one thing that goes on moving.
+			//
+			// `kick()` is what starts it again, and every path that
+			// changes the picture already calls it.
+			// EVERY REASON THE PICTURE MIGHT STILL BE MOVING, or the loop
+			// stops on top of one. This asked about the stage and the spray
+			// and forgot the POKES — so a press woke the loop, the next
+			// frame found the stage long since still, and the water froze
+			// mid-ripple. The press appeared to break the gauge, which is
+			// exactly what the writer reported.
+			//
+			// `pokeEnergy` decays rather than ending, so the test is
+			// against a floor small enough to be invisible.
+			// STILL NO LONGER MEANS STOPPED — a reversal, recorded. The
+			// loop used to park itself once the water settled and nothing
+			// was in the air, on the argument that a report left open
+			// should not hold a frame timer for a picture that is not
+			// changing. The vault overruled the premise rather than the
+			// conclusion: a liquid in which NOTHING moves reads as a
+			// screenshot of a liquid. The motes that first carried this
+			// argument are gone (see their tombstone), but the picture
+			// still changes every frame without them — the caustic net
+			// crawls, the light shafts drift and the hue breathes, all
+			// functions of `t` — so the loop runs for as long as the
+			// canvas is connected (isConnected at the top of draw remains
+			// the teardown, so nothing renders behind a closed report),
+			// throttled to the same ~30fps as ever. Reduced motion keeps
+			// the old contract in full: one frame, no timer.
+			const busy = !reduce;
+			if (!busy) { raf = null; return; }
 			raf = requestAnimationFrame(step);
 		};
 
@@ -9598,7 +11157,113 @@ module.exports = class WordSmith extends Plugin {
 			draw(now);
 		};
 
-		// First frame synchronously-ish, so the tank is never briefly blank.
+		// Wakes the loop. Under reduced motion the gauge draws once and
+		// stops, so a pour asked for then has to redraw by hand rather
+		// than by scheduling frames nobody wants.
+		kick = () => {
+			if (reduce) { draw(performance.now()); return; }
+			if (raf == null) raf = requestAnimationFrame(step);
+		};
+
+		// NO CURSOR, NO TOOLTIP. Both were removed by request, and the
+		// reasoning that put them there had already expired: they date
+		// from when pressing the gauge POURED it, so the jar was a
+		// button and needed to advertise itself. Nothing in here pours
+		// any more — a press pushes the water and that is all — so the
+		// pointer promised an action that no longer exists, and a
+		// tooltip reading "Pour it again" followed the cursor across a
+		// panel whose whole job is to be looked at.
+		// TWO THINGS TO PRESS, and the number is the one that pours.
+		//
+		// The whole gauge poured before, which made the jar a button and
+		// left nothing to touch the water with. The PERCENTAGE is the
+		// label of the act — press the number, watch the number be filled
+		// in again — and everywhere else is the water itself: a press
+		// pushes it from that point and it ripples away.
+		wrap.addEventListener('click', (ev) => {
+			// NOTHING HERE POURS. The gauge was a button, then the number
+			// was a button; both meant a press near the middle did
+			// something other than what a press on water does, and there
+			// is already a way to pour — reopening the report. The whole
+			// jar is water now, and every press pushes it.
+			void 0;
+			// Where on the water, in the CANVAS's coordinates — the wrap
+			// and the canvas are not the same box, and using the wrap's
+			// would put every poke a few pixels off the finger. BOTH axes
+			// now: the lit branch below swirls colour in at the point
+			// pressed, and a swirl needs to know how far DOWN the finger
+			// landed, not only how far across.
+			const nowMs = performance.now();
+			let px = w / 2, py = h / 2;
+			try {
+				const box = canvas.getBoundingClientRect();
+				if (box && box.width  > 0) px = (ev.clientX - box.left) * (w / box.width);
+				if (box && box.height > 0) py = (ev.clientY - box.top)  * (h / box.height);
+			} catch (_) {}
+			px = Math.max(0, Math.min(w, px));
+			py = Math.max(0, Math.min(h, py));
+			// A FULL JAR IS FULL. Once the tank is at 100% and the aurora
+			// has begun (the splash stage is behind it), there is no room
+			// left for the water to be thrown — the vault's own words —
+			// so a press must stop pretending there is. The poke is
+			// flagged `still`: it carries its colour into the aurora and
+			// drives the local vortex there (see the aurora pass), but
+			// pokeEnergy skips it, so the surface does not churn, no
+			// agitation builds, and no spray leaves a brim it is already
+			// against. Below full — or during the pour of a full jar,
+			// while the water is still climbing — a press pushes water
+			// exactly as before.
+			const lit = full && (nowMs - stageStart >= S_SPLASH);
+			if (pokes.length >= POKES_MAX) pokes.shift();
+			// EACH PRESS CARRIES A COLOUR. While the aurora is up, a poke
+			// stirs one in at the point it landed rather than only moving
+			// the water — so pressing a lit jar adds to the mix instead of
+			// disturbing a finished picture. The hue is a step off the
+			// ramp's own, not a random one from anywhere on the wheel:
+			// a colour that belongs to the jar reads as more of the same
+			// substance, and one that does not reads as a bug.
+			pokes.push({
+				x: px,
+				y: py,
+				t: nowMs,
+				still: lit,
+				hue: hueNow() + 40 + Math.random() * 220
+			});
+			if (!lit) {
+				// EACH PRESS BUILDS. Added after this click's ripple is queued
+				// and BEFORE its spray is counted, so the press that raised
+				// the storm gets to throw like one.
+				agitLevel = Math.min(2.4, agitNow(nowMs) + 0.45);
+				agitAt = nowMs;
+				// A press throws spray from where it landed, the same way the
+				// splash does: the water has been pushed, and pushed water
+				// leaves the surface. HOW MUCH grows with the agitation — the
+				// fifth click in a row throws a sheet where the first threw a
+				// few beads — and so does how hard it is thrown.
+				if (surfaceNow) {
+					const gx = Math.max(0, Math.min(cols - 1, Math.round(px / CELL)));
+					const heat = agitNow(nowMs);
+					const many = Math.min(5 + Math.round(heat * 5),
+						Math.max(0, DROPS_MAX - drops.length));
+					for (let k = 0; k < many; k++) {
+						const off = (k - (many - 1) / 2) * CELL;
+						drops.push({
+							x: gx * CELL + off,
+							y: (surfaceNow[gx] || h) - CELL,
+							vx: off * 6 + (Math.random() - 0.5) * (20 + heat * 18),
+							vy: -(55 + Math.random() * 65) * (1 + heat * 0.5),
+							life: 0
+						});
+					}
+				}
+			}
+			kick();
+		});
+
+		// First frame synchronously-ish, so the tank is never briefly
+		// blank — and the pour starts with it, so the gauge is climbing
+		// by the time the writer's eye arrives.
+		pour();
 		raf = requestAnimationFrame(draw);
 		return wrap;
 	}
@@ -9682,6 +11347,23 @@ module.exports = class WordSmith extends Plugin {
 	// wherever today is. Building the key by hand rather than through
 	// toISOString(), which converts to UTC and hands back yesterday for half
 	// the planet every evening.
+	// A stored key (YYYY-MM-DD) as a person would write it: "11 August 2026".
+	// The key is the right shape to SORT and the wrong shape to READ, and
+	// this line is prose in the middle of a sentence. Parsed by hand rather
+	// than through Date: `new Date('2026-08-11')` is UTC midnight, which in
+	// any negative offset renders as the day BEFORE — the classic way a
+	// date display goes wrong for exactly the readers least likely to
+	// suspect the timezone. Anything that is not a key is passed through
+	// untouched, so a malformed store shows what it holds rather than
+	// "NaN undefined NaN".
+	historyLongDate(key) {
+		const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ''));
+		if (!m) return String(key || '');
+		const month = HISTORY_MONTHS[parseInt(m[2], 10) - 1];
+		if (!month) return String(key);
+		return parseInt(m[3], 10) + ' ' + month + ' ' + m[1];
+	}
+
 	historyDateKey(d) {
 		const dt = d instanceof Date ? d : new Date();
 		const p  = (n) => (n < 10 ? '0' : '') + n;
@@ -10546,14 +12228,27 @@ module.exports = class WordSmith extends Plugin {
 		const now = new Date();
 		for (const b of out.buckets) {
 			if (!b.title) b.title = b.key;
-			// The native tooltip stays for accessibility and for touch, and
-			// the readout carries the same numbers on one line for the eye.
+			// A DAILY AVERAGE on anything that gathers days. A month of
+			// 40,000 words and a month of 4,000 are obvious from the bar;
+			// what the bar cannot say is whether that was a steady 1,300 a
+			// day or two enormous weekends, and the average is the shortest
+			// answer to it. Over the days actually WRITTEN, not the days in
+			// the month: a writer who took three weeks off did not average
+			// their work across them.
 			const tail = (b.a || 0).toLocaleString() + ' added \u00b7 '
 				+ (b.r || 0).toLocaleString() + ' deleted \u00b7 '
 				+ (b.n >= 0 ? '+' : '') + (b.n || 0).toLocaleString() + ' net'
-				+ (view === 'day' ? '' : ' \u00b7 ' + b.days + ' day' + (b.days === 1 ? '' : 's') + ' written');
+				+ (view === 'day' ? '' : ' \u00b7 ' + b.days + ' day' + (b.days === 1 ? '' : 's') + ' written'
+					+ (b.days > 0
+						? ' \u00b7 ' + Math.round((b.a || 0) / b.days).toLocaleString()
+							+ ' a day'
+						: ''));
 			b.readout = b.title + ' \u00b7 ' + ((b.a || b.r) ? tail : 'nothing written');
-			b.tip = b.title + '\n' + tail.replace(/ \u00b7 /g, '\n');
+			// (No `b.tip`. It floated the same numbers beside the pointer in
+			// the OS's own box — a second answer to a question the readout
+			// line had already given, in a style belonging to neither the
+			// plugin nor the theme, and covering the bars either side of
+			// the one being read.)
 		}
 		return out;
 	}
@@ -10605,6 +12300,34 @@ module.exports = class WordSmith extends Plugin {
 		}
 		out.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
 		return out;
+	}
+
+	// The REPORT's finder searches the vault itself, not the writing
+	// record: the history can only offer paths it has seen you write in,
+	// and "how long is that other chapter" is a fair question about a
+	// note this plugin has never watched. Same fuzzy scorer, same
+	// folders-first nudge, so the two finders rank the same way — only
+	// the pool of candidates differs. Scope rules still apply: a note
+	// the plugin is told to ignore is not offered here either.
+	reportFinderMatches(query, limit) {
+		const files = [];
+		const folders = new Set();
+		try {
+			for (const f of this.app.vault.getMarkdownFiles()) {
+				if (!this.isFileCounted(f)) continue;
+				files.push(f.path);
+				let cut = f.path.lastIndexOf('/');
+				while (cut > 0) {
+					folders.add(f.path.slice(0, cut));
+					cut = f.path.lastIndexOf('/', cut - 1);
+				}
+			}
+		} catch (_) {}
+		const tag = (list, kind) => this.historyFuzzy(query, list)
+			.map(m => ({ path: m.path, score: m.score + (kind === 'folder' ? 1.5 : 0), kind }));
+		const all = tag(Array.from(folders).sort(), 'folder').concat(tag(files.sort(), 'file'));
+		all.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
+		return all.slice(0, limit || 8);
 	}
 
 	// Folders first when they score alike: picking a folder is the broader
@@ -10664,6 +12387,26 @@ module.exports = class WordSmith extends Plugin {
 		state.scope = '';
 		state.query = '';
 
+		// ← and → step the period, the same shift the ‹ › buttons run.
+		// Registered on the modal's own scope (the pattern the menu editor
+		// already uses), so the keys work the moment the window opens and
+		// die with it. Each render writes the CURRENT shift onto the state —
+		// the Year view writes null, so the keys go quiet exactly when the
+		// arrows leave the screen — and a key landing in the finder's text
+		// box is the caret's, not the stepper's.
+		const stepKey = (dir) => (evt) => {
+			const el = evt && evt.target;
+			if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
+				|| el.isContentEditable)) return true;
+			if (typeof state.shiftPeriod === 'function') {
+				state.shiftPeriod(dir);
+				return false;
+			}
+			return true;
+		};
+		modal.scope.register([], 'ArrowLeft',  stepKey(-1));
+		modal.scope.register([], 'ArrowRight', stepKey(1));
+
 		const render = () => {
 			try {
 				body.empty();
@@ -10701,6 +12444,11 @@ module.exports = class WordSmith extends Plugin {
 		// place idiom as historySeriesOn().
 		if (typeof state.scope !== 'string') state.scope = '';
 		if (typeof state.query !== 'string') state.query = '';
+		// Nulled at the TOP of every render, not only where the stepper is
+		// built: several paths return early (tracking off, empty history),
+		// and the arrow keys must not keep driving a stepper from a render
+		// that is no longer on screen.
+		state.shiftPeriod = null;
 
 		if (!s.historyTracking) {
 			const off = this.historyEl('div', 'zg-report-ring-label is-muted', body);
@@ -10724,7 +12472,7 @@ module.exports = class WordSmith extends Plugin {
 		if (years.indexOf(state.year) === -1) state.year = years[years.length - 1];
 
 		this.historyEl('div', 'zg-report-scope', body, h.started
-			? 'Counting since ' + h.started
+			? 'Counting since ' + this.historyLongDate(h.started)
 			: 'Starts counting the next time you write');
 		this.historyEl('hr', 'zg-report-rule', body);
 
@@ -10751,42 +12499,114 @@ module.exports = class WordSmith extends Plugin {
 			input.value = state.query || '';
 			const list = this.historyEl('div', 'zg-hist-hits', find);
 
+			// One choosing hand or the other — same as the report's finder.
+			// ↑/↓ move a highlight through the hits, Enter takes the
+			// highlighted one, the pointer moves the same highlight. The
+			// keys act on the hits on SCREEN, kept by paint(); Enter used
+			// to re-query with a limit of 1, which could rank differently
+			// from the list being shown and scope to a row the writer was
+			// not looking at.
+			const pick = (hit) => {
+				state.scope = hit.path;
+				state.query = '';
+				Object.assign(state, this.historyOpeningPeriod(hit.path));
+				state.scope = hit.path;
+				rerender();
+			};
+			let hits = [], rows = [], sel = 0;
+			const mark = () => {
+				rows.forEach((r, i2) => r.classList.toggle('is-selected', i2 === sel));
+				if (rows[sel] && rows[sel].scrollIntoView) {
+					rows[sel].scrollIntoView({ block: 'nearest' });
+				}
+			};
 			const paint = () => {
 				list.textContent = '';
+				rows = []; hits = [];
 				const q = state.query.trim();
 				if (!q) return;
-				const hits = this.historyFinderMatches(q, 8);
+				hits = this.historyFinderMatches(q, 8);
 				if (!hits.length) {
 					this.historyEl('div', 'zg-hist-nohit', list, 'Nothing by that name.');
 					return;
 				}
-				for (const hit of hits) {
+				sel = Math.max(0, Math.min(sel, hits.length - 1));
+				hits.forEach((hit, i2) => {
 					const b = this.historyEl('button', 'zg-hist-hit-' + hit.kind + ' zg-hist-hitrow', list);
 					this.historyEl('span', 'zg-hist-hitkind', b, hit.kind === 'folder' ? 'folder' : 'note');
 					this.historyEl('span', 'zg-hist-hitpath', b, hit.path);
-					b.addEventListener('click', () => {
-						state.scope = hit.path;
-						state.query = '';
-						Object.assign(state, this.historyOpeningPeriod(hit.path));
-						state.scope = hit.path;
-						rerender();
-					});
-				}
+					b.addEventListener('click', () => pick(hit));
+					b.addEventListener('mouseenter', () => { sel = i2; mark(); });
+					rows.push(b);
+				});
+				mark();
 			};
 
-			input.addEventListener('input', () => { state.query = input.value; paint(); });
+			input.addEventListener('input', () => { state.query = input.value; sel = 0; paint(); });
 			input.addEventListener('keydown', (e) => {
+				if (e.key === 'ArrowDown' && hits.length) {
+					sel = Math.min(sel + 1, hits.length - 1);
+					mark();
+					e.preventDefault();
+					return;
+				}
+				if (e.key === 'ArrowUp' && hits.length) {
+					sel = Math.max(sel - 1, 0);
+					mark();
+					e.preventDefault();
+					return;
+				}
 				if (e.key === 'Escape') { state.query = ''; input.value = ''; paint(); return; }
 				if (e.key !== 'Enter') return;
-				const hits = this.historyFinderMatches(state.query.trim(), 1);
-				if (!hits.length) return;
-				state.scope = hits[0].path;
-				state.query = '';
-				Object.assign(state, this.historyOpeningPeriod(hits[0].path));
-				state.scope = hits[0].path;
-				rerender();
+				if (hits.length) pick(hits[Math.max(0, Math.min(sel, hits.length - 1))]);
 			});
 			paint();
+		}
+
+		// ── The path, under the search ──────────────────────────────────────
+		// The same clickable chain the report wears in the same place — one
+		// idiom across both windows. 01.Preface.md ‹ Chapter ‹ Book ‹ Vault:
+		// each crumb SCOPES the whole history to itself, the lit crumb says
+		// what every figure and bar below is counting, and Vault (scope
+		// nothing) is lit when the record is unfiltered. A scope picked in
+		// the finder that lives outside this chain shows in the chip above
+		// instead, with no crumb lit — the chain is the open note's, not a
+		// map of the vault.
+		{
+			const noteF = this.activeNoteFile();
+			const chain = [];
+			if (noteF && noteF.path) {
+				const cut0 = noteF.path.lastIndexOf('/');
+				let cur = cut0 > 0 ? noteF.path.slice(0, cut0) : '';
+				while (cur) {
+					chain.push(cur);
+					const cut = cur.lastIndexOf('/');
+					cur = cut > 0 ? cur.slice(0, cut) : '';
+				}
+			}
+			const crumbs = this.historyEl('div', 'zg-report-crumbs', body);
+			let first = true;
+			const crumb = (label, scopePath, title, extra) => {
+				if (!first) this.historyEl('span', 'zg-crumb-sep', crumbs, '\u2039');
+				first = false;
+				const btn = this.historyEl('button',
+					'zg-crumb' + (extra || '')
+					+ (state.scope === scopePath ? ' is-active' : ''), crumbs, label);
+				btn.setAttribute('title', title);
+				btn.addEventListener('click', () => {
+					if (state.scope === scopePath) return;
+					state.scope = scopePath;
+					state.query = '';
+					Object.assign(state, this.historyOpeningPeriod(scopePath || undefined));
+					state.scope = scopePath;
+					rerender();
+				});
+			};
+			if (noteF && noteF.path) {
+				crumb(noteF.path.split('/').pop(), noteF.path, noteF.path, ' zg-crumb-note');
+			}
+			for (const p of chain) crumb(p.split('/').pop(), p, p);
+			crumb('Vault', '', 'The whole vault \u2014 everything the record holds');
 		}
 
 		// A record that started before the per-note detail did has days that
@@ -10806,6 +12626,21 @@ module.exports = class WordSmith extends Plugin {
 			}
 		}
 
+		// ── Figures — they answer the VIEW ──────────────────────────────────
+		// The four numbers used to be lifetime figures whatever the chart
+		// showed: you could be looking at March while "Daily average"
+		// described your whole writing life. Each zoom now gets the four
+		// questions a person AT that zoom is asking. The buckets are read
+		// first because the figures are computed from exactly what the
+		// chart will draw — the two can never disagree.
+		//   Daily   — this month: net, daily average, best day, active days
+		//   Monthly — this year: net, monthly average, best month BY NAME,
+		//             months active
+		//   Yearly  — the whole record: net, yearly average, best year, and
+		//             the streak, which belongs to no one period
+		// Averages stay averaged over the periods you actually WROTE in,
+		// never the calendar — the same promise the lifetime average made.
+		const data = this.historyBuckets(view, state.year, state.month, state.scope);
 		const grid = this.historyEl('div', 'zg-report-grid zg-history-grid', body);
 		const cell = (label, value, tip) => {
 			const c = this.historyEl('div', 'zg-report-cell has-tip', grid);
@@ -10813,19 +12648,54 @@ module.exports = class WordSmith extends Plugin {
 			this.historyEl('div', 'zg-report-value', c, value);
 			this.historyEl('div', 'zg-report-label', c, label);
 		};
-		cell('Words, net', (figs.total > 0 ? '+' : '') + figs.total.toLocaleString(),
-			'Everything you\u2019ve written, minus what you cut \u2014 how much it actually grew.');
-		cell('Daily average', figs.average.toLocaleString(),
-			'Across the ' + figs.active + ' day' + (figs.active === 1 ? '' : 's') + ' you actually '
-			+ 'wrote, not every day on the calendar \u2014 so days off don\u2019t drag it down, '
-			+ 'whichever days those are.');
-		cell('Best day', figs.best.toLocaleString(),
-			figs.bestKey ? 'The most you\u2019ve ever gained in one day, back on ' + figs.bestKey + '.'
-				: 'Nothing yet \u2014 this fills in after your first writing session.');
-		cell('Streak', figs.current.toLocaleString() + (figs.current === 1 ? ' day' : ' days'),
-			'Days in a row you wrote or edited. A day spent cutting still counts \u2014 you '
-			+ 'turned up. And today won\u2019t break it until it\u2019s over. Your best run so far: '
-			+ figs.longest.toLocaleString() + '.');
+		const signed = (n) => (n > 0 ? '+' : '') + n.toLocaleString();
+		const activeB = data.buckets.filter(b => (b.a || 0) + (b.r || 0) > 0);
+		const netSum  = data.buckets.reduce((a, b) => a + (b.n || 0), 0);
+		const bestB   = activeB.reduce((m, b) => (!m || (b.n || 0) > (m.n || 0) ? b : m), null);
+
+		if (view === 'day') {
+			cell('Words, net', signed(netSum),
+				'In ' + data.label + ' \u2014 what you wrote minus what you cut.');
+			cell('Daily average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				'Across the ' + activeB.length + ' day' + (activeB.length === 1 ? '' : 's')
+				+ ' of ' + data.label + ' you actually wrote \u2014 days off don\u2019t drag it down. '
+				+ 'All-time: ' + figs.average.toLocaleString() + '.');
+			cell('Best day', (bestB ? (bestB.n || 0) : 0).toLocaleString(),
+				bestB ? 'The most this month gained in one day \u2014 ' + (bestB.title || bestB.key) + '. '
+					+ 'All-time best: ' + figs.best.toLocaleString() + '.'
+					: 'Nothing yet this month.');
+			cell('Active days', activeB.length + ' of ' + data.buckets.length,
+				'Days of ' + data.label + ' you wrote or edited \u2014 a day spent cutting still counts.');
+		} else if (view === 'month') {
+			const bestName = bestB && bestB.title ? bestB.title.split(' ')[0].slice(0, 3) : '';
+			cell('Words, net', signed(netSum),
+				'In ' + data.label + ' \u2014 what you wrote minus what you cut.');
+			cell('Monthly average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				'Across the ' + activeB.length + ' month' + (activeB.length === 1 ? '' : 's')
+				+ ' of ' + data.label + ' with any writing in them.');
+			cell(bestB ? 'Best month \u00b7 ' + bestName : 'Best month',
+				(bestB ? (bestB.n || 0) : 0).toLocaleString(),
+				bestB ? (bestB.title || '') + ' \u2014 the most any month of ' + data.label + ' gained.'
+					: 'Nothing yet this year.');
+			cell('Months active', activeB.length + ' of 12',
+				'Months of ' + data.label + ' you wrote or edited in.');
+		} else {
+			const bestName = bestB ? (bestB.label || bestB.key) : '';
+			cell('Words, net', signed(figs.total),
+				'Everything you\u2019ve written, minus what you cut \u2014 how much it actually grew.');
+			cell('Yearly average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				'Across the ' + activeB.length + ' year' + (activeB.length === 1 ? '' : 's')
+				+ ' with any writing in them.');
+			cell(bestB ? 'Best year \u00b7 ' + bestName : 'Best year',
+				(bestB ? (bestB.n || 0) : 0).toLocaleString(),
+				bestB ? 'The most any year gained. Best single day ever: '
+					+ figs.best.toLocaleString() + (figs.bestKey ? ', on ' + figs.bestKey : '') + '.'
+					: 'Nothing yet.');
+			cell('Streak', figs.current.toLocaleString() + (figs.current === 1 ? ' day' : ' days'),
+				'Days in a row you wrote or edited. A day spent cutting still counts \u2014 you '
+				+ 'turned up. And today won\u2019t break it until it\u2019s over. Your best run so far: '
+				+ figs.longest.toLocaleString() + '.');
+		}
 
 		if (!figs.keys.length) {
 			const empty = this.historyEl('div', 'zg-report-ring-label is-muted zg-hist-empty', body);
@@ -10837,10 +12707,12 @@ module.exports = class WordSmith extends Plugin {
 			return;
 		}
 
-		// ── Day | Month | Year ──────────────────────────────────────────────
+		// ── Daily | Monthly | Yearly ────────────────────────────────────────
 		// UNDER the figures, not above them. The four numbers are the answer to
 		// "how am I doing"; the zoom is how you interrogate that answer, and a
 		// control placed above the thing it controls asks to be used first.
+		// (`data` is read up with the figures now — they and the chart are
+		// computed from the same buckets, so the two can never disagree.)
 		const sub = this.historyEl('div', 'ws-tab-nav zg-hist-subnav', body);
 		const tab = (id, label) => {
 			const b = this.historyEl('button',
@@ -10856,16 +12728,27 @@ module.exports = class WordSmith extends Plugin {
 				this.saveSettings();
 			});
 		};
-		tab('day', 'Day'); tab('month', 'Month'); tab('year', 'Year');
+		tab('day', 'Daily'); tab('month', 'Monthly'); tab('year', 'Yearly');
 
-		// ── Period stepper ──────────────────────────────────────────────────
-		const data = this.historyBuckets(view, state.year, state.month, state.scope);
-		const head = this.historyEl('div', 'zg-hist-periodbar', body);
-		this.historyEl('span', 'zg-hist-period', head, data.label);
+		// ── Period stepper — BESIDE the Yearly tab ──────────────────────────
+		// It sat at the far end of the row with the label BETWEEN the
+		// arrows — so as "March 2026" stepped to "September 2026" the
+		// label's width changed and both arrows lurched sideways under
+		// the pointer. Two fixes in one move: the group is anchored right
+		// after the Yearly tab (no margin-left: auto), and the label
+		// comes AFTER the pair — ‹ › August 2026 — so however long the
+		// month's name, the buttons never move.
+		const step = this.historyEl('span', 'zg-hist-step', sub);
+		// The window's arrow keys drive the same shift the buttons do — the
+		// handler lives on the modal (see openHistoryModal), which reads
+		// whatever the CURRENT render put here. Nulled first, so the Yearly
+		// view (which has nothing to step) leaves the keys inert rather
+		// than stepping a control that is not on screen.
+		state.shiftPeriod = null;
 		if (view !== 'year') {
-			const nav  = this.historyEl('span', 'zg-hist-step', head);
-			const back = this.historyEl('button', 'zg-hist-arrow', nav, '\u2039');
-			const fwd  = this.historyEl('button', 'zg-hist-arrow', nav, '\u203a');
+			const back = this.historyEl('button', 'ws-tab-btn zg-hist-arrow', step, '\u2039');
+			const fwd  = this.historyEl('button', 'ws-tab-btn zg-hist-arrow', step, '\u203a');
+			this.historyEl('span', 'zg-hist-period', step, data.label);
 			// One stepper, two meanings: months inside a year on the Day tab,
 			// years on the Month tab. Stepping off the end of a year rolls
 			// into the next rather than stopping, because a manuscript does
@@ -10884,6 +12767,7 @@ module.exports = class WordSmith extends Plugin {
 				}
 				rerender();
 			};
+			state.shiftPeriod = shift;
 			const atStart = view === 'day'
 				? (state.year === years[0] && state.month === 0)
 				: state.year === years[0];
@@ -10894,6 +12778,11 @@ module.exports = class WordSmith extends Plugin {
 			if (atEnd)   fwd.setAttribute('disabled', 'true');
 			back.addEventListener('click', () => shift(-1));
 			fwd .addEventListener('click', () => shift(1));
+		} else {
+			// Nothing to step — every year is already on the chart — but
+			// the label still says what the chart covers, in the same
+			// place the other views say it.
+			this.historyEl('span', 'zg-hist-period', step, data.label);
 		}
 
 		// ── Series toggles ──────────────────────────────────────────────────
@@ -10926,11 +12815,14 @@ module.exports = class WordSmith extends Plugin {
 
 		this.buildHistoryChart(body, data, ser);
 
-		// Crossing today's goal is the one moment in the report worth a fuss,
-		// same as the gauge.
-		const goal  = s.historyDailyGoal || 0;
-		const today = figs.days[this.historyDateKey()];
-		if (goal > 0 && today && (today.n || 0) >= goal) this.celebrate(body);
+		// TOMBSTONE (1.3.3): crossing the daily goal set off pixel
+		// fireworks over this tab, as it did over the report's gauge.
+		// Both are gone by request, and for the same reason: the burst
+		// landed on top of the figures every time the tab was opened —
+		// a party thrown on every look at an event that happened once.
+		// `celebrate()` itself remains in main.js, unreferenced, because
+		// removing a working animation is a bigger edit than silencing
+		// it and the vault may want it somewhere else.
 	}
 
 	// Which series are drawn. Defaulted here rather than in DEFAULT_SETTINGS
@@ -11065,6 +12957,10 @@ module.exports = class WordSmith extends Plugin {
 			+ (avg > 0 ? ' \u00b7 averaging ' + avg.toLocaleString()
 				+ ' per active ' + (data.view === 'day' ? 'day' : data.view) : '');
 		const readout = this.historyEl('div', 'zg-hist-readout', body);
+		// The line is the chart's answer, so it announces itself when it
+		// changes — which is what the tooltip used to do for a reader who
+		// could not see the bars.
+		readout.setAttribute('aria-live', 'polite');
 		const setReadout = (html) => { readout.textContent = html; };
 		setReadout(summary);
 
@@ -11081,15 +12977,17 @@ module.exports = class WordSmith extends Plugin {
 		// week is seven days. Shading two of them because a calendar calls
 		// them a weekend is the chart telling a writer when they ought to be
 		// working, in a panel whose whole job is to show what they did.
+		// THE CURRENT BUCKET IS NOT SHADED any more. A tinted column behind
+		// the bars was the accent colour — red on most schemes — and read
+		// as a warning about the day rather than a note that it is not
+		// over yet. What it meant was "this one is still being filled in",
+		// and the BARS say that now by painting a step lighter, which is
+		// how an unfinished thing looks without being an alarm.
+		//
+		// The KEY is still wanted: the axis label below marks the current
+		// bucket too, and that mark is a weight rather than a colour, so
+		// it was never the thing being complained about.
 		const todayKey = this.historyDateKey();
-		for (let i = 0; i < n; i++) {
-			const b = buckets[i];
-			if (b.key !== todayKey && !b.isNow) continue;
-			this.historySvg('rect', {
-				x: (i * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: H,
-				class: 'zg-hist-band is-now'
-			}, svg);
-		}
 
 		// Gridlines, drawn as dotted runs of blocks like everything else. The
 		// labels go in the HTML gutter beside the SVG, because the viewBox is
@@ -11129,7 +13027,15 @@ module.exports = class WordSmith extends Plugin {
 		}, g);
 
 		const BAYER = [[0.20, 0.70], [0.95, 0.45]];
-		const pixelBar = (g, x, v, w, series, down) => {
+		// TOMBSTONE: the tips briefly wore the tank's meniscus — a crest
+		// cell per column and a dithered edge that withheld a cell on
+		// some columns. Removed on sight, by request: on bars this size
+		// the lit tip read as a different DATA state (the in-progress
+		// palette already lightens a bar to say exactly that), and the
+		// jagged edge read as noise in the values rather than texture.
+		// The bars keep their kinship with the water where it works —
+		// the cells, the ordered dither between heat steps, the bevel.
+		const pixelBar = (g, x, v, w, series, down, isNow) => {
 			const span = Math.abs((down ? yDn(v) : yUp(v)) - zero);
 			// Whole cells, never fewer than one: a day of forty words is still
 			// a day that happened, and rounding it away would be the chart
@@ -11156,18 +13062,47 @@ module.exports = class WordSmith extends Plugin {
 					// a bar too narrow to spare a column.
 					if (c === cols - 1 && cols > 2) lv--;
 					lv = Math.max(0, Math.min(HISTORY_HEAT - 1, lv));
+					// A BUCKET STILL BEING FILLED paints one step lighter.
+					// The shaded column that used to say so was the accent
+					// colour — red on most schemes — and read as a warning
+					// about the day rather than a note that it is not over.
+					// Lightening the bar says the same thing in the bar's
+					// own language, and cannot be mistaken for a value.
+					// The STEP is unchanged for an in-progress bucket — only
+					// its palette differs. Bumping the heat step as well
+					// drew a taller-looking value than the writer had
+					// actually written, which is a chart telling a small
+					// lie to make a point.
 					px(g, x + c * cell, top + r * cell, cell, cell,
-						'zg-hist-px ' + series + ' h' + lv);
+						'zg-hist-px ' + series + ' h' + lv + (isNow ? ' is-now' : ''));
 				}
 			}
 		};
 
 		const groups = [];
+		// TOMBSTONE (1.3.3, same release): the bars briefly ANIMATED in.
+		// Three mechanisms were tried — per-bar scaleY staggers (repainted
+		// the whole plot every frame: lag), a CSS clip-path wipe on a
+		// wrapper <g> (the declaration silently dropped: bars popped in),
+		// and a JS-driven clipPath rect first under SMIL and then under a
+		// requestAnimationFrame loop (never visibly ran in the app's
+		// webview either). Removed by request after the third attempt:
+		// whatever this webview does to clips on dynamic SVG, the chart's
+		// job is the numbers, and three mechanisms is the budget a
+		// flourish gets. The `_histSkipGrow` flag the legend pills raised
+		// to suppress replays went with it.
 		for (let i = 0; i < n; i++) {
 			const b = buckets[i];
 			const g = this.historySvg('g', { class: 'zg-hist-bargroup' }, svg);
 			groups.push(g);
-			this.historySvg('title', {}, g).textContent = b.tip;
+			// NO <title>, BUT NOT NO LABEL. An SVG title is the OS tooltip,
+			// and the readout line under the chart already answers the
+			// same question in the plugin's own voice without covering
+			// the bars either side of the one being read. It was also
+			// what a screen reader and a touch device had — so the numbers
+			// move to an aria-label, which those still reach and which
+			// draws nothing.
+			g.setAttribute('aria-label', b.readout);
 			this.historySvg('rect', {
 				x: (i * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: H,
 				class: 'zg-hist-hit'
@@ -11177,9 +13112,12 @@ module.exports = class WordSmith extends Plugin {
 			// falls from the one line; net is laid over whichever of the two
 			// it shares a sign with, LAST so it sits on top.
 			const x = i * slot + gap;
-			if (ser.added   && b.a > 0) pixelBar(g, x, b.a, bw, 'is-added', false);
-			if (ser.removed && b.r > 0) pixelBar(g, x, b.r, bw, 'is-removed', true);
-			if (ser.net && b.n !== 0)   pixelBar(g, x, Math.abs(b.n), bw, 'is-net', b.n < 0);
+			// Whether this bucket is the one in progress — today, this
+			// month, this year, whichever the view is counting in.
+			const now = (b.key === this.historyDateKey()) || !!b.isNow;
+			if (ser.added   && b.a > 0) pixelBar(g, x, b.a, bw, 'is-added', false, now);
+			if (ser.removed && b.r > 0) pixelBar(g, x, b.r, bw, 'is-removed', true, now);
+			if (ser.net && b.n !== 0)   pixelBar(g, x, Math.abs(b.n), bw, 'is-net', b.n < 0, now);
 			if (!b.a && !b.r) px(g, x, zero - cell, bw, cell, 'zg-hist-zeroed');
 		}
 
@@ -11276,31 +13214,29 @@ module.exports = class WordSmith extends Plugin {
 		modal.modalEl.addClass('zg-report-modal');
 
 		const view       = this.activeMarkdownView();
-		const file       = view && view.file ? view.file : null;
-		const folderPath = this.activeFolderPath();
-		const baseName   = file ? file.path.split('/').pop() : 'Current note';
-		const folderName = folderPath && folderPath !== '/'
-			? folderPath.split('/').pop() : 'Vault root';
+		const openFile   = this.activeNoteFile();
+		void view;
+		const openFolder = this.activeFolderPath();
 
-		const nav  = modal.contentEl.createDiv({ cls: 'ws-tab-nav zg-report-nav' });
 		const body = modal.contentEl.createDiv({ cls: 'zg-report-body' });
 
-		// Two tabs, both about the text in front of you. The writing HISTORY is
-		// a different question asked over a different span, it needs three
-		// times the width to answer, and it does not depend on a file being
-		// open at all — so it has its own modal rather than a third tab here.
-		const TABS = [
-			{ id: 'note',   label: baseName   },
-			{ id: 'folder', label: folderName }
-		];
+		// NO TAB STRIP AND NO HISTORY BUTTON, both by request. The whole
+		// window is: the title, the finder under it, and then the PATH —
+		// the note's name at its head, its folders behind it — which is
+		// the one control the report needs. `active` says which link of
+		// that path the figures currently describe. The writing HISTORY
+		// keeps its own modal and its own ways in (the command and the
+		// bar); a button to leave this window does not need to live in
+		// this window.
 		let active = 'note';
 
 		// The chain of folders above the note, root last. A manuscript is not
 		// one folder: it is scenes inside a chapter inside a part inside the
 		// book, and "how long is this chapter" and "how long is the book" are
 		// both real questions that the single active folder could not answer.
-		// The chain is offered as a breadcrumb inside the Folder tab, so the
-		// tab count does not grow with the depth of somebody's outline.
+		// The chain is the path row itself, so the control does not grow
+		// taller with the depth of somebody's outline — only longer, and it
+		// wraps.
 		const chainOf = (p) => {
 			const out = [];
 			let cur = (p && p !== '/') ? p : '';
@@ -11312,83 +13248,227 @@ module.exports = class WordSmith extends Plugin {
 			out.push('/');
 			return out;
 		};
-		const chain = chainOf(folderPath);
+
+		// WHAT the report is about is state now, not a constant: the finder
+		// below can point the window at any note or folder in the vault, so
+		// the subject — the file at the head of the path, the chain behind
+		// it — has to be able to move. `picked` remembers that the window
+		// was steered away from the open note, which is what the chip's ×
+		// undoes.
+		let repFile   = openFile;
+		let chain     = chainOf(openFolder);
 		let folderSel = chain[0] || '/';
+		let picked    = null;
+		let query     = '';
 
 		const render = async () => { try {
-			nav.empty();
-			for (const tab of TABS) {
-				const btn = nav.createEl('button', {
-					cls: 'ws-tab-btn' + (tab.id === active ? ' is-active' : ''),
-					text: tab.label
-				});
-				btn.addEventListener('click', () => { active = tab.id; render(); });
-			}
-
-			// The way across to the history, on the right of the tab strip.
-			// NOT a third tab: the two on the left are two views of the same
-			// question — how long is this — and a control that leaves for a
-			// different window entirely should not be sitting in that row
-			// pretending to be a sibling of them. Pushed to the far end by
-			// margin-left: auto, which is what separates going somewhere from
-			// switching between what is already here.
-			const cross = nav.createEl('button', {
-				cls: 'ws-tab-btn zg-report-cross',
-				text: 'History \u2192'
-			});
-			cross.setAttribute('title',
-				'How much you have written each day \u2014 opens in its own window.');
-			cross.addEventListener('click', () => {
-				modal.close();
-				plugin.openHistoryModal();
-			});
-
 			body.empty();
 			body.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
 
-			let stats = null, target = 0, scope = '';
-			if (active === 'note') {
-				if (!file) { body.empty(); body.createDiv({ text: 'No note open.' }); return; }
-				let text = '';
-				try { text = await plugin.app.vault.cachedRead(file); } catch (_) {}
-				stats  = plugin.analyzeText(text);
-				// The file's own goal, not the vault-wide writing goal — those
-				// are different numbers and showing one under the other's name
-				// made the ring meaningless.
-				target = plugin.fileGoalFor(file.path);
-				scope  = file.path;
-			} else {
-				if (!folderPath) { body.empty(); body.createDiv({ text: 'No folder.' }); return; }
-				stats  = await plugin.analyzeFolder(folderSel);
-				target = plugin.folderGoalFor(folderSel);
-				scope  = (folderSel === '/' ? 'Vault root' : folderSel)
-					+ ' \u2014 ' + stats.files + ' note' + (stats.files === 1 ? '' : 's');
-			}
+			// ── The finder ──────────────────────────────────────────────
+			// One text box that can point the whole window at any note or
+			// folder in the vault — "how long is that other chapter"
+			// without leaving the report. Built as a function because the
+			// no-note and no-folder paths return early and must still
+			// offer it: a report opened with nothing on screen is exactly
+			// when a search box is the way in. Same classes as the
+			// history's finder, so the two windows do not disagree about
+			// what a search box looks like.
+			const buildFinder = (container) => {
+				const find = container.createDiv({ cls: 'zg-hist-find zg-report-find' });
+				const row  = find.createDiv({ cls: 'zg-hist-findrow' });
+				// The chip is the way BACK: it appears once the window has
+				// been steered somewhere else, names where it went, and
+				// its × returns the report to the note that was open.
+				// It REPLACES the input while it is up — the same rule
+				// the history finder follows — because the two side by
+				// side shoved the search box off to the right, and a box
+				// half off its row reads as broken. Close the chip and
+				// the search comes back where it was.
+				if (picked) {
+					const chip = row.createDiv({ cls: 'zg-hist-chip' });
+					chip.createSpan({ cls: 'zg-hist-chipname', text: picked });
+					const clear = chip.createEl('button', { cls: 'zg-hist-chipx', text: '\u00d7' });
+					clear.setAttribute('aria-label', 'Back to the open note');
+					clear.addEventListener('click', () => {
+						picked    = null;
+						query     = '';
+						repFile   = openFile;
+						chain     = chainOf(openFolder);
+						folderSel = chain[0] || '/';
+						active    = 'note';
+						render();
+					});
+					return;
+				}
+				const input = row.createEl('input', { cls: 'zg-hist-search' });
+				input.setAttribute('type', 'text');
+				input.setAttribute('placeholder', 'Report on another note or folder\u2026');
+				input.value = query || '';
+				const list = find.createDiv({ cls: 'zg-hist-hits' });
 
-			// A tab switch mid-read must not paint stale numbers.
-			body.empty();
+				const pick = (hit) => {
+					query  = '';
+					picked = hit.path;
+					if (hit.kind === 'folder') {
+						// The chain grows from the picked folder, so the
+						// crumbs climb from THERE to the vault — the same
+						// walk the open note's folder gets.
+						chain     = chainOf(hit.path);
+						folderSel = hit.path;
+						active    = 'folder';
+					} else {
+						const f = plugin.app.vault.getAbstractFileByPath(hit.path);
+						if (!f) return;
+						repFile = f;
+						const cut = hit.path.lastIndexOf('/');
+						chain     = chainOf(cut > 0 ? hit.path.slice(0, cut) : '/');
+						folderSel = chain[0] || '/';
+						active    = 'note';
+					}
+					render();
+				};
 
-			// Scene -> Chapter -> Part -> Book -> Vault, each one clickable.
-			// Nearest first, because that is the one you were just editing.
-			if (active === 'folder' && chain.length > 1) {
-				const crumbs = body.createDiv({ cls: 'zg-report-crumbs' });
+				// THE LIST IS DRIVEN FROM THE KEYBOARD TOO. ↑/↓ move a
+				// highlight through the hits, Enter takes the highlighted
+				// one (the first, until the arrows say otherwise), and the
+				// pointer moves the same highlight — one selection, two
+				// hands. The hits the keys act on are the hits on SCREEN,
+				// kept in the closure by paint(), never re-queried at
+				// Enter: a re-query could rank differently and take a row
+				// the writer was not looking at.
+				let hits = [], rows = [], sel = 0;
+				const mark = () => {
+					rows.forEach((r, i2) => r.classList.toggle('is-selected', i2 === sel));
+					if (rows[sel] && rows[sel].scrollIntoView) {
+						rows[sel].scrollIntoView({ block: 'nearest' });
+					}
+				};
+				const paint = () => {
+					list.textContent = '';
+					rows = []; hits = [];
+					const q = query.trim();
+					if (!q) return;
+					hits = plugin.reportFinderMatches(q, 8);
+					if (!hits.length) {
+						list.createDiv({ cls: 'zg-hist-nohit', text: 'Nothing by that name.' });
+						return;
+					}
+					sel = Math.max(0, Math.min(sel, hits.length - 1));
+					hits.forEach((hit, i2) => {
+						const b = list.createEl('button', { cls: 'zg-hist-hit-' + hit.kind + ' zg-hist-hitrow' });
+						b.createSpan({ cls: 'zg-hist-hitkind', text: hit.kind === 'folder' ? 'folder' : 'note' });
+						b.createSpan({ cls: 'zg-hist-hitpath', text: hit.path });
+						b.addEventListener('click', () => pick(hit));
+						b.addEventListener('mouseenter', () => { sel = i2; mark(); });
+						rows.push(b);
+					});
+					mark();
+				};
+
+				// Typing repaints the HITS, never the window: a rerender
+				// per keystroke would tear the input out from under the
+				// caret. The window only moves when a hit is chosen.
+				input.addEventListener('input', () => { query = input.value; sel = 0; paint(); });
+				input.addEventListener('keydown', (e) => {
+					if (e.key === 'ArrowDown' && hits.length) {
+						sel = Math.min(sel + 1, hits.length - 1);
+						mark();
+						e.preventDefault();
+						return;
+					}
+					if (e.key === 'ArrowUp' && hits.length) {
+						sel = Math.max(sel - 1, 0);
+						mark();
+						e.preventDefault();
+						return;
+					}
+					if (e.key === 'Escape') { query = ''; input.value = ''; paint(); return; }
+					if (e.key !== 'Enter') return;
+					if (hits.length) pick(hits[Math.max(0, Math.min(sel, hits.length - 1))]);
+				});
+				paint();
+			};
+
+			// ── The path ─────────────────────────────────────────────────
+			// 01.Preface.md ‹ Chapter 1 ‹ Manuscript ‹ Book 1 ‹ Vault —
+			// the NOTE at its head, its folders behind it, each one
+			// clickable and nearest first, because that is the one you
+			// were just editing. This row is the report's whole
+			// navigation now: the filename crumb shows the note's own
+			// figures, any folder crumb shows that folder's, and the lit
+			// crumb is the label for what the numbers below describe.
+			// Long outlines WRAP onto further lines rather than growing
+			// a control per level. A function beside buildFinder for the
+			// same reason it is one: the no-note path returns early and
+			// must still draw it.
+			const buildCrumbs = (container) => {
+				const crumbs = container.createDiv({ cls: 'zg-report-crumbs' });
+				if (repFile) {
+					const noteBtn = crumbs.createEl('button', {
+						cls: 'zg-crumb zg-crumb-note'
+							+ (active === 'note' ? ' is-active' : ''),
+						text: repFile.path.split('/').pop()
+					});
+					noteBtn.setAttribute('title', repFile.path);
+					noteBtn.addEventListener('click', () => {
+						if (active === 'note') return;
+						active = 'note';
+						render();
+					});
+				}
 				chain.forEach((p, i) => {
-					if (i) crumbs.createSpan({ cls: 'zg-crumb-sep', text: '\u2039' });
+					if (i || repFile) crumbs.createSpan({ cls: 'zg-crumb-sep', text: '\u2039' });
 					const name = p === '/' ? 'Vault' : p.split('/').pop();
 					const btn = crumbs.createEl('button', {
-						cls: 'zg-crumb' + (p === folderSel ? ' is-active' : ''),
+						cls: 'zg-crumb'
+							+ (active === 'folder' && p === folderSel ? ' is-active' : ''),
 						text: name
 					});
 					btn.setAttribute('title', p === '/' ? 'The whole vault' : p);
 					btn.addEventListener('click', () => {
-						if (p === folderSel) return;
+						if (active === 'folder' && p === folderSel) return;
+						active = 'folder';
 						folderSel = p;
 						render();
 					});
 				});
+			};
+
+			let stats = null, target = 0;
+			if (active === 'note') {
+				if (!repFile) {
+					// No note, but never a dead end: the finder is the
+					// way in, and the path still offers whatever it can —
+					// at minimum the Vault crumb, one click from the
+					// whole vault's numbers.
+					body.empty();
+					buildFinder(body);
+					buildCrumbs(body);
+					body.createDiv({ text: 'No note open \u2014 search for one above.' });
+					return;
+				}
+				let text = '';
+				try { text = await plugin.app.vault.cachedRead(repFile); } catch (_) {}
+				stats  = plugin.analyzeText(text);
+				// The file's own goal, not the vault-wide writing goal — those
+				// are different numbers and showing one under the other's name
+				// made the ring meaningless.
+				target = plugin.fileGoalFor(repFile.path);
+			} else {
+				stats  = await plugin.analyzeFolder(folderSel);
+				target = plugin.folderGoalFor(folderSel);
 			}
 
-			body.createDiv({ cls: 'zg-report-scope', text: scope });
+			// A tab switch mid-read must not paint stale numbers. FINDER
+			// under the title, PATH under the finder — the order asked
+			// for — and no scope line: it spelled out the same path the
+			// crumbs already are, and the lit crumb plus each crumb's
+			// hover title (the full path) says everything it said.
+			body.empty();
+			buildFinder(body);
+			buildCrumbs(body);
+
 			body.createEl('hr', { cls: 'zg-report-rule' });
 
 			const ringWrap = body.createDiv({ cls: 'zg-report-ring' });
@@ -11399,10 +13479,17 @@ module.exports = class WordSmith extends Plugin {
 				// at the goal. currentColor carries it into the liquid.
 				holder.style.color = 'hsl(' + Math.round(8 + ratio * 122) + ', 62%, 44%)';
 				holder.appendChild(plugin.buildGoalLiquid(ratio));
-				// Crossing the line in the report is the one place worth
-				// making a fuss about, so it gets a fuss.
-				// Over the whole report, not just the gauge — see celebrate().
-				if (stats.words >= target) plugin.celebrate(body);
+				// TOMBSTONE (1.3.3): pixel fireworks burst over the whole
+				// report when the goal was crossed. Removed by request.
+				// The gauge already marks the moment — a full tank, and
+				// the aurora rising in it — and the fireworks landed on
+				// top of the one thing the writer opened the report to
+				// look at, every single time it was opened, which is a
+				// party thrown for an event that has already been
+				// celebrated. (`celebrate` itself stays: the history tab
+				// still uses it for crossing the DAILY goal, which is a
+				// different moment and happens once a day rather than on
+				// every look.)
 			} else {
 				const none = ringWrap.createDiv({ cls: 'zg-report-ring-label is-muted' });
 				none.createDiv({
@@ -11415,6 +13502,11 @@ module.exports = class WordSmith extends Plugin {
 				});
 			}
 
+			// TOMBSTONE (1.3.3): the figures lifted and faded in, staggered a
+			// beat apart. Reverted on sight — numbers are what this panel
+			// is FOR, and a figure you cannot read while it travels is a
+			// figure withheld. The jar is the thing that moves; everything
+			// else is there to be read the moment it is there.
 			const grid = body.createDiv({ cls: 'zg-report-grid' });
 			// Each figure carries its own explanation on hover, rather than a
 			// block of footnotes below competing with the numbers for height.
@@ -11424,6 +13516,14 @@ module.exports = class WordSmith extends Plugin {
 				c.createDiv({ cls: 'zg-report-value', text: value });
 				c.createDiv({ cls: 'zg-report-label', text: label });
 			};
+			// NINE FIGURES, THREE BY THREE, grouped by what they measure:
+			// the row of SIZE (words, characters, characters without
+			// spaces), the row of STRUCTURE (syllables, sentences,
+			// paragraphs), and the row of WHAT IT COSTS A READER (pages,
+			// read time, grade). Four-across put those groups wherever the
+			// wrapping fell; three-across is the shape of the meaning, and
+			// it leaves no orphan row.
+			//
 			// The fraction lives in the Words cell rather than beside the
 			// gauge: it is a word count, and that is where a reader looks.
 			cell(target > 0 ? 'of ' + target.toLocaleString() + ' words' : 'Words',
@@ -11431,7 +13531,18 @@ module.exports = class WordSmith extends Plugin {
 				'Prose only \u2014 frontmatter, code blocks, maths and link targets don\u2019t count. '
 				+ 'Chinese and Japanese are counted per character, Korean by word.');
 			cell('Characters', stats.chars.toLocaleString(),
-				'Spaces included. Skips the same things the word count does.');
+				'Visible characters only \u2014 spaces, tabs and line breaks are not '
+				+ 'characters. Skips the same things the word count does.');
+			// Counted all along — the analyser has returned it since the
+			// count was first split out — and never shown. A publisher's
+			// character limit almost always means this one.
+			// The literal figure, for anyone whose limit is quoted the way a
+			// word processor counts: every space, tab and newline once
+			// each. It used to be the COLLAPSED length, which was neither
+			// figure — a run of four spaces scored one.
+			cell('With spaces', (stats.charsWithSpaces || 0).toLocaleString(),
+				'The word-processor figure: every space, tab and line break counted '
+				+ 'once each.');
 			cell('Syllables',  stats.syllables.toLocaleString(),
 				'A best guess \u2014 the odd unusual word gets counted wrong, but the reading '
 				+ 'grade below evens that out.');
@@ -11936,13 +14047,27 @@ module.exports = class WordSmith extends Plugin {
 				if (alive) return last;
 			} catch (_) { return last; }
 		}
-		// Last resort: the app's own idea of the active file, which
-		// survives a sidebar click even when the view lookup does not.
-		try {
-			const f = this.app.workspace.getActiveFile();
-			if (f) return { file: f };
-		} catch (_) {}
+		// NO SYNTHETIC VIEW. This used to hand back `{ file }` from the
+		// app's own active file when no real view could be found — enough
+		// for the Report, which only wants a name, and POISON for the mask
+		// layout, which asks the view for its scroller. That object has no
+		// contentEl, so `stampMaskPositions` threw on every frame: the
+		// letterbox set its class, the text took its padding, and nothing
+		// was ever drawn. A flicker with no masks in it.
+		//
+		// This returns a REAL VIEW or nothing. Callers that only want the
+		// file ask for the file.
 		return null;
+	}
+
+	// The note a panel should answer ABOUT, by name. Falls back to the
+	// app's own active file, which survives a sidebar click even when the
+	// view lookup does not — this is the part the Report wanted, and the
+	// part that must not be dressed up as a view.
+	activeNoteFile() {
+		const v = this.activeMarkdownView();
+		if (v && v.file) return v.file;
+		try { return this.app.workspace.getActiveFile() || null; } catch (_) { return null; }
 	}
 
 	// ── The docked panel ─────────────────────────────────────────────────────
@@ -12708,71 +14833,29 @@ module.exports = class WordSmith extends Plugin {
 			try { document.removeEventListener('keydown', onEsc, true); } catch (_) {}
 			if (ZG_MENU_ESC === onEsc) ZG_MENU_ESC = null;
 			try { document.body.classList.remove('zg-menu-open'); } catch (_) {}
-			try { if (closeWatcher) closeWatcher.disconnect(); } catch (_) {}
 			this.barThemeOnCssChange();
 			this.barThemeGuard();
 		};
 
-		// THE ✕ GOES, and it is REMOVED rather than hidden, from wherever
-		// Obsidian keeps it. Escape closes this, so does clicking away, and
-		// the menu is a PALETTE — a small panel that applies live behind
-		// itself — not a dialogue waiting to be dismissed. A close button
-		// on a palette only ever undoes the act of opening it, and it sits
-		// exactly where the eye lands first.
+		// THE ✕ COMES BACK, by request — and this is a reversal of a fix
+		// that took five rounds, so the reasoning is kept rather than
+		// deleted. The argument for removing it was that this menu is a
+		// PALETTE, not a dialogue: it applies live behind itself, Escape
+		// closes it, clicking away closes it, and a close button only
+		// undoes the act of opening. The vault has overruled that: the
+		// affordance every other modal in Obsidian has should be here
+		// too, and a writer who reaches for the corner should find it.
 		//
-		// This has been fixed twice and is now belt, braces and a second
-		// belt, because each earlier attempt assumed something about the
-		// button that turned out to be version-specific:
-		//
-		//   1. A stylesheet rule (`.zg-menu-modal .modal-close-button`)
-		//      assumed the button is INSIDE modalEl. On some builds it is
-		//      a child of the CONTAINER instead, a sibling of the modal,
-		//      where that selector never matches — and a CSS-only fix is
-		//      absent anyway for anyone whose styles.css did not get
-		//      copied.
-		//   2. Removing it at onOpen assumed it EXISTS by then. Obsidian
-		//      builds its chrome around the modal, and the order is not
-		//      ours to rely on.
-		//
-		// So: climb to the outermost element this modal owns, sweep it,
-		// and sweep once more on the next frame for anything added after.
-		// Guarded throughout — a menu that throws on open is worse than a
-		// menu with a ✕.
-		const stripClose = () => {
-			try {
-				const roots = [modal.modalEl, modal.containerEl,
-					modal.modalEl && modal.modalEl.parentElement];
-				for (const root of roots) {
-					if (!root || !root.querySelectorAll) continue;
-					// BOTH NAMES. Obsidian's ✕ is `.modal-header-button
-					// .mod-raised .clickable-icon` on current builds and
-					// `.modal-close-button` on older ones — which is the
-					// whole reason this took five attempts: every selector
-					// was aimed at a class the button had stopped wearing.
-					// Scoped to this modal's own roots, so no other
-					// modal's header buttons are touched.
-					for (const btn of Array.from(root.querySelectorAll(
-						'.modal-close-button, .modal-header-button'))) {
-						btn.remove();
-					}
-				}
-			} catch (_) {}
-		};
-		// …and a WATCHER, because every timed sweep is a guess about when
-		// Obsidian finishes building its chrome, and this fix has now been
-		// wrong about that guess three times. An observer is not a guess:
-		// whenever a close button appears anywhere under this modal's
-		// container, for as long as the menu is open, it goes. Disconnected
-		// on close — an observer that outlives its modal is a leak.
-		let closeWatcher = null;
-		try {
-			const target = modal.containerEl || modal.modalEl;
-			if (target && window.MutationObserver) {
-				closeWatcher = new MutationObserver(stripClose);
-				closeWatcher.observe(target, { childList: true, subtree: true });
-			}
-		} catch (_) {}
-
+		// What went with it: a `stripClose` sweep over three possible
+		// roots (the button is a child of the modal on some builds and of
+		// the CONTAINER on others), a MutationObserver re-sweeping for as
+		// long as the menu was open, two more sweeps after `open()`, and
+		// three stylesheet selectors — including a `body.zg-menu-open`
+		// one written because the ✕ sat outside both known ancestors.
+		// All of it is gone; Obsidian's own button is simply left alone.
+		// The `zg-menu-open` body class STAYS: it is the marker the
+		// stylesheet uses for this modal generally, not only for hiding
+		// that button.
 		modal.onOpen = () => {
 			// A BODY CLASS, which is the one ancestor nothing can move the
 			// button out of. Every earlier selector named an ancestor that
@@ -12784,7 +14867,6 @@ module.exports = class WordSmith extends Plugin {
 			// classList, not addClass: the sugar is Obsidian's and this line
 			// must work anywhere body does — including under a probe.
 			try { document.body.classList.add('zg-menu-open'); } catch (_) {}
-			stripClose();
 			list.setAttribute('tabindex', '-1');
 			// A hidden finder cannot take focus \u2014 the list does, so the
 			// arrows work from the first keystroke either way.
@@ -12793,11 +14875,6 @@ module.exports = class WordSmith extends Plugin {
 		};
 		render();
 		modal.open();
-		// Again, now that Obsidian has finished assembling the modal, and
-		// once more on the next frame: the button may be added after
-		// onOpen, and a single early sweep would have missed it.
-		stripClose();
-		try { window.requestAnimationFrame(stripClose); } catch (_) {}
 		return modal;
 	}
 
@@ -13641,6 +15718,22 @@ module.exports = class WordSmith extends Plugin {
 		const darkPaper = this.barContrast('#ffffff', h.b1)
 			> this.barContrast('#000000', h.b1);
 		const hi = this.barThemeHighlight(h, S2);
+		// THE ZEN MATCH RIDES THE SAME INLINE DECLARATION. These variables
+		// are written inline on body (applyThemeVars), and an inline custom
+		// property beats every stylesheet rule — including styles.css's own
+		// `body.zg-titlebar-match { --titlebar-background: ... }`. So with a
+		// rich palette on, zen re-pointed the titlebar through a rule that
+		// could never win the cascade, and the strip kept the theme's chrome
+		// step: the grey plate. The Simplified toggle only LOOKED like a fix
+		// because it moves this same inline value to b1. The palette now
+		// yields to zen directly: when the writer asked the titlebar to
+		// match the page, the page's surface is what goes inline. Guarded,
+		// because barThemeVars is also driven bare in the probes where
+		// zenActive's collaborators do not exist.
+		let zenTb = false;
+		try { zenTb = !!(this.zenActive() && this.settings.zenTitlebarMatch); }
+		catch (_) { zenTb = false; }
+		const tbBg = (simp || zenTb) ? h.b1 : h.b2;
 		// THE WASH BEATS THE NAMED COLOUR. A scheme's own mode-line strip is
 		// right by default and wrong under Simplified, which exists to make
 		// every surface one colour — a scheme that kept its cyan bar
@@ -13733,8 +15826,8 @@ module.exports = class WordSmith extends Plugin {
 			'color-scheme':                      darkPaper ? 'dark' : 'light',
 			'--zg-selected-bg':                  hi.bg,
 			'--zg-selected-ink':                 hi.ink,
-			'--titlebar-background':             simp ? h.b1 : h.b2,
-			'--titlebar-background-focused':     simp ? h.b1 : h.b2,
+			'--titlebar-background':             tbBg,
+			'--titlebar-background-focused':     tbBg,
 			'--ribbon-background':               simp ? h.b1 : h.b2,
 			// RECHECKED against Minimal's own source: its flat header is
 			// the titlebar and TAB CONTAINER riding the bg ladder — which
@@ -14493,6 +16586,11 @@ module.exports = class WordSmith extends Plugin {
 			{ key: 'checkRepetition', color: 'checkRepetitionColor', label: 'Repetition radar'  },
 			{ key: 'checkMisused',    color: 'checkMisusedColor',    label: 'Commonly misused'  },
 			{ key: 'checkIllusion',   color: 'checkIllusionColor',   label: 'Lexical illusions' },
+			// Above Sentence rhythm, as in the settings tab: this list
+			// drives the picker, the bar tooltip AND that tab, so one
+			// sequence is the whole ordering and the three cannot
+			// disagree about it.
+			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue highlight' },
 			// No colour of its own in the picker. Sentence rhythm paints in
 			// TWO (hard and very hard, and it is a background tint rather
 			// than a mark), so a single swatch picked one of them and told
@@ -14978,7 +17076,10 @@ module.exports = class WordSmith extends Plugin {
 			if (sel && sel.trim().length > 0) {
 				const selProse = this.countProse(sel);
 				displayWC = selProse.words;
-				displayCC = selProse.chars;
+				// The same figure the whole-document path shows, or
+				// selecting text would silently switch {chars} from the
+				// with-spaces count to the visible-only one.
+				displayCC = selProse.charsWithSpaces;
 			} else {
 				displayWC = totalWC;
 				displayCC = charCount;
@@ -17093,7 +19194,14 @@ module.exports = class WordSmith extends Plugin {
 		// The bar's horizontal bounds follow the editor area, and this is
 		// the pass that already runs whenever that geometry can change.
 		this.stampBarBounds();
-		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		// THE REMEMBERED NOTE, not the focused one. This bailed whenever
+		// `getActiveViewOfType` came back empty — which is exactly what it
+		// does while focus sits in the docked panel. So toggling the
+		// letterbox from Word-Smith's own pane set the class (the text got
+		// its padding) and then returned before a single mask was placed:
+		// the writer saw the page shift and nothing else, until they
+		// clicked into the note and a later pass found a view.
+		const view = this.activeMarkdownView();
 		if (!view) { this._maskRaf = null; return; }
 
 		// The VISIBLE container, not the first one that matches.
@@ -17208,9 +19316,25 @@ module.exports = class WordSmith extends Plugin {
 
 		let maskH = this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26;
 		maskH = Math.min(maskH, Math.floor(sHeight * 0.45));
-		maskH = Math.max(maskH, 34);
+		// THE FLOOR IS THE ARROW ROW'S OWN HEIGHT, not a round number.
+		// Below it the arrows had nowhere to sit: they were laid out in a
+		// band shorter than themselves, spilled sideways and drifted right
+		// as the band shrank — which is what a writer sliding the mask to
+		// nothing actually saw. 34 was the old floor and was itself a
+		// guess; the row needs its glyph height plus the overhang the mask
+		// draws past it.
+		maskH = Math.max(maskH, ZG_MASK_MIN_PX);
 
-		const padH      = this.settings.maskPaddingH || 0;
+		// THE INSET IS NIL WHILE THE MASKS FOLLOW THE TEXT. Matching the
+		// column already decides where the masks start and stop; an inset
+		// on top of it is a second answer to the same question, and the
+		// two fought — nudge the arrows in and the band no longer lined up
+		// with the writing it was cut to. Locked rather than hidden, so
+		// the writer's own value is kept and comes back the moment they
+		// stop matching.
+		let padH        = this.settings.maskMatchText
+			? 0
+			: (this.settings.maskPaddingH || 0);
 		// The arrows centre on the text, so they measure the content box.
 		// sr.width is the border box and includes the vertical scrollbar,
 		// which the text column does not — centring on it put the arrow row
@@ -17218,13 +19342,52 @@ module.exports = class WordSmith extends Plugin {
 		// stay on the border box: they are a backdrop and should cover the
 		// scrollbar too.
 		const innerW    = scroller.clientWidth || sWidth;
-		const arrowLeft = sLeft + padH;
-		const arrowW    = Math.max(0, innerW - padH * 2);
+		// THE TEXT COLUMN, when the writer asked the masks to match it.
+		// Measured from the editor's own content element rather than from
+		// the readable-line setting, because a theme, a snippet or a
+		// per-note width can all move it — what is on screen is the only
+		// honest answer. `sizer` is the element the column's width lives
+		// on; padded, we take its offset box, unpadded its content box.
+		let matchLeft = null, matchW = null;
+		if (this.settings.maskMatchText) {
+			try {
+				const sizer = scroller.querySelector('.cm-contentContainer .cm-content')
+					|| scroller.querySelector('.cm-sizer')
+					|| scroller.querySelector('.markdown-preview-sizer');
+				if (sizer) {
+					const r = sizer.getBoundingClientRect();
+					if (r && r.width > 0) {
+						matchLeft = r.left;
+						matchW    = r.width;
+						if (!this.settings.maskMatchTextPadded) {
+							const cs = window.getComputedStyle(sizer);
+							const pl = parseFloat(cs.paddingLeft)  || 0;
+							const pr = parseFloat(cs.paddingRight) || 0;
+							matchLeft += pl;
+							matchW    -= (pl + pr);
+						}
+					}
+				}
+			} catch (_) { matchLeft = matchW = null; }
+		}
+		// The horizontal inset is the writer's own nudge and still applies;
+		// matching the text replaces where the mask STARTS, not their say
+		// over it.
+		const baseLeft  = matchLeft != null ? matchLeft : sLeft;
+		const baseWidth = matchW    != null ? matchW    : sWidth;
+		// CLAMPED HERE TOO, not only where it is set: a value saved before
+		// this cap existed, or typed into data.json, must still draw a row
+		// the arrows fit in. The layout is the last word on what is
+		// possible; the setting only says what was asked for.
+		const padMax = Math.max(0, Math.floor((baseWidth - ZG_ARROWS_MIN_W) / 2));
+		padH = Math.min(padH, padMax);
+		const arrowLeft = (matchLeft != null ? matchLeft : sLeft) + padH;
+		const arrowW    = Math.max(0, (matchW != null ? matchW : innerW) - padH * 2);
 		const arrowH    = maskH;
 		const overhang  = this.settings.maskOverhang != null ? this.settings.maskOverhang : 4;
 
 		const S = (el, styles) => { if (el) Object.assign(el.style, styles); };
-		S(this.maskTopEl,    { left: sLeft+'px', width: sWidth+'px', top: sTop+'px', height: (arrowH+overhang)+'px', bottom:'' });
+		S(this.maskTopEl,    { left: baseLeft+'px', width: baseWidth+'px', top: sTop+'px', height: (arrowH+overhang)+'px', bottom:'' });
 		// Only the top mask can reach the window controls. Guarded twice
 		// over: null when the positioner runs for the retro bar alone, and
 		// isolated so nothing thrown in here can abort the bottom mask,
@@ -17271,6 +19434,17 @@ module.exports = class WordSmith extends Plugin {
 				}
 			} catch (_) {}
 		}
+		// THE ARROWS STAND DOWN IN A THIN MASK. Below ZG_ARROWS_MIN_PX
+		// there is no band for them to sit in: they were laid out in a
+		// space shorter than themselves, spilled past it and floated on
+		// the page with nothing behind them. A mask can be thinner than
+		// its ornament; it just cannot carry it, and a hairline of shroud
+		// is a legitimate thing to want.
+		const arrowsFit = maskH >= ZG_ARROWS_MIN_PX;
+		try {
+			this.arrowsTopEl.classList.toggle('is-hidden', !arrowsFit);
+			this.arrowsBottomEl.classList.toggle('is-hidden', !arrowsFit);
+		} catch (_) {}
 		S(this.arrowsTopEl,  { left: arrowLeft+'px', width: arrowW+'px', top: sTop+'px', height: arrowH+'px', bottom:'' });
 		// The bottom mask is pinned to the WINDOW EDGE, not sized to stop at
 		// the bar. Chasing the bar's top edge kept leaving a hairline
@@ -17307,12 +19481,12 @@ module.exports = class WordSmith extends Plugin {
 		// closes it goes back to bottom: 0, where there is no edge at all.
 		const bottomMaskTop = Math.floor(sBottom - arrowH - overhang);
 		if (barMeasured) {
-			S(this.maskBottomEl, { left: sLeft+'px', width: sWidth+'px',
+			S(this.maskBottomEl, { left: baseLeft+'px', width: baseWidth+'px',
 				top: bottomMaskTop+'px',
 				bottom: (this._vimPanelOpen ? this.vimGutterHeight() : 0) + 'px',
 				height: '' });
 		} else {
-			S(this.maskBottomEl, { left: sLeft+'px', width: sWidth+'px',
+			S(this.maskBottomEl, { left: baseLeft+'px', width: baseWidth+'px',
 				top: bottomMaskTop+'px',
 				height: Math.ceil(sBottom - bottomMaskTop)+'px', bottom:'' });
 		}
@@ -17424,18 +19598,30 @@ module.exports = class WordSmith extends Plugin {
 			|| (this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26);
 		this._startPointerDrag(e, el, 'ns-resize', me => {
 			const dy = me.clientY - startY;
-			this.settings.letterboxPx = Math.max(0, startH + dy * (position === 'top' ? 1 : -1));
+			this.settings.letterboxPx = Math.max(ZG_MASK_MIN_PX,
+				startH + dy * (position === 'top' ? 1 : -1));
 			this.scheduleMaskPosition();
 		});
 	}
 
 	_startHorizontalDrag(e, el) {
+		// UNDRAGGABLE WHILE THE MASKS MATCH THE TEXT. The drag writes the
+		// inset, and the inset is ignored in that mode — so the handle
+		// would move under the pointer and nothing on screen would answer,
+		// which reads as the plugin having stopped working.
+		if (this.settings.maskMatchText) return;
 		const startX   = e.clientX;
 		const startPad = this.settings.maskPaddingH || 0;
 		const cx       = window.innerWidth / 2;
 		this._startPointerDrag(e, el, 'ew-resize', me => {
 			const dx = me.clientX - startX;
-			this.settings.maskPaddingH = Math.max(0, Math.min(Math.round(cx) - 20, Math.round(startPad + dx * (startX < cx ? 1 : -1))));
+			// The same wall the layout enforces, so the handle stops where
+			// the drawing does rather than sliding on against a row that
+			// has already stopped narrowing.
+			const wide = (this.maskTopEl && this.maskTopEl.offsetWidth) || window.innerWidth;
+			const cap  = Math.max(0, Math.floor((wide - ZG_ARROWS_MIN_W) / 2));
+			this.settings.maskPaddingH = Math.max(0,
+				Math.min(cap, Math.round(startPad + dx * (startX < cx ? 1 : -1))));
 			this.scheduleMaskPosition();
 		});
 	}
@@ -17752,7 +19938,8 @@ module.exports = class WordSmith extends Plugin {
 			veryhard: Decoration.mark({ class: 'zg-ck-veryhard' }),
 			repeat:   Decoration.mark({ class: 'zg-ck-repeat'   }),
 			misused:  Decoration.mark({ class: 'zg-ck-misused'  }),
-			pronoun:  Decoration.mark({ class: 'zg-ck-pronoun'  })
+			pronoun:  Decoration.mark({ class: 'zg-ck-pronoun'  }),
+			dialogue: Decoration.mark({ class: 'zg-ck-dialogue' })
 		};
 		const posMark = {
 			noun: Decoration.mark({ class: 'zg-pos-noun' }),
@@ -17778,7 +19965,7 @@ module.exports = class WordSmith extends Plugin {
 				} : {};
 				const checksOn = s.checksEnabled && (s.checkFiller || s.checkPassive ||
 					s.checkIllusion || s.checkMisused || s.checkPronoun ||
-					s.checkRhythm || s.checkRepetition);
+					s.checkRhythm || s.checkRepetition || s.checkDialogue);
 				if (!Object.keys(posOn).some(k => posOn[k]) && !checksOn) return Decoration.none;
 				if (!plugin.isEditorInScope(view)) return Decoration.none;
 
@@ -17849,6 +20036,24 @@ module.exports = class WordSmith extends Plugin {
 							// almost always has its referent right there.
 							if (s.checkPronoun && isVaguePronoun(t, ti + 1 < tokens.length ? tokens[ti + 1] : null)) {
 								out.push(checkMark.pronoun.range(base + t.from, base + t.to));
+							}
+						}
+
+						// DIALOGUE. Marked on the RAW line rather than the
+						// masked one: masking replaces code, links and
+						// maths with filler of the same length, and a
+						// quote inside a link title is still a quote to
+						// the eye reading the page. Offsets are into the
+						// line, so `base` puts them back in the document.
+						// `raw` was never a name in this scope — it is
+						// `line.text` — and the ReferenceError it threw
+						// took the WHOLE syntax plugin down with it:
+						// CodeMirror disables a view plugin whose update
+						// throws, so turning Dialogue on switched every
+						// check and word-class colour off at once.
+						if (s.checkDialogue) {
+							for (const q of findDialogue(line.text)) {
+								out.push(checkMark.dialogue.range(base + q.from, base + q.to));
 							}
 						}
 
@@ -18688,7 +20893,12 @@ class WordSmithSettingTab extends PluginSettingTab {
 		const restoreScroll = () =>
 			requestAnimationFrame(() => { scroller.scrollTop = scrollTop; });
 		containerEl.empty();
-		new Setting(containerEl).setName('Word-Smith').setHeading();
+		// THE VERSION LIVES IN THE TITLE. It was a small grey line further
+		// down the Menu tab, which answered "did my copy land?" only for
+		// someone who already knew to look there — and put a second,
+		// quieter "Word-Smith" on a page that already had one at the top.
+		// One name, carrying its own number.
+		new Setting(containerEl).setName('Word-Smith ' + ZG_PLUGIN_VERSION).setHeading();
 
 		// ── Master on/off ──────────────────────────────────────────────────────
 		new Setting(containerEl)
@@ -19070,15 +21280,42 @@ class WordSmithSettingTab extends PluginSettingTab {
 		if (this.plugin.settings.enableLetterbox) {
 			const ls = this.sub(containerEl);
 
+			// The slider cannot go under the floor either, or the writer
+			// drags to a value the mask will not honour and the number
+			// stops matching the screen.
 			new Setting(ls).setName('Mask height (px)').setDesc('Or just drag the edge of the mask itself.')
-				.addSlider(s => s.setLimits(0, 400, 4)
+				.addSlider(s => s.setLimits(ZG_MASK_MIN_PX, 400, 2)
 					.setValue(this.plugin.settings.letterboxPx != null
 						? Math.round(this.plugin.settings.letterboxPx)
 						: (this.plugin.settings.letterboxLines || 8) * 26)
 					.setDynamicTooltip()
 					.onChange(async v => { this.plugin.settings.letterboxPx = v; await this.plugin.saveSettings(); }));
 
-			this.slider(ls, 'Horizontal inset', 'Or drag the row of arrows itself.', 'maskPaddingH', 0, 400, 10);
+			// MATCH THE TEXT. The masks span the pane by default — a
+			// backdrop — and this makes them end where the writing ends,
+			// which reads as a frame around the page. It follows the
+			// column, so a changed readable-line width or a different
+			// theme moves the masks with it rather than leaving the
+			// writer to re-measure the inset by hand.
+			this.toggle(ls, 'Match the text width',
+				'The masks end where the writing does.',
+				'maskMatchText', () => this.display());
+			if (this.plugin.settings.maskMatchText) {
+				this.toggle(this.sub(ls), 'Include the editor\u2019s padding',
+					'Off hugs the words; on takes the page.',
+					'maskMatchTextPadded');
+			}
+
+			// The inset only appears when it means anything. Matching the
+			// text already decides where the masks start and stop, and a
+			// control that is read by nothing is worse than an absent one:
+			// the writer moves it, watches nothing happen, and mistrusts
+			// the next control too. The saved value is untouched and
+			// returns with the setting.
+			if (!this.plugin.settings.maskMatchText) {
+				this.slider(ls, 'Horizontal inset', 'Or drag the row of arrows itself.',
+					'maskPaddingH', 0, 400, 10);
+			}
 
 			new Setting(ls).setName('Show arrows').setDesc('Little arrows along the edge of each mask.')
 				.addToggle(t => t.setValue(this.plugin.settings.arrowCount > 0)
@@ -19501,8 +21738,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// sidebar is narrow and tall, and a search field is what the
 		// pop-up is for. Switching it on opens the pane; switching it off
 		// detaches it, and the arrangement below is untouched either way.
-		this.toggle(containerEl, 'Dock it as a panel',
-			'A pane you can drag under the file tree.',
+		// No description: "Dock it as a panel" says what it does, and a line
+		// underneath repeating it in other words is furniture.
+		this.toggle(containerEl, 'Dock it as a panel', '',
 			'menuDock', async () => {
 				if (plugin.settings.menuDock) {
 					plugin.registerMenuPanel();
@@ -19511,16 +21749,9 @@ class WordSmithSettingTab extends PluginSettingTab {
 					plugin.closeMenuPanel();
 				}
 			});
-		// The BUILD STAMP. Small, quiet, and the fastest way to answer the
-		// question that costs the most time in a bug report: is the code
-		// running the code I copied? A writer reading a version here and a
-		// different one in the release they downloaded knows in one second
-		// that the file did not land — without a console, a reload cycle
-		// or a guess.
-		containerEl.createEl('p', {
-			text: 'Word-Smith ' + ZG_PLUGIN_VERSION,
-			cls: 'ws-settings-note ws-build-stamp'
-		});
+		// (The build stamp moved into the page's own heading — see
+		// display(). It answered the same question in a better place, and
+		// two Word-Smiths on one page was one too many.)
 		// ONE SHORT LINE, not a paragraph. The tab explained the drag, the
 		// five-across cap, the \u2715, the Search card and the hotkey in one
 		// block of prose — and a writer who has to read an essay before
@@ -19528,12 +21759,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// stays is the part nobody can guess: that a card dropped ON
 		// another shares its line. Everything else is visible in the
 		// doing.
-		containerEl.createEl('p', {
-			text: 'Drag to reorder. Drop a card on another to share a line. '
-				+ '\u2715 sets one aside. Bind the menu to a key in Hotkeys \u2014 Alt+X '
-				+ 'is free in Vim mode.',
-			cls: 'ws-settings-note'
-		});
 
 		// The scroll-preserving redisplay, hoisted above every handler so
 		// ALL of them go through it — the same one-bare-display discipline
@@ -19628,6 +21853,17 @@ class WordSmithSettingTab extends PluginSettingTab {
 		cmdSearch.addEventListener('input', drawHits);
 
 		this.label(containerEl, 'What the menu holds');
+		// UNDER THE HEADING IT EXPLAINS. It sat at the top of the tab,
+		// three controls away from the cards it describes — so a writer
+		// read it before there was anything to read it about, and had
+		// forgotten it by the time they reached the shelf. Instructions
+		// belong beside the thing they instruct.
+		containerEl.createEl('p', {
+			text: 'Drag to reorder. Drop a card on another to share a line. '
+				+ '\u2715 sets one aside. Bind the menu to a key in Hotkeys \u2014 Alt+X '
+				+ 'is free in Vim mode.',
+			cls: 'ws-settings-note'
+		});
 		const defs = plugin.menuFeatureDefs();
 		const nameOf = (id) => {
 			if (/^rule-\d+$/.test(id)) return 'Separator';
@@ -19714,13 +21950,22 @@ class WordSmithSettingTab extends PluginSettingTab {
 					+ (isRule ? ' is-rule-' + plugin.menuRuleStyle(id) : ''),
 				text: isRule ? '' : nameOf(id)
 			});
+			// THE CARD'S BUTTONS SIT TOGETHER, in a group of their own.
+			// The head is a `space-between` row, so with three children
+			// the pencil landed wherever the name's width left it —
+			// centred on a short name, tucked against a long one, and
+			// different on every card. Two children (name, tools) puts
+			// the group at the end where the ✕ has always been, and the
+			// pencil beside it whatever the name says.
+			const tools = head.createDiv({ cls: 'zg-theme-tools' });
+
 			// RENAME, whenever the writer likes — the first editable thing
 			// this shelf has ever had, so it stays quiet: a pencil beside
 			// the ✕, and the name itself becomes the field. Enter or blur
 			// saves, Escape cancels, and an EMPTY field reverts to the
 			// stripped default, which is why there is no reset button.
 			if (isCmd) {
-				const pen = head.createEl('button', { cls: 'zg-theme-rename', text: '\u270e' });
+				const pen = tools.createEl('button', { cls: 'zg-theme-rename', text: '\u270e' });
 				pen.setAttribute('aria-label', 'Rename ' + nameOf(id));
 				pen.addEventListener('click', (e) => {
 					e.stopPropagation();
@@ -19750,7 +21995,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 					try { inp.focus(); inp.select(); } catch (_) {}
 				});
 			}
-			const x = head.createEl('button', { cls: 'zg-theme-remove', text: '\u2715' });
+			const x = tools.createEl('button', { cls: 'zg-theme-remove', text: '\u2715' });
 			x.setAttribute('aria-label',
 				(isRule ? 'Delete this separator' : 'Set ' + nameOf(id) + ' aside'));
 			// ✕ SHELVES a pinned command rather than unpinning it: the
@@ -20684,6 +22929,14 @@ class WordSmithSettingTab extends PluginSettingTab {
 			'The same word twice in a row.',
 			'checkIllusion', 'checkIllusionColor');
 
+		// ABOVE Sentence rhythm, by request. It belongs next to it in the
+		// reading order too: both are about the SHAPE of the prose rather
+		// than about individual words, and both paint whole stretches.
+		this.catRow(ck, 'Dialogue highlight',
+			'Everything inside quotes \u2014 straight or curly, double or single \u2014 '
+			+ 'so speech is easy to find. Apostrophes in don\u2019t and it\u2019s are left alone.',
+			'checkDialogue', 'checkDialogueColor');
+
 		new Setting(ck).setName('Sentence rhythm')
 			.setDesc('Shades each sentence by how hard it is to read.')
 			.addColorPicker(cp => cp.setValue(s.checkRhythmHardColor)
@@ -20983,14 +23236,34 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const num = row.createEl('input', { cls: 'ws-goal-input' });
 			num.type = 'number';
 			num.min = '1';
+			num.step = '1';
 			num.value = String(s[store][path]);
 			num.addEventListener('change', async () => {
 				const n = parseInt(num.value, 10);
-				if (!isNaN(n) && n > 0) s[store][path] = n;
-				else delete s[store][path];
-				this.plugin._folderWordCache = null;
-				await this.plugin.saveSettings(true);
-				this.display();
+				if (!isNaN(n) && n > 0) {
+					// A GOOD NUMBER SAVES QUIETLY. This used to await the
+					// disk write and then rebuild the whole settings pane
+					// with display() — and `change` fires on Enter and on
+					// every click of the spinner arrows, so the box was
+					// torn out from under the caret mid-edit: the cursor
+					// bugginess reported. A value edit changes nothing
+					// else on the pane (the "N targets set" count is the
+					// same N), so nothing needs redrawing; the input
+					// already shows the number.
+					s[store][path] = n;
+					this.plugin._folderWordCache = null;
+					await this.plugin.saveSettings(true);
+					num.value = String(n);
+					return;
+				}
+				// A BAD ENTRY RESTORES, IT DOES NOT DELETE. Letters in a
+				// number input come back as an empty value, which parsed
+				// to NaN — and NaN took the `delete` branch, so typing a
+				// stray word erased the whole target: the auto-delete
+				// reported. A typo is not a decision; the × beside the
+				// row is how a goal is removed on purpose. The last good
+				// number simply comes back.
+				num.value = String(s[store][path]);
 			});
 
 			const del = row.createEl('button', { cls: 'ws-scope-remove', text: '\u00d7' });
