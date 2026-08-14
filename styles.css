@@ -4997,44 +4997,68 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
 .zg-history-grid.zg-is-hidden,
 .zg-hist-find.zg-is-hidden { display: none; }
 
-.zg-cal-legend { margin-bottom: 8px; }
+.zg-cal-legend { margin-bottom: 6px; }
 
 .zg-cal-year {
 	display: grid;
 	grid-template-columns: repeat(4, 1fr);
-	gap: 8px 14px;
+	/* TIGHTER BETWEEN MONTHS. A year of days has to be seen at once — the
+	   figures and the finder already stand down for this view — so the
+	   space between the twelve grids is the cheapest thing to give back.
+	   The months keep their own internal spacing, which is what makes
+	   each one legible as a month. */
+	gap: 6px 10px;
 }
 @media (max-width: 900px) { .zg-cal-year { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 660px) { .zg-cal-year { grid-template-columns: repeat(2, 1fr); } }
 
 .zg-cal-name {
-	font-size: var(--zg-h-small);
+	/* A shade smaller than the small step: the month names are labels for
+	   grids the reader is scanning, not headings they are reading. */
+	font-size: calc(var(--zg-h-small) * 0.92);
 	font-weight: 600;
 	letter-spacing: 0.03em;
 	color: var(--text-normal);
 	text-align: center;
-	margin-bottom: 2px;
+	margin-bottom: 1px;
 }
 
 .zg-cal-grid {
 	display: grid;
 	grid-template-columns: repeat(7, 1fr);
-	gap: 1px;
+	/* NO COLUMN GAP, and that is what makes the week-day rule a RULE. The
+	   line under S M T W T F S is drawn as a border on each of the seven
+	   header cells, so a 1px gap between columns cut it into seven
+	   dashes — an underline under each day rather than one line under the
+	   month. Closing the column gap joins them into a single stroke
+	   across the whole grid, the way a printed calendar rules its week.
+	   The row gap stays: it is what keeps the weeks from crowding, and it
+	   does not cross the rule. */
+	gap: 1px 0;
 }
 
 /* Ruled under, the way a printed calendar rules its week. It separates the
    key from the days without spending a row on a gap. */
 .zg-cal-dow {
-	font-size: 0.6em;
+	font-size: 0.56em;
 	text-align: center;
 	color: var(--text-faint);
 	letter-spacing: 0.02em;
-	padding-bottom: 2px;
+	padding-bottom: 1px;
 	margin-bottom: 2px;
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.zg-cal-pad { aspect-ratio: 1; }
+/* SHORTER THAN THEY ARE WIDE. The cells were square, which is what a
+   printed calendar does when it has a page to itself; twelve of them
+   stacked three rows deep put the last months below the fold, and the fix
+   a reader wants is not to scroll but to see the year. Width is spoken
+   for — seven columns of it, four months across — so the height is the
+   only slack there is, and 0.72 takes about a quarter off every month
+   without the days ceasing to read as boxes.
+   The pad cells must match exactly, or the weeks they lead would sit at a
+   different height from the weeks they pad. */
+.zg-cal-pad { aspect-ratio: 1 / 0.72; }
 
 /* HARD CORNERS, AND NOTHING UNDER AN EMPTY DAY. Rounded cells at this size
    read as beads on a string rather than as a month, and a grey square under
@@ -5043,11 +5067,15 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
    simply the page. */
 .zg-cal-day {
 	position: relative;
-	aspect-ratio: 1;
+	aspect-ratio: 1 / 0.72;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 0.68em;
+	/* …AND THE DATE READS BIGGER IN THE SMALLER BOX. The number is the
+	   thing being looked up; shrinking the cell is only worth doing if
+	   what is in it gets easier to read, not harder. The two go together
+	   on purpose. */
+	font-size: 0.76em;
 	font-variant-numeric: tabular-nums;
 	color: var(--text-faint);
 	background: none;
