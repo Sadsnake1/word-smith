@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 122;
+	--zg-stylesheet-version: 151;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -1347,9 +1347,10 @@ body.zg-bar-anim .zengrinder-status-bar {
    The element above is height:100% and the SVG is preserveAspectRatio="none",
    so the shape is stretched to whatever the row actually paints at — while
    the width attribute was computed in JS from a row height it only assumed.
-   When those two disagree the arrow's nose opens out: measured in the field,
-   a 10px-wide separator on a 22px row, giving a 95 degree point where a
-   Powerline glyph is nearer 65.
+   When those two disagree the arrow's nose opens out. (A claim that a
+   Powerline glyph "is nearer 65 degrees" used to sit here and sent a whole
+   session chasing NARROWER separators, which are blunter, not sharper —
+   the nose is 2·atan(0.5/aspect). See PL_SEP_ASPECT in main.js.)
 
    `aspect-ratio` against the same 100% height removes the assumption. The
    width now tracks the height that is really painted, so the angle is
@@ -1380,7 +1381,37 @@ body.zg-bar-anim .zengrinder-status-bar {
 
 .zg-pl-sep[data-shape]:not([data-shape="straight"]) {
 	width: auto;
-	aspect-ratio: var(--zg-pl-sep-aspect, 0.78);
+	aspect-ratio: var(--zg-pl-sep-aspect, 1.05);
+}
+
+/* A WAVE IS NOT AN ARROW'S WIDTH, and this rule is the other half of a
+   floor that main.js already has. buildPowerlineSep gives the wave a
+   viewBox of `max(pct, 0.6)` because its amplitude runs w/2 to EACH side
+   of the centre line — a shape reaching both ways needs more room than one
+   reaching once, or its bows come out half as deep as an arrow's point.
+   Then this stylesheet gave every non-straight shape the SAME
+   aspect-ratio, which squeezed that wider viewBox back down to the arrow's
+   width and threw the floor away: at aspect 0.34 the wave was painted at
+   58% of the width it was drawn for. The floor is honoured on both sides
+   now, and `max()` keeps the two agreeing if the aspect is ever raised
+   past 0.6 again.
+
+   The diagonals and the round cut both reach one way, like an arrow, and
+   keep the shared angle on purpose: a bar whose shapes disagree about
+   their own width reads as a bar with a broken shape in it. */
+/* PER-SHAPE, matching buildPowerlineSep's own widths. The shared aspect is
+   the ARROW's — wide means pointy for a nose, and the same width makes a
+   diagonal into a shallow ramp and a wave into a hook. A slant wants to be
+   steep and a ripple narrow, so both are pinned here rather than inheriting
+   a number chosen for something else. Change one of these and change its
+   twin in buildPowerlineSep, or the viewBox and the painted box disagree
+   and the shape is stretched to fit. */
+.zg-pl-sep[data-shape="wave"] {
+	aspect-ratio: 0.62;
+}
+.zg-pl-sep[data-shape="angleF"],
+.zg-pl-sep[data-shape="angleB"] {
+	aspect-ratio: 0.42;
 }
 
 
@@ -1435,7 +1466,7 @@ body.zg-bar-anim .zengrinder-status-bar {
 	border: 0;
 	display: block;
 	flex: 0 0 auto;
-	aspect-ratio: var(--zg-pl-sep-aspect, 0.85);
+	aspect-ratio: var(--zg-pl-sep-aspect, 1.05);
 	opacity: 0.45;
 }
 
@@ -1823,7 +1854,21 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	background: currentColor;
 }
 
-.zg-picker-label { flex: 1 1 auto; }
+/* SHRINK, THEN ELLIPSIS — the same lesson as the panel's menu label, in
+   the other list. `flex: 1 1 auto` lets the label GROW but a flex item
+   still will not shrink below the width of its own content without
+   `min-width: 0`, so a long option name in Prose checks (and every other
+   drawer that uses picker rows) kept its full width and pushed its state
+   or swatch out of the row instead of being cut. Every other truncating
+   label in the plugin carries these four declarations together; this one
+   had only the first. */
+.zg-picker-label {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
 
 /* Sub-options sit under the master switch at the foot of the list. The rule
    is a left inset rather than a border: at six or seven rows a line reads as
@@ -1887,6 +1932,39 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	display: block;
 	border-radius: 8px;
 	overflow: hidden;
+	/* THE TOP CORNERS WERE ALWAYS ROUNDED — there was simply nothing up
+	   there to be rounded. `overflow: hidden` clips all four, but the jar
+	   only PAINTS where the water is, so at any fill below the brim the
+	   air above it was the report's own background showing through, and
+	   the eye read a shape with two rounded corners at the bottom and
+	   none at the top.
+	   A faint tank behind the water gives the whole rectangle something
+	   to clip, so the jar reads as a container with something in it
+	   rather than as a puddle with a curved base. It is deliberately
+	   barely there: this sits inside the report's own panel, and a strong
+	   fill would make the gauge look like a second card stacked on the
+	   first. Theme-derived, so it follows a light vault as well as a
+	   dark one. */
+	background: color-mix(in srgb, var(--text-normal) 7%, transparent);
+	/* IT LOOKS CLICKABLE, BECAUSE IT IS. Everything the jar answers — a
+	   wave, a ball, a stir of colour — begins with a press, and none of it
+	   announced itself: a picture of water in a report is a picture until
+	   somebody happens to click it, and most people never will. A pointer
+	   over it is the cheapest possible way to say so, and the only one
+	   that costs no space and interrupts nothing. */
+	cursor: pointer;
+}
+
+/* …and it presses. A cursor that only hovers says "this does something";
+   one that changes under the finger says the something has started, which
+   is what makes a click feel answered before the water has moved. */
+.zg-goal-liquid:active { cursor: grabbing; }
+
+
+/* A jar that cannot be pressed must not pretend otherwise — on a phone the
+   listeners are never attached, so the hand would be a lie. */
+@media (hover: none) {
+	.zg-goal-liquid, .zg-goal-liquid:active { cursor: default; }
 }
 
 .zg-liquid-canvas {
@@ -1937,6 +2015,12 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 .zg-jar-pct-text {
 	pointer-events: auto;
 	cursor: pointer;
+	/* A figure to read, not a surface to press: the jar offers a pointer,
+	   this does not, or the cursor would promise something the text does
+	   not do. Folded into THIS rule rather than added as a second one with
+	   the same selector — a split definition is how the next edit lands in
+	   the wrong half, and a probe reading the first match found mine. */
+	cursor: default;
 }
 
 /* Fireworks over the report when a target is met. pointer-events:none so the
@@ -2128,7 +2212,8 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	align-items: center;
 	justify-content: center;      /* the gauge is the centrepiece */
 	min-height: 72px;
-	margin-bottom: 14px;
+	/* The same gap the crumbs leave above it — see --zg-jar-gap there. */
+	margin-bottom: var(--zg-jar-gap, 10px);
 	/* Outside the bar there is no row to fit inside, so the cap is lifted. */
 	--zg-status-row-height: 999px;
 }
@@ -2264,7 +2349,16 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 2px;
-	margin: 0 0 8px;
+	/* ONE GAP ABOVE THE JAR AND BELOW IT, and it is declared once. The
+	   path sat 8px above the tank while the tank sat 14px above the
+	   figures, and the crumb buttons carry their own padding on top of
+	   that — so the space above the jar read as the larger of the two
+	   when it was meant to be the smaller. Two hand-set numbers a few
+	   pixels apart is how that happens; a shared variable is how it
+	   stops. Both are `--zg-jar-gap` now, so the jar sits evenly between
+	   the thing that names it and the figures that explain it, and
+	   changing the rhythm is one edit rather than two that must agree. */
+	margin: 0 0 var(--zg-jar-gap, 10px);
 }
 
 .zg-crumb {
@@ -2558,11 +2652,11 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 /* ── Figures ────────────────────────────────────────────────────────────── */
-/* Four of them. The number is the thing, so it gets the monospace face and
+/* Five of them. The number is the thing, so it gets the monospace face and
    tabular figures; the label under it is a key, not a sentence. */
 
 .zg-history-grid {
-	grid-template-columns: repeat(4, 1fr);
+	grid-template-columns: repeat(5, 1fr);
 	/* Row gap, then column gap. It was 2px both ways, which put four
 	   accent-bordered cells close enough to read as one banded block —
 	   the borders looked like a table rule rather than four marks. The
@@ -2572,7 +2666,13 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	margin-bottom: 4px;
 }
 
-@media (max-width: 620px) {
+/* Five across needs the width for it. Three, then two: never four, because
+   five in fours leaves one figure alone on a line looking like an
+   afterthought, and five in threes leaves two — which reads as a row. */
+@media (max-width: 820px) {
+	.zg-history-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 520px) {
 	.zg-history-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -2583,7 +2683,20 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	background: transparent;
 	border-radius: 0;
 	padding: 2px 0;
-	text-align: left;
+	/* CENTRED, over the label it belongs to. Left-aligned, a figure and
+	   its name only agree when they happen to be the same width — "98"
+	   under "BEST DAY" hung off to one side of its own label, and four
+	   cells each mis-hanging by a different amount read as four things
+	   that were never lined up rather than as one row. Centring makes the
+	   pairing the alignment. */
+	text-align: center;
+	/* The pair is centred as a unit: without this the cell's box stretches
+	   and the centring is of the column, not of the two lines against each
+	   other, which is the same problem one level up. */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-start;
 }
 
 .zg-history-modal .zg-report-value {
@@ -2633,6 +2746,11 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 .zg-history-modal .zg-hist-subnav {
 	margin: 22px 0 8px;
+}
+
+/* Nothing sits above it in the calendar, so it does not clear anything. */
+.zg-history-modal .zg-hist-subnav.zg-is-top {
+	margin-top: 2px;
 }
 
 .zg-hist-subbtn {
@@ -3737,6 +3855,17 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	   a pane that adds to it puts its scrollbar somewhere no other pane's
 	   sits. */
 	padding: 0;
+	/* AND THE PANEL DOES NOT RESIZE ITSELF WHEN A DRAWER OPENS. Opening a
+	   mode folder makes the panel taller than the pane, the scrollbar
+	   appears, and the content box loses its width to it — so every row
+	   shifts by a few pixels at the moment of opening, which reads as the
+	   drawer rearranging the panel around itself. Reserving the gutter
+	   means that space is spoken for whether or not the bar is showing,
+	   so opening a drawer moves the rows it reveals and nothing else.
+	   Written INSIDE this rule rather than as a second one: a probe reads
+	   the first `.zg-menu-panel` block for the padding above, and a
+	   separate rule ahead of it becomes the block that gets read. */
+	scrollbar-gutter: stable;
 }
 /* The rows wear `tree-item-self`, so their padding, hover shape, indent
    and colour are the app's. Ours is only what a MENU row has that a file
@@ -3821,7 +3950,19 @@ body.zg-vim-panel-open .zg-bar-plinth {
    was the vault's second complaint about this animation. */
 @keyframes zg-drawer-in {
 	from { max-height: 0; }
-	to   { max-height: 60vh; }
+	/* A CEILING NO DRAWER REACHES — and 60vh was not one. The comment
+	   above says the value must be past any real drawer's height, because
+	   `max-height` is a CLIP: while the animation runs the drawer is only
+	   as tall as the current value allows, and at the last frame the cap
+	   is lifted entirely. If a drawer is taller than the ceiling it spends
+	   the whole animation clipped and then springs to full height in one
+	   frame when the animation ends — a small vertical resize exactly at
+	   the moment of opening, which is what the vault saw on Modes. The
+	   long drawers (Modes, and any list of a dozen rows in a short pane)
+	   pass 60vh easily. 200vh cannot be passed, and costs nothing: the
+	   curve is still spent on the part that shows, because the drawer
+	   stops growing the moment it runs out of rows. */
+	to   { max-height: 200vh; }
 }
 /* ONE TIMING FOR THE WHOLE GESTURE. The drawer's growth and the
    triangle's turn are two halves of one movement, and they read as one
@@ -3840,6 +3981,24 @@ body.zg-vim-panel-open .zg-bar-plinth {
    overflow:hidden would cut off the full-bleed highlight below at the
    drawer's own indent — the selected row would stop short of the edge
    the file tree reaches. */
+/* THE HEIGHT MUST NOT CHANGE WHEN THE ANIMATION ENDS, and that is a
+   different bug from the ceiling above. `is-opening` carries
+   `overflow: hidden`, and an element with a clipped overflow establishes a
+   block formatting context — which SUPPRESSES margin collapsing between
+   the container and its first and last children. The moment the class is
+   dropped the drawer stops being a BFC, those margins collapse out of it,
+   and the box loses a few pixels of height in one frame: the small
+   vertical resize the vault kept seeing on Modes, exactly at the end of
+   opening. Raising the animation's ceiling could not fix it, because the
+   ceiling was never what was clipping.
+   `display: flow-root` establishes the same formatting context
+   PERMANENTLY without clipping anything, so the drawer measures the same
+   before, during and after the animation — and the full-bleed highlight
+   still reaches the pane's edge, which is why a permanent
+   `overflow: hidden` was not an option. */
+.zg-menu-panel .zg-panel-drawer {
+	display: flow-root;
+}
 .zg-menu-panel .zg-panel-drawer.is-opening {
 	overflow: hidden;
 	animation: zg-drawer-in var(--zg-drawer-dur) var(--zg-drawer-ease) 1;
@@ -3965,6 +4124,33 @@ body.zg-vim-panel-open .zg-bar-plinth {
 .zg-menu-panel .zg-menu-label {
 	color: inherit;
 	font-weight: inherit;
+	/* SHRINK, THEN ELLIPSIS. The label already asks for `nowrap` and
+	   `text-overflow: ellipsis` in the pop-up, and in a pop-up that is
+	   enough because the palette is wide. A docked leaf is not: a flex
+	   item will not shrink below the width of its own content unless it
+	   is told it may, so a long command name kept its full width, pushed
+	   the state cell off the end and the ROW wrapped instead — the
+	   ellipsis never got a chance to fire. `min-width: 0` is what lets it.
+	   "Filler W…" in one line is the intended fallback, and the row's
+	   tooltip still carries the whole name. */
+	min-width: 0;
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* …and the row itself must not wrap, or a label that has run out of room
+   takes the state down with it rather than being cut. */
+.zg-menu-panel .zg-menu-row,
+.zg-menu-panel .zg-menu-sub {
+	flex-wrap: nowrap;
+}
+/* The state keeps its own share and cuts too, so a long name and a long
+   state cannot conspire to push either onto a second line. */
+.zg-menu-panel .zg-menu-state {
+	flex: 0 1 auto;
+	min-width: 0;
+	max-width: 45%;
 }
 /* Same for a drawer item's label and its swatch. */
 .zg-menu-panel .zg-picker-label { color: inherit; }
@@ -4502,3 +4688,407 @@ body.zg-cb-retro.zg-cb-retro input[type='checkbox']:active {
 @media (prefers-reduced-motion: reduce) {
 	body.zg-cb-retro.zg-cb-retro input[type='checkbox'] { transition: none; }
 }
+
+/* =========================================================================
+   TOMBSTONE (1.3.4): MARGINALIA
+   =========================================================================
+   Removed by the vault on sight, and the whole block went with it: the
+   hanging gutter (heading hashes, bullets, numbers and checkboxes pulled
+   out of the flow into a left margin), the org-mode table grid, the single
+   1.1em bold heading size, the drawn hashes in live preview and reading
+   view, and the fold chevron at the gutter's edge.
+
+   Worth keeping the findings, because they are about Obsidian rather than
+   about this feature, and the next idea in this area will meet them again:
+
+     • Live preview REMOVES markdown formatting characters from the DOM by
+       decoration — it does not hide them. No CSS can bring `**` back. Only
+       an element-mapped mark can be faked, which is why the hashes could be
+       drawn (h1…h6, and the line class) and inline marks could not.
+     • Moving a LINE to hang its marker means the line moves as the caret
+       arrives and the marks appear. Moving the MARKER instead — zero width,
+       glyphs translated — needs no such state and never jitters. That is
+       the better shape if anything like this is built again.
+     • `:has()` is banned in this stylesheet (selfcarry_probe pins it): the
+       lint flags it, and inside an editor it re-evaluates on every
+       keystroke. A first draft of Marginalia tripped it eight times.
+
+   The settings key `barThemeMarginalia` is swept in loadSettings the way
+   every other removed toggle is, so a vault that had it on does not carry a
+   dead key forever. --zg-marg-gutter went with the block; anything that
+   referred to it has been re-pointed at its own value. */
+
+/* =========================================================================
+   PARAGRAPH NUMBERS
+   =========================================================================
+   Drawn from a data attribute the editor extension puts on the FIRST line of
+   each prose paragraph, read back with attr(); reading view counts its own
+   with a CSS counter. Deliberately not a CodeMirror gutter: a gutter is
+   pinned to the scroller's edge and knows nothing about the horizontal inset
+   or a limited line length, so its numbers would strand themselves at the
+   pane's edge while the prose sat centred. On the line, the number travels
+   with the column.
+
+   TOMBSTONE (1.3.4): line numbers — absolute and relative — shared this
+   band for one build and were removed. See the tombstone on
+   `paragraphNumbers` in main.js: it was the second attempt at line numbers
+   in this plugin's history, and the note says what a third should do
+   instead.
+
+   ALIGNMENT. The numbers are set at the TEXT'S OWN SIZE, not shrunk. A
+   smaller pseudo-element inherits the line-height as a multiplier, so it
+   builds a shorter line box and its baseline rides up off the baseline of
+   the line it belongs to — which is what "not aligned properly" was. Same
+   size, same line box, same baseline, and the number is kept quiet with
+   colour instead. Ranged right against the text edge so 9 and 10 and 100
+   all end at the same column rather than starting at it. */
+
+body.zg-margin-nums {
+	/* The band, and the distance from the first letter of the line. A margin
+	   number has to be plainly OUTSIDE the text or it reads as part of the
+	   sentence. Both are variables: tune them in a snippet without touching
+	   a rule. */
+	--zg-num-gutter: 7ch;
+	--zg-num-gap:    4ch;
+}
+
+/* A FLOOR, NOT A BAND. Reserving room outright pushed the prose right
+   whether a paragraph was numbered or not, which is not wanted. Reserving
+   nothing at all was worse in one case: with the horizontal inset at zero
+   there is no margin to hang into, so the numbers sat outside the content
+   box and were clipped away entirely — present, positioned, invisible.
+
+   `max()` is the difference between the two. Whatever inset the writer has
+   set is used as it is, and only a note with LESS room than a number needs
+   is given the little it needs. Set the padding to 40px and nothing moves;
+   set it to 0 and the text steps in far enough for the numbers to exist.
+   The floor is the gap plus two columns — room for "99" and the space
+   before it. */
+body.zg-margin-nums .markdown-source-view.mod-cm6 .cm-content,
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer {
+	padding-inline-start: max(
+		var(--zg-editor-padding-h, 0px),
+		calc(var(--zg-num-gap, 4ch) + 2ch)
+	);
+}
+
+body.zg-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-zg-pnum] {
+	position: relative;
+}
+body.zg-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-zg-pnum]::before {
+	content: attr(data-zg-pnum);
+	position: absolute;
+	right: 100%;
+	margin-right: var(--zg-num-gap, 4ch);
+	font-family: var(--font-monospace, monospace);
+	font-size: inherit;
+	line-height: inherit;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+	user-select: none;
+	pointer-events: none;
+}
+
+/* --- Reading view --------------------------------------------------------
+   Counted by CSS rather than by the extension, and the DOM does the same
+   filtering the regex does in the editor: a list item's paragraph is inside
+   <li>, a callout's inside .callout, a quote's inside <blockquote>, so none
+   of them are direct children and none of them are counted. */
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer {
+	counter-reset: zg-para;
+}
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer > p,
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p {
+	counter-increment: zg-para;
+	position: relative;
+}
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer > p::before,
+body.zg-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p::before {
+	content: counter(zg-para);
+	position: absolute;
+	right: 100%;
+	margin-right: var(--zg-num-gap, 4ch);
+	font-family: var(--font-monospace, monospace);
+	font-size: inherit;
+	line-height: inherit;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+	user-select: none;
+	pointer-events: none;
+}
+
+/* MARKDOWN is the fourth shape, and the only one that draws no box: the
+   checkbox is replaced by the characters the line is actually written with,
+   `[ ]` and `[x]`, set in whatever font you are reading. Not the monospace
+   face — the point is that the task looks like the text around it, the way
+   it does in the file, so a note reads as one document rather than as prose
+   with widgets in it.
+
+   `appearance: none` first, and it is doing two jobs: it takes away the
+   platform box AND it is what lets a pseudo-element render on an input at
+   all. Without it the ::before is simply not drawn — an input is a replaced
+   element, and Chromium only honours its pseudos once the native appearance
+   is gone. That is the whole trick, and the reason this shape needs rules
+   where circle and square needed one variable.
+
+   `width: auto` because a checkbox is sized by the theme in px for a box
+   that no longer exists; the characters have to size themselves or `[x]`
+   gets clipped to a square. */
+/* SCOPED TO TASK CHECKBOXES, and that is a bug fix, not tidiness. Written
+   first as `body.zg-cb-markdown input[type='checkbox']`, it matched every
+   checkbox in the application — including the toggles in Obsidian's own
+   settings, which grew a `- [ ]` in front of them and pushed every row down
+   the page. `.task-list-item-checkbox` is the class Obsidian puts on the box
+   in a note and nowhere else, so the shape reaches the tasks and stops at
+   the edge of the document. The other three shapes only ever changed a
+   corner radius or a border, so nobody noticed they were unscoped too;
+   this one draws CONTENT, and content is what makes the mistake visible. */
+body.zg-cb-markdown .task-list-item-checkbox {
+	appearance: none;
+	-webkit-appearance: none;
+	/* `font: inherit`, and it is the fix for "way smaller than the text".
+	   A form control does NOT inherit type by default — Chromium gives an
+	   input its own ~13px default face — so `font-size: inherit` on the
+	   ::before was inheriting from the INPUT, not from the prose, and the
+	   characters came out at the browser's size whatever the note was set
+	   in. The input has to be handed the surrounding type first; only then
+	   does inheriting mean what it says. */
+	font: inherit;
+	width: auto;
+	height: auto;
+	min-width: 0;
+	min-height: 0;
+	margin: 0 0.4em 0 0;
+	padding: 0;
+	border: none;
+	background: none;
+	box-shadow: none;
+	/* Baseline, not the raised position a box is given: these are letters
+	   now and they sit on the line the other letters sit on. */
+	vertical-align: baseline;
+	position: relative;
+	top: 0;
+	cursor: pointer;
+}
+
+body.zg-cb-markdown .task-list-item-checkbox::before {
+	content: '- [ ]';
+	font-family: inherit;
+	font-size: inherit;
+	line-height: inherit;
+	color: var(--text-muted);
+	white-space: pre;
+}
+
+body.zg-cb-markdown .task-list-item-checkbox:checked::before {
+	content: '- [x]';
+	color: var(--text-normal);
+}
+
+/* THE TICK HAS TO GO. `appearance: none` takes away the platform box but
+   not the mark a theme draws on top of it — most draw the check as ::after,
+   a background image, or a mask, and any of those left a tick floating over
+   `- [x]`. All three are cleared: the x between the brackets IS the mark
+   here, and a second one is the shape failing to be the thing it claims. */
+body.zg-cb-markdown .task-list-item-checkbox::after {
+	content: none;
+	display: none;
+}
+body.zg-cb-markdown .task-list-item-checkbox,
+body.zg-cb-markdown .task-list-item-checkbox:checked {
+	background-image: none;
+	-webkit-mask-image: none;
+	mask-image: none;
+}
+
+/* THE DASH IS OURS, so nobody else's may be drawn. The characters are
+   `- [ ]` exactly as the line is written in the file, which means the list
+   marker Obsidian would otherwise put in front of a task has to go — a
+   rendered bullet plus our dash is one more mark than the file has, and
+   this shape's only claim is that the task looks like what is written.
+   Only on TASK lines: an ordinary bullet list keeps its bullet. */
+body.zg-cb-markdown .markdown-source-view.mod-cm6 .HyperMD-task-line .cm-formatting-list {
+	display: none;
+}
+body.zg-cb-markdown .markdown-reading-view .task-list-item {
+	list-style: none;
+}
+
+/* Nothing struck through and nothing greyed: the file does not dim a line
+   because it has an x in it, and this shape's whole claim is that the task
+   looks like what is written. A theme that dims completed tasks is doing
+   that on its own; this only stops the CHECKBOX from being drawn as a box. */
+
+/* =========================================================================
+   TOMBSTONE (1.3.5): MARGINALIA, TWICE
+   =========================================================================
+   Built, removed, rebuilt on request, and removed again — the same verdict
+   both times, and the second build was the better one: hashes ranged right
+   instead of counted in `ch`, markers hung out of flow instead of
+   zero-width, an auto-sized margin instead of a slider, the fold chevron
+   against the hash run instead of stranded at the gutter's edge. It was
+   still ugly. That is worth recording plainly: every individual complaint
+   about it was fixable and every one of them got fixed, and the thing as a
+   whole never became good. A look is not the sum of its defects.
+
+   The Obsidian facts learned here are the part worth keeping, because the
+   next idea in this area will meet them again:
+
+     • Live preview REMOVES markdown formatting characters from the DOM by
+       decoration rather than hiding them, so no CSS can bring `**` back.
+       Only element-mapped marks can be faked: hashes map to h1…h6 and to
+       the line class, so they can be drawn; inline marks map to the
+       boundary of a run and cannot.
+     • Live preview also hides the list `-` and draws its own dot in a
+       `.list-bullet` span, and shrinks the character to hide it — so
+       showing the file's own bullet means hiding that span AND restoring
+       `font-size` on the one underneath.
+     • Hanging a marker by zero-width-plus-translate keeps it in the line
+       and leaves the text where the marker's metrics put it. Absolute
+       positioning at `right: 100%` measures nothing and is exact in any
+       font. `ch` is the width of a ZERO and lies about `#` in every
+       proportional face.
+     • `:has()` is banned in this stylesheet (selfcarry_probe pins it): the
+       plugin lint flags it and it re-evaluates on every keystroke inside
+       an editor.
+
+   `barThemeMarginalia` and `marginaliaGutter` are swept in loadSettings. */
+
+
+/* =========================================================================
+   THE CALENDAR — a year of days, in the History window
+   =========================================================================
+   Twelve small months, each day tinted by what it gained or lost.
+
+   TINTS, NOT PALETTE STEPS — and this is what finally made the numbers
+   legible. Painting the cell a ramp colour meant choosing the ink from the
+   step, which is a guess about which end of the ramp is dark; the add and
+   delete ramps run opposite ways on light and dark schemes, so on half of
+   them the date vanished into its own cell. A halo round the glyph fixed
+   the legibility and looked like a sticker.
+   The colour is laid on as an OVERLAY at an opacity per step instead: one
+   hue, six strengths, and the strongest is held well short of solid so
+   ordinary ink reads on top of it at every step on any scheme. Nothing has
+   to know which way a ramp runs. */
+
+.zg-cal-read {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0 10px;
+	min-height: 1.5em;
+	margin: 0 0 6px;
+}
+.zg-cal-read-day {
+	font-weight: 600;
+	font-size: var(--zg-h-body);
+	color: var(--text-normal);
+}
+.zg-cal-read-fig {
+	font-size: var(--zg-h-small);
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+.zg-cal-read-fig.is-idle { color: var(--text-faint); font-style: italic; }
+
+/* The figure row, the search box and the scope path all stand down for the
+   calendar: a year of days has to be seen at once, and every one of them is
+   one tab away. */
+.zg-history-grid.zg-is-hidden,
+.zg-hist-find.zg-is-hidden { display: none; }
+
+.zg-cal-legend { margin-bottom: 8px; }
+
+.zg-cal-year {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 8px 14px;
+}
+@media (max-width: 900px) { .zg-cal-year { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 660px) { .zg-cal-year { grid-template-columns: repeat(2, 1fr); } }
+
+.zg-cal-name {
+	font-size: var(--zg-h-small);
+	font-weight: 600;
+	letter-spacing: 0.03em;
+	color: var(--text-normal);
+	text-align: center;
+	margin-bottom: 2px;
+}
+
+.zg-cal-grid {
+	display: grid;
+	grid-template-columns: repeat(7, 1fr);
+	gap: 1px;
+}
+
+/* Ruled under, the way a printed calendar rules its week. It separates the
+   key from the days without spending a row on a gap. */
+.zg-cal-dow {
+	font-size: 0.6em;
+	text-align: center;
+	color: var(--text-faint);
+	letter-spacing: 0.02em;
+	padding-bottom: 2px;
+	margin-bottom: 2px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.zg-cal-pad { aspect-ratio: 1; }
+
+/* HARD CORNERS, AND NOTHING UNDER AN EMPTY DAY. Rounded cells at this size
+   read as beads on a string rather than as a month, and a grey square under
+   every day you did not write turned a quiet year into a wall of blocks —
+   the shading is supposed to be the thing you see, so everything else is
+   simply the page. */
+.zg-cal-day {
+	position: relative;
+	aspect-ratio: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 0.68em;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+	background: none;
+	border-radius: 0;
+	cursor: default;
+}
+
+/* A day with something on it takes normal ink, so the written days read
+   darker than the empty ones before any colour is considered. */
+.zg-cal-day.is-added,
+.zg-cal-day.is-removed { color: var(--text-normal); font-weight: 600; }
+
+/* The tint itself, behind the number. */
+.zg-cal-day.is-added::before,
+.zg-cal-day.is-removed::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--zg-add-5);
+}
+.zg-cal-day.is-removed::before { background: var(--zg-del-5); }
+
+.zg-cal-day.s1::before { opacity: 0.14; }
+.zg-cal-day.s2::before { opacity: 0.28; }
+.zg-cal-day.s3::before { opacity: 0.44; }
+.zg-cal-day.s4::before { opacity: 0.60; }
+/* Not 1: a solid cell is one the date cannot be read on, and the top step
+   only has to be plainly the strongest, not opaque. */
+.zg-cal-day.s5::before { opacity: 0.76; }
+
+/* Today is ringed rather than filled: it has a value of its own to show. */
+.zg-cal-day.is-today {
+	box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.zg-cal-day:hover { outline: 1px solid var(--text-muted); outline-offset: -1px; }
+
+/* TOMBSTONE (1.3.5): a weekday rhythm strip was drawn under the grid —
+   seven bars of per-weekday averages and a line naming the best day.
+   Removed on sight: the calendar is already seven columns wide twelve
+   times over, so a habit that falls on Fridays is a stripe you can see.
+   A sentence asserting it was the plugin explaining its own picture. */
