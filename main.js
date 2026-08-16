@@ -2425,7 +2425,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 152;
+const ZG_STYLESHEET_VERSION = 156;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -2435,7 +2435,7 @@ const ZG_STYLESHEET_VERSION = 152;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.6';
+const ZG_PLUGIN_VERSION = '1.3.7';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -4513,6 +4513,36 @@ module.exports = class WordSmith extends Plugin {
 			this.refresh();
 			this.checkStylesheetVersion();
 			this.checkManifestVersion();
+			// A SECOND PASS ONCE THE STYLESHEET IS CERTAINLY UP. Everything
+			// this plugin MEASURES is measured against rules that
+			// styles.css supplies, and when the plugin is switched on from
+			// the settings page this callback runs synchronously — before
+			// Obsidian has necessarily applied them. The bar is the case a
+			// writer sees: it is laid out by CSS, it was measured while
+			// there was none, and it came up the wrong width until the
+			// next note switch happened to rebuild it. Cheap, once, and it
+			// costs nothing when the stylesheet was already there — the
+			// refresh is idempotent.
+			window.setTimeout(() => {
+				if (this.settings && this.settings.pluginEnabled) this.refresh();
+			}, 0);
+			// AND THE PANEL DOCKS ITSELF. Registering the view type is
+			// what lets Obsidian RESTORE a pane it already has in the
+			// workspace — it does not create one. So the panel came back
+			// for anyone who had it before, and never appeared at all on
+			// a fresh install, or after any start where the workspace had
+			// no leaf of ours to restore: the writer had to dock it by
+			// hand every time, which is what was reported.
+			//
+			// `menuDock` is the writer's statement that they want the
+			// panel; turning it off is how they say otherwise, and that
+			// path already detaches the pane. Opened with `active: false`
+			// and no reveal, so a docked pane appears where it belongs
+			// without stealing focus from the note or, on a phone,
+			// throwing the sidebar open over what they were reading.
+			if (this.settings.menuDock && !this.menuPanelLeaves().length) {
+				this.openMenuPanel(false);
+			}
 			// Only worth asking when the panel is on: a writer who never
 			// docks it has no stake in whether the tree's classes moved,
 			// and a notice they cannot act on is noise.
@@ -4664,14 +4694,53 @@ module.exports = class WordSmith extends Plugin {
 		} catch (_) { return false; }
 	}
 
-	checkStylesheetVersion() {
-		let found = null;
+	// Reads the stamp the stylesheet leaves on :root. Returns null when the
+	// stylesheet is not THERE — which is not the same as being old, and the
+	// difference is the whole of the bug below.
+	readStylesheetVersion() {
 		try {
 			const raw = getComputedStyle(document.body)
 				.getPropertyValue('--zg-stylesheet-version').trim();
-			found = raw === '' ? null : parseInt(raw, 10);
-		} catch (_) { return; }
-		if (found === ZG_STYLESHEET_VERSION) return;
+			return raw === '' ? null : parseInt(raw, 10);
+		} catch (_) { return null; }
+	}
+
+	// ASK AGAIN BEFORE ACCUSING ANYONE. This check runs from
+	// onLayoutReady, which fires SYNCHRONOUSLY when the plugin is switched
+	// on from the settings page — and at that instant Obsidian has not
+	// necessarily applied the plugin's stylesheet yet. The variable reads
+	// as absent, the check says "styles.css looks missing", and a moment
+	// later everything is fine: a writer enabling the plugin for the first
+	// time was greeted with a warning about a file that was sitting right
+	// there. Reported from the field, along with its twin — the bar drawn
+	// in that same too-early moment came up the wrong width and only
+	// righted itself on the next note (see the refresh below).
+	//
+	// An ABSENT stamp is therefore retried, on a few widening delays, and
+	// only becomes a warning if it is still absent when the last one
+	// fires. A stamp that is present but WRONG is a real stale file and
+	// says so immediately — retrying that would only delay the truth.
+	checkStylesheetVersion(attempt) {
+		const found = this.readStylesheetVersion();
+		if (found === ZG_STYLESHEET_VERSION) {
+			// The stylesheet arrived late: whatever was drawn before it did
+			// was drawn without these rules. The bar is the visible case —
+			// it is laid out by CSS and was measured while there was none.
+			if (attempt) this.refresh();
+			return;
+		}
+		if (found == null) {
+			const waits = [0, 120, 400, 1200];
+			const next = (attempt || 0);
+			if (next < waits.length) {
+				window.setTimeout(() => {
+					if (this.settings && this.settings.pluginEnabled) {
+						this.checkStylesheetVersion(next + 1);
+					}
+				}, waits[next]);
+				return;
+			}
+		}
 		// Never nag twice in a session, and never at all if it is somehow
 		// NEWER than the script expects — that is a half-finished upgrade in
 		// the other direction and the stylesheet is not the thing at fault.

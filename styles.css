@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 152;
+	--zg-stylesheet-version: 156;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -573,8 +573,23 @@ body.zg-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
 	padding-bottom: var(--zg-scroller-pad-bottom, 0px);
 }
 
-.zenmode-active .markdown-source-view.mod-cm6 .cm-sizer,
-.zenmode-active .cm-contentContainer {
+/* ZEN WIDENS THE COLUMN — UNLESS THE WRITER ASKED FOR A NARROW ONE.
+   Obsidian's "Readable line length" works by capping `.cm-sizer` at
+   `--file-line-width` and letting the auto margins either side centre what
+   is left. These three rules forced `max-width: 100%; width: 100%` on that
+   very box, so in zen the cap was defeated: the sizer filled the pane, the
+   auto margins collapsed to nothing, and the text — still wrapping at its
+   own measure — sat hard against the left edge. That is issue #7: not a
+   text-alignment change, a CENTRING one, and it only showed in zen because
+   only zen widened the box.
+   Scoped to `:not(.is-readable-line-width)` — the class Obsidian puts on
+   the view when the setting is ON — so the two settings stop fighting: with
+   readable line length on, zen leaves Obsidian's cap and centring alone;
+   with it off, zen still gives the text the whole pane, which is what it
+   was written for and what a writer who turned that setting off is asking
+   for anyway. */
+.zenmode-active .markdown-source-view.mod-cm6:not(.is-readable-line-width) .cm-sizer,
+.zenmode-active .markdown-source-view.mod-cm6:not(.is-readable-line-width) .cm-contentContainer {
 	max-width: 100%;
 	width: 100%;
 }
@@ -628,17 +643,32 @@ body.zg-text-pad .markdown-reading-view .markdown-preview-sizer {
 	--zg-editor-padding-h: 0px;
 }
 
-.zenmode-active .markdown-source-view.mod-cm6 .cm-content {
+/* `margin: 0 auto` HERE WAS A PROMISE CSS CANNOT KEEP, and it is what made
+   issue #7 confusing to read. Auto margins only centre a box whose width is
+   CONSTRAINED; this box was `width: auto`, so it filled its parent and the
+   margins resolved to zero. The rule looked like centring code and was
+   inert, which is why the file appeared to be doing the right thing while
+   the text sat on the left.
+   What actually centred the text for the reporter was Text Options: equal
+   `padding-inline` on this same box insets the text from both edges, so
+   turning that feature on LOOKED like a fix for a centring bug. It was a
+   coincidence — the padding is symmetric, so full-width text reads as
+   centred text. That is the whole of "it only happens when Text Options
+   are disabled".
+   With readable line length off, full width is the intent, so only the cap
+   is lifted and nothing pretends to centre anything. */
+.zenmode-active .markdown-source-view.mod-cm6:not(.is-readable-line-width) .cm-content {
 	max-width: 100%;
-	width: auto;
-	margin: 0 auto;
 }
 
 /* The reading view's own sizer widens with zen; the scroller around it is
    left alone. `width: auto` on a scroll container was the other half of the
    overflow problem — a scroller has to stay the width of its pane, or a wide
    table inside it drags the column across. */
-.zenmode-active .markdown-reading-view .markdown-preview-sizer {
+/* Reading view, the same bargain — its sizer is capped and centred by the
+   same setting, on `.markdown-preview-view`. */
+.zenmode-active .markdown-reading-view .markdown-preview-view:not(.is-readable-line-width) .markdown-preview-sizer,
+.zenmode-active .markdown-reading-view.markdown-preview-view:not(.is-readable-line-width) .markdown-preview-sizer {
 	max-width: 100%;
 	width: 100%;
 	margin: 0 auto;
@@ -2455,6 +2485,15 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	--zg-h-num:   19px;   /* the figures, and nothing else */
 	--zg-h-body:  13px;   /* readout, period, tab labels — anything read as prose */
 	--zg-h-small: 12px;   /* axis, legend, captions — anything read as a key */
+	/* …AND ONE STEP DOWN ON A PHONE. These were matched to the report on a
+	   desktop, where the window is 760px wide and a 19px figure is one
+	   item in a row of five. On a phone the same row wraps to two columns
+	   and those figures become the loudest thing on the screen, the view
+	   tabs eat a third of the width, and the chart's own numbers grow
+	   until they collide with the bars they label — all reported from the
+	   field. Everything in this window is sized from these three, so one
+	   override moves the whole window together and nothing goes out of
+	   proportion with anything else. */
 
 	/* Three heat ramps, six steps each: cool at the axis, hot at the far end
 	   of the bar. Literal colours rather than theme variables, because a ramp
@@ -2503,6 +2542,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 
 	font-family: var(--zg-font, var(--font-interface)), var(--font-interface, var(--font-ui-small, var(--font-default, sans-serif)));
 }
+
 
 .zg-history-modal .modal-content { position: relative; }
 
@@ -5007,10 +5047,68 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
 	   space between the twelve grids is the cheapest thing to give back.
 	   The months keep their own internal spacing, which is what makes
 	   each one legible as a month. */
-	gap: 6px 10px;
+	/* And a tighter band between the rows of months than between the
+	   columns: the columns are separated by seven cells of grid either
+	   side and need the daylight; the rows already have a month name
+	   under them doing the same job. */
+	gap: 3px 10px;
 }
 @media (max-width: 900px) { .zg-cal-year { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 660px) { .zg-cal-year { grid-template-columns: repeat(2, 1fr); } }
+/* A PHONE IS NOT A NARROW DESKTOP. Two months across still asks for about
+   360px of grid, and a phone in portrait has less than that once the
+   modal's own padding is off — which is the horizontal scroll reported
+   from the field. One month across is not a downgrade here: a year is
+   read by scrolling DOWN on a phone whatever the layout, and one column
+   is the only one where each month is full size and legible.
+   `min-width: 0` on the months is the other half: grid items refuse to
+   shrink below their content by default, so a month whose own cells add
+   up to more than the column pushes the whole grid wider — and a grid
+   wider than the modal is exactly a horizontal scrollbar. */
+@media (max-width: 480px) {
+	.zg-cal-year { grid-template-columns: 1fr; gap: 10px; }
+}
+
+/* The whole window, one step down on a phone — see the note on the scale
+   above. `body.is-mobile` rather than a width query: a narrow desktop
+   window is still read at arm's length on a big screen, where 19px is
+   right; a phone is read at 30cm and its problem is proportion, not
+   pixels. Obsidian sets the class on both phone and tablet, so the
+   width query narrows it to the case that actually reported this. */
+@media (max-width: 620px) {
+	body.is-mobile .zg-history-modal {
+		--zg-h-num:   15px;
+		--zg-h-body:  12px;
+		--zg-h-small: 10px;
+	}
+	/* The view tabs are sized from --zg-h-body, but their PADDING is not,
+	   and on a phone that padding is what makes four tabs fill the width
+	   and start wrapping. */
+	body.is-mobile .zg-history-modal .zg-hist-subbtn {
+		padding-inline: 8px;
+	}
+	/* THE CHART'S AXIS GUTTER IS A FIXED 36px, which is a fair share of a
+	   760px window and a sixth of a phone in portrait — so the plot was
+	   squeezed and its own labels grew into the bars they name. The
+	   gutter is sized for four digits and a minus sign; on a phone three
+	   is what fits, and the labels are a step smaller here anyway. */
+	body.is-mobile .zg-history-modal .zg-hist-plot { padding-left: 27px; }
+	body.is-mobile .zg-history-modal .zg-hist-gutter { width: 24px; }
+	body.is-mobile .zg-history-modal .zg-hist-ylbl { right: 3px; }
+	/* And a shorter chart: 184px of bars plus figures, tabs, a finder and
+	   a readout does not leave a phone anything to scroll to. */
+	body.is-mobile .zg-history-modal .zg-hist-chart { height: 150px; }
+}
+
+/* Grid items refuse to shrink below their own content by default, so a
+   month whose cells add up to more than its column pushes the whole grid
+   wider — and a grid wider than the modal IS a horizontal scrollbar.
+   Written on the month wrappers only; `.zg-cal-grid` carries the same
+   declaration inside its own rule, because a second block for it here
+   would become the one a probe reading "the first .zg-cal-grid rule"
+   finds, and that probe is checking the gap that keeps the week rule
+   unbroken. */
+.zg-cal-year > * { min-width: 0; }
 
 .zg-cal-name {
 	/* A shade smaller than the small step: the month names are labels for
@@ -5037,6 +5135,8 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
 	   row gap is the other half of the same mistake: a calendar is a
 	   grid, and a grid's cells meet. */
 	gap: 0;
+	/* …and it may shrink with its column: see the note on .zg-cal-year. */
+	min-width: 0;
 }
 
 /* Ruled under, the way a printed calendar rules its week. It separates the
@@ -5060,7 +5160,7 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
    without the days ceasing to read as boxes.
    The pad cells must match exactly, or the weeks they lead would sit at a
    different height from the weeks they pad. */
-.zg-cal-pad { aspect-ratio: 1 / 0.72; }
+.zg-cal-pad { aspect-ratio: 1 / 0.62; }
 
 /* HARD CORNERS, AND NOTHING UNDER AN EMPTY DAY. Rounded cells at this size
    read as beads on a string rather than as a month, and a grey square under
@@ -5069,7 +5169,15 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
    simply the page. */
 .zg-cal-day {
 	position: relative;
-	aspect-ratio: 1 / 0.72;
+	/* SHORTER STILL, because of the SIXTH ROW. A month whose last day
+	   falls alone at the start of a week — November 2026 ends with a
+	   solitary 30 — needs six rows, and every month in that band grows
+	   to match, so one stray day costs the whole calendar a row of
+	   height and tips the window into scrolling. Height is the only
+	   slack there is (width is seven columns across four months), and
+	   0.62 takes another sixth off every month while leaving the day
+	   numbers the size they were. */
+	aspect-ratio: 1 / 0.62;
 	display: flex;
 	align-items: center;
 	justify-content: center;
