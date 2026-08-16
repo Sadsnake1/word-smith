@@ -18,6 +18,11 @@ Every feature is separate. Use one, use all of them, or switch any of them off.
 From minimal
 <img width="1858" height="36" alt="image" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 
+<img width="1393" height="30" alt="image" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
+
+<img width="1392" height="26" alt="image" src="https://github.com/user-attachments/assets/d147b2d3-b91a-4509-995b-9de184ca819e" />
+
+
 To more complex
 
 <img width="1862" height="40" alt="image" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
@@ -269,6 +274,9 @@ Progress shows as a gauge in the report, and the bar's edges pulse green when yo
 
 ## Writing report
 
+<img width="570" height="508" alt="image" src="https://github.com/user-attachments/assets/809fc7a8-1d85-4a8e-9ea4-a03e6bff0cfd" />
+
+
 `{report}` opens a panel with two tabs — this note, and its folder — each showing **words**, **characters**, **syllables**, **sentences**, **paragraphs**, **pages**, **read time** and a **reading grade**. Hover any figure and it explains itself.
 
 The Folder tab has a breadcrumb of every folder above the note. Click one to total that level instead — *how long is this chapter* and *will the book land* are one click apart.
@@ -276,6 +284,10 @@ The Folder tab has a breadcrumb of every folder above the note. Click one to tot
 Hit a target and it throws fireworks at you.
 
 ## Writing history
+
+<img width="942" height="697" alt="image" src="https://github.com/user-attachments/assets/07b209d7-972f-406e-bc34-10aecaae5c21" />
+
+<img width="946" height="748" alt="image" src="https://github.com/user-attachments/assets/c510afa2-d1e6-4418-964c-d021d6f5c653" />
 
 Off until you switch it on, under **Settings → Word-Smith → History**.
 
