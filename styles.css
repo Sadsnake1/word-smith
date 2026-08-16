@@ -12,10 +12,35 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 156;
+	--zg-stylesheet-version: 175;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
+
+	/* ── THE TINT ────────────────────────────────────────────────────────
+	   One raised-surface colour for the whole plugin: the export list, the
+	   report's figures, the history's chips and readout, the search and text
+	   boxes. It replaces `--background-secondary`, which was the obvious
+	   answer and the wrong one — THIS PLUGIN'S OWN THEMES set their grounds
+	   from their scheme, and in several of them secondary and primary
+	   resolve to the SAME colour, so every rule using it was in the
+	   stylesheet and invisible on screen. That is the worst kind of styling
+	   bug: it looks exactly like the sheet never loaded.
+	   Neutral grey, translucent. It knows nothing about the theme, which is
+	   the point — it darkens a light ground and lightens a dark one, it
+	   cannot be cancelled by a scheme that defines two variables the same
+	   way, and it sits over this plugin's own #050505 as readily as over a
+	   light theme's white. */
+	--zg-tint:        rgba(127, 127, 127, 0.09);
+	--zg-tint-raised: rgba(127, 127, 127, 0.13);
+	--zg-tint-hover:  rgba(127, 127, 127, 0.17);
+	/* …and one that goes the other way. The three above LIGHTEN a dark
+	   ground and darken a light one, which is what a raised surface does;
+	   this one always darkens, so a band drawn with it reads as a recess
+	   whatever the theme. It is what a folder heading sits in: the row is
+	   set INTO the list rather than raised out of it, which leaves the
+	   raised greys free to mean "under the pointer" and nothing else. */
+	--zg-tint-sunken:  rgba(0, 0, 0, 0.18);
 
 	--zg-editor-padding-h:    40px;
 	/* Arrow size tracks window width via clamp() so it stays current after
@@ -1817,7 +1842,7 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	font-family: var(--font-monospace, monospace);
 	font-size: 12px;
 	line-height: 1.55;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	padding: 10px 14px;
@@ -2044,7 +2069,6 @@ body.zg-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 /* The number is the button. Everything else in the gauge is water. */
 .zg-jar-pct-text {
 	pointer-events: auto;
-	cursor: pointer;
 	/* A figure to read, not a surface to press: the jar offers a pointer,
 	   this does not, or the cursor would promise something the text does
 	   not do. Folded into THIS rule rather than added as a second one with
@@ -2289,7 +2313,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .zg-report-cell {
 	padding: 7px 3px;
 	border-radius: 6px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	text-align: center;
 }
 
@@ -2334,15 +2358,18 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-report-cell.has-tip .zg-report-label {
-	/* Longhands, not the `underline dotted` shorthand: Obsidian's lint
-	   reports the multi-value shorthand as only partly supported on the
-	   Electron it targets, and the longhands have been safe for years. Same
-	   result, no warning, and one less thing that renders differently on an
-	   older install than it does here. */
-	text-decoration-line: underline;
-	text-decoration-style: dotted;
-	text-decoration-color: var(--text-faint);
-	text-underline-offset: 2px;
+	/* A BORDER, not an underline. The note that stood here said the
+	   longhands were the safe form and the shorthand was the flagged one;
+	   it was exactly backwards. `text-decoration-line`, `-style` and
+	   `-color` ARE the partly-supported feature on the Electron Obsidian
+	   targets — the plain shorthand is universal, and it is the multi-value
+	   form that needs them. A dotted bottom border draws the same hairline,
+	   is supported everywhere, and costs one declaration.
+	   `inline-block` so it hugs the words: on a block element the border
+	   would run the width of the cell rather than the width of the label. */
+	display: inline-block;
+	border-bottom: 1px dotted var(--text-faint);
+	padding-bottom: 1px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2564,7 +2591,11 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	padding: 5px 9px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 4px;
-	background: var(--background-primary);
+	/* A box you type in is a well, not a panel: the tint is what says the
+	   surface is recessed from the window around it, and on a theme where
+	   primary and secondary are the same colour a bordered box on a plain
+	   ground reads as an outline drawn on nothing. */
+	background-color: var(--zg-tint);
 	color: var(--text-normal);
 }
 
@@ -2652,7 +2683,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	padding: 4px 4px 4px 10px;
 	border: 1px solid var(--interactive-accent);
 	border-radius: 4px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 }
 
 .zg-hist-chipname {
@@ -2685,7 +2716,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	margin: 0 0 8px;
 	padding: 5px 9px;
 	border-left: 2px solid var(--text-faint);
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	font-size: var(--zg-h-small);
 	line-height: 1.4;
 	color: var(--text-muted);
@@ -2758,7 +2789,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 }
 
 .zg-history-modal .zg-report-cell.has-tip:hover {
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	transform: none;
 }
 
@@ -2845,7 +2876,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .ws-tab-btn.zg-hist-arrow[disabled] {
 	opacity: 0.25;
 	cursor: default;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	color: var(--text-muted);
 }
 
@@ -2910,13 +2941,12 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	align-items: center;
 	margin: 0 0 6px;
 	padding: 3px 9px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	font-family: inherit;
 	font-variant-numeric: tabular-nums;
 	font-size: var(--zg-h-body);
 	line-height: 1.35;
 	color: var(--text-normal);
-	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -3056,7 +3086,6 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	font-size: var(--zg-h-small);
 	line-height: 1;
 	color: var(--text-faint);
-	font-variant-numeric: tabular-nums;
 	text-align: center;
 	overflow: hidden;
 }
@@ -3381,7 +3410,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	font-size: 10px;
 	font-family: var(--font-monospace, monospace);
 	color: var(--text-muted);
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 3px;
 	padding: 1px 6px;
@@ -3403,7 +3432,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	border-radius: 3px;
 	cursor: pointer;
 	border: 1px solid var(--background-modifier-border);
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	color: var(--text-muted);
 }
 
@@ -3477,7 +3506,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	gap: 8px;
 	padding: 4px 6px 4px 10px;
 	border-radius: 6px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 }
 
 .ws-scope-row:hover { background: var(--background-modifier-hover); }
@@ -3546,7 +3575,7 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	padding: 6px 14px;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	color: var(--text-muted);
 	cursor: pointer;
 	transition: background-color 0.1s ease, color 0.1s ease, border-color 0.1s ease;
@@ -4460,7 +4489,7 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	border-radius: 8px;
 	padding: 10px 12px;
 	cursor: grab;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 }
 .zg-theme-card:hover { border-color: var(--interactive-accent); }
 .zg-theme-card.is-active {
@@ -4535,7 +4564,7 @@ body.zg-vim-panel-open .zg-bar-plinth {
 	font-size: 0.8em;
 	padding: 2px 8px;
 	border-radius: 10px;
-	background: var(--background-secondary);
+	background-color: var(--zg-tint);
 	border: 1px solid var(--background-modifier-border);
 	cursor: pointer;
 }
@@ -4934,6 +4963,16 @@ body.zg-cb-markdown .task-list-item-checkbox::after {
 	content: none;
 	display: none;
 }
+/* THE MASK RESET STAYS, and its lint warning is accepted rather than
+   worked around. Obsidian's linter flags `css-masks` as partly supported —
+   which is true and is exactly why BOTH spellings are here: the Electron
+   it targets (Chromium 114) needs `-webkit-mask-image`, and newer builds
+   take the unprefixed one. Dropping either would break the reset on one
+   of them.
+   The declaration is a RESET, and a browser with no mask support has no
+   mask to clear, so it cannot do harm anywhere. It is also not optional:
+   most themes draw the tick as a mask, and without this one a check
+   floats over the `- [x]` that is supposed to BE the mark. */
 body.zg-cb-markdown .task-list-item-checkbox,
 body.zg-cb-markdown .task-list-item-checkbox:checked {
 	background-image: none;
@@ -5230,3 +5269,1209 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
    Removed on sight: the calendar is already seven columns wide twelve
    times over, so a habit that falls on Fridays is a stripe you can see.
    A sentence asserting it was the plugin explaining its own picture. */
+
+/* =========================================================================
+   Export
+   ========================================================================= */
+
+/* BIGGER, because the window now has work in it: a finder, a list long
+   enough to drag things around inside, and a dozen options in two columns.
+   At 620px the options wrapped to one column on a normal desktop and the
+   list showed four scenes at a time, which is not enough to reorder a
+   chapter without scrolling mid-drag. */
+.zg-export-modal { width: 94vw; max-width: 860px; }
+.zg-export-body { display: flex; flex-direction: column; gap: 10px; }
+
+.zg-export-scoperow { display: flex; align-items: center; gap: 8px; }
+.zg-export-lbl { font-size: var(--font-ui-smaller); color: var(--text-muted); flex: 0 0 auto; }
+.zg-export-scope { flex: 1 1 auto; min-width: 0; }
+
+.zg-export-bulk { display: flex; gap: 6px; margin-top: 6px; }
+.zg-export-mini {
+	font-size: var(--font-ui-smaller);
+	padding: 2px 10px;
+}
+
+/* THE LIST SCROLLS, THE WINDOW DOES NOT. A novel is a hundred scenes, and
+   a modal that grows to fit them puts the export button off the bottom of
+   the screen — the one control the window exists for. */
+.zg-export-list {
+	max-height: 46vh;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 4px;
+}
+.zg-export-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 4px;
+	border-radius: 4px;
+}
+.zg-export-row:hover { background: var(--background-modifier-hover); }
+.zg-export-cb { flex: 0 0 auto; }
+/* min-width: 0 or a long scene name pushes the word count off the row —
+   the same flex rule as every other truncating label in this file. */
+.zg-export-name {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.zg-export-words {
+	flex: 0 0 auto;
+	font-variant-numeric: tabular-nums;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+.zg-export-empty { color: var(--text-faint); padding: 8px; text-align: center; }
+.zg-export-total {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.zg-export-opts {
+	display: grid;
+	/* Three columns at this width, two when the window is narrower — the
+	   options are short labels and a checkbox, and a single column of
+	   fourteen of them is a scroll for no reason. */
+	grid-template-columns: repeat(3, 1fr);
+	gap: 4px 14px;
+}
+@media (max-width: 780px) { .zg-export-opts { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .zg-export-opts { grid-template-columns: 1fr; } }
+.zg-export-opt {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: var(--font-ui-smaller);
+	min-width: 0;
+}
+.zg-export-opt > span {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.zg-export-text { flex: 0 1 45%; min-width: 0; }
+
+.zg-export-go.is-off { opacity: 0.5; }
+
+/* The print frame is a working part, not a visible one: it exists to be
+   printed and must take no space and catch no clicks while it waits. */
+.zg-export-print {
+	position: fixed;
+	right: 0; bottom: 0;
+	width: 0; height: 0;
+	border: 0;
+	opacity: 0;
+	pointer-events: none;
+}
+/* The finder inside the export window is the history's, so it inherits that
+   styling; it only needs room to drop its hits over the list below. */
+.zg-export-find { margin-bottom: 2px; }
+
+/* ── The export list: folders, and dragging ─────────────────────────────── */
+
+.zg-export-folder {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 4px 2px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 2px;
+	/* Sticky, so the chapter a scene belongs to is still on screen while
+	   its scenes are being dragged past the top of the list. */
+	position: sticky;
+	top: 0;
+	background: var(--background-primary);
+	z-index: 1;
+}
+.zg-export-foldername {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-variant: small-caps;
+	letter-spacing: 0.04em;
+}
+
+.zg-export-grip {
+	flex: 0 0 auto;
+	cursor: grab;
+	color: var(--text-faint);
+	letter-spacing: -2px;
+	/* The grip is the handle, so it must not select as text when a writer
+	   grabs it — a half-selected row mid-drag looks broken. */
+	user-select: none;
+	-webkit-user-select: none;
+}
+.zg-export-row[draggable="true"] { cursor: default; }
+.zg-export-row.is-dragging { opacity: 0.45; }
+/* The drop line, drawn on the row the pointer is over rather than as a
+   floating element: one rule, no geometry to keep in step with the list.
+   AND ON THE FOLDER HEADINGS TOO. They set `is-over-top` / `is-over-bottom`
+   from the first day a folder could be dragged, and nothing drew them —
+   dragging a file showed a line under the pointer and dragging a CHAPTER
+   showed nothing at all, so the one drag where a mistake costs most (it
+   moves every scene in the folder) was the one with no aim. Same two rules,
+   and a little louder: a chapter lands between chapters, and the gap it will
+   land in is further from the pointer than a row's edge is. */
+.zg-export-row.is-over-top    { box-shadow: inset 0 2px 0 0 var(--interactive-accent); }
+.zg-export-row.is-over-bottom { box-shadow: inset 0 -2px 0 0 var(--interactive-accent); }
+.zg-export-folder.is-over-top {
+	box-shadow: inset 0 3px 0 0 var(--interactive-accent);
+	border-radius: 3px;
+}
+.zg-export-folder.is-over-bottom {
+	box-shadow: inset 0 -3px 0 0 var(--interactive-accent);
+	border-radius: 3px;
+}
+/* The folder being carried, dimmed like a row is — it was only the rows
+   that said so, which left the heading looking as though the drag had not
+   taken. */
+.zg-export-folder.is-dragging { opacity: 0.45; }
+
+.zg-export-num { flex: 0 1 5em; }
+
+/* ── Export: preview ────────────────────────────────────────────────────── */
+
+.zg-export-preview-modal { width: 94vw; max-width: 780px; }
+.zg-export-prevbody { display: flex; flex-direction: column; gap: 8px; }
+.zg-export-prevhead {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+/* TOMBSTONE: the preview was a <pre> of the compiled markdown, monospaced
+   so nothing reflowed. It answered "what will be in it" and not "what will
+   it look like", which is the question a writer about to send a manuscript
+   is actually asking. It is a page now. */
+.zg-export-prev {
+	max-height: 62vh;
+	overflow: auto;
+	margin: 0;
+	padding: 10px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary-alt);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	line-height: 1.5;
+	/* Wrapped, not scrolled sideways: a manuscript line is long, and
+	   reading it means reading it, not dragging a scrollbar. */
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+/* (An earlier `margin-right: auto` on Preview lived here, from when it sat
+   at the left end of the footer. It fought the ordering below and is why
+   the button floated in the middle rather than sitting against Export.) */
+
+/* ── The export window, set as a manuscript ─────────────────────────────────
+   The subject's own world is a submission manuscript: a title block, a
+   contents page with leader dots, and a page count. Everything here is
+   built out of that vocabulary rather than out of generic modal furniture,
+   and the boldness is spent in exactly one place — the leader line and its
+   live page numbers. Everything else is kept quiet on purpose.
+
+   TWO TYPEFACES, DELIBERATELY PAIRED: the controls are set in the
+   interface font, because they are software; the manuscript's own parts —
+   the title block, the scene names, the page numbers — are set in the
+   reading font, because they are the book. A writer can tell at a glance
+   which half of this window is theirs.                                     */
+
+.zg-export-block {
+	padding: 2px 2px 12px;
+	margin-bottom: 4px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	text-align: center;
+}
+.zg-export-blocktitle {
+	font-family: var(--font-text, var(--font-interface));
+	font-size: 1.5em;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.zg-export-blockmeta {
+	margin-top: 2px;
+	font-family: var(--font-text, var(--font-interface));
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	/* Small caps rather than uppercase: a title page sets its subtitle in
+	   the same face as the title, quieter — not in a different voice. */
+	font-variant-caps: small-caps;
+	letter-spacing: 0.06em;
+}
+
+/* Options BELOW the list. Side by side they competed for the eye, and the
+   list — the thing actually being decided — got the narrower half. */
+.zg-export-right { min-width: 0; margin-top: 4px; }
+
+.zg-export-eyebrow {
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	text-transform: uppercase;
+	letter-spacing: 0.14em;
+	color: var(--text-faint);
+	margin: 10px 0 4px;
+}
+.zg-export-right > .zg-export-eyebrow:first-child { margin-top: 0; }
+
+/* THE CONTENTS PAGE. The leader is one flexible rule of dots between the
+   scene and its page number — the thing a printed contents page does, done
+   the way print does it. `border-bottom: dotted` rather than a repeated
+   character: it stretches to whatever room is left without ever wrapping,
+   and it cannot be selected as text when a writer drags across the row. */
+.zg-export-leader {
+	flex: 1 1 auto;
+	min-width: 12px;
+	margin: 0 6px;
+	border-bottom: 1px dotted var(--background-modifier-border);
+	transform: translateY(-3px);
+}
+.zg-export-page {
+	flex: 0 0 auto;
+	min-width: 2.4em;
+	text-align: right;
+	font-family: var(--font-text, var(--font-interface));
+	font-variant-numeric: tabular-nums;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+.zg-export-row .zg-export-name {
+	font-family: var(--font-text, var(--font-interface));
+	flex: 0 1 auto;
+}
+/* An excluded scene is struck through rather than hidden: it is still part
+   of the folder, and the writer needs to see that they left it out.
+   A CLASS, not `:has`. The project bans that selector outright and the
+   reason is measured: with a subject anywhere under `body` it is
+   re-evaluated against a DOM that changes on every keystroke. The row
+   already knows whether it is ticked, so it can say so itself. */
+.zg-export-row.is-out .zg-export-name {
+	color: var(--text-faint);
+	/* The single-keyword shorthand only: `text-decoration-color` is part of
+	   the partly-supported longhand set, and the rule is already faint —
+	   the strike takes the text's own colour, which is the muted one. */
+	text-decoration: line-through;
+}
+
+/* The format switch: three states of one control, not three actions. */
+/* The format is a labelled drop-down beside the button now, not a third
+   row of segmented buttons: the layout and the paper already wear that
+   idiom, and the format asks a different KIND of question — what file
+   comes out, rather than how it is set. */
+.zg-export-fmt {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin-right: auto;
+}
+.zg-export-fmtlabel {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+.zg-export-fmtsel { font-size: var(--font-ui-smaller); }
+.zg-export-fmtbtn {
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	padding: 4px 12px;
+	cursor: pointer;
+}
+.zg-export-fmtbtn + .zg-export-fmtbtn { border-left: 1px solid var(--background-modifier-border); }
+.zg-export-fmtbtn:hover:not(:disabled) { background: var(--background-modifier-hover); }
+.zg-export-fmtbtn.is-on {
+	background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+	color: var(--text-normal);
+	font-weight: 600;
+}
+.zg-export-fmtbtn:disabled { opacity: 0.4; cursor: default; }
+
+.zg-export-total {
+	font-family: var(--font-text, var(--font-interface));
+	font-variant-caps: small-caps;
+	letter-spacing: 0.06em;
+}
+
+/* ── The picker, leaner ──────────────────────────────────────────────────── */
+
+/* Rows are 22px, not 30: a chapter is twenty scenes, and the point of the
+   list is to see them at once. Everything that made a row tall — padding,
+   a full-height grip, a folder heading with buttons in it — is trimmed to
+   what the row has to say. */
+.zg-export-list { max-height: 40vh; padding: 2px; }
+.zg-export-row { padding: 0 4px; min-height: 22px; gap: 6px; }
+.zg-export-grip { font-size: 0.85em; opacity: 0.5; }
+.zg-export-row:hover .zg-export-grip { opacity: 1; }
+
+/* A folder is a row like any other, one indent level out from its files.
+   The tree is two levels deep at most on purpose: the export is a flat
+   sequence, and a deeper tree would promise a nesting the manuscript has
+   no way to keep. */
+.zg-export-folder {
+	position: static;
+	border: 0;
+	margin: 6px 0 1px;
+	padding: 0 4px;
+	gap: 6px;
+	min-height: 22px;
+}
+.zg-export-folder + .zg-export-row,
+.zg-export-row { margin-left: 16px; }
+.zg-export-foldername {
+	font-variant: normal;
+	letter-spacing: 0;
+	font-weight: 600;
+	color: var(--text-muted);
+}
+
+/* ── The finder, inline ─────────────────────────────────────────────────── */
+
+.zg-export-find { margin-bottom: 6px; }
+.zg-export-findrow { display: flex; align-items: center; gap: 6px; }
+.zg-export-search { flex: 1 1 auto; min-width: 0; }
+.zg-export-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px 4px 2px 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	font-size: var(--font-ui-smaller);
+}
+.zg-export-chipname { max-width: 32ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zg-export-chipx {
+	border: 0; background: transparent; box-shadow: none;
+	padding: 0 6px; cursor: pointer; color: var(--text-faint);
+}
+.zg-export-chipx:hover { color: var(--text-normal); }
+
+/* IN THE FLOW, not over it. The history's hit list is absolutely
+   positioned and hangs over the window beneath it; borrowed in here it
+   was laid over the file list and clipped, which is why typing showed
+   nothing. This one takes its own space and pushes the rest down. */
+.zg-export-hits {
+	margin-top: 4px;
+	max-height: 30vh;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+}
+.zg-export-hits:empty { display: none; }
+.zg-export-hit {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 3px 8px;
+	cursor: pointer;
+	font-size: var(--font-ui-smaller);
+}
+.zg-export-hit.is-selected, .zg-export-hit:hover { background: var(--background-modifier-hover); }
+.zg-export-hitkind {
+	flex: 0 0 auto;
+	color: var(--text-faint);
+	font-size: 0.85em;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	min-width: 3.4em;
+}
+.zg-export-hitpath { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.zg-export-nohit { padding: 6px 8px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+
+/* Four columns of options once they are under a full-width list. */
+.zg-export-opts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 780px) { .zg-export-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { .zg-export-opts { grid-template-columns: 1fr; } }
+
+/* ── The picker: a folder's line, and its own scroll ────────────────────── */
+
+/* (The indent line's rule lives further down, with the rest of the
+   two-column layout — it was written twice as the window was reworked,
+   and the later one is the live one.) */
+
+/* OBSIDIAN'S OWN TOGGLE, smaller. A dozen switches in a modal is not a
+   settings pane, and the app's full-size control made the option block
+   twice the height of the list it was describing. Scaled from its own
+   variables so a theme that restyles toggles restyles these too. */
+.zg-export-sw.checkbox-container {
+	--toggle-thumb-height: 12px;
+	--toggle-thumb-width: 12px;
+	--toggle-width: 26px;
+	--toggle-radius: 8px;
+	flex: 0 0 auto;
+	transform: scale(0.88);
+	transform-origin: left center;
+}
+.zg-export-optname { cursor: pointer; }
+/* THE CAPTION UNDER A DROP-DOWN, saying what the chosen answer does to the
+   page. Indented to the control rather than to the label, so a column of
+   them reads as annotations on the choices and not as a paragraph of prose
+   wedged between the switches. Empty when the choice has nothing to
+   explain, and taking no room when it is. */
+.zg-export-opthint {
+	margin: -2px 0 6px 0;
+	color: var(--text-faint);
+	font-size: calc(var(--font-ui-smaller) * 0.94);
+	line-height: 1.35;
+}
+.zg-export-opthint:empty { display: none; }
+.zg-export-opt {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 26px;
+	font-size: var(--font-ui-smaller);
+	min-width: 0;
+}
+.zg-export-textrow .zg-export-optname { flex: 0 0 auto; min-width: 5em; }
+
+/* The folder picker's suggestions, inline like the scope finder's. */
+.zg-export-folderpick { position: relative; flex: 1 1 auto; min-width: 0; }
+.zg-export-folderpick .zg-export-text { width: 100%; }
+.zg-export-foldhits {
+	position: absolute;
+	left: 0; right: 0; top: 100%;
+	z-index: 6;
+	margin-top: 2px;
+	background: var(--background-primary);
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+	max-height: 30vh;
+}
+
+/* MORE, as a quiet line rather than a slab. With the presets gone it holds
+   two switches, so it should look like an aside and not like a third bank
+   of settings. */
+.zg-export-more { margin-top: 6px; border-top: 1px dashed var(--background-modifier-border); padding-top: 6px; }
+
+/* Eyebrows in the report's own voice, which is where a reader has met them
+   before. */
+.zg-export-eyebrow {
+	font-size: calc(var(--font-ui-smaller) * 0.9);
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: var(--text-faint);
+	margin: 8px 0 2px;
+}
+
+/* ═════ Export: two columns, and a finder that matches its neighbours ═════ */
+
+/* The tree on the left, the options on the right. With the presets, the
+   grips, the More drawer and three switches gone, the right column is short
+   enough to sit beside the list rather than under it — and everything is
+   visible at once, which is what stacking them was trying to buy. */
+/* STRETCH, not start. `align-items: start` sized each column to its own
+   content, so the file list stopped wherever the last chapter did and left a
+   hand's width of empty modal under it — in a window whose whole point is
+   the list. Both columns take the full height of the row now; the list
+   inside the left one is `flex: 1 1 auto` and scrolls, and the right column
+   scrolls too if the options outgrow it. */
+.zg-export-cols {
+	order: 2;
+	display: grid;
+	grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+	gap: 16px;
+	align-items: stretch;
+	min-height: 0;
+	flex: 1 1 auto;
+}
+@media (max-width: 720px) {
+	.zg-export-cols { grid-template-columns: 1fr; }
+}
+.zg-export-left, .zg-export-right {
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.zg-export-left .zg-export-list { flex: 1 1 auto; min-height: 30vh; max-height: 52vh; }
+.zg-export-right { max-height: 60vh; overflow-y: auto; }
+
+/* MARK ALL / MARK NONE, with the count on the same line. Two acts and the
+   figure they act on, which is one row of information rather than two. */
+.zg-export-bulk {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin: 6px 0 0;
+}
+.zg-export-bulk .zg-export-total { margin-left: auto; }
+
+/* THE FINDER, IN THE HISTORY'S CLOTHES. Three windows in one plugin should
+   not each have their own search box; these are the history's own values,
+   repeated rather than borrowed, because the history's hit list is
+   absolutely positioned and this one is not (see the note there). */
+.zg-export-search {
+	flex: 1;
+	font-family: inherit;
+	font-size: var(--zg-h-body);
+	padding: 5px 9px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 4px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+.zg-export-search:focus { border-color: var(--interactive-accent); outline: none; }
+
+/* The chosen scope as the history's pill: an accent border, the name, and
+   a × to give it back. */
+.zg-export-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+	padding: 4px 4px 4px 10px;
+	border: 1px solid var(--interactive-accent);
+	border-radius: 4px;
+	background-color: var(--zg-tint);
+}
+.zg-export-chipname {
+	font-family: inherit;
+	font-size: var(--zg-h-body);
+	color: var(--text-normal);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* ── The tree: the line, the boxes, and the figures ─────────────────────── */
+
+/* TOMBSTONE: THE ORIGINAL GUIDE LINE, and the one that outlived two later
+   attempts to remove guide lines entirely. A 1px `border-left` on every file
+   row, 8px in so that it fell under the middle of the folder's checkbox and
+   a run of files visibly hung from the folder that owned it. It was written
+   when the list was one level deep, where it is exactly right.
+   It went with the others: at three levels it drew a short stub against the
+   left edge of every row, at a different x from the row above, which is what
+   was still on screen after the painted guides came out and was reported as
+   "there are still some vertical lines on the files". Removal has to take
+   ALL of them — a rule this old sits far from the ones that replaced it, and
+   was not where anybody looked. */
+.zg-export-list .zg-export-row {
+	border-left: 0;
+	border-radius: 0;
+}
+.zg-export-folder { margin-left: 0; padding-left: 2px; }
+
+/* PLAIN SQUARES. These wore the plugin's retro treatment — a hard pixel
+   shadow and a press — which suits a settings page with six switches and
+   does not suit a LIST: twenty rows of shadowed boxes is twenty small drop
+   shadows down one column, and the eye reads the shadows before the file
+   names, which are the point. The retro option still dresses the EDITOR's
+   checkboxes, where it was asked for and where there are few of them. */
+.zg-export-modal .zg-export-list input[type='checkbox'] {
+	--checkbox-radius: 2px;
+	box-shadow: none;
+}
+
+/* ── A folder that is only partly in ────────────────────────────────────────
+   HALF THE BOX, SPLIT ON THE DIAGONAL. The browser's `indeterminate` draws a
+   dash, which reads as a third state unrelated to the tick — at a glance it
+   is "off, but greyed", and the one thing it must say is "some of these are
+   in". Filled from the top-left corner to the bottom-right in the same
+   colour the tick uses, it says exactly that, and it says it in the shape of
+   the control rather than in a symbol you have to learn.
+   The `indeterminate` property is still SET on the input: it is the honest
+   state, screen readers announce it, and a click still fires `change` the
+   way it always did. This is only what it looks like.
+   `background-image` rather than a pseudo-element, because an input is a
+   replaced element and ::before is not reliable across the engines Obsidian
+   ships on; the gradient sits over the theme's own background and under
+   nothing, so a theme that restyles checkboxes keeps its border and its
+   size. */
+.zg-export-modal .zg-export-list input[type='checkbox'].is-part {
+	background-image: linear-gradient(
+		to bottom right,
+		var(--interactive-accent) 0 50%,
+		transparent 50% 100%
+	);
+	background-color: var(--background-primary);
+}
+/* …and the dash the theme would have drawn is not drawn over it. */
+.zg-export-modal .zg-export-list input[type='checkbox'].is-part::after,
+.zg-export-modal .zg-export-list input[type='checkbox'].is-part::before {
+	display: none;
+}
+
+/* ── The triangle on a folder ───────────────────────────────────────────────
+   Obsidian's own classes do the drawing, so the shape and the theme come
+   free; this is only the size, the colour and the turn. `is-collapsed`
+   points it right, open points it down — which is the file explorer's
+   convention, and the whole reason for borrowing its markup. */
+.zg-export-chev {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	margin-left: -2px;
+	color: var(--text-faint);
+	cursor: pointer;
+	transition: transform 90ms ease-out, color 90ms ease-out;
+}
+.zg-export-chev:hover { color: var(--text-normal); }
+.zg-export-chev svg { width: 12px; height: 12px; }
+.zg-export-chev.is-collapsed { transform: rotate(-90deg); }
+
+/* ── A DENSER TREE ──────────────────────────────────────────────────────────
+   The list is the thing this window is FOR, and every row it can show is a
+   scene a writer does not have to scroll to. These are the last rules in the
+   sheet for the list, so they win: a row is a line of text and a checkbox,
+   and it does not need the height of a button.
+   Set here rather than by editing the rules above, because those are shared
+   with the menu's cards and the finder's hits — the list is what wanted to be
+   smaller, not everything shaped like it. */
+.zg-export-list .zg-export-row {
+	min-height: 19px;
+	padding: 0 4px;
+	gap: 5px;
+}
+.zg-export-list .zg-export-folder {
+	min-height: 20px;
+	/* No vertical margin. The guides are painted per row, so a gap between
+	   rows is a gap in the line — the air above a heading is padding
+	   instead, set with the nesting rules below. */
+	margin: 0;
+}
+.zg-export-list .zg-export-name,
+.zg-export-list .zg-export-page,
+.zg-export-list .zg-export-foldwords,
+.zg-export-list .zg-export-foldername {
+	/* Up from 0.94: the rows came down to 19px and the type came with them,
+	   which made the one thing in this window a writer actually READS —
+	   file names — the smallest text on screen. The row stays tight; the
+	   words in it do not have to. */
+	font-size: calc(var(--font-ui-smaller) * 1.08);
+	line-height: 1.3;
+}
+/* The boxes come down with the rows, or twenty checkboxes at the old size
+   set the row height back themselves. */
+.zg-export-modal .zg-export-list input[type='checkbox'] {
+	width: 14px;
+	height: 14px;
+}
+.zg-export-list .zg-export-chev { width: 15px; height: 15px; }
+.zg-export-list .zg-export-chev svg { width: 11px; height: 11px; }
+/* A phone is a finger, not a pointer: the denser rows are for the desktop,
+   and a 19px target is not a tap target. */
+body.is-mobile .zg-export-list .zg-export-row { min-height: 30px; }
+body.is-mobile .zg-export-list .zg-export-folder { min-height: 32px; }
+body.is-mobile .zg-export-modal .zg-export-list input[type='checkbox'] {
+	width: 18px;
+	height: 18px;
+}
+
+/* A TINT UNDER THE TREE, so the list reads as a surface with things on it
+   rather than as rows floating in the window. It is the one region here a
+   writer works INSIDE — ticking, dragging, folding — and giving it a ground
+   of its own is what says so.
+   NOT `--background-secondary`, which was the first answer and did nothing —
+   see `--zg-tint` at the top of this file, which is now where that colour is
+   decided for the whole plugin. */
+.zg-export-list {
+	background-color: var(--zg-tint);
+	border-radius: 8px;
+	padding: 6px 4px;
+}
+/* (The folder headings USED to sit on that ground, a shade further. They do
+   not: `--zg-tint-raised` is the hover colour, so every heading in the list
+   looked like the row under the pointer. See the tombstone beside the
+   nesting rules further down — the raised ground belongs to hover, and a
+   folder says what it is with its type and its accent-coloured triangle.) */
+
+/* ── The two tabs ───────────────────────────────────────────────────────────
+   Underlined rather than boxed: a boxed pair reads as two buttons, and these
+   are not acts — they are two views of one column, and the line under the
+   live one is the smallest mark that says which you are looking at. */
+.zg-export-tabs {
+	display: flex;
+	gap: 2px;
+	margin: 8px 0 6px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.zg-export-tab {
+	flex: 0 0 auto;
+	background: none;
+	border: none;
+	box-shadow: none;
+	border-radius: 0;
+	padding: 4px 10px;
+	margin-bottom: -1px;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	border-bottom: 2px solid transparent;
+	cursor: pointer;
+}
+.zg-export-tab:hover { color: var(--text-normal); background: none; }
+.zg-export-tab.is-on {
+	color: var(--text-normal);
+	border-bottom-color: var(--interactive-accent);
+}
+.zg-export-panel { min-width: 0; }
+.zg-export-panel > .zg-export-eyebrow:first-child { margin-top: 2px; }
+
+/* ── Nesting ────────────────────────────────────────────────────────────────
+   One heading per LEVEL between the scope and the file, stepped in from the
+   one above. The step and nothing else: the indent IS the nesting, and a
+   book four levels deep reads as four levels because the names start in four
+   different places.
+
+   TOMBSTONE: GUIDE LINES down each level, twice. First as a `border-left` on
+   every indented element — which drew one line per ITEM rather than one per
+   ancestor, at a different x on every level, broken above each heading by its
+   margin. Then painted properly, as a repeating gradient across the indent
+   area: one hairline per ancestor at fixed positions, continuous down the
+   list, which is what a file tree looks like. It was correct and it was
+   noise. Ten rows of a manuscript with three or four hairlines running
+   through them is a lot of furniture around a list of chapter names, and
+   nobody reading it needed the lines to know what was inside what.
+
+   If they come back: painted, never bordered, and the reasons are in the
+   probe (`window_probe`, "a book with parts") — a border is drawn at the
+   element's own left edge, and that is not where a tree's lines are. */
+.zg-export-list .zg-export-folder,
+.zg-export-list .zg-export-row {
+	--zg-step: 18px;
+	margin-left: 0;
+	padding-left: calc(4px + var(--zg-depth, 0) * var(--zg-step));
+	background-image: none;
+}
+/* A FILE SITS FURTHER IN THAN THE FOLDER ABOVE IT. Both were stepped by the
+   same amount, so a file directly inside a folder began at the same x as
+   that folder's own name: the run of files read as a continuation of the
+   heading rather than as its contents, and with the guide lines gone there
+   was nothing else saying otherwise. Ten pixels past its parent — about the
+   width of the heading's triangle, so the file names line up with the
+   folder's LABEL rather than with its box. */
+.zg-export-list .zg-export-row {
+	padding-left: calc(14px + var(--zg-depth, 0) * var(--zg-step));
+}
+/* Air above a heading, so a chapter reads as the start of something rather
+   than as another row. Padding rather than margin: the row is a hit target
+   for a click and a drop, and margin is outside both. */
+.zg-export-list .zg-export-folder {
+	padding-top: 5px;
+	padding-bottom: 1px;
+	border-radius: 0;
+}
+
+/* ── Telling a folder from a file, without a band ────────────────────────────
+   TOMBSTONE: folder headings sat on `--zg-tint-raised`. That is the same
+   grey the hover highlight uses, so every folder in the list looked like the
+   row under the pointer — a window with ten things apparently hovered at
+   once, and the one that really was hovered indistinguishable from the rest.
+   Reported from a vault in exactly those words.
+
+   A BAND, BUT A SUNKEN ONE. The raised greys belong to hover, so a heading
+   takes the colour that goes the other way: `--zg-tint-sunken` always
+   darkens, which sets the row INTO the list rather than lifting it out of
+   it. A folder reads as a band without borrowing the one colour that means
+   "the pointer is here", and hovering it still lights it — a lighter grey
+   over a darker band is a visible change in either direction. */
+.zg-export-list .zg-export-folder {
+	background-color: var(--zg-tint-sunken);
+	border-radius: 4px;
+}
+.zg-export-list .zg-export-folder .zg-export-foldername {
+	font-weight: 600;
+	color: var(--text-normal);
+}
+/* A deeper heading is quieter than its parent: the part is the thing being
+   scanned for, and four identically-weighted headings down a column give the
+   eye nothing to land on.
+   BY CLASS, not by `[style*="--zg-depth: 1"]`. That matched on how an engine
+   happens to serialise a custom property in an attribute — which is not a
+   contract anyone has made, and it is the sort of selector that works on the
+   machine it was written on. */
+.zg-export-list .zg-export-folder.zg-export-lvl1 .zg-export-foldername,
+.zg-export-list .zg-export-folder.zg-export-lvl2 .zg-export-foldername,
+.zg-export-list .zg-export-folder.zg-export-lvl3 .zg-export-foldername {
+	font-weight: 500;
+	color: var(--text-muted);
+}
+/* THE ONLY BAND IN THE LIST. One rule for both kinds of row, so the thing
+   under the pointer is the thing that is lit and nothing else is. */
+.zg-export-list .zg-export-row:hover,
+.zg-export-list .zg-export-folder:hover {
+	background-color: var(--zg-tint-raised);
+	border-radius: 4px;
+}
+
+/* ── "Again?" ───────────────────────────────────────────────────────────────
+   One line under the act it repeats. Ordered between the top bar (0) and the
+   columns (2), which is where it belongs in the reading: what you did last
+   time, then what you are doing this time. */
+.zg-export-again {
+	order: 1;
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 8px;
+	border-radius: 6px;
+	background-color: var(--zg-tint);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+.zg-export-againtext {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.zg-export-againbtn { flex: 0 0 auto; }
+
+/* ── The options, a size up ─────────────────────────────────────────────────
+   The column was set at `--font-ui-smaller` throughout with a switch scaled
+   to 0.88, which suited a panel of six controls and does not suit one that a
+   writer reads through: these are sentences now ("Each file — starts a new
+   page"), and a sentence set two steps below the interface's own size is a
+   sentence people skip. The rows are tabbed, so there is room. */
+.zg-export-right .zg-export-opt,
+.zg-export-panel .zg-export-opt {
+	font-size: calc(var(--font-ui-smaller) * 1.1);
+	min-height: 28px;
+}
+.zg-export-panel .zg-export-opthint {
+	font-size: calc(var(--font-ui-smaller) * 1.0);
+}
+/* The switch comes up with the type it labels — at 0.88 beside larger text
+   it read as a control for something else. Still under the app's full size,
+   which is what the scaling was for. */
+.zg-export-right .zg-export-sw.checkbox-container,
+.zg-export-panel .zg-export-sw.checkbox-container {
+	--toggle-thumb-height: 15px;
+	--toggle-thumb-width: 15px;
+	--toggle-width: 32px;
+	transform: scale(0.95);
+}
+/* Every box a writer types in, and every drop-down, on the same recessed
+   ground as the search fields — see `--zg-tint`. */
+.zg-export-modal .zg-export-text,
+.zg-export-modal .zg-export-search,
+.zg-export-modal .zg-export-sel {
+	background-color: var(--zg-tint);
+}
+
+/* COLLAPSE ALL, first on the bulk line. An icon button among two word
+   buttons: it is the act Obsidian's file explorer puts in the same corner,
+   and it is reached for by shape. Sized to match the word buttons beside it
+   so the row still reads as one row. */
+.zg-export-collapse {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 6px;
+	color: var(--text-muted);
+}
+.zg-export-collapse:hover { color: var(--text-normal); }
+.zg-export-collapse svg { width: 15px; height: 15px; }
+
+/* THE FIGURES LINE UP ON THE RIGHT. Ragged, they were a column of numbers
+   that could not be compared without reading each one — which is the whole
+   job of putting them in a column. Tabular figures so the digits sit in
+   the same places from row to row. */
+.zg-export-name { flex: 1 1 auto; }
+.zg-export-page {
+	flex: 0 0 auto;
+	margin-left: auto;
+	text-align: right;
+	min-width: 7em;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+}
+/* A folder's own total, in the same column as its files' — so the eye runs
+   down one edge whether it is reading a chapter or the scenes in it. */
+.zg-export-foldwords {
+	flex: 0 0 auto;
+	margin-left: auto;
+	text-align: right;
+	min-width: 7em;
+	font-variant-numeric: tabular-nums;
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+/* ── Restored after an over-eager tidy ──────────────────────────────────────
+   A splice meant to remove two superseded rules took a run of live ones
+   with it. These are the three the probe caught missing, back with the
+   reasoning they had: the paper frame's size, the footer's place in the
+   column order, and the grips' removal.                                   */
+
+/* The preview frame must be VISIBLE and sized. Printed at width:0;height:0
+   there is no layout to print, so the engine rasterises — which is how the
+   PDF came out as a picture of the text with nothing selectable in it. */
+.zg-export-paper {
+	width: 100%;
+	height: 70vh;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: #5a5a5e;
+}
+
+/* ── The preview's zoom ─────────────────────────────────────────────────────
+   A sheet is 816 CSS pixels at 8.5 inches and the frame is about seven
+   hundred, so the page opened already cropped — the right margin past the
+   edge, in a window whose whole job is to show what the page looks like.
+   It opens on FIT now (computed from the frame and the paper, not guessed),
+   and these are the controls for the two questions after that: closer, and
+   how big is it really. */
+.zg-export-prevfoot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.zg-export-zoom {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	margin-left: auto;
+}
+.zg-export-zoom .zg-export-mini { min-width: 28px; }
+/* Tabular figures and a fixed width, or the row shuffles sideways every time
+   the number goes from 90% to 100% — under the pointer, while the writer is
+   pressing the button that changes it. */
+.zg-export-zoompct {
+	min-width: 3.6em;
+	text-align: center;
+	font-size: var(--font-ui-smaller);
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+/* TOMBSTONE: the footer (`.zg-export-run`) was pinned last on screen and
+   out of the scrolling part, so that nothing a writer opened could push
+   the Export button off the bottom. Its whole contents are in the top bar
+   now — see the block further down — and the element is gone, so the
+   window has one horizontal rule fewer and the list has the row back. */
+
+/* The grips are gone: a row was always draggable in its entirety, so the
+   handle was a handle for something already grabbable — and it cost the
+   width the folder's indent line now uses. */
+.zg-export-grip { display: none; }
+
+/* ── Dragging by finger ─────────────────────────────────────────────────── */
+
+/* A row being dragged with a finger must not also be selected — a long
+   press is the platform's own gesture for "select this text", and without
+   this the row picks up a highlight halfway through the hold. */
+.zg-export-row, .zg-export-folder, .zg-menu-card {
+	-webkit-user-select: none;
+	user-select: none;
+	-webkit-touch-callout: none;
+}
+/* And the touch targets, where a finger is the pointer. Obsidian sets
+   `is-mobile` on the body, so this reaches phones and tablets alike
+   without a width query guessing at which is which. */
+body.is-mobile .zg-export-row { min-height: 34px; }
+body.is-mobile .zg-export-folder { min-height: 34px; }
+body.is-mobile .zg-export-opt { min-height: 36px; }
+body.is-mobile .zg-export-hit { padding: 8px; }
+
+/* ═════ Export: the right column, one thing under another ════════════════ */
+
+/* THE GRID WENT. Four toggles across a narrow column truncated every label
+   to "Title…", "Runni…", "Conte…" — a row of switches nobody can read is
+   worse than a taller column, and the column had room to be taller. One
+   per line, full labels, nothing cut. */
+.zg-export-opts {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+.zg-export-optname {
+	flex: 1 1 auto;
+	min-width: 0;
+	white-space: normal;
+	overflow: visible;
+	text-overflow: clip;
+}
+/* The text fields and the drop-downs share one label column, so their
+   controls line up down the right rather than each starting wherever its own
+   words ended.
+   WIDE ENOUGH FOR THE LONGEST LABEL, and it must never clip: a fixed 5.5em
+   turned "Where each file starts" into "Where ea…" on screen, which is a row
+   that has been renamed for clarity and then had the clarity cut off. The
+   labels are short again — "Each file", "Its heading" — and this is sized so
+   that they, and anything about their length, arrive whole. */
+.zg-export-textrow .zg-export-optname {
+	flex: 0 0 7em;
+	white-space: nowrap;
+	overflow: visible;
+	text-overflow: clip;
+}
+.zg-export-textrow .zg-export-text,
+.zg-export-textrow .zg-export-sel { flex: 1 1 auto; min-width: 0; }
+.zg-export-wideinput { width: 100%; }
+
+/* THE LEADER IS GONE FOR GOOD. It was cut for a short page number, and
+   beside "6,316 words" it ran a few pixels and stopped; it survived as a
+   hidden element and a bit of spacing, which is worse than either keeping
+   it or removing it. The word count right-aligns on its own. */
+.zg-export-leader { display: none; }
+.zg-export-page {
+	margin-left: auto;
+	padding-left: 12px;
+}
+
+/* A row you can pick up should say so under the pointer. `grab` while it
+   waits, `grabbing` while it is held — the two halves of one gesture, and
+   the second is what tells a writer the drag actually took. */
+.zg-export-row, .zg-export-folder { cursor: grab; }
+.zg-export-row:active, .zg-export-folder:active,
+.zg-export-row.is-dragging, .zg-export-folder.is-dragging { cursor: grabbing; }
+/* …except on the controls inside them, where the cursor should say what
+   the control does rather than what the row does. */
+.zg-export-row input, .zg-export-folder input { cursor: pointer; }
+
+/* Where it lands, beside what it will be. */
+.zg-export-into {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	flex: 0 1 22em;
+}
+.zg-export-into .zg-export-folderpick { flex: 1 1 auto; }
+
+/* ── The progress line ──────────────────────────────────────────────────── */
+
+/* Only while something is happening. A bar sitting at zero is a permanent
+   claim that work is pending, which is worse than no bar: the writer reads
+   it once, learns it means nothing, and stops seeing it. */
+.zg-export-prog {
+	position: relative;
+	flex: 1 1 auto;
+	min-width: 0;
+	height: 16px;
+	margin: 0 12px;
+	display: none;
+	align-items: center;
+}
+.zg-export-prog.is-on { display: flex; }
+.zg-export-progbar {
+	position: absolute;
+	left: 0; top: 6px;
+	height: 4px;
+	width: 0;
+	border-radius: 2px;
+	background: var(--interactive-accent);
+	transition: width 0.12s linear;
+}
+.zg-export-progtxt {
+	position: absolute;
+	right: 0; top: 0;
+	font-size: calc(var(--font-ui-smaller) * 0.92);
+	color: var(--text-muted);
+	font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+	.zg-export-progbar { transition: none; }
+}
+
+/* ═════ Export: the options in two columns, the list given the room ══════ */
+
+/* TWO COLUMNS ON THE RIGHT. One per line read cleanly and left the column
+   twice the height of the list beside it, which is the wrong way round: the
+   list is the thing being decided and the options are the settings for it.
+   Two columns halve the height and the labels still fit, because they are
+   short — the ones that are not (the text fields and the drop-downs) span
+   both and keep their own line. */
+.zg-export-right .zg-export-opts {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 2px 14px;
+	align-items: center;
+}
+.zg-export-right .zg-export-textrow { grid-column: 1 / -1; }
+/* A caption belongs to the row above it, so it spans the grid too — as a
+   half-width cell it would sit BESIDE the next switch and read as that
+   switch's label. */
+.zg-export-right .zg-export-opthint { grid-column: 1 / -1; }
+@media (max-width: 880px) {
+	.zg-export-right .zg-export-opts { grid-template-columns: 1fr; }
+}
+
+/* …and the list takes what that gives back. */
+.zg-export-modal { max-width: 980px; }
+.zg-export-left .zg-export-list { min-height: 42vh; max-height: 62vh; }
+.zg-export-right { max-height: 62vh; }
+
+/* THE TOP BAR: the whole act on one line — what is being made, where it
+   lands, look at it, make it. Preview and Export were in a footer at the
+   other end of the window, which put the two halves of one sentence
+   ("a Word file, into Drafts" / "do it") three hundred pixels apart with
+   the file list between them.
+   ORDERED rather than moved in the DOM: Preview is created before the
+   folder picker because it closes over the sections, and Export after it,
+   so `order` puts each where it belongs without unpicking that. */
+.zg-export-top {
+	order: 0;
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: 0 0 auto;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.zg-export-fmt     { order: 0; }
+.zg-export-into    { order: 1; }
+.zg-export-preview { order: 2; margin-left: auto; }
+.zg-export-go      { order: 3; }
+/* The folder picker takes the slack, so the two buttons sit hard right
+   however wide the window is. */
+.zg-export-top .zg-export-into { flex: 1 1 auto; }
+
+/* THE PROGRESS LINE RIDES THE BAR'S OWN BOTTOM RULE. In the footer it was
+   a flex child, so the row RESHUFFLED the moment an export started —
+   every control beside it moved while the writer was watching the one
+   thing that was supposed to be moving. Absolutely positioned along the
+   border it replaces, it cannot move anything at all. */
+.zg-export-prog {
+	position: absolute;
+	left: 0; right: 0; bottom: -1px;
+	margin: 0;
+	height: 14px;
+}
+.zg-export-progbar { top: auto; bottom: 0; }
+.zg-export-progtxt {
+	top: auto; bottom: 5px; right: 0;
+	background: var(--background-primary);
+	padding-left: 8px;
+}
+
+/* A WINDOW THAT DOES NOT CHANGE SHAPE. With no scope chosen the finder
+   shows its suggestions inline, and the modal grew to fit them — so the
+   window was one size while choosing and another while working, and
+   everything under the list moved as a writer typed. A fixed height keeps
+   the furniture still; the list inside it takes whatever is left. */
+.zg-export-modal .modal-content { height: 74vh; }
+.zg-export-body { height: 100%; max-height: none; }
+/* THE LIST GOES ALL THE WAY DOWN. Every earlier cap here was a fraction of
+   the VIEWPORT (52vh, 62vh) chosen while the window sized itself to its
+   contents; against a window that is now a fixed 74vh they are simply a
+   shorter box inside a taller one, which is the empty space under the last
+   chapter. The height comes from the row instead, and the caps are dropped
+   at both ends — `max-height: none` was already here and could not work on
+   its own while the column above it sized to content. */
+.zg-export-left { min-height: 0; }
+.zg-export-left .zg-export-list { flex: 1 1 auto; min-height: 0; max-height: none; }
+.zg-export-right { min-height: 0; max-height: none; overflow-y: auto; }
+.zg-export-find .zg-export-hits { max-height: 26vh; }

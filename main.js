@@ -1815,6 +1815,848 @@ function maskMarkup(text) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Export — a manuscript out of the vault
+// ─────────────────────────────────────────────────────────────────────────────
+
+// A .docx is a ZIP of small XML files, and Word accepts STORED (uncompressed)
+// entries — so the whole container is a few hundred lines with no dependency
+// and no build step, which is the only way it can also work on a phone.
+// Writing it by hand rather than pulling in a library is a deliberate trade:
+// the library is ~500KB on a main.js that is already 1.3MB, and every byte of
+// that ships to every writer whether they export or not.
+//
+// The CRC is the only fiddly part, and it is fiddly in a specific way: get it
+// wrong and Word does not say "bad checksum", it says the file is corrupt and
+// offers to recover it. So the table is standard and the probe checks a known
+// value rather than trusting it.
+const ZG_CRC_TABLE = (() => {
+	const t = new Int32Array(256);
+	for (let n = 0; n < 256; n++) {
+		let c = n;
+		for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+		t[n] = c;
+	}
+	return t;
+})();
+
+function zgCrc32(bytes) {
+	let c = 0 ^ (-1);
+	for (let i = 0; i < bytes.length; i++) {
+		c = (c >>> 8) ^ ZG_CRC_TABLE[(c ^ bytes[i]) & 0xFF];
+	}
+	return (c ^ (-1)) >>> 0;
+}
+
+// UTF-8 without TextEncoder, because this runs inside Obsidian on desktop and
+// mobile and the encoder is not worth assuming. Returns a plain array of byte
+// values, which is what the ZIP assembly below concatenates.
+function zgUtf8(str) {
+	const out = [];
+	for (let i = 0; i < str.length; i++) {
+		let c = str.charCodeAt(i);
+		// Surrogate pair → one code point, or the four-byte form below is
+		// built from half a character and the file is quietly malformed.
+		if (c >= 0xD800 && c <= 0xDBFF && i + 1 < str.length) {
+			const d = str.charCodeAt(i + 1);
+			if (d >= 0xDC00 && d <= 0xDFFF) { c = 0x10000 + ((c - 0xD800) << 10) + (d - 0xDC00); i++; }
+		}
+		if (c < 0x80) out.push(c);
+		else if (c < 0x800) out.push(0xC0 | (c >> 6), 0x80 | (c & 63));
+		else if (c < 0x10000) out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+		else out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+	}
+	return out;
+}
+
+// STORE-only ZIP. Entries are { name, bytes }; the result is a Uint8Array
+// ready for vault.createBinary.
+function zgZip(entries) {
+	const out = [];
+	const central = [];
+	const u16 = (v) => [v & 0xFF, (v >> 8) & 0xFF];
+	const u32 = (v) => [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >>> 24) & 0xFF];
+	let offset = 0;
+	for (const e of entries) {
+		const name = zgUtf8(e.name);
+		const data = e.bytes;
+		const crc  = zgCrc32(data);
+		// Local header. Version 20, no flags, method 0 (stored). The DOS
+		// date/time is left at zero: Word does not care, and a real clock
+		// here would make two exports of the same manuscript differ byte
+		// for byte, which makes the probe's job harder for no gain.
+		const local = [].concat(
+			u32(0x04034B50), u16(20), u16(0x0800), u16(0),
+			u16(0), u16(0), u32(crc), u32(data.length), u32(data.length),
+			u16(name.length), u16(0), name);
+		central.push([].concat(
+			u32(0x02014B50), u16(20), u16(20), u16(0x0800), u16(0),
+			u16(0), u16(0), u32(crc), u32(data.length), u32(data.length),
+			u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0),
+			u32(offset), name));
+		for (const b of local) out.push(b);
+		for (let i = 0; i < data.length; i++) out.push(data[i]);
+		offset += local.length + data.length;
+	}
+	const cdStart = offset;
+	let cdLen = 0;
+	for (const c of central) { for (const b of c) out.push(b); cdLen += c.length; }
+	const end = [].concat(u32(0x06054B50), u16(0), u16(0),
+		u16(central.length), u16(central.length), u32(cdLen), u32(cdStart), u16(0));
+	for (const b of end) out.push(b);
+	return new Uint8Array(out);
+}
+
+// XML text escaping. Ampersand first or the escapes escape each other.
+// One id per section, shared by every target so a link means the same thing
+// in the .docx, the PDF and the markdown. Word bookmark names are the strict
+// case — letters, digits and underscore, no leading digit, 40 characters —
+// so that is what everything uses rather than three near-identical schemes.
+// A MANUSCRIPT'S WORD COUNT IS ROUNDED, and saying "about 52,437 words"
+// is a small tell that a machine wrote the title page: nobody counts a
+// novel to the word, and the figure is there to tell an editor what shape
+// of book has arrived. The convention is a coarser round as the book gets
+// longer — a hundred for a short story, where five hundred either way is a
+// third of it; a thousand for a novel, where it is noise.
+function zgRoundWords(n) {
+	const w = Math.max(0, Math.round(Number(n) || 0));
+	if (w < 100) return w;                                    // too short to round
+	if (w < 1500) return Math.round(w / 100) * 100;
+	if (w < 10000) return Math.round(w / 500) * 500;
+	return Math.round(w / 1000) * 1000;
+}
+
+function zgAnchorId(title, i) {
+	const base = String(title || 'section').toLowerCase()
+		.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
+	return 'ws_' + (base || 'section') + '_' + (i + 1);
+}
+
+function zgXml(str) {
+	return String(str == null ? '' : str)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;');
+}
+
+// TOMBSTONE: RICH TEXT (.rtf). A third target, written for what it could
+// not go wrong at — plain text, so no container to malform, no relationship
+// to dangle and no part to leave out, which are the three ways a .docx
+// breaks — and for the submission portal that refuses .docx. It went for
+// what it could not DO: a 1987 container that carries no real links, no
+// styles anyone reads and nothing a browser will open, in a plugin whose
+// other two targets are the one every publisher asks for and the one the
+// writer already keeps. HTML replaced it: everything opens it, it prints
+// to a PDF from any browser, and it is the same document the preview
+// already draws, so it costs one function call rather than four hundred
+// lines of escaping.
+//
+// If it returns: `zgBuildRtf(sections, o)` built the whole file as one
+// string, and `zgRtfText` was the load-bearing half — RTF is 7-bit, so a
+// backslash, a brace or anything above 127 had to be escaped as \uN? with
+// an ASCII stand-in, and an unescaped brace does not make a wrong
+// character, it makes a file that will not open at all.
+
+// ── Paper ───────────────────────────────────────────────────────────────────
+//
+// One table, three consumers: the .docx section properties, the preview's
+// page CSS and the .html file that preview is made of. It was a BOOLEAN — `a4`, true or false — which
+// is a fine way to ask "which hemisphere" and no way at all to ask "what am
+// I making". A submission goes on Letter or A4; a proof of a novel goes on
+// the trim size it will be printed at, and 6 × 9 is not a variant of Letter.
+//
+// TWIPS ARE THE SOURCE, because two of the three consumers want them
+// (a twip is a twentieth of a point, 1440 to the inch) and the third can be
+// derived: inches for CSS come back out at two decimals, which is exactly
+// what the hand-written A4 numbers here used to say.
+//
+// THE MARGIN TRAVELS WITH THE PAPER. An inch on Letter is the manuscript
+// convention; an inch on a 5.5 × 8.5 digest page leaves a 3.5-inch measure
+// with a third of the sheet as white space, which does not read as a book —
+// it reads as a mistake. Small trims get three quarters of an inch, and the
+// mass-market page half an inch.
+const ZG_PAPERS = [
+	{ id: 'letter',    label: 'US Letter \u2014 8.5 \u00d7 11 in',        w: 12240, h: 15840, mar: 1440 },
+	{ id: 'a4',        label: 'A4 \u2014 210 \u00d7 297 mm',              w: 11906, h: 16838, mar: 1440 },
+	{ id: 'legal',     label: 'US Legal \u2014 8.5 \u00d7 14 in',         w: 12240, h: 20160, mar: 1440 },
+	{ id: 'executive', label: 'Executive \u2014 7.25 \u00d7 10.5 in',     w: 10440, h: 15120, mar: 1080 },
+	{ id: 'b5',        label: 'B5 \u2014 176 \u00d7 250 mm',              w:  9979, h: 14173, mar: 1080 },
+	{ id: 'a5',        label: 'A5 \u2014 148 \u00d7 210 mm',              w:  8391, h: 11906, mar: 1080 },
+	{ id: 'trade',     label: 'Trade paperback \u2014 6 \u00d7 9 in',     w:  8640, h: 12960, mar: 1080 },
+	{ id: 'digest',    label: 'Digest \u2014 5.5 \u00d7 8.5 in',          w:  7920, h: 12240, mar: 1080 },
+	{ id: 'pocket',    label: 'Mass market \u2014 4.25 \u00d7 6.87 in',   w:  6120, h:  9893, mar:  720 }
+];
+
+// The paper an options object means. Falls back through the boolean it
+// replaced, so a vault saved before this table opens on the paper it had
+// rather than on whatever happens to be first in the list — and an id from
+// a later version, or a typo, still gets a page rather than a crash.
+function zgPaperOf(o) {
+	const oo = o || {};
+	const id = oo.paperId || (oo.a4 ? 'a4' : 'letter');
+	for (const p of ZG_PAPERS) if (p.id === id) return p;
+	return ZG_PAPERS[0];
+}
+
+// Twips to CSS inches, two decimals: 11906 → "8.27in", which is what the
+// A4 rule in the preview said when it was written out by hand.
+function zgTwipIn(tw) {
+	return (Math.round((tw / 1440) * 100) / 100) + 'in';
+}
+
+// ── Line spacing ────────────────────────────────────────────────────────────
+//
+// Three answers where there was a boolean. Double is the submission
+// convention and stays the default; single is closer to a finished book;
+// one-and-a-half is what a reader who is not an editor actually prefers, and
+// it was the answer the boolean could not give. In twips: 240 is one line at
+// 12pt, and Word's `w:line` is a multiple of that.
+//
+// THE BOOLEAN STILL ANSWERS, for a vault saved before the three: only an
+// explicit `doubleSpaced: false` means single, because the key is absent in
+// a default document and absent must not mean single.
+function zgLineTwips(o) {
+	const oo = o || {};
+	if (oo.lineSpacing === 'single') return 240;
+	if (oo.lineSpacing === 'onehalf') return 360;
+	if (oo.lineSpacing === 'double') return 480;
+	return oo.doubleSpaced === false ? 240 : 480;
+}
+
+// ── The mark between things ─────────────────────────────────────────────────
+//
+// ONE MARK, for both places it can appear: between two files that run on
+// down the same page, and where a `***` line sits inside a file. They were
+// briefly two settings (`sceneMark` fell back to this one) on the reasoning
+// that a writer might want a different mark inside a chapter from the one
+// between chapters — which is true of about nobody, and cost a second text
+// box in a column already asking two questions in a row.
+function zgJoinMark(o) {
+	const oo = o || {};
+	return oo.divider == null ? '#' : oo.divider;
+}
+
+// TOMBSTONE: CHAPTER NUMBERS lived here — `zgChapterLabel(o, idx, title)`
+// with a forty-name lookup table, turning the ORDER into "Chapter One" or
+// "Chapter 1" and joining it to the title with an em dash. The clever part
+// was the comparison that kept `Ch 01` from printing as "Chapter One — Ch
+// 01": a file padded to sort is the commonest name there is, and matching it
+// meant stripping punctuation AND leading zeros before comparing. If it ever
+// comes back, that is the part to bring with it.
+//
+// It went because it was a third drop-down in a row that already asks where
+// a file starts and what heading it carries, for something a writer settles
+// once in the file names.
+//
+// (removed)
+
+function zgInlineRuns(text, opts) {
+	const o = opts || {};
+	let t = String(text == null ? '' : text);
+	// CURLY QUOTES AT COMPILE TIME, never in the writer's files. Which way
+	// a quote curls depends on what is beside it: an apostrophe inside a
+	// word is always a right single, an opening quote follows a space or a
+	// line start, and everything else closes. Done here rather than by the
+	// typography feature because that one edits the note and this must not.
+	if (o.smartQuotes) {
+		t = t.replace(/(\w)'(\w)/g, '$1\u2019$2')          // don't
+			.replace(/(^|[\s(\[{\u201c])'/g, '$1\u2018')    // opening single
+			.replace(/'/g, '\u2019')                        // the rest close
+			.replace(/(^|[\s(\[{\u2018])"/g, '$1\u201c')    // opening double
+			.replace(/"/g, '\u201d');
+	}
+	// Order matters: images before links, or the image's own ](…) is eaten.
+	t = t.replace(/!\[\[([^\]]*)\]\]/g, (m, p1) => o.dropImages ? '' : '[Image: ' + p1.split('|')[0] + ']');
+	t = t.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m, alt, src) =>
+		o.dropImages ? '' : '[Image: ' + (alt || src) + ']');
+	t = t.replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, '$2');   // wikilink, shown text
+	t = t.replace(/\[\[([^\]]*)\]\]/g, '$1');
+	t = t.replace(/\[([^\]]*)\]\(([^)]*)\)/g, '$1');       // md link, label
+	t = t.replace(/`([^`]*)`/g, '$1');                     // code text stays
+	t = t.replace(/<[^>]+>/g, '');                         // html tags
+	// COMMENTS, unless the writer asked for them. `%%like this%%` is a note
+	// to self, and the whole point of it is that it does not travel — but
+	// "does not travel" is a DEFAULT, not a law: a draft going to a reader
+	// with the queries in it ("check this date") is a real thing to want,
+	// and the alternative was deleting the marks by hand and putting them
+	// back. Kept WITH their marks: a comment printed as plain prose is
+	// indistinguishable from prose, which is the one way this could do harm.
+	if (!o.keepComments) t = t.replace(/%%[\s\S]*?%%/g, '');
+
+	// FOOTNOTE MARKERS, when the notes themselves are not travelling. The
+	// definitions are dropped where they are collected; leaving `[^3]`
+	// standing in the prose would point at a note that is no longer in the
+	// document, which is worse than either having them or not.
+	if (o.footnotes === false) t = t.replace(/\[\^[^\]]*\]/g, '');
+
+	// Split into runs on **, * and ==, keeping the text between. Underscores
+	// are deliberately NOT treated as emphasis: snake_case and file_names are
+	// far more common in a vault than _italics_, and turning half a filename
+	// italic is worse than missing an emphasis.
+	//
+	// `==` IS NEW, and fixes a leak rather than adding a flourish: highlight
+	// marks were matched by nothing here, so they travelled into the
+	// manuscript as literal equals signs — `==like this==` printed exactly
+	// like that in the .docx. They are consumed either way now; whether the
+	// highlight itself survives (yellow in Word, <mark> on the page) is the
+	// Highlights switch, and off is still the default because a highlight is
+	// usually a note to self about the prose rather than part of it.
+	const runs = [];
+	const re = /(\*\*\*|\*\*|\*|==)/g;
+	let bold = false, ital = false, high = false, last = 0, m;
+	const push = (text) => { if (text) runs.push({ text, bold, ital, high: high && !!o.highlights }); };
+	while ((m = re.exec(t)) !== null) {
+		if (m.index > last) push(t.slice(last, m.index));
+		if (m[1] === '***') { bold = !bold; ital = !ital; }
+		else if (m[1] === '**') bold = !bold;
+		else if (m[1] === '==') high = !high;
+		else ital = !ital;
+		last = re.lastIndex;
+	}
+	if (last < t.length) push(t.slice(last));
+	return runs.filter(r => r.text.length);
+}
+
+// One paragraph of OOXML. `style` names a style defined in styles.xml.
+function zgPara(runs, style, opts) {
+	const o = opts || {};
+	const pr = [];
+	if (style) pr.push('<w:pStyle w:val="' + style + '"/>');
+	if (o.pageBreakBefore) pr.push('<w:pageBreakBefore/>');
+	if (o.align) pr.push('<w:jc w:val="' + o.align + '"/>');
+	if (o.noIndent) pr.push('<w:ind w:firstLine="0"/>');
+	const body = (runs.length ? runs : [{ text: '' }]).map((r) => {
+		const rpr = [];
+		if (r.bold) rpr.push('<w:b/>');
+		if (r.ital) rpr.push('<w:i/>');
+		if (r.sup)  rpr.push('<w:vertAlign w:val="superscript"/>');
+		if (r.mono) rpr.push('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>');
+		// Word's own highlight, not a shaded background: it is what the
+		// yellow pen in Word's toolbar writes, so a reader can clear it
+		// with the same button rather than hunting through styles.
+		if (r.high) rpr.push('<w:highlight w:val="yellow"/>');
+		return '<w:r>' + (rpr.length ? '<w:rPr>' + rpr.join('') + '</w:rPr>' : '')
+			// xml:space, or Word eats the spaces at either end of a run and
+			// "**bold** word" comes out as "boldword".
+			+ '<w:t xml:space="preserve">' + zgXml(r.text) + '</w:t></w:r>';
+	}).join('');
+	return '<w:p>' + (pr.length ? '<w:pPr>' + pr.join('') + '</w:pPr>' : '') + body + '</w:p>';
+}
+
+// A table, plainly. Verbose but entirely static — no relationships, no binary
+// parts, nothing that can fall out of sync with another file in the package,
+// which is why this is cheap and images are not.
+function zgTable(rows) {
+	const width = Math.max.apply(null, rows.map(r => r.length));
+	const grid = '<w:tblGrid>' + new Array(width).fill('<w:gridCol w:w="' + Math.floor(9360 / width) + '"/>').join('') + '</w:tblGrid>';
+	const body = rows.map((cells, ri) => '<w:tr>' + new Array(width).fill(0).map((_, ci) => {
+		const runs = zgInlineRuns(cells[ci] == null ? '' : cells[ci]);
+		if (ri === 0) runs.forEach(r => { r.bold = true; });
+		return '<w:tc><w:tcPr><w:tcW w:w="' + Math.floor(9360 / width) + '" w:type="dxa"/></w:tcPr>'
+			+ zgPara(runs, 'WsTableCell') + '</w:tc>';
+	}).join('') + '</w:tr>').join('');
+	return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/>'
+		+ '<w:tblW w:w="0" w:type="auto"/>'
+		+ '<w:tblBorders>'
+		+ ['top','left','bottom','right','insideH','insideV']
+			.map(k => '<w:' + k + ' w:val="single" w:sz="4" w:color="auto"/>').join('')
+		+ '</w:tblBorders></w:tblPr>' + grid + body + '</w:tbl>';
+}
+
+// Block walk: markdown → an array of OOXML blocks. Footnotes are COLLECTED
+// rather than embedded — a real Word footnote needs its own part, a
+// content-type entry, a relationship and matching ids, and an id mismatch is
+// the kind of fault Word reports as "this file is corrupt" with no clue. What
+// a manuscript actually wants is endnotes, so the markers stay superscript in
+// the text and the definitions are gathered into a section at the end.
+function zgBlocksFromMarkdown(md, opts) {
+	const o = opts || {};
+	// LINE ENDINGS FIRST, once, for the whole document. A vault synced from
+	// Windows has CRLF in it, and splitting on \n alone leaves a carriage
+	// return at the end of every line — invisible in the editor, harmless
+	// in prose (the lines are trimmed), and NOT harmless inside a code
+	// fence, which is kept verbatim: the CR travelled into the .docx and
+	// Word drew it. Found by feeding the converter a Windows file rather
+	// than by reading it.
+	const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
+	const out = [];
+	const notes = [];
+	let i = 0;
+	let firstPara = true;
+
+	// FRONTMATTER, which does not travel unless it is asked for. It is the
+	// note's plumbing — status, tags, the day it was started — and a
+	// manuscript opening with a YAML block is nobody's manuscript. But a
+	// writer proofing what a note actually CONTAINS wants it, so it is a
+	// switch, off by default, and what it prints is the block verbatim in
+	// monospace: it is data, not prose, and setting it as prose would be a
+	// lie about what it is.
+	if (lines.length && /^---\s*$/.test(lines[0])) {
+		let j = 1;
+		while (j < lines.length && !/^---\s*$/.test(lines[j])) j++;
+		if (o.keepFrontmatter) {
+			for (let k = 0; k <= Math.min(j, lines.length - 1); k++) {
+				out.push(zgPara([{ text: lines[k], mono: true }], 'WsCode', { noIndent: true }));
+			}
+		}
+		i = j + 1;
+	}
+	for (; i < lines.length; i++) {
+		const line = lines[i];
+		const t = line.trim();
+		// A BLANK LINE IS NOT A PARAGRAPH, and it must not clear this flag.
+		// It did, and that is why every paragraph came out indented: a
+		// heading sets `firstPara`, markdown puts a blank line between the
+		// heading and the prose, and that blank line reset it before the
+		// paragraph could be drawn. What ends “this is the first paragraph
+		// of a scene” is a paragraph being WRITTEN, nothing else.
+		//
+		// The rule matters more than it looks: a manuscript indents every
+		// paragraph EXCEPT the first of a chapter or a scene, and getting it
+		// wrong is one of the few things an editor sees before reading a word.
+		if (!t) continue;
+
+		// A footnote definition: collected, not printed here.
+		const fn = t.match(/^\[\^([^\]]+)\]:\s*(.*)$/);
+		// Collected, not printed here — or dropped outright when the switch
+		// says the notes are not coming. Either way the definition line
+		// never appears in the prose where it was written.
+		if (fn) { if (o.footnotes !== false) notes.push({ id: fn[1], text: fn[2] }); continue; }
+
+		// A COMMENT BLOCK. zgInlineRuns handles `%%inline%%` because it can
+		// see both marks on one line; a block comment opens on its own line
+		// and closes lines later, so the stripper never matched it and the
+		// note LEAKED into the manuscript one line at a time. It is dropped
+		// here, or kept as a quote — set apart from the prose, since a
+		// comment that reads as prose is the one way this option could put
+		// a note to self into a submission unnoticed.
+		if (/^%%/.test(t)) {
+			const buf = [];
+			const oneLine = /^%%.*%%\s*$/.test(t);
+			if (oneLine) buf.push(t.replace(/^%%/, '').replace(/%%\s*$/, ''));
+			else {
+				buf.push(t.replace(/^%%/, ''));
+				for (i++; i < lines.length; i++) {
+					const ct = lines[i];
+					if (/%%\s*$/.test(ct.trim())) { buf.push(ct.replace(/%%\s*$/, '')); break; }
+					buf.push(ct);
+				}
+			}
+			if (o.keepComments) {
+				for (const b of buf) {
+					if (b.trim()) out.push(zgPara(zgInlineRuns(b.trim(), o), 'WsQuote', { noIndent: true }));
+				}
+				firstPara = true;
+			}
+			continue;
+		}
+
+		// Fenced code: kept as monospace lines. Novels rarely have any, and
+		// dropping a block a writer deliberately included is worse than
+		// carrying it plainly.
+		const fence = t.match(/^(`{3,}|~{3,})/);
+		if (fence) {
+			const ch = fence[1].charAt(0);
+			const buf = [];
+			for (i++; i < lines.length; i++) {
+				const ft = lines[i].trim();
+				if (ft.charAt(0) === ch && new RegExp('^' + ch + '{3,}').test(ft)) break;
+				buf.push(lines[i]);
+			}
+			for (const b of buf) out.push(zgPara([{ text: b, mono: true }], 'WsCode', { noIndent: true }));
+			continue;
+		}
+
+		// A table: header, separator, body.
+		if (/^\|/.test(t) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1].trim())) {
+			// A PIPE CAN BE IN A CELL, written `\\|` — which is how anyone
+			// writes a table containing a pipe, and splitting on every
+			// pipe turned one two-column row into three ragged ones with
+			// a stray backslash. Split on UNESCAPED pipes only, then
+			// unescape what is left.
+			const cellsOf = (row) => {
+				const t2 = row.trim().replace(/^\||\|$/g, '');
+				const out2 = [];
+				let cur = '';
+				for (let k = 0; k < t2.length; k++) {
+					const ch = t2.charAt(k);
+					if (ch === '\\' && t2.charAt(k + 1) === '|') { cur += '|'; k++; continue; }
+					if (ch === '|') { out2.push(cur.trim()); cur = ''; continue; }
+					cur += ch;
+				}
+				out2.push(cur.trim());
+				return out2;
+			};
+			const rows = [cellsOf(t)];
+			i += 2;
+			for (; i < lines.length && /^\|/.test(lines[i].trim()); i++) rows.push(cellsOf(lines[i]));
+			i--;
+			out.push(zgTable(rows));
+			firstPara = true;
+			continue;
+		}
+
+		// A scene divider. This is the one piece of markup a manuscript
+		// really depends on, so it is centred and spaced rather than drawn
+		// as a rule: agents expect a # on its own line between scenes.
+		if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+			out.push(zgPara([{ text: zgJoinMark(o) }], 'WsDivider',
+				{ align: 'center', noIndent: true }));
+			firstPara = true;
+			continue;
+		}
+
+		const head = t.match(/^(#{1,6})\s+(.*)$/);
+		if (head) {
+			// Dropped ENTIRELY when headings are off, rather than demoted to
+			// a paragraph: a writer whose chapter titles are the file names
+			// has "# Chapter One" in the note as a working label, and
+			// leaving it in the manuscript as prose is worse than either
+			// keeping it as a heading or losing it.
+			if (o.keepHeadings === false) { firstPara = true; continue; }
+			out.push(zgPara(zgInlineRuns(head[2], o), 'WsHeading' + head[1].length,
+				{ noIndent: true }));
+			firstPara = true;
+			continue;
+		}
+
+		const quote = t.match(/^>\s?(.*)$/);
+		if (quote) {
+			out.push(zgPara(zgInlineRuns(quote[1], o), 'WsQuote', { noIndent: true }));
+			continue;
+		}
+
+		// Lists: rendered as indented paragraphs carrying their own marker.
+		// Real Word numbering needs numbering.xml and a definition per list,
+		// which is a lot of machinery for something a manuscript rarely has
+		// and an editor will not miss.
+		const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+		if (li) {
+			const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, '    ').length / 2));
+			const mark = /^\d/.test(li[2]) ? li[2] + ' ' : '\u2022 ';
+			out.push(zgPara(zgInlineRuns(mark + li[3], o), 'WsList' + depth, { noIndent: true }));
+			continue;
+		}
+
+		// Ordinary prose. Manuscript format indents every paragraph EXCEPT
+		// the first of a scene — that is the convention, and getting it
+		// wrong is the tell that a manuscript was machine-made.
+		const runs = [];
+		for (const r of zgInlineRuns(t, o)) {
+			// Footnote markers survive as superscript numbers.
+			const parts = String(r.text).split(/\[\^([^\]]+)\]/);
+			for (let k = 0; k < parts.length; k++) {
+				if (!parts[k]) continue;
+				if (k % 2) runs.push({ text: parts[k], sup: true });
+				// EVERY flag the run arrived with, not two of them. This
+				// rebuilt the run to hang a superscript off it and copied
+				// `bold` and `ital` by hand — so a highlight, added later
+				// and one line further up, was silently dropped on any
+				// paragraph that went through here, which is all of them.
+				// A run's properties are its own; splitting it must not
+				// edit them.
+				else runs.push(Object.assign({}, r, { text: parts[k] }));
+			}
+		}
+		out.push(zgPara(runs, 'WsBody', { noIndent: firstPara === false ? false : true }));
+		firstPara = false;
+	}
+	return { blocks: out, notes };
+}
+
+// The styles part. Manuscript standard (Shunn) is the default because it is
+// what a novelist submitting work actually needs and the thing every other
+// tool makes you assemble by hand: 12pt serif, double spaced, half-inch first
+// line indent, ragged right.
+function zgStylesXml(opt) {
+	const o = opt || {};
+	const font = o.font || 'Times New Roman';
+	const half = Math.round((o.pt || 12) * 2);            // half-points
+	const line = zgLineTwips(o);                          // 240 = single
+	const ind  = o.indent === false ? 0 : 720;            // twips, half inch
+	// A PARAGRAPH NEEDS ONE BOUNDARY: an indent, or air. Turn the indent
+	// off with double spacing on — the pairing a manuscript uses — and
+	// there is nothing between one paragraph and the next at all, and the
+	// result reads as a broken file rather than as block-set prose. That
+	// is why the indent switch was removed once; the switch was never the
+	// problem, the missing second boundary was. Body prose only: a list or
+	// a table cell already has its own separation.
+	const gap  = o.indent === false ? 120 : 0;
+	// ── WIDOWS AND ORPHANS ──────────────────────────────────────────────
+	//
+	// An ORPHAN is the first line of a paragraph left alone at the foot of
+	// a page; a WIDOW is the last line carried over alone to the top of the
+	// next. Both read as a fault in the file rather than as typesetting —
+	// a page that opens with four words and half an inch of white is the
+	// first thing an agent sees, and it is the sort of thing that gets a
+	// manuscript put down. The fix is to make two lines travel together:
+	// if only one would fit, the whole paragraph goes over.
+	//
+	// SAID OUT LOUD, because Word's default lives in the APPLICATION and
+	// not in the file. A document that does not carry `w:widowControl` is
+	// trusting whatever opens it — usually on in Word, off in a few
+	// converters, and unknowable in whatever a publisher runs. The preview
+	// and the .html target have said `orphans: 2; widows: 2` since they
+	// were written; this is the one target that was silent, and it is the
+	// one an agent actually opens.
+	//
+	// NOT keepLines, which forces a whole paragraph onto one page: that is
+	// right for a heading and disastrous for prose, where a long paragraph
+	// would leave half a page blank rather than break at all.
+	//
+	// FIRST IN THE pPr, because OOXML's paragraph properties are a
+	// SEQUENCE, not a bag: widowControl belongs before spacing and
+	// indentation, and elements out of order are one of the faults Word
+	// reports as a corrupt document rather than as a style it ignored.
+	const widow = '<w:widowControl/>';
+	const st = (id, name, extra, rpr) =>
+		'<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/>'
+		+ '<w:pPr>' + extra + '</w:pPr>'
+		+ '<w:rPr>' + (rpr || '') + '</w:rPr></w:style>';
+	const spacing = '<w:spacing w:line="' + line + '" w:lineRule="auto" w:after="0"/>'
+		+ (o.justify ? '<w:jc w:val="both"/>' : '');
+	const bodySpacing = widow
+		+ '<w:spacing w:line="' + line + '" w:lineRule="auto" w:after="' + gap + '"/>'
+		+ (o.justify ? '<w:jc w:val="both"/>' : '');
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+		+ '<w:docDefaults><w:rPrDefault><w:rPr>'
+		+ '<w:rFonts w:ascii="' + zgXml(font) + '" w:hAnsi="' + zgXml(font) + '"/>'
+		+ '<w:sz w:val="' + half + '"/><w:szCs w:val="' + half + '"/>'
+		+ '</w:rPr></w:rPrDefault>'
+		// In the DEFAULTS as well as on the body style, so that every
+		// paragraph this writer emits — quotes, lists, the notes at the
+		// back — inherits it without each style having to remember.
+		+ '<w:pPrDefault><w:pPr>' + widow + spacing + '</w:pPr></w:pPrDefault></w:docDefaults>'
+		+ st('WsBody', 'Body', bodySpacing + '<w:ind w:firstLine="' + ind + '"/>')
+		+ st('WsDivider', 'Scene divider', spacing + '<w:jc w:val="center"/>')
+		+ st('WsQuote', 'Quote', spacing + '<w:ind w:left="720" w:right="720"/>', '<w:i/>')
+		+ st('WsCode', 'Code', '<w:spacing w:line="240" w:lineRule="auto" w:after="0"/><w:ind w:left="360"/>',
+			'<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>')
+		+ st('WsTableCell', 'Table cell', '<w:spacing w:line="240" w:lineRule="auto" w:after="0"/>')
+		+ st('WsList0', 'List', spacing + '<w:ind w:left="360"/>')
+		+ st('WsList1', 'List 2', spacing + '<w:ind w:left="720"/>')
+		+ st('WsList2', 'List 3', spacing + '<w:ind w:left="1080"/>')
+		+ st('WsList3', 'List 4', spacing + '<w:ind w:left="1440"/>')
+		+ st('WsTitle', 'Title', spacing + '<w:jc w:val="center"/>', '<w:b/>')
+		// OUTLINE LEVELS, or Word's own table of contents cannot see these
+		// headings at all. A TOC field collects by outline level, not by
+		// style name — a custom style without one is invisible to it, and
+		// the field comes back "no table of contents entries found",
+		// which reads as a broken document rather than a missing setting.
+		+ [1,2,3,4,5,6].map(n => st('WsHeading' + n, 'heading ' + n,
+			spacing + '<w:keepNext/><w:outlineLvl w:val="' + (n - 1) + '"/>'
+			+ '<w:jc w:val="' + (n <= 2 ? 'center' : 'left') + '"/>'
+			+ '<w:spacing w:before="240" w:line="' + line + '" w:lineRule="auto"/>',
+			'<w:b/><w:sz w:val="' + (half + (n <= 2 ? 4 : 2)) + '"/>')).join('')
+		+ '</w:styles>';
+}
+
+// The running header: Surname / Title / page, which is what an agent's
+// guidelines ask for. It is its own part with its own relationship — the one
+// place this writer has to keep two files agreeing, so the id is a constant
+// rather than a generated value.
+function zgHeaderXml(text, withPage) {
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+		+ '<w:p><w:pPr><w:jc w:val="right"/><w:ind w:firstLine="0"/></w:pPr>'
+		+ '<w:r><w:t xml:space="preserve">' + zgXml(text) + ' </w:t></w:r>'
+		// The page number is a FIELD, not a number: Word recomputes it per
+		// page, and writing a literal would put "1" on every page of the
+		// manuscript.
+		+ (withPage === false ? ''
+			: '<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>')
+		+ '</w:p></w:hdr>';
+}
+
+// Assemble the whole package. `sections` is [{ title, markdown }].
+function zgBuildDocx(sections, opt) {
+	const o = opt || {};
+	const body = [];
+	const allNotes = [];
+
+	if (o.titlePage) {
+		const t = o.title || 'Untitled';
+		for (let i = 0; i < 8; i++) body.push(zgPara([], 'WsBody'));
+		body.push(zgPara([{ text: t, bold: true }], 'WsTitle', { noIndent: true, align: 'center' }));
+		if (o.author) body.push(zgPara([{ text: 'by ' + o.author }], 'WsTitle', { noIndent: true, align: 'center' }));
+		if (o.wordCount != null && o.wordCountOnTitle !== false) {
+			body.push(zgPara([], 'WsBody'));
+			body.push(zgPara([{ text: 'about ' + zgRoundWords(o.wordCount).toLocaleString() + ' words' }],
+				'WsTitle', { noIndent: true, align: 'center' }));
+		}
+		// The first real section starts a page, not a paragraph.
+		if (sections.length) sections = sections.slice();
+	}
+
+	// THE CONTENTS, with links. Internal hyperlinks need no relationship —
+	// `w:anchor` points at a bookmark inside the same document — which is
+	// why this costs a few lines rather than another part in the package.
+	// Deliberately not Word's own TOC field: that renders as "right-click
+	// to update" until the reader does, and a manuscript arriving with an
+	// instruction where its contents should be is worse than no contents.
+	// WORD'S OWN TABLE OF CONTENTS, not a list of links. The list was
+	// honest and could not do the one thing a contents page is for on
+	// paper: PAGE NUMBERS. A field knows them, and recomputes them when
+	// the manuscript changes rather than lying after the first edit.
+	//
+	// The old objection — that a field renders as "right-click to update"
+	// until a reader refreshes it — is answered by settings.xml below,
+	// which asks Word to update fields on open. The placeholder text
+	// inside the field is what shows if a reader declines, so it says
+	// something useful rather than nothing.
+	if (o.toc && sections.length > 1) {
+		body.push(zgPara([{ text: 'Contents', bold: true }], 'WsHeading2',
+			{ noIndent: true, pageBreakBefore: !!o.titlePage }));
+		body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:ind w:firstLine="0"/></w:pPr>'
+			+ '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
+			// \o "1-2" collects the two levels this writer produces, \h
+			// makes the entries links, \z hides the page numbers in web
+			// layout, \u uses the outline levels declared above.
+			+ '<w:r><w:instrText xml:space="preserve"> TOC \\o "1-2" \\h \\z \\u </w:instrText></w:r>'
+			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
+			+ '<w:r><w:t xml:space="preserve">Right-click here and choose '
+			+ 'Update Field to build the contents.</w:t></w:r>'
+			+ '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>');
+	}
+
+	sections.forEach((sec, idx) => {
+		const first = idx === 0 && !o.titlePage;
+		// A DIVIDER BETWEEN FILES, for scenes that run on rather than each
+		// starting a page. Deliberately independent of the page break: a
+		// manuscript that breaks pages between chapters still wants a
+		// divider between the scenes INSIDE one, and a writer who has each
+		// scene in its own file wants exactly this and no page breaks at
+		// all. Both on is legal and simply means both.
+		if (o.starBetween && idx > 0) {
+			body.push(zgPara([{ text: zgJoinMark(o) }], 'WsDivider',
+				{ align: 'center', noIndent: true }));
+		}
+		if (o.sectionTitles && sec.title) {
+			// The bookmark wraps the heading, so a link lands on the title
+			// rather than a line above it. Word requires the id twice —
+			// start carries the name, end only the number — and a mismatch
+			// there is one of the faults it reports as a corrupt file.
+			if (o.toc) {
+				const id = zgAnchorId(sec.title, idx);
+				body.push('<w:bookmarkStart w:id="' + (idx + 100) + '" w:name="' + id + '"/>');
+			}
+			// THE HEADING DOES NOT DECIDE THE PAGE. `pageBreakBefore: !first`
+			// broke a page before every heading whatever the join answer
+			// said — so "Each file: follows a divider" put a divider at the
+			// top of a fresh page, and "runs straight on" ran straight on to
+			// page two. The bug hid because the two commonest settings are
+			// page breaks ON (where it is right) and headings OFF (where it
+			// never runs), and it needed both of the other answers at once
+			// to show.
+			body.push(zgPara([{ text: sec.title, bold: true }], 'WsHeading2',
+				{ noIndent: true, pageBreakBefore: o.pageBreaks !== false && !first }));
+			if (o.toc) body.push('<w:bookmarkEnd w:id="' + (idx + 100) + '"/>');
+		} else if (o.toc) {
+			// No heading to hang it on, so the bookmark sits on an empty
+			// paragraph at the section's start — a link that lands in the
+			// right place beats a contents entry that does nothing.
+			const id = zgAnchorId(sec.title, idx);
+			body.push('<w:bookmarkStart w:id="' + (idx + 100) + '" w:name="' + id + '"/>'
+				+ '<w:bookmarkEnd w:id="' + (idx + 100) + '"/>');
+			if (o.pageBreaks && !first) body.push(zgPara([], 'WsBody', { pageBreakBefore: true }));
+		} else if (o.pageBreaks && !first) {
+			body.push(zgPara([], 'WsBody', { pageBreakBefore: true }));
+		} else if (o.titlePage && idx === 0) {
+			body.push(zgPara([], 'WsBody', { pageBreakBefore: true }));
+		}
+		const built = zgBlocksFromMarkdown(sec.markdown, o);
+		for (const b of built.blocks) body.push(b);
+		for (const n of built.notes) allNotes.push(n);
+	});
+
+	if (allNotes.length) {
+		body.push(zgPara([{ text: 'Notes', bold: true }], 'WsHeading2',
+			{ noIndent: true, pageBreakBefore: true }));
+		for (const n of allNotes) {
+			body.push(zgPara([{ text: n.id + '. ', bold: true }].concat(zgInlineRuns(n.text, o)),
+				'WsBody', { noIndent: true }));
+		}
+	}
+
+	// THE TITLE PAGE CARRIES NO HEADER. A manuscript's running head starts
+	// on the first page of TEXT — "Surname / Title / 1" printed across the
+	// title page is one of the tells that a document was generated rather
+	// than set. `w:titlePg` says "this section's first page is different",
+	// and the first-page header it then looks for is deliberately empty.
+	const wantFirst = o.runningHeader && o.titlePage;
+	const paper = zgPaperOf(o);
+	const wantToc = !!(o.toc && sections.length > 1);
+	const headerRef = o.runningHeader
+		? '<w:headerReference w:type="default" r:id="rId3"/>'
+			+ (wantFirst ? '<w:headerReference w:type="first" r:id="rId4"/><w:titlePg/>' : '')
+		: '';
+	const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+		+ ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+		+ '<w:body>' + body.join('')
+		// The paper, its margins and the manuscript default — Letter with
+		// an inch all round — all come out of ZG_PAPERS now, because a
+		// book's trim size is a page and not a variant of Letter.
+		+ '<w:sectPr>' + headerRef
+		+ '<w:pgSz w:w="' + paper.w + '" w:h="' + paper.h + '"/>'
+		+ '<w:pgMar w:top="' + paper.mar + '" w:right="' + paper.mar + '"'
+		+ ' w:bottom="' + paper.mar + '" w:left="' + paper.mar + '"'
+		+ ' w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>'
+		+ '</w:body></w:document>';
+
+	const types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+		+ '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+		+ '<Default Extension="xml" ContentType="application/xml"/>'
+		+ '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+		+ '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+		+ (o.runningHeader ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
+		+ (wantFirst ? '<Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
+		+ (wantToc ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' : '')
+		+ '</Types>';
+
+	const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+		+ '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'
+		+ '</Relationships>';
+
+	const docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+		+ '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+		+ (o.runningHeader ? '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '')
+		+ (wantFirst ? '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>' : '')
+		+ (wantToc ? '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' : '')
+		+ '</Relationships>';
+
+	// The part that turns "right-click to update" into a contents page a
+	// reader never has to think about. Only shipped when there IS a field
+	// to update: a document with nothing dirty in it should not ask.
+	const settingsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+		+ '<w:updateFields w:val="true"/></w:settings>';
+
+	const entries = [
+		{ name: '[Content_Types].xml', bytes: zgUtf8(types) },
+		{ name: '_rels/.rels',         bytes: zgUtf8(rootRels) },
+		{ name: 'word/document.xml',   bytes: zgUtf8(doc) },
+		{ name: 'word/_rels/document.xml.rels', bytes: zgUtf8(docRels) },
+		{ name: 'word/styles.xml',     bytes: zgUtf8(zgStylesXml(o)) }
+	];
+	if (wantToc) entries.push({ name: 'word/settings.xml', bytes: zgUtf8(settingsXml) });
+	if (o.runningHeader) {
+		entries.push({ name: 'word/header1.xml',
+			bytes: zgUtf8(zgHeaderXml(o.runningHeader, o.pageNumbers !== false)) });
+	}
+	if (wantFirst) {
+		// An EMPTY header, not a missing one: Word needs the part the
+		// reference names, and a reference pointing at nothing is the kind
+		// of fault it reports as a corrupt file rather than as a missing
+		// header.
+		entries.push({ name: 'word/header2.xml', bytes: zgUtf8(zgHeaderXml('', false)) });
+	}
+	return zgZip(entries);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Default settings
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -2425,7 +3267,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 156;
+const ZG_STYLESHEET_VERSION = 175;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -2435,7 +3277,7 @@ const ZG_STYLESHEET_VERSION = 156;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.7';
+const ZG_PLUGIN_VERSION = '1.3.8';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -2453,6 +3295,14 @@ const HISTORY_MAX_UNSAVED_MS = 120000;
 // Everything between these markers in the ledger note belongs to the plugin
 // and is rewritten wholesale. Everything outside them belongs to the user and
 // is never touched.
+// The export list's markers, the same idea as the history's: the file is
+// found by these rather than by its path, so a writer can move or rename it.
+const GOALS_MARK_START  = '<!-- wordsmith:goals:start -->';
+const GOALS_MARK_END    = '<!-- wordsmith:goals:end -->';
+
+const EXPORT_MARK_START = '<!-- wordsmith:export:start -->';
+const EXPORT_MARK_END   = '<!-- wordsmith:export:end -->';
+
 const HISTORY_MARK_START  = '<!-- wordsmith:history:start -->';
 const HISTORY_MARK_END    = '<!-- wordsmith:history:end -->';
 // One pixel block, in chart viewBox units. Every bar height, every line and
@@ -3174,6 +4024,9 @@ const DEFAULT_SETTINGS = {
 	// line weight across all three, so they never disagree about how they look.
 	goalTarget:               200,       // legacy vault-wide goal; kept so old data loads
 	goalBaseline:             0,          // words already written when it was last rebased
+	goalsFile:                true,       // keep the targets in ws-goals.md too
+	goalsPath:                'Word-Smith/ws-goals.md',
+	exportListPath:           'Word-Smith/ws-export.md',
 	fileGoals:                {},         // note path   -> word target
 	folderGoals:              {},         // folder path -> word target
 	goalLabelMode:            'fraction',  // 'percent' inside | 'fraction' beside | 'none'
@@ -3264,6 +4117,16 @@ const DEFAULT_SETTINGS = {
 	// second set of numbers beside the first.
 	paragraphNumbers:         false,
 	markSpaces:               false,
+	// MARKERS HAVE THEIR OWN MASTER, and this is a bug fix rather than
+	// tidying. They used to live under Text Options and be gated by
+	// `miscEnabled` — so ticking "Tabs" in the bar's picker set
+	// `miscEnabled = true` to make the marker appear, and that same switch
+	// owns `limitLineLength`. A writer who had once set a narrow measure
+	// and switched the tab off got their column silently narrowed by
+	// clicking a whitespace marker, with nothing in the Markers section to
+	// connect the two. Reported from the field as "all my text is
+	// formatted to extremely narrow columns that I cannot reverse".
+	markersEnabled:           false,
 	markTabs:                 false,
 	markParagraphs:           false,
 	markEndOfLines:           false,
@@ -3428,7 +4291,14 @@ const DEFAULT_SETTINGS = {
 	// looked for. Not a lock: the plugin finds the file by its marker anywhere
 	// in the vault, so moving or renaming it is expected rather than tolerated,
 	// and this key follows the file when it moves.
-	historyFilePath:          'history.md',
+	// ONE FOLDER, NOT THREE FILES IN THE ROOT. New vaults get
+	// `Word-Smith/`; an existing store is left exactly where it is (see
+	// storeResolve) because moving a writer's file without asking is worse
+	// than an untidy root. Not a DOT folder, deliberately: Obsidian does
+	// not index those, so the files would stop being notes — unfindable by
+	// the marker search, unopenable in the app, and un-editable by hand,
+	// which is the property all three of these stores are built on.
+	historyFilePath:          'Word-Smith/ws-history.md',
 	// Whether the store also records WHICH notes each day's words happened in.
 	// On, because without it the finder in the history window has nothing to
 	// find. It is the one thing in the record that is not purely a number, and
@@ -3967,6 +4837,11 @@ module.exports = class WordSmith extends Plugin {
 		// needing the writer to open it again.
 		if (this.settings.menuDock) this.registerMenuPanel();
 		this.addCommand({
+			id: 'open-export',
+			name: 'Export a manuscript\u2026',
+			callback: () => this.openExportModal()
+		});
+		this.addCommand({
 			id: 'open-menu-panel',
 			name: 'Open the Word-Smith panel',
 			callback: async () => {
@@ -4470,6 +5345,9 @@ module.exports = class WordSmith extends Plugin {
 			// Folders fire this too, so a folder rename carries the goals of
 			// everything inside it.
 			if (this.renameGoalPaths(oldPath, file.path)) this.saveSettings(true);
+			// …and the export list, which is keyed by path twice over: the
+			// rows inside a section, and the section's own scope.
+			this.exportRenameStore(oldPath, file.path);
 		}));
 		this.registerEvent(this.app.vault.on('delete', (file) => {
 			if (this.wordCountCache) this.wordCountCache.delete(file.path);
@@ -4543,6 +5421,20 @@ module.exports = class WordSmith extends Plugin {
 			if (this.settings.menuDock && !this.menuPanelLeaves().length) {
 				this.openMenuPanel(false);
 			}
+			// MARKERS MOVED OUT OF TEXT OPTIONS, so a vault that had them on
+			// under the old arrangement keeps them on under the new one.
+			// Without this the fix would read to an existing writer as "the
+			// update turned my markers off" — a worse bug than the one it
+			// fixes.
+			if (this.settings.markersEnabled !== true
+				&& this.settings.showHiddenMarkers && this.settings.miscEnabled) {
+				this.settings.markersEnabled = true;
+				this.saveSettings();
+			}
+			// The goals file, read after the vault is up — it cannot be
+			// read in onload, where getAbstractFileByPath answers for a
+			// vault Obsidian has not finished indexing.
+			this.goalsFileLoad().then(() => this.refresh()).catch(() => {});
 			// Only worth asking when the panel is on: a writer who never
 			// docks it has no stake in whether the tree's classes moved,
 			// and a notice they cannot act on is noise.
@@ -5734,6 +6626,11 @@ module.exports = class WordSmith extends Plugin {
 	// master switch).
 	async saveSettings(applyImmediately = false) {
 		await this.saveData(this.settings);
+		// The goals file follows the settings, and follows them from ONE
+		// place: goals are set from the gauge, from three settings rows and
+		// from a rename, and hooking each of those would be four chances to
+		// miss one. It writes only when the targets have actually changed.
+		this.goalsFileSync();
 		if (applyImmediately) {
 			if (this._refreshTimer) { window.clearTimeout(this._refreshTimer); this._refreshTimer = null; }
 			this.refresh();
@@ -7493,21 +8390,14 @@ module.exports = class WordSmith extends Plugin {
 		if (this.styleEl) { this.styleEl.remove(); this.styleEl = null; }
 	}
 
-	// Releases the measured bar geometry. Inline left/width outlive the
-	// stylesheet, so a disabled plugin would otherwise leave the bar pinned
-	// to a rectangle that no longer describes anything.
-	clearBarBounds() {
-		this._barBoundsL = this._barBoundsW = null;
-		const el = this.retroStatusBarEl;
-		if (!el || !el.style || typeof el.style.removeProperty !== 'function') return;
-		el.style.removeProperty('left');
-		el.style.removeProperty('width');
-		const pl = this.retroPlinthEl;
-		if (pl && pl.style && typeof pl.style.removeProperty === 'function') {
-			pl.style.removeProperty('left');
-			pl.style.removeProperty('width');
-		}
-	}
+	// TOMBSTONE: a SECOND `clearBarBounds` stood here — same name, same
+	// class, an older and shorter version of the one further down. A class
+	// body takes the LAST definition, so this one had never run since the
+	// day the second was written: it did not clear `right`, did not guard on
+	// `_barBoundsCleared`, and did not schedule a fit, and anybody reading
+	// this file top to bottom would have believed all three. The live one is
+	// beside stampBarBounds, which is the only place that writes what it
+	// clears.
 
 	// ─────────────────────────────────────────────────────────────────────────
 	// Paragraph tagger (double-enter indent)
@@ -8914,6 +9804,13 @@ module.exports = class WordSmith extends Plugin {
 		return this.settings[key];
 	}
 
+	// The markers' own gate. Separate from textOpt on purpose: a switch
+	// that turns on a marker must not be able to turn on a line-length cap.
+	markerOpt(key, whenOff) {
+		if (!this.settings.markersEnabled) return whenOff;
+		return this.settings[key];
+	}
+
 	isRightToLeft() {
 		try {
 			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -9033,6 +9930,20 @@ module.exports = class WordSmith extends Plugin {
 	// history, the folder totals behind a goal, and the badges in the file
 	// explorer. Scope first, because "ignore this note entirely" outranks
 	// "count it or not".
+	// The plugin's own three notes. Compared by path AND by the configured
+	// address, so a file a writer has moved is still recognised — the
+	// stores are found by their markers, not their names, and the resolver
+	// answers where each one actually lives.
+	isStoreFile(path) {
+		if (!path) return false;
+		try {
+			if (path === this._historyPath) return true;
+			if (path === this.exportStorePath()) return true;
+			if (path === this.goalsFilePath()) return true;
+		} catch (_) {}
+		return false;
+	}
+
 	isFileCounted(file) {
 		if (!file || !file.path) return false;
 		// The history store is a note in the vault, and the History tab tells
@@ -9041,6 +9952,14 @@ module.exports = class WordSmith extends Plugin {
 		// a day while it does so. It is already excluded from the history
 		// itself by path; this is the same exclusion for every other total.
 		if (this._historyPath && file.path === this._historyPath) return false;
+		// …AND THE OTHER TWO STORES, for the same reason and a worse one.
+		// The export list is rewritten every time a box is ticked and the
+		// goals file every time a target changes — so ticking a scene in
+		// the Export window counted as WRITING: it moved the day's word
+		// count, repainted the bar, and glitched the whole interface while
+		// a writer was choosing files. A record of the writing should not
+		// record itself being kept.
+		if (this.isStoreFile(file.path)) return false;
 		if (!this.isFileInScope(file)) return false;
 		return !this.isPathExcludedFromCounts(file.path);
 	}
@@ -9140,6 +10059,124 @@ module.exports = class WordSmith extends Plugin {
 	// underneath. Both maps are rewritten on rename, and a FOLDER rename has
 	// to rewrite the file goals nested inside it as well as its own entry,
 	// which is why this walks prefixes rather than looking for an exact key.
+	// ── Goals, in a file the writer owns ────────────────────────────────────
+	//
+	// The targets themselves lived only in data.json, which is the one
+	// store in this plugin a writer cannot read, cannot edit, and loses on
+	// a reinstall — for a number they chose deliberately ("this book is
+	// 90,000 words") that is the wrong place. `ws-goals.md` is the same
+	// arrangement as the history and the export list: markers, plain
+	// lines, found anywhere in the vault.
+	//
+	// data.json stays the working copy — everything reads `this.settings`
+	// as before, so nothing downstream changes — and the file is the
+	// DURABLE one: written when a target changes, and read back at startup
+	// where it wins, because it is the copy a writer can have edited.
+	goalsFilePath() {
+		return this.storeResolve(this.settings.goalsPath, 'ws-goals.md');
+	}
+
+	goalsFileCompose() {
+		const out = [];
+		out.push('Word-Smith\u2019s writing goals. Edit the numbers freely \u2014 they are read');
+		out.push('back when Obsidian starts, and rewritten when you change a goal in the');
+		out.push('app. Everything between the markers is rewritten; keep your own notes');
+		out.push('outside them.');
+		out.push('');
+		const section = (title, map) => {
+			const keys = Object.keys(map || {}).sort();
+			if (!keys.length) return;
+			out.push('### ' + title);
+			out.push('');
+			for (const k of keys) {
+				const v = parseInt(map[k], 10);
+				if (!v) continue;
+				out.push('- ' + k + ' \u2014 ' + v);
+			}
+			out.push('');
+		};
+		section('Notes', this.settings.fileGoals);
+		section('Folders', this.settings.folderGoals);
+		return GOALS_MARK_START + '\n' + out.join('\n') + '\n' + GOALS_MARK_END + '\n';
+	}
+
+	goalsFileParse(text) {
+		const res = { fileGoals: {}, folderGoals: {} };
+		const body = String(text || '');
+		const a = body.indexOf(GOALS_MARK_START);
+		const b = body.indexOf(GOALS_MARK_END);
+		if (a === -1 || b === -1 || b < a) return null;
+		let into = null;
+		for (const line of body.slice(a + GOALS_MARK_START.length, b).split('\n')) {
+			const h = line.match(/^###\s+(.*)$/);
+			if (h) {
+				const name = h[1].trim().toLowerCase();
+				into = name === 'folders' ? 'folderGoals' : (name === 'notes' ? 'fileGoals' : null);
+				continue;
+			}
+			// An em dash by default, but a hyphen or a colon is what a
+			// person types — the file invites editing, so it has to accept
+			// what an editor actually produces.
+			const r = line.match(/^\s*-\s*(.+?)\s*[\u2014\u2013:-]\s*([\d,\s]+)$/);
+			if (r && into) {
+				const n = parseInt(String(r[2]).replace(/[,\s]/g, ''), 10);
+				if (n > 0) res[into][r[1]] = n;
+			}
+		}
+		return res;
+	}
+
+	// Written only when the numbers differ from what is already there —
+	// saveSettings runs on nearly every interaction in the plugin, and a
+	// file modify on each of them would be noise in the vault and in sync.
+	goalsFileSync() {
+		if (this.settings.goalsFile === false) return;
+		let sig = '';
+		try { sig = JSON.stringify([this.settings.fileGoals, this.settings.folderGoals]); }
+		catch (_) { return; }
+		if (sig === this._goalsSig) return;
+		this._goalsSig = sig;
+		// Nothing to say and nothing said before: do not create a file of
+		// empty sections in a vault that has never set a goal.
+		if (sig === '[{},{}]' && !this._goalsWritten) return;
+		this._goalsWritten = true;
+		if (this._goalsTimer) window.clearTimeout(this._goalsTimer);
+		this._goalsTimer = window.setTimeout(async () => {
+			const path = this.goalsFilePath();
+			const text = this.goalsFileCompose();
+			try {
+				const f = this.app.vault.getAbstractFileByPath(path);
+				if (f && !f.children) await this.app.vault.modify(f, text);
+				else { await this.storeEnsureFolder(path); await this.app.vault.create(path, text); }
+			} catch (e) { console.error('Word-Smith: could not save the goals file', e); }
+		}, 600);
+	}
+
+	// At startup the FILE wins, because it is the copy a writer can have
+	// edited between sessions — and because a goal they typed into a note
+	// is a goal they meant. Only when it actually parses: a half-deleted
+	// marker should leave the working copy alone rather than wipe it.
+	async goalsFileLoad() {
+		if (this.settings.goalsFile === false) return;
+		try {
+			const f = this.app.vault.getAbstractFileByPath(this.goalsFilePath());
+			if (!f || f.children) {
+				// No file yet: seed it from whatever data.json already has,
+				// so an upgrading vault gets its goals into the open rather
+				// than only new ones.
+				this._goalsSig = null;
+				this.goalsFileSync();
+				return;
+			}
+			const parsed = this.goalsFileParse(await this.app.vault.read(f));
+			if (!parsed) return;
+			this.settings.fileGoals = parsed.fileGoals;
+			this.settings.folderGoals = parsed.folderGoals;
+			this._goalsSig = JSON.stringify([parsed.fileGoals, parsed.folderGoals]);
+			this._goalsWritten = true;
+		} catch (_) {}
+	}
+
 	renameGoalPaths(oldPath, newPath) {
 		if (!oldPath || !newPath || oldPath === newPath) return false;
 		let changed = false;
@@ -9316,6 +10353,593 @@ module.exports = class WordSmith extends Plugin {
 			pages:      base.words ? Math.max(1, Math.round(base.words / 250)) : 0,
 			grade:      fkGrade(base.words, sentences, syllables)
 		};
+	}
+
+	// ── Export ──────────────────────────────────────────────────────────────
+
+	// Everything in scope, in the order it will be compiled. A folder is
+	// walked depth-first so the structure a writer built is the structure
+	// they get; a single note is a one-item list.
+	//
+	// NATURAL sort, not alphabetical, and this is not a nicety: plain
+	// sorting puts "Ch 10" before "Ch 2", which silently reorders a novel.
+	// It is the first thing that would be reported and the last thing
+	// anyone would suspect, because the file list LOOKS right in the
+	// explorer, which sorts the same wrong way.
+	// Every folder and markdown note in the vault, fuzzy-matched — the same
+	// scorer the report and the history use, so the three finders behave
+	// identically. It cannot reuse `historyKnownPaths` though, and the
+	// difference matters: that lists only paths the HISTORY has seen, and a
+	// writer exporting a book they have not written in since installing the
+	// plugin would find nothing at all.
+	exportKnownPaths() {
+		const files = [], folders = [];
+		const walk = (f) => {
+			for (const k of (f.children || [])) {
+				if (k.children) { folders.push(k.path); walk(k); }
+				else if (k.extension === 'md') files.push(k.path);
+			}
+		};
+		try { walk(this.app.vault.getRoot()); } catch (_) {}
+		return { files, folders };
+	}
+
+	// What to offer before anything is typed: the folder of the note in
+	// hand and its parents, then the folders holding the most notes. A
+	// picker that shows nothing until it is typed at makes the writer
+	// guess what it will accept.
+	exportNearbyScopes(limit) {
+		const out = [];
+		const seen = new Set();
+		const add = (p2) => {
+			if (!p2 || seen.has(p2)) return;
+			seen.add(p2);
+			out.push({ path: p2, kind: 'folder', score: 0 });
+		};
+		try {
+			let up = this.app.workspace.getActiveFile();
+			up = up && up.parent ? up.parent : null;
+			while (up && up.path && up.path !== '/') { add(up.path); up = up.parent; }
+		} catch (_) {}
+		const known = this.exportKnownPaths();
+		const count = {};
+		for (const p2 of known.files) {
+			const cut = p2.lastIndexOf('/');
+			if (cut > 0) count[p2.slice(0, cut)] = (count[p2.slice(0, cut)] || 0) + 1;
+		}
+		Object.keys(count).sort((a, b) => count[b] - count[a]).forEach(add);
+		return out.slice(0, limit || 8);
+	}
+
+	exportFinderMatches(query, limit) {
+		const known = this.exportKnownPaths();
+		// Folders score above files: exporting a folder is the common case,
+		// and a folder named like its first scene should not be buried
+		// under it.
+		const tag = (list, kind) => this.historyFuzzy(query, list)
+			.map(m => ({ path: m.path, score: m.score + (kind === 'folder' ? 1.5 : 0), kind }));
+		const all = tag(known.folders, 'folder').concat(tag(known.files, 'file'));
+		all.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
+		return all.slice(0, limit || 8);
+	}
+
+	exportGather(scopePath) {
+		const vault = this.app.vault;
+		const out = [];
+		const at = vault.getAbstractFileByPath(scopePath || '');
+		const isMd = (f) => f && f.extension === 'md';
+		if (!at) return out;
+		if (isMd(at)) { out.push(at); return out; }
+		const walk = (folder) => {
+			const kids = (folder.children || []).slice();
+			kids.sort((a, b) => {
+				// Folders after files at the same level: a chapter's own
+				// notes come before its sub-scenes, which is the order a
+				// reader of the tree expects.
+				const af = !!(a.children), bf = !!(b.children);
+				if (af !== bf) return af ? 1 : -1;
+				return this.exportNatural(a.name, b.name);
+			});
+			for (const k of kids) {
+				if (k.children) walk(k);
+				else if (isMd(k)) out.push(k);
+			}
+		};
+		if (at.children) walk(at);
+		return out;
+	}
+
+	// "Ch 2" before "Ch 10". Digit runs compare as numbers, everything else
+	// as lower-cased text.
+	exportNatural(a, b) {
+		const re = /(\d+)|(\D+)/g;
+		const ax = String(a).toLowerCase().match(re) || [];
+		const bx = String(b).toLowerCase().match(re) || [];
+		for (let i = 0; i < Math.min(ax.length, bx.length); i++) {
+			const an = parseInt(ax[i], 10), bn = parseInt(bx[i], 10);
+			if (!isNaN(an) && !isNaN(bn)) { if (an !== bn) return an - bn; }
+			else if (ax[i] !== bx[i]) return ax[i] < bx[i] ? -1 : 1;
+		}
+		return ax.length - bx.length;
+	}
+
+	// ── The export list, kept in a file the writer owns ─────────────────────
+	//
+	// Which scenes are in, and in what order, is worth more than the export
+	// itself: reordering ninety of them and losing it when the window shuts
+	// is worse than never having had the drag. It goes in a plain markdown
+	// file with markers, exactly like `ws-history.md` and for the same
+	// reasons — a writer can read it, edit it, move it, and keep it after
+	// this plugin is gone. Settings JSON would be none of those things.
+	// WHERE A STORE LIVES, and the migration in one place. The configured
+	// path is what a NEW file is made at; an existing one keeps its home.
+	// An upgrading vault has `ws-goals.md` in the root, and the default
+	// moving to `Word-Smith/` must not orphan it — that would look exactly
+	// like the plugin having forgotten every goal.
+	storeResolve(configured, legacy) {
+		const want = String(configured || legacy).replace(/^\/+/, '');
+		try {
+			const at = this.app.vault.getAbstractFileByPath(want);
+			if (at && !at.children) return want;
+			// Nothing at the new address: if the old one is there, it is
+			// the writer's file and it stays where they have it.
+			const old = this.app.vault.getAbstractFileByPath(legacy);
+			if (old && !old.children) return legacy;
+		} catch (_) {}
+		return want;
+	}
+
+	// Makes the folder a store is about to be written into. Silent when it
+	// is already there, and silent when the path has no folder at all.
+	async storeEnsureFolder(path) {
+		const cut = String(path || '').lastIndexOf('/');
+		if (cut <= 0) return;
+		const folder = path.slice(0, cut);
+		try {
+			const at = this.app.vault.getAbstractFileByPath(folder);
+			if (at && at.children) return;
+			await this.app.vault.createFolder(folder);
+		} catch (_) { /* already there, or a note by that name: the write reports */ }
+	}
+
+	exportStorePath() {
+		return this.storeResolve(this.settings.exportListPath, 'ws-export.md');
+	}
+
+	exportStoreCompose(scopes) {
+		const out = [];
+		out.push('This file is Word-Smith\u2019s export list \u2014 which files go into a');
+		out.push('manuscript, and in what order. Tick and untick freely, or reorder the');
+		out.push('lines; the Export window reads it back. Everything between the markers');
+		out.push('is rewritten, so keep your own notes outside them.');
+		out.push('');
+		for (const scope of Object.keys(scopes).sort()) {
+			const rows = scopes[scope];
+			if (!rows || !rows.length) continue;
+			out.push('### ' + scope);
+			out.push('');
+			for (const r of rows) {
+				out.push('- [' + (r.on ? 'x' : ' ') + '] ' + r.path);
+			}
+			out.push('');
+		}
+		return EXPORT_MARK_START + '\n' + out.join('\n') + '\n' + EXPORT_MARK_END + '\n';
+	}
+
+	exportStoreParse(text) {
+		const scopes = {};
+		const body = String(text || '');
+		const a = body.indexOf(EXPORT_MARK_START);
+		const b = body.indexOf(EXPORT_MARK_END);
+		if (a === -1 || b === -1 || b < a) return scopes;
+		let scope = null;
+		for (const line of body.slice(a + EXPORT_MARK_START.length, b).split('\n')) {
+			const h = line.match(/^###\s+(.*)$/);
+			if (h) { scope = h[1].trim(); scopes[scope] = scopes[scope] || []; continue; }
+			const r = line.match(/^\s*-\s*\[([ xX])\]\s*(.+?)\s*$/);
+			if (r && scope != null) scopes[scope].push({ path: r[2], on: r[1] !== ' ' });
+		}
+		return scopes;
+	}
+
+	async exportStoreRead() {
+		// Cached for the life of the window: the file is read when the
+		// modal opens and written when something changes, not on every
+		// keystroke.
+		if (this._exportStore) return this._exportStore;
+		let text = '';
+		try {
+			const f = this.app.vault.getAbstractFileByPath(this.exportStorePath());
+			if (f && !f.children) text = await this.app.vault.read(f);
+		} catch (_) {}
+		this._exportStore = this.exportStoreParse(text);
+		return this._exportStore;
+	}
+
+	async exportStoreWrite(scope, rows) {
+		const all = await this.exportStoreRead();
+		all[scope] = rows;
+		const path = this.exportStorePath();
+		const text = this.exportStoreCompose(all);
+		try {
+			const f = this.app.vault.getAbstractFileByPath(path);
+			if (f && !f.children) await this.app.vault.modify(f, text);
+			else { await this.storeEnsureFolder(path); await this.app.vault.create(path, text); }
+		} catch (e) { console.error('Word-Smith: could not save the export list', e); }
+	}
+
+	// THE LIST FOLLOWS A RENAME, like the history and the goals before it.
+	// Without this, renaming a folder silently threw away both halves of
+	// what the writer had set: every remembered path stopped matching, so
+	// the reconciliation dropped the lot and re-gathered the folder — the
+	// deliberate order gone, every excluded scene ticked again. Silently
+	// is the operative word: nothing fails, the export just quietly
+	// contains the wrong scenes in the wrong order.
+	//
+	// Both keys move. A SECTION is keyed by the scope, so renaming the
+	// exported folder has to rename the section too, and the rows inside
+	// it are keyed by path. A folder rename fires once for the folder, so
+	// this walks prefixes rather than looking for exact keys — the same
+	// shape as renameGoalPaths, and for the same reason.
+	exportRenamePath(oldPath, newPath) {
+		if (!oldPath || !newPath || oldPath === newPath) return false;
+		const store = this._exportStore;
+		if (!store) return false;
+		const moved = (p2) => (p2 === oldPath ? newPath
+			: (p2.startsWith(oldPath + '/') ? newPath + p2.slice(oldPath.length) : null));
+		let changed = false;
+		for (const scope of Object.keys(store)) {
+			const rows = store[scope] || [];
+			for (const r of rows) {
+				const next = moved(r.path);
+				if (next) { r.path = next; changed = true; }
+			}
+			const nextScope = moved(scope);
+			if (nextScope && nextScope !== scope) {
+				// If a list already exists at the destination it wins: the
+				// writer set that one deliberately and more recently.
+				if (!Object.prototype.hasOwnProperty.call(store, nextScope)) {
+					store[nextScope] = rows;
+				}
+				delete store[scope];
+				changed = true;
+			}
+		}
+		return changed;
+	}
+
+	// Apply a remembered list to what is on disk NOW. Both halves matter:
+	// a file added to the folder since last time must appear (at the end,
+	// where a new scene usually belongs), and a file deleted since must not
+	// linger as a row pointing at nothing.
+	exportApplyRemembered(files, remembered) {
+		const have = new Map(files.map(f => [f.path, f]));
+		const order = [];
+		const chosen = new Set();
+		for (const r of (remembered || [])) {
+			if (!have.has(r.path)) continue;
+			order.push(r.path);
+			if (r.on) chosen.add(r.path);
+		}
+		for (const f of files) {
+			if (order.indexOf(f.path) !== -1) continue;
+			order.push(f.path);
+			// New since last time: IN by default. A scene written today and
+			// silently left out of tonight's export is the worse mistake.
+			chosen.add(f.path);
+		}
+		return { order, chosen };
+	}
+
+	// Reads the store if it has not been read yet, moves the paths, and
+	// writes it back. Async and fire-and-forget: a rename must not wait on
+	// a file write, and if the store has never been opened there is
+	// nothing on disk to correct anyway.
+	async exportRenameStore(oldPath, newPath) {
+		try {
+			await this.exportStoreRead();
+			if (!this.exportRenamePath(oldPath, newPath)) return;
+			const path = this.exportStorePath();
+			const text = this.exportStoreCompose(this._exportStore);
+			const f = this.app.vault.getAbstractFileByPath(path);
+			if (f && !f.children) await this.app.vault.modify(f, text);
+		} catch (e) { console.error('Word-Smith: could not follow a rename in the export list', e); }
+	}
+
+	// Move one row to another's place, keeping everything else in order.
+	// Split out of the drag handler so the ORDER can be tested without a
+	// pointer: dragging is untestable in a headless probe, and the thing
+	// worth testing is not the drag, it is that a novel comes out in the
+	// order the writer left it in.
+	// ── Dragging, on a screen with no mouse ─────────────────────────────────
+	//
+	// HTML5 drag-and-drop DOES NOT EXIST ON TOUCH. `dragstart` and its
+	// family are never fired by a finger, so every reorderable list in this
+	// plugin — the export tree, the menu's rows, the theme shelf — looked
+	// draggable on a tablet and moved for nobody. Obsidian runs on iPads
+	// and Android tablets, which is exactly the machine somebody curates a
+	// manuscript on, so this is a missing feature rather than a small one.
+	//
+	// One helper for all three, because three hand-rolled touch handlers
+	// is three chances to get the scroll interaction wrong. It is
+	// deliberately NOT a drag library: press, hold briefly, move, drop.
+	//
+	//   el        the row being made draggable
+	//   id        what to hand back on a drop
+	//   opts.rows () => every draggable element, to hit-test against
+	//   opts.idOf (element) => its id
+	//   opts.drop (fromId, toId, after) => do the move and redraw
+	//
+	// THE HOLD IS THE WHOLE DESIGN. A list that scrolls and a list whose
+	// rows drag are the same pixels, and the only thing that can tell a
+	// scroll from a drag is intent expressed in TIME: move within 400ms and
+	// the list scrolls as it always did; hold still first and the row comes
+	// with you. Under the threshold nothing is preventDefault'd, so a
+	// flick scrolls exactly as it would if this code were not here.
+	touchDrag(el, id, opts) {
+		const HOLD = 400;          // ms before a press becomes a drag
+		const SLOP = 10;           // px of movement that cancels the hold
+		let timer = null, dragging = false, startY = 0, startX = 0;
+
+		const marks = () => {
+			for (const r of opts.rows()) {
+				r.removeClass('is-over-top');
+				r.removeClass('is-over-bottom');
+			}
+		};
+		const stop = () => {
+			if (timer) { window.clearTimeout(timer); timer = null; }
+			if (dragging) el.removeClass('is-dragging');
+			dragging = false;
+			marks();
+		};
+		const under = (y) => {
+			for (const r of opts.rows()) {
+				const b = r.getBoundingClientRect();
+				if (y >= b.top && y <= b.bottom) return { row: r, below: (y - b.top) > b.height / 2 };
+			}
+			return null;
+		};
+
+		el.addEventListener('touchstart', (ev) => {
+			if (!ev.touches || ev.touches.length !== 1) return;
+			startY = ev.touches[0].clientY;
+			startX = ev.touches[0].clientX;
+			timer = window.setTimeout(() => {
+				dragging = true;
+				el.addClass('is-dragging');
+				// A short buzz where the platform has one: the hold is
+				// invisible otherwise, and a writer holding a row with
+				// nothing happening lets go at 300ms every time.
+				try { if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(15); } catch (_) {}
+			}, HOLD);
+		}, { passive: true });
+
+		el.addEventListener('touchmove', (ev) => {
+			if (!ev.touches || !ev.touches.length) return;
+			const y = ev.touches[0].clientY;
+			if (!dragging) {
+				// Moved before the hold finished: this is a scroll, and
+				// the timer must not fire underneath it.
+				if (Math.abs(y - startY) > SLOP || Math.abs(ev.touches[0].clientX - startX) > SLOP) stop();
+				return;
+			}
+			// Now it is a drag, so the list must NOT scroll under it.
+			ev.preventDefault();
+			marks();
+			const hit = under(y);
+			if (hit && hit.row !== el) hit.row.addClass(hit.below ? 'is-over-bottom' : 'is-over-top');
+		}, { passive: false });
+
+		el.addEventListener('touchend', (ev) => {
+			if (!dragging) { stop(); return; }
+			const t = (ev.changedTouches && ev.changedTouches[0]) || null;
+			const hit = t ? under(t.clientY) : null;
+			stop();
+			if (!hit || hit.row === el) return;
+			const to = opts.idOf(hit.row);
+			if (to == null || to === id) return;
+			opts.drop(id, to, hit.below);
+		});
+		el.addEventListener('touchcancel', stop);
+	}
+
+	exportMove(list, fromPath, toPath, after) {
+		const from = list.indexOf(fromPath);
+		if (from === -1 || fromPath === toPath) return list;
+		const out = list.slice();
+		out.splice(from, 1);
+		let to = out.indexOf(toPath);
+		if (to === -1) return list;
+		out.splice(after ? to + 1 : to, 0, fromPath);
+		return out;
+	}
+
+	// Move a whole folder's run of files to another folder's place. Its own
+	// function beside exportMove for the same reason: dragging cannot be
+	// tested headlessly, and what matters is that a chapter arrives whole
+	// and in its own order — the way a block move goes wrong is by
+	// scattering, dropping or duplicating the files it carries.
+	exportMoveFolder(list, fromFolder, toFolder, after, folderOf) {
+		if (fromFolder == null || toFolder == null || fromFolder === toFolder) return list;
+		const block = list.filter(p2 => folderOf(p2) === fromFolder);
+		if (!block.length) return list;
+		const rest = list.filter(p2 => folderOf(p2) !== fromFolder);
+		// The target's own run, in what is LEFT — computing the insertion
+		// point against the original list would be off by the block just
+		// removed whenever the folder moves downward.
+		let at = -1;
+		for (let i = 0; i < rest.length; i++) {
+			if (folderOf(rest[i]) !== toFolder) continue;
+			if (at === -1) at = i;
+			if (after) at = i + 1;
+		}
+		if (at === -1) return list;
+		return rest.slice(0, at).concat(block, rest.slice(at));
+	}
+
+	// The folder each row belongs to, for the headings in the list. A row
+	// whose parent differs from the row above opens a new group — which
+	// means a file dragged out of its chapter takes a heading with it and
+	// the writer can SEE that it has moved, rather than finding out from
+	// the compiled manuscript.
+	exportFolderOf(path) {
+		const cut = String(path || '').lastIndexOf('/');
+		return cut === -1 ? '' : path.slice(0, cut);
+	}
+
+	// EVERY folder between the scope and the file, outermost first. The list
+	// used to show ONE heading per file — its immediate parent — which is
+	// the whole truth for `Book/Ch 01.md` and a lie for
+	// `Book/Part One/Ch 03.md`: two parts with a "Ch 03" in each drew two
+	// headings called the same thing, one after another, with no way to see
+	// which was which or to fold either away.
+	//
+	// STARTS AT THE SCOPE, not at the vault root. A writer exporting
+	// `Novels/Book Two/Manuscript` does not need three headings restating
+	// where they already told the window to look; the chain begins where
+	// their attention does.
+	//
+	// A file at the vault root gets `['']`, which is the empty-string folder
+	// the list has always drawn as "Vault root" — the one path through here
+	// that must not return an empty chain, or such a file would be drawn
+	// with no heading at all and could not be folded.
+	exportFolderChain(path, scope) {
+		const dir = this.exportFolderOf(path);
+		if (!dir) return [''];
+		const segs = dir.split('/');
+		const base = String(scope || '');
+		const inScope = !!base && (dir === base || dir.indexOf(base + '/') === 0);
+		const startAt = inScope ? base.split('/').length - 1 : 0;
+		const out = [];
+		for (let i = startAt; i < segs.length; i++) out.push(segs.slice(0, i + 1).join('/'));
+		return out;
+	}
+
+	// Is this file anywhere INSIDE that folder — not merely directly in it?
+	// A parent's tick, its total and its drag all cover everything beneath
+	// it, which is what a folder means once folders can nest.
+	exportInFolder(path, folder) {
+		if (folder === '' || folder == null) return this.exportFolderOf(path) === '';
+		return String(path || '').indexOf(folder + '/') === 0;
+	}
+
+	// A file name that will not collide and will not surprise: the scope's
+	// own name, the date, and the right extension.
+	// The folder the file lands in, made if it is not there. A writer who
+	// exports a book six times in an afternoon gets six files, and six
+	// files loose in the vault root is how a vault stops being tidy — but
+	// a chosen folder that does not exist should be created rather than
+	// reported, because the writer has already said what they want.
+	async exportEnsureFolder(folder) {
+		const f = String(folder || '').replace(/^\/+|\/+$/g, '');
+		if (!f) return '';
+		try {
+			const at = this.app.vault.getAbstractFileByPath(f);
+			if (at && at.children) return f;
+			if (at) return '';           // a NOTE by that name: use the root
+			await this.app.vault.createFolder(f);
+			return f;
+		} catch (_) {
+			// Already there, or not creatable. Either way the write below
+			// will tell the writer more usefully than a guess here.
+			const at2 = this.app.vault.getAbstractFileByPath(f);
+			return at2 && at2.children ? f : '';
+		}
+	}
+
+	exportFileName(scopePath, ext) {
+		const base = String(scopePath || 'export').split('/').pop().replace(/\.md$/, '') || 'export';
+		const d = new Date();
+		const p2 = (n) => String(n).padStart(2, '0');
+		// dd-mm-yyyy and the time, by request. The clock matters more than
+		// it looks: a writer exports the same manuscript three times in an
+		// afternoon, and with only a date the second export collides with
+		// the first — `vault.create` throws on an existing path, so the
+		// export failed rather than making a second file. Minutes are
+		// enough to tell those apart and short enough to read.
+		// TIME FIRST, then the date: exports of one book cluster in a
+		// folder, and what tells two of them apart is nearly always the
+		// hour — sorting by name then puts this afternoon's attempts in
+		// the order they were made rather than scattered by day.
+		return base.replace(/[\\/:*?"<>|]/g, '-') + ' '
+			+ p2(d.getHours()) + '-' + p2(d.getMinutes()) + ' '
+			+ p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear()
+			+ '.' + ext;
+	}
+
+	// Read every chosen file and hand back the sections the builders take.
+	// `onStep` is called with (done, total) as each file is read. Worth the
+	// parameter: a novel is three hundred files and JavaScript is
+	// single-threaded, so without a yield between them the window freezes
+	// for the whole compile and the writer's only evidence that anything is
+	// happening is that nothing is.
+	async exportSections(files, opts, onStep) {
+		const secs = [];
+		let n = 0;
+		for (const f of files) {
+			let text = '';
+			try { text = await this.app.vault.read(f); } catch (_) { continue; }
+			secs.push({ title: f.basename, markdown: text, path: f.path });
+			n++;
+			if (onStep && (n % 5 === 0 || n === files.length)) {
+				onStep(n, files.length);
+				// A REAL yield, not a microtask: awaiting an already
+				// resolved promise never lets the frame paint, so the bar
+				// would fill in one jump at the end — a bar that lies
+				// about the one thing it exists to say.
+				await new Promise((r) => window.setTimeout(r, 0));
+			}
+		}
+		return secs;
+	}
+
+	// The Markdown target. Built first and kept, because it proves the join
+	// — the order, the dividers, the section titles — with nothing binary in
+	// the way, and because a writer who wants their own pipeline wants this
+	// file rather than a .docx.
+	exportToMarkdown(sections, o) {
+		const parts = [];
+		if (o.titlePage) {
+			parts.push('# ' + (o.title || 'Untitled'));
+			if (o.author) parts.push('*by ' + o.author + '*');
+			if (o.wordCount != null) {
+				parts.push('*about ' + zgRoundWords(o.wordCount).toLocaleString() + ' words*');
+			}
+			parts.push('');
+		}
+		if (o.toc && sections.length > 1) {
+			parts.push('## Contents\n');
+			// Markdown's own heading anchors: lower case, spaces to
+			// hyphens. They work in Obsidian and on GitHub, which is where
+			// a compiled .md actually gets read.
+			sections.forEach((sec) => {
+				const t = sec.title || 'Section';
+				parts.push('- [' + t + '](#' + String(t).toLowerCase()
+					.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + ')');
+			});
+			parts.push('');
+		}
+		sections.forEach((sec, i) => {
+			if (o.sectionTitles && sec.title) parts.push('## ' + sec.title + '\n');
+			// Frontmatter travels only if the writer asked for it — see the
+			// note in zgBlocksFromMarkdown.
+			let md = String(sec.markdown || '');
+			if (!o.keepFrontmatter && /^---\s*\n/.test(md)) {
+				md = md.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+			}
+			if (!o.keepComments) md = md.replace(/%%[\s\S]*?%%/g, '');
+			parts.push(md.trim());
+			// Only when asked for. This used to divide EVERY pair of files
+			// unconditionally, which put a divider where a writer had asked
+			// for a page break and nothing else — the markdown target
+			// should compile what the options say, or it stops being a
+			// preview of the others.
+			if (o.starBetween && i < sections.length - 1) {
+				parts.push('\n' + (o.divider == null ? '#' : o.divider) + '\n');
+			}
+		});
+		return parts.join('\n') + '\n';
 	}
 
 	countWords(text) {
@@ -14495,10 +16119,14 @@ module.exports = class WordSmith extends Plugin {
 	// ── Finding the file ────────────────────────────────────────────────────
 
 	historyDefaultPath() {
-		let p = String(this.settings.historyFilePath || 'history.md').trim();
+		let p = String(this.settings.historyFilePath || 'Word-Smith/ws-history.md').trim();
 		p = p.replace(/^\/+/, '');
 		if (!/\.md$/i.test(p)) p += '.md';
-		return p;
+		// The history already finds itself anywhere in the vault by its
+		// markers, so this is only where a NEW one is made — but an
+		// upgrading vault whose file sits at the old default should not
+		// have a second one made beside it before that search runs.
+		return this.storeResolve(p, 'history.md');
 	}
 
 	// What the settings pane shows, and null before anything has been found.
@@ -15469,6 +17097,2113 @@ module.exports = class WordSmith extends Plugin {
 		const last = keys[keys.length - 1];
 		return { year: +last.slice(0, 4), month: +last.slice(5, 7) - 1 };
 	}
+
+	// ── The Export window ───────────────────────────────────────────────────
+	//
+	// Its own modal rather than a settings pane, because it is a working
+	// surface: a scope to choose, a list to curate, a button that does
+	// something. The settings tab keeps one button that opens this.
+	openExportModal(scopeHint) {
+		if (!Modal) return;
+		const plugin = this;
+		const modal = new Modal(this.app);
+		modal.titleEl.setText('Export');
+		modal.modalEl.addClass('zg-export-modal');
+		const body = modal.contentEl.createDiv({ cls: 'zg-export-body' });
+
+		// Options live in settings so a writer sets up their manuscript
+		// once; the CHOICE of files does not, because it belongs to the
+		// export in front of them.
+		const o = this.settings.exportOpts || (this.settings.exportOpts = {});
+		const dflt = (k, v) => { if (o[k] === undefined) o[k] = v; };
+		// MANUSCRIPT IS THE DEFAULT, rather than a preset to choose. These
+		// are the values the "Manuscript" button used to write, which is
+		// what nearly every writer wanted from it.
+		dflt('format', 'docx');   dflt('titlePage', true);
+		dflt('sectionTitles', false); dflt('pageBreaks', true);
+		dflt('runningHeaderOn', true); dflt('author', '');
+		dflt('divider', '#');     dflt('a4', false);
+		dflt('starBetween', true);
+		// …and these two are pinned, because the convention decides them
+		// and a switch nobody moves is a switch that only takes up room.
+		o.wordCountOnTitle = true;
+		o.pageNumbers = true;
+		// IMAGES: dropped by default and no longer PINNED. A manuscript
+		// does not carry pictures, embedding one needs the binary part and
+		// the EMU sizing this writer does not do, and a placeholder in the
+		// middle of prose is a line an agent reads — all still true, which
+		// is why the answer is still no by default. But a writer proofing
+		// an illustrated piece needs to see where the pictures fall, and
+		// `dropImages` is written from the switch rather than nailed shut.
+		// It is stored the way the switch reads — "include" — because a
+		// toggle labelled with a negative is a toggle people get backwards.
+		dflt('keepImages', false);
+		o.dropImages = !o.keepImages;
+		dflt('keepFrontmatter', false);
+		dflt('keepComments', false);
+		// The two merged controls read from the booleans they write, so a
+		// vault that predates them opens on whatever it already had.
+		if (!o.joinMode) o.joinMode = o.pageBreaks ? 'page' : (o.starBetween ? 'divider' : 'run');
+		if (!o.chapterTitles) {
+			o.chapterTitles = o.sectionTitles ? 'file' : (o.keepHeadings === false ? 'none' : 'note');
+		}
+		// …AND THEN WRITTEN BACK FROM IT, on the way in. Reading was only
+		// half the job: the drop-downs write the booleans when they CHANGE,
+		// so a vault could hold joinMode 'page' beside a stale
+		// starBetween: true — one saying "start a new page" and the other
+		// still saying "put a mark between them". The window drew a
+		// Divider box for a divider nothing would draw, and the compile
+		// took the booleans. One answer decides both, from the moment the
+		// window opens.
+		o.pageBreaks  = o.joinMode === 'page';
+		o.starBetween = o.joinMode === 'divider';
+		o.sectionTitles = o.chapterTitles === 'file';
+		o.keepHeadings  = o.chapterTitles === 'note';
+		dflt('font', 'Times New Roman'); dflt('pt', 12);
+		dflt('justify', false);   dflt('keepHeadings', true);
+		dflt('smartQuotes', false); dflt('wordCountOnTitle', true);
+		dflt('pageNumbers', true);
+		dflt('outFolder', '');  dflt('toc', false);  dflt('lastScope', '');
+		dflt('titleText', '');
+		dflt('doubleSpaced', true); dflt('indent', true);
+		// SPACING, from the boolean it replaced — and written back to it on
+		// the way in, for the same reason the join and heading answers are:
+		// two keys saying the same thing must not be able to disagree.
+		if (!o.lineSpacing) o.lineSpacing = o.doubleSpaced === false ? 'single' : 'double';
+		o.doubleSpaced = o.lineSpacing !== 'single';
+		// The size is stored as a number and a <select> hands back a
+		// string, so it is coerced here as well as at the control: a vault
+		// that has been through one is read by builders that multiply it.
+		o.pt = parseInt(o.pt, 10) || 12;
+		// Footnotes were unconditional, so absent means on.
+		dflt('footnotes', true);
+		dflt('highlights', false);
+		// Which tab the column opens on, remembered: a writer setting up a
+		// proof is in Typesetting for six exports in a row.
+		if (o.optTab !== 'type') o.optTab = 'structure';
+		// PAPER, from the boolean it replaced: a vault saved before the
+		// table opens on the paper it already had rather than on Letter.
+		if (!o.paperId) o.paperId = o.a4 ? 'a4' : 'letter';
+
+		// THE LAST SCOPE, remembered. The options were already saved and
+		// the ticks and order live in ws-export.md — but the window still
+		// opened on whatever folder the active note happened to be in, so
+		// a writer exporting the same book every evening re-chose it every
+		// evening. It is only a default: it stands aside for an explicit
+		// hint, and for a scope that has since been deleted or renamed
+		// away, where the note in hand is the better guess.
+		let scope = scopeHint || '';
+		if (!scope && o.lastScope) {
+			try {
+				const at = this.app.vault.getAbstractFileByPath(o.lastScope);
+				if (at) scope = o.lastScope;
+			} catch (_) {}
+		}
+		if (!scope) scope = this.exportDefaultScope();
+		let files = [], chosen = new Set();
+
+		const head = body.createDiv({ cls: 'zg-export-head' });
+		// THE SAME FINDER THE REPORT AND THE HISTORY USE. A path typed by
+		// hand has to be typed exactly, and a writer who mistypes one
+		// character gets "nothing to export here" with no clue which
+		// character — so this is fuzzy, shows the full path of every hit,
+		// and answers the same keys: \u2191/\u2193 to move, Enter to take, click to
+		// take. The chosen scope becomes a chip with a \u00d7, like the others.
+		// ITS OWN CLASSES, not the history's. Borrowing `zg-hist-find`
+		// borrowed an ABSOLUTELY POSITIONED hit list built to hang over a
+		// window with room beneath it; in here it was laid over the file
+		// list and clipped, so a writer typed and saw nothing — the
+		// "fuzzy finder does not show finds" report. The list is inline
+		// now: it takes its own space, pushes the rest down while it is
+		// open, and cannot be covered by anything.
+		const find = head.createDiv({ cls: 'zg-export-find' });
+		const drawScope = () => {
+			find.empty();
+			const row = find.createDiv({ cls: 'zg-export-findrow' });
+			if (scope) {
+				const chip = row.createDiv({ cls: 'zg-export-chip' });
+				chip.createSpan({ cls: 'zg-export-chipname', text: scope });
+				const clear = chip.createEl('button', { cls: 'zg-export-chipx', text: '\u00d7' });
+				clear.setAttribute('aria-label', 'Choose something else');
+				clear.addEventListener('click', () => { scope = ''; drawScope(); rebuild(); });
+				return;
+			}
+			const input = row.createEl('input', { cls: 'zg-export-search' });
+			input.type = 'text';
+			input.placeholder = 'Search a folder or note\u2026';
+			const list = find.createDiv({ cls: 'zg-export-hits' });
+			let hits = [], rows = [], sel = 0;
+			const mark = () => rows.forEach((r, i) => r.classList.toggle('is-selected', i === sel));
+			const take = (hit) => { scope = hit.path; drawScope(); rebuild(); };
+			const paint = () => {
+				list.textContent = '';
+				rows = []; hits = [];
+				const q = input.value.trim();
+				// AN EMPTY BOX IS NOT AN EMPTY ANSWER. With nothing typed
+				// the list was blank, so the window looked broken before
+				// it had been asked anything. The folders nearest the note
+				// in hand are the likeliest scopes, so they are offered.
+				hits = q ? this.exportFinderMatches(q, 10) : this.exportNearbyScopes(8);
+				if (!hits.length) {
+					list.createDiv({ cls: 'zg-export-nohit', text: q
+						? 'Nothing by that name.'
+						: 'Type a folder or note name.' });
+					return;
+				}
+				hits.forEach((hit, i) => {
+					const r = list.createDiv({ cls: 'zg-export-hit' });
+					r.createSpan({ cls: 'zg-export-hitkind', text: hit.kind === 'folder' ? 'folder' : 'note' });
+					// The FULL path, because two scenes called "Scene 1" in
+					// different chapters are the normal case in a novel and
+					// the name alone cannot tell them apart.
+					r.createSpan({ cls: 'zg-export-hitpath', text: hit.path });
+					r.addEventListener('mouseenter', () => { sel = i; mark(); });
+					r.addEventListener('click', () => take(hit));
+					rows.push(r);
+				});
+				sel = 0; mark();
+			};
+			input.addEventListener('input', paint);
+			input.addEventListener('keydown', (ev) => {
+				if (!hits.length) return;
+				if (ev.key === 'ArrowDown') { sel = (sel + 1) % hits.length; mark(); ev.preventDefault(); }
+				else if (ev.key === 'ArrowUp') { sel = (sel - 1 + hits.length) % hits.length; mark(); ev.preventDefault(); }
+				// Enter takes the row on SCREEN, not a fresh query — the
+				// history's own note explains why: a re-query can rank
+				// differently and scope to a row nobody was looking at.
+				else if (ev.key === 'Enter') { take(hits[sel]); ev.preventDefault(); }
+			});
+			paint();
+			window.setTimeout(() => input.focus(), 0);
+		};
+
+		// TOMBSTONE: a title block stood here — the manuscript's name set
+		// large, with its word count beneath, on the reasoning that a
+		// submission opens that way. It was the wrong reasoning for a
+		// WINDOW: the name is already in the chip above it and the counts
+		// are already in the footer below it, so the biggest thing on
+		// screen was the one thing said three times. The list is what this
+		// window is for, and it now gets the room.
+		// SIDE BY SIDE AGAIN, and this time it fits: with the presets, the
+		// grips, the More drawer and three options gone, the right column
+		// is short enough to sit beside the list instead of under it —
+		// which is what stacking was solving. The list gets the height it
+		// wants and the options are all visible at once, so nothing has to
+		// be opened or scrolled to be found.
+		// THE FORMAT LINE GOES AT THE TOP. It sat in the footer, and the
+		// folder picker beside it opened its suggestions DOWNWARD — off
+		// the bottom of the window, where they could not be read or
+		// clicked. A list that drops from the last row of a modal has
+		// nowhere to drop to. At the top it opens into the window, and it
+		// also reads better: what am I making, and where does it go, are
+		// questions asked before a writer starts ticking files, not after.
+		const topBar = body.createDiv({ cls: 'zg-export-top' });
+		// ── "Again?" ────────────────────────────────────────────────────
+		//
+		// One line, under the act it repeats: what was exported last time,
+		// as what, into where, and how long ago. An export is a thing a
+		// writer does over and over with the same answers — the same folder
+		// to the same agent in the same format — and every one of those
+		// answers was already sitting in the settings without ever being
+		// SHOWN. The window knew and did not say.
+		//
+		// A BUTTON THAT SETS UP, NOT ONE THAT RUNS. It puts the scope, the
+		// format and the destination back and stops: an export writes a
+		// file into a vault, and a control that does that from one click on
+		// a line the writer has only just read is a control that will
+		// eventually write the wrong file. What was ticked comes back with
+		// the scope on its own, because the export store remembers ticks
+		// per scope.
+		{
+			const last = o.lastRun;
+			if (last && last.at && last.format) {
+				const bar = body.createDiv({ cls: 'zg-export-again' });
+				const fmtName = { docx: 'Word', html: 'a web page', md: 'Markdown' }[last.format]
+					|| last.format;
+				const where = last.into ? ' into ' + last.into : '';
+				const when = this.exportWhen(last.at);
+				bar.createSpan({ cls: 'zg-export-againtext', text:
+					'Last time: ' + last.files
+					+ (last.files === 1 ? ' file as ' : ' files as ') + fmtName + where
+					+ (when ? ' \u2014 ' + when : '') });
+				const again = bar.createEl('button',
+					{ cls: 'zg-export-mini zg-export-againbtn', text: 'Set up again' });
+				again.title = last.scope
+					? 'Put the window back on ' + last.scope
+					: 'Put the format and the folder back';
+				again.addEventListener('click', () => {
+					o.format = last.format;
+					o.outFolder = last.into || '';
+					this.saveSettings();
+					// The scope LAST, because changing it rebuilds the list
+					// — and the rebuild is what brings the ticks back.
+					if (last.scope && last.scope !== scope) {
+						scope = last.scope;
+						drawScope();
+						rebuild();
+					}
+					paintFmt();
+					bar.remove();
+				});
+			}
+		}
+
+		const cols = body.createDiv({ cls: 'zg-export-cols' });
+		const leftCol = cols.createDiv({ cls: 'zg-export-left' });
+		// The finder rides with the list it filters, at the top of the
+		// left column — it was created earlier (it has to exist before
+		// rebuild runs) and is moved here, which is cheaper than
+		// threading a container through the whole opening sequence.
+		leftCol.appendChild(head);
+		const listWrap = leftCol.createDiv({ cls: 'zg-export-list' });
+
+		// `order` is the authority once a writer has moved anything: the
+		// gathered list is only the STARTING order, and a manual move must
+		// survive the redraw that follows it.
+		let order = [];
+		const byPath = new Map();
+		// WHAT EACH FILE IS WORTH, kept OUT OF THE DOM. The counts used to
+		// live only as a `data-words` attribute on the row that showed
+		// them, which meant a figure existed exactly as long as its row
+		// did — so collapsing a chapter deleted its rows and the totals
+		// under the list fell by however many words were inside it. The
+		// window said the book had got shorter because the writer had
+		// folded a chapter shut. A Map outlives the redraw; the attribute
+		// is now just what the row happens to be showing.
+		const wordsBy = new Map();
+		// WHICH FOLDERS ARE SHUT. A view state and nothing more: a collapsed
+		// chapter still exports, still counts, and still drags as a block —
+		// the point is a hundred-scene novel that can be seen as twelve
+		// chapters, not a way to leave files out. Ticking is what leaves
+		// files out, and it has its own control on every row.
+		const shut = new Set();
+
+		// Debounced, because a writer ticking twelve boxes should cause one
+		// write rather than twelve — and a write is a file modify that
+		// Obsidian will sync.
+		let saveTimer = null;
+		const remember = () => {
+			if (!scope) return;
+			if (saveTimer) window.clearTimeout(saveTimer);
+			saveTimer = window.setTimeout(() => {
+				this.exportStoreWrite(scope, order.map(p2 => ({ path: p2, on: chosen.has(p2) })));
+			}, 400);
+		};
+
+		const rebuild = async () => {
+			if (scope && o.lastScope !== scope) { o.lastScope = scope; this.saveSettings(); }
+			files = this.exportGather(scope);
+			byPath.clear();
+			for (const f of files) byPath.set(f.path, f);
+			// What was remembered, reconciled with what is on disk NOW.
+			let remembered = null;
+			if (scope) {
+				try { remembered = (await this.exportStoreRead())[scope]; } catch (_) {}
+			}
+			if (remembered && remembered.length) {
+				const applied = this.exportApplyRemembered(files, remembered);
+				order = applied.order;
+				chosen = applied.chosen;
+			} else {
+				order = files.map(f => f.path);
+				chosen = new Set(order);
+			}
+			draw();
+		};
+
+		const draw = () => {
+			listWrap.empty();
+			if (!order.length) {
+				listWrap.createDiv({ cls: 'zg-export-empty',
+					text: 'Nothing to export here — pick a folder or a note above.' });
+				totalEl.setText('');
+				return;
+			}
+			// THE CHAIN OF HEADINGS CURRENTLY DRAWN, outermost first.
+			//
+			// A HEADING PER LEVEL, not one per file. It was the file's
+			// immediate parent and nothing else — the whole truth for
+			// `Book/Ch 01.md` and a lie for `Book/Part One/Ch 03.md`: two
+			// parts with a "Ch 03" in each drew two headings with the same
+			// name, one after the other, and neither said which part it
+			// was or could be folded away.
+			//
+			// STILL NOT A PROMISE ABOUT THE MANUSCRIPT. The export is a flat
+			// sequence and the nesting here is a VIEW of where the files
+			// live — the compiled document has chapters in an order, not a
+			// hierarchy. What the tree buys is the ability to see and fold a
+			// part, which is exactly what a writer with parts wants.
+			let shown = [];
+			for (const path of order) {
+				const f = byPath.get(path);
+				if (!f) continue;
+				const chain = this.exportFolderChain(path, scope);
+				// Where this file's chain leaves the one on screen. The
+				// headings above that point are already drawn and stay.
+				let at = 0;
+				while (at < shown.length && at < chain.length && shown[at] === chain[at]) at++;
+				shown = shown.slice(0, at);
+				for (; at < chain.length; at++) {
+					const folder = chain[at];
+					const depth = at;
+					// A heading inside a folded parent is not drawn — but it
+					// IS remembered, or the comparison above would think the
+					// next file had changed folders and start the chain
+					// again halfway down.
+					const buried = shown.some(a => shut.has(a));
+					shown.push(folder);
+					if (buried) continue;
+					const h = listWrap.createDiv({ cls: 'zg-export-folder' });
+					// BOTH a custom property and a class. The property does
+					// the arithmetic (the indent is depth × a step); the
+					// class is what the quieter type and the guide line hang
+					// off, because a stylesheet matching on
+					// `[style*="--zg-depth: 1"]` is matching on how an engine
+					// happens to serialise a property, which is not a
+					// contract anybody has made. Capped at four levels: past
+					// that the indent eats the file names, and a manuscript
+					// nested five deep has a different problem.
+					h.style.setProperty('--zg-depth', String(depth));
+					h.addClass('zg-export-lvl' + Math.min(depth, 4));
+					// A FOLDER IS A CHECKBOX, like everything else in the
+					// list. Two small buttons saying "all" and "none" were
+					// a second grammar for the one act the rest of the
+					// list already had a control for — and they took the
+					// space that told you which folder you were looking
+					// at. A folder that is partly in shows the browser's
+					// indeterminate mark, which is the one state a pair of
+					// buttons could not express at all.
+					// EVERYTHING BENEATH IT, not just its own children: once
+					// folders nest, a part's tick has to cover the chapters
+					// in it — a checkbox that ticks a folder and leaves its
+					// subfolders alone is a checkbox that does nothing on
+					// the one folder a writer most wants to tick.
+					const kin = () => order.filter(p2 => this.exportInFolder(p2, folder));
+					// THE TRIANGLE, and it is Obsidian's own — the same
+					// classes the file explorer's folders use, so it draws
+					// the same shape, rotates the same way and follows a
+					// theme that restyles either. A writer who has learnt
+					// one tree has learnt this one.
+					const chev = h.createDiv({
+						cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
+							+ ' zg-export-chev' + (shut.has(folder) ? ' is-collapsed' : '')
+					});
+					try { if (setIcon) setIcon(chev, 'right-triangle'); } catch (_) {}
+					chev.addEventListener('click', (ev) => {
+						// The heading is draggable and the whole row is a
+						// grab target, so the click must not travel: without
+						// this, opening a chapter also starts moving it.
+						ev.stopPropagation();
+						ev.preventDefault();
+						if (shut.has(folder)) shut.delete(folder); else shut.add(folder);
+						draw();
+					});
+					const fcb = h.createEl('input', { cls: 'zg-export-cb' });
+					fcb.type = 'checkbox';
+					const mine = kin();
+					const on = mine.filter(p2 => chosen.has(p2)).length;
+					fcb.checked = on > 0 && on === mine.length;
+					// PARTLY IN, DRAWN AS HALF A BOX rather than as the
+					// browser's dash. `indeterminate` stays set — it is the
+					// honest state and screen readers announce it — but the
+					// dash it draws looks like a THIRD state unrelated to
+					// the tick, and reads at a glance as "off, but grey".
+					// Split diagonally, half the box filled the same colour
+					// a tick is, it reads as what it means: some of this is
+					// in. See `.zg-export-cb.is-part` in the stylesheet.
+					fcb.indeterminate = on > 0 && on < mine.length;
+					fcb.toggleClass('is-part', fcb.indeterminate);
+					fcb.addEventListener('change', () => {
+						const want = fcb.checked;
+						kin().forEach(p2 => { if (want) chosen.add(p2); else chosen.delete(p2); });
+						draw();
+						remember();
+					});
+					// The LAST segment, not the whole path: the rows below
+					// it are its files, so repeating the parent folders on
+					// every heading says nothing new and pushed the useful
+					// part off the end of the line.
+					const fname = h.createSpan({ cls: 'zg-export-foldername' });
+					fname.setText(folder ? folder.split('/').pop() : 'Vault root');
+					fname.title = folder || '/';
+					// THE FOLDER'S OWN TOTAL, of the files ticked beneath
+					// it. "Is this chapter long enough" is the question a
+					// writer asks between "how long is this scene" and
+					// "how long is the book", and it was the one figure
+					// this list could not answer. Written by tally(),
+					// which is where every other number here comes from.
+					h.createDiv({ cls: 'zg-export-foldwords' })
+						.setAttribute('data-folder-words', folder);
+
+					// A FOLDER DRAGS AS A BLOCK. Moving a chapter meant
+					// dragging its scenes one at a time and getting them
+					// out of order on the way — the unit a writer thinks
+					// in is the chapter, so that is the unit that moves.
+					// Its files travel with it, in their own order.
+					h.setAttribute('draggable', 'true');
+					h.setAttribute('data-folder', folder);
+					h.addEventListener('dragstart', (ev) => {
+						dragging = null;
+						draggingFolder = folder;
+						h.addClass('is-dragging');
+						try { ev.dataTransfer.setData('text/plain', folder); } catch (_) {}
+						if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+					});
+					h.addEventListener('dragend', () => {
+						draggingFolder = null;
+						h.removeClass('is-dragging');
+						clearMarks();
+					});
+					// A PARENT CANNOT BE DROPPED INSIDE ITSELF. Nesting makes
+					// this reachable — drag `Part One` onto `Part One/Ch 03`
+					// and the block being moved contains its own
+					// destination, so the insertion point is inside the
+					// hole it just made and the order comes back scrambled.
+					const canTake = () => draggingFolder != null
+						&& draggingFolder !== folder
+						&& !this.exportInFolder(folder + '/x', draggingFolder);
+					h.addEventListener('dragover', (ev) => {
+						if (!canTake()) return;
+						ev.preventDefault();
+						if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+						const r = h.getBoundingClientRect();
+						const below = (ev.clientY - r.top) > r.height / 2;
+						h.toggleClass('is-over-bottom', below);
+						h.toggleClass('is-over-top', !below);
+					});
+					h.addEventListener('dragleave', () => {
+						h.removeClass('is-over-top'); h.removeClass('is-over-bottom');
+					});
+					h.addEventListener('drop', (ev) => {
+						if (!canTake()) return;
+						ev.preventDefault();
+						const r = h.getBoundingClientRect();
+						const below = (ev.clientY - r.top) > r.height / 2;
+						order = this.exportMoveFolder(order, draggingFolder, folder, below,
+							folderKeyFor(draggingFolder, folder));
+						draggingFolder = null;
+						draw();
+						remember();
+					});
+					// A folder drags by finger too, and only onto other
+					// folders — a chapter dropped between two scenes has
+					// nowhere sensible to land.
+					this.touchDrag(h, folder, {
+						rows: () => Array.from(listWrap.querySelectorAll('.zg-export-folder')),
+						idOf: (el) => el.getAttribute('data-folder'),
+						drop: (from, to, below) => {
+							order = this.exportMoveFolder(order, from, to, below,
+								folderKeyFor(from, to));
+							draw();
+							remember();
+						}
+					});
+				}
+
+				// A SHUT FOLDER DRAWS NO FILES — nor does a shut folder
+				// anywhere ABOVE this one. Checked after the headings are
+				// built, never before: a heading is what reopens its folder,
+				// and one that hid its own chevron could not be opened
+				// again.
+				if (shown.some(a => shut.has(a))) continue;
+
+				const row = listWrap.createDiv({ cls: 'zg-export-row' });
+				row.style.setProperty('--zg-depth', String(chain.length));
+				row.addClass('zg-export-lvl' + Math.min(chain.length, 4));
+				row.setAttribute('draggable', 'true');
+				row.setAttribute('data-row', path);
+				// TOMBSTONE: a ⠿ grip stood here. The row is draggable in its
+				// entirety, so the grip was a handle for something already
+				// grabbable — and it cost the width that now holds the
+				// folder's own indent line, which says something the grip
+				// never did: which folder this file belongs to.
+				const cb = row.createEl('input', { cls: 'zg-export-cb' });
+				cb.type = 'checkbox';
+				cb.checked = chosen.has(path);
+				row.toggleClass('is-out', !cb.checked);
+				cb.addEventListener('change', () => {
+					if (cb.checked) chosen.add(path); else chosen.delete(path);
+					// The row carries its own state rather than the
+					// stylesheet asking `:has` — see the note beside
+					// `.zg-export-row.is-out`.
+					row.toggleClass('is-out', !cb.checked);
+					tally();
+					remember();
+				});
+				const name = row.createDiv({ cls: 'zg-export-name' });
+				name.setText(f.basename);
+				name.title = path;
+				// THE LEADER AND THE WORD COUNT. This column held the PAGE
+				// each scene starts on, which was true, live and quietly
+				// baffling: a column of 1, 10, 12 beside three scene names
+				// reads as an index of something, and the first guess is
+				// never "the page it begins on". Asked what the numbers
+				// were, which is the answer. A word count needs no
+				// explaining, is the figure a writer already thinks in,
+				// and the running total underneath still says how long the
+				// whole thing is.
+				row.createDiv({ cls: 'zg-export-leader' });
+				row.createDiv({ cls: 'zg-export-page', text: '' })
+					.setAttribute('data-path', path);
+
+				row.addEventListener('dragstart', (ev) => {
+					dragging = path;
+					row.addClass('is-dragging');
+					try { ev.dataTransfer.setData('text/plain', path); } catch (_) {}
+					if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+				});
+				row.addEventListener('dragend', () => {
+					dragging = null;
+					row.removeClass('is-dragging');
+					for (const el of Array.from(listWrap.querySelectorAll('.zg-export-row'))) {
+						el.removeClass('is-over-top'); el.removeClass('is-over-bottom');
+					}
+				});
+				row.addEventListener('dragover', (ev) => {
+					if (!dragging || dragging === path) return;
+					ev.preventDefault();
+					if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+					// Above or below, decided by which half of the row the
+					// pointer is in — without this a drop is ambiguous at
+					// exactly the moment the writer is being precise.
+					const r = row.getBoundingClientRect();
+					const below = (ev.clientY - r.top) > r.height / 2;
+					row.toggleClass('is-over-bottom', below);
+					row.toggleClass('is-over-top', !below);
+				});
+				row.addEventListener('dragleave', () => {
+					row.removeClass('is-over-top'); row.removeClass('is-over-bottom');
+				});
+				row.addEventListener('drop', (ev) => {
+					ev.preventDefault();
+					if (!dragging || dragging === path) return;
+					const r = row.getBoundingClientRect();
+					const below = (ev.clientY - r.top) > r.height / 2;
+					order = this.exportMove(order, dragging, path, below);
+					dragging = null;
+					draw();
+					remember();
+				});
+				// …and the same by finger, which fires none of the above.
+				this.touchDrag(row, path, {
+					rows: () => Array.from(listWrap.querySelectorAll('.zg-export-row')),
+					idOf: (el) => el.getAttribute('data-row'),
+					drop: (from, to, below) => {
+						order = this.exportMove(order, from, to, below);
+						draw();
+						remember();
+					}
+				});
+			}
+			tally();
+			if (collapsePaint) collapsePaint();
+			// Word counts are read asynchronously: a hundred scenes is a
+			// hundred file reads, and the list should be on screen before
+			// they finish rather than after.
+			this.exportFillCounts(order.map(p2 => byPath.get(p2)).filter(Boolean),
+				listWrap, tally, wordsBy);
+		};
+		let dragging = null;
+		let draggingFolder = null;
+		// Set once the bulk row exists; draw() calls it if it is there, so
+		// the first draw — which happens before the row is built — does not
+		// have to care.
+		let collapsePaint = null;
+		// Set once the footer exists; the run handler closes over it.
+		let exportProgress = null;
+	// WHICH BLOCK A PATH BELONGS TO, for one particular drag. `exportMoveFolder`
+	// groups the list with a folderOf function and moves one group before or
+	// after another; with a flat list that was simply the file's parent, and
+	// with nesting it cannot be — dragging `Part One` has to carry
+	// `Part One/Ch 03` with it, and its parent is not `Part One` by the old
+	// rule at all.
+	//
+	// So the key is answered relative to THIS drag: inside the folder being
+	// carried, it is that folder; inside the folder being dropped on, it is
+	// that one; anything else is its own key and stays where it is. Nothing
+	// else in the list is regrouped, which is what makes a nested move
+	// behave like the flat one it replaced.
+		const folderKeyFor = (from, to) => (p2) => {
+			if (this.exportInFolder(p2, from) || p2 === from) return from;
+			if (this.exportInFolder(p2, to) || p2 === to) return to;
+			return p2;
+		};
+
+		const clearMarks = () => {
+			for (const el of Array.from(listWrap.querySelectorAll('.is-over-top, .is-over-bottom'))) {
+				el.removeClass('is-over-top'); el.removeClass('is-over-bottom');
+			}
+		};
+
+		const tally = () => {
+			let words = 0, n = 0;
+			for (const path of order) {
+				const el = listWrap.querySelector('[data-path="' + CSS.escape(path) + '"]');
+				// Whatever the DOM knows is remembered; whatever it has
+				// forgotten — a row inside a folded chapter — is read back
+				// out of the Map. A count belongs to a FILE, not to a row.
+				const v = el && el.getAttribute('data-words');
+				if (v != null && v !== '') wordsBy.set(path, parseInt(v, 10) || 0);
+				const w = wordsBy.has(path) ? wordsBy.get(path) : null;
+				if (!chosen.has(path)) {
+					// A dash, not a blank: the column still reads as a
+					// column and the row still reads as left out.
+					if (el) el.setText('\u2014');
+					continue;
+				}
+				// THE NUMBER ALONE ON A FILE, and the unit on the folder
+				// above it. The column repeated "words" on every row of a
+				// twenty-scene chapter — twenty copies of a word that the
+				// folder's own total, sitting at the head of the same
+				// column, already says once. Take the unit out of the
+				// files and the eye reads a column of figures under a
+				// heading that names them, which is what a column is for.
+				if (el) el.setText(w == null ? '' : w.toLocaleString());
+				n++;
+				words += w || 0;
+			}
+			// Each folder's own total, from the same counts the rows show —
+			// and from the Map, so a folded chapter still knows its own
+			// length. It is the number sitting on the heading a writer just
+			// clicked; going blank there is the most visible version of
+			// this bug.
+			// ROLLED UP THROUGH THE CHAIN, not keyed on the immediate
+			// parent: with nesting, a part's total is the chapters in it,
+			// and a heading reading "—" above four chapters that plainly
+			// have words in them is the sort of figure that makes a writer
+			// distrust every other figure in the window.
+			for (const el of Array.from(listWrap.querySelectorAll('[data-folder-words]'))) {
+				const f2 = el.getAttribute('data-folder-words');
+				let w2 = 0;
+				for (const path of order) {
+					if (!chosen.has(path)) continue;
+					if (!this.exportInFolder(path, f2)) continue;
+					w2 += wordsBy.get(path) || 0;
+				}
+				el.setText(w2 ? w2.toLocaleString() + ' words' : '\u2014');
+			}
+			// EVERY FOLDER BOX RESTATED, here rather than only at draw time.
+			// The heading's checkbox was set once, while it was being
+			// built, and a file ticked underneath it called `tally()` and
+			// not `draw()` — so unticking one scene left the chapter above
+			// it still showing a full tick, and unticking the LAST one left
+			// it showing a tick with nothing under it at all. The three
+			// states are a function of what is chosen, so they are computed
+			// wherever what-is-chosen is counted, which is here.
+			for (const h of Array.from(listWrap.querySelectorAll('.zg-export-folder'))) {
+				const f2 = h.getAttribute('data-folder');
+				const cb2 = h.querySelector('input[type="checkbox"]');
+				if (!cb2) continue;
+				// Everything beneath it, by the same rule the heading's own
+				// checkbox uses when it is built — the two must agree or a
+				// part reads as half-ticked the moment anything redraws.
+				const mine = order.filter(p2 => this.exportInFolder(p2, f2));
+				const on2 = mine.filter(p2 => chosen.has(p2)).length;
+				cb2.checked = on2 > 0 && on2 === mine.length;
+				cb2.indeterminate = on2 > 0 && on2 < mine.length;
+				cb2.toggleClass('is-part', cb2.indeterminate);
+			}
+			const pages = Math.max(1, Math.round(words / 250));
+			// FILES, because that is what they are — a folder of notes,
+			// whatever the writer keeps in them. "Scenes" was this window
+			// telling a novelist what their notes are for. And ~ before the
+			// pages, because 250 words to a page is a convention, not a
+			// measurement, and a bare "25 pages" claims more than it knows.
+			totalEl.setText(n + (n === 1 ? ' file' : ' files')
+				+ (words ? ' \u00b7 ' + words.toLocaleString() + ' words \u00b7 ~'
+					+ pages.toLocaleString() + (pages === 1 ? ' page' : ' pages') : ''));
+		};
+
+		// Select all / none, because a writer excluding three scenes out of
+		// ninety should not click eighty-seven times.
+		// MARK ALL / MARK NONE, because "All" and "None" name a state and
+		// these are acts — a writer reading two words wants to know what
+		// pressing them DOES. The totals share the line: it is the same
+		// row of information (what is in, and how much that is), and it
+		// was sitting alone under the list saying so a second time.
+		const bulk = leftCol.createDiv({ cls: 'zg-export-bulk' });
+		// COLLAPSE ALL, first on the line and drawn as an icon rather than a
+		// word — it is the same act Obsidian's file explorer puts in the
+		// same place, and a writer reaching for it is reaching by shape. It
+		// toggles: with anything open it shuts everything, and with
+		// everything shut it opens it again, because a button that can only
+		// close is half a control.
+		{
+			const b = bulk.createEl('button', { cls: 'zg-export-mini zg-export-collapse' });
+			b.setAttribute('aria-label', 'Collapse all');
+			const paint = () => {
+				const folders = new Set(order.map(p2 => this.exportFolderOf(p2)));
+				const allShut = folders.size > 0
+					&& Array.from(folders).every(f2 => shut.has(f2));
+				b.toggleClass('is-collapsed', allShut);
+				b.title = allShut ? 'Expand all' : 'Collapse all';
+				try {
+					if (setIcon) setIcon(b, allShut ? 'chevrons-up-down' : 'chevrons-down-up');
+				} catch (_) {}
+			};
+			b.addEventListener('click', () => {
+				const folders = Array.from(new Set(order.map(p2 => this.exportFolderOf(p2))));
+				const allShut = folders.length > 0 && folders.every(f2 => shut.has(f2));
+				shut.clear();
+				if (!allShut) for (const f2 of folders) shut.add(f2);
+				draw();
+				paint();
+			});
+			paint();
+			// Repainted after every redraw, since a folder opened by its own
+			// triangle changes what this button should say next.
+			collapsePaint = paint;
+		}
+		const bulkBtn = (label, fn) => {
+			const b = bulk.createEl('button', { cls: 'zg-export-mini', text: label });
+			b.addEventListener('click', () => { fn(); draw(); remember(); });
+		};
+		bulkBtn('Mark all', () => { chosen = new Set(order); });
+		bulkBtn('Mark none', () => { chosen = new Set(); });
+		const totalEl = bulk.createDiv({ cls: 'zg-export-total' });
+
+		// ── Options ─────────────────────────────────────────────────────
+		// Options BELOW the list, not beside it. Side by side, the two
+		// halves competed for the eye and the list — the thing being
+		// decided — got the narrower one.
+		const rightCol = cols.createDiv({ cls: 'zg-export-right' });
+		// The options redraw themselves, because three of them CHANGE what
+		// the others should say: a layout rewrites five switches, the
+		// paper choice moves a segment, and the divider's text box only
+		// exists while there is a divider. Rebuilding the block keeps one
+		// description of what is on screen — hand-updating each control
+		// from every other is where a panel starts telling small lies
+		// about itself.
+		let redrawOpts = () => {};
+		// ── FOUR STACKED GROUPS BECAME TWO TABS ─────────────────────────
+		//
+		// The column had Manuscript, Structure, Front and back, Typesetting
+		// and Also include running down it, and every one of them was open
+		// at once: about twenty controls in a half-width column, which
+		// scrolled — so the answer to "where is the thing I want" was to
+		// read the whole column, and the last group was below the fold on a
+		// laptop. Eyebrows are a fine way to divide five controls and a poor
+		// way to divide twenty.
+		//
+		// TWO QUESTIONS, and every control answers one of them. STRUCTURE is
+		// what the document is MADE OF and in what order — the title page,
+		// the headings, where files join, and what comes along out of the
+		// notes. TYPESETTING is how the words are SET — the paper, the face,
+		// the size, the spacing, the indent. A writer looking for "should
+		// each chapter start a page" knows it is not a question about type,
+		// and that is the whole test a tab has to pass.
+		//
+		// TITLE AND AUTHOR SIT ABOVE BOTH, always visible. They are neither:
+		// they are what the manuscript IS, they are the two boxes most
+		// likely to be wrong on any given export, and hiding either behind a
+		// tab means a writer can send a manuscript titled after the wrong
+		// folder without ever having seen the field.
+		const OPT_TABS = [
+			{ id: 'structure', label: 'Structure' },
+			{ id: 'type', label: 'Typesetting' }
+		];
+		let optPanel = null;
+		const optGroup = (label) => {
+			// Sub-headings WITHIN a tab, for the run of switches that answer
+			// a narrower question than the tab does — "Also include" earns
+			// one because off-by-default is a promise worth naming.
+			const into = optPanel || rightCol;
+			if (label) into.createDiv({ cls: 'zg-export-eyebrow', text: label });
+			return into.createDiv({ cls: 'zg-export-opts' });
+		};
+		const buildOpts = () => {
+		rightCol.empty();
+		// ── The options ─────────────────────────────────────────────────
+		//
+		// TOMBSTONE: three LAYOUT PRESETS stood at the top — Manuscript,
+		// Continuous, Plain — each writing five switches. The idea was
+		// sound and the execution was a fourth control in a window that
+		// already had too many: a reader met a row of buttons, a second
+		// row of buttons, a bank of checkboxes and a disclosure holding
+		// more checkboxes, and had to work out which of the four decided
+		// what. Manuscript was what nearly everyone wanted anyway, so it
+		// is simply the DEFAULT now, and the switches it used to write are
+		// the ones under More — where changing one is an adjustment rather
+		// than a departure from a named thing.
+		//
+		// A TOGGLE, not a checkbox. Obsidian's own switch, built from its
+		// `checkbox-container` markup so it inherits the app's look and
+		// the writer's theme rather than wearing a shape this window
+		// invented. Smaller than the settings pane's, because a dozen of
+		// them in a modal is not a settings pane.
+		const toggle = (parent, key, label, hint) => {
+			const row = parent.createDiv({ cls: 'zg-export-opt' });
+			const sw = row.createDiv({ cls: 'checkbox-container zg-export-sw' });
+			sw.toggleClass('is-enabled', !!o[key]);
+			const cb = sw.createEl('input');
+			cb.type = 'checkbox';
+			cb.checked = !!o[key];
+			const name = row.createEl('span', { cls: 'zg-export-optname', text: label });
+			if (hint) row.title = hint;
+			const flip = () => {
+				o[key] = !o[key];
+				sw.toggleClass('is-enabled', !!o[key]);
+				cb.checked = !!o[key];
+				this.saveSettings();
+				redrawOpts();
+			};
+			sw.addEventListener('click', (ev) => { ev.preventDefault(); flip(); });
+			// The label flips it too: a switch with a word beside it is one
+			// control, and hitting the word is what a reader tries first.
+			name.addEventListener('click', flip);
+		};
+		// A DROP-DOWN for anything with a small fixed set of answers. Paper
+		// was two segmented buttons, which is a control shaped like a
+		// choice between equals — but nobody switches paper twice in a
+		// session, and it was taking a row and a half to say so.
+		//
+		// AND A LINE UNDER IT SAYING WHAT THE ANSWER MEANS. "Between files:
+		// divider, same page" is precise and it is not an explanation —
+		// vault feedback was, in as many words, "I don't understand what
+		// these do", and re-reading them shows why: they name the SETTING
+		// and leave the writer to imagine the page. Six words of plain
+		// English under the box costs one line and removes the guess. The
+		// caption belongs to the CHOICE, not to the control, so it changes
+		// as the drop-down does — a tooltip could not do that, and neither
+		// could a hint on the label.
+		const selOpt = (parent, key, label, items, after) => {
+			const row = parent.createDiv({ cls: 'zg-export-opt zg-export-textrow' });
+			row.createEl('span', { cls: 'zg-export-optname', text: label });
+			const sel = row.createEl('select', { cls: 'dropdown zg-export-sel' });
+			for (const it of items) {
+				const op = sel.createEl('option', { text: it.label });
+				op.value = it.id;
+			}
+			sel.value = String(o[key]);
+			const hint = items.some(it => it.hint)
+				? parent.createDiv({ cls: 'zg-export-opthint' }) : null;
+			const sayHint = () => {
+				if (!hint) return;
+				const it = items.filter(x => x.id === String(o[key]))[0];
+				hint.setText(it && it.hint ? it.hint : '');
+			};
+			sayHint();
+			sel.addEventListener('change', () => {
+				o[key] = sel.value;
+				sayHint();
+				this.saveSettings();
+				if (after) after();
+			});
+			return sel;
+		};
+		const textOpt = (parent, key, label, ph, hint) => {
+			const row = parent.createDiv({ cls: 'zg-export-opt zg-export-textrow' });
+			row.createEl('span', { cls: 'zg-export-optname', text: label });
+			const inp = row.createEl('input', { cls: 'zg-export-text' });
+			inp.type = 'text'; inp.value = o[key] || ''; inp.placeholder = ph || '';
+			inp.addEventListener('change', () => { o[key] = inp.value; this.saveSettings(); });
+			// A box can need a line under it as much as a drop-down can —
+			// "Scene break" is a field whose whole meaning is which of two
+			// marks it sets, and that cannot be said in a label.
+			if (hint) parent.createDiv({ cls: 'zg-export-opthint', text: hint });
+			return inp;
+		};
+
+
+		// ── Who and what it is ──────────────────────────────────────────
+		// The author FIRST, because it is the one field a writer fills in
+		// by hand and the one that ends up on the title page and in the
+		// running header — it was at the bottom, under a dozen switches
+		// nobody needs to read to type their own name.
+		{
+			// NO EYEBROW ON THE FIRST GROUP. A heading over the top of a
+			// column names the column, not a section of it — "The
+			// manuscript" sat above three fields in a panel that is
+			// entirely about the manuscript, so it said nothing and cost
+			// a line. The groups below it divide something; this one is
+			// just where the column starts.
+			optPanel = null;                      // above the tabs
+			const grp = optGroup(null);
+			// TITLE, and the folder's name is what it falls back to rather
+			// than a switch saying so. "Use the folder name" as a toggle
+			// would be a control for the case where the writer has
+			// nothing to say — an empty box already means that, and it
+			// shows what it will use in the placeholder, so the default
+			// is visible instead of merely documented.
+			const ti = textOpt(grp, 'titleText', 'Title',
+				String(scope || '').split('/').pop().replace(/\.md$/, '') || 'Untitled');
+			ti.addClass('zg-export-wideinput');
+			const au = textOpt(grp, 'author', 'Author', 'A. Writer');
+			au.addClass('zg-export-wideinput');
+			// NINE SIZES, from one table (ZG_PAPERS), because "A4 or not"
+			// only answers the submission question. A writer setting a
+			// proof of their own novel is working to a TRIM SIZE — 6 × 9,
+			// digest, mass market — and those are pages in their own
+			// right, not variants of Letter. The margin travels with the
+			// paper: an inch on a 5.5-inch page is a third of the sheet.
+		}
+
+		// THE TABS THEMSELVES, and the panel everything below draws into.
+		{
+			const strip = rightCol.createDiv({ cls: 'zg-export-tabs' });
+			for (const t of OPT_TABS) {
+				const b = strip.createEl('button', {
+					cls: 'zg-export-tab' + (o.optTab === t.id ? ' is-on' : ''),
+					text: t.label
+				});
+				b.addEventListener('click', () => {
+					o.optTab = t.id;
+					this.saveSettings();
+					// The panel is rebuilt rather than shown and hidden:
+					// there is one description of what is on screen, and
+					// two half-built panels waiting in the DOM is how a
+					// window starts telling small lies about itself.
+					redrawOpts();
+				});
+			}
+			optPanel = rightCol.createDiv({ cls: 'zg-export-panel' });
+		}
+
+		if (o.optTab === 'type') {
+			const grp = optGroup(null);
+			// NINE SIZES, from one table (ZG_PAPERS), because "A4 or not"
+			// only answers the submission question. A writer setting a
+			// proof of their own novel is working to a TRIM SIZE — 6 × 9,
+			// digest, mass market — and those are pages in their own
+			// right, not variants of Letter. The margin travels with the
+			// paper: an inch on a 5.5-inch page is a third of the sheet.
+			selOpt(grp, 'paperId', 'Paper',
+				ZG_PAPERS.map(p => ({ id: p.id, label: p.label })),
+				() => { o.a4 = o.paperId === 'a4'; this.saveSettings(); });
+		}
+
+		// ── How it is put together ──────────────────────────────────────
+		// "The parts" named the things in the list rather than the
+		// question they answer. Every switch here decides where one thing
+		// ENDS and the next begins — a title page before the text, a
+		// header across the top, a heading or a break or a mark between
+		// files. That is structure, and a writer looking for "should each
+		// chapter start a new page" looks under structure.
+		//
+		// No eyebrow: the TAB says Structure, and a heading repeating the
+		// name of the tab it is inside is a line of furniture.
+		if (o.optTab !== 'type') {
+			const grp = optGroup(null);
+			toggle(grp, 'titlePage', 'Title page',
+				'A page of its own at the front with the title, your name and the '
+				+ 'word count \u2014 what a submission opens with.');
+			toggle(grp, 'runningHeaderOn', 'Running header',
+				'Your surname, the title and the page number along the top of every '
+				+ 'page, so a printed manuscript can be put back in order.');
+			// "Contents page" named the paper it lands on; "Table of
+			// contents" is what the thing is called, in Word's own menus and
+			// in every book that has one.
+			toggle(grp, 'toc', 'Table of contents',
+				'A list of the files at the front, each one a link that jumps to it.');
+			// ONE QUESTION, THREE ANSWERS: how does one file join the next?
+			// As two booleans it allowed both at once — a page break AND a
+			// divider — which no manuscript wants, and left the reader to
+			// work out that they were the same question.
+			//
+			// TWO ROWS THAT READ AS SENTENCES. "Between files" and
+			// "Chapter titles" named the setting and left the writer to
+			// imagine the page \u2014 the vault's words were "I don't
+			// understand what these do". The first rewrite fixed the
+			// meaning and broke the layout: "Where each file starts" and
+			// "Heading on each file" are longer than the label column, so
+			// they arrived on screen as "Where ea\u2026" and "Heading \u2026", which
+			// is worse than the version nobody understood.
+			//
+			// So the LABEL is a subject and the ANSWER is its predicate:
+			// "Each file \u2014 starts a new page", "Its heading \u2014 the file's
+			// name". Both labels fit the column, both rows read left to
+			// right in one go, and the caption underneath is then an
+			// elaboration rather than the only place the row makes sense.
+			selOpt(grp, 'joinMode', 'Each file', [
+				{ id: 'page',    label: 'Starts a new page',
+					hint: 'Every file begins at the top of a fresh page \u2014 how a book '
+						+ 'starts a chapter, and what a submission expects.' },
+				{ id: 'divider', label: 'Follows a divider',
+					hint: 'Files run on down the same page, with the mark below '
+						+ 'centred between them \u2014 a scene break.' },
+				{ id: 'run',     label: 'Runs straight on',
+					hint: 'Nothing between one file and the next: the prose reads as '
+						+ 'though it were all one note.' }
+			], () => {
+				o.pageBreaks = o.joinMode === 'page';
+				o.starBetween = o.joinMode === 'divider';
+				this.saveSettings();
+				redrawOpts();
+			});
+			// THE MARK, DIRECTLY UNDER THE ANSWER THAT ASKS FOR IT. It was
+			// written last in this group, so it appeared beneath the
+			// HEADING row and its caption \u2014 a box called "Divider" sitting
+			// under a sentence about chapter headings, which reads as a
+			// setting for the wrong thing entirely. A control that exists
+			// only because of another control has to sit against it.
+			//
+			// It still only exists when there IS a divider to name: a field
+			// for a mark that is switched off is a control that does
+			// nothing, sitting where a writer reads it as one that does.
+			if (o.starBetween) {
+				textOpt(grp, 'divider', 'Its mark', '#',
+					'Centred on its own line between one file and the next.');
+			}
+			// TOMBSTONE: A SEPARATE SCENE-BREAK MARK. A `***` line inside a
+			// note printed whatever the between-files box said, so it got a
+			// box of its own — and two boxes for two marks is two questions
+			// where a writer has one answer. Whatever they want between
+			// scenes is what they want between files; one mark, one box.
+			//
+			// TOMBSTONE: CHAPTER NUMBERS — none / "Chapter One" / "Chapter 1",
+			// counted from the order so dragging renumbered the book, with a
+			// comparison that stopped `Ch 01` printing as "Chapter One — Ch
+			// 01". It worked. It was a third question in a row that already
+			// asks two, for something a writer can put in the file name
+			// once, and the answer to "what is this chapter called" is
+			// already two rows above it. Its helpers went with it —
+			// zgChapterLabel, zgChapterWord and a forty-name lookup table.
+			// …and the other pair. With "Heading per file" on AND the note
+			// opening with its own `# Chapter One`, the title was set
+			// twice — and a book whose notes are named for its chapters is
+			// the commonest way anyone organises one, so that was not an
+			// edge case.
+			//
+			// \u2026and the same shape for the second: "Chapter titles \u2014 from
+			// the file name" described where a string is FETCHED FROM. What
+			// a writer is asking is what gets printed at the top of each
+			// chapter, so the row says "Its heading \u2014 the file's name" and
+			// the caption adds the part that cannot be guessed: what
+			// happens to the heading already in the note.
+			selOpt(grp, 'chapterTitles', 'Its heading', [
+				{ id: 'file', label: 'The file\u2019s name',
+					hint: 'Each file opens with its own name as the heading. A '
+						+ '# heading inside the note is dropped, so the title is not '
+						+ 'set twice.' },
+				{ id: 'note', label: 'The note\u2019s own',
+					hint: 'Whatever the note already says \u2014 its # headings are kept '
+						+ 'as written, and nothing is added.' },
+				{ id: 'none', label: 'None',
+					hint: 'No headings at all: unbroken prose, with only the dividers '
+						+ 'or page breaks above to separate the files.' }
+			], () => {
+				o.sectionTitles = o.chapterTitles === 'file';
+				o.keepHeadings = o.chapterTitles !== 'none';
+				// From the file name means the note's own heading would be
+				// the same title again: it is dropped, not printed twice.
+				if (o.chapterTitles === 'file') o.keepHeadings = false;
+				this.saveSettings();
+				redrawOpts();
+			});
+			// (The mark's box is above, directly under the answer that asks
+			// for it \u2014 see the note there. Footnotes are further down, in
+			// Also include: what happens to the notes in a file is the same
+			// question as what happens to its properties and its comments,
+			// and it belongs beside them rather than beside the page
+			// breaks.)
+		}
+
+		// TOMBSTONE: FRONT AND BACK MATTER — two note pickers, "Opens with"
+		// and "Ends with", that put a dedication before the first chapter
+		// and an acknowledgements page after the last, outside the drag
+		// order. The reasoning still holds (a dedication is not chapter
+		// zero) and it was removed anyway, one session after it arrived,
+		// because it answered a question nobody in the vault had asked
+		// while adding two rows, a second file-picker grammar and a
+		// deduplication rule to a column that was already too long. A
+		// dedication is a note; ticking it in the list and dragging it to
+		// the top is two gestures with nothing to learn.
+		//
+		// If it returns: `compileList()` is where it belongs — one function
+		// assembling what the Export button and the Preview both compile,
+		// so the two cannot drift.
+
+		// ── The words ───────────────────────────────────────────────────
+		// …and these decide how the prose itself is set, which is the other
+		// question entirely — which is why they are the other tab.
+		if (o.optTab === 'type') {
+			const grp = optGroup(null);
+			// FOUR FACES, and no free-text box. A manuscript is set in one
+			// of a very short list — the two Couriers because that is what
+			// screenwriting and older submission guidelines ask for, Times
+			// because it is the default everywhere else, Arial for the
+			// house styles that want a sans. A box invited a font the
+			// reader's Word does not have, which substitutes silently.
+			// SEVEN FACES, all of which a reader's word processor is very
+			// likely to HAVE — a font it does not have is substituted
+			// silently, and a manuscript set in a substitute is a
+			// manuscript nobody chose the look of. Courier New is gone
+			// (Courier Prime is the same idea, drawn properly, and having
+			// both invited a choice between a good one and a worse one);
+			// Georgia, Garamond, Cambria and Calibri are in, because they
+			// ship with Office and macOS and cover the two things Times
+			// does not: a face made for screens and a face made for books.
+			selOpt(grp, 'font', 'Font', [
+				{ id: 'Times New Roman', label: 'Times New Roman' },
+				{ id: 'Garamond', label: 'Garamond' },
+				{ id: 'Georgia', label: 'Georgia' },
+				{ id: 'Cambria', label: 'Cambria' },
+				{ id: 'Courier Prime', label: 'Courier Prime' },
+				{ id: 'Calibri', label: 'Calibri' },
+				{ id: 'Arial', label: 'Arial' }
+			]);
+			// SIZE, which was pinned at 12pt. That is the manuscript
+			// convention and it is still the default \u2014 but the paper is
+			// nine sizes now, and 12pt double spaced on a 6 \u00d7 9 page is
+			// about a hundred and ninety words to the page, which is a
+			// proof nobody would set on purpose.
+			selOpt(grp, 'pt', 'Size', [
+				{ id: '10', label: '10 pt' },
+				{ id: '11', label: '11 pt' },
+				{ id: '12', label: '12 pt \u2014 the standard' },
+				{ id: '13', label: '13 pt' },
+				{ id: '14', label: '14 pt' }
+			], () => { o.pt = parseInt(o.pt, 10) || 12; this.saveSettings(); });
+			// THREE ANSWERS, where a boolean could only give two. Double is
+			// what a submission expects and stays the default; single is
+			// closer to a finished book; one and a half is what a reader
+			// who is not an editor actually prefers, and it was the answer
+			// the switch could not give.
+			// NO CAPTIONS on this one. The other two drop-downs describe a
+			// LAYOUT — what lands on the page, which cannot be guessed from
+			// three words — and single, one and a half and double are three
+			// words everyone already knows. A line of explanation under a
+			// self-evident answer teaches a reader to stop reading the
+			// lines under the ones that are not.
+			selOpt(grp, 'lineSpacing', 'Spacing', [
+				{ id: 'single',  label: 'Single' },
+				{ id: 'onehalf', label: 'One and a half' },
+				{ id: 'double',  label: 'Double' }
+			], () => {
+				// The boolean the builders and older vaults still read is
+				// written from the answer, in one place, on every change.
+				o.doubleSpaced = o.lineSpacing !== 'single';
+				this.saveSettings();
+			});
+			// INDENT PARAGRAPHS, BACK. It was removed because turning it
+			// off with double spacing on — the pairing a manuscript uses —
+			// left NO paragraph boundary at all, and the result read as a
+			// broken document rather than a styled one. The switch was
+			// never the fault; the missing second boundary was. Off now
+			// puts a half-line of air after each paragraph in all three
+			// targets (see `gap` in zgStylesXml), which is block-set prose
+			// — what a business letter, a blog post and most non-fiction
+			// use — rather than a document with its paragraph ends
+			// deleted. On by default, because the manuscript convention is
+			// still the default here.
+			toggle(grp, 'indent', 'Indent paragraphs',
+				'A half-inch first line on every paragraph but the first of a scene '
+				+ '\u2014 the manuscript convention. Off sets them block style, with a '
+				+ 'space between instead.');
+			// UNDER THE INDENT, not above the size. The two switches in this
+			// tab are the only two things here a writer flips rather than
+			// chooses from a list, and the grid lays toggles two to a row —
+			// so with one of them stranded at the top of the group and the
+			// other at the bottom, each sat alone on a line with a
+			// half-width hole beside it. Together they pair up, and the
+			// three drop-downs above them read as one run rather than as
+			// two runs with a switch wedged in the middle.
+			toggle(grp, 'smartQuotes', 'Curly quotes',
+				'Turns \' and " into \u2018 \u2019 \u201c \u201d as it compiles. Only in the exported '
+				+ 'file \u2014 your notes keep what you typed.');
+		}
+
+		// ── What comes along ────────────────────────────────────────────
+		// Everything here is OFF, and everything here is something the
+		// compile deliberately leaves behind: the note's plumbing, the
+		// writer's asides, the pictures. Off is right — a manuscript is
+		// prose and none of this is prose — but "right by default" is not
+		// the same as "never wanted", and the alternative a writer had was
+		// to strip these by hand from the note and put them back after.
+		//
+		// Its own group, and named for the question rather than for the
+		// items, because what these three share is not what they ARE but
+		// that the export drops them.
+		if (o.optTab !== 'type') {
+			const grp = optGroup('Also include');
+			toggle(grp, 'keepFrontmatter', 'Properties',
+				'The --- block at the top of a note: status, tags, dates. Printed '
+				+ 'verbatim in monospace, because it is data rather than prose.');
+			toggle(grp, 'keepComments', 'Comments',
+				'Your %% notes to self %%, kept where they sit and set apart from '
+				+ 'the prose so a query to yourself cannot be read as a sentence.');
+			toggle(grp, 'keepImages', 'Image placeholders',
+				'[Image: cover.png] where a picture sits. The picture itself is not '
+				+ 'embedded \u2014 this is a mark that something belongs there.');
+			// HIGHLIGHTS. This one is a bug fix wearing an option's clothes:
+			// `==marked==` text matched nothing in the converter, so it
+			// travelled into the manuscript as literal equals signs. The
+			// marks are consumed either way now; this decides whether the
+			// highlight itself survives \u2014 yellow in Word, <mark> on the page
+			// \u2014 and off is the default because a highlight is usually a note
+			// to self about the prose rather than part of it.
+			toggle(grp, 'highlights', 'Highlights',
+				'Your ==marked== passages come through highlighted, the same yellow '
+				+ 'Word\u2019s own pen writes. Off keeps the words and drops the marks.');
+			// THE ONE HERE THAT IS ON. Footnotes were unconditional, so
+			// absent has to mean on — and the group's promise is "off until
+			// you ask", which this breaks. It sits here anyway: what
+			// happens to the notes in a file is the same question as what
+			// happens to its properties and its comments, and a writer
+			// hunting for it will look at the list of things that come
+			// along. Off drops the markers too, because a `[^3]` pointing
+			// at a note that is no longer in the document is worse than
+			// either having them or not.
+			toggle(grp, 'footnotes', 'Footnotes',
+				'Your [^1] notes, gathered as endnotes at the back with their '
+				+ 'markers left in the text. Off removes both.');
+		}
+
+		// ("Save into" stood here, in the options. It is in the footer now,
+		// beside "Export as": where a file lands is part of the ACT of
+		// exporting, not a property of the manuscript, and it was the only
+		// row in this column that answered a question about the export
+		// rather than about the book.)
+		};
+		redrawOpts = buildOpts;
+		buildOpts();
+
+
+		// THE FOOTER, AND IT IS ALWAYS ON SCREEN. It was appended after the
+		// options, so opening More pushed the format and the Export button
+		// below the fold — a writer had to CLOSE the thing they had just
+		// opened to reach the button they came for. It is created before
+		// the options in the DOM and pinned to the bottom by the
+		// stylesheet, which is the only arrangement where nothing a writer
+		// opens can hide the act.
+		// TOMBSTONE: A FOOTER (`zg-export-run`) held Preview, Export and the
+		// progress line along the bottom of the window, and the format and
+		// folder sat at the top — so the two halves of one sentence, "a
+		// Word file, into Drafts" and "do it", were at opposite ends of
+		// the modal with the file list between them. Everything about the
+		// ACT is on one line at the top now: what to make, where to put
+		// it, look at it, make it. The bottom border came off the window
+		// with it, which is a row of height given back to the list.
+		// ONE ACTION, and a switch that says what it will make. Three
+		// primary buttons put the same weight on "what do I want" and "do
+		// it", and left nowhere to say which format is currently meant.
+		const fmt = topBar.createDiv({ cls: 'zg-export-fmt' });
+		fmt.createSpan({ cls: 'zg-export-fmtlabel', text: 'Export as' });
+		// THREE FORMATS, and each one is a different question answered:
+		// Word for the person who asked for the manuscript, HTML for
+		// anyone with a browser (and for a PDF, which every browser
+		// prints), Markdown for the writer's own pipeline.
+		//
+		// PDF was printed through the app's own dialog and is TOMBSTONED
+		// with its reasoning intact (see exportPdf's grave below): it
+		// worked, but it was desktop-only and could not be tested
+		// headlessly. RTF is tombstoned too, up beside the paper table:
+		// it was kept for what it could not go wrong at, and it went for
+		// what it could not do. HTML took its place and is not a
+		// replacement of like for like — it is the document the PREVIEW
+		// already draws, so the file a writer gets is the pages they were
+		// just looking at, and it costs one call rather than its own
+		// four-hundred-line escaper.
+		const FORMATS = [
+			{ id: 'docx', label: 'Word', ext: '.docx' },
+			{ id: 'html', label: 'Web page', ext: '.html' },
+			{ id: 'md',   label: 'Markdown', ext: '.md' }
+		];
+		let goBtn = null;
+		// Held so that paintFmt can put them back when "Set up again" writes
+		// the options from outside the controls that normally own them.
+		let fmtSel = null, intoInput = null;
+		const paintFmt = () => {
+			const f = FORMATS.filter(x => x.id === o.format)[0] || FORMATS[0];
+			if (goBtn) goBtn.setText('Export ' + f.ext);
+			// AND THE DROP-DOWN ITSELF. It used to be the only thing that
+			// could change the format, so painting the button was enough;
+			// "Set up again" writes `o.format` from outside it, and a
+			// window whose button says .html while its menu says Word is
+			// worse than one that had never offered to help.
+			if (fmtSel && fmtSel.value !== o.format) fmtSel.value = o.format;
+			if (intoInput && intoInput.value !== (o.outFolder || '')) {
+				intoInput.value = o.outFolder || '';
+			}
+		};
+		// A vault whose saved format is the retired one comes back to Word
+		// rather than to a button that no longer exists.
+		// PDF prints from the paper view, which needs a print dialog \u2014 so a
+		// phone is not offered the choice rather than offered and refused.
+		// A vault whose saved format is one that no longer exists — 'pdf'
+		// and now 'rtf', both retired — comes back to Word rather than to
+		// a choice that is not on the list. Written as a whitelist for
+		// that reason: naming the formats that DO exist cannot go stale,
+		// and this line had already been left behind once, still admitting
+		// 'pdf' and quietly refusing 'rtf'.
+		if (o.format !== 'md' && o.format !== 'html') o.format = 'docx';
+		// A DROP-DOWN, not a third row of segmented buttons. The layout and
+		// the paper are already that control, and the format answers a
+		// categorically different question — WHAT FILE comes out, not how
+		// it is set — so wearing the same idiom made three unrelated
+		// choices look like one bank of settings. A select beside the
+		// button reads as part of the act: choose the thing, press the
+		// thing.
+		const sel = fmt.createEl('select', { cls: 'zg-export-fmtsel dropdown' });
+		fmtSel = sel;
+		for (const f of FORMATS) {
+			const opt2 = sel.createEl('option', { text: f.label + '  (' + f.ext + ')' });
+			opt2.value = f.id;
+		}
+		sel.value = o.format;
+		sel.addEventListener('change', () => {
+			o.format = sel.value; this.saveSettings(); paintFmt();
+		});
+		// WHAT ACTUALLY GETS COMPILED, in one place. ORDER, not the gathered
+		// list — a manual move is the whole point of the drag, and reading
+		// `files` here would throw it away silently at the last step. One
+		// function because the Export button and the Preview must be given
+		// the same list: a preview of a different book is worse than none.
+		const compileList = () => order.filter(p2 => chosen.has(p2))
+			.map(p2 => byPath.get(p2)).filter(Boolean);
+		const runBtn = (label, kind) => {
+			const b = topBar.createEl('button', { cls: 'mod-cta zg-export-go', text: label });
+			b.addEventListener('click', async () => {
+				b.disabled = true;
+				// ORDER, not the gathered list — a manual move is the whole
+				// point of the drag, and compiling from `files` would throw
+				// it away silently at the last step.
+				try {
+					await this.runExport(o.format, scope, compileList(), o, exportProgress);
+				}
+				finally { b.disabled = false; if (exportProgress) exportProgress.hide(); }
+				modal.close();
+			});
+			return b;
+		};
+		// PREVIEW FIRST. Everything else in this window describes what WILL
+		// happen; this is the only control that shows it. The commonest
+		// export mistake is not a wrong option, it is a file nobody meant
+		// to include — an outline, a character sheet, a scratch note — and
+		// that is invisible in a list of names and obvious in the compiled
+		// text. Cheap, too: the compile already exists, and this runs it
+		// without writing anything.
+		const prev = topBar.createEl('button', { cls: 'zg-export-preview', text: 'Preview' });
+		prev.addEventListener('click', async () => {
+			// The same list the Export button compiles, front and back
+			// matter included — a preview that showed anything else would
+			// be showing a different book from the one about to be made.
+			const picked = compileList();
+			if (!picked.length) { new Notice('Word-Smith: nothing selected.'); return; }
+			prev.disabled = true;
+			try {
+				const secs = await this.exportSections(picked, o,
+					exportProgress ? (d, t) => exportProgress.show(d, t, 'Reading') : null);
+				if (exportProgress) exportProgress.hide();
+				let words = 0;
+				for (const sec of secs) words += this.countWords(sec.markdown);
+				this.openExportPreview(secs, this.exportOptsFor(scope, o, words),
+					picked.length, words);
+			} finally { prev.disabled = false; }
+		});
+		// WHERE IT LANDS, beside what it will be. A folder picker rather
+		// than a path to type: every other place in this window that wants
+		// a folder searches for one, and a bare box meant typing a path
+		// exactly and getting silence when it was wrong.
+		{
+			const into = topBar.createDiv({ cls: 'zg-export-into' });
+			into.createSpan({ cls: 'zg-export-fmtlabel', text: 'into' });
+			const pick = into.createDiv({ cls: 'zg-export-folderpick' });
+			const inp = pick.createEl('input', { cls: 'zg-export-text' });
+			inp.type = 'text';
+			inp.value = o.outFolder || '';
+			intoInput = inp;
+			inp.placeholder = 'Vault root';
+			const hits = pick.createDiv({ cls: 'zg-export-hits zg-export-foldhits' });
+			const paintHits = () => {
+				hits.textContent = '';
+				const q = inp.value.trim();
+				const found = q
+					? this.exportFinderMatches(q, 6).filter(h => h.kind === 'folder')
+					: this.exportNearbyScopes(6);
+				for (const h of found) {
+					const r = hits.createDiv({ cls: 'zg-export-hit' });
+					r.createSpan({ cls: 'zg-export-hitpath', text: h.path });
+					r.addEventListener('mousedown', (ev) => {
+						ev.preventDefault();
+						o.outFolder = h.path; inp.value = h.path;
+						hits.textContent = ''; this.saveSettings();
+					});
+				}
+			};
+			inp.addEventListener('input', paintHits);
+			inp.addEventListener('focus', paintHits);
+			// A typed path is still honoured — the list is help, not a gate.
+			inp.addEventListener('change', () => { o.outFolder = inp.value; this.saveSettings(); });
+			inp.addEventListener('blur', () => {
+				window.setTimeout(() => { hits.textContent = ''; }, 120);
+			});
+		}
+		goBtn = runBtn('Export', o.format);
+		paintFmt();
+		// The progress line sits in the footer beside the button that
+		// starts the work, not over the list a writer may still be reading.
+		// THE PROGRESS LINE RIDES THE TOP BAR'S BOTTOM EDGE, absolutely
+		// positioned, so that a bar appearing mid-export cannot move a
+		// single control on the row it belongs to. It replaces the border
+		// under the bar while it runs, which is a rule already drawn there.
+		const prog = topBar.createDiv({ cls: 'zg-export-prog' });
+		const progBar = prog.createDiv({ cls: 'zg-export-progbar' });
+		const progTxt = prog.createDiv({ cls: 'zg-export-progtxt' });
+		exportProgress = {
+			show: (done, total, what) => {
+				prog.addClass('is-on');
+				progBar.style.width = (total ? Math.round((done / total) * 100) : 0) + '%';
+				progTxt.setText(what + (total ? '  ' + done + '/' + total : ''));
+			},
+			hide: () => { prog.removeClass('is-on'); progBar.style.width = '0%'; }
+		};
+
+		drawScope();
+		rebuild();
+		modal.open();
+	}
+
+	// The scope a writer most likely means: the folder of the note they are
+	// in, or the vault root.
+	// The compiled manuscript, before anything is written. Its own window
+	// rather than a pane inside the export one: the export window is
+	// already a finder, a list and fourteen options, and a preview folded
+	// into it would be read as another option rather than as the answer.
+	// The manuscript as PAGES, in an iframe, which is both the preview and
+	// the thing a PDF is printed from. One surface for both: what a writer
+	// checks is then exactly what comes out, and the pages they scrolled
+	// through are the pages in the file.
+	//
+	// An IFRAME rather than a div: the page CSS here (`@page`, serif at
+	// 12pt, double leading, a fixed measure) must not inherit a word of
+	// Obsidian's theme, and must not leak into it either. A document of
+	// its own is the only honest way to show a page.
+	openExportPreview(sections, o, fileCount, words) {
+		if (!Modal) return;
+		const modal = new Modal(this.app);
+		modal.titleEl.setText('Preview');
+		modal.modalEl.addClass('zg-export-preview-modal');
+		const body = modal.contentEl.createDiv({ cls: 'zg-export-prevbody' });
+
+		const head = body.createDiv({ cls: 'zg-export-prevhead' });
+		head.createSpan({ text:
+			fileCount + (fileCount === 1 ? ' file' : ' files') + ' \u00b7 '
+			+ words.toLocaleString() + ' words \u00b7 ~'
+			+ Math.max(1, Math.round(words / 250)).toLocaleString() + ' pages' });
+
+		// A MARKDOWN EXPORT PREVIEWS AS MARKDOWN. Showing a typeset page for
+		// a .md file is a preview of a document that will not exist: none
+		// of the paper, the margins or the running header survives into
+		// the file, and the one thing that DOES — where the dividers and
+		// the headings fall — is exactly what a page hides. The preview
+		// should be of the thing being made.
+		// Markdown previews as text because that is what it IS; .html and
+		// .docx both preview as pages, and for .html the preview and the
+		// file are literally the same document.
+		const asText = o.format === 'md';
+		const frame = body.createEl('iframe',
+			{ cls: 'zg-export-paper' + (asText ? ' is-plain' : '') });
+		const html = asText
+			? this.exportPreviewMarkdown(this.exportToMarkdown(sections, o))
+			: this.exportToHtml(sections, o, true);
+
+		// Written through the document rather than `srcdoc`: srcdoc has to
+		// be HTML-escaped whole, and a manuscript is full of quotes and
+		// ampersands — one escaping mistake there turns a page of prose
+		// into markup on screen.
+		// ── ZOOM ────────────────────────────────────────────────────────
+		//
+		// The sheet was drawn at its true size — 8.5 inches is 816 CSS
+		// pixels — inside a frame about seven hundred wide, so a writer met
+		// the page already cropped: the right margin was past the edge, and
+		// the FIRST thing a preview has to show is that there are margins
+		// at all. The whole point of looking is the shape of the page.
+		//
+		// FIT IS THE DEFAULT and it is computed, not guessed: the frame's
+		// own width against the paper's own width, from the same table the
+		// .docx reads, less a little air so the sheet does not touch the
+		// sides. Capped at 1 — a 4.25-inch mass-market page would otherwise
+		// open at 180% and look like a bug.
+		const paperPx = () => (zgPaperOf(o).w / 1440) * 96;
+		const fitZoom = () => {
+			const w = frame.clientWidth || 640;
+			return Math.max(0.2, Math.min(1, (w - 28) / paperPx()));
+		};
+		let zoom = 0;                      // 0 = not measured yet
+		let pct = null;                    // the read-out, once the foot exists
+		let dark = !!((this.settings && this.settings.exportOpts
+			&& this.settings.exportOpts.previewDark) || false);
+		const applyDark = () => {
+			try {
+				const doc = frame.contentDocument
+					|| (frame.contentWindow && frame.contentWindow.document);
+				if (!doc || !doc.documentElement) return;
+				doc.documentElement.classList.toggle('is-dark', dark);
+			} catch (_) {}
+		};
+		const apply = () => {
+			try {
+				const doc = frame.contentDocument
+					|| (frame.contentWindow && frame.contentWindow.document);
+				if (!doc || !doc.documentElement) return;
+				// `zoom` rather than a transform: a transform scales the
+				// painted result and leaves the scrollable area the size it
+				// was, so the bottom of a long manuscript becomes
+				// unreachable. Zoom relays out, which is what a page wants.
+				doc.documentElement.style.zoom = String(zoom);
+			} catch (_) {}
+			if (pct) pct.setText(Math.round(zoom * 100) + '%');
+		};
+		const setZoom = (z) => { zoom = Math.max(0.25, Math.min(2, z)); apply(); };
+
+		// Written through the document rather than `srcdoc`: srcdoc has to
+		// be HTML-escaped whole, and a manuscript is full of quotes and
+		// ampersands — one escaping mistake there turns a page of prose
+		// into markup on screen.
+		const paint = () => {
+			try {
+				const doc = frame.contentDocument
+					|| (frame.contentWindow && frame.contentWindow.document);
+				if (!doc) return;
+				doc.open(); doc.write(html); doc.close();
+			} catch (_) {}
+			// After every write, because writing replaces the document the
+			// zoom and the colour were set on.
+			if (!zoom) zoom = asText ? 1 : fitZoom();
+			apply();
+			applyDark();
+		};
+		frame.addEventListener('load', paint);
+		window.setTimeout(paint, 0);
+
+		const foot = body.createDiv({ cls: 'zg-export-prevfoot' });
+		// A MARKDOWN PREVIEW HAS NO PAGE TO FIT, so it has no zoom: the
+		// controls would be there to shrink a column of plain text, which
+		// is a thing a reader can do to no purpose.
+		if (!asText) {
+			const zoomBox = foot.createDiv({ cls: 'zg-export-zoom' });
+			const zbtn = (label, aria, fn) => {
+				const b = zoomBox.createEl('button', { cls: 'zg-export-mini', text: label });
+				b.setAttribute('aria-label', aria);
+				b.title = aria;
+				b.addEventListener('click', fn);
+				return b;
+			};
+			zbtn('\u2212', 'Zoom out', () => setZoom(zoom - 0.1));
+			pct = zoomBox.createSpan({ cls: 'zg-export-zoompct', text: '100%' });
+			zbtn('+', 'Zoom in', () => setZoom(zoom + 0.1));
+			zbtn('Fit', 'Fit the page to the window', () => setZoom(fitZoom()));
+			// ACTUAL SIZE, because "fit" is the only other answer and a
+			// writer checking whether 11pt is too small on a 6 × 9 page
+			// needs the sheet at the size it will be printed.
+			zbtn('100%', 'Show the page at its printed size', () => setZoom(1));
+			// LIGHT OR DARK, and it is a property of the READING rather
+			// than of the document: the sheet is white because paper is,
+			// which is right for proofing and is a lamp in the face for the
+			// hour before that spent reading the thing. Print resets to ink
+			// on paper regardless, so this cannot reach a file.
+			const dk = zoomBox.createEl('button', { cls: 'zg-export-mini zg-export-prevdark' });
+			const sayDark = () => {
+				dk.setText(dark ? 'Light' : 'Dark');
+				dk.title = dark ? 'Show the page as paper' : 'Dim the page for reading';
+			};
+			dk.addEventListener('click', () => {
+				dark = !dark;
+				// Remembered on the WINDOW's options rather than on this
+				// compiled copy, which is thrown away when the preview
+				// closes — a reader who wants a dark page wants it next
+				// time too.
+				try {
+					if (this.settings && this.settings.exportOpts) {
+						this.settings.exportOpts.previewDark = dark;
+						this.saveSettings();
+					}
+				} catch (_) {}
+				applyDark();
+				sayDark();
+			});
+			sayDark();
+			apply();   // the read-out exists now, so it can be told
+		}
+		// (A "Save as PDF" button stood here — see the tombstone below.)
+		modal.open();
+	}
+
+	// The compiled markdown, shown as the file it will be: monospaced,
+	// wrapped, on the editor's own surface. Not rendered — a rendered
+	// preview would hide the `#` dividers and the heading marks, which are
+	// the whole of what a writer checks in a compiled .md.
+	exportPreviewMarkdown(md) {
+		const esc = (t) => String(t == null ? '' : t)
+			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		return '<!doctype html><html><head><meta charset="utf-8"><style>'
+			+ 'html, body { margin: 0; background: #1e1e1e; }'
+			+ 'pre { margin: 0; padding: 18px 20px; color: #ddd;'
+			+ ' font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;'
+			+ ' font-size: 12px; line-height: 1.6;'
+			+ ' white-space: pre-wrap; word-break: break-word; }'
+			+ '</style></head><body><pre>' + esc(md) + '</pre></body></html>';
+	}
+
+	// PRINT THE FRAME THE WRITER IS LOOKING AT — and it must be a frame
+	// that is actually LAID OUT. The first attempt printed a hidden iframe
+	// sized `width: 0; height: 0`, and a zero-box document has no layout to
+	// print: the engine fell back to rasterising, which is why the PDF came
+	// out as a picture of the text with nothing selectable in it. Reported
+	// from the field exactly that way. A visible, sized frame prints as
+	// text, because there is text laid out in it.
+	// PRINT THE APP'S OWN DOCUMENT, not a frame inside it. Two attempts
+	// printed an iframe — first a hidden one (no layout to print, so the
+	// engine rasterised), then a visible one with the screen shadow
+	// removed for print. Both still came back as a picture, and the third
+	// diagnosis is the one that matters: Electron prints the TOP-LEVEL
+	// document, and asking a child frame to print itself takes a path
+	// that captures rather than composes.
+	//
+	// So the manuscript is put into the main document and printed the way
+	// Obsidian prints a note — which demonstrably produces selectable
+	// text, because that is what Obsidian's own print does. Everything
+	// else on the page is hidden by a print rule, the body wears a class
+	// while it happens, and the container is taken away afterwards.
+	// ── TOMBSTONE: PDF EXPORT, four attempts ────────────────────────────────
+	//
+	// The manuscript was rendered to HTML and printed. Every version came
+	// back as an IMAGE — a picture of the text, nothing selectable — or, in
+	// the last case, as blank pages. What was tried, in order, so a fifth
+	// attempt does not repeat the first four:
+	//
+	//   1. A hidden iframe sized `width: 0; height: 0`. A zero-box document
+	//      has no layout to print, so the engine rasterised it.
+	//   2. A visible, laid-out iframe. Still an image.
+	//   3. The same, with the screen's drop shadow switched off inside
+	//      `@media print` — a shadow is a compositing effect and forces
+	//      rasterising. Still an image.
+	//   4. The manuscript injected into the app's OWN document and printed
+	//      the way Obsidian prints a note, everything else hidden by a print
+	//      rule. Hidden with `position: fixed; left: -10000px`, which hides
+	//      it on the printed sheet too, so the pages came out blank; fixing
+	//      that to `display: none` plus a print-only `display: block`
+	//      produced an image again.
+	//
+	// Four diagnoses, three of them correct about something real, and the
+	// output never became text. Whatever the remaining cause is, it is not
+	// visible from here — and a feature that yields a scanned-looking PDF of
+	// a manuscript is worse than no feature, because it looks like it
+	// worked.
+	//
+	// Word and Markdown work everywhere, and a .docx is one keystroke from a
+	// PDF in Word, Pages, LibreOffice or Google Docs — each of which makes a
+	// better one than this could. If it is tried again: first check whether
+	// Obsidian's OWN Export to PDF gives selectable text on the same
+	// machine. If it does not, the platform is the answer and there is
+	// nothing here to fix.
+
+	exportToHtml(sections, o, forScreen) {
+		const esc = (t) => String(t == null ? '' : t)
+			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+		const parts = [];
+		if (o.titlePage) {
+			parts.push('<section class="page tp"><div class="tpinner">'
+				+ '<h1>' + esc(o.title || 'Untitled') + '</h1>'
+				+ (o.author ? '<p>by ' + esc(o.author) + '</p>' : '')
+				+ (o.wordCount != null && o.wordCountOnTitle !== false
+					? '<p>about ' + zgRoundWords(o.wordCount).toLocaleString() + ' words</p>' : '')
+				+ '</div></section>');
+		}
+		if (o.toc && sections.length > 1) {
+			parts.push('<section class="page"><h2>Contents</h2><ol class="toc">');
+			sections.forEach((sec, i) => {
+				parts.push('<li><a href="#' + zgAnchorId(sec.title, i) + '">'
+					+ esc(sec.title || ('Section ' + (i + 1))) + '</a></li>');
+			});
+			parts.push('</ol></section>');
+		}
+		sections.forEach((sec, i) => {
+			if (o.starBetween && i > 0) {
+				parts.push('<p class="div">' + esc(zgJoinMark(o)) + '</p>');
+			}
+			// Each file opens a page when page breaks are on; otherwise the
+			// prose simply runs on, which is what "continuous" means.
+			const brk = (i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false;
+			parts.push('<section class="' + (brk ? 'page' : 'run')
+				+ '" id="' + zgAnchorId(sec.title, i) + '">');
+			if (o.sectionTitles && sec.title) parts.push('<h2>' + esc(sec.title) + '</h2>');
+			let md = String(sec.markdown || '');
+			const fm = md.match(/^---\s*\n[\s\S]*?\n---\s*\n?/);
+			if (fm) {
+				md = md.slice(fm[0].length);
+				// Verbatim and monospaced, because it is data — the same
+				// decision the .docx makes.
+				if (o.keepFrontmatter) parts.push('<pre class="fm">' + esc(fm[0].trim()) + '</pre>');
+			}
+			let inComment = false;
+			let firstPara = true;
+			for (const line of md.replace(/\r\n?/g, '\n').split('\n')) {
+				const t = line.trim();
+				if (!t) continue;   // …and the same in the printed target.
+				// A COMMENT BLOCK — opened on its own line, closed lines
+				// later, and therefore invisible to the inline stripper,
+				// which is why one used to leak into the manuscript a line
+				// at a time. Set apart when kept, so a note to self can
+				// never be mistaken for prose.
+				if (inComment) {
+					if (/%%\s*$/.test(t)) inComment = false;
+					if (o.keepComments) {
+						const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
+						if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
+					}
+					continue;
+				}
+				if (/^%%/.test(t)) {
+					const oneLine = /^%%.*%%\s*$/.test(t);
+					if (!oneLine) inComment = true;
+					if (o.keepComments) {
+						const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
+						if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
+					}
+					firstPara = true;
+					continue;
+				}
+				if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+					parts.push('<p class="div">' + esc(o.divider == null ? '#' : o.divider) + '</p>');
+					firstPara = true; continue;
+				}
+				const h = t.match(/^(#{1,6})\s+(.*)$/);
+				if (h) {
+					if (o.keepHeadings !== false) {
+						parts.push('<h' + Math.min(3, h[1].length) + '>' + esc(h[2])
+							+ '</h' + Math.min(3, h[1].length) + '>');
+					}
+					firstPara = true; continue;
+				}
+				const runs = zgInlineRuns(t, o).map(r => {
+					let x = esc(r.text);
+					if (r.bold) x = '<strong>' + x + '</strong>';
+					if (r.ital) x = '<em>' + x + '</em>';
+					// <mark>, which is what the element is FOR, and which
+					// prints and reads as the yellow the .docx sets.
+					if (r.high) x = '<mark>' + x + '</mark>';
+					return x;
+				}).join('');
+				parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runs + '</p>');
+				firstPara = false;
+			}
+			parts.push('</section>');
+		});
+
+		const head = o.runningHeader ? esc(o.runningHeader) : '';
+		const font = JSON.stringify(o.font || 'Times New Roman');
+		const pt = o.pt || 12;
+		// The same table the .docx and the RTF read, so the sheet on screen
+		// is the sheet in the file — including its margins, which travel
+		// with the paper because an inch of white on a 5.5-inch page is a
+		// different decision from an inch on Letter.
+		const paper = zgPaperOf(o);
+		const pw = zgTwipIn(paper.w), ph = zgTwipIn(paper.h), pm = zgTwipIn(paper.mar);
+		// Air between paragraphs when there is no indent to separate them —
+		// see zgStylesXml. Half a line, matching the .docx's 120 twips.
+		const pgap = o.indent === false ? '0.5em' : '0';
+		return '<!doctype html><html><head><meta charset="utf-8">'
+			+ '<title>' + esc(o.title || 'Manuscript') + '</title><style>'
+			+ '@page { size: ' + pw + ' ' + ph + '; margin: ' + pm + ';'
+			+ (head ? ' @top-right { content: "' + head + ' " counter(page); }' : '')
+			+ ' }'
+			// DECLARED LIGHT. A page is white, and an iframe inherits the
+			// app's colour scheme — so under a dark theme the engine was
+			// treating this document as dark and everything that had not
+			// been given an explicit colour came out inverted: form
+			// controls, scrollbars, the default canvas behind a page that
+			// had not painted yet. Saying so once here stops a manuscript
+			// being previewed in a colour nobody chose.
+			+ ':root { color-scheme: light; }'
+			+ 'html { background: ' + (forScreen ? '#5a5a5e' : '#fff') + '; }'
+			+ 'body { margin: 0; padding: ' + (forScreen ? '18px 0' : '0') + ';'
+			+ ' font-family: ' + font + ', Times, serif; font-size: ' + pt + 'pt;'
+			// The same three answers the .docx sets, as CSS multiples: 240
+			// twips is one line, so the ratio is the twips over 240 — with
+			// a little air added to single, because a printed page at a
+			// flat 1 is tighter than any word processor actually sets it.
+			+ ' line-height: ' + ({ 240: '1.45', 360: '1.7', 480: '2' }[zgLineTwips(o)] || '2') + ';'
+			+ ' color: #111; }'
+			// THE PAGE ITSELF, on screen: a letter-width sheet with inch
+			// margins and a shadow. It is the same box print uses, so the
+			// preview is not an impression of the output — it is the
+			// output, shown on a desk instead of on paper.
+			+ '.page, .run { background: #fff; }'
+			+ (forScreen
+				? '.page, .run { width: ' + pw + '; box-sizing: border-box;'
+					+ ' margin: 0 auto 18px; padding: ' + pm + '; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }'
+					+ '.page { min-height: ' + ph + '; }'
+					// THE PRINTED DOCUMENT IS NOT THE SCREEN ONE, and this
+					// is the whole of the image-PDF bug. The preview draws
+					// each page as a sheet with a DROP SHADOW, and a
+					// shadow is a compositing effect: asked to print it,
+					// Chromium falls back to rasterising the page it
+					// cannot describe in vector terms — so the PDF came
+					// out as a picture of the manuscript, and 300 shadowed
+					// sheets is also why it took so long to produce one.
+					//
+					// The screen decoration is switched off for print
+					// rather than the document being rebuilt: one document,
+					// two media, and what the writer looked at is still
+					// what gets printed.
+					+ '@media print {'
+					// INK ON PAPER, whatever the screen was set to. The
+					// dark sheet is a reading light, not a document: a
+					// manuscript printed white-on-black is a ream of toner
+					// and an unreadable page.
+					+ ' html, html.is-dark { background: #fff; color-scheme: light; }'
+					+ ' html.is-dark body { color: #111; }'
+					+ ' html.is-dark .page, html.is-dark .run { background: #fff; }'
+					+ ' body { padding: 0; }'
+					+ ' .page, .run { width: auto; margin: 0; padding: 0;'
+					+ '   min-height: 0; box-shadow: none; }'
+					+ ' .page { page-break-before: always; }'
+					+ ' .page:first-child { page-break-before: avoid; }'
+					+ '}'
+				: '.page { page-break-before: always; } .page:first-child { page-break-before: avoid; }')
+			+ 'p { margin: 0 0 ' + pgap + ' 0; text-indent: ' + (o.indent === false ? '0' : '0.5in') + ';'
+			+ (o.justify ? ' text-align: justify;' : '')
+			// Widows and orphans are the whole reason to print rather than
+			// draw: one line of a paragraph alone on a page is what makes a
+			// generated manuscript look generated.
+			+ ' orphans: 2; widows: 2; }'
+			+ 'p.first, p.div { text-indent: 0; }'
+			// A DARK SHEET, for reading rather than for proofing. It is not
+			// what the file looks like and it does not pretend to be — the
+			// point is the hour spent reading the preview before sending
+			// it, and a white page at that size is a lamp. Print always
+			// resets to ink on paper (below), so nothing here can reach
+			// the .docx or a PDF.
+			+ 'html.is-dark { color-scheme: dark; background: #17181b; }'
+			+ 'html.is-dark body { color: #dcdcdc; }'
+			+ 'html.is-dark .page, html.is-dark .run { background: #212327; }'
+			+ 'html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }'
+			+ 'html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }'
+			+ 'html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }'
+			+ 'html.is-dark a { color: #9cc4ff; }'
+			// The two things that only appear when a writer asks for them,
+			// and both are set so they cannot be mistaken for the prose
+			// they sit beside: properties as data, comments as an aside.
+			+ 'pre.fm { font-family: ui-monospace, Menlo, Consolas, monospace;'
+			+ ' font-size: 0.8em; line-height: 1.35; white-space: pre-wrap;'
+			+ ' color: #444; border-left: 2px solid #bbb; padding-left: 8px; margin: 0 0 1em; }'
+			+ 'p.cmt { text-indent: 0; font-style: italic; color: #555;'
+			+ ' border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }'
+			+ 'p.div { text-align: center; margin: 1em 0; }'
+			+ 'h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }'
+			+ 'h1 { font-size: 1.5em; } h2 { font-size: 1.15em; } h3 { font-size: 1em; }'
+			+ '.tp .tpinner { padding-top: 2.5in; text-align: center; }'
+			+ 'ol.toc { list-style: none; padding: 0; }'
+			+ 'ol.toc a { color: inherit; text-decoration: none; }'
+			+ '</style></head><body>' + parts.join('\n') + '</body></html>';
+	}
+
+	exportDefaultScope() {
+		try {
+			const f = this.app.workspace.getActiveFile();
+			if (f && f.parent && f.parent.path && f.parent.path !== '/') return f.parent.path;
+			if (f && f.path) return f.path;
+		} catch (_) {}
+		return '';
+	}
+
+	// Fills each row's word count as the reads come back.
+	// `store` is a Map from path to word count, and it is the point: a row
+	// that is not on screen — inside a folder the writer has folded shut —
+	// has no element to hang a `data-words` attribute on, and a count that
+	// only exists as an attribute disappears with the row. The totals used
+	// to drop by the length of whatever chapter had just been collapsed.
+	// ── The last export ─────────────────────────────────────────────────────
+	//
+	// Written at each SUCCESS, not when the button is pressed: a run that
+	// failed on a name collision or a missing folder is not something to
+	// offer to do again, and recording the intention rather than the outcome
+	// is how a window ends up cheerfully proposing to repeat a mistake.
+	//
+	// Everything needed to put the window back where it was — except what
+	// was TICKED, which is already remembered per scope in the export store
+	// and comes back on its own the moment the scope does. That is the whole
+	// reason this holds a scope rather than a list of paths: the list would
+	// be a second copy of something already kept, and two copies of a set of
+	// ticks is one of them going stale.
+	exportRemember(scope, kind, opt, count, name) {
+		try {
+			if (!this.settings || !this.settings.exportOpts) return;
+			this.settings.exportOpts.lastRun = {
+				scope: String(scope || ''),
+				format: kind,
+				into: String((opt && opt.outFolder) || ''),
+				files: count || 0,
+				name: String(name || ''),
+				at: Date.now()
+			};
+			this.saveSettings();
+		} catch (_) {}
+	}
+
+	// "just now", "2 hours ago", "yesterday". Rounded down and deliberately
+	// vague past a day: the point of the line is whether this was the run a
+	// writer half-remembers doing, and "3 days ago" answers that where a
+	// timestamp makes them do the arithmetic.
+	exportWhen(at) {
+		const ms = Date.now() - (at || 0);
+		if (!at || ms < 0) return '';
+		const min = Math.floor(ms / 60000);
+		if (min < 2) return 'just now';
+		if (min < 60) return min + ' minutes ago';
+		const hr = Math.floor(min / 60);
+		if (hr < 2) return 'an hour ago';
+		if (hr < 24) return hr + ' hours ago';
+		const d = Math.floor(hr / 24);
+		if (d < 2) return 'yesterday';
+		if (d < 31) return d + ' days ago';
+		return 'a while ago';
+	}
+
+	async exportFillCounts(files, listWrap, done, store) {
+		for (const f of files) {
+			let text = '';
+			try { text = await this.app.vault.cachedRead(f); } catch (_) {}
+			const n = this.countWords(text);
+			if (store) store.set(f.path, n);
+			const el = listWrap.querySelector('[data-path="' + CSS.escape(f.path) + '"]');
+			if (el) { el.setAttribute('data-words', String(n)); el.setText(n.toLocaleString()); }
+		}
+		if (done) done();
+	}
+
+	// The options a target actually receives: the window's, plus the three
+	// derived from the scope. Split out because the preview must be given
+	// EXACTLY what the export will be \u2014 a preview assembled separately is
+	// a preview of something else, and the running header drifted first.
+	exportOptsFor(scope, o, words) {
+		// The writer's title if they gave one, the folder's name if not.
+		// Trimmed, because a box someone tabbed through holding a space is
+		// a title of one space, and it would go on the title page.
+		const typed = String(o.titleText || '').trim();
+		const title = typed
+			|| String(scope || '').split('/').pop().replace(/\.md$/, '')
+			|| 'Untitled';
+		return Object.assign({}, o, {
+			title, wordCount: words,
+			// WRITTEN HERE, not left in the stored options: the switch a
+			// writer sees says "include", the three builders ask "drop",
+			// and the one place both are true is the moment of compiling.
+			// Deriving it at the edge also means a vault saved with the
+			// old pinned value cannot contradict the switch.
+			dropImages: !o.keepImages,
+			runningHeader: o.runningHeaderOn
+				? ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /')
+				: ''
+		});
+	}
+
+	async runExport(kind, scope, files, o, progress) {
+		if (!files.length) { new Notice('Word-Smith: nothing selected to export.'); return; }
+		const sections = await this.exportSections(files, o,
+			progress ? (d, t) => progress.show(d, t, 'Reading') : null);
+		if (progress) {
+			progress.show(files.length, files.length, 'Building');
+			// One frame for "Building" to appear before the synchronous
+			// build blocks everything — otherwise the label changes and
+			// the UI repaints in the same moment, which is after the work.
+			await new Promise((r) => window.setTimeout(r, 0));
+		}
+		let words = 0;
+		for (const s of sections) words += this.countWords(s.markdown);
+		const folder = await this.exportEnsureFolder(o.outFolder);
+		// A FREE NAME, ALWAYS. The stamp is dd-mm-yyyy hhmm, so two
+		// exports inside the same minute asked the vault for a path that
+		// already existed — and `vault.create` throws on that, so the
+		// second one FAILED with "File already exists" rather than making
+		// a file. Tweaking one option and pressing Export again is the
+		// most ordinary thing to do in this window, which made it the
+		// most ordinary way to see an error.
+		//
+		// Counting up rather than overwriting: the first file may be the
+		// one already sent to somebody, and no export is worth silently
+		// replacing it.
+		const into = (n) => {
+			let path = folder ? folder + '/' + n : n;
+			try {
+				if (!this.app.vault.getAbstractFileByPath(path)) return path;
+				const dot = n.lastIndexOf('.');
+				const stem = dot === -1 ? n : n.slice(0, dot);
+				const ext = dot === -1 ? '' : n.slice(dot);
+				for (let i = 2; i < 200; i++) {
+					const next = (folder ? folder + '/' : '') + stem + ' ' + i + ext;
+					if (!this.app.vault.getAbstractFileByPath(next)) return next;
+				}
+			} catch (_) {}
+			return path;
+		};
+		const opt = this.exportOptsFor(scope, o, words);
+		try {
+			// WHAT WAS DONE, remembered — see `exportRemember` below for why
+			// it is written HERE, at each success, rather than where the
+			// button is pressed.
+			if (kind === 'md') {
+				const name = into(this.exportFileName(scope, 'md'));
+				await this.app.vault.create(name, this.exportToMarkdown(sections, opt));
+				this.exportRemember(scope, kind, opt, files.length, name);
+				new Notice('Word-Smith: exported ' + name);
+				return;
+			}
+
+			if (kind === 'html') {
+				// THE SAME DOCUMENT THE PREVIEW DRAWS, with the screen
+				// decoration off: one builder, so the file cannot drift
+				// from the thing the writer just looked at. Plain text,
+				// so `create` rather than `createBinary` — there is no
+				// container to malform, no relationship to dangle and no
+				// part to leave out, which are the three ways a .docx
+				// breaks. It also carries the @page rules, which is why
+				// printing it from any browser gives a PDF with the
+				// pagination, the margins and the running header intact.
+				const htmlName = into(this.exportFileName(scope, 'html'));
+				await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
+				this.exportRemember(scope, kind, opt, files.length, htmlName);
+				new Notice('Word-Smith: exported ' + htmlName);
+				return;
+			}
+			const bytes = zgBuildDocx(sections, opt);
+			const name = into(this.exportFileName(scope, 'docx'));
+			await this.app.vault.createBinary(name, bytes.buffer);
+			// THE ONE THAT MATTERED MOST, and the one that was missing: Word
+			// is the default format, so the export a writer actually repeats
+			// was the export this never remembered. Two of these landed on
+			// the markdown branch instead — a patch applied by matching a
+			// line of source that appears three times, which is exactly the
+			// mistake the audit was run to find.
+			this.exportRemember(scope, kind, opt, files.length, name);
+			new Notice('Word-Smith: exported ' + name);
+		} catch (e) {
+			console.error('Word-Smith export failed', e);
+			new Notice('Word-Smith: export failed — ' + (e && e.message ? e.message : e));
+		}
+	}
+
+	// PDF, through the engine Obsidian is already running. Rendering the
+	// manuscript to HTML and printing it gets real pagination, widow and
+	// orphan control and a running header from CSS — all the hard parts of
+	// a page layout engine, for free. Writing a PDF by hand would mean
+	// owning line breaking, font metrics and page geometry, and embedding
+	// a font for anything outside WinAnsi; that is a bigger job than the
+	// whole of the rest of this feature.
+	//
+	// The cost is that it is DESKTOP ONLY, and the button says so rather
+	// than failing when pressed.
+	// TOMBSTONE: PDF EXPORT. The manuscript was rendered to HTML and
+	// printed through Obsidian’s own print dialog — "Save as PDF" — which
+	// bought real pagination, widows and orphans and a running header
+	// from CSS for about a hundred lines. It deliberately avoided
+	// Electron’s `printToPDF` (app internals) and a hand-rolled PDF
+	// writer (which means owning line breaking, font metrics and page
+	// geometry, and embedding a font for anything outside WinAnsi).
+	//
+	// It is gone for what it could not BE rather than for what it did:
+	// desktop only, because a phone has no print dialog, and the one part
+	// of this feature no probe could cover, because driving it needs a
+	// real one. A writer who wants a PDF is one keystroke from it once
+	// they have the .docx. Two formats that work everywhere and can both
+	// be proved beat three where one is neither.
+	//
+	// If it returns: `exportPdf(sections, o, scope, into)` wrote the HTML
+	// into the vault first (so a blocked print still left something
+	// usable) and printed a same-document IFRAME — never `window.open`,
+	// which Obsidian blocks.
 
 	openHistoryModal() {
 		if (!Modal) return;
@@ -16522,6 +20257,13 @@ module.exports = class WordSmith extends Plugin {
 			() => this.openHistoryModal());
 	}
 
+	buildExportIndicator() {
+		return this.buildBarButton('zg-barbtn-export',
+			(node) => { node.textContent = 'Export'; },
+			'Compile a manuscript \u2014 click to open the export window',
+			() => this.openExportModal());
+	}
+
 	buildReportIndicator() {
 		return this.buildBarButton('zg-barbtn-report',
 			(node) => { node.textContent = 'Report'; },
@@ -17051,7 +20793,14 @@ module.exports = class WordSmith extends Plugin {
 			{ id: 'lightdark',    name: 'Light / Dark' },
 			{ id: 'theme',    name: 'Theme' },
 			{ id: 'report',    name: 'Report' },
-			{ id: 'history',    name: 'History' }
+			{ id: 'history',    name: 'History' },
+			// THE THIRD PLACE a row has to be named. `menuRowSpecs` makes it
+			// work, `menuLayout`'s default list makes it REACH a saved
+			// order, and this makes the Menu tab call it something. Miss
+			// this one and the card appears wearing its raw id — which is
+			// what "export" in lower case was, and exactly what the
+			// assertion about raw ids exists to catch.
+			{ id: 'export',    name: 'Export' }
 		];
 	}
 
@@ -17061,8 +20810,15 @@ module.exports = class WordSmith extends Plugin {
 	// kept: same rule as the theme shelf's hidden row \u2014 an id this build
 	// cannot name must stay reachable, not silently swept.
 	menuLayout() {
+		// EVERY ROW THAT EXISTS, or the new one is invisible. The loop below
+		// appends anything in this list that a saved order does not already
+		// carry — which is exactly how a new row reaches a vault that has
+		// rearranged its menu once. `export` was added to `menuRowSpecs`
+		// and NOT here, so the row existed, worked, and could not be found
+		// by anybody: their saved order had no id for it and nothing ever
+		// added one. Adding a row means adding it in both places.
 		const def = ['search', 'modes', 'syntax', 'prose', 'markers', 'font',
-			'lightdark', 'theme', 'rule-1', 'report', 'history'];
+			'lightdark', 'theme', 'rule-1', 'report', 'history', 'export'];
 		const out = [];
 		for (const id of (this.settings.menuOrder || [])) {
 			if (!out.includes(id)) out.push(id);
@@ -17347,6 +21103,12 @@ module.exports = class WordSmith extends Plugin {
 			run: () => plugin.openReportModal() },
 		{ id: 'history', label: 'History', wide: true, reopen: true,
 			run: () => plugin.openHistoryModal() },
+		// Export joins the pair for the same reason they are a pair: it
+		// OPENS a window rather than setting a switch. Third in the run,
+		// because it is the one you reach for least often and last in the
+		// order of things you do — write, look at what you wrote, send it.
+		{ id: 'export',  label: 'Export',  wide: true, reopen: true,
+			run: () => plugin.openExportModal() },
 		];
 	}
 
@@ -19990,7 +23752,7 @@ module.exports = class WordSmith extends Plugin {
 	// the picker toggles which invisibles are drawn either way.
 	buildMarkersIndicator() {
 		const s = this.settings;
-		const any = this.textOpt('showHiddenMarkers', false) &&
+		const any = this.markerOpt('showHiddenMarkers', false) &&
 			(s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 		return this.buildBarButton(
 			'zg-barbtn-markers' + (any ? '' : ' is-off'),
@@ -20019,16 +23781,18 @@ module.exports = class WordSmith extends Plugin {
 		const items = defs.map(d => ({
 			label: d.label,
 			sub:   true,
-			on: () => !!(this.textOpt('showHiddenMarkers', false) && s[d.key]),
+			on: () => !!(this.markerOpt('showHiddenMarkers', false) && s[d.key]),
 			onClick: async () => {
 				s[d.key] = !s[d.key];
 				if (s[d.key]) {
 					s.showHiddenMarkers = true;
 					// Turning a marker on from the bar has to turn the tab that
 					// owns it on too, or the click sets a flag and nothing
-					// appears. Same reason the write-checks picker hands back a
-					// default rather than switching on with nothing selected.
-					s.miscEnabled = true;
+					// appears. It is the MARKERS tab now, not Misc — the old
+					// line switched on everything Text Options owns, including
+					// the line-length cap, which is how clicking "Tabs" came to
+					// narrow a writer's column irreversibly.
+					s.markersEnabled = true;
 				}
 				else if (!defs.some(x => s[x.key])) s.showHiddenMarkers = false;
 				await this.saveSettings(true);
@@ -20501,6 +24265,7 @@ module.exports = class WordSmith extends Plugin {
 			'{theme}':     '\x00THEME\x00',
 			'{report}':    '\x00REPORT\x00',
 			'{history}':   '\x00HISTORY\x00',
+			'{export}':    '\x00EXPORT\x00',
 			'{readtime}':  this.formatReadTime(totalWC)
 		};
 
@@ -21835,6 +25600,7 @@ module.exports = class WordSmith extends Plugin {
 			THEME:    () => this.buildThemeIndicator(),
 			REPORT:   () => this.buildReportIndicator(),
 			HISTORY:  () => this.buildHistoryIndicator(),
+			EXPORT:   () => this.buildExportIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
 			NUM:      () => this.buildNumIndicator(),
 			CLOCK:    () => this.buildClockFace(),
@@ -22300,6 +26066,9 @@ module.exports = class WordSmith extends Plugin {
 		if (this._barBoundsCleared) return;
 		this._barBoundsCleared = true;
 		this._barBoundsL = this._barBoundsW = null;
+		// The element these bounds were written to is no longer carrying
+		// them, so it must not be remembered as though it were.
+		this._barBoundsEl = null;
 		el.style.removeProperty('left');
 		el.style.removeProperty('width');
 		el.style.removeProperty('right');
@@ -22398,7 +26167,31 @@ module.exports = class WordSmith extends Plugin {
 		// Only touched when it actually changes: writing left/width on every
 		// mask pass would invalidate layout continuously, and the mask pass
 		// runs on scroll.
-		if (this._barBoundsL !== left || this._barBoundsW !== width) {
+		//
+		// …AND THE CACHE IS KEYED TO THE ELEMENT, not only to the numbers.
+		// The bar is DESTROYED when the active note leaves scope and a NEW
+		// element is built when the next one is in it — so after a switch
+		// between two notes in the same layout, `left` and `width` are
+		// unchanged, this comparison found nothing to do, and the brand new
+		// element was left with no inline geometry at all. Its stylesheet
+		// says `left: 0; width: 100%`, so the bar ran the full width of the
+		// window and covered the bottom of the sidebar — the vault name and
+		// the settings cog with it.
+		//
+		// Reported as "it is right when I enable the plugin and wrong when I
+		// click to another note", and as "closing and reopening the sidebar
+		// fixes it": both are this. The first element was stamped because
+		// the cache was empty; reopening the sidebar CHANGES the geometry,
+		// which is the one thing that made the numbers differ and let the
+		// write through.
+		//
+		// An identity check rather than dropping the cache on teardown: the
+		// element can be replaced by paths that never touch clearBarBounds,
+		// and the question this cache is really asking is "does the box on
+		// screen already carry these bounds", which only the box can answer.
+		if (this._barBoundsL !== left || this._barBoundsW !== width
+			|| this._barBoundsEl !== el) {
+			this._barBoundsEl = el;
 			this._barBoundsL = left;
 			this._barBoundsW = width;
 			// setProperty with priority, not `style.left = …`. Plain inline
@@ -23271,7 +27064,7 @@ module.exports = class WordSmith extends Plugin {
 				// Through textOpt, not off `s` directly: the hidden markers are
 				// a Text Options setting, and reading the raw value here would
 				// keep drawing them after that tab's master switch is off.
-				if (!s.pluginEnabled || !plugin.textOpt('showHiddenMarkers', false)) return Decoration.none;
+				if (!s.pluginEnabled || !plugin.markerOpt('showHiddenMarkers', false)) return Decoration.none;
 				if (!plugin.isEditorInScope(view)) return Decoration.none;
 				const showSp  = s.markSpaces, showTab = s.markTabs;
 				const showPar = s.markParagraphs, showEol = s.markEndOfLines;
@@ -23618,7 +27411,7 @@ module.exports = class WordSmith extends Plugin {
 			read() {
 				const view = this.view;
 				const s = plugin.settings;
-				if (!s.pluginEnabled || !plugin.textOpt('showHiddenMarkers', false)
+				if (!s.pluginEnabled || !plugin.markerOpt('showHiddenMarkers', false)
 					|| !s.markBlankLines) return null;
 				if (!plugin.isEditorInScope(view)) return null;
 				const scRect  = view.scrollDOM.getBoundingClientRect();
@@ -24464,17 +28257,24 @@ class WordSmithSettingTab extends PluginSettingTab {
 			{ id: 'syntax',     label: 'Syntax',       render: this.displaySyntaxTab },
 			{ id: 'checks',     label: 'Prose Checks', render: this.displayChecksTab },
 			{ id: 'text',       label: 'Text Options', render: this.displayTextTab },
+			{ id: 'markers',    label: 'Markers',      render: this.displayMarkersTab },
 			{ id: 'typography', label: 'Typography',   render: this.renderTypographySection },
 			// Goals and History sit together and last-but-two: they are about
 			// what you are writing rather than how the editor looks, and the
 			// two of them read as a pair.
 			{ id: 'goals',      label: 'Goals',        render: this.displayGoalsTab },
 			{ id: 'history',    label: 'History',      render: this.displayHistoryTab },
-			{ id: 'misc',       label: 'Misc',         render: this.displayMiscTab },
-			// Vim last. It is the one tab most people will never open, and a
-			// tab nobody opens belongs at the end rather than in the middle of
-			// the ones they do.
-			{ id: 'vim',        label: 'Vim',          render: this.displayVimTab }
+			// Export sits with them for the same reason: it is about the
+			// manuscript rather than about the editor. One button — the
+			// work happens in a modal, because choosing a scope and
+			// curating a list is a working surface, not a settings pane.
+			{ id: 'export',     label: 'Export',       render: this.displayExportTab },
+			{ id: 'misc',       label: 'Misc',         render: this.displayMiscTab }
+			// TOMBSTONE: a Vim tab stood here, last in the list because it
+			// was "the one tab most people will never open". That was the
+			// argument for FOLDING it in rather than for keeping it: its
+			// whole content was one switch, and it is now a group at the
+			// foot of Misc.
 		];
 		if (!this._activeTab || !TABS.some(t => t.id === this._activeTab)) this._activeTab = TABS[0].id;
 
@@ -24957,7 +28757,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		L('', 'the row is tight, so the heading you are under survives longest.');
 
 		H('Buttons \u2014 you can click these, and they never get dropped');
-		L('{syntax} {prose} {markers} {font} {theme} {report} {history}');
+		L('{syntax} {prose} {markers} {font} {theme} {report} {history} {export}');
 
 		H('Spacers');
 		L('{s} {ss} {sss}\u2026', 'blank space \u2014 a quarter of a space for each s');
@@ -25467,6 +29267,21 @@ class WordSmithSettingTab extends PluginSettingTab {
 				plugin.menuJoinAfter(dragged, id);
 				await plugin.saveSettings();
 				redisplay();
+			});
+			// AND BY FINGER, which fires none of the above. The card needs
+			// a stable id to be hit-tested by, and it had none — the drag
+			// carried it in the dataTransfer, which touch has no equivalent
+			// of.
+			card.setAttribute('data-menucard', id);
+			plugin.touchDrag(card, id, {
+				rows: () => Array.from(containerEl.querySelectorAll('.zg-menu-card')),
+				idOf: (el) => el.getAttribute('data-menucard'),
+				drop: async (from, to) => {
+					if (!from || from === to) return;
+					plugin.menuJoinAfter(from, to);
+					await plugin.saveSettings();
+					redisplay();
+				}
 			});
 
 			const head = card.createDiv({ cls: 'zg-theme-head' });
@@ -26173,12 +29988,156 @@ class WordSmithSettingTab extends PluginSettingTab {
 			cls: 'ws-settings-note'
 		});
 
+		containerEl.createEl('h3', { text: 'Where the goals live' });
+		containerEl.createEl('p', { cls: 'ws-settings-note', text:
+			'Your targets are kept in a plain note as well as in the plugin\u2019s '
+			+ 'own settings, so they survive a reinstall and you can read or '
+			+ 'change them in the editor. Edit the numbers there and Word-Smith '
+			+ 'picks them up next time Obsidian starts.' });
+		{
+			const at = this.plugin.goalsFilePath();
+			const exists = !!(this.plugin.app.vault.getAbstractFileByPath(at));
+			new Setting(containerEl).setName('Goals file')
+				.setDesc(exists
+					? 'Right now it\u2019s at: ' + at
+					: 'Not made yet \u2014 it\u2019ll appear the first time you set a goal.')
+				.addText(t => {
+					t.inputEl.addClass('ws-row-fmt');
+					t.setValue(this.plugin.settings.goalsPath || 'Word-Smith/ws-goals.md')
+						.onChange(async v => {
+							this.plugin.settings.goalsPath = v;
+							await this.plugin.saveSettings();
+						});
+				});
+			containerEl.createEl('p', { cls: 'ws-settings-note', text:
+				'This is only where the file gets made if you don\u2019t have one '
+				+ 'yet. Missing folders are created for you, and a file you\u2019ve '
+				+ 'already moved stays where you put it.' });
+			new Setting(containerEl).setName('Keep the goals file')
+				.setDesc('Off keeps your targets in the plugin\u2019s settings only, '
+					+ 'where a reinstall loses them.')
+				.addToggle(t => t.setValue(this.plugin.settings.goalsFile !== false)
+					.onChange(async v => {
+						this.plugin.settings.goalsFile = v;
+						await this.plugin.saveSettings();
+					}));
+		}
 	}
 
 	// ── History tab ───────────────────────────────────────────────────────────
 	// Its own tab rather than a section under Goals: it carries a store
 	// that lives in the vault, a path, and a delete, which is more than a
 	// heading inside somebody else's tab can hold legibly.
+	// ── Markers tab ───────────────────────────────────────────────────────
+	// Its own tab with its own master switch. It used to be a section of
+	// Text Options gated by THAT tab's switch, so turning a marker on from
+	// the bar's picker turned Text Options on — and with it whatever
+	// line-length cap a writer had once set and forgotten. The symptom was
+	// a column that went narrow when they clicked "Tabs" and stayed
+	// narrow, with nothing in the markers UI to explain why. A feature's
+	// switch should own that feature and nothing else.
+	displayMarkersTab(containerEl) {
+		const s = this.plugin.settings;
+		containerEl.createEl('p', {
+			text: 'Draws the characters you cannot normally see \u2014 tabs, spaces, '
+				+ 'line ends. Nothing here changes your text, only how it is drawn.',
+			cls: 'ws-settings-note'
+		});
+		this.toggle(containerEl, 'Show hidden markers',
+			'The master switch for everything below.',
+			'markersEnabled', () => this.display());
+		if (!s.markersEnabled) return;
+
+		const hm = this.sub(containerEl);
+		this.toggle(hm, 'Tabs', 'Shown as \u2192', 'markTabs');
+		this.toggle(hm, 'Spaces', 'Shown as \u00b7', 'markSpaces');
+		this.toggle(hm, 'End of lines', 'Shown as \u21b5', 'markEndOfLines');
+		this.toggle(hm, 'Paragraphs', 'Shown as \u00b6', 'markParagraphs');
+		this.toggle(hm, 'End of buffer',
+			'Tildes down the empty space after your last line.', 'markBlankLines');
+		containerEl.createEl('p', {
+			text: 'Line width, indents, spacing and justification live under Text '
+				+ 'Options \u2014 a separate switch, so turning a marker on can never '
+				+ 'change the shape of your page.',
+			cls: 'ws-settings-note'
+		});
+	}
+
+	displayExportTab(containerEl) {
+		const plugin = this.plugin;
+		// WHAT IT DOES, THEN WHAT IT COSTS YOU TO KNOW. The old copy led
+		// with the formats, which is the last thing a writer wonders about
+		// — they arrive at this tab holding a folder of scenes and asking
+		// whether this turns it into one document. Answer that, then say
+		// what will not survive the trip, because a surprise there is
+		// found in the file rather than here.
+		containerEl.createEl('p', { cls: 'setting-item-description', text:
+			'Turns a folder of notes into one document \u2014 chapters and scenes '
+			+ 'joined in the order you choose, ready to send. Word (.docx), a web '
+			+ 'page (.html), or a single Markdown file.' });
+		// SAID ON THE TAB, not discovered in the window. Export is a desk
+		// job: a list to curate, an order to arrange and a page to check,
+		// and a phone can hold about four rows of it at once. A tablet is
+		// fine — the columns fall to one and the rows are still reachable
+		// — so this names the PHONE rather than "mobile", which would tell
+		// an iPad owner something untrue.
+		if (Platform && Platform.isPhone) {
+			const warn = containerEl.createEl('p', { cls: 'ws-settings-note is-warning' });
+			warn.setText('This is a small window for a phone. Everything works \u2014 all '
+				+ 'three formats, this one included \u2014 but choosing files and putting '
+				+ 'them in order is much easier on a tablet or a desktop.');
+		}
+		new Setting(containerEl)
+			.setName('Export a manuscript')
+			.setDesc('Choose a folder, tick what goes in, drag it into order, '
+				+ 'and see it as pages before you write a file.')
+			.addButton(b => b
+				.setButtonText('Open Export\u2026')
+				.setCta()
+				.onClick(() => plugin.openExportModal()));
+		containerEl.createEl('p', { cls: 'setting-item-description', text:
+			'It opens on the submission standard \u2014 12pt serif, double spaced, '
+			+ 'indented paragraphs, a # between scenes, a title page and a '
+			+ 'running header \u2014 which is what an agent or a publisher expects. '
+			+ 'Every one of those is a switch in the window, and the paper runs '
+			+ 'from Letter and A4 to the trim sizes a novel is printed at.' });
+		containerEl.createEl('p', { cls: 'setting-item-description', text:
+			'Your properties, your %% comments and your images stay behind unless '
+			+ 'you ask for them \u2014 there are three switches under Also include. '
+			+ 'Links always keep their words and lose their targets. For a PDF, '
+			+ 'export the web page and print it from any browser, or save one from '
+			+ 'Word once you have the .docx.' });
+
+		containerEl.createEl('h3', { text: 'The export list' });
+		containerEl.createEl('p', { cls: 'ws-settings-note', text:
+			'Word-Smith remembers what you ticked and the order you dragged it '
+			+ 'into, per folder, so a book you export every week is set up once. '
+			+ 'It keeps that in an ordinary note you can open and edit \u2014 reorder '
+			+ 'the lines there and the window reads them back. Rename or move a '
+			+ 'file and the list follows it.' });
+		{
+			const at = plugin.exportStorePath();
+			const exists = !!(plugin.app.vault.getAbstractFileByPath(at));
+			new Setting(containerEl).setName('Export list file')
+				.setDesc(exists
+					? 'Right now it\u2019s at: ' + at
+					: 'Not made yet \u2014 it\u2019ll appear the first time you tick '
+						+ 'or reorder something.')
+				.addText(t => {
+					t.inputEl.addClass('ws-row-fmt');
+					t.setValue(plugin.settings.exportListPath || 'Word-Smith/ws-export.md')
+						.onChange(async v => {
+							plugin.settings.exportListPath = v;
+							await plugin.saveSettings();
+						});
+				});
+			containerEl.createEl('p', { cls: 'ws-settings-note', text:
+				'Only where a new one gets made. Missing folders are created for '
+				+ 'you, and a list you have already moved stays where you put it. '
+				+ 'Delete it and you lose the ticks and the order, nothing else.' });
+		}
+	}
+
 	displayHistoryTab(containerEl) {
 		const s = this.plugin.settings;
 
@@ -26590,20 +30549,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 			});
 			this.toggle(pn, 'Paragraph numbers', 'Works in reading view too.',
 				'paragraphNumbers', () => { this.plugin.reconfigureEditors(); });
-
-			this.label(mc, 'Hidden markers');
-			this.toggle(mc, 'Show hidden markers',
-				'Draws hidden characters.',
-				'showHiddenMarkers', () => this.display());
-			if (this.plugin.settings.showHiddenMarkers) {
-				const hm = this.sub(mc);
-				this.toggle(hm, 'Tabs', 'Shown as →', 'markTabs');
-				this.toggle(hm, 'Spaces', 'Shown as ·', 'markSpaces');
-				this.toggle(hm, 'End of lines', 'Shown as ↵', 'markEndOfLines');
-				this.toggle(hm, 'Paragraphs', 'Shown as ¶', 'markParagraphs');
-				this.toggle(hm, 'End of buffer', 'Tildes down the empty space after your last line.', 'markBlankLines');
-			}
-
 		}
 
 		// --- (removed) Note font ---------------------------------------------
@@ -26633,32 +30578,6 @@ class WordSmithSettingTab extends PluginSettingTab {
 	}
 	// ── Misc tab ──────────────────────────────────────────────────────────────
 	// ── Vim tab ──────────────────────────────────────────────────────────────
-	displayVimTab(containerEl) {
-		this.label(containerEl, 'Vim');
-		const vg = this.sub(containerEl);
-		this.toggle(vg, 'Motions follow wrapped lines',
-			'Maps j, k, 0 and $ to their g-prefixed forms. Needs Obsidian\u2019s vim mode on.',
-			'vimSoftWrapMotion', () => this.display());
-
-		if (this.plugin.settings.vimSoftWrapMotion) {
-			// Whether the mapping actually landed is otherwise invisible: a
-			// missing vim API and a working one look identical from here.
-			const found = !!this.plugin.vimApi();
-			this.sub(vg).createEl('p', {
-				text: found
-					? 'Vim keymap found \u2014 j and k are mapped to gj and gk.'
-					: 'No vim keymap found. Turn on Editor \u2192 Vim key bindings in Obsidian\u2019s '
-					  + 'settings, then reopen this tab.',
-				cls: 'ws-settings-note' + (found ? '' : ' is-warning')
-			});
-		}
-
-		containerEl.createEl('p', {
-			text: 'Vim mode labels and colours are in the Powerline tab.',
-			cls: 'ws-settings-note'
-		});
-	}
-
 	displayMiscTab(containerEl) {
 		this.label(containerEl, 'Quick panels');
 		const qp = this.sub(containerEl);
@@ -26698,6 +30617,38 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 
+		// THE VIM TAB, FOLDED IN. Its whole content was one switch, and a
+		// tab whose content is a single toggle costs a writer a tab to
+		// find it in while telling them nothing the toggle does not say
+		// itself. Misc is where the other editor-behaviour switches live.
+		// The mode labels and colours were never here — they belong to the
+		// bar, and the note below still says so.
+		this.label(containerEl, 'Vim');
+		const vg = this.sub(containerEl);
+		this.toggle(vg, 'Motions follow wrapped lines',
+			'Maps j, k, 0 and $ to their g-prefixed forms. Needs Obsidian\u2019s vim mode on.',
+			'vimSoftWrapMotion', () => this.display());
+		if (this.plugin.settings.vimSoftWrapMotion) {
+			// Whether the mapping actually landed is otherwise invisible: a
+			// missing vim API and a working one look identical from here.
+			const found = !!this.plugin.vimApi();
+			this.sub(vg).createEl('p', {
+				text: found
+					? 'Vim keymap found \u2014 j and k are mapped to gj and gk.'
+					: 'No vim keymap found. Turn on Editor \u2192 Vim key bindings in '
+					  + 'Obsidian\u2019s settings, then reopen this tab.',
+				cls: 'ws-settings-note' + (found ? '' : ' is-warning')
+			});
+		}
+		containerEl.createEl('p', {
+			text: 'Vim mode labels and colours are in the Powerline tab.',
+			cls: 'ws-settings-note'
+		});
+		// FRONTMATTER LAST, because it is the only thing in this tab that
+		// is not a control. Everything above is a switch a writer flips
+		// once and forgets; this is a list of keys to copy while writing a
+		// note — reference, and reference belongs at the bottom of a page
+		// rather than between two banks of switches.
 		this.label(containerEl, 'Frontmatter overrides');
 		const fmEl = this.sub(containerEl);
 		fmEl.createEl('p', {
@@ -26716,6 +30667,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 				+ 'ws-goal: 2000        word target for this note\n'
 				+ 'ws-font: Courier Prime'
 		});
+
 	}
 
 	// One list per kind. Each row is a path, its target, and a way to drop it —
