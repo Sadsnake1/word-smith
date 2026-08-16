@@ -11,7 +11,9 @@ Every feature is separate. Use one, use all of them, or switch any of them off.
 
 <img width="1920" height="1080" alt="3" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" />
 
-<img width="1920" height="1080" alt="1" src="https://github.com/user-attachments/assets/09866eb7-48b1-4004-bfbd-56a0cf5e6d60" />
+<img width="1476" height="857" alt="image" src="https://github.com/user-attachments/assets/cbd3aec7-6fdf-4318-8fd8-d9090bbfb815" />
+
+<img width="1476" height="857" alt="image" src="https://github.com/user-attachments/assets/3039b88e-f9fd-498d-8778-0fd207d72c18" />
 
 ### Powerline
 
@@ -90,6 +92,7 @@ ws-goal: 2000         # word target for this note
 Open a canvas, a PDF or an empty tab and everything stands down — the bar disappears, Obsidian's own chrome returns. It all comes back the moment you're on a note again.
 
 ## Zen and the letter box
+<img width="1476" height="857" alt="image" src="https://github.com/user-attachments/assets/98f54322-b68e-42e0-9c04-c8e68d0c1d5c" />
 
 Zen is a list of things to hide, not one big switch: properties, the inline title, Obsidian's status bar, linked mentions, the scroll bar, the ribbon and the powerline bar each have their own toggle — plus **full screen**, **focused file mode** (close every other pane, so only this note is open), and a title bar painted to match the editor. "Zen" ends up meaning whatever you decide it means.
 
