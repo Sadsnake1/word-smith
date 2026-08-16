@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 151;
+	--zg-stylesheet-version: 152;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -5026,15 +5026,17 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
 .zg-cal-grid {
 	display: grid;
 	grid-template-columns: repeat(7, 1fr);
-	/* NO COLUMN GAP, and that is what makes the week-day rule a RULE. The
-	   line under S M T W T F S is drawn as a border on each of the seven
-	   header cells, so a 1px gap between columns cut it into seven
-	   dashes — an underline under each day rather than one line under the
-	   month. Closing the column gap joins them into a single stroke
-	   across the whole grid, the way a printed calendar rules its week.
-	   The row gap stays: it is what keeps the weeks from crowding, and it
-	   does not cross the rule. */
-	gap: 1px 0;
+	/* NO GAP AT ALL, in either direction, and the tint is why. Each day's
+	   colour is a ::before at `inset: 0` — it fills its cell exactly — so
+	   any gap between cells shows as a hairline of page THROUGH the
+	   colour. A month where five tinted days run together should read as
+	   one block of work; at `gap: 1px` it read as five tiles with mortar
+	   between them, which is a different claim about the writing.
+	   The column gap went first, because it also cut the week-day rule
+	   into seven dashes (the rule is a border on each header cell). The
+	   row gap is the other half of the same mistake: a calendar is a
+	   grid, and a grid's cells meet. */
+	gap: 0;
 }
 
 /* Ruled under, the way a printed calendar rules its week. It separates the

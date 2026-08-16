@@ -2425,7 +2425,7 @@ const PL_DIR = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-const ZG_STYLESHEET_VERSION = 151;
+const ZG_STYLESHEET_VERSION = 152;
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -2435,7 +2435,7 @@ const ZG_STYLESHEET_VERSION = 151;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.3.5';
+const ZG_PLUGIN_VERSION = '1.3.6';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -10656,7 +10656,7 @@ module.exports = class WordSmith extends Plugin {
 		// decides how much red crowns the top and how hard the pink hem
 		// burns along the bottom. The true variable, and the better one.
 		const zeal   = 0.25 + frac(4.2) * 0.75;
-		// TOMBSTONE (1.3.5): PROVOCATION AND THE BREAKUP. A run of presses
+		// TOMBSTONE (1.3.6): PROVOCATION AND THE BREAKUP. A run of presses
 		// wound the sky up — `aurCharge` a fifth at a time, `aurZeal`
 		// chasing it with mass — and a full charge was spent as a
 		// substorm: 1.5s of the curtains racing and burning before they
@@ -10672,7 +10672,7 @@ module.exports = class WordSmith extends Plugin {
 		// NOW. `ph` shifts the field's own PHASE at this cell and `fire`
 		// brightens it; neither moves where the field is sampled.
 		//
-		// TOMBSTONE (1.3.5): FOUR PRESSES THAT DISPLACED THE SAMPLE POINT
+		// TOMBSTONE (1.3.6): FOUR PRESSES THAT DISPLACED THE SAMPLE POINT
 		// — rotation that snapped, a radial pulse, rotation with inertia,
 		// and the widened falloff that went with it. Every one was
 		// reported as glitchy or aggressive, and the reason is a property
@@ -10791,7 +10791,7 @@ module.exports = class WordSmith extends Plugin {
 			// replaces is recorded rather than deleted, because the
 			// argument for it was a good one and may come back.
 			//
-			// TOMBSTONE (1.3.5): COLOUR BY ALTITUDE. An aurora's colour
+			// TOMBSTONE (1.3.6): COLOUR BY ALTITUDE. An aurora's colour
 			// really is which gas glows at what height — nitrogen violet
 			// low, the oxygen green band through the body, oxygen again
 			// far above in deep red, with a pink-magenta hem along an
