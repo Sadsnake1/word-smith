@@ -1,6 +1,6 @@
 # Word-Smith
 
-A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, twenty-five colour schemes for the whole workspace, and a record of how much you write each day.
+A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, twenty-five colour schemes for the whole workspace, a record of how much you write each day, and a compiler that turns a folder of scenes into a manuscript.
 
 Every feature is separate. Use one, use all of them, or switch any of them off.
 
@@ -51,13 +51,15 @@ To more complex
 
 Both of these run entirely on your machine, and both are guesswork — a mark is a nudge, not a verdict.
 
-**Text options** cap the line length, indent paragraphs, adjust spacing, justify text, and show the spaces and line breaks you normally can't see.
+**Text options** cap the line length, indent paragraphs, adjust spacing and justify text. **Markers** — their own tab — draw the spaces, tabs and line breaks you normally can't see.
 
 **Typography** turns what you type into the proper characters as you go: curly quotes, ellipses, en and em dashes, arrows, fractions. Never inside code, maths or frontmatter — and undo always gives back exactly what you typed.
 
 **Themes** recolour the whole workspace — editor, sidebars, panels — with one of twenty-five schemes, each a matched dark/light pair that follows Obsidian's mode.
 
-**Goals** and **History** get their own sections below.
+**Export** compiles a folder of scenes into one manuscript — Word, a web page, or Markdown.
+
+**Goals**, **History** and **Export** get their own sections below.
 
 ## Getting started
 
@@ -146,7 +148,7 @@ Click these. They're never dropped, however narrow the window gets.
 
 `{theme}` reads **Theme** and opens the scheme picker. The name stays fixed — your current scheme is in the tooltip and lit up in the popup — so picking a long-named scheme never reflows the row.
 
-`{report}` opens the writing report. `{history}` opens your writing history.
+`{report}` opens the writing report. `{history}` opens your writing history. `{export}` opens the export window.
 
 ### Spacers and dividers
 
@@ -275,6 +277,8 @@ My Book/Part One/Ch 03/Scene 2.md        900
 
 Progress shows as a gauge in the report, and the bar's edges pulse green when you cross a target.
 
+Your targets are also kept in `Word-Smith/ws-goals.md`, a plain note you can read and edit. Change a number there and Word-Smith picks it up next time Obsidian starts — so a reinstall doesn't lose what you were aiming for.
+
 ## Writing report
 
 <img width="570" height="508" alt="image" src="https://github.com/user-attachments/assets/809fc7a8-1d85-4a8e-9ea4-a03e6bff0cfd" />
@@ -294,11 +298,11 @@ Hit a target and it throws fireworks at you.
 
 Off until you switch it on, under **Settings → Word-Smith → History**.
 
-Once on, Word-Smith counts how much you write each day and draws it as one chart at three zooms — **Day**, **Month**, **Year**. Words you added rise from the centre line, words you cut fall below it, so a hard day of editing shows as work instead of a gap. Above the chart: total words, daily average, best day, current streak.
+Once on, Word-Smith counts how much you write each day and draws it as one chart at four zooms — **Day**, **Month**, **Year** and a **Calendar**. Words you added rise from the centre line, words you cut fall below it, so a hard day of editing shows as work instead of a gap. Above the chart: total words, daily average, best day, active days, current streak.
 
 **Search it.** Type a note or folder name and the whole window scopes to it — figures, chart, streak. `ch3scene` finds `My Book/Part One/Ch 03/Scene 2.md`.
 
-Two kindnesses in the numbers: a day counts if you wrote *or* cut, so a day spent cutting won't break your streak; and the average divides by the days you actually wrote, so days off don't drag it down.
+Two kindnesses in the numbers: a day counts if you wrote *or* cut, so a day spent cutting won't break your streak; and the average divides by the days you actually wrote, so days off don't drag it down. A missed day does take the streak back to zero — but today, unfinished, is never a missed day.
 
 **Your history is an ordinary note in your vault** — a table, one row per day:
 
@@ -308,13 +312,39 @@ Two kindnesses in the numbers: a day counts if you wrote *or* cut, so a day spen
 | 2026-08-01 | 912 | 142 | 770 |
 ```
 
-Move it, rename it, keep it beside the manuscript — Word-Smith finds it by the markers inside it, and leaves anything you write outside them alone. It saves when you pause and when you close Obsidian. It's the only copy, so back it up with the rest of your vault.
+A new vault gets it at `Word-Smith/ws-history.md`. Move it, rename it, keep it beside the manuscript — Word-Smith finds it by the markers inside it, and leaves anything you write outside them alone. It saves when you pause and when you close Obsidian. It's the only copy, so back it up with the rest of your vault.
 
 Nothing before the day you switch it on can be reconstructed. A file only knows when it was touched, not how much went into it.
 
 ### Never counted
 
 Goals and History share one list of notes and folders to leave out of your totals — an outline, a research folder, a scratch file. Word-Smith still works in them; they just don't count.
+
+## Export
+
+Pick a folder — or a single note — and Word-Smith compiles it into one manuscript: **Word (.docx)**, a **web page (.html)** or **Markdown**. It opens from the **Export** tab, the command palette, the menu, or `{export}` on the bar.
+
+The window lists every note in the folder in the order it will compile, grouped under its folders, each with its word count. Tick what goes in, drag a file to move it, drag a folder to move the whole chapter, and the total underneath keeps up. It remembers what you ticked, the order you put things in, and the folder you last exported.
+
+**It opens on the submission standard** — title page, `Surname / Title / page` running header, each file starting a new page, a `#` between scenes, 12pt serif, double spaced, indented paragraphs, with widows and orphans controlled so no paragraph is left with one line stranded on a page of its own.
+
+**Paper** is nine sizes, not two: US Letter, A4, US Legal, Executive, B5, A5, and the trim sizes a novel is actually printed at — trade paperback (6 × 9 in), digest (5.5 × 8.5 in) and mass market (4.25 × 6.87 in). The margin travels with the paper, because an inch of white on a 5.5-inch page is a third of the sheet.
+
+The **title** is the folder's name unless you type one, and your **author** name goes on the title page and into the running header. Every other part is a switch: a table of contents with working links, a running header, footnotes, curly quotes, indented paragraphs, and which folder the file lands in. **Size** runs 10 to 14pt and **spacing** is single, one and a half, or double. The options sit in two tabs — **Structure** for what the document is made of and in what order, **Typesetting** for how the words are set — with the title and the author above both, always visible. Two of them are questions with three answers, and each reads as a sentence with a line underneath saying what that answer puts on the page — **Each file** *starts a new page / follows a divider / runs straight on*, and **Its heading** *is the file's name / the note's own / none*. Choose the divider and the box for its mark appears directly beneath, where it belongs.
+
+**Indented paragraphs** is on, which is the manuscript convention. Turn it off and the prose is set block style — no first-line indent, a space between paragraphs instead — which is what most non-fiction and every blog post uses.
+
+**Nothing disappears quietly.** Your properties, your `%%` comments, your images and your `==highlights==` stay behind — a manuscript carries none of them — but all four are switches under **Also include**, off until you want them. Highlights come through as the same yellow Word's own pen writes. Properties print verbatim in monospace because they're data; comments print set apart from the prose, so a note to self can never be read as a sentence; images become a visible `[Image: cover.png]` mark. A link's target is dropped and its text kept. Footnotes become endnotes with their markers left in the text. Tables and code blocks come across as they are.
+
+**The file list is a tree**, as deep as your folders go — a book kept as `Book/Part One/Ch 03` shows the part and the chapter, each stepped in from the one above, and folding a part folds everything in it. Ticking one, dragging one or reading its word count all cover everything beneath it. Each folder has a triangle to shut it, and a collapse-all button sits where the file explorer puts one — a hundred scenes read as twelve chapters. Collapsing only hides; a shut folder still exports, and still counts. Files and whole folders drag to reorder, both showing a line where they will land, and a folder that is only partly ticked is drawn as half a box rather than a dash.
+
+**It remembers what you did last time.** A line under the top bar says how many files went out, as what, and into where — with a button that puts the format, the folder and the scope back, so the usual export is one click of setting up and one of sending. It sets up and stops there; writing the file is still your decision.
+
+**Preview** shows the manuscript as pages — the sheet you chose, at its own size and margins — before a single file is written. It opens with the whole sheet in view, margins and all, and zooms: in, out, **Fit**, or **100%** for the size it will actually print at. The page is white, because paper is — there is a **Dark** button for the reading you do before the proofing, and printing always comes out ink on paper. It sits beside **Export** on the top line, next to the format and the folder the file lands in, so everything about the act is in one place. Choose Markdown and it previews as the markdown file instead, since that is what you would be getting.
+
+Your ticks and your ordering are kept in `Word-Smith/ws-export.md`, so they survive closing the window — and can be reordered in the editor if you'd rather. Rename a note or a folder and the list follows it.
+
+All three work everywhere, phones included. The **web page** is the one to reach for when something refuses a .docx, and it is the same document the preview draws — it carries its own page rules, so printing it from any browser gives a PDF with the pagination, the margins and the running header intact. You can also save one from Word once you have the .docx; either way a browser or a word processor makes a better PDF than a plugin can.
 
 ## Word counts elsewhere
 
@@ -348,6 +378,7 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills a few ga
 | Cycle powerline presets | Steps through your saved bars |
 | Show the writing report | |
 | Show the writing history | |
+| Export a manuscript… | Opens the export window |
 | Menu | Modes, syntax, prose, font and markers in one pop-up |
 | Quick file explorer | Switch it on in **Misc** first |
 | Quick outline | |
@@ -355,7 +386,7 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills a few ga
 
 ### Menu
 
-One pop-up for everything you change while writing: **modes**, **syntax**, **prose checks**, **markers**, **font**, **theme**, and a **light/dark toggle** that names what pressing it will do. The rows read from the same lists the bar's buttons use, so the menu never drifts from the bar.
+One pop-up for everything you change while writing: **modes**, **syntax**, **prose checks**, **markers**, **font**, **theme**, and a **light/dark toggle** that names what pressing it will do. **Report**, **History** and **Export** sit together at the foot of it. The rows read from the same lists the bar's buttons use, so the menu never drifts from the bar.
 
 **Type to search.** The field at the top searches everything at once, fuzzily — `nord` finds the Nord scheme without your knowing it lives under Theme, `tky` finds Tokyo Night. Each result names the row it came from, so finding a thing also tells you where it lives.
 
@@ -381,10 +412,11 @@ Inside a sidebar, up and down step through its tabs. Landing in the file tree re
 
 ## Settings map
 
-Fourteen tabs, each a feature with its own master switch:
+Sixteen tabs, each a feature with its own master switch:
 
 | | |
 |---|---|
+| **Menu** | What the pop-up and the docked panel show, and their rows |
 | **Powerline** | Rows, presets, share codes, colours, token formats, and the full format reference |
 | **Theme** | The scheme shelf, its order, and the options above |
 | **Zen** | What to hide, what `Escape` does, caret margin |
@@ -393,12 +425,25 @@ Fourteen tabs, each a feature with its own master switch:
 | **Hemingway** | Which keys are locked, and what a blocked key does |
 | **Syntax** | Which word classes are coloured, and how loudly |
 | **Prose Checks** | The seven checks, each on its own switch |
-| **Text Options** | Line width, indents, spacing, justification, hidden characters |
+| **Text Options** | Line width, indents, spacing, justification |
+| **Markers** | Tabs, spaces, line ends and paragraph marks, drawn |
 | **Typography** | Which substitutions run as you type |
-| **Goals** | Targets per note and folder, and what to leave out |
+| **Goals** | Targets per note and folder, what to leave out, and where the goals file lives |
 | **History** | Tracking, the history file, and deleting it |
-| **Misc** | The menu, quick panels, quick cycle, tree and outline counts, frontmatter overrides |
-| **Vim** | Wrapped-line motions |
+| **Export** | Opens the export window, and where the export list lives |
+| **Misc** | Quick panels, quick cycle, tree and outline counts, frontmatter overrides, and wrapped-line Vim motions |
+
+## The notes Word-Smith keeps
+
+Three plain notes, all in `Word-Smith/` on a new vault, all yours to read, edit, move or delete:
+
+| | |
+|---|---|
+| `ws-history.md` | One row per day — added, deleted, net |
+| `ws-goals.md` | Your word targets, per note and folder |
+| `ws-export.md` | Which scenes are in an export, and the order you put them in |
+
+Each is found by the markers inside it rather than by its name, so moving or renaming one is safe. If you already have these in your vault's root, they stay exactly where they are — nothing is moved for you.
 
 ## Right-to-left
 
@@ -434,13 +479,17 @@ Copy all three when you update, not just `main.js` — the plugin checks they ma
 
 Word-Smith is fully local. No network calls of any kind — no `fetch`, no `XMLHttpRequest`, no `WebSocket`, no `requestUrl`. No telemetry. No third-party dependencies. No filesystem access outside Obsidian's own API.
 
-**What it reads:** your note's text, in memory, while the note is open — for counts, colouring and paragraph detection. The report also reads a folder's notes when you open that tab, to total them.
+**What it reads:** your note's text, in memory, while the note is open — for counts, colouring and paragraph detection. The report also reads a folder's notes when you open that tab, to total them. An export reads the notes you ticked, to compile them.
 
 **What it stores:**
 
 `data.json`, in the plugin's own folder — your settings, saved bars and word targets. With history on it also keeps each note's last word count, so a save can be turned into a difference. That cache rebuilds itself and can be deleted freely.
 
 **Your history file**, only if you switch history on: one row per day — the date, and how many words you added, cut and netted. If **Remember which notes** is on, it also records which notes each day's words happened in, so history is searchable; switch it off and those names are dropped. Counts only, either way — never a word of what you wrote.
+
+**Your goals and export list**, which hold note and folder names and numbers, and no prose.
+
+An exported manuscript is the exception, and an obvious one: you asked for your words in a file, so that file has your words in it.
 
 Nothing else, anywhere. Don't take my word for it:
 
