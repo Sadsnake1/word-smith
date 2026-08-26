@@ -1,3 +1,13 @@
+<div align="center">
+  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="200">
+  </a>
+  <br><br>
+  <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=for-the-badge&logo=github&color=FFDD00&labelColor=1a1a1a" alt="Stars"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/network/members"><img src="https://img.shields.io/github/forks/Sadsnake1/word-smith?style=for-the-badge&logo=github&color=FFDD00&labelColor=1a1a1a" alt="Forks"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/issues"><img src="https://img.shields.io/github/issues/Sadsnake1/word-smith?style=for-the-badge&logo=github&color=FFDD00&labelColor=1a1a1a" alt="Issues"></a>
+</div>
+
 # Word-Smith
 
 A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, twenty-five colour schemes for the whole workspace, a record of how much you write each day, and a compiler that turns a folder of scenes into a manuscript.
@@ -537,14 +547,8 @@ Found a bug or have an idea? Open an issue.
 ## Pricing
 
 Word-Smith is free.
-
 If you'd like to support it, you're welcome to buy me a coffee. Cheers!
 
-<div align="center">
-  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="200">
-  </a>
-</div>
 
 ## License
 
