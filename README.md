@@ -1,10 +1,21 @@
 <div align="center">
 
-  <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=F5B301" alt="Stars"></a>
-  <a href="https://github.com/Sadsnake1/word-smith/releases/latest"><img src="https://img.shields.io/github/v/release/Sadsnake1/word-smith?style=flat-square&logoColor=white&labelColor=1a1a1a&color=8B5CF6" alt="Release"></a>
-  <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=10B981" alt="Downloads"></a>
-  <a href="https://github.com/Sadsnake1/word-smith/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Sadsnake1/word-smith?style=flat-square&logoColor=white&labelColor=1a1a1a&color=3B82F6" alt="License"></a>
-  <img src="https://img.shields.io/badge/Obsidian-plugin-7C3AED?style=flat-square&logo=obsidian&logoColor=white&labelColor=1a1a1a" alt="Obsidian">
+  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="200">
+  </a>
+
+  <br><br>
+
+  <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=for-the-badge&logo=github&logoColor=white&label=STARS&labelColor=0D1117&color=F5B301" alt="Stars"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/releases/latest"><img src="https://img.shields.io/github/v/release/Sadsnake1/word-smith?style=for-the-badge&logo=semanticrelease&logoColor=white&label=VERSION&labelColor=0D1117&color=8B5CF6" alt="Latest release"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=for-the-badge&logo=github&logoColor=white&label=DOWNLOADS&labelColor=0D1117&color=10B981" alt="Downloads"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Sadsnake1/word-smith?style=for-the-badge&logo=opensourceinitiative&logoColor=white&label=LICENSE&labelColor=0D1117&color=3B82F6" alt="License"></a>
+
+  <br>
+
+  <img src="https://img.shields.io/badge/OBSIDIAN-PLUGIN-7C3AED?style=for-the-badge&logo=obsidian&logoColor=white&labelColor=0D1117" alt="Obsidian plugin">
+  <a href="https://github.com/Sadsnake1/word-smith/commits/main"><img src="https://img.shields.io/github/last-commit/Sadsnake1/word-smith?style=for-the-badge&logo=git&logoColor=white&label=UPDATED&labelColor=0D1117&color=EC4899" alt="Last commit"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/issues"><img src="https://img.shields.io/github/issues/Sadsnake1/word-smith?style=for-the-badge&logo=gitbook&logoColor=white&label=ISSUES&labelColor=0D1117&color=F97316" alt="Issues"></a>
 
 </div>
 
