@@ -313,6 +313,9 @@ palette.*
 
 ### The Organizer
 
+<img width="1572" height="895" alt="1" src="https://github.com/user-attachments/assets/8011c765-5551-4225-bb16-1f1c037a79d9" />
+
+
 Your manuscript down the left, described on the right. The tree is the
 book’s own order; the folder you light up in it opens as a **Table** or an
 **Outline**.
@@ -749,11 +752,6 @@ Word-Smith is free.
 
 If you'd like to support it, you're welcome to buy me a coffee. Cheers!
 
-<div align="center">
-  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="200">
-  </a>
-</div>
 
 ## License
 
