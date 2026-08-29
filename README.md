@@ -1,3 +1,13 @@
+<div align="center">
+
+  <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=F5B301" alt="Stars"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=10B981" alt="Downloads"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/releases/latest"><img src="https://img.shields.io/github/v/release/Sadsnake1/word-smith?style=flat-square&logo=obsidian&logoColor=white&labelColor=1a1a1a&color=8B5CF6" alt="Version"></a>
+  <a href="https://github.com/Sadsnake1/word-smith/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Sadsnake1/word-smith?style=flat-square&logo=opensourceinitiative&logoColor=white&labelColor=1a1a1a&color=3B82F6" alt="License"></a>
+  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank"><img src="https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000&labelColor=FFDD00" alt="Buy Me a Coffee"></a>
+
+</div>
+
 # Word-Smith
 
 A distraction-free writing suite for Obsidian. Zen mode, letterbox masks, typewriter scrolling, a write-forward lock, syntax colouring, prose checks, smart typography, a status bar you build yourself, twenty-five colour schemes for the whole workspace, a record of how much you write each day, and a compiler that turns a folder of scenes into a manuscript.
