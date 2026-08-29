@@ -306,15 +306,10 @@ your notes and folders into the order the book is in instead.
   one shape wherever you see your vault.
 
 
-## The Manuscript window
 
-*The book icon in the ribbon, or **Open the Manuscript window** in the command
-palette.*
-
-### The Organizer
+## The Organizer
 
 <img width="1572" height="895" alt="1" src="https://github.com/user-attachments/assets/8011c765-5551-4225-bb16-1f1c037a79d9" />
-
 
 Your manuscript down the left, described on the right. The tree is the
 book’s own order; the folder you light up in it opens as a **Table** or an
