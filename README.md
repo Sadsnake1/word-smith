@@ -67,7 +67,7 @@ Both of these run entirely on your machine, and both are guesswork — a mark is
 
 **Themes** recolour the whole workspace — editor, sidebars, panels — with one of twenty-five schemes, each a matched dark/light pair that follows Obsidian's mode.
 
-**The Manuscript window** is your whole book in one place: the vault as a
+**The Organiser** is your whole book in one place: the vault as a
 tree, every chapter's word count and target beside its name, the readings
 you choose in columns beside it, and the compiler on a tab of its own. Drag a
 chapter here and it moves in Obsidian's file tree and in the finished
@@ -151,7 +151,7 @@ Two bars ship with it — **Plain** and **Code**. Save your own as presets, and 
 
 It's empty above the first heading. When the row runs out of room the leading crumbs drop first, so the heading you're actually under is the last to go.
 
-(Six older per-level tokens, `{#}` through `{######}`, were retired in 1.2.7. They still work and always will — removing them would break every saved bar that uses one.)
+
 
 ### Buttons
 
@@ -233,7 +233,8 @@ When the window narrows, the bar sheds content by **what a thing is worth**, not
 
 Twenty-five colour schemes for the whole workspace, each a **matched pair** that follows Obsidian's light/dark mode and names the half you're looking at.
 
-**Modus Vivendi / Operandi** (plain, Tinted, Deuteranopia, Tritanopia — Protesilaos Stavrou's, value for value from [his published palette](https://protesilaos.com/emacs/modus-themes-colors)), **Quiet**, **Habamax**, **Nord**, **Dracula**, **Gruvbox**, **Solarized**, **Catppuccin**, **Tokyo Night / Day**, **Rosé Pine**, **Monokai**, **One Dark / Light**, **Nightfox / Dayfox**, **Kanagawa Wave / Lotus**, **GitHub**, **Everforest**, **Vim Blue / Darkblue**.
+**Modus Vivendi / Operandi** (plain, Tinted, Deuteranopia, Tritanopia — Protesilaos Stavrou's, value for value from [his published palette](https://protesilaos.com/emacs/modus-themes-colors)), **Quiet**, **Habamax**, **Nord**, **Dracula**, **Gruvbox**, **Solarized**, **Catppuccin**, **Tokyo Night / Day**, **Rosé Pine**, **Monokai**, **One Dark / Light**, **Nightfox / Dayfox**, **Kanagawa Wave / Lotus**, **GitHub**, **Everforest**, **Vim Blue / Darkblue**,
+**Flexoki**, **Selenized**, **Iceberg**, **PaperColor** and **Ayu**.
 
 Where a scheme's authors never made a light half, the light half is an adaptation rather than a survived dark palette — and the theme's card says so.
 
@@ -293,7 +294,7 @@ your notes and folders into the order the book is in instead.
   move them.
 - The order is kept in **`ws-structure.md`**, under an `order:` heading per
   folder. You can reorder those lines by hand and the tree will follow.
-- **The Manuscript window's tree drags the same way**, and it is the same
+- **The Organiser's tree drags the same way**, and it is the same
   order: move a chapter in either tree and it moves in both.
 - **Your manuscript compiles in that order too.** Nothing else to set — the
   order you can see in the file tree is the order the chapters come out in.
@@ -302,18 +303,17 @@ your notes and folders into the order the book is in instead.
   not throw the order away, and the compile still follows it.
 - **Folder icons** — a switch of its own in the same tab — puts a small
   folder beside each folder name in Obsidian's tree, open or shut with the
-  folder. It is the same glyph the Manuscript window draws, so a folder is
+  folder. It is the same glyph the Organiser draws, so a folder is
   one shape wherever you see your vault.
 
 
+## The Organiser
 
-## The Organizer
-
-<img width="1572" height="895" alt="1" src="https://github.com/user-attachments/assets/8011c765-5551-4225-bb16-1f1c037a79d9" />
+*The book icon in the ribbon, or **Open the Organiser** in the command
+palette.*
 
 Your manuscript down the left, described on the right. The tree is the
-book’s own order; the folder you light up in it opens as a **Table** or an
-**Outline**.
+book’s own order, and the folder you light up in it opens as a table.
 
 **One tree, on every tab.** Names and folds, and nothing else — the readings
 live in the table, where they can be sorted and filtered. History leaves the
@@ -339,10 +339,6 @@ to have the window.
   order Obsidian’s file tree draws and the same order the manuscript
   compiles in — one order, three places. Drag it into another folder and the
   file moves.
-- **Set one manuscript root** under Settings → Organizer and the tree, the
-  totals and the compile all start there. Leave it empty and it is the whole
-  vault. Unlike the folder scopes it replaces, it is on screen every time the
-  tab is — there is no invisible narrowing to forget you set.
 
 **The Table** is nine readings, three of them on to begin with — **Target**,
 **Words** and **Flag** — with **Grade**, **Last modified**, **Created**,
@@ -360,14 +356,14 @@ every row in your vault.
   carrying its path faintly — groups pin rows to folders, a sort claims the
   order, and both cannot hold. Clear the lens and the groups come back.
 - **The target cell takes a number** and keeps it. It reads either
-  `2,145/5,000` or `43%` — Settings → Organizer → **Target column shows**.
+  `2,145/5,000` or `43%` — Settings → Organiser → **Target column shows**.
 - **Click a row to look at it, click again to open it.** Enter opens the row
   under the cursor.
 
-**The Outline** is the same rows with a card under each one, carrying a set
-of properties you choose — the same set for every row, because a drawer
-showing different properties per file would be a table with no columns. The
-synopsis to begin with; click the property’s name to show others.
+**Every note has a card of its own.** Press a note’s chevron and a drawer
+opens under it carrying a set of properties you choose — the same set for
+every row, because a drawer showing different properties per file would be
+a table with no columns.
 
 - **The + on a row adds a property to that note**, suggesting the names your
   vault already uses before offering to make a new one.
@@ -385,9 +381,9 @@ synopsis to begin with; click the property’s name to show others.
   while you are typing in it patches around your card rather than through it.
 
 **Expand all and collapse all** is one button beside the properties control,
-in both views, and its label says which you are about to get. It opens notes
-as well as folders — a note’s own chevron shows its property card — and it
-reads the whole subtree, not only what happens to be on screen.
+and its label says which you are about to get. It opens notes as well as
+folders — a note’s own chevron shows its property card — and it reads the
+whole subtree, not only what happens to be on screen.
 
 **Select several and act once.** Ctrl-click adds a row, shift takes a run, a
 plain click takes one, and Escape clears it. Set a flag or type a target and
@@ -410,43 +406,30 @@ and both go out, in the order you picked them, with the line above the
 figures naming them so you can check. A folder chosen along with a folder
 inside it is taken once, not twice. Each folder remembers its own ticks.
 
-## Goals and the Manuscript board
+## Goals and flags
 
-Give a note or a folder a word count to aim for, and a mark for where it is up to.
+Give a note or a folder a word count to aim for, and a mark for where it is up to. Both live in the Organiser above — the Target column and the Flag column — and both are editable where they sit.
 
-**The Manuscript board** — the button at the foot of the report, or the Organizer window — draws your notes as the same tree the export window uses: folders, notes and chevrons. Every row carries a percentage, its word count, its reading grade, a target box and a flag, all inline and all editable where they sit. Open it while a note is in front of you and it starts at that note's own folder; search from the bar above it to go anywhere else, the whole vault included. Click a row to select it, ctrl-click to add another, shift-click for a run — then set a flag or type a target once and it happens to all of them.
+**Up to five flags, and they are yours.** *Sketch*, *Draft*, *Revise*,
+*Blocked* and *Done* to begin with, each with a tiny flag beside the word —
+a hollow outline for a sketch, a pennant for a draft, a swallowtail for
+revise, an alert for blocked, a banner for done. They are told apart by
+their SHAPE, not only by colour, so they read at any size and for anyone.
 
-**Every window leads to the others.** Report, Manuscript, History and Export each carry one row at the foot — the one you are in is shown and greyed, the other three are a click away.
+Settings → Organiser sets how many states your manuscript has, none through
+five, and for each one its name, its shape from ten, and two colours — one
+for light themes and one for dark. Renaming a flag never changes what is
+written in your vault.
 
-**Up to five flags, and they are yours.** Settings → Organizer sets how many
-states your manuscript has (none through five), and for each one its name, its
-shape from ten, and two colours — one for light themes and one for dark.
-Renaming a flag never changes what is written in your vault.
+Click a flag to cycle it, or press space on the row. Folders take one too, so
+a part can be finished while a stray note inside it is not. Switch on **File
+tree → File tree flags** and the same flag appears beside the word count in
+Obsidian’s own file explorer. `{flag}` on the bar shows the flag of the note
+you are in and changes it with a click.
 
-**Five flags and unflagged:** *Sketch*, *Draft*, *Revise*, *Blocked* and
-*Done*, each with a tiny flag beside the word — a hollow outline for a
-sketch, a pennant for a draft, a swallowtail for revise, an alert for
-blocked, a banner for done. They are told apart by their SHAPE, not only by
-colour, so they read at any size and for anyone, and each carries two
-colours: one for light themes and one for dark. Switch on **File tree →
-File tree flags** and the same flag appears beside the word count in
-Obsidian’s own file explorer. Click a flag to cycle it, or press space on
-the row. Folders take one too, so a part can be finished while a stray note
-inside it is not. `{flag}` on the bar shows the flag of the note you are in
-and changes it with a click — as the flag, the word, or both, chosen under
-Powerline → Token formats.
+**A row does not need a target.** Marking a scene finished should not mean inventing a word count for it, and a note with no target is in the table precisely so you can give it one.
 
-**The keyboard drives it**, with the file explorer's own keys: up and down to move, right and left to open and shut a folder, Enter to open the note, and space to flag the row you are on.
-
-**Drive it from the keyboard:** arrows to move, right and left to open and shut a folder, Enter to open the note, space to flag it.
-
-**The filter icon** holds both lenses: show Everything, With a goal, Marked, Needs revision or Done — and sort by name, words, where it is up to, or reading grade. The search box finds anything in the vault and opens the folders it is hiding in.
-
-**Select several and flag them at once.** Tick the boxes — ticking a folder takes everything inside it — or ctrl/cmd click to add a row, shift to extend, a plain click to take one — then Draft, Revise, Done, Unmark or Clear target applies to all of them. Escape clears the selection.
-
-**Each row shows its reading grade** — years of school needed to read it easily, under 9 being easy going. A folder's is every word in it over every sentence, so a two-line scene doesn't count for as much as a four-thousand-word chapter.
-
-A row does not need a target: marking a scene finished should not mean inventing a word count for it, and a note with no target is on the board precisely so you can give it one.
+**The reading grade** is years of school needed to read it easily, under 9 being easy going. A folder's is every word in it over every sentence, so a two-line scene doesn't count for as much as a four-thousand-word chapter.
 
 **Folder goals nest.** A folder goal counts everything inside it, however deep, so a book laid out as folders can carry a target at every level:
 
@@ -518,7 +501,7 @@ One list of notes and folders is left out of your totals — an outline, a resea
 
 Pick a folder — or a single note — and Word-Smith compiles it into one manuscript: **Word (.docx)**, a **web page (.html)** or **Markdown**. It opens from the **Export** tab, the command palette, the menu, or `{export}` on the bar.
 
-**More than one folder can be one book.** In the Manuscript window's Export tab, ctrl-click as many folders as you like — Part One and Part Three, or front matter kept apart from the chapters — and they compile together, in the order you picked them, with a line above the figures naming them so you can check before you send. Pick a folder along with a folder inside it and it is taken once, not twice. Each folder keeps its own ticks, so a folder remembers the same thing whether you compiled it alone or beside another.
+**More than one folder can be one book.** In the Organiser's Export tab, ctrl-click as many folders as you like — Part One and Part Three, or front matter kept apart from the chapters — and they compile together, in the order you picked them, with a line above the figures naming them so you can check before you send. Pick a folder along with a folder inside it and it is taken once, not twice. Each folder keeps its own ticks, so a folder remembers the same thing whether you compiled it alone or beside another.
 
 The window lists every note in the folder in the order it will compile, grouped under its folders, each with its word count. Tick what goes in, drag a file to move it, drag a folder to move the whole chapter, and the total underneath keeps up. It remembers what you ticked, the order you put things in, and the folder you last exported.
 
@@ -526,7 +509,7 @@ The window lists every note in the folder in the order it will compile, grouped 
 
 **Paper** is nine sizes, not two: US Letter, A4, US Legal, Executive, B5, A5, and the trim sizes a novel is actually printed at — trade paperback (6 × 9 in), digest (5.5 × 8.5 in) and mass market (4.25 × 6.87 in). The margin travels with the paper, because an inch of white on a 5.5-inch page is a third of the sheet.
 
-The **title** is the folder's name unless you type one, and your **author** name goes on the title page and into the running header. Every other part is a switch: a table of contents with working links, a running header, footnotes, curly quotes, indented paragraphs, and which folder the file lands in. **Font** is a search box over the fonts actually installed on your machine — type a few letters, and every name is shown in its own face so you can see what you are choosing. Type a font this machine does not have and it is still accepted, with a line saying so, because a manuscript set for somebody else's computer is a real thing to want. **Size** runs 10 to 14pt and **spacing** is single, one and a half, or double. The options sit in two tabs — **Structure** for what the document is made of and in what order, **Typesetting** for how the words are set — with the title and the author above both, always visible. Two of them are questions with three answers, and each reads as a sentence with a line underneath saying what that answer puts on the page — **Each file** *starts a new page / follows a divider / runs straight on*, and **Its heading** *is the file's name / the note's own / none*. Choose the divider and the box for its mark appears directly beneath, where it belongs.
+The **title** is the folder's name unless you type one, and your **author** name goes on the title page and into the running header. Every other part is a switch: a table of contents with working links, a running header, footnotes, curly quotes, indented paragraphs, and which folder the file lands in. **Font** is a search box over the fonts actually installed on your machine — type a few letters, and every name is shown in its own face so you can see what you are choosing. Type a font this machine does not have and it is still accepted, with a line saying so, because a manuscript set for somebody else's computer is a real thing to want. **Size** runs 10 to 14pt and **spacing** is single, one and a half, or double. Everything is on one view — no tabs to click through — grouped as **Manuscript**, **Front matter**, **Typesetting** and **Also include**, with the title and the author at the top. Two of them are questions with three answers rather than switches: **Each file** *starts a new page / follows a divider / runs straight on*, and **Insert heading** *the file's name / the note's own / none*. Choose the divider and the box for its mark appears directly beneath, where it belongs. The switches are buttons that carry their own name, lit when they are on.
 
 **Indented paragraphs** is on, which is the manuscript convention. Turn it off and the prose is set block style — no first-line indent, a space between paragraphs instead — which is what most non-fiction and every blog post uses.
 
@@ -576,8 +559,9 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills a few ga
 | Cycle powerline presets | Steps through your saved bars |
 | Show the writing report | |
 | Show the writing history | |
-| Open the Manuscript window | Also the book icon in the ribbon |
-| Open the Manuscript window in a pane | The same window as a tab you can dock, or drag out beside the note you are writing |
+| Open the Organiser | Also the book icon in the ribbon |
+| Open the Organiser in a pane | The same window as a tab you can dock, or drag out beside the note you are writing |
+| Open the Organiser in its own window | Pop it out onto a second screen |
 | Export a manuscript… | Opens the export window |
 | Open the menu | Modes, syntax, prose, font and markers in one pop-up |
 | Open the menu in a panel | The same menu docked, rather than as a pop-up. Switch the panel on in **Menu** first |
@@ -635,7 +619,7 @@ Seventeen tabs, each a feature with its own master switch:
 | **Typography** | Which substitutions run as you type |
 | **History** | Tracking, the history file, and deleting it |
 | **Export** | Opens the export window, and where the export list lives |
-| **Organizer** | The manuscript root, what the Target column shows, date format, and your flags — how many, their names, their shapes and their colours |
+| **Organiser** | What the Target column shows, date format, and your flags — how many, their names, their shapes and their colours |
 | **File tree** | What Word-Smith adds to Obsidian’s own explorer: counts, flags, tasks left, goal percentage, folder icons and file-kind icons |
 | **Misc** | Quick panels, quick cycle, tree and outline counts, frontmatter overrides, and wrapped-line Vim motions |
 
@@ -647,6 +631,7 @@ Three plain notes, all in `Word-Smith/` on a new vault, all yours to read, edit,
 |---|---|
 | `ws-history.md` | One row per day — added, deleted, net |
 | `ws-structure.md` | Your word targets and flags, which scenes are in an export, and the order you put them in |
+| `ws-settings.md` | A readable mirror of your settings — so a new machine can be handed the bar, the theme and the rest without `data.json` |
 
 Each is found by the markers inside it rather than by its name, so moving or renaming one is safe. If you already have these in your vault's root, they stay exactly where they are — nothing is moved for you.
 
@@ -747,6 +732,11 @@ Word-Smith is free.
 
 If you'd like to support it, you're welcome to buy me a coffee. Cheers!
 
+<div align="center">
+  <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="200">
+  </a>
+</div>
 
 ## License
 
