@@ -469,9 +469,9 @@ event that happened once.
 
 ## Writing history
 
-<img width="942" height="697" alt="image" src="https://github.com/user-attachments/assets/07b209d7-972f-406e-bc34-10aecaae5c21" />
+<img width="1577" height="890" alt="image" src="https://github.com/user-attachments/assets/5a751b82-0882-4d7b-95b8-7cf6dc35e8d0" />
+<img width="1558" height="891" alt="image" src="https://github.com/user-attachments/assets/a8c415e5-0768-4289-984b-54ab9bf4951c" />
 
-<img width="946" height="748" alt="image" src="https://github.com/user-attachments/assets/c510afa2-d1e6-4418-964c-d021d6f5c653" />
 
 Off until you switch it on, under **Settings → Word-Smith → History**.
 
