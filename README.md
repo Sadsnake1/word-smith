@@ -679,8 +679,6 @@ Word-Smith is fully local. No network calls of any kind — no `fetch`, no `XMLH
 
 **Your goals and export list**, which hold note and folder names and numbers, and no prose.
 
-An exported manuscript is the exception, and an obvious one: you asked for your words in a file, so that file has your words in it.
-
 Nothing else, anywhere. Don't take my word for it:
 
 ```bash
