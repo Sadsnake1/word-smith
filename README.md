@@ -309,7 +309,9 @@ your notes and folders into the order the book is in instead.
 
 ## The Organiser
 
-*The book icon in the ribbon, or **Open the Organiser** in the command
+<img width="1573" height="892" alt="1" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
+
+**Open the Organiser** in the command
 palette.*
 
 Your manuscript down the left, described on the right. The tree is the
@@ -498,6 +500,8 @@ Nothing before the day you switch it on can be reconstructed. A file only knows 
 One list of notes and folders is left out of your totals — an outline, a research folder, a scratch file. Word-Smith still works in them; they just don't count.
 
 ## Export
+
+<img width="1570" height="888" alt="2" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
 
 Pick a folder — or a single note — and Word-Smith compiles it into one manuscript: **Word (.docx)**, a **web page (.html)** or **Markdown**. It opens from the **Export** tab, the command palette, the menu, or `{export}` on the bar.
 
