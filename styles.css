@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 502;
+	--zg-stylesheet-version: 506;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -9946,6 +9946,50 @@ svg.zg-obsidian-mark { stroke-width: 46px; }
 	min-width: var(--zg-org-namew);
 	max-width: var(--zg-org-namew);
 }
+/* ── …AND ON A NARROW WINDOW IT IS CAPPED (A167, writer: "we'll do A") ─
+
+   MEASURED IN THE WRITER'S VAULT, the window forced to 390px CSS — a
+   phone in portrait: the panel gets 388, its scroller shows 368, and the
+   table is 935 wide. The Name column was 278 of that 368, because they
+   dragged it there and a stored width is the rendered width — so 76% of
+   the screen was the name and 90px was left for 557px of other columns.
+
+   THE PINNING WAS ALREADY RIGHT and is the reason this is a cap rather
+   than a layout: `.zg-org-name` is `position: sticky; left: 0`, checked
+   at `scrollLeft: 400` with the cell still on the scroller's left edge.
+   The row is never anonymous while you drag sideways. Only the
+   arithmetic was wrong.
+
+   150px, AND THE NUMBER IS ARGUED: 368 - 150 = 218, which holds two of
+   their columns at once (Flag 86 + Tags 121 = 207). It is a token so it
+   is one number to move, not seven declarations to find.
+
+   `min()`, SO IT ONLY EVER NARROWS. A writer who dragged the name to
+   100px keeps 100 — a cap that WIDENED a column on a phone would be the
+   opposite of the ask. The fallback is the table's own `32ch`, which is
+   what a vault that has never touched the grip sees, and 32ch is ~243px
+   here: two thirds of the screen, so it needs the cap just as much.
+
+   THE STORED WIDTH IS NOT TOUCHED. `--zg-org-namew` still says 278 and
+   comes back whole the moment the window is wide again; nothing is
+   written, and there is no state to get out of step.
+
+   BOTH ARMS AND THE UNFIXED CASE, on specificity. The fixed arms are
+   (0,2,0) and (0,3,1) and the plain `max-width: 32ch` is (0,2,0); adding
+   `.zg-uni-modal.is-narrow` puts every one of these two classes above
+   its target, so this settles by weight and not by file order. */
+.zg-uni-modal.is-narrow .zg-org-table {
+	--zg-org-namecap: 150px;
+	--zg-org-namenow: min(var(--zg-org-namew, 32ch), var(--zg-org-namecap));
+}
+.zg-uni-modal.is-narrow .zg-org-table .zg-org-name,
+.zg-uni-modal.is-narrow .zg-org-table.is-namefixed .zg-org-name,
+.zg-uni-modal.is-narrow .zg-org-table.is-namefixed
+	.zg-org-row.is-folder td.zg-org-name {
+	width: var(--zg-org-namenow);
+	min-width: var(--zg-org-namenow);
+	max-width: var(--zg-org-namenow);
+}
 /* THE GRIP: the hairline’s hit area, because 1px is not a target.
 
    INSIDE THE CELL, not straddling its edge. `.zg-org-name` above carries
@@ -10475,23 +10519,44 @@ svg.zg-obsidian-mark { stroke-width: 46px; }
    that are about the table rather than about a property, and a writer who
    has learnt one has learnt the other. The whole row is the hit target for
    the reason the grip is 7px and not 1px. */
+/* ── ONE INDENT AND ONE ICON FOR THE THREE FOOTER ROWS (A181) ──────────
+
+   Writer, 2026-09-05: "make the text sizes the same of both of those
+   options". MEASURED IN THE VAULT FIRST, and the type was already the
+   same: all three rows resolve to 13px/400/16.9px. What differed was
+   this row against the two `.zg-org-propadd` below it — icon 18px
+   against 16px, label starting at x=41 against x=37 — so the odd one
+   out READ as a different size without being one.
+
+   THE PADDING AND THE ICON RULE ARE COPIED FROM `.zg-org-propadd`
+   rather than shared: the two rules are five thousand lines apart in
+   this sheet, and one selector reaching across that is harder to find
+   than two that agree. */
 .zg-org-proppop .zg-org-propauto {
 	display: flex;
 	align-items: center;
 	gap: 6px;
-	padding: 4px 8px;
+	padding: 6px 6px 2px;
 	cursor: pointer;
 	color: var(--text-muted);
 	font-size: var(--font-ui-small, 13px);
 	border-top: 1px solid var(--background-modifier-border);
 }
 .zg-org-proppop .zg-org-propauto:hover { color: var(--text-normal); }
-/* THE BOX KEEPS ITS OWN SIZE. Obsidian styles a checkbox in a menu at the
-   app's scale and a size of ours here would be a second writer of it. */
+/* TOMBSTONE (A181): "THE BOX KEEPS ITS OWN SIZE. Obsidian styles a
+   checkbox in a menu at the app’s scale and a size of ours here would
+   be a second writer of it." That was written when this row WAS a
+   checkbox; the writer asked for a button instead on 2026-08-31, and a
+   button beside two others that size their glyph has no app-scale
+   checkbox to defer to. Measured: 18px here against 16px there. */
 .zg-org-proppop .zg-org-propautoicon {
 	display: inline-flex;
 	align-items: center;
 	color: var(--text-faint);
+}
+.zg-org-proppop .zg-org-propautoicon svg {
+	width: var(--icon-s, 16px);
+	height: var(--icon-s, 16px);
 }
 .zg-org-proppop .zg-org-propauto:hover .zg-org-propautoicon { color: var(--text-accent); }
 body.is-mobile .menu.zg-org-proppop .zg-org-propauto {
@@ -14957,10 +15022,12 @@ body { --zg-hit-min: 44px; }
    different fact on a vault with a theme. FACTS records this shape: looking
    right is not evidence a rule won.
 
-   ONE TRACK LIST, READ TWICE. The caption row and every property row are
-   separate grids that line up only because both read `--zg-prop-tracks`.
-   Two hand-typed copies is how the caption stops standing over the column
-   it names — the same one-writer rule the table's `stampCols` follows.
+   ONE TRACK LIST, AND IT IS READ ONCE NOW. Every property row is a grid
+   on `--zg-prop-tracks`. It said READ TWICE until A180: the caption row
+   was a second grid that lined up with the rows only because both read
+   this one list AND filled the same number of cells, and it was measured
+   8px and then 57px out when it did not. The caption is gone at the
+   writer's word; the one-writer rule is why it was ever safe.
    ═════════════════════════════════════════════════════════════════════════ */
 /* ── THE PROPERTY PANEL ON A PHONE (writer, 2026-08-30, O5 option 2) ──
 
@@ -14969,11 +15036,14 @@ body { --zg-hit-min: 44px; }
    `touchDrag`'s long-press is aimed at, so the one gesture built for
    touch had the second-smallest target of anything here.
 
-   `body.is-mobile`, NOT `.zg-uni-modal.is-narrow`. The panel is built
-   with `d0.body.createDiv` and is `position: fixed` — it is not inside
-   the modal, so the narrow chain every rule above uses would match
-   NOTHING here. Checked before writing rather than after: a chain that
-   matches nothing is a rule that tests an element which does not exist.
+   `body.is-mobile`, NOT `.zg-uni-modal.is-narrow`. This was written when
+   the panel was built with `d0.body.createDiv`, so the narrow chain
+   every rule above uses could not reach it at all. A177 MOVED IT INTO
+   THE WINDOW and that chain would reach it now — but a phone is a
+   phone whether or not the window is narrow, and `is-narrow` is a
+   width. The reason changed; the selector was right for the other one.
+   Checked before writing rather than after: a chain that matches
+   nothing is a rule that tests an element which does not exist.
 
    IT COSTS SCROLLING, and that is the whole cost. The writer's panel
    holds 16 rows: at 44px that is 704px against this element's own
@@ -15022,15 +15092,61 @@ body.is-mobile .menu.zg-org-proppop {
 	padding: 8px;
 	gap: 4px;
 }
-.zg-org-prophead {
+/* ── THE TYPE SUBMENU (A179, writer 2026-09-05) ───────────────────────
+
+   "make that as a submenu (like a rightclick submenu with the '>' then
+   the suboptions type appeasrs (text, checkbox, date, etc..)".
+
+   THE SAME COSTUME AND THE SAME TWO-CLASS RULE as the panel, for the
+   reason at the top of this section: one class ties with app.css's own
+   `.menu` and the winner is then load order, which is a different fact
+   on a vault with a theme.
+
+   ONE ABOVE THE PANEL. It overlaps the panel by design — it hangs off a
+   row at the foot of it — so it needs to be over it, and only just: a
+   flyout that outranks the app's own menus would sit over a right-click
+   menu opened on top of it. */
+.menu.zg-org-propsub {
+	position: fixed;
+	z-index: 66;
+	display: flex;
+	flex-direction: column;
+	min-width: 12ch;
+	padding: 4px;
+	gap: 0;
+}
+.menu.zg-org-propsub .zg-org-propsubrow {
 	display: flex;
 	align-items: center;
-	color: var(--text-faint);
-	font-size: var(--font-ui-smaller, 12px);
-	text-transform: uppercase;
-	letter-spacing: 0.08em;
-	padding: 2px 6px;
+	padding: 4px 8px;
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-small, 13px);
+	border-radius: var(--zg-ctl-rad, 4px);
 }
+.menu.zg-org-propsub .zg-org-propsubrow:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+}
+/* A THUMB NEEDS THE SAME ROOM HERE as it does in the panel — the block
+   above gives every other control on this page the floor, and a list
+   reachable only from the panel would be the one that missed it. */
+body.is-mobile .menu.zg-org-propsub .zg-org-propsubrow {
+	min-height: var(--zg-hit-min);
+}
+/* THE CHEVRON SITS AT THE END OF THE ROW, and it is the only thing on
+   this page that promises a list rather than a modal. */
+.zg-org-propmore {
+	margin-left: auto;
+	color: var(--text-faint);
+}
+.zg-org-propadd:hover .zg-org-propmore { color: var(--text-normal); }
+/* TOMBSTONE (A180, writer 2026-09-05): `.zg-org-prophead` and
+   `.zg-org-propheadsay`. "also, remove those descriptions", with the
+   whole row struck through. The panel opens from a button an inch above
+   it reading the same word, and the grips are drawn on every row, so
+   neither the name nor the "drag to reorder" hint was telling anyone
+   anything they could not already see. */
 .zg-org-propsearch {
 	width: 100%;
 	font-size: var(--font-ui-small, 13px);
@@ -15049,20 +15165,15 @@ body.is-mobile .menu.zg-org-proppop {
    AND THE CAPTION HAS FOUR CELLS, not three: the last track is `auto`,
    which is 0 for a row that never fills it and the badge's width for one
    that does — 8px of drift with the font-size already fixed. */
-.zg-org-propcap,
+/* THE CAPTION LEFT THIS RULE AT A180 and the tracks stayed: with one
+   grid there is nothing to line up against, which is why the removal
+   was safe. The `em` note below is still true of the rows. */
 .zg-org-prow {
 	display: grid;
 	grid-template-columns: var(--zg-prop-tracks);
 	align-items: center;
 	gap: 0;
 	font-size: var(--font-ui-small, 13px);
-}
-.zg-org-propcap {
-	cursor: default;
-	color: var(--text-faint);
-	/* THE SAME SIDE PADDING AS A ROW, or the caption's two boxes start one
-	   grid over from the boxes they name. */
-	padding: 2px 6px 0;
 }
 .zg-org-propbody {
 	overflow-y: auto;
@@ -15074,16 +15185,6 @@ body.is-mobile .menu.zg-org-proppop {
    headings — Size · Progress · Dates · Labels · Your properties. The
    families were retired at 376 because a family list and ONE flat column
    order cannot both be the order, and the writer chose the order. */
-/* THE HEAD CARRIES TWO THINGS, so the name and the hint are separate
-   elements: reading `textContent` off the head returned
-   "Propertiesdrag to reorder" and took an assertion red the moment the
-   hint arrived. */
-.zg-org-propheadsay {
-	margin-left: auto;
-	text-transform: none;
-	letter-spacing: 0;
-	color: var(--text-faint);
-}
 /* ── THE GRIP ──────────────────────────────────────────────────────────
 
    DRAWN ON EVERY ROW, LIVE ON SOME. It keeps its track while a search is
@@ -15348,6 +15449,22 @@ body.is-mobile .menu.zg-org-proppop {
 .zg-org-propadd svg {
 	width: var(--icon-s, 16px);
 	height: var(--icon-s, 16px);
+}
+/* ── AND THE GLYPH HUGS ITS OWN BOX, LIKE THE RESIZE ROW’S (A181) ─────
+
+   MEASURED AFTER THE FIRST HALF LANDED: type, indent and icon SIZE all
+   agreed across the three footer rows and the resize row was still 26px
+   tall against these two at 29. The icon is the same 16px in all three;
+   what differed is the SPAN around it — `.zg-org-propautoicon` is
+   `inline-flex`, so it is as tall as the glyph, and these were plain
+   inline spans taking a 20px text line box for a 16px picture.
+
+   PAST THE LITERAL ASK, and said so: the writer asked about text sizes.
+   Three rows on one indent, one icon and one type, stacked at two
+   different heights, is the same unevenness they were pointing at. */
+.zg-org-propaddicon {
+	display: inline-flex;
+	align-items: center;
 }
 .zg-org-propnone {
 	color: var(--text-faint);

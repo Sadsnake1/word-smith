@@ -4377,7 +4377,30 @@ function zgSortArrow(dir) {
 	return dir === 'desc' ? ' ↓' : ' ↑';
 }
 
-const ZG_STYLESHEET_VERSION = 502;
+const ZG_STYLESHEET_VERSION = 506;
+
+// ── WHAT A FAILED WRITE IS ABOUT (A171, writer 2026-09-05) ─────────────
+//
+// Ten writes carry a writer’s work and every one of them ended in
+// `console.error` and nothing else. `storeWriteFailed` reports them all
+// and latches PER SUBJECT — so the subject is a shared name rather than
+// a string typed twice, once in the failure arm and once in the success
+// arm. Two copies and the latch never clears: the toast is said once and
+// never again, which is the failure mode hardest to notice.
+//
+// THEY READ AS THE SENTENCE THEY LAND IN — “Word-Smith: could not ” plus
+// this — so they are verbs, and lower case.
+const WS_WRITE = Object.freeze({
+	goals:     'save the goals and the manuscript order',
+	mirror:    'write the settings mirror',
+	structure: 'save the manuscript structure',
+	prop:      'write that property',
+	stored:    'store that property',
+	rename:    'follow a rename in the export list',
+	forget:    'forget a deleted path in the export list',
+	move:      'follow the store to its new place',
+	settings:  'save your settings',
+});
 
 // What manifest.json must say for this build. The stylesheet has had such
 // a check since 1.2.x; the manifest never did, and it turns out to fail
@@ -4387,7 +4410,7 @@ const ZG_STYLESHEET_VERSION = 502;
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.4.0';
+const ZG_PLUGIN_VERSION = '1.4.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5522,6 +5545,22 @@ const DEFAULT_SETTINGS = {
 	// Measured height of the vim command line, so the gutter can be
 	// reserved at the right size before the first `:` of a session.
 	vimPanelHeight:           23,
+	// ── HOW FAR THE BAR SITS FROM THE BOTTOM (A174, 2026-09-05) ────────
+	//
+	// Writer: “add a slider that goes from 0 to 23 px so users can pick
+	// how far the status line sits from the bottom … maybe increase the
+	// slider range from 0 - 30px (default for new users 23px)”.
+	//
+	// 23 FOR EVERYONE, new vault and old. It is what every vault shows
+	// today — the vim gutter was reserved unconditionally — so nobody
+	// sees anything move on the upgrade; the number simply becomes
+	// theirs. No migration writes it: the default IS the answer.
+	//
+	// AND IT IS NOT `vimPanelHeight`, one line up. That is a MEASUREMENT
+	// — how tall this vault’s `:` line actually is — and this is a
+	// CHOICE. They happen to be 23 on this machine and that is a
+	// coincidence of the theme, not a shared fact.
+	barBottomGap:             23,
 	focusedFileMode:          false,
 
 	// ── Typewriter / letterbox ────────────────────────────────────────────────
@@ -5818,7 +5857,11 @@ const DEFAULT_SETTINGS = {
 	settingsMirror:           true,
 	settingsMirrorPath:       'Word-Smith/ws-settings.md',
 	fileGoals:                {},         // note path   -> word target
-	folderGoals:              {},         // folder path -> word target
+	// TOMBSTONE (A169, 2026-09-05): `folderGoals`. “let’s retire folder
+	// goals — they are only the sum of their files now.” Deleted on
+	// load in `loadSettings`, the `uniCols` precedent: a key that still
+	// parses is a key somebody reuses. `folderTargetRollup` is the one
+	// answer to what a folder is worth, and it adds up the notes.
 	// …and where each one is up to: 'draft' | 'revise' | 'done', absent for
 	// unmarked. Same keys, same file (`ws-goals.md`), because a status is
 	// the same kind of fact as a target — the writer's own note about their
@@ -7022,6 +7065,12 @@ module.exports = class WordSmith extends Plugin {
 		} catch (_) {}
 		// Settle the Glass borrow, if this vault has one outstanding. Runs
 		// once and clears itself; see barThemeGlassRepay.
+		// THE GUARD HERE CANNOT FIRE SINCE 486ff, and it is kept anyway:
+		// `saveSettings` catches its own write now, so this catch is a
+		// belt over a belt. Left rather than cut because it costs
+		// nothing and the guarantee it leans on is one function away —
+		// but named, because a guard nobody has decided about is the
+		// thing A172 was counting.
 		if (this.barThemeGlassRepay()) { try { await this.saveSettings(); } catch (_) {} }
 		this._wasZenMode = this.zenOn();
 
@@ -8541,6 +8590,22 @@ module.exports = class WordSmith extends Plugin {
 		// very key, read a vault's old pixels as characters, and drew four
 		// columns 432px wide with the name squeezed to nothing.
 		delete this.settings.uniCols;
+		// ── AND `folderGoals` (A169, writer 2026-09-05) ────────────────
+		//
+		// “let’s retire folder goals — they are only the sum of their
+		// files now.” A number typed on a FOLDER used to beat the sum of
+		// the notes under it; there is one answer now and it derives.
+		//
+		// DELETED RATHER THAN IGNORED, for the reason above: left in
+		// place it is a plausible `{path: 8000}` under a name that reads
+		// like it still means something, and the mirror would keep
+		// carrying it between machines for ever.
+		//
+		// MEASURED IN THE WRITER’S VAULT BEFORE CUTTING: 0 keys, and no
+		// `goals: folders` section in their `ws-structure.md` at all —
+		// so this costs them nothing. A vault that DOES carry one loses
+		// the typed number and gets the sum instead, which is the ask.
+		delete this.settings.folderGoals;
 		// ── AND uniColCh WITH IT, THE SAME STORE IN CHARACTERS ─────────────
 		//
 		// It replaced `uniCols` when the unit changed, and it is gone for a
@@ -9433,8 +9498,37 @@ module.exports = class WordSmith extends Plugin {
 	// doesn't rebuild the world per tick — only the trailing call applies.
 	// Pass applyImmediately for state changes that must land now (zen toggle,
 	// master switch).
+	// ── A FAILED SAVE REACHED EIGHTY-SEVEN CALLERS (A170) ───────────────
+	//
+	// Writer, 2026-09-05: “what other things for the plugin stability we
+	// need?”, then “ok, do them”. MEASURED over `src/`:
+	//
+	//     114  calls to `saveSettings`
+	//       9  with a `.catch`
+	//      18  awaited
+	//      87  neither
+	//
+	// And this function opened on a bare `await this.saveData(...)`, so a
+	// rejection — a full disk, a locked vault, a sync conflict — walked
+	// straight out to eighty-seven callers with no handler: an unhandled
+	// rejection, and a setting that silently did not persist.
+	//
+	// FIXED AT THE FUNCTION, NOT AT THE 87. One writer of one fact, which
+	// is the rule this repo keeps — and a `.catch` bolted onto every call
+	// site is eighty-seven chances to forget the eighty-eighth.
+	//
+	// AND EVERYTHING BELOW STILL RUNS. This is the part worth being
+	// deliberate about: `goalsFileSync` and `settingsMirrorSync` write the
+	// writer’s OWN files, and `ws-settings.md` exists precisely to survive
+	// the loss of data.json. A save that just failed makes the mirror more
+	// important, not less, so a failure here is reported and passed over
+	// rather than returned on.
 	async saveSettings(applyImmediately = false) {
-		await this.saveData(this.settings);
+		try {
+			await this.saveData(this.settings);
+			// IT WORKED, so the next failure is news again.
+			this.storeWriteOk(WS_WRITE.settings);
+		} catch (e) { this.settingsSaveFailed(e); }
 		// The flags follow the settings from ONE place, for the same reason
 		// the goals file does: they are set from a settings tab, a count, and
 		// four widgets per row, and hooking each of those is four chances to
@@ -9458,6 +9552,38 @@ module.exports = class WordSmith extends Plugin {
 		} else {
 			this.scheduleRefresh();
 		}
+	}
+
+	// ── …AND THE WRITER IS TOLD, ONCE (A170) ────────────────────────────
+	//
+	// A settings save that fails is SILENT DATA LOSS: the choice is on
+	// screen, it is in memory, and it is not on disk. Nobody opens a
+	// console — this plugin already learnt that with the export, which
+	// says “export failed —” in a Notice for the same reason.
+	//
+	// ONCE PER RUN OF FAILURES, re-armed by the next save that works. A
+	// disk that is full stays full, and `saveSettings` is called from a
+	// dozen widgets: without the latch a stuck vault would paint a wall
+	// of toasts and bury the one that mattered.
+	//
+	// AND IT NAMES THE WAY OUT, because the mirror really is one: the
+	// same call goes on to write `ws-settings.md`, which is read back
+	// into an empty data.json. That is not consolation, it is the
+	// instruction.
+	// ── AND IT GOES THROUGH THE ONE REPORTER (A171, an hour later) ──────
+	//
+	// This was written at 486ff with its own console line, its own latch
+	// and its own Notice — and an hour later nine more writes needed the
+	// same three things. `storeWriteFailed` is that, once; the settings
+	// are simply the first subject it was written for.
+	//
+	// ONE LATCH TABLE, NOT A FLAG BESIDE IT. Two mechanisms for one idea
+	// is how the second stops being re-armed, and the symptom of that is
+	// silence — the hardest thing in this file to notice.
+	settingsSaveFailed(e) {
+		return this.storeWriteFailed(WS_WRITE.settings, e,
+			'They are still set for this session, and are mirrored to '
+			+ 'ws-settings.md.');
 	}
 
 	scheduleRefresh() {
@@ -10235,11 +10361,96 @@ module.exports = class WordSmith extends Plugin {
 	// measurement is persisted (vimPanelHeight) so the reservation is
 	// already correct on the next launch rather than settling after the
 	// first `:`. Clamped, so one bad read cannot push the bar up the screen.
-	vimGutterHeight() {
+	// ── THE GAP IS THE WRITER’S, AND `:` BORROWS IT (A174, 2026-09-05) ─
+	//
+	// Writer, on the build before this one: “the a128 is shitty, it does
+	// not instantly goes up with vim mode on … and if i toggle cua mode
+	// it does not go down. also, we’ve discussed to add a slider … 0 -
+	// 30px (default for new users 23px)”.
+	//
+	// THEY WERE RIGHT ABOUT THE FAULT AND RIGHT ABOUT THE SHAPE.
+	//
+	// 486fj gated this on `isVimKeysOn()`, and NOTHING WATCHES THAT
+	// SETTING: it is read inside `applyCssVariables`, which runs from
+	// `refresh()`, so the gap followed a vim toggle only when a leaf
+	// change or a settings change happened to refresh — in BOTH
+	// directions. The A107 card predicted exactly that in its own cost
+	// section and I shipped it as though naming a cost were paying it.
+	//
+	// AND THE SLIDER DISSOLVES IT RATHER THAN PATCHING IT. The resting
+	// gap is not a vim question at all: it is a number the writer picks,
+	// and `saveSettings` refreshes on the drag. Vim is asked only about
+	// the panel that is actually OPEN — a flag the codemirror hook sets
+	// on both transitions — so there is no stale answer to have.
+	//
+	// IT STILL ANSWERS GitHub #12: Kuiriel wanted ~4pt instead of ~16,
+	// and a slider gives them 5px while everyone else keeps 23.
+	//
+	// THE NAMES STAY. `vimGutterHeight` and `--zg-vim-gutter` are read in
+	// forty places and neither is PERSISTED — they are recomputed every
+	// refresh, so the rule about a key whose meaning changed does not
+	// bite: nothing stale can survive under them. The persisted names are
+	// new and honest.
+	barBottomGapPx() {
+		const n = Number(this.settings.barBottomGap);
+		if (!isFinite(n)) return 23;
+		return Math.max(0, Math.min(30, Math.round(n)));
+	}
+	// …AND WHAT THE `:` LINE NEEDS, which is a measurement and not a
+	// choice: this vault’s own panel height, floored at a row so a bad
+	// read cannot hide the line, and clamped so one cannot push the bar
+	// up the screen. Both guards predate A174 and are kept.
+	vimPanelReserve() {
 		const rowH = this.snappedRowHeight();
 		const measured = this.settings.vimPanelHeight || 0;
 		if (!(measured > 0)) return rowH;
 		return Math.max(rowH, Math.min(measured, 120));
+	}
+	//
+	// IT WAS NOT PADDING. It is a command line reserved for a feature
+	// that is switched off. Measured in the writer’s vault, and again on
+	// 2026-09-05 before this was built:
+	//
+	//     vimMode false · isVimKeysOn false · vimPanelHeight 23
+	//     vimGutterHeight() 23 · --zg-vim-gutter 23px
+	//     bar bottom 793 in an 816px window → 23px of empty window
+	//
+	// 23px is ~17pt at 96dpi, which is the reporter’s “~16 points” to
+	// within a rounding. Two people described the same reservation.
+	//
+	// THE GUARD BELONGS HERE, not in the readers. There are six —
+	// `applyCssVariables`, the peek zone, two in the letterbox, the
+	// codemirror panel and `chromeFloorY` — and only the last one asked
+	// the question. Gating each is five more chances to forget the
+	// seventh; gating the ANSWER is one place and every reader inherits
+	// it. This is the same argument as the one write path and the one
+	// path-store list.
+	//
+	// THE MEASUREMENT IS KEPT, NOT CLEARED. `vimPanelHeight` stays in
+	// settings, so a writer who turns vim ON gets the right reservation
+	// immediately rather than a row-height guess that settles after the
+	// first `:`. Turning it back off costs nothing to undo.
+	//
+	// AND THE STYLESHEET WAS ALREADY READY: every rule reads
+	// `var(--zg-vim-gutter, 0px)`, so zero is the shape they were
+	// written for. `applyCssVariables` runs from `refresh()`, the one
+	// settings-to-DOM path, so toggling vim restores the gutter at the
+	// next leaf or settings change — the latency `chromeFloorY` has
+	// always lived with.
+	// WHAT IS UNDER THE BAR RIGHT NOW: the writer’s gap, lifted to fit
+	// the `:` line while it is open and only while it is open.
+	//
+	// TO THE MEASURED HEIGHT, on the writer’s word — the real panel this
+	// vault has, not a fixed 23 — so the line fits exactly whatever the
+	// theme and font make it.
+	//
+	// AND `max`, NOT A SWAP: a writer who chose 30 keeps 30 while `:` is
+	// open. The lift is for a gap too SMALL to hold the line; it is not
+	// permission to shrink one they chose.
+	vimGutterHeight() {
+		const gap = this.barBottomGapPx();
+		if (!this._vimPanelOpen) return gap;
+		return Math.max(gap, this.vimPanelReserve());
 	}
 
 	// Marks the MAIN window's title bar so the strip rules in styles.css can
@@ -13570,13 +13781,15 @@ module.exports = class WordSmith extends Plugin {
 			out.push('');
 		};
 		section('Notes', this.settings.fileGoals, this.settings.fileStatus);
-		// Folders keep their TARGETS here and no longer their flags (2026-08-23).
-		section('Folders', this.settings.folderGoals, {});
+		// TOMBSTONE (A169, 2026-09-05): the Folders section. Folders lost
+		// their flags on 2026-08-23 and their TARGETS here — “they are only
+		// the sum of their files now”. The parser below still READS one, so
+		// an old file does not throw; nothing writes one again.
 		return GOALS_MARK_START + '\n' + out.join('\n') + '\n' + GOALS_MARK_END + '\n';
 	}
 
 	goalsFileParse(text) {
-		const res = { fileGoals: {}, folderGoals: {}, fileStatus: {} };
+		const res = { fileGoals: {}, fileStatus: {} };
 		const body = String(text || '');
 		const a = body.indexOf(GOALS_MARK_START);
 		const b = body.indexOf(GOALS_MARK_END);
@@ -13586,7 +13799,12 @@ module.exports = class WordSmith extends Plugin {
 			const h = line.match(/^###\s+(.*)$/);
 			if (h) {
 				const name = h[1].trim().toLowerCase();
-				into = name === 'folders' ? 'folderGoals' : (name === 'notes' ? 'fileGoals' : null);
+				// A `### Folders` heading in a file written before A169 is
+				// SKIPPED, not stored: `into` stays null and its rows fall
+				// through the reader below untouched. Tolerant on the way in
+				// and silent on the way out, which is how the folder FLAGS
+				// were retired one line up in 2026-08-23.
+				into = name === 'notes' ? 'fileGoals' : null;
 				continue;
 			}
 			// An em dash by default, but a hyphen or a colon is what a
@@ -13611,7 +13829,7 @@ module.exports = class WordSmith extends Plugin {
 				if (word && zgStatusLabel(word)) {
 					// A legacy file may still carry a folder flag word; it is
 					// read and dropped rather than resurrected (2026-08-23).
-					if (into !== 'folderGoals') res.fileStatus[path] = word;
+					res.fileStatus[path] = word;
 				}
 			}
 		}
@@ -13655,8 +13873,9 @@ module.exports = class WordSmith extends Plugin {
 		// too - a folder TARGET is still a real thing and still round-trips.
 		// A folder that carried only a flag drops out of the section
 		// entirely, because build skips a path with neither.
-		all[this.goalsSectionKey('folder')] =
-			build(this.settings.folderGoals, {});
+		// TOMBSTONE (A169): the folders section. `goalsStoreAdopt` still
+		// LOOKS for one, so a vault upgrading from 1.4.0 is not read as a
+		// file with no goals at all — see the note on its absence test.
 		return all;
 	}
 
@@ -13671,7 +13890,7 @@ module.exports = class WordSmith extends Plugin {
 		const folderKey = this.goalsSectionKey('folder');
 		if (!Object.prototype.hasOwnProperty.call(all, fileKey)
 			&& !Object.prototype.hasOwnProperty.call(all, folderKey)) return null;
-		const res = { fileGoals: {}, folderGoals: {}, fileStatus: {} };
+		const res = { fileGoals: {}, fileStatus: {} };
 		// `statusInto` may be NULL, which is how folder flags are dropped
 		// (2026-08-23). The parse stays TOLERANT on purpose: a file written
 		// before the retirement still carries flag words on folder rows, and
@@ -13688,39 +13907,279 @@ module.exports = class WordSmith extends Plugin {
 			}
 		};
 		take(all[fileKey], 'fileGoals', 'fileStatus');
-		take(all[folderKey], 'folderGoals', null);
+		// A FOLDERS SECTION IS READ AND DROPPED (A169). Its PRESENCE still
+		// counts above — a 1.4.0 file whose only goals section is this one
+		// must not answer “no goals anywhere”, which would send the loader
+		// hunting for a legacy file — but nothing it holds is stored.
+		return res;
+	}
+
+	// ── THE FOLDER COLOURS LIVE HERE TOO (A161, writer 2026-09-04) ─────
+	//
+	// "I want the flags in the ws-structure too … because data.json can be
+	// easily lost with an uninstall", and then "yes" to the same for the
+	// colours. A colour a writer chose for a folder is authored work: it
+	// is path-keyed, it is theirs, and re-picking nine of them is a loss.
+	// Column widths and fold state are not — those cost a minute.
+	//
+	// THE SAME SHAPE AS THE GOALS, deliberately: one row per path, the
+	// value after the dash, in a section of its own. Nothing new to learn
+	// in the file and nothing new to parse.
+	//
+	// THE ROOT IS `/`, WHICH THIS FILE ALREADY SAYS. `folderColors` can
+	// carry the empty path — the writer's vault has one — and a row with
+	// no path before the dash does not parse back, so the colour would be
+	// written and silently lost. `order: /` is how the root is already
+	// named in this store, so the same spelling is used rather than a
+	// second convention.
+	colorsSectionKey() { return 'colors: folders'; }
+	// ── AND WHICH PROPERTIES ARE COLUMNS (A163, writer 2026-09-04) ─────
+	//
+	// "do the uniusercols too". A writer who added eight properties as
+	// columns chose those eight out of everything their vault carries; the
+	// VALUES are already in this file, and only the choice of what to show
+	// was in data.json. Widths and fold state stay there — those cost a
+	// minute to set again, and this does not.
+	//
+	// THE TYPE RIDES WITH IT WHEN THERE IS ONE. `orgPropTypeChosen` reads
+	// `c.type` BEFORE the registry, so it is the writer's answer
+	// overruling Obsidian's — authored, and lost with the rest without
+	// this. A column with no chosen type writes a bare row rather than
+	// inventing `text`, which would pin it and silence the registry.
+	userColsSectionKey() { return 'columns: user'; }
+	userColsStoreApply(store) {
+		const all = store || this._structStore || {};
+		const src = this.settings.uniUserCols || [];
+		const rows = [];
+		for (const c of src) {
+			const key = String((c && c.key) || '').trim();
+			if (!key) continue;
+			const type = String((c && c.type) || '').trim();
+			rows.push({ path: key, on: true, note: type });
+		}
+		all[this.userColsSectionKey()] = rows;
+		return all;
+	}
+	// …and back. NULL when the section is absent — the same
+	// unknown-is-not-empty rule the colours and the goals keep.
+	//
+	// THE EXISTING COLUMN OBJECT IS KEPT where the key still matches, so a
+	// `sortAs` or a dragged width that this file does not carry is not
+	// deleted by a round trip through it. The file decides WHICH columns
+	// and their type; it does not claim to know the rest.
+	userColsStoreAdopt(store) {
+		const all = store || this._structStore || {};
+		const key = this.userColsSectionKey();
+		if (!Object.prototype.hasOwnProperty.call(all, key)) return null;
+		const had = this.settings.uniUserCols || [];
+		const rows = all[key] || [];
+		const out = [];
+		for (const r of rows) {
+			const k = String(r.path || '').trim();
+			if (!k) continue;
+			const was = had.filter((c) => c && String(c.key) === k)[0] || null;
+			const col = was ? Object.assign({}, was) : { key: k, label: k };
+			const type = String(r.note || '').trim();
+			if (type) col.type = type;
+			else delete col.type;
+			out.push(col);
+		}
+		// ROWS THAT NAME NOTHING ARE NOT AN EMPTY LIST — the guard A161
+		// earned the hard way, kept here so the two sections cannot drift.
+		// A section written wrongly, or edited into nonsense, must not read
+		// as “the writer removed every column”.
+		if (rows.length && !out.length) return null;
+		return out;
+	}
+	colorsStoreApply(store) {
+		const all = store || this._structStore || {};
+		const src = this.settings.folderColors || {};
+		const rows = [];
+		for (const k of Object.keys(src).sort()) {
+			const v = String(src[k] || '').trim();
+			if (!v) continue;
+			rows.push({ path: k === '' ? '/' : k, on: true, note: v });
+		}
+		all[this.colorsSectionKey()] = rows;
+		return all;
+	}
+	// …and back. NULL when the section is absent, which is how the caller
+	// tells "this vault has never had colours" from "this writer removed
+	// them all" — the same distinction `goalsStoreAdopt` draws, and for
+	// the same reason: reading them as one would restore what was deleted.
+	colorsStoreAdopt(store) {
+		const all = store || this._structStore || {};
+		const key = this.colorsSectionKey();
+		if (!Object.prototype.hasOwnProperty.call(all, key)) return null;
+		const rows = all[key] || [];
+		const res = {};
+		for (const r of rows) {
+			const v = String(r.note || '').trim();
+			if (!v) continue;
+			res[r.path === '/' ? '' : r.path] = v;
+		}
+		// ── ROWS THAT SAY NOTHING ARE NOT AN EMPTY LIST (A161) ─────────
+		//
+		// A section with rows in it, none of which carries a value, is a
+		// section that was written wrongly or edited into nonsense — NOT a
+		// writer who removed every colour. Those two want opposite answers
+		// and the difference is only visible here.
+		//
+		// THIS COST THE WRITER NINE COLOURS. A build of mine wrote the
+		// section in the checkbox shape — `- [x] Book`, path kept, value
+		// dropped — and on the next start this function read nine valueless
+		// rows, answered `{}`, and `goalsFileLoad` let the file win. Eight
+		// were recoverable from a measurement taken an hour earlier; one
+		// was not.
+		//
+		// SO THE ANSWER IS UNKNOWN, and settings keep what they have. An
+		// empty SECTION still means empty — that is a writer's deletion and
+		// it is honoured, which is the distinction one line up.
+		if (rows.length && !Object.keys(res).length) return null;
 		return res;
 	}
 
 	// The write, for when the goals are what changed. Same one file and the
 	// same migration as any other write.
+	//
+	// IT CARRIES THE COLOURS TOO (A161). The name says goals because that
+	// is what it carried first; what it IS is the one place settings reach
+	// the structure file, and a second write path would be a second chance
+	// to forget one of them.
 	async goalsStoreWrite() {
 		await this.structureRead();
 		this.goalsStoreApply(this._structStore);
+		this.colorsStoreApply(this._structStore);
+		this.userColsStoreApply(this._structStore);
 		await this.structureWrite();
+	}
+
+	// ── WHAT "UNCHANGED" MEANS, IN ONE PLACE (A161) ───────────────────
+	//
+	// This was written out twice — once to decide whether to write, once
+	// to record what WAS written — and the two had to agree exactly or the
+	// comparison means nothing. FOUND BY A SABOTAGE THAT STAYED GREEN:
+	// dropping the colours from one copy made every save look different
+	// from the last, so the file wrote on every interaction and the test
+	// asking "does a colour change save?" passed for the wrong reason.
+	//
+	// THE TWO FAILURE MODES ARE OPPOSITE AND BOTH SILENT: shapes that
+	// differ write forever, shapes that agree on too little write never.
+	// A160 was the second one. One reader cannot drift from itself.
+	goalsSignature() {
+		try {
+			return JSON.stringify([this.settings.fileGoals,
+				this.settings.fileStatus,
+				this.settings.folderColors, this.settings.uniUserCols]);
+		} catch (_) { return ''; }
 	}
 
 	// Written only when the numbers differ from what is already there —
 	// saveSettings runs on nearly every interaction in the plugin, and a
 	// file modify on each of them would be noise in the vault and in sync.
 	goalsFileSync() {
-		let sig = '';
-		try {
-			sig = JSON.stringify([this.settings.fileGoals, this.settings.folderGoals,
-				this.settings.fileStatus]);
-		}
-		catch (_) { return; }
+		const sig = this.goalsSignature();
+		if (!sig) return;
 		if (sig === this._goalsSig) return;
-		this._goalsSig = sig;
 		// Nothing to say and nothing said before: do not create a file of
 		// empty sections in a vault that has never set a goal.
-		if (sig === '[{},{},{}]' && !this._goalsWritten) return;
-		this._goalsWritten = true;
-		if (this._goalsTimer) window.clearTimeout(this._goalsTimer);
+		if (sig === '[{},{},{},{}]' && !this._goalsWritten) return;
+		// ── AND THE WRITE IS RECORDED WHEN IT LANDS (A160, 2026-09-04) ──
+		//
+		// Writer: "I want the flags in the ws-structure too … data.json can
+		// be easily lost with an uninstall" — and the flags were already
+		// meant to be there. MEASURED in their vault: ten flags and six
+		// targets live, and a `goals: notes` section holding ONE row, for a
+		// `Book 1/Manuskript/…` path that had not existed for weeks.
+		// `goalsStoreApply` would have written all eleven correctly; nothing
+		// had run it for a long time.
+		//
+		// TWO FAULTS IN FIVE LINES, and either alone is enough:
+		//
+		// THE SIGNATURE WAS CACHED BEFORE THE WRITE. `_goalsSig` was set on
+		// the way IN, so a write that failed — or never ran — left the
+		// plugin believing the file said what settings say. Every later save
+		// compared against that lie and returned early. One failure and the
+		// file is frozen for the life of the vault, with nothing said: the
+		// `.catch` logs to a console nobody has open.
+		//
+		// AND THE DEBOUNCE COULD BE STARVED. Every call cleared the pending
+		// timer and set a new one — in a function whose own comment says
+		// "saveSettings runs on nearly every interaction in the plugin". A
+		// vault that never goes 600ms quiet never writes at all. Typing in a
+		// note with history tracking on is exactly that vault.
+		//
+		// SO THE TIMER IS LEFT ALONE ONCE SET. A write already coming will
+		// write whatever is current when it runs — `goalsStoreWrite` reads
+		// the settings at that moment, not now — so re-arming it buys
+		// nothing and risks everything. First change starts the clock;
+		// the write lands within 600ms whatever else happens.
+		if (this._goalsTimer) return;
 		this._goalsTimer = window.setTimeout(() => {
-			this.goalsStoreWrite().catch((e) =>
-				console.error('Word-Smith: could not save the goals', e));
+			this._goalsTimer = null;
+			// TAKEN AT WRITE TIME, not at schedule time: the settings may
+			// have moved again while this was waiting, and the signature has
+			// to describe what was actually written.
+			const wrote = this.goalsSignature();
+			this.goalsStoreWrite().then(() => {
+				if (wrote) this._goalsSig = wrote;
+				this._goalsWritten = true;
+				this.storeWriteOk(WS_WRITE.goals);
+			}).catch((e) => {
+				// LEFT UNCACHED ON PURPOSE, so the next save tries again
+				// rather than inheriting a claim that was never true.
+				this.storeWriteFailed(WS_WRITE.goals, e,
+					'They are still set here; the file will be tried again.');
+			});
 		}, 600);
+	}
+
+	// ── A FAILED WRITE REACHED NOBODY BUT THE CONSOLE (A171) ────────────
+	//
+	// Writer, 2026-09-05: “what other things for the plugin stability we
+	// need?”, then “ok, do them”. MEASURED: ten writes that carry a
+	// writer’s work end in `console.error` and nothing else — the goals,
+	// the mirror, the manuscript structure, a frontmatter property, a
+	// stored property, and the follow-a-move walks. NOBODY OPENS A
+	// CONSOLE. The plugin already knew this for the export, which says
+	// “export failed —” in a Notice for exactly this reason: the loud
+	// half was the one that makes a file, and the silent half was the
+	// one that keeps the writer’s typing.
+	//
+	// ONE REPORTER, because ten bespoke messages is ten chances to write
+	// the eleventh without one — the same argument as the one write
+	// path, the one signature and the one path-store list.
+	//
+	// LATCHED PER SUBJECT, and the pairing is the point: a vault that
+	// cannot be written stays that way, and these run on debounces and
+	// on vault events, so without a latch one broken disk paints a wall
+	// of toasts. Per SUBJECT rather than one flag, so a property that
+	// will not save cannot silence the structure file.
+	//
+	// AND THEY RETURN, so a caller reads as it did: `false` for the
+	// failure and `true` for the way back, which is what `orgPropWrite`
+	// and `propStoreSet` already answered.
+	storeWriteFailed(subject, e, tail) {
+		console.error('Word-Smith: could not ' + subject, e);
+		if (!this._storeFailSaid) this._storeFailSaid = {};
+		if (this._storeFailSaid[subject]) return false;
+		this._storeFailSaid[subject] = true;
+		const why = (e && e.message) ? String(e.message) : String(e || '');
+		try {
+			new Notice('Word-Smith: could not ' + subject
+				+ (why ? ' \u2014 ' + why : '')
+				+ (tail ? '. ' + tail : '.'), 12000);
+		} catch (_) {}
+		return false;
+	}
+	// …AND THE WAY BACK. Called on the success path of the same writer,
+	// so the next failure of THAT subject is news again. Answers `true`
+	// for the same reason its twin answers `false`: a caller can return
+	// it, and a success arm that has to be remembered separately is the
+	// half that gets forgotten.
+	storeWriteOk(subject) {
+		if (this._storeFailSaid) this._storeFailSaid[subject] = false;
+		return true;
 	}
 
 	// At startup the FILE wins, because it is the copy a writer can have
@@ -13758,10 +14217,29 @@ module.exports = class WordSmith extends Plugin {
 				return;
 			}
 			this.settings.fileGoals = parsed.fileGoals;
-			this.settings.folderGoals = parsed.folderGoals;
 			this.settings.fileStatus = parsed.fileStatus || {};
-			this._goalsSig = JSON.stringify([parsed.fileGoals, parsed.folderGoals,
-				parsed.fileStatus]);
+			// THE COLOURS ADOPT SEPARATELY (A161), because their section can
+			// be absent while the goals sections are present — a vault
+			// upgrading from before this existed has goals and no colours,
+			// and taking `null` as "the writer removed them all" would wipe
+			// what data.json still holds. Absent means UNKNOWN here, exactly
+			// as it does for the goals sections one function up.
+			const colors = this.colorsStoreAdopt(store);
+			if (colors) this.settings.folderColors = colors;
+			const ucols = this.userColsStoreAdopt(store);
+			if (ucols) this.settings.uniUserCols = ucols;
+			// ── THROUGH THE ONE WRITER OF THE SHAPE (A169) ──────────────
+			//
+			// This built the signature BY HAND and had drifted from
+			// `goalsSignature` twice: it never carried `uniUserCols` after
+			// 486ez added it, so the shapes differed by one element and the
+			// first save after every start wrote the file for no change.
+			// Two writers of one fact, and the second was invisible because
+			// its only symptom is a write nobody asked for.
+			//
+			// SAFE HERE because everything it reads has just been assigned:
+			// the goals above, the colours and the columns adopted between.
+			this._goalsSig = this.goalsSignature();
 			this._goalsWritten = true;
 		} catch (_) {}
 	}
@@ -13937,32 +14415,68 @@ module.exports = class WordSmith extends Plugin {
 		if (sig === this._mirrorSig) return;
 		const text = this.settingsMirrorCompose();
 		try {
+			// ── ONE SUCCESS POINT, NOT TWO (A171) ───────────────────────
+			//
+			// This had an early `return` in the found-and-modified arm — the
+			// COMMON one — and fell through to create only when the file was
+			// missing. Hanging the latch’s re-arm off the tail therefore
+			// re-armed it on the rare path and never on the usual one, so a
+			// mirror that failed once would have gone quiet for ever.
+			//
+			// Written the same hour as the comment on `storeWriteOk` warning
+			// that “a success arm that has to be remembered separately is the
+			// half that gets forgotten”, four lines below it. The answer is
+			// not to remember harder: it is to leave one place to remember.
 			const found = await this.storeFind(SETTINGS_MARK_START,
 				this.settings.settingsMirrorPath, [], this._mirrorFoundAt);
-			if (found) {
-				const f = this.app.vault.getAbstractFileByPath(found);
-				if (f && !f.children) {
-					await this.app.vault.modify(f, text);
-					this._mirrorFoundAt = found;
-					this._mirrorSig = sig;
-					return;
-				}
+			const f = found
+				? this.app.vault.getAbstractFileByPath(found) : null;
+			if (f && !f.children) {
+				await this.app.vault.modify(f, text);
+				this._mirrorFoundAt = found;
+			} else {
+				// A PATH THAT WAS FOUND BUT IS NOT A FILE falls here too, which
+				// is what the old `if (found)` block did by falling out of it.
+				const path = this.settingsMirrorPathFor();
+				await this.storeEnsureFolder(path);
+				await this.app.vault.create(path, text);
+				this._mirrorFoundAt = path;
 			}
-			const path = this.settingsMirrorPathFor();
-			await this.storeEnsureFolder(path);
-			await this.app.vault.create(path, text);
-			this._mirrorFoundAt = path;
 			this._mirrorSig = sig;
-		} catch (e) { console.error('Word-Smith: could not write the settings mirror', e); }
+			this.storeWriteOk(WS_WRITE.mirror);
+		} catch (e) {
+			this.storeWriteFailed(WS_WRITE.mirror, e,
+				'data.json still has them; this file is the copy that '
+				+ 'survives an uninstall.');
+		}
 	}
 
 	// Debounced, because the mirror is the least urgent thing in the plugin: a
 	// few seconds behind is invisible, and a write per keystroke in a colour
 	// picker is not.
+	// ── AND IT CANNOT BE STARVED (A162, 2026-09-04) ───────────────────
+	//
+	// THE SAME FAULT A160 HAD, four lines away and six times worse. Every
+	// call cleared the pending timer and set a new one — in a function
+	// `saveSettings` reaches on nearly every interaction, with a FOUR
+	// SECOND window. A vault that never goes four seconds quiet never
+	// wrote the mirror at all.
+	//
+	// AND THE MIRROR IS THE WHOLE SAFETY NET. `settingsMirrorShouldRestore`
+	// answers yes only when data.json is EMPTY — which is exactly the
+	// uninstall the writer is worried about. A mirror that stopped being
+	// written months ago restores a vault as it was months ago, and says
+	// nothing about the difference.
+	//
+	// A TIMER ALREADY SET IS LEFT ALONE. The write composes from the
+	// settings when it RUNS, so re-arming bought nothing: whatever landed
+	// in the meantime is in the file either way. First change starts the
+	// clock; the mirror is at most four seconds behind, always.
 	settingsMirrorSync() {
 		if (!this.settings.settingsMirror) return;
-		if (this._mirrorTimer) window.clearTimeout(this._mirrorTimer);
+		if (this._mirrorTimer) return;
 		this._mirrorTimer = window.setTimeout(() => {
+			this._mirrorTimer = null;
 			this.settingsMirrorWrite().catch(() => {});
 		}, 4000);
 	}
@@ -13987,7 +14501,31 @@ module.exports = class WordSmith extends Plugin {
 			// The mirror is now what data.json says, so saving it back is the
 			// thing that makes the restore stick — and it is the ONE write
 			// this direction ever does.
-			try { await this.saveData(this.settings); } catch (_) {}
+			//
+			// ── AND IT WAS THE WORST DISCARD IN THE PLUGIN (A172) ───────
+			//
+			// This is the RESTORE: a writer has reinstalled, data.json is
+			// empty, and the mirror is being read back into it. With the
+			// failure thrown away the function still answered TRUE — so the
+			// settings came back on screen, nothing reached the disk, and
+			// the next start lost them again. The one function that exists
+			// to save somebody from losing their settings could lose them
+			// silently.
+			//
+			// STILL TRUE, THOUGH, and deliberately: the settings ARE
+			// restored — in memory, which is what the caller acts on — and
+			// the next `saveSettings` tries the write again under the same
+			// latch. What was missing was never the answer; it was the word.
+			//
+			// FOUND BY THE ASSERTION, not by reading: the shape claim added
+			// in this batch went red at 2, on a build I had already called
+			// finished after fixing the three I could see.
+			try { await this.saveData(this.settings); }
+			catch (e) {
+				this.storeWriteFailed(WS_WRITE.settings, e,
+					'They are back for this session and will be written again '
+					+ 'on the next change.');
+			}
 			return true;
 		} catch (_) { return false; }
 	}
@@ -14003,6 +14541,18 @@ module.exports = class WordSmith extends Plugin {
 	// and as the sort, and a property called `words` or `mark` would
 	// otherwise silently become one of ours.
 	propColId(key) { return 'fm:' + String(key || ''); }
+	// ── TOMBSTONE: `propColumnForget` (A176, 2026-09-05) ───────────────
+	//
+	// The store half of removing a property column, built at 486fk for
+	// the settings-tab prune. The writer removed that prune the same day
+	// — “shittyyyy” — and a method with no caller is what A168 was opened
+	// to fix. It goes with its door rather than waiting for one.
+	//
+	// IT REMOVED THE COLUMN, its place in `uniColsOff` and its place in
+	// `uniColOrder` — because a key added back later would otherwise
+	// return wearing a position and a hidden flag nobody chose. That is
+	// the part worth reading before rebuilding it: `git log -S
+	// propColumnForget`.
 	propColKey(id) {
 		const s = String(id || '');
 		return s.indexOf('fm:') === 0 ? s.slice(3) : '';
@@ -14368,7 +14918,9 @@ module.exports = class WordSmith extends Plugin {
 	// folders lost their flags on 2026-08-23, and carrying a dead key through
 	// a move — or forgetting it on a delete — keeps it alive.
 	goalPathStores() {
-		return ['fileGoals', 'folderGoals', 'fileStatus', 'folderColors'];
+		// `folderGoals` went with A169 for the reason `folderStatus` is
+		// absent above: carrying a dead key through a move keeps it alive.
+		return ['fileGoals', 'fileStatus', 'folderColors'];
 	}
 
 	async renameScopePath(oldPath, newPath) {
@@ -14989,9 +15541,29 @@ module.exports = class WordSmith extends Plugin {
 			this._goalsFoundAt = found;
 			// The setting follows the file, so the settings pane tells the
 			// truth about where it is and a later session starts there.
+			// ── AND A FAILED WRITE IS NOT DISCARDED (A172) ──────────────
+			//
+			// Writer, 2026-09-05: “ok, do them”. MEASURED: 372 empty
+			// catches in `src/`, and 68 whose OWN try block contains an
+			// `await` — a guard around real work is a decision to discard
+			// a failure, and this was one of THREE that discarded a write
+			// to data.json.
+			//
+			// `saveData` AND NOT `saveSettings`, deliberately and still:
+			// this runs while a store is being FOUND, and the full save
+			// drags the flags, the goals file, the mirror and a refresh
+			// behind it. What was missing is only the report.
+			//
+			// UNDER THE SETTINGS SUBJECT, so it shares a latch with the
+			// three other writers of that file: the cause is the same one
+			// and the writer needs telling once, not four times.
 			if (this.settings.goalsPath !== found) {
 				this.settings.goalsPath = found;
-				try { await this.saveData(this.settings); } catch (_) {}
+				try { await this.saveData(this.settings); }
+				catch (e) {
+					this.storeWriteFailed(WS_WRITE.settings, e,
+						'Word-Smith will look for the file again next time.');
+				}
 			}
 		}
 		return found;
@@ -15142,6 +15714,11 @@ module.exports = class WordSmith extends Plugin {
 				next = next.slice(0, a) + note + next.slice(b + e.length);
 			}
 			if (next !== text) await this.app.vault.modify(f, next);
+			// CONSOLE ONLY, and this is the one exception in A171. Retiring
+			// the legacy goals file is housekeeping with no visible
+			// effect: the goals have already been read out of it and the
+			// live copy is elsewhere. A toast here would be the plugin
+			// telling a writer about its own filing.
 		} catch (e) { console.error('Word-Smith: could not retire ' + path, e); }
 	}
 
@@ -15178,7 +15755,11 @@ module.exports = class WordSmith extends Plugin {
 						}
 						target = dest;
 					}
-				} catch (e) { console.error('Word-Smith: could not rename the store', e); }
+					this.storeWriteOk(WS_WRITE.move);
+		} catch (e) {
+			this.storeWriteFailed(WS_WRITE.move, e,
+				'Word-Smith will look for it where it was.');
+		}
 			} else {
 				// The destination already exists — the half-synced vault. Its
 				// contents are already merged into what is about to be
@@ -15199,9 +15780,15 @@ module.exports = class WordSmith extends Plugin {
 		}
 		this._structSources = [{ path: target, legacy: false, mtime: Date.now(), text: '' }];
 		this._structFoundAt = target;
+		// A172: reported, not discarded — see the note where `goalsPath`
+		// does the same thing. Still `saveData` and not `saveSettings`.
 		if (this.settings.structurePath !== target) {
 			this.settings.structurePath = target;
-			try { await this.saveData(this.settings); } catch (_) {}
+			try { await this.saveData(this.settings); }
+			catch (e) {
+				this.storeWriteFailed(WS_WRITE.settings, e,
+					'Word-Smith will look for the file again next time.');
+			}
 		}
 		return target;
 	}
@@ -15248,9 +15835,46 @@ module.exports = class WordSmith extends Plugin {
 			// plugin being uninstalled. Two copies of one property is the
 			// fault this store must never introduce.
 			const props = scope.indexOf('props: ') === 0;
-			const plain = goals || props || scope.indexOf('order: ') === 0;
+			// ── AND A COLOURS SECTION IS ONE TOO (A161, 2026-09-04) ─────
+			//
+			// A folder colour is a VALUE after a path, exactly like a target
+			// or a property. Without this it fell to the checkbox branch
+			// below and was written as `- [x] Book` — the path kept, the
+			// COLOUR DROPPED. The section looked right and said nothing.
+			//
+			// CAUGHT IN THE VAULT, NOT BY THE SUITE. Every unit assertion
+			// passed: the encoder made rows, the decoder read them back, the
+			// wiring called both. They all worked on the in-memory store and
+			// nothing exercised the round trip through the FILE, which is
+			// the only place this shape is decided.
+			const colors = scope.indexOf('colors: ') === 0;
+			// ── A COLUMNS ROW MAY CARRY A TYPE, OR NOTHING (A163) ───────
+			//
+			// The datum is WHICH property is a column; the type is a second,
+			// optional fact about it — the one A135 asks the writer for, and
+			// `orgPropTypeChosen` reads it BEFORE the registry, so it
+			// overrides what Obsidian would say. It is authored and it has to
+			// survive.
+			//
+			// SO A NOTE-LESS ROW IS STILL A ROW, which is the whole reason
+			// this cannot reuse the value branch: that one drops a row with
+			// nothing after the dash, and most columns have no chosen type.
+			// Every one of them would vanish — exactly how A161 lost nine
+			// folder colours, one section along.
+			//
+			// AND NO TYPE IS NOT `text`. Writing one would PIN the column to
+			// text and stop the registry answering for it, which is a
+			// different behaviour, invented by the file format.
+			const usercols = scope.indexOf('columns: ') === 0;
+			const plain = goals || props || colors || usercols
+				|| scope.indexOf('order: ') === 0;
 			for (const r of rows) {
-				if (goals || props) {
+				if (usercols) {
+					const note = String(r.note || '').trim();
+					out.push(note
+						? '- ' + r.path + ' \u2014 ' + note
+						: '- ' + r.path);
+				} else if (goals || props || colors) {
 					// A path can carry a target, a flag, or both. A row with
 					// neither has nothing to say and is not written.
 					const note = String(r.note || '').trim();
@@ -15304,7 +15928,15 @@ module.exports = class WordSmith extends Plugin {
 			// hidden: a PATH containing ` — ` would split in the wrong
 			// place. `propStoreSet` refuses to write one, loudly, so the
 			// file can never reach a state this cannot read back.
-			if (scope != null && scope.indexOf('props: ') === 0) {
+			// A COLOURS ROW READS LIKE A PROPERTY ROW (A161): the path is
+			// taken NON-GREEDILY, at the FIRST separator, because a colour
+			// name never contains one and a folder name might.
+			// A COLUMNS ROW FALLS THROUGH WHEN IT HAS NO TYPE (A163): the
+			// value shape is tried first, and a bare `- key` is caught by the
+			// plain-list reader below, which is what an order row uses.
+			if (scope != null && (scope.indexOf('props: ') === 0
+				|| scope.indexOf('colors: ') === 0
+				|| scope.indexOf('columns: ') === 0)) {
 				const g = line.match(/^\s*-\s+(.*?)\s+[\u2014\u2013]\s+(.*)$/);
 				if (g) {
 					const note = String(g[2] || '').trim();
@@ -15379,27 +16011,83 @@ module.exports = class WordSmith extends Plugin {
 		return this._structStore;
 	}
 
+	// ── AND IT ANSWERS WHETHER IT WORKED (A171, 2026-09-05) ─────────────
+	//
+	// FOUND BY AN ASSERTION GOING RED. `structureWrite` catches its own
+	// failure — correctly, it is called from debounces — so the callers
+	// beneath it could not tell a write that landed from one that did
+	// not, and `propStoreSet` answered TRUE for a property that never
+	// reached the disk. A caller that returns a success it did not check
+	// is worse than no return value at all.
 	async structureWriteSection(scope, rows) {
 		const all = await this.structureRead();
 		all[scope] = rows;
-		await this.structureWrite();
+		return await this.structureWrite();
 	}
 
 	// The one write. Everything that changes the store goes through here, so
 	// the migration has exactly one place to happen and cannot be skipped by
 	// whichever caller was added last.
-	async structureWrite() {
+	// ── AND THEY GO ONE AT A TIME (A173, writer 2026-09-05) ─────────────
+	//
+	// Raised on the 486fc card and left last of the four, because it is
+	// the only one with no witnessed failure behind it. Every caller
+	// composes the WHOLE file and awaits `vault.modify`, so two writes
+	// that overlap were safe for two reasons and only one of them is a
+	// guarantee: the second text is always a SUPERSET of the first
+	// (each mutates the shared store before composing), and the vault
+	// lands them in the order they were started — which is observed, not
+	// promised anywhere.
+	//
+	// IF IT EVER LANDS THEM THE OTHER WAY the file ends as the FIRST
+	// text, which is the older one: a property typed into the second
+	// write disappears, and nothing fails. That is the shape of every
+	// store fault this session has found — silent, and visible only as
+	// work that was there a minute ago.
+	//
+	// A SINGLE-SLOT CHAIN makes it true by construction. It is not a
+	// debounce: every call still writes, in order, and every caller gets
+	// the answer to ITS OWN write. `structureCompose` runs when the turn
+	// comes rather than when the call is made, so a queued write carries
+	// the freshest store rather than a snapshot from the queue.
+	//
+	// NOT MORE WORK THAN BEFORE, which is worth stating: N overlapping
+	// calls already meant N composes and N disk writes, overlapped. This
+	// serialises them; it does not add one.
+	structureWrite() {
+		// THE CHAIN NEVER BREAKS. `structureWriteNow` catches everything
+		// and answers a boolean, so the tail cannot be poisoned by a
+		// rejection — a broken link here would silently stop every later
+		// write in the session, which is the fault this is preventing,
+		// arriving through the fix.
+		this._structWriteQ = (this._structWriteQ || Promise.resolve())
+			.then(() => this.structureWriteNow());
+		return this._structWriteQ;
+	}
+	async structureWriteNow() {
 		const all = this._structStore || {};
 		const text = this.structureCompose(all);
 		try {
 			const path = await this.structureMigrate();
+			// ONE SUCCESS POINT (A171), because the latch is re-armed on it
+			// and an early `return` on the common arm would re-arm only on
+			// the rare one — a store that failed once would then go quiet
+			// for ever. Same shape, same batch, as the settings mirror.
 			const f = this.app.vault.getAbstractFileByPath(path);
-			if (f && !f.children) { await this.app.vault.modify(f, text); return; }
-			await this.storeEnsureFolder(path);
-			await this.app.vault.create(path, text);
-			this._structFoundAt = path;
-			this._structSources = [{ path, legacy: false, mtime: Date.now(), text }];
-		} catch (e) { console.error('Word-Smith: could not save the manuscript structure', e); }
+			if (f && !f.children) {
+				await this.app.vault.modify(f, text);
+			} else {
+				await this.storeEnsureFolder(path);
+				await this.app.vault.create(path, text);
+				this._structFoundAt = path;
+				this._structSources = [{ path, legacy: false, mtime: Date.now(), text }];
+			}
+			return this.storeWriteOk(WS_WRITE.structure);
+		} catch (e) {
+			return this.storeWriteFailed(WS_WRITE.structure, e,
+				'The order, goals and ticks are still set here; the file '
+				+ 'will be tried again.');
+		}
 	}
 
 	// THE LIST FOLLOWS A RENAME, like the history and the goals before it.
@@ -15559,7 +16247,11 @@ module.exports = class WordSmith extends Plugin {
 			const text = this.structureCompose(this._structStore);
 			const f = this.app.vault.getAbstractFileByPath(path);
 			if (f && !f.children) await this.app.vault.modify(f, text);
-		} catch (e) { console.error('Word-Smith: could not forget a deleted path in the export list', e); }
+			this.storeWriteOk(WS_WRITE.forget);
+		} catch (e) {
+			this.storeWriteFailed(WS_WRITE.forget, e,
+				'The list still holds a path that has gone.');
+		}
 	}
 	
 	// ── PROPERTIES FOR FILES THAT CANNOT HOLD THEM (A80) ────────────────
@@ -15738,8 +16430,18 @@ module.exports = class WordSmith extends Plugin {
 		// file that does not exist. Refusing here is what lets the parser be
 		// lazy and the value be free text.
 		if (/[\u2014\u2013]/.test(p)) {
-			console.error('Word-Smith: cannot store a property for a path containing a dash separator: ' + p);
-			return false;
+			// SAID OUT LOUD (A171). This is a REFUSAL rather than a
+			// failure, which makes it worse to keep quiet: nothing is
+			// broken, the write simply never happens, and a writer whose
+			// file is named with an em dash would watch every property
+			// they set on it disappear with no fault to point at.
+			//
+			// AND IT NAMES THE FIX, because there is one and it is theirs
+			// to make: the row is read back by splitting at the first
+			// “ — ”, so a path carrying one cannot round-trip.
+			return this.storeWriteFailed(WS_WRITE.stored,
+				new Error('the file name contains a dash separator (\u2014)'),
+				'Rename “' + p + '” without it and the property will save.');
 		}
 		const empty = value === undefined || value === null || String(value) === '';
 		try {
@@ -15754,11 +16456,15 @@ module.exports = class WordSmith extends Plugin {
 			}
 			const rows = (store[section] || []).filter(r => r && String(r.path) !== p);
 			if (!empty) rows.push({ path: p, on: true, note: this.propStoreEncode(value) });
-			await this.structureWriteSection(section, rows);
-			return true;
+			// AND THE TRUTH IS PASSED ON. When the file itself could not be
+			// written, `structureWrite` has ALREADY reported it — under the
+			// subject that names the real cause — so this answers false
+			// without saying it twice.
+			if (!(await this.structureWriteSection(section, rows))) return false;
+			return this.storeWriteOk(WS_WRITE.stored);
 		} catch (e) {
-			console.error('Word-Smith: could not store a property', e);
-			return false;
+			return this.storeWriteFailed(WS_WRITE.stored, e,
+				'The cell has gone back to what the file says.');
 		}
 	}
 
@@ -15770,7 +16476,11 @@ module.exports = class WordSmith extends Plugin {
 			const text = this.structureCompose(this._structStore);
 			const f = this.app.vault.getAbstractFileByPath(path);
 			if (f && !f.children) await this.app.vault.modify(f, text);
-		} catch (e) { console.error('Word-Smith: could not follow a rename in the export list', e); }
+			this.storeWriteOk(WS_WRITE.rename);
+		} catch (e) {
+			this.storeWriteFailed(WS_WRITE.rename, e,
+				'The list still points at the old name.');
+		}
 	}
 
 	// Move one row to another's place, keeping everything else in order.
@@ -16679,10 +17389,19 @@ module.exports = class WordSmith extends Plugin {
 		return Number(goals[path]) || 0;
 	}
 
-	folderGoalFor(path) {
-		const goals = this.settings.folderGoals || {};
-		return Number(goals[path]) || 0;
-	}
+	// ── TOMBSTONE: `folderGoalFor` (A169, writer 2026-09-05) ────────
+	//
+	// “let’s retire folder goals — they are only the sum of their files
+	// now.” It read `folderGoals[path]`: what somebody had TYPED on a
+	// folder, which is the thing being retired. There is one answer to
+	// “what is this folder worth” now and `folderTargetRollup` is it.
+	//
+	// DELETED RATHER THAN ALIASED. A second name for one fact is how
+	// two readers come to disagree, and this file has the receipts — the
+	// report asked this function while the table summed, which is the
+	// 2026-09-03 bug that put the rollup here in the first place.
+	// Its two callers ask the rollup: the bar's folder ring, and the
+	// calendar's report ring.
 
 	// ── WHAT A FOLDER IS WORTH, TYPED OR DERIVED ────────────────────────
 	//
@@ -16700,34 +17419,38 @@ module.exports = class WordSmith extends Plugin {
 	// Two different questions that happen to agree when nothing is
 	// hidden; making one call the other would tie the report to a view.
 	//
-	// A TYPED TARGET WINS, or the sum would quietly overrule a number the
-	// writer put on the folder itself.
+	// ── AND IT IS ALWAYS THE SUM NOW (A169, writer 2026-09-05) ─────
 	//
-	// AND A NESTED FOLDER WITH ITS OWN TARGET ANSWERS FOR EVERYTHING
-	// BENEATH IT, so its notes are not added a second time. Only the
-	// top-most such folders are counted — the same covering rule
-	// `selectionTarget` already uses across a mixed selection.
+	// “let’s retire folder goals — they are only the sum of their files
+	// now.”
 	//
-	// `derived` IS PART OF THE ANSWER, not a detail: a folder summing its
-	// children is not a target SET on the folder (see A80, where the
-	// target was given a narrower rule than the properties), and the
-	// report says which kind of number it is showing.
+	// WHAT WENT: the typed short-circuit (`own`), and with it the
+	// covering rule. `marked` was the folders BELOW this one carrying
+	// their own typed number, counted instead of the notes under them so
+	// nothing was added twice. With no typed folder targets that list is
+	// empty by construction, `covered` is false for every path, and the
+	// whole apparatus reduces to: add up the notes inside.
+	//
+	// `derived` STAYS AND IS ALWAYS TRUE for a non-zero total. It is not
+	// load-bearing any more — the report's hint that read it went with
+	// this change, because a caption every folder wears says nothing —
+	// but the SHAPE is kept: a caller that asks whether a number was
+	// typed gets an honest no rather than a missing property.
+	//
+	// AND IT ANSWERS FOR THE WHOLE SUBTREE, not for the rows on screen.
+	// The table's folder total is `ORG_AGG` summing OVER THE ROWS AS
+	// SHOWN, deliberately, so a lens that hides half the scenes cannot
+	// leave a header claiming their words. Two questions that agree when
+	// nothing is hidden; tying one to the other would tie a report to a
+	// view. That reason is unchanged by the retirement.
 	folderTargetRollup(path) {
-		const fg = this.settings.folderGoals || {};
-		const own = Number(fg[path]) || 0;
-		if (own > 0) return { value: own, derived: false };
 		const root = (path === '/' || path === '' || path == null);
 		const pre = root ? '' : path + '/';
 		const inside = (p) => root || String(p).indexOf(pre) === 0;
-		const marked = Object.keys(fg).filter(f =>
-			f !== path && (Number(fg[f]) || 0) > 0 && inside(f));
-		const covered = (p) => marked.some(f =>
-			p !== f && String(p).indexOf(f + '/') === 0);
-		let sum = 0;
-		for (const f of marked) if (!covered(f)) sum += Number(fg[f]) || 0;
 		const files = this.settings.fileGoals || {};
+		let sum = 0;
 		for (const p of Object.keys(files)) {
-			if (!inside(p) || covered(p)) continue;
+			if (!inside(p)) continue;
 			sum += Number(files[p]) || 0;
 		}
 		return { value: sum, derived: sum > 0 };
@@ -21296,7 +22019,7 @@ module.exports = class WordSmith extends Plugin {
 		}
 
 		const dpath   = this.activeFolderPath();
-		const dtarget = dpath ? this.folderGoalFor(dpath) : 0;
+		const dtarget = dpath ? this.folderTargetRollup(dpath).value : 0;
 		if (dpath && dtarget) {
 			const words = this._folderWordCache && this._folderWordCache.path === dpath
 				? this._folderWordCache.words : 0;
@@ -21447,10 +22170,18 @@ module.exports = class WordSmith extends Plugin {
 	// a search that comes back empty is a search that FAILED — see the guards
 	// in `historyWrite` for why that distinction is the difference between
 	// carrying on and quietly starting a second record.
+	// A172: reported, not discarded. A failure here means the tab shows
+	// its “new” mark again next session — small, and the reason is the
+	// same one that loses a writer’s settings, so it shares that latch
+	// and is said once for all four writers of data.json.
 	async historyMarkSeen() {
 		if (this.settings.historySeen) return;
 		this.settings.historySeen = true;
-		try { await this.saveData(this.settings); } catch (_) {}
+		try { await this.saveData(this.settings); }
+		catch (e) {
+			this.storeWriteFailed(WS_WRITE.settings, e,
+				'Word-Smith will look for the file again next time.');
+		}
 	}
 
 	historyIsStoreFile(text) {
@@ -21461,6 +22192,31 @@ module.exports = class WordSmith extends Plugin {
 	// HTML comment, so the metadata cache cannot help and the contents have to
 	// be read — but cachedRead is warm for anything Obsidian has already
 	// opened, and this runs once per session unless the file goes missing.
+	// ── TURNING IT ON IS ONE ACT (A175, writer 2026-09-05) ─────────────
+	//
+	// “do the history empty state”. The pane can start the record now, so
+	// there are TWO doors onto the same three steps — set the flag, find
+	// or make the file, write it once — and two copies of a sequence is
+	// how the second one comes to skip a step.
+	//
+	// THE FILE IS FOUND OR MADE IMMEDIATELY, which is not tidiness: the
+	// settings pane says where the record lives, and without this it says
+	// “not created yet” until something else saves. And on the screen
+	// this was written for it is the whole point — a vault whose
+	// `ws-history.md` survived a lost data.json gets it READ, not
+	// replaced.
+	//
+	// ANSWERS WHETHER IT CHANGED ANYTHING, so a caller that redraws does
+	// not redraw for nothing.
+	async historyTrackingOn() {
+		if (this.settings.historyTracking) return false;
+		this.settings.historyTracking = true;
+		await this.saveSettings();
+		await this.historyLoad();
+		await this.historyWrite(true);
+		return true;
+	}
+
 	async historyFindFile() {
 		const vault = this.app.vault;
 		const check = async (file) => {
@@ -21671,7 +22427,14 @@ module.exports = class WordSmith extends Plugin {
 			this._historySaveTimer = null;
 		}
 		this._historyDirtyAt = 0;
-		try { await this.saveData(this.settings); } catch (_) {}
+		// A172: reported, not discarded. `historyWrite` below already says
+		// so when the history FILE cannot be written; this is the settings
+		// half of the same flush, and it shares the settings latch.
+		try { await this.saveData(this.settings); }
+		catch (e) {
+			this.storeWriteFailed(WS_WRITE.settings, e,
+				'Word-Smith will look for the file again next time.');
+		}
 		return await this.historyWrite(force);
 	}
 
@@ -25688,12 +26451,50 @@ module.exports = class WordSmith extends Plugin {
 		// that is no longer on screen.
 		state.shiftPeriod = null;
 
+		// ── A DEAD END THAT ANSWERS “WHAT DO I DO NOW” (A175) ───────────
+		//
+		// Writer, 2026-09-05: “do the history empty state”. It named where
+		// the switch was and made the reader go and find it — and this
+		// window’s own rule is that every dead end answers the question in
+		// one tap. It was the last screen in the plugin that pointed at a
+		// settings pane instead of doing the thing.
+		//
+		// AND IT IS THE SCREEN A164 FOUND. `historyTracking` gates the LOAD
+		// as well as the write, and it defaults to false — so a vault that
+		// lost data.json shows this over an intact `ws-history.md`. Nothing
+		// is destroyed and everything looks it. The button READS that file
+		// rather than starting a new one, which is why it says so.
 		if (!s.historyTracking) {
 			const off = this.historyEl('div', 'zg-report-ring-label is-muted', body);
 			this.historyEl('div', '', off, 'You\u2019re not tracking your writing yet.');
-			this.historyEl('div', 'zg-report-hint', off,
-				'Switch it on under Settings \u2192 Word-Smith \u2192 History and it\u2019ll start '
-				+ 'counting how much you write each day. Counts only \u2014 never your words.');
+			const act = this.historyEl('div', 'zg-hist-empty-act', off);
+			const go = this.historyEl('button', 'mod-cta', act,
+				'Start counting');
+			const hint = this.historyEl('div', 'zg-report-hint', off,
+				'Counts only \u2014 never your words, and never backwards. You can '
+				+ 'switch it off again in Settings.');
+			// AND IF THERE IS ALREADY A RECORD, SAY SO. Asked after the
+			// button is drawn, never before: a render that waits on a vault
+			// read is a pane that is blank while it waits, and the answer
+			// only ever ADDS a line. `historyFindFile` is the same reader
+			// the load uses, so it cannot disagree with what happens next.
+			try {
+				this.historyFindFile().then((f) => {
+					if (!f || !hint.isConnected) return;
+					hint.textContent = 'Your record is still in ' + f.path
+						+ ' \u2014 switching this on reads it back.';
+				}).catch(() => {});
+			} catch (_) {}
+			go.addEventListener('click', async () => {
+				// DISABLED WHILE IT WORKS. Finding and writing the file is a
+				// vault round trip, and a second press mid-flight would run
+				// the whole act again over a half-made record.
+				if (go.disabled) return;
+				go.disabled = true;
+				go.textContent = 'Starting\u2026';
+				try { await this.historyTrackingOn(); } catch (_) {}
+				if (rerender) rerender();
+			});
 			return;
 		}
 
@@ -28008,7 +28809,12 @@ module.exports = class WordSmith extends Plugin {
 				target = plugin.fileGoalFor(repFile.path);
 			} else {
 				stats  = await plugin.analyzeFolder(folderSel);
-				target = plugin.folderGoalFor(folderSel);
+				// A FOLDER IS THE SUM OF ITS NOTES (A169). This asked
+				// `folderGoalFor` — what somebody had TYPED on the folder
+				// — and a folder nobody had typed a number on reported 0,
+				// which is the 2026-09-03 report that put the rollup in the
+				// plugin. There is no typed number any more.
+				target = plugin.folderTargetRollup(folderSel).value;
 			}
 
 			// A tab switch mid-read must not paint stale numbers. FINDER
@@ -28506,10 +29312,15 @@ module.exports = class WordSmith extends Plugin {
 				if (empty) delete fm[real];
 				else fm[real] = value;
 			});
-			return true;
+			// A171: told once per subject, and re-armed here so the next
+			// failure is news. The value on screen goes back on its own —
+			// the cell repaints from the note, so a writer sees their
+			// typing appear and then vanish. Without a word for it that
+			// reads as the plugin throwing the edit away.
+			return this.storeWriteOk(WS_WRITE.prop);
 		} catch (e) {
-			console.error('Word-Smith: could not write the property', e);
-			return false;
+			return this.storeWriteFailed(WS_WRITE.prop, e,
+				'The cell has gone back to what the note says.');
 		}
 	}
 
@@ -28920,7 +29731,7 @@ module.exports = class WordSmith extends Plugin {
 		this._auroraSeed = Math.random();
 
 		const s = this.settings;
-		for (const k of ['fileGoals', 'folderGoals', 'fileStatus']) {
+		for (const k of ['fileGoals', 'fileStatus']) {
 			if (!s[k]) s[k] = {};
 		}
 		// DEAD KEYS, DELETED ON LOAD (the uniCols precedent): `orgLenses`
@@ -28938,13 +29749,18 @@ module.exports = class WordSmith extends Plugin {
 		// change name, and a dead one that still parses is a trap.
 		delete s.organizerView;
 		delete s.organizerDrawer;
-		const goalStore   = (kind) => (kind === 'folder' ? 'folderGoals' : 'fileGoals');
+		// ONE STORE FOR TARGETS TOO (A169). This picked `folderGoals`
+		// for a folder; that key is retired and a folder is the sum of
+		// its notes. Both callers of `targetOf` already passed `file`,
+		// so nothing here read the other arm — the table gets a folder
+		// row’s number from `ORG_AGG` summing over the rows as shown.
+		const goalStore   = () => 'fileGoals';
 		// ONE STORE, because only files have flags (2026-08-23). It kept a
 		// `kind` argument so every call site reads the same as its goal
 		// twin above - and so a folder asking for a flag gets '' from
 		// `markOf` rather than reading a key that no longer exists.
 		const statusStore = () => 'fileStatus';
-		const targetOf = (path, kind) => Number(s[goalStore(kind)][path]) || 0;
+		const targetOf = (path) => Number(s[goalStore()][path]) || 0;
 		const markOf   = (path, kind) => (kind === 'folder' ? ''
 			: (s[statusStore()][path] || ''));
 
@@ -29012,24 +29828,79 @@ module.exports = class WordSmith extends Plugin {
 		// rules it switches.
 
 
+		// THE THRESHOLD HAS ONE READER. It is declared on `.zg-uni-modal`
+		// in the stylesheet, beside the rules it switches, and both branches
+		// below ask this. The `700` is a fallback for a root that is not
+		// styled yet — `unified_probe` holds it against the stylesheet's own
+		// number so the two cannot drift in silence.
+		const orgNarrowLimit = () => {
+			try {
+				const said = getComputedStyle(host.rootEl)
+					.getPropertyValue('--zg-uni-narrow');
+				const n = parseInt(String(said).trim(), 10);
+				return isFinite(n) && n > 0 ? n : 700;
+			} catch (_) { return 700; }
+		};
 		const narrow = !!(Platform && Platform.isMobile);
 		if (narrow) host.rootEl.addClass('is-narrow');
 		let stopWidth = () => {};
-		if (!narrow && host.kind !== 'modal' && typeof ResizeObserver !== 'undefined') {
-			const limit = () => {
-				try {
-					const said = getComputedStyle(host.rootEl)
-						.getPropertyValue('--zg-uni-narrow');
-					const n = parseInt(String(said).trim(), 10);
-					return isFinite(n) && n > 0 ? n : 700;
-				} catch (_) { return 700; }
-			};
+		// ── AND A SMALL WINDOW IS NARROW TOO (A159, writer 2026-09-04) ──
+		//
+		// "we need to make it work on smaller screen. right now i can only
+		// see the organiser file tree on the phone".
+		//
+		// THE LAYOUT WAS NEVER THE FAULT. Forced on, measured: the tree
+		// fills the window, the panel is `display: none`, a folder tap swaps
+		// them and the back button is there in both states. What was missing
+		// is anything that DECIDES to use it — narrow was a PLATFORM fact,
+		// so a desktop window dragged small stayed two-column and put the
+		// panel off the edge.
+		//
+		// AND THE OLD GUARD WAS LOAD-BEARING, which is why this is not
+		// simply `host.kind !== 'modal'` deleted. `.is-narrow` sets
+		// `width: 100vw` — but only `:not(.zg-uni-pane)`. So for a MODAL an
+		// observer on `rootEl` would be writing the very property it
+		// watches, which is the self-triggering observer that hung this app
+		// once already; for a PANE the class changes no width and the
+		// observer is safe. The guard was right and its reason was unwritten.
+		//
+		// SO EACH HOST ASKS THE QUESTION IT CAN ASK SAFELY. A modal cannot
+		// be wider than the viewport, and toggling the class changes the
+		// modal's width and never the viewport's — so `matchMedia` closes
+		// the loop by construction rather than by a guard somebody has to
+		// remember. A pane keeps the observer, because its width is the
+		// leaf's and no query can see it.
+		if (!narrow && host.kind === 'modal'
+			&& typeof window.matchMedia === 'function') {
+			try {
+				const mq = window.matchMedia(
+					'(max-width: ' + orgNarrowLimit() + 'px)');
+				const apply = () => {
+					host.rootEl.toggleClass('is-narrow', !!mq.matches);
+				};
+				apply();
+				// `addListener` IS THE OLD NAME and some builds still only have
+				// it; a window that answers neither simply does not follow a
+				// resize, which is what it did before this existed.
+				if (typeof mq.addEventListener === 'function') {
+					mq.addEventListener('change', apply);
+					stopWidth = () => {
+						try { mq.removeEventListener('change', apply); } catch (_) {}
+					};
+				} else if (typeof mq.addListener === 'function') {
+					mq.addListener(apply);
+					stopWidth = () => {
+						try { mq.removeListener(apply); } catch (_) {}
+					};
+				}
+			} catch (_) {}
+		} else if (!narrow && typeof ResizeObserver !== 'undefined') {
 			try {
 				const ro = new ResizeObserver((entries) => {
 					for (const e of entries) {
 						const w = e.contentRect && e.contentRect.width;
 						if (!w) continue;
-						host.rootEl.toggleClass('is-narrow', w < limit());
+						host.rootEl.toggleClass('is-narrow', w < orgNarrowLimit());
 					}
 				});
 				ro.observe(host.rootEl);
@@ -29776,13 +30647,21 @@ module.exports = class WordSmith extends Plugin {
 						return i;
 					});
 				} else {
-					// A BUILD WITHOUT SUBMENUS gets the toggle it always had,
-					// and the removal inline beneath it. Fewer rows is not
-					// worth a control that cannot be reached at all.
+					// A BUILD WITHOUT SUBMENUS gets the toggle it always had.
+					//
+					// TOMBSTONE (A168, writer 2026-09-05: “do it”): the
+					// “Remove <name>” row that sat under it. The writer closed
+					// that door on the submenu on 2026-09-04 and this arm was
+					// missed — so a build old enough to lack `setSubmenu` still
+					// offered a control the rest of the plugin had retired.
+					//
+					// NOTHING IS LOST WITH IT. Removing a column lives in the
+					// Organiser settings tab now — “one prune in the settings
+					// tab, away from the table”, which is the answer the writer
+					// gave when the × went. The confusion it was cut for was
+					// between two controls an inch apart; a tab is not an inch.
 					into.addItem((i) => i.setTitle(c.label).setChecked(!colOff.has(c.id))
 						.onClick(() => toggle(c)));
-					into.addItem((i) => i.setTitle('    Remove ' + c.label).setIcon('trash-2')
-						.onClick(() => removeProp(c)));
 				}
 			}
 		}
@@ -29965,6 +30844,50 @@ module.exports = class WordSmith extends Plugin {
 			try { return host.rootEl.classList.contains('is-narrow'); }
 			catch (_) { return false; }
 		};
+		// ── AND THE NARROW WINDOW'S ONE DOOR SWINGS BOTH WAYS (A165) ───
+		//
+		// Writer, 2026-09-04: "right now i can only see the organiser file
+		// tree on the phone". 486eu made the narrow layout ENGAGE; this is
+		// the half that says on screen that it did.
+		//
+		// MEASURED, narrow forced: in the TREE state the back button is
+		// shown at 44x44 wearing the title "Back to the tree" — pointing
+		// home from home. It is the ONLY chrome that hints a second pane
+		// exists and it faces the wrong way, and the only working way
+		// across was tapping a FOLDER: a gesture, not a door.
+		//
+		// SO IT IS A TOGGLE, meaningful in both states, and the GLYPH has
+		// to carry it — a phone has no hover, so a `title` nobody can read
+		// is not the door either.
+		//
+		// AND `is-panel` GETS ONE WRITER while it is being touched. The
+		// label is a second fact about the same state and there were
+		// already four places setting the class; a fifth that has to be
+		// remembered beside each of them is the drift this window keeps
+		// removing.
+		let uniBackEl = null;
+		const uniPanelAt = () => body.classList.contains('is-panel');
+		const uniBackFace = () => {
+			if (!uniBackEl) return;
+			const on = uniPanelAt();
+			uniBackEl.setText(on ? '\u2039' : '\u203a');
+			// THE TAB IS READ HERE, not where the button is built: it is
+			// made once and outlives every tab switch, so a name baked in
+			// at birth would be the Organiser's word sitting on History.
+			const to = tab === 'export' ? 'the preview'
+				: (tab === 'history' ? 'the report' : 'the table');
+			uniBackEl.title = on ? 'Back to the tree' : 'Show ' + to;
+			uniBackEl.setAttribute('aria-label', uniBackEl.title);
+		};
+		const uniPanelSet = (on) => {
+			body.toggleClass('is-panel', !!on);
+			uniBackFace();
+		};
+		// …and crossing over only happens where there is room for one
+		// pane. THE CLASS, not the platform flag, for the reason the
+		// paragraph above `orgNarrowNow` gives: a docked 300px pane on a
+		// desktop is narrow too, and the old tabs asked the flag.
+		const uniPanelShow = () => { if (orgNarrowNow()) uniPanelSet(true); };
 		const orgSelect = (p) => {
 			orgFolder = orgFolderOk(p) ? String(p) : '';
 			// ── AND THE NOTE MARK CANNOT OUTLIVE ITS FOLDER (A149) ──
@@ -29998,7 +30921,7 @@ module.exports = class WordSmith extends Plugin {
 			// One pane at a time when there is only room for one: choosing a
 			// folder IS the move to the right pane, and the back button is the
 			// way home — same grammar as the old tabs' narrow layout.
-			if (orgNarrowNow()) body.addClass('is-panel');
+			uniPanelShow();
 			draw();
 			drawPanel();
 		};
@@ -30699,7 +31622,7 @@ module.exports = class WordSmith extends Plugin {
 				}
 				case 'tasks': return (r && r.tasks) ? r.tasks : null;
 				case 'goal': {
-					const t = targetOf(path, 'file');
+					const t = targetOf(path);
 					return t > 0 ? t : null;
 				}
 				case 'mark': return markOf(path, 'file') || null;
@@ -31618,7 +32541,7 @@ module.exports = class WordSmith extends Plugin {
 					return;
 				}
 				if (td.querySelector('input')) return;
-				const was = targetOf(row.path, 'file');
+				const was = targetOf(row.path);
 				td.textContent = '';
 				const inp = td.createEl('input', { cls: 'zg-org-editor zg-org-goaledit' });
 				inp.type = 'number';
@@ -32178,6 +33101,18 @@ module.exports = class WordSmith extends Plugin {
 		// measured on another. Cleared at the top of every draw, where the
 		// pane may have been resized since — the same place and the same
 		// reason as `orgFilePathCache`.
+		// ── WHERE THE WRITER IS LOOKING, REMEMBERED AS THEY LOOK (A157) ─
+		//
+		// A156 carried the scroll across a redraw by READING it at the top
+		// of the draw. That fixed the jump and cost 5.8ms of a 16.4ms draw —
+		// measured — because `scrollTop` is a LAYOUT read, and asking for it
+		// makes the browser lay out everything the PREVIOUS draw wrote.
+		// Same fault as A139's `clientWidth`, arriving by way of its fix.
+		//
+		// A SCROLL EVENT ALREADY KNOWS THE NUMBER. The browser fires it
+		// after it has scrolled, so reading there costs nothing that has not
+		// already been paid — and the draw then reads a plain variable.
+		let orgScrollTop = 0;
 		let orgCeilHost = null;
 		let orgCeilVal = 0;
 		const orgColCeilReset = () => { orgCeilHost = null; };
@@ -32759,11 +33694,15 @@ module.exports = class WordSmith extends Plugin {
 		// ── "IS IT OPEN" IS READ FROM THE DOM, NOT REMEMBERED ───────────
 		//
 		// It WAS a `let orgPropPop` holding the element, and that is one
-		// writer too many: the panel hangs on the shared body, where a
-		// second window's close, a deploy's orphan sweep or a probe tidying
-		// up can remove the node without this window hearing — and then the
-		// button believes a panel is open, presses shut, and appears dead.
-		// The node IS the state; anything else is a copy that can go stale.
+		// writer too many: a deploy's orphan sweep or a probe tidying up can
+		// remove the node without this window hearing — and then the button
+		// believes a panel is open, presses shut, and appears dead. The node
+		// IS the state; anything else is a copy that can go stale.
+		//
+		// STILL TRUE NOW THE PANEL LIVES IN THE WINDOW (A177). It is one
+		// window's own child, so a second window can no longer take it — but
+		// a reload orphans the whole window with the panel inside it, which
+		// is the same stale handle by another route.
 		const orgPropPopEl = () => {
 			try { return ownerDoc().querySelector('.zg-org-proppop'); }
 			catch (_) { return null; }
@@ -33021,14 +33960,50 @@ module.exports = class WordSmith extends Plugin {
 			}
 			orgPropPopRender();
 		};
+		// ── THE TYPE SUBMENU (A179, writer 2026-09-05) ──────────────────
+		//
+		// “for adding a new properiety the propriety pane should not close,
+		// make that as a submenu (like a rightclick submenu with the ‘>’
+		// then the suboptions type appeasrs (text, checkbox, date, etc..)”.
+		//
+		// OURS, NOT OBSIDIAN'S. This panel is a div wearing the `menu`
+		// costume, not a `Menu`, so `setSubmenu` has nothing to hang off
+		// even on a build that has it. The flyout is a second div in the
+		// same costume.
+		//
+		// AND IT IS BUILT WHERE THE PANEL IS, for A177's reason: a node
+		// outside the modal is an escape as far as Obsidian's focus trap is
+		// concerned, and the caret is taken off it. Nothing here takes
+		// typing yet — but a control that cannot hold focus is one keyboard
+		// row away from the fault A177 spent an afternoon on.
+		//
+		// READ FROM THE DOM, like the panel: the node IS the state.
+		const orgPropSubEl = () => {
+			try { return ownerDoc().querySelector('.zg-org-propsub'); }
+			catch (_) { return null; }
+		};
+		const orgPropSubClose = () => {
+			try {
+				const d0 = ownerDoc();
+				for (const n of Array.from(
+					d0.querySelectorAll('.zg-org-propsub'))) n.remove();
+			} catch (_) {}
+		};
 		const orgPropPopClose = () => {
+			// THE SUBMENU GOES FIRST AND ALWAYS. It is a sibling, not a
+			// child, so removing the panel would leave it standing over an
+			// empty space with handlers that still fire.
+			orgPropSubClose();
 			if (orgPropPopOff) {
 				try { orgPropPopOff(); } catch (_) {}
 				orgPropPopOff = null;
 			}
 			// EVERY ONE IN THE DOCUMENT, not only the node this window
-			// remembers. The panel hangs on the shared body, so a window
-			// closed with one open would leave it there for the next.
+			// remembers. Since A177 the panel is a child of this window's own
+			// root, so closing takes it — but a panel left by a PREVIOUS build
+			// or by an orphaned window is still in the document, and this is
+			// the sweep that finds it. A query that narrowed to `host.rootEl`
+			// would stop finding exactly the ones nothing else will.
 			try {
 				const d0 = ownerDoc();
 				const old = Array.from(d0.querySelectorAll('.zg-org-proppop'));
@@ -33274,21 +34249,108 @@ module.exports = class WordSmith extends Plugin {
 					text: 'No property of that name' });
 			}
 		};
+		// TOGGLES, LIKE THE PANEL'S OWN DOOR. A second press on the same row
+		// shuts it — without this the row looks dead, because closing and
+		// reopening draws the identical list in the identical place.
+		const orgPropSubOpen = (anchor, door) => {
+			const was = !!orgPropSubEl();
+			orgPropSubClose();
+			if (was) return null;
+			const d0 = ownerDoc();
+			const sub = (host.rootEl || d0.body)
+				.createDiv({ cls: 'menu zg-org-propsub' });
+			for (const t of (door.types || [])) {
+				const row = sub.createDiv({ cls: 'zg-org-propsubrow' });
+				row.createSpan({ text: t.label });
+				row.dataset.type = t.id;
+				row.addEventListener('click', (ev) => {
+					ev.preventDefault();
+					ev.stopPropagation();
+					orgPropSubClose();
+					try { door.pick(t.id, ev); } catch (_) {}
+				});
+			}
+			// ── BESIDE THE ROW, AND FLIPPED WHEN THERE IS NO ROOM ───────
+			//
+			// The same idiom as the panel, and the same reason for the
+			// `try`: `getBoundingClientRect` is all zeros under jsdom, which
+			// lands this at the origin and changes nothing any assertion
+			// reads. TOP-ALIGNED WITH THE ROW, not below it — a submenu that
+			// drops downward from the last row of a panel goes off the foot
+			// of the window.
+			try {
+				// OFF THE PANEL'S EDGE, NOT THE ROW'S. Measured in the vault:
+				// anchored to the row, the flyout started 9px INSIDE the panel
+				// and overlapped its border, because the row sits inside 8px of
+				// panel padding and 6px of its own. The ROW still gives the
+				// height — a submenu lines up with the thing that opened it.
+				const r = anchor.getBoundingClientRect();
+				const box = (orgPropPopEl() || anchor).getBoundingClientRect();
+				const w0 = ownerWin();
+				const wide = sub.offsetWidth || 0;
+				const tall = sub.offsetHeight || 0;
+				const vw = w0.innerWidth || 0;
+				const vh = w0.innerHeight || 0;
+				let x = box.right;
+				if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
+				let y = r.top;
+				if (vh && y + tall > vh) y = Math.max(0, vh - tall);
+				sub.style.left = Math.round(x) + 'px';
+				sub.style.top = Math.round(y) + 'px';
+			} catch (_) {}
+			return sub;
+		};
 		const orgPropPopOpen = (anchor) => {
 			orgPropPopClose();
 			const d0 = ownerDoc();
-			const pop = d0.body.createDiv({ cls: 'menu zg-org-proppop' });
-			// IT NAMES ITSELF, and it is not called Columns. The menu it
-			// replaces stood under "Columns" because columns were all it
-			// configured; this panel answers the table's question and the
-			// Outline's at once, so the heading is the button's own word.
-			const head = pop.createDiv({ cls: 'zg-org-prophead' });
-			head.createSpan({ cls: 'zg-org-propheadname', text: 'Properties' });
-			// SAID WHERE THE GESTURE IS, because a gesture is not a door and
-			// this file has a tombstone saying so. The writer's own mock puts
-			// exactly this line at exactly this end of exactly this row.
-			head.createSpan({ cls: 'zg-org-propheadsay',
-				text: 'drag to reorder' });
+			// ── IN THE WINDOW, NOT ON THE BODY (A177, writer 2026-09-05) ──
+			//
+			// “i cannot seach in the proprieties sub meanu in the organiser
+			// ( i think it redraws it after i click in the search box)”.
+			//
+			// MEASURED IN THE VAULT, FRONTED, AND THE REDRAW IS INNOCENT: the
+			// box takes focus, the node is NOT replaced — same node,
+			// `isConnected` true after 700ms — and setting its value filters
+			// the list from 29 rows to 1. The filter has always worked.
+			//
+			// WHAT HAPPENS IS THAT OBSIDIAN TAKES THE FOCUS BACK. Within
+			// 700ms `document.activeElement` is the first `.zg-uni-tab` in the
+			// strip, and the stack captured at that `focusout` has NO PLUGIN
+			// FRAME IN IT — it is the modal's own focus trap, which treats an
+			// element outside the modal as an escape and hauls the caret in.
+			// A bare input proves it both ways: appended to `body` while this
+			// window is open it takes focus and loses it to a tab; appended to
+			// `rootEl` it keeps it.
+			//
+			// AND THE OLD REASON FOR THE BODY DOES NOT HOLD. Three comments
+			// said the panel hangs outside so this window's `overflow: hidden`
+			// cannot clip it. IT IS `position: fixed`, and `.zg-uni-modal`
+			// sets no transform, filter, perspective or containment — so it is
+			// not a containing block for a fixed child, and its overflow
+			// cannot clip one. Measured with the panel driven 176px BELOW the
+			// modal's bottom edge: identical rect and hit-testable at a point
+			// outside the window, from either parent. The fear was real; the
+			// mechanism was not.
+			//
+			// THE BODY IS STILL THE FALLBACK, for a host that has no root — a
+			// panel drawn nowhere is worse than a panel that cannot be typed
+			// in.
+			const pop = (host.rootEl || d0.body)
+				.createDiv({ cls: 'menu zg-org-proppop' });
+			// ── TOMBSTONE: THE HEAD ROW (A180, writer 2026-09-05) ───────
+			//
+			// “also, remove those descriptions”, with a red line struck
+			// through the whole row. It carried “PROPERTIES” on the left
+			// and “drag to reorder” on the right.
+			//
+			// BOTH ARGUMENTS WERE MINE AND BOTH WERE THIN. The name said
+			// the panel “names itself after the button that opened it” —
+			// a label on a panel that opens from one button, an inch
+			// above it, reading the same word. The hint was put there
+			// because “a gesture is not a door”, and that rule is right:
+			// but the GRIPS are drawn on every row and visible, so the
+			// gesture already had its door and this was a caption on top
+			// of it. `git log -S zg-org-propheadsay`.
 			const srch = pop.createEl('input', { cls: 'zg-org-propsearch' });
 			srch.type = 'text';
 			srch.placeholder = 'Search properties…';
@@ -33297,57 +34359,26 @@ module.exports = class WordSmith extends Plugin {
 				orgPropPopQuery = srch.value || '';
 				orgPropPopRender();
 			});
-			// WHAT THE TWO COLUMNS OF TICKS ARE. Two unlabelled boxes are a
-			// puzzle; the caption row is where the panel teaches itself.
+			// ── TOMBSTONE: THE CAPTION ROW (A180, writer 2026-09-05) ────
 			//
-			// ICONS, NOT THE ▦/▤ GLYPHS THE MOCK DRAWS. The mock simulates
-			// Obsidian in a browser with whatever font it likes; this vault
-			// reads in Roboto Mono, and a box-drawing character a font does
-			// not carry renders as tofu — a caption that teaches nothing and
-			// looks broken. `setIcon` is checked here as everywhere else,
-			// because it fails SILENTLY on a name this build's Lucide has
-			// dropped.
-			const cap = pop.createDiv({ cls: 'zg-org-propcap' });
-			// THE GRIP'S OWN TRACK, EMPTY. The caption and the rows are
-			// separate grids that line up only because they read one track
-			// list AND fill the same number of cells — measured 2026-08-28,
-			// when a missing fourth cell put 8px between the two.
-			cap.createSpan({ cls: 'zg-org-pgrip' });
-			const capIcon = (into, names, title) => {
-				const g = into.createSpan({ cls: 'zg-org-ptog is-col' });
-				const h = g.createSpan({ cls: 'zg-org-pcapicon' });
-				for (const n of names) {
-					h.textContent = '';
-					try { if (setIcon) setIcon(h, n); } catch (_) {}
-					if (h.childElementCount > 0) { h.dataset.icon = n; break; }
-				}
-				g.title = title;
-				return g;
-			};
-			// ONE CAPTION FOR ONE COLUMN OF TICKS. It taught three — a
-			// column, a field under every Outline row, and a LONG field — and
-			// the last two went with the outline at the writer’s word.
+			// Struck through in the same screenshot as the head: the row
+			// under the search box carrying a ▦ icon and the word “name”.
+			// `capIcon` goes with it — it had one caller.
 			//
-			// THE CAPTION HAD TO GO WITH THEM AND DID NOT. Measured in the
-			// writer’s vault before this was fixed: the caption drew 6 grid
-			// cells, a row drew 4, and the name column stood 57px apart
-			// between the two. This file’s own note beside the track list says
-			// why — they line up only if they read one track list AND fill the
-			// same number of cells.
-			capIcon(cap, ['columns-3', 'columns', 'table'],
-				'A column in Table');
-			cap.createSpan({ cls: 'zg-org-pname', text: 'name' });
-			// THE FOURTH CELL, EMPTY. The last track is `auto`: with three
-			// cells the caption sizes it to nothing and the rows size it to a
-			// type badge, and the two grids stop lining up — measured live at
-			// 8px of drift on 2026-08-28.
-			cap.createSpan({ cls: 'zg-org-pkind', text: '' });
-			// THE FIFTH CELL, EMPTY, over the delete. The note above says why
-			// this matters and it was learned the hard way: the caption and the
-			// rows are separate grids that line up only if they read one track
-			// list AND fill the same number of cells. A missing cell put the
-			// name column 57px out on 2026-08-31 and 8px out on 2026-08-28.
-			cap.createSpan({ cls: 'zg-org-pdel' });
+			// IT WAS “where the panel teaches itself”, and it taught one
+			// column of ticks. It had been built to teach three, and the
+			// other two went with the Outline at the writer’s word
+			// (2026-08-31) — so it had been a third of a caption for a
+			// week, and this is the rest of that removal arriving.
+			//
+			// WHAT DIED WITH IT, so nobody re-derives it: the caption and
+			// the rows were separate grids that lined up only if they read
+			// ONE track list AND filled the same NUMBER of cells. A
+			// missing fourth cell put the name column 8px out on
+			// 2026-08-28 and 57px out on 2026-08-31, and `--zg-prop-tracks`
+			// is in `em` so the font-size was part of the fact. With one
+			// grid left there is nothing to line up against — which is why
+			// this is safe to take out and would not have been before.
 			pop.createDiv({ cls: 'zg-org-propbody' });
 			// ── AND ONE SWITCH FOR HOW WIDE THEY ALL ARE ───────────────
 			//
@@ -33394,9 +34425,41 @@ module.exports = class WordSmith extends Plugin {
 						if (g.childElementCount > 0) { g.dataset.icon = n; break; }
 					}
 				}
-				add.createSpan({ text: door.label });
+				// THE LABEL IS NAMED (A179). It was the only unclassed span on
+				// the row, which was fine while it was the only span after the
+				// icon — the chevron made it two, and `row.textContent` started
+				// answering 'Add a new property\u203a' to a check about the
+				// label. A reader that has to strip decoration off a string is
+				// one decoration away from being wrong again.
+				add.createSpan({ cls: 'zg-org-propaddname', text: door.label });
+				// ── THE CHEVRON IS THE DOOR ONTO THE TYPES (A179) ────
+				//
+				// The writer drew it themselves — “a rightclick submenu
+				// with the ‘>’”. It is drawn only on the door that HAS a
+				// submenu: a chevron on the row that opens a modal would
+				// promise a list that never comes.
+				if (door.types) {
+					add.addClass('has-sub');
+					add.createSpan({ cls: 'zg-org-propmore',
+						text: '\u203a' });
+				}
 				add.addEventListener('click', (ev) => {
-					orgPropPopClose();
+					// ── AND THE PANEL STAYS OPEN (A179) ──────────────
+					//
+					// TOMBSTONE: `orgPropPopClose()` stood here, on both
+					// doors. “the propriety pane should not close”.
+					//
+					// THE NAMING MODAL STILL OPENS over it, at the
+					// writer's word when asked (2026-09-05): the panel is
+					// behind it and is still there afterwards, which is the
+					// part that was costing them the list.
+					ev.preventDefault();
+					ev.stopPropagation();
+					if (door.types) { orgPropSubOpen(add, door); return; }
+					// A DOOR WITHOUT TYPES TAKES THE SUBMENU WITH IT. Two
+					// flyouts open at once over one panel is a stack the
+					// writer never asked for.
+					orgPropSubClose();
 					door.open(ev);
 				});
 			}
@@ -33427,6 +34490,12 @@ module.exports = class WordSmith extends Plugin {
 			const onDown = (ev) => {
 				try {
 					if (pop.contains(ev.target)) return;
+					// THE SUBMENU IS NOT AN OUTSIDE CLICK (A179). It is a
+					// SIBLING of the panel, not a child, so `pop.contains`
+					// says no to it — and picking a type would have shut the
+					// panel the writer asked to keep open.
+					const sub0 = orgPropSubEl();
+					if (sub0 && sub0.contains(ev.target)) return;
 					const t = ev.target;
 					if (t && t.closest && t.closest('.zg-org-colsbtn')) return;
 				} catch (_) {}
@@ -34011,9 +35080,54 @@ module.exports = class WordSmith extends Plugin {
 					const n = parseFloat(raw);
 					out = raw.trim() === '' ? '' : (isFinite(n) ? n : raw);
 				}
-				await this.orgPropWrite(path, key, out);
+				// ── THE PANE IS HANDED BACK BEFORE THE DISK (A158) ──────
+				//
+				// Writer, 2026-09-04: “ok, just do the async thingy”, meaning
+				// the rebuild that “lands in two halves”.
+				//
+				// THESE TWO LINES STOOD AFTER THE AWAIT, so the edit was not
+				// over until the file had been written. Clicking a second cell
+				// while this one is open sets `orgOpenAfter` and calls
+				// `drawOrg`, which returns early WHILE THE GUARD IS UP — so
+				// the second cell opened only when this write resolved.
+				//
+				// MEASURED IN THE VAULT, window fronted, on the fixture folder,
+				// three rounds each, click-to-editor:
+				//
+				//     non-md    51.3  69.1  60.8 ms
+				//     markdown  57.7  57.1  58.7 ms
+				//
+				// against a `drawPanel` of 6.7–21ms and a `setTimeout(0)` of 0.
+				// The FIRST run of this drive said 0.2ms and proved nothing:
+				// Obsidian was backgrounded, Chromium fired no `focus`, the
+				// guard was never armed and the fault could not happen. The
+				// window has to be fronted for this measurement to exist.
+				//
+				// AND THE OTHER THREE EDITORS ALREADY DO THIS. The checkbox and
+				// the chips both release the guard in their own `blur` —
+				// `doneDraft(); orgEditDone();`, no await — and only this one
+				// held it across a disk write. This is the fourth editor
+				// joining the other three, not a new behaviour.
+				//
+				// NOTHING RACES THE GUARD, because `orgEditDone` runs here
+				// while this editor is the one that just blurred. That is the
+				// 6b danger and it is why the repaint below is NOT another
+				// `orgEditDone`: by the time the write lands the guard may
+				// belong to the NEXT cell, and clearing it would tear out the
+				// field the writer is typing in.
+				const stored = this.propStoreHolds(path);
 				doneDraft();
 				orgEditDone();
+				await this.orgPropWrite(path, key, out);
+				// A STORED PROPERTY FIRES NO INDEX EVENT. A markdown write
+				// reaches the pane through the ring; a non-md one lands in
+				// `ws-structure.md` and rings nothing, so without this the
+				// cell would keep the value it had before — the same reason
+				// `step` asks for a repaint on the stored path and not the
+				// other. THROUGH `drawPanel`, which reaches `drawOrg` — “the
+				// one gate every repaint passes”, so a late write that finds
+				// another editor open waits for it instead of interrupting it.
+				if (stored) drawPanel();
 			};
 			engage(el2, () => {
 				// Escape RESTORES — the write never happens, the field says
@@ -35046,9 +36160,13 @@ module.exports = class WordSmith extends Plugin {
 		// nothing exists until the name is typed, and the name is last: a
 		// writer who backs out of either step has created nothing, which is
 		// what backing out should do.
-		const addNewProp = (ev2) => {
+		// NAMING IS ITS OWN STEP NOW (A179), because the type can be chosen
+		// two ways: the header menu still asks with `askPropType`, and the
+		// panel's footer row opens a submenu of its own. Both end here, so
+		// there is ONE naming door and neither can drift from the other.
+		const nameNewProp = (type, ev2) => {
 			const taken = propKeysInScope();
-			const named = (type) => {
+			const named = (t2) => {
 				// THE SAME MODAL, WITH NOTHING TO PICK. Naming a property is
 				// one implementation and this is it — the create row is live
 				// on every keystroke and already refuses a name the vault
@@ -35071,7 +36189,10 @@ module.exports = class WordSmith extends Plugin {
 						taken).open();
 				} catch (_) { pickProp(ev2); }
 			};
-			askPropType(ev2, named);
+			named(type);
+		};
+		const addNewProp = (ev2) => {
+			askPropType(ev2, (type) => nameNewProp(type, ev2));
 		};
 		// AND THE OTHER DOOR SEARCHES ONLY WHAT EXISTS. No create row: a
 		// button that says \u201cexisting\u201d and then offers to invent one
@@ -35107,10 +36228,24 @@ module.exports = class WordSmith extends Plugin {
 		// name this Obsidian does not have — each door carries its own
 		// fallbacks, tried in order, and the first that draws wins.
 		const ORG_PROP_DOORS = [
-			{ label: 'Add a new property\u2026',
+			// ── NO ELLIPSIS ON EITHER (A181, writer 2026-09-05) ────────────
+			//
+			// “and the elipses for add a new propriety and add an existing
+			// property”. The convention it followed is real — a trailing “…”
+			// means the control opens something rather than doing it — and
+			// the writer has looked at the panel and does not want it here.
+			// THE TYPES HANG OFF THE DOOR, not off the row that draws it: the
+			// header menu and the panel both read this list, and a submenu
+			// declared at one of them is a door added in one place and
+			// forgotten in the other. `open` is what a caller with no submenu
+			// of its own does — the header menu, and any build without our
+			// flyout — and it still asks with `askPropType`.
+			{ label: 'Add a new property',
 				icons: ['plus', 'plus-circle', 'file-plus'],
+				types: PROP_TYPES,
+				pick: (type, ev2) => nameNewProp(type, ev2),
 				open: (ev2) => addNewProp(ev2) },
-			{ label: 'Add an existing property\u2026',
+			{ label: 'Add an existing property',
 				icons: ['search', 'lucide-search', 'magnifying-glass'],
 				open: (ev2) => addExistingProp(ev2) },
 		];
@@ -35205,28 +36340,24 @@ module.exports = class WordSmith extends Plugin {
 		// pointed at that right-click. It is in the columns menu now, and both
 		// call this rather than each carrying a copy — six stores are cleaned
 		// up in here and a second copy would forget one.
-		const removeProp = async (c) => {
-			s.uniUserCols = (Array.isArray(s.uniUserCols) ? s.uniUserCols : [])
-				.filter(x => !x || x.key !== c.key);
-			colOff.delete(c.id);
-			s.uniColsOff = Array.from(colOff);
-			// (colCh entry cleanup died with colCh itself)
-			s.uniColOrder = (Array.isArray(s.uniColOrder) ? s.uniColOrder : [])
-				.filter(id => id !== c.id);
-			// AND THE SORT, if it was sorting by this. A sort naming a column
-			// that no longer exists leaves every row's key MISSING, which
-			// draws the tree in name order with the band claiming otherwise.
-			// (the sort reset stood here: it wrote `order` and `false` over
-			// `order` and `false`, which is how A58 was found in the first
-			// place — two assignments, one value.)
-			if (s.uniSlimCol === c.id) s.uniSlimCol = '';
-			// (The filter set that once had to be cleaned here retired in
-			// Phase 5.)
-			await this.saveSettings();
-			rebuildCols();
-			stampCols();
-			draw(); fill(); drawPanel();
-		};
+		// ── TOMBSTONE: `removeProp` (A168, 2026-09-05) ──────────────────
+		//
+		// It had three doors and the writer closed all of them on
+		// 2026-09-04; the last caller left was a fallback arm for builds
+		// without submenus, and that went in this batch. A function
+		// nothing can reach is not caution, it is a name somebody reuses.
+		//
+		// ITS STORE HALF IS `propColumnForget(key)` NOW, a plugin method,
+		// because the prune the writer asked for lives in the settings
+		// tab and a closure over `colOff`, `rebuildCols` and three
+		// redraws is not callable from there. The redraws it did are
+		// simply not needed: the window rebuilds its columns on open, and
+		// a settings change already runs `refresh()`.
+		//
+		// AND ONE LINE DID NOT GO WITH IT: `uniSlimCol`, which this wiped
+		// and which is DELETED ON LOAD forty lines up. A reader keeping a
+		// retired key alive is the fault A169 spent a batch removing, so
+		// it was not carried into the new home.
 		// ── AND RE-FIT WHEN THE PANE CHANGES SIZE ───────────────────────────
 		//
 		// THE CEILING WAS ONLY EVER APPLIED AT STAMP TIME, and nothing
@@ -36304,7 +37435,7 @@ module.exports = class WordSmith extends Plugin {
 				}
 				cursor = k;
 				cursorDrives = true;
-				if (narrow) body.addClass('is-panel');
+				uniPanelShow();
 				draw();
 				drawPanel();
 			});
@@ -37762,9 +38893,15 @@ module.exports = class WordSmith extends Plugin {
 				try { this.openManuscriptModal({ tab: 'organizer' }); } catch (_) {}
 			});
 		}
-		const back = tabsRow.createEl('button', { cls: 'zg-export-mini zg-uni-back', text: '\u2039' });
-		back.title = 'Back to the tree';
-		back.addEventListener('click', () => body.removeClass('is-panel'));
+		const back = tabsRow.createEl('button',
+			{ cls: 'zg-export-mini zg-uni-back' });
+		uniBackEl = back;
+		// THE FACE IS NEVER WRITTEN HERE. Born through the same writer
+		// every later change goes through, so the glyph cannot start out
+		// disagreeing with the state — which is exactly what a literal
+		// `\u2039` at birth did, on a window that opens showing the tree.
+		uniBackFace();
+		back.addEventListener('click', () => uniPanelSet(!uniPanelAt()));
 		// PUT THE TREE AWAY — on the tabs that have something to put it away
 		// FOR, which is not all of them.
 		//
@@ -38019,6 +39156,9 @@ module.exports = class WordSmith extends Plugin {
 					// "never searches" was amended by the writer
 					// (2026-08-22; see the orgResetLens tombstone).
 					body.toggleClass('is-organizer', tab === 'organizer');
+					// The door still points the same way; what is on the far
+					// side of it has a different name now.
+					uniBackFace();
 					body.removeClass('is-treewide');
 					body.removeClass('is-treeoff');
 					drawTabs();
@@ -38136,12 +39276,11 @@ module.exports = class WordSmith extends Plugin {
 			// Carried HERE, at the one gate every repaint passes, rather
 			// than at the commit — a fix at the commit would leave the
 			// other three.
-			const orgKeepScroll = (() => {
-				try {
-					const w0 = panel.querySelector('.zg-org-panel');
-					return w0 ? w0.scrollTop : 0;
-				} catch (_) { return 0; }
-			})();
+			// READ FROM THE VARIABLE, NOT FROM THE ELEMENT — see
+			// `orgScrollTop`, where the reason is. This line used to be a
+			// `querySelector` and a `scrollTop`, and it was a third of the
+			// draw.
+			const orgKeepScroll = orgScrollTop;
 			// Idempotent kick: the first draw starts the sweep, the ring
 			// repaints when it lands. Everything below reads what the index
 			// knows NOW and blanks what it does not — unknown is not empty.
@@ -39207,6 +40346,14 @@ module.exports = class WordSmith extends Plugin {
 
 			// ── the table ───────────────────────────────────────────────
 			const wrap = panel.createDiv({ cls: 'zg-org-panel' });
+			// AND IT REPORTS WHERE IT IS (A157). A fresh box every draw means
+			// a fresh listener every draw — which is right, not wasteful: the
+			// old box is discarded with its listener, so nothing accumulates.
+			// `passive` because this never calls `preventDefault`, and a
+			// non-passive scroll listener makes the browser wait for it.
+			wrap.addEventListener('scroll', () => {
+				orgScrollTop = wrap.scrollTop;
+			}, { passive: true });
 			// THE TABLE WEARS ITS MODE. Everything that differs between the
 			// two views is an ARRANGEMENT, so it belongs in the stylesheet
 			// keyed off one stamped class - not in a second renderer. A
@@ -40669,6 +41816,10 @@ module.exports = class WordSmith extends Plugin {
 			if (orgKeepScroll > 0) {
 				try {
 					const w1 = panel.querySelector('.zg-org-panel');
+					// WRITTEN, NEVER READ BACK. Setting it is a layout write and
+					// costs nothing here; reading it to check would put the 5.8ms
+					// straight back, one line below the comment explaining why it
+					// was taken out.
 					if (w1) w1.scrollTop = orgKeepScroll;
 				} catch (_) {}
 			}
@@ -40734,25 +41885,22 @@ module.exports = class WordSmith extends Plugin {
 				// the goal. currentColor carries it into the liquid.
 				holder.style.color = 'hsl(' + Math.round(8 + ratio * 122) + ', 62%, 44%)';
 				holder.appendChild(plugin.buildGoalLiquid(ratio));
-				// ── AND IT SAYS WHICH KIND OF NUMBER THIS IS ────────────
+				// ── TOMBSTONE (A169): "Added up from the notes below — no
+				// target set on this folder."
 				//
-				// A folder summing its children is NOT a target set on the
-				// folder — the distinction A80 drew for non-md files, and
-				// the same one applies here. Before this the report either
-				// drew a ring or said "No target set", and a writer had no
-				// way to tell a number they typed from one that was added
-				// up for them — which is how they would come to trust a
-				// figure that moves when a note is added.
+				// It existed to tell a number a writer TYPED on a folder
+				// from one added up for them, so they would not come to
+				// trust a figure that moves when a note is added. Folder
+				// targets are retired: every folder number is added up now,
+				// and a caption on every single folder report is not the
+				// distinction it was written to draw — it is chrome saying
+				// the same thing for ever.
 				//
-				// ONE FOLDER ONLY. Over a mixed selection the total is
-				// already part typed and part derived, and a single word
-				// for it would be false either way.
-				if (rows.length === 1 && rows[0] && rows[0].kind === 'folder'
-					&& typeof plugin.folderTargetRollup === 'function'
-					&& plugin.folderTargetRollup(rows[0].path).derived) {
-					ringWrap.createDiv({ cls: 'zg-report-hint',
-						text: 'Added up from the notes below \u2014 no target set on this folder.' });
-				}
+				// THE EMPTY BRANCH BELOW STILL ANSWERS, and better than it
+				// did: "Type one into the Target column beside any row" is
+				// now exactly the whole truth about where the number comes
+				// from. `folderTargetRollup().derived` keeps its shape for a
+				// caller that wants to ask; nothing asks today.
 			} else {
 				const none = ringWrap.createDiv({ cls: 'zg-report-ring-label is-muted' });
 				none.createDiv({ text: rows.length
@@ -41434,8 +42582,8 @@ module.exports = class WordSmith extends Plugin {
 				// searches now) — through the one writer, so the terms go
 				// with the text.
 				if ((find.value || '').length) { clearFind(); return true; }
-				if (body.classList.contains('is-panel')) {
-					body.removeClass('is-panel');
+				if (uniPanelAt()) {
+					uniPanelSet(false);
 					return true;
 				}
 				if (host.closes === false) return true;
@@ -41502,14 +42650,21 @@ module.exports = class WordSmith extends Plugin {
 			//
 			// The scope test exists so a dialog stacked on top keeps its own
 			// Escape — its container is a SIBLING of ours, not a child. The
-			// panel is a sibling too, by construction: it hangs on the body
-			// so this window's `overflow: hidden` panes cannot clip it. So
-			// the test said no to our own control, the ladder declined, and
-			// Escape in the panel's search box closed the WINDOW — measured
-			// 2026-08-28. It is ours; it is named here.
+			// panel USED TO BE a sibling too, hanging on the body, so the test
+			// said no to our own control, the ladder declined, and Escape in
+			// the search box closed the WINDOW — measured 2026-08-28.
+			//
+			// A177 MOVED IT INSIDE `rootEl`, so `host.contains` now answers
+			// yes on its own. THE NAMED TEST STAYS: `contains` is the host
+			// seam's question, a leaf answers it about a different element
+			// than a modal does, and a panel that has to be reachable by
+			// Escape is not something to leave resting on which root a future
+			// host picks. It is ours; it is named here either way.
 			const pop0 = (tab === 'organizer') ? orgPropPopEl() : null;
+			const sub0 = (tab === 'organizer') ? orgPropSubEl() : null;
 			if (!host.contains(ev.target)
-				&& !(pop0 && pop0.contains(ev.target))) return;
+				&& !(pop0 && pop0.contains(ev.target))
+				&& !(sub0 && sub0.contains(ev.target))) return;
 			if (!escapeLadder(ev)) return;
 			ev.preventDefault();
 			ev.stopPropagation();
@@ -41554,6 +42709,13 @@ module.exports = class WordSmith extends Plugin {
 		// exactly the case this rung is for.
 		if (host.blockClose) {
 			host.blockClose(() => {
+				// THE SUBMENU IS ABOVE THE PANEL (A179), so it backs out
+				// first: a writer with a type list open who presses Escape
+				// means the list, not the panel under it.
+				if (tab === 'organizer' && orgPropSubEl()) {
+					orgPropSubClose();
+					return true;
+				}
 				if (tab === 'organizer' && orgPropPopEl()) {
 					orgPropPopClose();
 					return true;
@@ -42025,9 +43187,12 @@ module.exports = class WordSmith extends Plugin {
 	// same reason; this is that rule applied to the other half of the sum.
 	selectionTarget(rows) {
 		if (!rows || !rows.length) {
-			// The whole vault, under either spelling of the root.
-			const g = this.settings.folderGoals || {};
-			return Number(g['/']) || Number(g['']) || 0;
+			// THE WHOLE VAULT IS A FOLDER TOO (A169). This read a target
+			// typed on the root — under either spelling of it, because
+			// two stores disagreed about whether the root was '/' or ''.
+			// Both are gone with the typed number, and the root sums its
+			// notes like every other folder: one rule, no spellings.
+			return this.folderTargetRollup('/').value;
 		}
 		const folders = rows.filter(r => r && r.kind === 'folder').map(r => r.path);
 		const covered = (p, kind) => folders.some(f =>
@@ -42036,10 +43201,9 @@ module.exports = class WordSmith extends Plugin {
 		let sum = 0;
 		for (const it of rows) {
 			if (!it || covered(it.path, it.kind)) continue;
-			// A FOLDER IS WORTH WHAT IS UNDER IT when nobody typed a
-			// number on it — see `folderTargetRollup`. `folderGoalFor`
-			// stays as the reader of what was TYPED, which is what the
-			// goal editor and the bar token still want.
+			// A FOLDER IS WORTH WHAT IS UNDER IT — see
+			// `folderTargetRollup`, which is the only reader of that
+			// question since A169 retired the typed one.
 			sum += it.kind === 'folder'
 				? this.folderTargetRollup(it.path).value
 				: this.fileGoalFor(it.path);
@@ -50202,6 +51366,23 @@ module.exports = class WordSmith extends Plugin {
 				// of a scheduling call an assignment falls on is a trap.
 				if (open !== plugin._vimPanelOpen) {
 					plugin._vimPanelOpen = open;
+					// ── AND THE GAP MOVES WITH IT (A174) ────────────────
+					//
+					// The reserve is the writer’s gap, lifted to fit the
+					// line while it is open — so BOTH transitions have to
+					// re-stamp, not just the measuring one below. Without
+					// this the bar would rise on the next refresh and come
+					// back down on the one after that, which is the exact
+					// complaint that retired 486fj.
+					//
+					// STAMPED HERE rather than through `refresh()`: the
+					// same reasoning the measure path already carries a
+					// paragraph about — a refresh behind an await leaves
+					// the bar moved and the mask still at the old edge.
+					try {
+						document.documentElement.style.setProperty(
+							'--zg-vim-gutter', plugin.vimGutterHeight() + 'px');
+					} catch (_) {}
 					plugin.updateRetroStatusBar();
 				}
 				// What sits at the bottom of the window just changed, so the
@@ -52037,7 +53218,14 @@ module.exports = class WordSmith extends Plugin {
 			const path = (row.dataset && row.dataset.path) || '';
 			if (!path) continue;
 			const folder = row.classList.contains('nav-folder-title');
-			const target = Number((this.settings[folder ? 'folderGoals' : 'fileGoals'] || {})[path]) || 0;
+			// A FOLDER'S BADGE IS THE SUM OF ITS NOTES (A169). It read
+			// `folderGoals[path]`, so a folder full of notes with targets
+			// showed NOTHING unless somebody had also typed a number on
+			// the folder — the same fault the report had, one surface
+			// along, and it outlived the typed store.
+			const target = folder
+				? this.folderTargetRollup(path).value
+				: Number((this.settings.fileGoals || {})[path]) || 0;
 			let badge = row.querySelector('.zg-treepct');
 			// A NOTE WITH NO TARGET SHOWS NOTHING — the same rule the tasks
 			// follow. A column of dashes is a column saying "not that kind of
@@ -53748,6 +54936,27 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 			this.renderBarPresets(rb);
 
+			// ── HOW FAR THE BAR SITS FROM THE BOTTOM (A174) ──────────────
+			//
+			// Writer, 2026-09-05: “add a slider that goes from 0 to 23 px so
+			// users can pick how far the status line sits from the bottom …
+			// maybe increase the slider range from 0 - 30px (default for new
+			// users 23px)”.
+			//
+			// AND IT ANSWERS GitHub #12. Kuiriel, 20 Aug: “there is a buffer
+			// of ~16 points that I would happily reduce to 4”. That buffer
+			// is this number, and it was 23 for everyone because the vim `:`
+			// line’s room was reserved whether or not vim was on. Now it is
+			// theirs: 5px, 0, or 30.
+			//
+			// ON THE POWERLINE TAB, not the Organiser one, because it is
+			// where the bar is — and inside the `enableRetroStatus` branch,
+			// because a gap under a bar that is switched off is a control
+			// with nothing to move.
+			this.slider(rb, 'Gap under the bar',
+				'Pixels between the bar and the window edge.',
+				'barBottomGap', 0, 30, 1);
+
 			// No on/off switch here any more: powerline is how the bar
 			// draws, full stop. The toggle was a fork in every layout
 			// question the bar asks — rules as borders or as an overlay,
@@ -54326,13 +55535,18 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// words, and it cannot see backwards. "It all stays on your
 			// machine" was the first fact said twice.
 			.setDesc('Counts only, never your words.')
+			// THROUGH THE ONE WRITER (A175). The History pane can start the
+			// record too now, and the three steps that turning it on means —
+			// flag, find or make the file, write it once — live in
+			// `historyTrackingOn`. Switching it OFF is one line and stays
+			// here: there is nothing to find and nothing to write.
 			.addToggle(t => t.setValue(s.historyTracking)
 				.onChange(async v => {
-					s.historyTracking = v;
-					await this.plugin.saveSettings();
-					// Find or create the file now, so the pane can say where
-					// it is instead of "not created yet" until the next save.
-					if (v) { await this.plugin.historyLoad(); await this.plugin.historyWrite(true); }
+					if (v) { await this.plugin.historyTrackingOn(); }
+					else {
+						s.historyTracking = false;
+						await this.plugin.saveSettings();
+					}
 					this.display();
 				}));
 
@@ -54978,7 +56192,39 @@ class WordSmithSettingTab extends PluginSettingTab {
 				.onChange(async (v) => { await write({ dark: v }); }));
 		}
 
-		containerEl.createEl('hr', { cls: 'ws-settings-hr' });
+		// ── TOMBSTONE: THE PRUNE (A176, writer 2026-09-05) ─────────────
+		//
+		// “the propery columns in the organiser settings is shittyyyy —
+		// remove that from Organiser tab settings”. Built at 486fk on
+		// their own earlier answer — “one prune in the settings tab, away
+		// from the table” — and reversed the same day on seeing it run.
+		//
+		// WHAT IT WAS: one row per added property column with a “Remove
+		// column” button, plus a line saying the property itself is never
+		// touched. In the writer’s vault that is EIGHT rows for an action
+		// taken once a year, on a tab they read for other things.
+		//
+		// AND `propColumnForget` GOES WITH IT rather than standing with no
+		// caller — which is the exact fault A168 was opened to fix, one
+		// function along. `git log -S propColumnForget` brings back the
+		// method, its fourteen assertions and its six sabotage cases if a
+		// prune is ever wanted somewhere else.
+		//
+		// WHAT IS BACK, AND STATED: nothing prunes `uniUserCols`. A key
+		// added once is offered for ever, and since 486ez it follows the
+		// vault between machines. That is the cost, it is the writer’s to
+		// carry, and it is written down rather than implied.
+		// ── AND NO RULE AT ALL IN THIS GAP (A178, writer 2026-09-05) ────
+		//
+		// “remove this two lines”, with a red X drawn across the gap between
+		// the last flag card and this heading. There were TWO rules there:
+		// one closed the flag rows and one opened the prune, and taking the
+		// prune out at A176 left them stacked with nothing between.
+		//
+		// BOTH GO, not one. Every other heading on this tab — “Flags”,
+		// “What each one is” — is separated by space alone, so a single
+		// surviving rule here would be the odd one out rather than the
+		// convention. The gap is the separator.
 		this.label(containerEl, 'Putting them back');
 		new Setting(containerEl)
 			.setName('Restore the flags Word-Smith ships with')
@@ -55300,28 +56546,37 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// keeping it company; it is 68 lines that ran the last time somebody
 	// deleted the control that called them.
 
+	// ── ONE ARM LEFT, AND IT IS THE NOTES (A169, 2026-09-05) ────────
+	//
+	// “let’s retire folder goals — they are only the sum of their files
+	// now.” The folder arm chose a FOLDER and wrote `folderGoals[path] =
+	// 1000`; that store is gone, so the arm is gone with it rather than
+	// left behind an early return. A branch nothing can reach is the
+	// dead code this file keeps tombstoning, and an early return in
+	// front of one is the same thing wearing a guard.
+	//
+	// THE METHOD ITSELF HAS NO CALLER EITHER — the name appears in src/
+	// exactly once, at its own declaration, the same story as
+	// `renderGoalList` tombstoned above it. Kept for now: cutting a dead
+	// method in the same commit as a store is two things to bisect, and
+	// it goes with A168’s answer, which is about three other doors.
+	//
+	// `kind` STAYS IN THE SIGNATURE, unread. Its one possible value is
+	// 'file', and a parameter removed from a method nobody calls is a
+	// change nothing can check.
 	pickGoalPath(kind) {
 		if (!WsPathSuggestModal) return;
-		const store = kind === 'folder' ? 'folderGoals' : 'fileGoals';
+		void kind;
 		const s = this.plugin.settings;
-		const have = new Set(Object.keys(s[store] || {}));
-		let items;
-		if (kind === 'folder') {
-			items = this.app.vault.getAllLoadedFiles()
-				.filter(f => f && (TFolder ? f instanceof TFolder : f.children !== undefined))
-				.map(f => f.path)
-				.filter(p => p && p !== '/' && !have.has(p));
-			if (!have.has('/')) items.unshift('/');
-		} else {
-			items = this.app.vault.getMarkdownFiles().map(f => f.path).filter(p => !have.has(p));
-		}
+		const have = new Set(Object.keys(s.fileGoals || {}));
+		const items = this.app.vault.getMarkdownFiles()
+			.map(f => f.path).filter(p => !have.has(p));
 		if (!items.length) return;
-		new WsPathSuggestModal(this.app, items,
-			kind === 'folder' ? 'Choose a folder\u2026' : 'Choose a note\u2026',
+		new WsPathSuggestModal(this.app, items, 'Choose a note\u2026',
 			async (picked) => {
-				if (!s[store]) s[store] = {};
+				if (!s.fileGoals) s.fileGoals = {};
 				// A sensible starting number, editable in the row that appears.
-				s[store][picked] = 1000;
+				s.fileGoals[picked] = 1000;
 				this.plugin._folderWordCache = null;
 				await this.plugin.saveSettings(true);
 				this.display();
