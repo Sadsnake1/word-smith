@@ -27,7 +27,7 @@ Obsidian lists these under **Word-Smith**, so search the palette for what you wa
 | Open the menu in a panel | The same menu docked. Switch the panel on in **Menu** first |
 | Quick file explorer | Switch it on in **Misc** first |
 | Quick outline | |
-| Quick cycle: focus left / right / up / down | Also **Misc**. No default keys — see below |
+| Quick cycle: focus left / right / up / down | Also **Misc**. No default keys, see below |
 
 ## The menu
 
@@ -35,13 +35,13 @@ Obsidian lists these under **Word-Smith**, so search the palette for what you wa
 
 One pop-up for everything you change while writing: **modes**, **syntax**, **prose checks**, **markers**, **font**, **theme**, and a **light/dark toggle** that names what pressing it will do. **Report**, **History** and **Export** sit together at the foot of it. The rows read from the same lists the bar's buttons use, so the menu never drifts from the bar.
 
-**Any command can live in it.** Add rows for any Obsidian command — other plugins' commands included — and lay them out in a table of your own. Bind the menu to one key and it becomes a which-key for your whole setup.
+**Any command can live in it.** Add rows for any Obsidian command, other plugins' commands included, and lay them out in a table of your own. Bind the menu to one key and it becomes a which-key for your whole setup.
 
-**Type to search.** The field at the top searches everything at once, fuzzily — `nord` finds the Nord scheme without your knowing it lives under Theme, `tky` finds Tokyo Night.
+**Type to search.** The field at the top searches everything at once, fuzzily: `nord` finds the Nord scheme without your knowing it lives under Theme, `tky` finds Tokyo Night.
 
-It's **keyboard-only** — nothing in it needs the mouse. Rows expand in place: arrows move, Enter opens and toggles, Escape backs out a level at a time. Changes apply live behind the panel, so there's nothing to confirm. `h`/`j`/`k`/`l` steer only while Obsidian's Vim mode is on.
+It's **keyboard-only**. Nothing in it needs the mouse. Rows expand in place: arrows move, Enter opens and toggles, Escape backs out a level at a time. Changes apply live behind the panel, so there's nothing to confirm. `h`/`j`/`k`/`l` steer only while Obsidian's Vim mode is on.
 
-Bind the menu in Obsidian's Hotkeys settings — most people use `Ctrl+M`. It matters most on a narrow window, where the bar has shed its buttons.
+Bind the menu in Obsidian's Hotkeys settings. Most people use `Ctrl+M`. It matters most on a narrow window, where the bar has shed its buttons.
 
 ## Quick panels
 
@@ -49,11 +49,11 @@ Two optional commands, off until you enable them in **Misc**. Each opens the sid
 
 ## Quick cycle
 
-Move focus between panes with a direction key — **sidebars included**, which Obsidian's own `focus-left` and friends won't do.
+Move focus between panes with a direction key, **sidebars included**, which Obsidian's own `focus-left` and friends won't do.
 
 Four commands, off until enabled in **Misc**, with no default keys: bind `Alt`+arrows, or `Alt+H/J/K/L` if you think in Vim. `Alt` is free in every Vim mode, so nothing clashes.
 
-It works by geometry, not a fixed order, so it does the right thing in any layout — two sidebars on one side, a vertical split, stacked tab groups. It takes the nearest pane that actually sits in that direction, opens a closed sidebar when there's nothing else that way, and stops at the edges rather than wrapping. Inside a sidebar, up and down step through its tabs. One sub-option, off by default: close a sidebar when you leave it with a direction key.
+It works by geometry, not a fixed order, so it does the right thing in any layout: two sidebars on one side, a vertical split, stacked tab groups. It takes the nearest pane that actually sits in that direction, opens a closed sidebar when there's nothing else that way, and stops at the edges rather than wrapping. Inside a sidebar, up and down step through its tabs. One sub-option, off by default: close a sidebar when you leave it with a direction key.
 
 ## Settings map
 
