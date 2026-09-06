@@ -56,7 +56,7 @@ Did I just build Bases? Kinda, but no. Bases is for notes. The Organiser takes e
 | **History & report** | How much you wrote each day, charted, with streaks. And a report on any note or folder. | [History and report](docs/history-and-report.md) |
 | **The menu** | One keyboard-driven pop-up, or a docked panel, for all of the above. Add any Obsidian command to it, other plugins included. | [Commands and menu](docs/commands-and-menu.md) |
 
-Also: Vim niceties, keyboard-only jumps between panes and sidebars, right-to-left support, and word counts in Obsidian's own file tree. It pairs well with [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) for the caret, and with Fountain or Longform if you use them. The whole thing keeps Obsidian's own look, so it feels like home.
+Also: Vim niceties, keyboard-only jumps between panes and sidebars, right-to-left support, and word counts in Obsidian's own file tree. It pairs well with [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) for your text cursor. The whole thing keeps Obsidian's own look, so it feels like home.
 
 ## Install
 
