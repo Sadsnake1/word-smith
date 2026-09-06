@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 506;
+	--zg-stylesheet-version: 512;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -2682,6 +2682,36 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	--zg-del-0: #5e1a22;  --zg-del-1: #7e242a;  --zg-del-2: #a33033;
 	--zg-del-3: #c4423e;  --zg-del-4: #dd6055;  --zg-del-5: #f08d7d;
 
+	/* ── AND A CLIPPED BAR IS THE SAME COLOUR, PUSHED (A216) ──────────
+
+	   Writer, 2026-09-06, circling the +11k and -11k labels: "add a
+	   increase in hue for the bars that display those 11k numbers, so
+	   users know that those are out of the chart range".
+
+	   THE CHART ALREADY KNEW AND WAS NOT SAYING IT IN THE DRAWING. The
+	   caption reads "scale fits ordinary days \00b7 1 day clipped" and the
+	   bar wears its true figure above the axis — the fact stated twice in
+	   words and not once in the ink a reader actually looks at.
+
+	   THE HOOK WAS ALREADY THERE. `is-over` has been on the clipped bar
+	   all along, and the comment beside it says in as many words:
+	   "Nothing styles it, but it is how the label finds its bar, and it
+	   is the one remaining record in the DOM that this column was cut."
+
+	   SAME FAMILY, MORE OF IT: the hue is pushed and the saturation
+	   raised, so a clipped bar is recognisably the same series and
+	   unmistakably not the same reading. A new colour would read as a
+	   third series.
+
+	   TOMBSTONE WORTH KEEPING: seven treatments for this were offered in
+	   August — hatching, a smooth wave, a fade, a broken-axis gap, a
+	   chevron cap, a LIGHTER TINT, a dashed edge — and the writer took
+	   none of them: "i want the cutted bar to show it diffrently, not
+	   those pixelated shit." This is their own later ask, in their own
+	   terms, and it is not the tint they refused: that one drained the
+	   colour, this one deepens it. */
+	--zg-add-over: #6de37d;  --zg-del-over: #f36d68;
+
 	--zg-net-0: #1b3a63;  --zg-net-1: #245084;  --zg-net-2: #2f6ba8;
 	--zg-net-3: #3e8bcb;  --zg-net-4: #5fabe4;  --zg-net-5: #8fcbf4;
 
@@ -3370,6 +3400,34 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 .zg-hist-px.is-removed.h3 { fill: var(--zg-del-3); }
 .zg-hist-px.is-removed.h4 { fill: var(--zg-del-4); }
 .zg-hist-px.is-removed.h5 { fill: var(--zg-del-5); }
+
+/* ── A CLIPPED BAR (A216) ─────────────────────────────────────────────
+
+   WON ON SPECIFICITY, NOT ON ORDER, which is this file's own rule after
+   a tie it could not see. Two ramps have to be beaten and they do not
+   weigh the same:
+
+     .zg-hist-px.is-added.h5              (0,3,0)
+     .zg-hist-px.is-now.is-added.h5       (0,4,0)   — today's bar
+
+   so the plain case takes four classes and the in-progress case five.
+   Written as one rule each, both heavier than what they override, so
+   moving either block would change nothing.
+
+   THE HEAT LEVEL IS NAMED because a clipped bar is always drawn at the
+   top of the ramp — `h(HISTORY_HEAT - 1)` in the one place bars are
+   built. The probe reads that constant from the module and checks this
+   selector against it, so the two cannot drift.
+
+   AND CLIPPING BEATS UNFINISHED. A bar that is both today's and cut
+   wears the clipped colour: which of the two matters more is a real
+   question, and "this number is not the height you see" wins over
+   "this day is not over" — the second is said by the axis, every day,
+   and the first is said nowhere else in the drawing. */
+.zg-hist-px.is-over.is-added.h5          { fill: var(--zg-add-over); }
+.zg-hist-px.is-over.is-removed.h5        { fill: var(--zg-del-over); }
+.zg-hist-px.is-now.is-over.is-added.h5   { fill: var(--zg-add-over); }
+.zg-hist-px.is-now.is-over.is-removed.h5 { fill: var(--zg-del-over); }
 
 .zg-hist-px.is-net.h0     { fill: var(--zg-net-0); }
 .zg-hist-px.is-net.h1     { fill: var(--zg-net-1); }
@@ -4850,6 +4908,14 @@ body.zg-vim-panel-open .zg-bar-plinth {
    not working. Dimmed rather than removed — reinstall the plugin and it
    comes back, alias and position intact. */
 .zg-menu-card.is-dead { opacity: 0.5; }
+/* A THEME OPTION WITH NO SCHEME TO SHAPE (A185, writer 2026-09-05).
+   Four toggles live inside `barThemeVars()`, which returns null under
+   Default — so they wrote a setting and changed nothing. They are
+   disabled there now, and this is the dimming that says so. The row
+   keeps its name and its own line explaining why, because a faint
+   control with no sentence reads as a style rather than a state. */
+.zg-opt-dead { opacity: 0.55; }
+.zg-opt-dead .setting-item-control { cursor: not-allowed; }
 .zg-menu-card.is-cmd .zg-theme-name {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -6354,8 +6420,83 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
 }
 @media (max-width: 900px) {
 	.zg-export-split { grid-template-columns: minmax(0, 1fr); }
+
 }
 .zg-export-optside { min-width: 0; display: flex; flex-direction: column; }
+
+/* ── AND THE READER'S RULES SIT OUT HERE, NOT IN THE QUERY ABOVE ────
+
+   They were written INSIDE `@media (max-width: 900px)`, because the
+   narrow layout's single-column rule is what they were anchored on and
+   the query's brace is easy to miss two hundred lines into a file. The
+   reader then flipped its classes, the frame reflowed, and the pane did
+   not move — on every window wider than 900px, which is all of them.
+
+   FOUND BY ASKING THE BROWSER WHICH RULE WON rather than by reading the
+   file: the matching rule came back carrying `(max-width: 900px)`, which
+   is not something reading the source would have shown.
+
+   AND AFTER `.zg-export-optside`, deliberately. They already win on
+   specificity — three classes against one — so order is not needed; it
+   is here so that a future edit which weakens one of them does not
+   silently depend on the other. */
+/* ── THE READER TAKES THE TAB (A218) ─────────────────────────────────────
+
+   One class on the split, and the layout is the narrow one: a single column
+   with the options folded away. Written HERE rather than by the pane hiding
+   somebody else's element, because `.zg-export-optside` belongs to the
+   options and a function reaching in to display:none it is the drift this
+   window keeps removing.
+
+   AND IT IS THE SAME RULE THE NARROW LAYOUT USES, one line above. That is
+   the argument that it will hold: a narrow window already renders this
+   arrangement every day, so the reader is not a layout nobody has seen.
+
+   `display: none` AND NOT `visibility`/width: the options carry two columns
+   of live controls, and a hidden column that still has a box is a column
+   the grid still allots space to. */
+.zg-export-split.is-flow { grid-template-columns: minmax(0, 1fr); }
+.zg-export-split.is-flow > .zg-export-optside { display: none; }
+/* THE PAGE ROSE UP TO MEET THE OPTIONS ROW BESIDE IT — see
+   `--zg-export-riseup`. With nothing beside it there is nothing to meet,
+   and the negative margin would pull the reader up under the act row. */
+.zg-export-split.is-flow > .zg-export-prevcol { margin-top: 0; }
+/* WHAT IS NOT THERE IS NOT MERELY INVISIBLE. The page arrows and the page
+   read-out describe pages; in flow there are none, so they leave the row
+   rather than sitting greyed — a control that cannot act and stays on
+   screen reads as broken rather than as absent. */
+.zg-export-flip.is-gone { display: none; }
+
+/* ── WHERE YOU ARE IN THE READER (A223, trimmed at A225) ─────────────────
+
+   TOMBSTONE: a rail of tick buttons down the right edge — a track, a thumb,
+   one tick per chapter, hover-named and clickable. The writer: "those stupid
+   buttons on the right near the scroll dont work properly --remove them."
+
+   TAKEN OUT WHOLE rather than trimmed to a track, because a track and a
+   thumb beside the frame's own scrollbar are two vertical controls in twelve
+   pixels, one draggable and one not. The comment that used to stand here
+   said as much while the rail was still being built, about a smaller version
+   of the same problem.
+
+   WHAT SURVIVES is the one fact it was carrying: which page of how many. It
+   sits in the footer beside the zoom now, three controls along from the
+   `1 / ~259` the paged mode shows — one place to look, whichever is up. */
+.zg-export-readpage {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	font-variant-numeric: tabular-nums;
+	padding: 0 4px;
+	white-space: nowrap;
+}
+.zg-export-readpage.is-gone { display: none; }
+/* THE TOGGLE SAYS WHICH WAY IT IS. `is-on` is the same mark the rest of
+   this footer's buttons use for a pressed state. */
+/* (`.zg-export-expand.is-on` stood here, accenting the button only while
+   the reader was open. It is accented either way now, at the writer's
+   ask, so the rule changed nothing and a rule that changes nothing is
+   one somebody later reads as load-bearing. `is-on` is still SET — the
+   probe holds it, and `aria-pressed` rides with it. */
 /* ── THE LABEL TRACK IS SIZED FOR THIS ZONE, NOT FOR A WHOLE PANE ──────
 
    Writer: “everything is crammed there”. MEASURED after the split filled
@@ -8156,23 +8297,142 @@ body.is-mobile .zg-uni-modal .zg-export-list input[type='checkbox'] {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	gap: 6px;
+	/* TIGHTER, BECAUSE THE ROW GAINED A CONTROL (A218). Expand made
+	   nine things where there were eight, and the row started to
+	   scroll sideways under the pane — which the writer saw before I
+	   did. 6px between nine buttons is 48px of air in a row that has
+	   none to spare. */
+	gap: 4px;
+	/* AND IT WRAPS RATHER THAN SCROLLS. A footer that scrolls sideways
+	   hides its own controls behind an edge nobody looks at; a second
+	   line is visible. This is the fallback, not the plan — the
+	   narrowing below is what keeps it on one line at any ordinary
+	   width. */
+	flex-wrap: wrap;
+	row-gap: 4px;
 }
-.zg-export-zoom {
+/* ── THE FOOTER'S OWN BUTTONS ARE SMALLER THAN THE PANE'S ─────────────
+
+   These are not the window's controls, they are the PREVIEW's: nine of
+   them in a strip under a page, none of them a thing you hunt for. The
+   shared `--zg-ctl-*` sizing is right for a settings row and generous
+   here, and it is what put the row over the edge.
+
+   SCOPED TO THE FOOT so nothing else that wears `.zg-export-mini`
+   changes — the tab strip and the tree header use the same class, and
+   they have room. */
+.zg-export-prevfoot .zg-export-mini {
+	padding: 0 7px;
+	font-size: calc(var(--zg-ctl-fs) - 1px);
+}
+/* ── EXPAND IS THE ACT, SO IT LOOKS LIKE ONE (writer, 2026-09-06) ─────
+
+   "make the expand button in accent color like the export button".
+   Accented ALWAYS, not only when pressed: the other eight change what
+   you are looking AT — a page, a size, a light — and this one changes
+   what the pane IS. `Export .pdf` is accented on the same argument, and
+   the two are the only things in this tab that do something rather than
+   adjust something. */
+.zg-export-prevfoot .zg-export-expand {
+	background: var(--interactive-accent);
+	border-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	font-weight: 600;
+}
+.zg-export-prevfoot .zg-export-expand:hover {
+	background: var(--interactive-accent-hover);
+	border-color: var(--interactive-accent-hover);
+}
+/* The page flipper (A189) and the zoom are the same kind of thing — two
+   small groups of buttons that change what you are LOOKING at, side by side
+   in one footer — so they are one rule rather than two that must be kept in
+   step. The flipper leads: which page you are on is the question a
+   paginated preview exists to answer. */
+.zg-export-zoom,
+.zg-export-flip {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
-.zg-export-zoom .zg-export-mini { min-width: 28px; }
+.zg-export-zoom .zg-export-mini,
+.zg-export-flip .zg-export-mini { min-width: 28px; }
+/* AN ARROW AT THE END OF THE BOOK IS SHUT, and has to look it — a control
+   that refuses a click without saying so reads as a preview that has
+   frozen, which is the report this whole change came from. */
+.zg-export-mini:disabled {
+	opacity: 0.4;
+	cursor: default;
+}
 /* Tabular figures and a fixed width, or the row shuffles sideways every time
    the number goes from 90% to 100% — under the pointer, while the writer is
    pressing the button that changes it. */
-.zg-export-zoompct {
+.zg-export-zoompct,
+.zg-export-pagenum {
 	min-width: 3.6em;
 	text-align: center;
 	font-size: var(--font-ui-smaller);
 	font-variant-numeric: tabular-nums;
 	color: var(--text-muted);
+}
+/* WIDE ENOUGH FOR A NOVEL, and AFTER the shared rule rather than above it:
+   two selectors at equal specificity are decided by ORDER, so a 5.4em
+   written first is a number that never applies. `3.6em` fits "100%"; a page
+   read-out says "128 / 342", and a read-out that grows on the click that
+   changed it shuffles the arrow out from under the pointer. */
+.zg-export-pagenum { min-width: 5.4em; }
+/* ── A VISIBLE DOOR ON THE ESTIMATE (A215) ─────────────────────────────────
+
+   Writer, 2026-09-06: "add something of a mark to 1/~17 so users know it's
+   hoverable". A dotted underline and a help cursor are the web's oldest word
+   for "there is more here", so nothing new has to be learned for one number.
+
+   A BORDER RATHER THAN AN UNDERLINE, and not by preference. Obsidian ships a
+   CSS lint for community plugins that flags BOTH forms of the other spelling
+   — the multi-value `text-decoration` shorthand and the
+   `text-decoration-line/style/colour` longhands — and this project's own gate
+   pins that lint. Written the flagged way first; the gate said so.
+
+   AND THE PIXEL IT ADDS COSTS NOTHING HERE. Measured in the running window
+   rather than reasoned about: the footer row is 28px tall with the border and
+   28px without it, because the row is a flex line sized by its buttons and the
+   read-out is shorter than they are. On a row sized by this text it would
+   move; this one is not.
+
+   THE COLOUR IS THE TEXT'S OWN, at reduced strength. A second hue here would
+   read as a state — a warning, a link — and the fact is neither: it is a
+   number that happens to be approximate. */
+.zg-export-pageest {
+	border-bottom: 1px dotted var(--text-faint);
+	cursor: help;
+}
+/* AND IT ANSWERS THE KEYBOARD. It carries `tabindex` so a reader who does not
+   use a pointer can reach the title at all; the ring is Obsidian's own so it
+   matches every other focusable thing in the window. */
+.zg-export-pageest:hover,
+.zg-export-pageest:focus-visible {
+	color: var(--text-normal);
+	border-bottom-color: var(--text-muted);
+}
+.zg-export-pageest:focus-visible {
+	outline: 1px solid var(--background-modifier-border-focus);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+/* THE FLAG CELL'S SECOND DOOR (A193). The cell cycles; this opens a menu of
+   the five states, because a ring is right for "the next one" and wrong for
+   "that one". Shown on hover — forty rows each wearing a caret is a column
+   of furniture — but present in the DOM always, so anything driving it can
+   find it without a hover to simulate. */
+.zg-org-flagmore {
+	margin-left: 4px;
+	opacity: 0;
+	color: var(--text-faint);
+	cursor: pointer;
+	font-size: 0.85em;
+}
+.is-flag:hover .zg-org-flagmore,
+.zg-org-flagmore:focus-visible {
+	opacity: 1;
 }
 
 /* TOMBSTONE: the footer (`.zg-export-run`) was pinned last on screen and
@@ -8826,6 +9086,36 @@ body.is-mobile .zg-export-hit { padding: 8px; }
 	--zg-add-3: #49a862;  --zg-add-4: #6bc77c;  --zg-add-5: #99e29c;
 	--zg-del-0: #5e1a22;  --zg-del-1: #7e242a;  --zg-del-2: #a33033;
 	--zg-del-3: #c4423e;  --zg-del-4: #dd6055;  --zg-del-5: #f08d7d;
+
+	/* ── AND A CLIPPED BAR IS THE SAME COLOUR, PUSHED (A216) ──────────
+
+	   Writer, 2026-09-06, circling the +11k and -11k labels: "add a
+	   increase in hue for the bars that display those 11k numbers, so
+	   users know that those are out of the chart range".
+
+	   THE CHART ALREADY KNEW AND WAS NOT SAYING IT IN THE DRAWING. The
+	   caption reads "scale fits ordinary days \00b7 1 day clipped" and the
+	   bar wears its true figure above the axis — the fact stated twice in
+	   words and not once in the ink a reader actually looks at.
+
+	   THE HOOK WAS ALREADY THERE. `is-over` has been on the clipped bar
+	   all along, and the comment beside it says in as many words:
+	   "Nothing styles it, but it is how the label finds its bar, and it
+	   is the one remaining record in the DOM that this column was cut."
+
+	   SAME FAMILY, MORE OF IT: the hue is pushed and the saturation
+	   raised, so a clipped bar is recognisably the same series and
+	   unmistakably not the same reading. A new colour would read as a
+	   third series.
+
+	   TOMBSTONE WORTH KEEPING: seven treatments for this were offered in
+	   August — hatching, a smooth wave, a fade, a broken-axis gap, a
+	   chevron cap, a LIGHTER TINT, a dashed edge — and the writer took
+	   none of them: "i want the cutted bar to show it diffrently, not
+	   those pixelated shit." This is their own later ask, in their own
+	   terms, and it is not the tint they refused: that one drained the
+	   colour, this one deepens it. */
+	--zg-add-over: #6de37d;  --zg-del-over: #f36d68;
 	--zg-net-0: #1b3a63;  --zg-net-1: #245084;  --zg-net-2: #2f6ba8;
 	--zg-net-3: #3e8bcb;  --zg-net-4: #5fabe4;  --zg-net-5: #8fcbf4;
 	--zg-add-now-0: #6c8f7a;  --zg-add-now-1: #73a083;  --zg-add-now-2: #7cb28d;
@@ -12400,6 +12690,21 @@ body { --zg-hit-min: 44px; }
 .zg-uni-check {
 	flex: 0 0 auto;
 	margin-right: 2px;
+}
+/* ── A BOX OUTSIDE WHAT IS BEING EXPORTED (A228) ─────────────────────
+
+   It HOLDS ITS PLACE instead of vanishing — `tickBox` carries the whole
+   argument — so the tree stops changing shape every time the scope moves.
+   Which means it now has to LOOK unpressable, or a writer would press it
+   and read the silence as the tick being broken.
+
+   The same pair as every other disabled control in this file
+   (`.zg-export-mini`, `.zg-export-fmtbtn`), and no dimmer than those: at
+   0.4 it is still plainly a checkbox, which is the point — an invisible
+   one would be the vanishing all over again. */
+.zg-uni-check:disabled {
+	opacity: 0.4;
+	cursor: default;
 }
 /* The act line, inside a panel rather than across the top of a window: it
    wraps instead of scrolling, because the inspector is half the width the
