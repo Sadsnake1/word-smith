@@ -9,7 +9,7 @@
   <h1>Word-Smith</h1>
 
   <p><strong>A dedicated writing studio inside Obsidian.</strong><br>
-  Novels, poems, articles, journals, on top of a bidnder-database of every file in your vault.</p>
+  Novels, poems, articles, journals, on top of the most powerful binder-outliner-database of every file in your vault.</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
