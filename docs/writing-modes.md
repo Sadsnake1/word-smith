@@ -40,6 +40,10 @@ Turns what you type into the proper characters as you go: curly quotes, ellipses
 
 **Markers** — a tab of their own — draw the spaces, tabs and line breaks you normally can't see.
 
+## Fonts
+
+Word-Smith reads the font list you keep under **Obsidian → Appearance → Text font**. Add as many as you like there, then switch between them from `{font}` on the bar or from the menu — a serif for drafting, a monospace for editing, a bitmap face for the MS-DOS look. `ws-font:` in a note's frontmatter pins one to that note.
+
 ## Where it applies
 
 Limit Word-Smith to certain folders and notes — *only these*, or *everywhere except these*. Leave the list empty and it applies everywhere.

@@ -2,11 +2,34 @@
 
 [← Back to the README](../README.md)
 
-Your manuscript down the left, described on the right. The tree is the book's own order, and the folder you light up in it opens as a table.
+Your vault down the left, described on the right. The tree is your own order, and the folder you light up in it opens as a table — every file under it, however deep, with any property as a column.
 
 <img width="1573" alt="The Organiser: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-Open it from the book icon in the ribbon or **Open the Organiser** in the command palette. It can also open as a pane you dock beside the note you're writing, or in its own window on a second screen.
+Open it from the book icon in the ribbon or **Open the Organiser** in the command palette. Open it **as a pane** and dock it above or beside the note you're writing — click a row and the note opens in the other pane. Or pop it out into its own window on a second screen.
+
+It never asks where your book is. No project file, no special folder, no wizard. Folders and files, however you already keep them.
+
+## Any file
+
+The Organiser gives properties to **any file in your vault** — PDFs, spreadsheets, Word documents, images, canvases, audio, video, epubs — not only notes.
+
+- **Notes are untouched.** Their properties stay in their own frontmatter, where Obsidian keeps them; the Organiser reads them into the table and writes edits back through Obsidian's own frontmatter writer.
+- **Everything else** can't carry a `---` block, so its properties are written to `ws-structure.md`, a plain note in your vault. Same table, same columns, same sort and filter.
+
+So a `.md` tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A spreadsheet can carry a checkbox. A book cover can carry the editions of the book. A contract folder of `.docx`, `.pdf` and `.xlsx` sorts by *last modified* and opens with a click.
+
+**Bases** does this for notes. The Organiser does it for every file — and adds custom order, targets, flags, task counts, reading grade and a compiler on top.
+
+### Ways to use it
+
+| | Columns | What you get |
+|---|---|---|
+| **Outliner** | `Description`, `POV` | A scene per row, dragged into the order the book reads in — and that order is the export order |
+| **Task manager** | `Tasks`, `Tags` | `12/25` per note, filtered to `#work`, sorted by what's left |
+| **Contracts / documents** | `Last modified`, `Tags` | Word, PDF and Excel files tagged and sorted, straight in the vault |
+| **Research archive** | whatever a citation needs | Scans and PDFs with properties, beside the notes that cite them |
+| **Library / media** | `Rating`, `Read`, `Edition` | Properties on the cover image or the file itself, no note per item |
 
 ## The tree
 
@@ -19,7 +42,7 @@ Open it from the book icon in the ribbon or **Open the Organiser** in the comman
 
 ## The table
 
-Nine readings, three of them on to begin with — **Target**, **Words** and **Flag** — with **Grade**, **Last modified**, **Created**, **Paras**, **Tasks** and **Tags** one press away, because a column costs every row in your vault.
+Nine readings, three of them on to begin with — **Target**, **Words** and **Flag** — with **Grade**, **Last modified**, **Created**, **Paras**, **Tasks** and **Tags** one press away, because a column costs every row in your vault. These are the columns no frontmatter can give you: word, sentence and paragraph counts, tasks done over tasks there, read time, file kind, targets.
 
 - **Any property in your vault can be a column.** Pick one and it takes its place beside the readings, editable where it sits. Right-click its header to sort by it, filter on it, hide it, or take it out again. Drag headers to reorder them.
 - **A header click cycles** descending, ascending, back to the book's order. Ties break by book order, so a sort never scrambles two scenes that agree.

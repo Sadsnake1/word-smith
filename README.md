@@ -8,51 +8,93 @@
 
   <h1>Word-Smith</h1>
 
-  <p><strong>A writing room inside Obsidian.</strong><br></p>
+  <p><strong>A dedicated writing studio inside Obsidian.</strong><br>
+  Novels, poems, articles, journals — and a database of every file in your vault.</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
 </div>
 
-Word-Smith started as a way to make Obsidian quiet enough to draft in. It grew into the things a novelist keeps reaching for: a binder for the book, a daily word count, and a compiler that turns a folder of scenes into a `.pdf`, `.docx`, web page or Markdown file.
+I wanted a Scrivener / Ulysses alternative that is free, local, and doesn't tie you down with a "set up your manuscript" wizard. No project file. No special folder. No AI reading or writing your text. Something that cares about **how** you write and **how much** you write, and otherwise stays out of the way.
 
-Every feature is its own switch. A fresh install turns on almost nothing, so there's nothing to undo while you look around. It runs entirely on your machine — no network, no telemetry, nothing sent anywhere.
+That's Word-Smith. It hides everything but your words while you draft, shows you the whole work when you step back, counts what you wrote each day, and sends the finished thing out as a PDF, a Word file, a web page or Markdown.
+
+It's built for **long books** — a binder, targets per chapter, one manuscript compiled from a folder of scenes. But it's just as much for a **poem** you're ordering into a collection, an **article** with a word limit, or a **journal** you keep every morning and want to see grow. Use folders. Put files in folders. Put words in files. Word-Smith works with whatever shape that takes.
+
+Every feature is its own switch. A fresh install turns on almost nothing.
+
+## Any file, as a database
+
+This is the part that surprised people. **The Organiser gives properties to any file in your vault** — PDFs, spreadsheets, Word documents, images, canvases, audio, epubs — not just notes. Add a tag to a PDF, a checkbox to an `.xlsx`, a review score to a movie file, a description to a book cover. Then sort and filter the lot by any column, like a database, and open anything with a click.
+
+Notes are untouched: their properties stay in their own frontmatter, and the Organiser reads and edits them there. Files that can't carry frontmatter get theirs written to `ws-structure.md`, a plain note in your vault.
+
+Some ways it's already being used:
+
+- **An outliner.** Add `Description` and `POV` as columns, treat each note as a scene, drag them into order — and that order is the order the manuscript compiles in.
+- **A task manager.** `Tasks` and `Tags` columns: every note carrying `#work` and its `12/25` of tasks done, sortable.
+- **A contracts folder.** Word files, PDFs and spreadsheets tagged and sorted by *last modified*, straight in the vault.
+- **A research archive.** Primary sources — scans, PDFs, transcriptions — with the properties a citation needs, sitting beside the notes that cite them.
+- **A library.** Editions of a book as properties on its cover image, instead of a note per edition.
+
+Did I just build Bases? Kinda, but no. Bases is `.md` only. The Organiser takes every file, and adds custom order, word targets, status flags, task counts, reading grade and a compiler on top.
+
+## Where it comes from
+
+Word-Smith borrows openly from the tools that got things right:
+
+- **The binder is Scrivener's.** One tree that *is* the book: drag a scene and it moves in the file tree, the Organiser and the compiled manuscript. Targets, flags and a synopsis beside every chapter. Compile to a submission-standard manuscript. Without the compile wizard — once your first draft is out, it's Word time with your editor anyway.
+- **The writing modes are iA Writer's.** Zen, typewriter scrolling, focus on the sentence or paragraph you're in, syntax colouring that shows you your nouns and verbs, a quiet page.
+- **The bar and the feel are WordGrinder's** — and Vim's. A status line you write as text, dividers and colours in the powerline style, a letter box that narrows the page like a terminal, and twenty-five colour schemes taken value-for-value from the editors that made them.
+
+None of it is a clone. They're the ideas, rebuilt on Obsidian's vault, links and properties — the thing none of those tools had — and kept as close to Obsidian's own look as I could, so it feels like home.
 
 ## What's in the box
 
 | | | Read more |
 |---|---|---|
+| **The Organiser** | Your work as a tree and a table. Any property of **any file** as a column — sort it, filter it, edit it where it sits. Targets, flags, word counts, tasks. | [Organiser](docs/organiser.md) |
+| **Export** | Compile a folder into one manuscript — PDF, Word, web page or Markdown — with a paged preview and the submission standard built in. Or just glue some notes together. | [Export](docs/export.md) |
 | **Zen** | Hides the interface, one piece at a time. `Escape` brings it back. | [Writing modes](docs/writing-modes.md) |
 | **Letter box** | Masks the top and bottom of the screen so only the part you're working on shows. | [Writing modes](docs/writing-modes.md) |
 | **Typewriter** | Keeps the line you're writing in the middle of the screen, and can dim everything around it. | [Writing modes](docs/writing-modes.md) |
 | **Hemingway** | Locks backspace, undo and the arrows so a first draft can only move forward. | [Writing modes](docs/writing-modes.md) |
 | **Typography** | Curly quotes, dashes, ellipses and fractions as you type. Never inside code. | [Writing modes](docs/writing-modes.md) |
-| **Syntax & prose checks** | Colours nouns, verbs and adjectives; flags filler, passive voice and doubled words. Local, and honest about being a guess. | [Syntax and prose](docs/syntax-and-prose.md) |
+| **Syntax & prose checks** | Colours nouns, verbs and adjectives; flags filler, passive voice, doubled words. Rules, not a model — local, and honest about being a guess. | [Syntax and prose](docs/syntax-and-prose.md) |
 | **Powerline** | A status bar you build yourself — up to three rows of counts, clocks, buttons and colour. | [Powerline](docs/powerline.md) |
 | **Themes** | Twenty-five colour schemes for the whole workspace, each a matched dark/light pair. | [Themes](docs/themes.md) |
-| **The Organiser** | Your book as a tree, with word counts, targets, flags and any property as a column. Drag a chapter and it moves everywhere. | [Organiser](docs/organiser.md) |
-| **History & report** | How much you wrote each day, charted; and a report on any note or folder. | [History and report](docs/history-and-report.md) |
-| **Export** | Compile a folder of scenes into a manuscript — PDF, Word, web page or Markdown — with a paged preview. | [Export](docs/export.md) |
+| **History & report** | How much you wrote each day, charted, with streaks; and a report on any note or folder. | [History and report](docs/history-and-report.md) |
+| **The menu** | One keyboard-driven pop-up (or docked panel) for all of the above — plus any Obsidian command you want in it, other plugins included. | [Commands and menu](docs/commands-and-menu.md) |
 
-There's also a keyboard-only [menu](docs/commands-and-menu.md), Vim niceties, right-to-left support, and word counts in Obsidian's own file tree. All of it is in the docs.
+Also: Vim niceties, keyboard-only jumps between panes and sidebars, right-to-left support, word counts in Obsidian's own file tree. It pairs well with [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) for the caret, and with Fountain or Longform if you use them.
 
 ## Install
 
-1. Download `main.js`, `styles.css` and `manifest.json` from the [latest release](https://github.com/Sadsnake1/word-smith/releases/latest).
-2. Put them in `.obsidian/plugins/word-smith/` inside your vault.
-3. Reload Obsidian and enable **Word-Smith** under **Settings → Community plugins**.
+**Settings → Community plugins → Browse**, search for **Word-Smith**, install, enable.
 
-Copy all three files when you update. The plugin checks they match and tells you at startup if they don't.
+Or by hand: download `main.js`, `styles.css` and `manifest.json` from the [latest release](https://github.com/Sadsnake1/word-smith/releases/latest) into `.obsidian/plugins/word-smith/`, reload, enable. Copy all three when you update — the plugin checks they match.
+
+Desktop, tablet and phone. The Organiser wants a bigger screen; everything else is happy on a phone.
 
 ## Five minutes in
 
-1. Open **Settings → Word-Smith**. It lands on the **Powerline** tab — try one of the two shipped bars before building your own.
-2. Turn on **Zen** and **Letter box**, from settings or the command palette.
-3. Want the workspace recoloured? **Theme** tab, pick a scheme. Nothing else changes.
-4. Open the Organiser (book icon in the ribbon) and click a folder. That's your book.
+1. Open the Organiser (the book icon in the ribbon) and click a folder. That's your book, your collection, or your archive — as a table.
+2. Press **Properties** and add a column: something your files already carry, or a new one. Click a cell to edit it.
+3. Open **Settings → Word-Smith**. It lands on the **Powerline** tab — try one of the two shipped bars before building your own.
+4. Turn on **Zen** and **Letter box**. Write something.
 5. Switch on **History** last. It can only count from the day you turn it on.
 
 ## A look around
+
+**The Organiser** — the tree is the order of the work; the folder you click opens as a table. Every file, every property. Open it as a tab and dock it above or beside the note you're writing.
+
+<img width="1573" alt="The Organiser: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
+
+**Export** — tick what goes in, choose the paper, and preview the pages before a file is written.
+
+<img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
+
+**Writing modes and themes** — zen, the letter box, and a workspace recoloured in one click.
 
 <table>
   <tr>
@@ -65,15 +107,7 @@ Copy all three files when you update. The plugin checks they match and tells you
   </tr>
 </table>
 
-**The Organiser** — the tree is the book's order; the folder you click opens as a table.
-
-<img width="1573" alt="The Organiser: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
-
-**Export** — tick what goes in, choose the paper, and preview the pages before a file is written.
-
-<img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
-
-**History** — words added rise from the centre line, words cut fall below it.
+**History** — words added rise from the centre line, words cut fall below it. A journal's best friend.
 
 <table>
   <tr>
@@ -93,26 +127,30 @@ Copy all three files when you update. The plugin checks they match and tells you
 
 <img width="1920" alt="The Word-Smith menu" src="https://github.com/user-attachments/assets/c851d326-50d3-46da-afa9-51f63204e275" />
 
+## Local, and only local
+
+No network calls of any kind. No telemetry. No AI. No third-party dependencies. The syntax colouring and prose checks are a hand-written tagger and a set of rules that live in `main.js`. Your history is a note in your vault; your targets and order are another. [Don't take my word for it.](docs/privacy.md)
+
 ## Docs
 
 | | |
 |---|---|
-| [Writing modes](docs/writing-modes.md) | Zen, letter box, typewriter, Hemingway, typography, text options, markers, per-note overrides, Vim, right-to-left |
+| [Organiser](docs/organiser.md) | The tree, the table, properties on any file, targets and flags, custom order in the file tree |
+| [Export](docs/export.md) | Formats, paper sizes, the submission standard, the preview, versioning with `.docx` |
+| [Writing modes](docs/writing-modes.md) | Zen, letter box, typewriter, Hemingway, typography, fonts, per-note overrides, Vim, right-to-left |
 | [Powerline](docs/powerline.md) | Every token, divider, colour and sizing rule, with examples |
 | [Themes](docs/themes.md) | The twenty-five schemes, the shelf, the options, Cursor-Smith |
-| [Organiser](docs/organiser.md) | The tree, the table, properties, targets and flags, custom order in the file tree |
-| [History and report](docs/history-and-report.md) | The chart, the streak, the report, what's never counted |
-| [Export](docs/export.md) | Formats, paper sizes, the submission standard, the preview |
+| [History and report](docs/history-and-report.md) | The chart, the streak, the report, what counts as a word |
 | [Syntax and prose](docs/syntax-and-prose.md) | How the tagger works and what it gets wrong |
 | [Commands and menu](docs/commands-and-menu.md) | Every command, the menu, quick panels, quick cycle, the settings map |
 | [Privacy and your files](docs/privacy.md) | What it reads, what it stores, the three notes it keeps |
-| [Troubleshooting](docs/troubleshooting.md) | If something looks wrong |
+| [Troubleshooting](docs/troubleshooting.md) | If something looks wrong — start with your installer version |
 
 ## Feedback and support
 
-Found a bug or have an idea? [Open an issue](https://github.com/Sadsnake1/word-smith/issues). A screenshot and your Obsidian version go a long way.
+Found a bug or have an idea? [Open an issue](https://github.com/Sadsnake1/word-smith/issues). Your OS, Obsidian version and *installer* version (Settings → General) go a long way, and a screenshot goes further.
 
-Word-Smith is free and MIT-licensed. If it's earned a coffee, thank you.
+Word-Smith is free and MIT-licensed. If it's earned a coffee, thank you — and thanks to everyone on r/ObsidianMD who reported bugs and sent ideas. Most of what's here started as one of those.
 
 <div align="center">
   <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank">

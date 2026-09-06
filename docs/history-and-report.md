@@ -37,6 +37,10 @@ Nothing before the day you switch it on can be reconstructed. A file only knows 
 
 One list of notes and folders is left out of your totals — an outline, a research folder, a scratch file. Word-Smith still works in them; they just don't count.
 
+### What counts as a word
+
+The counter is for prose. Frontmatter, `%%` and HTML comments, code blocks, maths, link targets, URLs and markup are stripped before counting. Headings, list items, blockquotes and footnote text count; inline code counts without its backticks; a `#tag` in the body counts as a word. The bar, the report, the Organiser and the history all use this one counter, so the numbers agree everywhere.
+
 ## The writing report
 
 <img width="570" alt="The writing report" src="https://github.com/user-attachments/assets/809fc7a8-1d85-4a8e-9ea4-a03e6bff0cfd" />

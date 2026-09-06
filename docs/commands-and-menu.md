@@ -35,6 +35,8 @@ Obsidian lists these under **Word-Smith**, so search the palette for what you wa
 
 One pop-up for everything you change while writing: **modes**, **syntax**, **prose checks**, **markers**, **font**, **theme**, and a **light/dark toggle** that names what pressing it will do. **Report**, **History** and **Export** sit together at the foot of it. The rows read from the same lists the bar's buttons use, so the menu never drifts from the bar.
 
+**Any command can live in it.** Add rows for any Obsidian command — other plugins' commands included — and lay them out in a table of your own. Bind the menu to one key and it becomes a which-key for your whole setup.
+
 **Type to search.** The field at the top searches everything at once, fuzzily — `nord` finds the Nord scheme without your knowing it lives under Theme, `tky` finds Tokyo Night.
 
 It's **keyboard-only** — nothing in it needs the mouse. Rows expand in place: arrows move, Enter opens and toggles, Escape backs out a level at a time. Changes apply live behind the panel, so there's nothing to confirm. `h`/`j`/`k`/`l` steer only while Obsidian's Vim mode is on.

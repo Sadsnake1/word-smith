@@ -2,6 +2,8 @@
 
 [← Back to the README](../README.md)
 
+**Start here: your installer version.** Settings → General shows two numbers — the app version and the *installer* version. Obsidian updates the app in place, but not the installer, and an old installer is an old Electron. Most reports of the plugin not loading, lagging or freezing have been fixed by uninstalling Obsidian and reinstalling from [obsidian.md](https://obsidian.md). Your vault is untouched by that.
+
 **"Word-Smith says styles.css is out of date."** Exactly what it says: `main.js` was updated and `styles.css` wasn't. A stale stylesheet looks like a broken feature — the rules are simply missing. Copy all three files (`main.js`, `styles.css`, `manifest.json`) and reload.
 
 **The bar looks unstyled, or a mask is the wrong colour.** Same cause, same fix.
@@ -20,4 +22,8 @@
 
 **Your history file is the only copy.** It's an ordinary note. Back it up with your vault, and don't delete it expecting the plugin to have another one.
 
-Still stuck? [Open an issue](https://github.com/Sadsnake1/word-smith/issues) with your Obsidian version, your OS, and — if you can — the console (`Ctrl+Shift+I`) at the moment it went wrong.
+**The red flash / keys that won't work.** That's Hemingway mode doing its job — it blocks backspace, delete, arrows or whatever you locked. Turn it off from the menu, the bar's Modes button, or the Hemingway tab.
+
+**A powerline hides part of the editor / you want Obsidian's status bar back.** Powerline tab → switch it off. Obsidian's own bar returns.
+
+Still stuck? [Open an issue](https://github.com/Sadsnake1/word-smith/issues) with your OS, Obsidian version, installer version, and — if you can — the console (`Ctrl+Shift+I`) at the moment it went wrong. Disabling other plugins one at a time is the fastest way to find a clash.

@@ -44,4 +44,13 @@ All four work everywhere, phones included.
 - **PDF** is printed by Obsidian's own engine from the same document the preview draws, so pagination, margins and running header match what you saw.
 - **Word** is a real `.docx` with styles, for anyone who asks for one.
 - **The web page** is the same document with its page rules built in — printing it from any browser gives you the PDF again.
-- **Markdown** is the plain compile, for wherever it goes next.
+- **Markdown** is the plain compile — also the way to glue a handful of notes into one file for wherever it goes next.
+
+## Where it stops, on purpose
+
+The exporter does the submission standard and the handful of choices around it, and it doesn't try to be Scrivener's compile. Once a first draft is out, it's Word time with your editor or publisher — comments come back in `.docx` or PDF, and there's no point round-tripping them into Obsidian. So Word-Smith gets you *to* that file well, and stops.
+
+Two things fall out of that:
+
+- **The `.docx` lands in your vault**, so it's one click from opening in Word and finishing the layout there.
+- **Export is versioning.** Export today, write for a week, export again — Word's *Compare documents* shows exactly what changed. Every export is a snapshot you can diff.
