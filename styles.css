@@ -12,7 +12,7 @@
 	   against ZG_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--zg-stylesheet-version: 512;
+	--zg-stylesheet-version: 516;
 
 	--zg-bg:   #050505;
 	--zg-text: #ffb000;
@@ -2646,14 +2646,14 @@ body.zg-vim-panel-open .zengrinder-status-bar {
 	--zg-h-body:  13px;   /* readout, period, tab labels — anything read as prose */
 	--zg-h-small: 13px;   /* captions — one step with the body since 2026-09-01 */
 	/* ── AND TWO MORE, SO THE WINDOW HAS FOUR SIZES AND NO FRACTIONS ────
-	   (writer, 2026-08-31, O27: "match the Organiser visually", option 2.)
+	   (writer, 2026-08-31, O27: "match the Organizer visually", option 2.)
 
 	   MEASURED IN THEIR VAULT: five of History's sizes were not chosen by
 	   anyone. `.zg-uni-panel` is `calc(var(--font-ui-small) * 0.94)` — 12.22px
 	   — and every one of the five was an `em` off it: 12.22 x 1.02 = 12.4644
 	   for the figures, x 0.72 = 8.7984 for their labels, x 0.88 = 10.7536 for
 	   the sub-view tabs and 10.56 for the legend pills, x 0.9036 = 11.04 for
-	   the since-line. The Organiser next door is 12px in three weights with
+	   the since-line. The Organizer next door is 12px in three weights with
 	   13, 9 and one 15 — four whole sizes.
 
 	   SO HISTORY GETS FOUR TOO: 13 heading, 12 body, 10 chart, 9 label. Two
@@ -4343,7 +4343,7 @@ body.zg-vim-panel-open .zg-bar-plinth {
    than settings, and a centred PAIR reads as a footer instead of as two
    more rows that happen to do something different." That was a good
    argument about TWO rows. There are five now — Harper, Report, History,
-   Export, Organiser — and five centred rows do not read as a footer,
+   Export, Organizer — and five centred rows do not read as a footer,
    they read as a second menu with its own margin.
 
    AND THE ICONS SETTLE IT. A centred row cannot carry a glyph in the
@@ -6826,7 +6826,7 @@ body.zg-cb-markdown .markdown-reading-view .task-list-item {
    before. */
 /* NOW THAT THEY ARE ACTUALLY SHOWN (writer, 2026-08-31, E7 option 1: four
    headings, no boxes, no folding), the size is the one that option was costed
-   at — "the Organiser's own 9px/600, the size its column heads already use".
+   at — "the Organizer's own 9px/600, the size its column heads already use".
 
    IT WAS `calc(var(--font-ui-smaller) * 0.9)`, which MEASURED 10.8px: a
    fraction of a variable, in the same batch as O27 removed five of those from
@@ -7575,7 +7575,7 @@ body.is-mobile .zg-uni-modal .zg-export-list input[type='checkbox'] {
 
    SEVEN GOALS CLASSES ARE LIVE AND STAY: `zg-goals-list`, `-top`,
    `-find`, `-findwrap`, `-chip`, `-chev`, `-empty`. They are the
-   Organiser binder tree, which shares this prefix and is not this
+   Organizer binder tree, which shares this prefix and is not this
    feature. Telling those two apart is the whole care in this cut —
    the same care that stopped `.zg-org-subject` being deleted yesterday
    because a sweep read `.zg-org-subject-in` as a shorter name.
@@ -9521,6 +9521,50 @@ svg.zg-obsidian-mark { stroke-width: 46px; }
 .zg-uni-modal.is-narrow .zg-uni-body.is-panel .zg-uni-left { display: none; }
 .zg-uni-modal.is-narrow .zg-uni-body.is-panel .zg-uni-right { display: flex; }
 .zg-uni-modal.is-narrow .zg-uni-back { display: inline-flex; }
+/* THE READER TAKES THE WINDOW (A231-2a, 2026-09-07). Expand used to fold the
+   options column and leave the tree and the grip standing — in a docked
+   pane that was a reader a third of the width, and a short one. One class
+   on the body, set by the same flip that sets `.is-flow` on the split, and
+   the reader gets every column: the tree and the grip go, the pane spans,
+   the tabs and the foot span with it. THE SAME SHAPE THE NARROW LAYOUT
+   DRAWS with its panel up, one block above — which is the argument it will
+   hold. Written with the `.zg-uni-modal` ancestor so it outranks that
+   block's `.zg-uni-right { display: none }` on specificity rather than on
+   order. */
+.zg-uni-modal .zg-uni-body.is-reader { grid-template-columns: minmax(0, 1fr); }
+.zg-uni-modal .zg-uni-body.is-reader > .zg-uni-tabs { grid-column: 1; }
+.zg-uni-modal .zg-uni-body.is-reader > .zg-uni-cols > .zg-uni-left { display: none; }
+.zg-uni-modal .zg-uni-body.is-reader > .zg-uni-cols > .zg-uni-grip { display: none; }
+.zg-uni-modal .zg-uni-body.is-reader > .zg-uni-cols > .zg-uni-right { grid-column: 1; grid-row: 2; display: flex; }
+.zg-uni-modal .zg-uni-body.is-reader > .zg-uni-foot { grid-column: 1; }
+/* AND THE ACT ROW GOES WITH THEM: "make it full height" (A231-2a). The
+   export buttons and the format live in the act row above the split; in
+   the reader they are 77px of controls for a job the writer is not doing
+   right now, and Collapse in the foot is the way back to them. Measured
+   in the modal: frame 508px tall of a 716px body with the row, 585 without. */
+.zg-uni-modal .zg-uni-body.is-reader .zg-export-top { display: none; }
+/* THE DOCKED PANE FILLS ITS LEAF (A231-2c). Measured 2026-09-07, pane 636px
+   wide: Expand took the body from 769px to 453px. The pane root wears
+   `height: 100%`, but the leaf's content box did not hand that height down
+   — the body was as tall as its content, and the tree WAS the content, so
+   hiding the tree shrank the window around the reader. The body takes the
+   leaf's height directly; the grid rows inside it already know how to share
+   it (`minmax(0, 1fr)`), and the tree scrolls inside its row as it does in
+   the modal. */
+.zg-uni-modal.zg-uni-pane .zg-uni-body { height: 100%; }
+.zg-uni-modal.zg-uni-pane > .view-content { display: flex; flex-direction: column; min-height: 0; }
+/* THE EXPORT SPLIT BY THE PANEL'S WIDTH, NOT THE WINDOW'S (A231-2c; A218
+   batch 5's "narrow default by container query"). The 900px media query
+   asks how wide the WINDOW is; a docked pane is narrow in a wide window,
+   and the split kept two columns — measured: a 146px preview beside 183px
+   of options, in a 359px pane. The panel names itself a container and the
+   split asks it instead. 720 rather than 900: the panel has no tree beside
+   it to subtract. cascade_check does not weigh @container, as it does not
+   weigh @media; export_probe holds the rule by shape. */
+.zg-uni-panel { container-type: inline-size; container-name: zg-panel; }
+@container zg-panel (max-width: 720px) {
+	.zg-export-split { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* ── THE NEW ORGANIZER TAB (RULES-OF-THE-WINDOW.md, Phase 0 skeleton) ──────
    The binder's tree is names and folds only, always in book order. The old
@@ -13957,7 +14001,7 @@ body { --zg-hit-min: 44px; }
    "the top heading with the whole vault --- make it left aligned like in
    the organiser tab for history and export too".
 
-   MEASURED before: the Organiser strip sat 12px from the pane's left
+   MEASURED before: the Organizer strip sat 12px from the pane's left
    edge; Export and History both sat 428.7px in, centred in a 992px pane.
    Three tabs, two answers to where a heading begins.
 
@@ -15776,3 +15820,27 @@ body.is-mobile .menu.zg-org-propsub .zg-org-propsubrow {
 	font-size: var(--font-ui-small, 13px);
 	padding: 8px 6px;
 }
+
+/* SEARCH EVERY TAB (A237 24). The box sits under the tab strip; while a query
+   is up every tab renders under its own name and the rows that do not say
+   the words are hidden by the script (`hidden`, not a class), so the
+   stylesheet has nothing to know about which rows matched. */
+.ws-settings-search { padding: 6px 0 10px; }
+.ws-settings-search-input { width: 100%; box-sizing: border-box; }
+.ws-tab-body.is-searching .ws-search-tabname { margin: 18px 0 6px; font-size: var(--font-ui-medium); opacity: .8; }
+.ws-tab-body.is-searching .ws-search-tab:first-child .ws-search-tabname { margin-top: 4px; }
+/* The guard's notice carries a button (A237 26). */
+.ws-tab-body .ws-search-empty { margin: 18px 0; opacity: .7; font-style: italic; }
+.notice .zg-guard-copy { margin-top: 8px; }
+
+/* A BLOCKED START (A243): the banner at the top of Settings. */
+.ws-start-banner { padding: 12px 14px; margin: 8px 0 16px; border-radius: var(--radius-m); background: var(--background-modifier-error-hover); }
+.ws-start-banner.is-safe { background: var(--background-modifier-hover); border: 1px solid var(--background-modifier-border); }
+.ws-start-banner p { margin: 0 0 8px; }
+
+/* THE FLAG LIST (A246, A247): its rows carry the flag’s own shape, and sit
+   tighter than Obsidian’s default menu row — a list of five short words
+   does not need a finger-sized row each. */
+.menu.zg-flag-menu .menu-item { padding: 3px 12px 3px 8px; min-height: 0; line-height: 1.35; gap: 8px; }
+.menu.zg-flag-menu .menu-item-icon { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+.menu.zg-flag-menu .menu-item-icon .zg-flag { vertical-align: 0; }

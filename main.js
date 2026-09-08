@@ -1,3 +1,4 @@
+// @ts-check
 /* ── main.js IS GENERATED. EDIT src/ INSTEAD. ─────────────────────────────
    GENERATED FILE: `node ws-dev/build.js` concatenates src/*.js in filename
    order and writes it here. An edit made to main.js survives exactly until
@@ -282,7 +283,7 @@ const WsOutlinerView = ItemView ? class extends ItemView {
 	// ONLY THE LABEL MOVES. `WS_OUTLINER_VIEW` and every command id stay as
 	// they are — those are written into saved workspaces and into hotkeys the
 	// writer has set, and changing them drops a pane on the next restart.
-	getDisplayText() { return 'Organiser'; }
+	getDisplayText() { return 'Organizer'; }
 	getIcon()        { return 'list-tree'; }
 
 	async onOpen() {
@@ -728,7 +729,7 @@ const WsMenuView = ItemView ? class extends ItemView {
 					// Focus and caret restored by hand: the panel rebuilds
 					// its whole list on every keystroke, so the field the
 					// writer is typing into is a NEW element each time.
-					const next = this.contentEl.querySelector('.zg-menu-search');
+					const next = /** @type {HTMLInputElement|null} */ (this.contentEl.querySelector('.zg-menu-search'));
 					if (next) {
 						try {
 							next.focus();
@@ -1037,7 +1038,7 @@ let CM = null;
 try {
 	const { ViewPlugin, Decoration, WidgetType, keymap, EditorView } = require('@codemirror/view');
 	const { RangeSetBuilder, Prec } = require('@codemirror/state');
-	CM = { ViewPlugin, Decoration, WidgetType, RangeSetBuilder, keymap, EditorView, Prec };
+	CM = { ViewPlugin, Decoration, WidgetType, RangeSetBuilder, keymap, EditorView, Prec, isolateHistory: null };
 	// Optional: only used to force the typography substitution into its own
 	// undo step. Without it undo still works, it just takes the literal
 	// characters with it.
@@ -2529,6 +2530,87 @@ function zgGuardReport(where, err) {
 }
 // `where` IS A SENTENCE THE WRITER COULD READ, not an internal name. It ends
 // up in a Notice, and “zgOrgTick” tells them nothing about what stopped.
+// ── REPAIR ON READ (A231-1b, stability brief item 4) ────────────────────
+//
+// data.json is a file a writer can edit, a sync can half-write, and an
+// older build can leave a different shape in. `Object.assign` put whatever
+// it held over the defaults, so a string where a number belongs, or null
+// where an object does, reached every reader that trusted the default's
+// shape — and those readers are everywhere, most of them guarded by
+// nothing. THE DEFAULTS ARE THE SCHEMA: one writer of the shape, no second
+// table to keep in step. A key whose default is null or undefined accepts
+// anything; a key not in the defaults is not this function's business.
+//
+// STRICT ON PURPOSE: `"15"` for a font size is reset, not coerced. A coercion
+// is a second opinion about what the writer meant, and the default is the
+// one value every reader already copes with.
+function zgKindOf(v) {
+	if (v === null) return 'null';
+	if (Array.isArray(v)) return 'array';
+	return typeof v;
+}
+function zgRepairSettings(settings, defaults) {
+	const repaired = [];
+	for (const k of Object.keys(defaults)) {
+		const want = zgKindOf(defaults[k]);
+		if (want === 'null' || want === 'undefined') continue;
+		let bad = zgKindOf(settings[k]) !== want;
+		if (!bad && want === 'number' && !isFinite(settings[k])) bad = true;
+		if (!bad) continue;
+		// A COPY, never the default itself: install_probe holds that no two
+		// plugins share a default by reference, and a repaired key is no
+		// exception.
+		const d = defaults[k];
+		settings[k] = (want === 'array' || want === 'object') ? JSON.parse(JSON.stringify(d)) : d;
+		repaired.push(k);
+	}
+	return repaired;
+}
+
+// ── A PARAGRAPH AND THE LINE IT CAME FROM (A231-2b) ──────────────────────
+//
+// The reader shows prose the export rendered; the note holds the same prose
+// as markdown. To put the caret where the writer clicked, the paragraph's
+// opening words are looked for in the note with the markup read past:
+// hashes, emphasis, a link's text without its target, a quote's chevron.
+// The FIRST line that reads the same wins — a repeated line goes to its
+// first appearance, which is where a reader would look too.
+function zgSnippetOf(text) {
+	return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+function zgPlainLine(line) {
+	return String(line || '')
+		.replace(/^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/, '')
+		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+		.replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (m, a, b) => b || a)
+		.replace(/[*_~`]+/g, '')
+		.replace(/\s+/g, ' ').trim();
+}
+function zgLineOfSnippet(md, snippet) {
+	const want = zgSnippetOf(snippet);
+	if (!want) return -1;
+	const head = want.slice(0, 24);
+	const lines = String(md || '').split(/\r?\n/);
+	for (let i = 0; i < lines.length; i++) {
+		const plain = zgPlainLine(lines[i]);
+		if (!plain) continue;
+		if (plain === want || plain.indexOf(head) === 0) return i;
+	}
+	return -1;
+}
+
+// THE SCOPE A CONTEXT HOLDS (A238). The Export tab hands its context
+// `scope: () => exportScope()`; the modal hands a string. A reader that
+// does `String(ctx.scope)` prints the function — "() => exportScope()" in
+// the title box, seen in a screenshot. One reader, which asks a function
+// and takes a string as it is.
+function zgCtxScope(ctx) {
+	try {
+		const s = ctx && ctx.scope;
+		return String((typeof s === 'function' ? s() : s) || '');
+	} catch (_) { return ''; }
+}
+
 function zgGuard(fn, where) {
 	if (typeof fn !== 'function') return fn;
 	return function (...args) {
@@ -4401,7 +4483,7 @@ const zgObsidianSvg = (px) => '<svg class="svg-icon zg-obsidian-mark" '
 //
 // IT WAS A SECOND RATE. `READ_WPM = 200` has been in this file the whole
 // time, with two customers — `{readtime}` on the Powerline bar and the
-// report's own Read time cell — and the Organiser's new column was
+// report's own Read time cell — and the Organizer's new column was
 // dividing by a different number. The plugin would have answered "how
 // long is this to read" twice, differently, about the same note, on two
 // surfaces a writer can see at once.
@@ -4648,7 +4730,15 @@ function zgSortArrow(dir) {
 	return dir === 'desc' ? ' ↓' : ' ↑';
 }
 
-const ZG_STYLESHEET_VERSION = 512;
+const ZG_STYLESHEET_VERSION = 516;
+// THE INSTALLER GATE (A243 54). Encoded major*1000+minor. Refused below
+// 1.9: installers 1.5.12 and 1.8.3 froze Obsidian on enable (Reddit,
+// August 2026). Warned below 1.13: the installer this build is measured
+// in. Move both only on evidence, and move the two texts with them.
+const ZG_INSTALLER_REFUSE = 1009;
+const ZG_INSTALLER_REFUSE_TEXT = '1.9';
+const ZG_INSTALLER_WARN = 1013;
+const ZG_INSTALLER_WARN_TEXT = '1.13';
 
 // ── WHAT A FAILED WRITE IS ABOUT (A171, writer 2026-09-05) ─────────────
 //
@@ -4681,7 +4771,7 @@ const WS_WRITE = Object.freeze({
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-const ZG_PLUGIN_VERSION = '1.4.2';
+const ZG_PLUGIN_VERSION = '1.4.3';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -4970,7 +5060,7 @@ const ZG_HIST_LAB_GAP    = 6;
 // which is why the docked box has one and the modal never did.
 //
 // THREE DOTS, NOT AN ELLIPSIS, and there is already an assertion holding
-// that for the Organiser's finder — the file tree above these panels says
+// that for the Organizer's finder — the file tree above these panels says
 // "Search...", and a box beneath it saying "Search\u2026" is one of those
 // differences you cannot unsee once noticed. That comment was written for
 // one box; it is true of all three.
@@ -7594,23 +7684,142 @@ module.exports = class WordSmith extends Plugin {
 	// LIFECYCLE
 	// ════════════════════════════════════════════════════════════════════════
 
+	// THE GUARD'S NOTICE (A237 26). A method rather than a closure in onload,
+	// so lifecycle_probe — whose fixture never runs onload — can build one and
+	// look at it. The button copies where it stopped, the stack, and the
+	// diagnostics: a report can carry all three without the reporter opening
+	// a console. Returns the fragment, for the probe.
+	guardNotice(where, err) {
+		let frag = null;
+		try {
+			frag = document.createDocumentFragment();
+			const p = document.createElement('div');
+			p.textContent = 'Word-Smith: something went wrong in ' + where
+				+ '. The rest of Obsidian is unaffected. This is said once a session.';
+			frag.appendChild(p);
+			const b = document.createElement('button');
+			b.textContent = 'Copy details';
+			b.className = 'zg-guard-copy';
+			b.addEventListener('click', async (ev) => {
+				try { ev.stopPropagation(); } catch (_) {}
+				let text = 'Word-Smith: ' + where + '\n' + ((err && err.stack) || String(err || '')) + '\n\n';
+				try { text += this.diagnostics(); } catch (_) {}
+				try { await navigator.clipboard.writeText(text); b.textContent = 'Copied'; }
+				catch (_) { b.textContent = 'Could not copy'; }
+			});
+			frag.appendChild(b);
+			new Notice(frag, 20000);
+		} catch (_) {}
+		return frag;
+	}
+
+	// ── THE START GUARD AND THE INSTALLER GATE (A243) ─────────────────────
+	//
+	// One mark per vault per device, in localStorage rather than data.json:
+	// synchronous, no disk write on every launch, and a sync client cannot
+	// carry it to a machine that did not freeze. `startStore` is a door for
+	// the probes (jsdom's localStorage throws on an opaque origin).
+	startStore() {
+		try { return window.localStorage || null; } catch (_) { return null; }
+	}
+
+	startGuardKey() {
+		const id = (this.app && this.app.appId) || 'vault';
+		return 'word-smith:starting:' + id;
+	}
+
+	// Returns true when the last start never took its mark away.
+	startGuardBegin() {
+		let tripped = false;
+		try {
+			const st = this.startStore();
+			if (!st) return false;
+			const k = this.startGuardKey();
+			tripped = st.getItem(k) != null;
+			st.setItem(k, String(Date.now()));
+		} catch (_) { return false; }
+		return tripped;
+	}
+
+	startGuardEnd() {
+		try { const st = this.startStore(); if (st) st.removeItem(this.startGuardKey()); } catch (_) {}
+	}
+
+	// The `obsidian/x.y.z` token is the installer; the app version is
+	// elsewhere. `ua` is a parameter for the probes.
+	installerVersion(ua) {
+		try {
+			const m = /obsidian\/(\d+\.\d+\.\d+)/.exec(String(ua != null ? ua : navigator.userAgent || ''));
+			return m ? m[1] : null;
+		} catch (_) { return null; }
+	}
+
+	// { kind: 'ok' | 'warn' | 'refuse', major, text }. The two numbers are
+	// the evidence, not a taste: refused below the oldest installer nobody
+	// froze in, warned below the one this build is measured in.
+	installerVerdict(ver) {
+		const parts = String(ver || '').split('.').map((x) => parseInt(x, 10));
+		if (parts.length < 2 || parts.some((x) => !isFinite(x))) return { kind: 'ok', major: null, text: '' };
+		const key = parts[0] * 1000 + parts[1];
+		const major = parts[0] * 100 + parts[1];
+		const fix = ' Your app is up to date; the installer is the part that never updates itself.'
+			+ ' Uninstall Obsidian and install it again from obsidian.md \u2014 your vaults and settings are untouched.';
+		if (key < ZG_INSTALLER_REFUSE) {
+			return { kind: 'refuse', major,
+				text: 'Word-Smith did not start: your Obsidian installer is ' + ver
+				+ ', and Obsidian freezes on enable in installers before ' + ZG_INSTALLER_REFUSE_TEXT + '.' + fix };
+		}
+		if (key < ZG_INSTALLER_WARN) {
+			return { kind: 'warn', major,
+				text: 'Word-Smith: your Obsidian installer is ' + ver + ', older than the ' + ZG_INSTALLER_WARN_TEXT
+				+ ' this version was built in. If anything lags or looks broken, that is the first thing to change.' + fix };
+		}
+		return { kind: 'ok', major, text: '' };
+	}
+
+	// null, or { kind: 'refuse' | 'safe', text }. Read once, after settings.
+	startBlocked() {
+		const v = this.installerVerdict(this.installerVersion());
+		if (v.kind === 'refuse') return { kind: 'refuse', text: v.text };
+		if (this._startTripped) {
+			return { kind: 'safe', text: 'Word-Smith: the last start did not finish, so everything is off this time.'
+				+ ' Settings \u2192 Word-Smith has a button to try again; if it freezes again, check your installer version (Settings \u2192 General) and open an issue.' };
+		}
+		return null;
+	}
+
+	// The door on the banner: a real off-and-on through Obsidian, so every
+	// command, event and extension the blocked start skipped is registered.
+	async startAgain() {
+		const id = (this.manifest && this.manifest.id) || 'word-smith';
+		const pl = this.app && this.app.plugins;
+		if (!pl || !pl.disablePlugin || !pl.enablePlugin) return false;
+		await pl.disablePlugin(id);
+		await pl.enablePlugin(id);
+		return true;
+	}
+
 	async onload() {
 		// FIRST LINE, so the first phase includes the field initialisation
 		// below it — three hundred assignments is not free and it is exactly
 		// the kind of thing nobody thinks to measure.
 		this.loadMark('start');
+		// THE CRASH-LOOP GUARD (A243 53). Ten people on Reddit reported
+		// "enable and Obsidian freezes"; a freeze at start repeats at every
+		// start until the plugin is removed by hand. A mark is written here
+		// and taken away two seconds after the first real refresh; a mark
+		// found at the NEXT start means the last one never got that far, and
+		// this start builds nothing. The verdict is read after the settings
+		// load, in startBlocked().
+		this._startTripped = this.startGuardBegin();
 		// ONE SENTENCE, ONCE A SESSION, when something this plugin owns throws
 		// and is contained. The console has the detail and the site; a writer
 		// whose Obsidian froze could not open the console to read it, which is
 		// the whole reason there is a Notice at all. Wired here rather than in
 		// the helper because `Notice` does not exist under the probes.
-		zgGuardTell((where) => {
-			try {
-				new Notice('Word-Smith: something went wrong in ' + where
-					+ '. The rest of Obsidian is unaffected; the details are in the '
-					+ 'developer console. This is said once a session.', 12000);
-			} catch (_) {}
-		});
+		// THE GUARD'S NOTICE CARRIES A COPY BUTTON (A237 26): a report can carry
+		// the stack and the diagnostics without the reporter opening a console.
+		zgGuardTell((where, err) => this.guardNotice(where, err));
 		// ── Mask / letterbox state ─────────────────────────────────────────────
 		this.maskTopEl        = null;
 		this.maskBottomEl     = null;
@@ -7714,22 +7923,40 @@ module.exports = class WordSmith extends Plugin {
 		// Chromium and must not be warned about one. Said ONCE PER
 		// INSTALLER, remembered in settings — a warning on every launch
 		// is a warning that gets turned off in the reader's head.
+		//
+		// AND THE GATE (A243 54). The warn-once above was right about the
+		// stylesheet and blind to the freezes: installers 1.5.12 and 1.8.3
+		// froze Obsidian on enable (Reddit, August 2026), 1.12.7 lagged, and
+		// every one of them was cured by a fresh installer. Below 1.9 the
+		// plugin now refuses to start and says why, once per launch; between
+		// 1.9 and 1.13 it warns once per installer, as before. The version
+		// is the `obsidian/x.y.z` token in the user agent, which is the
+		// INSTALLER speaking (the app says 1.13.7 while the token says
+		// 1.13.4 on the writer's own machine); a phone has no token and is
+		// never refused.
 		try {
-			const m = /Chrome\/(\d+)/.exec(String(navigator.userAgent || ''));
-			const chromium = m ? parseInt(m[1], 10) : null;
-			if (chromium != null && chromium < 111
-				&& this.settings.oldInstallerSaid !== chromium) {
-				this.settings.oldInstallerSaid = chromium;
+			const v = this.installerVerdict(this.installerVersion());
+			if (v.kind === 'warn' && this.settings.oldInstallerSaid !== v.major) {
+				this.settings.oldInstallerSaid = v.major;
 				this.saveSettings(true);
-				new Notice(
-					'Word-Smith: your Obsidian INSTALLER is from before '
-					+ 'mid-2023, and parts of this plugin will look broken '
-					+ 'in it. Your app is likely up to date \u2014 the '
-					+ 'installer is the part that does not auto-update. '
-					+ 'Download a fresh installer from obsidian.md; your '
-					+ 'vaults and settings are untouched.', 30000);
+				new Notice(v.text, 30000);
 			}
 		} catch (_) {}
+		// A BLOCKED START BUILDS NOTHING. The settings tab is the one surface
+		// that still opens, carrying the reason and, in safe mode, the door.
+		// AND THE MARK COMES OFF AT ONCE ON A BLOCKED START (A255). A blocked
+		// start builds nothing, so there is nothing in it to freeze; leaving
+		// the mark made every later start blocked too — the shoot met it as a
+		// sticky notice on six pictures. Thirty seconds, not for ever: the
+		// settings tab carries the reason for as long as it takes.
+		if (this.startBlocked()) {
+			this._startBlocked = this.startBlocked();
+			this.startGuardEnd();
+			try { new Notice(this._startBlocked.text, 30000); } catch (_) {}
+			this.addSettingTab(new WordSmithSettingTab(this.app, this));
+			this.loadMark('blocked');
+			return;
+		}
 		// Settle the Glass borrow, if this vault has one outstanding. Runs
 		// once and clears itself; see barThemeGlassRepay.
 		// THE GUARD HERE CANNOT FIRE SINCE 486ff, and it is kept anyway:
@@ -7753,12 +7980,15 @@ module.exports = class WordSmith extends Plugin {
 			// is read once here and the tree is asked to sort again when it
 			// lands. Without the second half the first draw of a session is
 			// alphabetical and stays that way until something else moves.
+			// THE CAPABILITIES ARE PROBED FOR EVERY VAULT (A241), not only one with
+			// the tree order on: the diagnostics dump and capMissing read them, and
+			// a writer's vault with the order off reported nothing at all.
+			try { this.caps = zgCompat(this.app).caps; } catch (_) { this.caps = {}; }
 			if (!this.settings.pluginEnabled || !this.settings.treeOrder) return;
 			// ASKED WHEN THERE ARE PANES TO ASK. Half the table is about views
 			// that do not exist during `onload`, and a probe that runs too
 			// early answers `null` for everything — which is honest and
 			// useless. `caps` is read by the diagnostics dump.
-			try { this.caps = zgCompat(this.app).caps; } catch (_) { this.caps = {}; }
 			this.treeOrderLoad().then(() => this.patchExplorerSort());
 		});
 
@@ -7779,7 +8009,7 @@ module.exports = class WordSmith extends Plugin {
 		// icon is where Obsidian puts 'open the thing this plugin is'." That
 		// argument was right when it was written and has been ANSWERED since,
 		// which is why this is a removal and not a reversal: the Word-Smith
-		// menu grew an Organiser row (`src/50-tree-order-and-fonts.js`, id
+		// menu grew an Organizer row (`src/50-tree-order-and-fonts.js`, id
 		// `organizer`, from "add the Organizer command to the Word-Smith
 		// menu"), so the window has a visible door that does not cost a
 		// second slot in a strip the writer also puts other plugins in.
@@ -7830,7 +8060,7 @@ module.exports = class WordSmith extends Plugin {
 		// renaming it would silently unbind whatever a writer had set.
 		this.addCommand({
 			id: 'open-outliner-pane',
-			name: 'Open the Organiser in a pane',
+			name: 'Open the Organizer in a pane',
 			callback: () => { this.openOutlinerPane(); }
 		});
 		// THE THIRD HOST (writer, 2026-08-23). A NEW id, because it is a
@@ -7838,7 +8068,7 @@ module.exports = class WordSmith extends Plugin {
 		// writer set for something else.
 		this.addCommand({
 			id: 'open-outliner-popout',
-			name: 'Open the Organiser in its own window',
+			name: 'Open the Organizer in its own window',
 			callback: () => { this.openOutlinerPopout(); }
 		});
 		// A REPORT A WRITER CAN PASTE. Two freeze reports carried an OS, a
@@ -7846,6 +8076,29 @@ module.exports = class WordSmith extends Plugin {
 		// method it has. This carries what would have answered them — and it
 		// copies, because one of those writers could not open the console
 		// after the freeze.
+		this.addCommand({
+			id: 'repair-display',
+			name: 'Repair the display (draw everything again)',
+			callback: () => { this.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }
+		});
+		this.addCommand({
+			id: 'copy-settings',
+			name: 'Copy your settings as text',
+			callback: async () => {
+				try { await navigator.clipboard.writeText(this.settingsCopyText()); new Notice('Word-Smith: settings copied.', 4000); }
+				catch (_) { new Notice('Word-Smith: could not reach the clipboard.', 6000); }
+			}
+		});
+		this.addCommand({
+			id: 'paste-settings',
+			name: 'Paste settings from the clipboard (replaces everything; Undo on the Misc tab)',
+			callback: async () => {
+				let text = '';
+				try { text = await navigator.clipboard.readText(); } catch (_) { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
+				const r = await this.settingsPasteText(text);
+				new Notice('Word-Smith: ' + (r.error || (r.applied + ' setting(s) pasted' + (r.repaired.length ? ', ' + r.repaired.length + ' reset' : '') + '.')), 8000);
+			}
+		});
 		this.addCommand({
 			id: 'copy-diagnostics',
 			name: 'Copy diagnostics for a bug report',
@@ -7984,7 +8237,7 @@ module.exports = class WordSmith extends Plugin {
 		// wrappers, this becomes the way in and they point at it.
 		this.addCommand({
 			id: 'open-manuscript',
-			name: 'Open the Organiser',
+			name: 'Open the Organizer',
 			callback: () => this.openManuscriptModal()
 		});
 
@@ -8557,6 +8810,11 @@ module.exports = class WordSmith extends Plugin {
 		// timed separately rather than folded into the load.
 		this.loadMark('onload done');
 		this.app.workspace.onLayoutReady(() => {
+			// THE GUARD'S MARK COMES OFF two seconds after this callback, and
+			// before the enabled check: a vault with the plugin OFF finishes
+			// its start too. A synchronous freeze inside the refresh below
+			// never reaches the timer, which is the whole point.
+			window.setTimeout(() => this.startGuardEnd(), 2000);
 			if (!this.settings.pluginEnabled) return;
 			const t0 = performance.now();
 			this.refresh();
@@ -8962,6 +9220,10 @@ module.exports = class WordSmith extends Plugin {
 		// body outlive the stylesheet — so without this a removed plugin
 		// leaves the workspace wearing a scheme it can no longer take off.
 		this.barThemeUndress();
+		// A CLEAN UNLOAD IS A START THAT FINISHED (A255): a freeze never gets
+		// here, a reload always does. Two reloads inside two seconds used to
+		// trip the guard; they cannot now.
+		try { this.startGuardEnd(); } catch (_) {}
 		// Clean up retro bar
 		this.removeCustomElements();
 		this.stopClockTick();
@@ -8974,8 +9236,6 @@ module.exports = class WordSmith extends Plugin {
 		// Clean up scroll/resize handlers
 		this.detachScrollHandler();
 		this.detachResizeHandler();
-		// Restore the native status bar (inline hide is not class-based)
-		this.applyNativeStatusBarVisibility(false);
 		// Clean up theme observer
 		if (this._themeObserver) { this._themeObserver.disconnect(); this._themeObserver = null; }
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
@@ -9012,11 +9272,67 @@ module.exports = class WordSmith extends Plugin {
 		// Only the containers focused-file mode actually wrote to, and back to
 		// what they held before. See _focusTabRestore.
 		this._focusTabRestore();
+		// THE NATIVE STATUS BAR COMES BACK LAST (A231, lifecycle_probe). It
+		// used to come back early, and the zen-off pass above re-hid it:
+		// applyBodyClasses() asks shouldHideNativeStatusBar(), which says yes
+		// while the retro bar is on in settings — so a writer who switched
+		// Word-Smith off in Community plugins kept an inline display:none on
+		// Obsidian's own bar, with nothing left running to take it off. The
+		// hide is inline, not class-based, so clearAllBodyState cannot do it.
+		this.applyNativeStatusBarVisibility(false);
 	}
 
 	// ════════════════════════════════════════════════════════════════════════
 	// SETTINGS: load, save, migrate
 	// ════════════════════════════════════════════════════════════════════════
+
+	// SETTINGS AS TEXT (A237 23). The copy is exactly what data.json holds:
+	// zgForDisk strips the session keys, as the save does. A paste goes
+	// through the same door a load does — the defaults underneath, the
+	// repair pass over the shape — so a hand-edited or foreign JSON cannot
+	// crash the plugin the way a wrong-shaped data.json once did (A231-1b).
+	// The previous settings are kept for one Undo.
+	settingsCopyText() {
+		return JSON.stringify(zgForDisk(this.settings), null, 2);
+	}
+
+	async settingsApplyRaw(raw) {
+		const merged = Object.assign({}, DEFAULT_SETTINGS, raw);
+		const repaired = zgRepairSettings(merged, DEFAULT_SETTINGS);
+		for (const k of ZG_SESSION_KEYS) delete merged[k];
+		this.settings = merged;
+		await this.saveSettings(true);
+		return repaired;
+	}
+
+	async settingsPasteText(text) {
+		let raw = null;
+		try { raw = JSON.parse(String(text || '')); } catch (_) { raw = null; }
+		if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+			return { error: 'the clipboard does not hold a settings object \u2014 copy one from this tab first.' };
+		}
+		this._settingsUndo = zgForDisk(this.settings);
+		const repaired = await this.settingsApplyRaw(raw);
+		return { applied: Object.keys(raw).length, repaired };
+	}
+
+	async settingsUndoPaste() {
+		const prev = this._settingsUndo;
+		if (!prev) return { error: 'there is no paste to undo.' };
+		this._settingsUndo = null;
+		const repaired = await this.settingsApplyRaw(prev);
+		return { applied: Object.keys(prev).length, repaired };
+	}
+
+	// THE REPAIR (A237 27): the kill switch's off-and-on, without touching the
+	// switch. Every surface is torn down and drawn again from the settings as
+	// they are; lifecycle_probe holds the round trip to a clean document and a
+	// re-decorated explorer.
+	repairDisplay() {
+		try { this.disablePlugin(); this.reconfigureEditors(); } catch (_) {}
+		try { this.refresh(); } catch (_) {}
+		return true;
+	}
 
 	async loadSettings() {
 		// The RAW file is kept alongside the merged copy: a migration that
@@ -9039,6 +9355,23 @@ module.exports = class WordSmith extends Plugin {
 		// change that removed it. Deleted rather than overwritten, so every
 		// reader falls through to its own default — which is where the
 		// answer to “what does a fresh window show” already lives.
+		// REPAIR ON READ (A231-1b). Before the session keys are dropped (a
+		// dropped key is undefined, which is not a wrong shape but an absent
+		// one — the first draft ran after the drop and "repaired" three keys
+		// on every load), before any migration reads a value, and before any
+		// reader trusts a shape. The migrations below read from
+		// `raw`, which is untouched — a repaired key is a key the file held
+		// in a shape no migration was written for. Told once, in the console,
+		// by name; and kept on the instance for the diagnostics dump and the
+		// probes.
+		this._repairedKeys = zgRepairSettings(this.settings, DEFAULT_SETTINGS);
+		if (this._repairedKeys.length) {
+			try {
+				console.warn('Word-Smith: ' + this._repairedKeys.length
+					+ ' setting(s) in data.json had the wrong shape and were reset to their defaults: '
+					+ this._repairedKeys.join(', '));
+			} catch (_) {}
+		}
 		for (const k of ZG_SESSION_KEYS) delete this.settings[k];
 
 		// Immediately, not lazily. That merge is SHALLOW, so every nested
@@ -9098,12 +9431,12 @@ module.exports = class WordSmith extends Plugin {
 		//
 		// "remove the file icons from file tree and organiser too (we keep
 		// only folder icons)". Both keys already exist in their vault — the
-		// tree's since 1.3.9, the Organiser's since the night before — so a
+		// tree's since 1.3.9, the Organizer's since the night before — so a
 		// default cannot reach them and this is the `treeOrderForcedOn`
 		// idiom instead: forced exactly once, with a marker that keeps the
 		// switch a switch.
 		//
-		// THE SWITCHES ARE NOT DELETED. They asked for the Organiser one the
+		// THE SWITCHES ARE NOT DELETED. They asked for the Organizer one the
 		// night before this; a control removed the day after it was built is
 		// a decision made twice, and the second one is unrecoverable without
 		// me. Off is one click from on.
@@ -10481,6 +10814,11 @@ module.exports = class WordSmith extends Plugin {
 	// ════════════════════════════════════════════════════════════════════════
 
 	refresh() {
+		// NOTHING IS BUILT ON A BLOCKED START (A255). onload returned before
+		// the commands, the events and the editor extensions were registered;
+		// a refresh reached through a settings toggle would build the surfaces
+		// over a half-registered plugin. Try again is a real off-and-on.
+		if (this._startBlocked) return;
 		this.updateWsRibbonState();
 		if (!this.settings.pluginEnabled) { this.disablePlugin(); this.reconfigureEditors(); return; }
 		// Back on: the ribbon returns, and the panel returns to the side it
@@ -13332,13 +13670,30 @@ module.exports = class WordSmith extends Plugin {
 	//
 	// So: remember an element's inline values the first time we touch it, put
 	// exactly those back, and touch nothing we did not write to.
+	//
+	// THE LONGHANDS, NOT THE SHORTHAND (A230, GitHub #13). The first draft
+	// of this remembered `el.style.flex` — and the shorthand of an element
+	// carrying only `flex-grow` reads as "" in Chromium, because a
+	// shorthand only serialises when every longhand it covers is set.
+	// Obsidian writes exactly that: `flex-grow: 2.6;` and nothing else.
+	// So "put back what was there" wrote "" to the shorthand, which clears
+	// all three longhands, and the size Obsidian had stored was gone — on
+	// the container the mode had sized AND on the ones it had only hidden.
+	// Measured in the vault 2026-09-07: in at 2.6 / 0.4, out with both
+	// inline styles empty and the split at 50/50, which is the reporter's
+	// "left and middle take 50% each". jsdom does not reproduce this (its
+	// CSSOM answers "2.6" for the shorthand), which is why the probe was
+	// green over it; zen_probe now models Chromium's rule itself.
 	_focusTabRemember(el) {
 		if (!this._focusTabPrev) this._focusTabPrev = new Map();
 		if (this._focusTabPrev.has(el)) return;
+		const s = el.style;
 		this._focusTabPrev.set(el, {
-			display: el.style.display,
-			width:   el.style.width,
-			flex:    el.style.flex
+			display:    s.display,
+			width:      s.width,
+			flexGrow:   s.flexGrow,
+			flexShrink: s.flexShrink,
+			flexBasis:  s.flexBasis
 		});
 	}
 
@@ -13346,9 +13701,11 @@ module.exports = class WordSmith extends Plugin {
 		if (!this._focusTabPrev || !this._focusTabPrev.size) return;
 		for (const [el, prev] of this._focusTabPrev) {
 			el.classList.remove('zenmode-tab-hidden', 'zenmode-tab-active');
-			el.style.display = prev.display;
-			el.style.width   = prev.width;
-			el.style.flex    = prev.flex;
+			el.style.display    = prev.display;
+			el.style.width      = prev.width;
+			el.style.flexGrow   = prev.flexGrow;
+			el.style.flexShrink = prev.flexShrink;
+			el.style.flexBasis  = prev.flexBasis;
 		}
 		this._focusTabPrev.clear();
 	}
@@ -14728,7 +15085,7 @@ module.exports = class WordSmith extends Plugin {
 
 	// settings → the store's two goals sections.
 	goalsStoreApply(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const build = (goals, status) => {
 			const keys = Array.from(new Set(
 				Object.keys(goals || {}).concat(Object.keys(status || {})))).sort();
@@ -14763,7 +15120,7 @@ module.exports = class WordSmith extends Plugin {
 	// as the same would let a vault whose writer deleted every target have
 	// them all restored from a file that should have been retired.
 	goalsStoreAdopt(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const fileKey = this.goalsSectionKey('file');
 		const folderKey = this.goalsSectionKey('folder');
 		if (!Object.prototype.hasOwnProperty.call(all, fileKey)
@@ -14826,7 +15183,7 @@ module.exports = class WordSmith extends Plugin {
 	// inventing `text`, which would pin it and silence the registry.
 	userColsSectionKey() { return 'columns: user'; }
 	userColsStoreApply(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const src = this.settings.uniUserCols || [];
 		const rows = [];
 		for (const c of src) {
@@ -14846,7 +15203,7 @@ module.exports = class WordSmith extends Plugin {
 	// deleted by a round trip through it. The file decides WHICH columns
 	// and their type; it does not claim to know the rest.
 	userColsStoreAdopt(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const key = this.userColsSectionKey();
 		if (!Object.prototype.hasOwnProperty.call(all, key)) return null;
 		const had = this.settings.uniUserCols || [];
@@ -14870,7 +15227,7 @@ module.exports = class WordSmith extends Plugin {
 		return out;
 	}
 	colorsStoreApply(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const src = this.settings.folderColors || {};
 		const rows = [];
 		for (const k of Object.keys(src).sort()) {
@@ -14886,7 +15243,7 @@ module.exports = class WordSmith extends Plugin {
 	// them all" — the same distinction `goalsStoreAdopt` draws, and for
 	// the same reason: reading them as one would restore what was deleted.
 	colorsStoreAdopt(store) {
-		const all = store || this._structStore || {};
+		const all = this.structureStore(store);
 		const key = this.colorsSectionKey();
 		if (!Object.prototype.hasOwnProperty.call(all, key)) return null;
 		const rows = all[key] || [];
@@ -16925,6 +17282,53 @@ module.exports = class WordSmith extends Plugin {
 		return found;
 	}
 
+	// ── ONE READER OF THE STORE (A252-1, stability brief item 3) ──────────
+	//
+	// Six *StoreApply / *StoreAdopt methods each carried
+	// `store || this._structStore || {}`, and four more read `_structStore`
+	// bare. One resolver, so a repair or a rename is remembered in one place.
+	// `structureStore` answers a store whatever the state (an unread cache is
+	// an empty store); `structureCached` answers null until the first read,
+	// for the callers to whom \u201cnot read yet\u201d is a different fact.
+	structureStore(store) {
+		return store || this._structStore || {};
+	}
+
+	structureCached() {
+		return this._structStore || null;
+	}
+
+	// REPAIR ON READ. The parser is strict, but a store can also arrive from
+	// a probe, an older build, or a caller's own rows. Every section is a
+	// list; every row has a non-empty string path and a boolean `on` (a
+	// missing `on` means on, which is what every reader assumed); a note is
+	// a string or absent; a duplicate path keeps its first row. Returns the
+	// repaired store and the names of the sections it had to touch, which
+	// structureRead keeps on `_structRepaired` and says once.
+	structureRepair(store) {
+		const out = {};
+		const repaired = [];
+		for (const key of Object.keys(store || {})) {
+			const rows = store[key];
+			if (!Array.isArray(rows)) { out[key] = []; repaired.push(key); continue; }
+			const seen = new Set();
+			const clean = [];
+			let touched = false;
+			for (const r of rows) {
+				const path = r && typeof r === 'object' ? String(r.path == null ? '' : r.path).trim() : '';
+				if (!path || seen.has(path)) { touched = true; continue; }
+				seen.add(path);
+				const row = { path, on: r.on === undefined ? true : !!r.on };
+				if (r.note !== undefined && r.note !== null && r.note !== '') row.note = String(r.note);
+				if (typeof r.on !== 'boolean' || (r.note !== undefined && typeof r.note !== 'string') || path !== r.path) touched = true;
+				clean.push(row);
+			}
+			out[key] = clean;
+			if (touched) repaired.push(key);
+		}
+		return { store: out, repaired };
+	}
+
 	async structureRead() {
 		// Cached for the life of the window: the file is read when the
 		// modal opens and written when something changes, not on every
@@ -16949,7 +17353,12 @@ module.exports = class WordSmith extends Plugin {
 				if (!Object.prototype.hasOwnProperty.call(merged, k)) merged[k] = parsed[k];
 			}
 		}
-		this._structStore = merged;
+		const fixed = this.structureRepair(merged);
+		this._structRepaired = fixed.repaired;
+		if (fixed.repaired.length) {
+			try { console.warn('Word-Smith: ' + fixed.repaired.length + ' section(s) of ws-structure.md had the wrong shape and were repaired on read: ' + fixed.repaired.join(', ')); } catch (_) {}
+		}
+		this._structStore = fixed.store;
 		return this._structStore;
 	}
 
@@ -17007,7 +17416,7 @@ module.exports = class WordSmith extends Plugin {
 		return this._structWriteQ;
 	}
 	async structureWriteNow() {
-		const all = this._structStore || {};
+		const all = this.structureStore();
 		const text = this.structureCompose(all);
 		try {
 			const path = await this.structureMigrate();
@@ -17054,7 +17463,7 @@ module.exports = class WordSmith extends Plugin {
 	// shape as renameGoalPaths, and for the same reason.
 	structureRenamePath(oldPath, newPath) {
 		if (!oldPath || !newPath || oldPath === newPath) return false;
-		const store = this._structStore;
+		const store = this.structureCached();
 		if (!store) return false;
 		const moved = (p2) => (p2 === oldPath ? newPath
 			: (p2.startsWith(oldPath + '/') ? newPath + p2.slice(oldPath.length) : null));
@@ -17187,7 +17596,7 @@ module.exports = class WordSmith extends Plugin {
 	// not take `Bookshelf` with it.
 	structureForgetPath(gone) {
 		if (!gone) return false;
-		const store = this._structStore;
+		const store = this.structureCached();
 		if (!store) return false;
 		const hit = (p2) => {
 			const cur = String(p2 || '');
@@ -17323,7 +17732,7 @@ module.exports = class WordSmith extends Plugin {
 	propStoreAllSync(path) {
 		const out = {};
 		if (!this.propStoreHolds(path)) return out;
-		const store = this._structStore;
+		const store = this.structureCached();
 		if (!store) return out;
 		const want = String(path);
 		try {
@@ -19011,6 +19420,10 @@ module.exports = class WordSmith extends Plugin {
 		//
 		// Read from `r`, the TARGET level, so a jar does not change gesture
 		// halfway up its own pour.
+		// TYPED AS A STRING, not the union of the four words below: the
+		// checker otherwise proves `toy === 'slosh'` can never be true, and the
+		// tombstone-in-place above says the one-word swap must stay possible.
+		/** @returns {string} */
 		const toyHere = () => (r >= 1 ? 'aurora'
 			: r >= 0.67 ? INK_TOY
 			: r >= 0.34 ? DEEP_TOY
@@ -21827,8 +22240,15 @@ module.exports = class WordSmith extends Plugin {
 								const ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
 								const ru = (dx2 * ca - dy2 * sa) / w;
 								const rv = (dx2 * sa + dy2 * ca) / h;
-								const cellHue = auroraCell(0.5 + ru, 0.5 + rv, t);
-								if (cellHue != null && isFinite(cellHue)) {
+								// THE HUE, OUT OF THE COLOUR (A252-2). `auroraCell` answers an
+								// `hsla(...)` string, and `isFinite` of a string that starts
+								// with a letter is false — so this branch had never run
+								// since it was written, and the orb's hue never leaned toward
+								// the aurora's. The checker found it (arithmetic on a string).
+								const cellCol = auroraCell(0.5 + ru, 0.5 + rv, t);
+								const cellM = /^hsla?\((-?[\d.]+)/.exec(String(cellCol || ''));
+								const cellHue = cellM ? parseFloat(cellM[1]) : NaN;
+								if (isFinite(cellHue)) {
 									oh = oh0 + (cellHue - oh0) * auroraMix;
 								}
 							}
@@ -24476,6 +24896,131 @@ module.exports = class WordSmith extends Plugin {
 	// figure that is blank until the frame catches up. The count belongs to
 	// the thing that knows it.
 
+	// CLICK A PARAGRAPH, OPEN THE NOTE THERE (A231-2b; A218 batch 4). Writer,
+	// 2026-09-07: "click on a paragraph and it open that note there, so they
+	// see how their text flows better".
+	//
+	// ON THE FRAME'S DOCUMENT, not the pane: the paragraphs live inside the
+	// iframe, and a listener outside it hears nothing. READS THE STAMP the
+	// screen render puts on a section (`data-ws-note`, never in a delivered
+	// file). READER ONLY: in pages a click is a click on paper; the reader is
+	// where "see how it flows" was asked for. A link stays a link, a selection
+	// stays a selection — a writer dragging to copy a line is not leaving.
+	exportReaderClicks(doc, open) {
+		// THE MEMORY LIVES ON THE ROOT, NOT THE DOCUMENT (A248). Every paint
+		// rewrites the frame with document.open(), and Chromium drops every
+		// listener on the document when it does \u2014 while the document
+		// object, and any flag on it, survives. So from the second paint on
+		// the flag said \u201cwired\u201d and nothing was: \u201cthe jump to note in the
+		// expanded view does not work\u201d. The documentElement is replaced by
+		// the rewrite, so a flag on it is a flag on THIS paint.
+		const root = doc && doc.documentElement;
+		if (!doc || !root || root.__wsReaderClicks) return;
+		root.__wsReaderClicks = true;
+		if (typeof open !== 'function') open = (path, snippet, ev) => this.openNoteAt(path, snippet, ev);
+		doc.addEventListener('click', (ev) => {
+			try {
+				const t = ev.target;
+				if (!t || !t.closest) return;
+				if (!doc.documentElement || !doc.documentElement.classList.contains('is-flow')) return;
+				if (t.closest('a')) return;
+				const sec = t.closest('section[data-ws-note]');
+				if (!sec) return;
+				const path = sec.getAttribute('data-ws-note');
+				if (!path) return;
+				try {
+					const sel = doc.getSelection && doc.getSelection();
+					if (sel && String(sel).length) return;
+				} catch (_) {}
+				const block = t.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
+				if (ev.preventDefault) ev.preventDefault();
+				open(path, zgSnippetOf(block ? block.textContent : ''), ev);
+			} catch (_) {}
+		});
+	}
+
+	// THE KEYS A READER EXPECTS (A240; A218 batch 4). On the frame's document,
+	// reader only, wired once per written document like the clicks. Space
+	// and PgDn page down, Shift+Space and PgUp page up, the arrows step, Home
+	// and End go to the ends, Escape collapses, Enter opens the section under
+	// the top edge, j/k step under Obsidian's Vim and only then. A chorded key
+	// belongs to whoever owns the chord; a plain letter is not ours.
+	exportReaderKeys(doc, act) {
+		// ON THE ROOT, as the clicks are (A248): see exportReaderClicks.
+		const root = doc && doc.documentElement;
+		if (!doc || !root || root.__wsReaderKeys) return;
+		root.__wsReaderKeys = true;
+		act = act || {};
+		doc.addEventListener('keydown', (ev) => {
+			try {
+				if (!doc.documentElement || !doc.documentElement.classList.contains('is-flow')) return;
+				if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+				const win = doc.defaultView;
+				if (!win) return;
+				const page = Math.max(120, Math.round((win.innerHeight || 800) * 0.88));
+				const step = 64;
+				const vim = !!(typeof act.vim === 'function' && act.vim());
+				let dy = null, to = null;
+				switch (ev.key) {
+					case ' ': dy = ev.shiftKey ? -page : page; break;
+					case 'PageDown': dy = page; break;
+					case 'PageUp': dy = -page; break;
+					case 'ArrowDown': dy = step; break;
+					case 'ArrowUp': dy = -step; break;
+					case 'j': if (!vim) return; dy = step; break;
+					case 'k': if (!vim) return; dy = -step; break;
+					case 'Home': to = 0; break;
+					case 'End': to = Math.max(1, (doc.documentElement && doc.documentElement.scrollHeight) || 1e9); break;
+					case 'Escape':
+						ev.preventDefault();
+						if (typeof act.collapse === 'function') act.collapse();
+						return;
+					case 'Enter': {
+						ev.preventDefault();
+						// THE SECTION UNDER THE TOP EDGE: the last one whose top is
+						// at or above the fold, which is the one being read.
+						const secs = Array.from(doc.querySelectorAll('section[data-ws-note]'));
+						let hit = secs[0] || null;
+						for (const sec of secs) {
+							const r = sec.getBoundingClientRect();
+							if (r.top <= 12) hit = sec; else break;
+						}
+						if (hit && typeof act.open === 'function') {
+							const first = hit.querySelector('p, h1, h2, h3, h4, h5, h6, li, blockquote');
+							act.open(hit.getAttribute('data-ws-note'), zgSnippetOf(first ? first.textContent : ''));
+						}
+						return;
+					}
+					default: return;
+				}
+				ev.preventDefault();
+				if (to !== null) win.scrollTo(0, to);
+				else win.scrollBy(0, dy);
+			} catch (_) {}
+		});
+	}
+
+	// The note, in the pane the tree's own row click uses (`openRow`: the
+	// active leaf, or a tab with a modifier), and then the caret on the
+	// paragraph — the first line of the note that reads the same as the
+	// clicked words. Words the note does not hold move no caret: the note
+	// still opens, at the top, which is where it would have opened anyway.
+	async openNoteAt(path, snippet, ev) {
+		const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
+		try { await this.app.workspace.openLinkText(path, '', newTab ? 'tab' : false); }
+		catch (_) { return false; }
+		try {
+			const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+			const ed = view && view.editor;
+			if (!ed || !snippet) return true;
+			const line = zgLineOfSnippet(ed.getValue(), snippet);
+			if (line < 0) return true;
+			ed.setCursor({ line, ch: 0 });
+			if (ed.scrollIntoView) ed.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: 0 } }, true);
+		} catch (_) {}
+		return true;
+	}
+
 	exportPreviewInto(host, sections, o, fileCount, words, onExport, headHost,
 		totalCount) {
 		if (!host) return null;
@@ -25032,6 +25577,14 @@ module.exports = class WordSmith extends Plugin {
 			try {
 				const split = host && host.closest && host.closest('.zg-export-split');
 				if (split) split.classList.toggle('is-flow', flow);
+				// THE READER TAKES THE WINDOW (A231-2a, writer 2026-09-07: "make it
+				// full height"). The split's own flip folded the options away;
+				// the tree column and the grip stayed, and in a docked pane that
+				// left the reader a third of the width. One class on the body,
+				// and the stylesheet gives the reader every column — the same
+				// shape the narrow layout already draws with the panel up.
+				const body = split && split.closest && split.closest('.zg-uni-body');
+				if (body) body.classList.toggle('is-reader', flow);
 			} catch (_) {}
 			// THE PAGE CONTROLS DESCRIBE A THING THAT IS NOT THERE. Hidden
 			// rather than removed: they come back on collapse, and they are the
@@ -25183,6 +25736,15 @@ module.exports = class WordSmith extends Plugin {
 			// So: settle, restore the height, THEN scroll into it.
 			const after = () => {
 				if (!flow) { try { syncPages(); } catch (_) {} }
+				// THE KEYS REACH THE FRAME ONLY IF IT HAS FOCUS (A240): Expand
+				// hands it over, so Space pages down at once rather than after
+				// a click on the paper.
+				if (flow) {
+					try {
+						const d = docOf();
+						if (d && d.body) { d.body.setAttribute('tabindex', '-1'); d.body.focus(); }
+					} catch (_) {}
+				}
 				// THE TICKS ARE PLACED FROM THE FLOWED LAYOUT, so they cannot be
 				// worked out until it exists — the same frame the scroll waits
 				// for, and for the same reason. And the read-out is said once on
@@ -25365,6 +25927,11 @@ module.exports = class WordSmith extends Plugin {
 		// be HTML-escaped whole, and a manuscript is full of quotes and
 		// ampersands — one escaping mistake there turns a page of prose
 		// into markup on screen.
+		// A PARAGRAPH OPENS ITS NOTE (A231-2b): the click wiring goes on the
+		// document each write makes — a write replaces the document, so every
+		// paint wires again, and the wiring guards itself against a second
+		// pass on the same document. One short line after the write, because
+		// export_probe holds `apply()` to within a few lines of it.
 		const paint = () => {
 			try {
 				const doc = frame.contentDocument
@@ -25377,6 +25944,8 @@ module.exports = class WordSmith extends Plugin {
 			if (!zoom) zoom = asText ? 1 : (this._exportZoom || fitZoom());
 			apply();
 			applyDark();
+			try { this.exportReaderClicks(docOf()); } catch (_) {}
+			try { this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => this.openNoteAt(p, sn), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig('vimMode')) }); } catch (_) {}
 			// ── AND THE READER, WHICH THIS FORGOT (A227) ────────────────────
 			//
 			// Writer, 2026-09-06: “if i click on folder (not in the checkbox) …
@@ -27833,7 +28402,7 @@ module.exports = class WordSmith extends Plugin {
 			// shows what it will use in the placeholder, so the default
 			// is visible instead of merely documented.
 			const ti = textOpt(grp, 'titleText', 'Title',
-				String(ctx.scope || '').split('/').pop().replace(/\.md$/, '') || 'Untitled');
+				String(zgCtxScope(ctx)).split('/').pop().replace(/\.md$/, '') || 'Untitled');
 			ti.addClass('zg-export-wideinput');
 			const au = textOpt(grp, 'author', 'Author', 'A. Writer');
 			au.addClass('zg-export-wideinput');
@@ -30375,7 +30944,7 @@ module.exports = class WordSmith extends Plugin {
 		// AND WHETHER THEY FIT IS ASKED OF THE LAYOUT, not of `n`.
 		//
 		// IN A FRAME, because none of this has a width until the panel has
-		// been laid out — the same reason the Organiser’s name seam is
+		// been laid out — the same reason the Organizer’s name seam is
 		// measured in a rAF and not at build time.
 		//
 		// `visibility`, NOT `display`, and that is the whole point: a hidden
@@ -30497,8 +31066,8 @@ module.exports = class WordSmith extends Plugin {
 	// the LABEL, and both of those changed (2026-08-22).
 	buildOutlinerIndicator() {
 		return this.buildBarButton('zg-barbtn-outliner',
-			(node) => { node.textContent = 'Organiser'; },
-			'Arrange the manuscript \u2014 click to open the Organiser',
+			(node) => { node.textContent = 'Organizer'; },
+			'Arrange the manuscript \u2014 click to open the Organizer',
 			// ── NO TAB (A219) ───────────────────────────────────────────────
 			//
 			// Writer, 2026-09-06, of A211: “the organiser does not remember the
@@ -30509,7 +31078,7 @@ module.exports = class WordSmith extends Plugin {
 			// THE DISTINCTION THE FIRST DRAFT MISSED: a caller that exists to
 			// open a PARTICULAR tab is asking; a caller that exists to open THE
 			// WINDOW is not, even when it names one. This one's own tooltip says
-			// which it is — “click to open the Organiser”.
+			// which it is — “click to open the Organizer”.
 			//
 			// AND NOTHING IS LOST BY DROPPING IT: a session that remembers
 			// nothing falls back to `organizer` anyway, which is the same answer
@@ -30948,7 +31517,7 @@ module.exports = class WordSmith extends Plugin {
 	// ── TOMBSTONE: `openGoalsModal` (2026-09-02) ────────────────────────
 	//
 	// A three-line wrapper that opened the Manuscript window on the
-	// Organiser tab. Kept alive by the argument in `window_probe`: "a
+	// Organizer tab. Kept alive by the argument in `window_probe`: "a
 	// palette command, a settings button and a menu row all say
 	// `openGoalsModal`, and a name that disappears takes a writer's hotkey
 	// with it."
@@ -31207,7 +31776,7 @@ module.exports = class WordSmith extends Plugin {
 				// string nothing checks goes stale the next time something moves.
 				none.createDiv({
 					cls: 'zg-report-hint',
-					text: 'Set one in the Organiser \u2014 in the table, on the '
+					text: 'Set one in the Organizer \u2014 in the table, on the '
 						+ 'Target column.'
 				});
 			}
@@ -32228,7 +32797,7 @@ module.exports = class WordSmith extends Plugin {
 				// ── AN OBSERVER MUST NOT WRITE WHAT IT WATCHES (A186) ────
 				//
 				// Two vault reports, 2026-09-05: “my Obsidian is freezing
-				// whenever I try to use Organiser”, and — the useful half —
+				// whenever I try to use Organizer”, and — the useful half —
 				// “a problem on my MacBook Pro, but not at all on Mac
 				// Studio”.
 				//
@@ -33069,7 +33638,7 @@ module.exports = class WordSmith extends Plugin {
 					// offered a control the rest of the plugin had retired.
 					//
 					// NOTHING IS LOST WITH IT. Removing a column lives in the
-					// Organiser settings tab now — “one prune in the settings
+					// Organizer settings tab now — “one prune in the settings
 					// tab, away from the table”, which is the answer the writer
 					// gave when the × went. The confusion it was cut for was
 					// between two controls an inch apart; a tab is not an inch.
@@ -33204,7 +33773,7 @@ module.exports = class WordSmith extends Plugin {
 		// the words number arrives with the index (Phase 1), fed by it and
 		// nothing else.
 		const TABS = [
-			{ id: 'organizer', label: 'Organiser', icon: 'list-tree', tree: 'binder' },
+			{ id: 'organizer', label: 'Organizer', icon: 'list-tree', tree: 'binder' },
 			// TOMBSTONE (Phase 5): `{ id: 'organise', tree: 'full' }` — the
 			// old tree-table tab. Its id lived in data.json as the last tab
 			// used, so the fallback below catches it and lands on the
@@ -33322,7 +33891,7 @@ module.exports = class WordSmith extends Plugin {
 			uniBackEl.setText(on ? '\u2039' : '\u203a');
 			// THE TAB IS READ HERE, not where the button is built: it is
 			// made once and outlives every tab switch, so a name baked in
-			// at birth would be the Organiser's word sitting on History.
+			// at birth would be the Organizer's word sitting on History.
 			const to = tab === 'export' ? 'the preview'
 				: (tab === 'history' ? 'the report' : 'the table');
 			uniBackEl.title = on ? 'Back to the tree' : 'Show ' + to;
@@ -33343,6 +33912,7 @@ module.exports = class WordSmith extends Plugin {
 		const uniPanelShow = () => { if (orgNarrowNow()) uniPanelSet(true); };
 		const orgSelect = (p) => {
 			orgFolderSet(p);
+			orgMark = 'folder';
 			// ── AND THE NOTE MARK CANNOT OUTLIVE ITS FOLDER (A149) ──
 			//
 			// Writer, 2026-09-04: "i dont want two selections … if i
@@ -33385,6 +33955,14 @@ module.exports = class WordSmith extends Plugin {
 		// keys feed it, and the open-time active-file follow feeds it. It is
 		// VIEW state (not saved): the persisted folder stays `orgSelect`'s.
 		let orgNote = '';
+		// WHICH OF THE TWO THE TREE MARKS (A234, writer 2026-09-07): "let
+		// show only one thing selected in the organiser file tree - not
+		// like two right now the folder and the file - it's confusing for
+		// users". View state, like orgNote: the STORE keeps the folder and
+		// the note both, because the pane needs the folder to know what it
+		// shows; the tree marks the last thing chosen. 'folder' after
+		// orgSelect or a folder followed, 'note' after a note followed.
+		let orgMark = 'folder';
 		// ── …AND `keepScope` IS HOW IT STOPS OVERRULING A CHOICE ─────
 		//
 		// "the organizer does not remember what the state left when i reopen
@@ -33446,8 +34024,10 @@ module.exports = class WordSmith extends Plugin {
 			if (it.kind === 'folder') {
 				orgNote = '';
 				orgFolderSet(it.path);
+				orgMark = 'folder';
 			} else {
 				orgNote = it.path;
+				orgMark = 'note';
 				// The held scope already covers this note: mark it and leave
 				// the scope alone.
 				//
@@ -34899,10 +35479,10 @@ module.exports = class WordSmith extends Plugin {
 		// UNDOING, not about reaching. Five states means the fifth costs five
 		// clicks and overshooting it costs four more.
 		//
-		// SO THE RING STAYS AND THE MENU IS ADDED BESIDE IT. Taking the cycle
-		// away would be a reversal nobody asked for, and it is still the
-		// fastest way to the next state, which is what a writer working down a
-		// chapter actually does.
+		// SO THE RING STAYED AND THE MENU WAS ADDED BESIDE IT (2026-08-31) —
+		// UNTIL A236 (2026-09-07), when the writer asked for the cell itself to
+		// be the list: "make the flag cells in organiser a drop down list".
+		// The ring is gone; the list is what a click opens.
 		//
 		// IT READS THE STORE, NOT THE CELL. A menu built from what is drawn
 		// would disagree with the ring the moment a redraw was pending, and
@@ -34929,9 +35509,14 @@ module.exports = class WordSmith extends Plugin {
 		// `repaintExplorerFlag` exists for exactly this and carries the same
 		// reasoning one surface along: “Flagging a note from the bar redrew
 		// every tile in the tree … to change eleven pixels on one line.”
-		const orgFlagSet = async (row, id) => {
-			if (id) s[statusStore('file')][row.path] = id;
-			else delete s[statusStore('file')][row.path];
+		// THE CELL IS PASSED IN (A236). This read a `cell` that was never
+		// declared: a ReferenceError thrown AFTER the save, inside an async
+		// function, so a flag chosen from the menu was written and the cell
+		// never redrew — the promise swallowed the throw and drawPanel() was
+		// the line after it.
+		const orgFlagSet = async (row, id, cell) => {
+			if (id) s[statusStore()][row.path] = id;
+			else delete s[statusStore()][row.path];
 			await this.saveSettings();
 			this.repaintExplorerFlag(row.path);
 			// THE NEXT DRAW IS ABOUT THIS CELL (A209). It is a HINT and not an
@@ -34941,40 +35526,41 @@ module.exports = class WordSmith extends Plugin {
 			orgCellHint = cell ? { td: cell, path: row.path } : null;
 			drawPanel();
 		};
-		const orgFlagMenu = (ev, row) => {
+		const orgFlagMenu = (ev, row, td) => {
 			const now = markOf(row.path, 'file');
 			const m = new Menu();
 			m.addItem((i) => i.setTitle('Flag').setIsLabel(true));
 			// CLEARING IS A CHOICE LIKE ANY OTHER, and it is FIRST because it
 			// is the one the ring makes hardest to reach — from the last state
 			// it is one more click, and from anywhere else it is all of them.
+			try { if (m.dom && m.dom.addClass) m.dom.addClass('zg-flag-menu'); } catch (_) {}
 			const row1 = (title, id) => m.addItem((i) => {
 				i.setTitle(title);
+				// THE SHAPE BESIDE THE WORD (A246), drawn into the item's own icon
+				// element the way the row menu's flag rows are: no Lucide name
+				// draws these. Guarded — `iconEl` is not documented.
+				try { if (id && i.iconEl) i.iconEl.innerHTML = zgFlagSvg(id, 12); } catch (_) {}
 				// `setChecked` IS OBSIDIAN'S, and a stub without it must not take
 				// the menu down with it — the tick is a courtesy, the click is
 				// the feature.
 				try { i.setChecked(now === id); } catch (_) { }
-				i.onClick(() => orgFlagSet(row, id));
+				i.onClick(() => orgFlagSet(row, id, td));
 			});
 			row1('No flag', '');
 			for (const st of ZG_STATUSES) row1(st.label, st.id);
-			try { m.showAtMouseEvent(ev); }
-			catch (_) { try { m.showAtPosition({ x: 0, y: 0 }); } catch (_e) { } }
-		};
-		const orgFlagCycle = (el, row) => {
-			el.title = 'Click to cycle the flag \u00b7 right-click to choose one';
-			el.addEventListener('click', async (ev) => {
-				ev.stopPropagation();
-				const next = zgStatusNext(markOf(row.path, 'file'));
-				if (next) s[statusStore('file')][row.path] = next;
-				else delete s[statusStore('file')][row.path];
-				// SCHEDULED, NOT FORCED — see `orgFlagSet` above for the 12ms.
-				await this.saveSettings();
-				this.repaintExplorerFlag(row.path);
-				// SEE `orgFlagSet` — a hint, taken only if nothing moved.
-				orgCellHint = { td: el, path: row.path };
-				drawPanel();
-			});
+			// DROPPED FROM THE CELL (A236): a dropdown hangs from its control,
+			// not from wherever the pointer happened to be in it. The pointer is
+			// the fallback for a cell with no box (a right-click from the
+			// keyboard, a probe).
+			let at = null;
+			try {
+				const r = td && td.getBoundingClientRect && td.getBoundingClientRect();
+				if (r && (r.width || r.height)) at = { x: r.left, y: r.bottom };
+			} catch (_) {}
+			try {
+				if (at) m.showAtPosition(at);
+				else m.showAtMouseEvent(ev);
+			} catch (_) { try { m.showAtPosition(at || { x: 0, y: 0 }); } catch (_e) { } }
 		};
 		// ── ONE CELL, WHEN ONLY ONE CELL CHANGED (A209) ─────────────────────
 		//
@@ -35036,7 +35622,17 @@ module.exports = class WordSmith extends Plugin {
 				td.createSpan({ text: text });
 			}
 			td.addClass('is-flag');
-			orgFlagCycle(td, row);
+			// A DROPDOWN, NOT A RING (A236, writer 2026-09-07: "make the flag
+			// cells in organiser a drop down list"). The cell cycled on click
+			// and listed only from the ▾; the list is the control now, from
+			// anywhere on the cell. The ring's own reasoning was about UNDOING
+			// a wrong press — a list with a tick on the current flag undoes
+			// nothing, because nothing is pressed by mistake.
+			td.title = 'Choose a flag';
+			td.addEventListener('click', (ev) => {
+				ev.stopPropagation();
+				orgFlagMenu(ev, row, td);
+			});
 			// ── THE MENU'S VISIBLE DOOR ─────────────────────────────────
 			//
 			// A GESTURE IS NOT A DOOR. Right-click alone is how the property
@@ -35272,8 +35868,8 @@ module.exports = class WordSmith extends Plugin {
 						const n = parseFloat(inp.value);
 						const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
 						if (want !== was) {
-							if (want > 0) s[goalStore('file')][row.path] = want;
-							else delete s[goalStore('file')][row.path];
+							if (want > 0) s[goalStore()][row.path] = want;
+							else delete s[goalStore()][row.path];
 							await this.saveSettings(true);
 						}
 					}
@@ -36276,6 +36872,9 @@ module.exports = class WordSmith extends Plugin {
 		// this — a door that could set it would be a second writer of the
 		// folder, and the store's own comment names one.
 		this._orgAt = () => orgFolder;
+		// A READER, like _orgAt: the note the pane holds, so a probe can tell
+		// "unmarked in the tree" from "forgotten" (A234).
+		this._orgNote = () => orgNote;
 		this._orgLens = () => JSON.parse(JSON.stringify(orgLens));
 		this._orgLensSet = (patch) => orgLensSet(patch);
 		// TOMBSTONE (brief C3, 2026-08-28): `orgFirstNotePath` and
@@ -36600,15 +37199,11 @@ module.exports = class WordSmith extends Plugin {
 		// chip; switching ▤ off takes the star with it, because a star on a
 		// property nothing draws is a mark with nothing to mark.
 		//
-		// USABLE, NOT MERELY SET (brief B3). A key the vault has never heard
-		// of draws no paragraph on any card, so a window that treated it as
-		// present would show empty furniture and no reason for it.
-		const orgLongUsable = () => {
-			let known = null;
-			try { known = this.orgKnownProps() || []; } catch (_) { known = null; }
-			return orgLongList().some((k) => !known || known.some(
-				(x) => String(x).toLowerCase() === String(k).toLowerCase()));
-		};
+		// TOMBSTONE (A252-2): `orgLongUsable`, “usable, not merely set” (brief B3).
+		// It called `orgLongList()`, which nothing declares — the checker's
+		// one TS2304 in the whole build — and nothing called it. A helper
+		// that would throw the first time it ran, kept alive by having no
+		// caller: exactly the A236 class, one branch away.
 		const orgPropKindOf = (r) => {
 			if (!r.key) return '';
 			try { return String(this.orgPropType(r.key) || ''); }
@@ -38924,30 +39519,16 @@ module.exports = class WordSmith extends Plugin {
 		const addNewProp = (ev2) => {
 			askPropType(ev2, (type) => nameNewProp(type, ev2));
 		};
-		// AND THE OTHER DOOR SEARCHES ONLY WHAT EXISTS. No create row: a
-		// button that says \u201cexisting\u201d and then offers to invent one
-		// is the single button again, wearing a narrower label.
-		const addExistingProp = (ev2) => {
-			const found = propKeysInScope();
-			// AND AN EMPTY VAULT IS TOLD SO, which the merged door could not
-			// do — there, an empty list was the naming door and saying \u201cno
-			// properties\u201d would have closed it. Here the naming door is a
-			// button of its own, so this one may admit it has nothing.
-			if (!found.length) {
-				try { new Notice('No properties in these notes yet'); }
-				catch (_) {}
-				return;
-			}
-			if (WsPropSuggestModal) {
-				try {
-					new WsPropSuggestModal(this.app, found,
-						(info) => { addProp(info); }).open();
-					return;
-				} catch (_) {}
-			}
-			pickProp(ev2);
-		};
-		// ── AND BOTH DOORS ARE NAMED ONCE ──────────────────────────────
+		// ── TOMBSTONE: `addExistingProp` AND ITS DOOR (A250, 2026-09-08) ──
+		//
+		// Writer: “the add an existing property - i think it's redundant,
+		// because we have all the properties shown now in the modal submenu
+		// of properties in the organiser”. Asked back and confirmed. The door
+		// opened a picker over `propKeysInScope()` with no create row; the
+		// panel it sat in already lists every property there is, so the
+		// search searched a list the writer was looking at. `WsPropSuggestModal`
+		// and `pickProp` stay: the tags column and the naming door use them.
+		// ── AND THE DOOR IS NAMED ONCE ──────────────────────────────────
 		//
 		// The panel's footer and the header menu both offer these, and a
 		// third place will want them too. `menuRowSpecs` is the standing
@@ -38975,9 +39556,6 @@ module.exports = class WordSmith extends Plugin {
 				types: PROP_TYPES,
 				pick: (type, ev2) => nameNewProp(type, ev2),
 				open: (ev2) => addNewProp(ev2) },
-			{ label: 'Add an existing property',
-				icons: ['search', 'lucide-search', 'magnifying-glass'],
-				open: (ev2) => addExistingProp(ev2) },
 		];
 		const pickProp = (ev2) => {
 			const found = propKeysInScope();
@@ -39421,7 +39999,7 @@ module.exports = class WordSmith extends Plugin {
 				const seek = (folder) => {
 					for (const k of (folder.children || [])) {
 						if (!k || !k.children) continue;
-						if (matches(k.path, true)) {
+						if (matches(k.path)) {
 							let up = folderOf(k.path);
 							while (up) { shut.delete(up); up = folderOf(up); }
 						}
@@ -39431,7 +40009,7 @@ module.exports = class WordSmith extends Plugin {
 				if (rt) seek(rt);
 			} catch (_) {}
 			for (const f of allFiles()) {
-				if (!matches(f.path, false)) continue;
+				if (!matches(f.path)) continue;
 				let dir = folderOf(f.path);
 				while (dir) { shut.delete(dir); dir = folderOf(dir); }
 			}
@@ -39642,1907 +40220,62 @@ module.exports = class WordSmith extends Plugin {
 			return selRows();
 		};
 
-		// The box, drawn only on the Export tab. A folder's box ticks
-		// everything beneath it and shows the export list's own half-mark
-		// when only some of it is in — the box and the tree have to give one
-		// answer, or a writer has two ways to ask the same question and gets
-		// different replies.
-		const tickBox = (cell, path, kind) => {
-			if (tab !== 'export') return;
-			// A NON-MARKDOWN FILE GETS NO BOX. The compile consumes
-			// markdown — its own rule, at the point of consumption — so a
-			// tick on an image would be a control promising something it
-			// cannot do. The row is still drawn: it is context, the way an
-			// empty folder is.
-			if (kind === 'file' && !/\.md$/i.test(String(path))) return;
-			// THE EXPORT LIST'S OWN CONTROL, not something that looks like it:
-			// a real checkbox with `zg-export-cb`, so it inherits the tick,
-			// the focus ring and — the part that matters — the half-diagonal
-			// a part-ticked folder draws. The first version of this was a
-			// span with a class nobody had written a rule for, which drew
-			// nothing at all: borrowing a look means borrowing the element
-			// the look was written for.
-			// ── AND NEITHER DOES A ROW WITH NOTHING IN THE EXPORT ──────
-			//
-			// Writer, 2026-09-04: "i ticked only Test Folder and the root
-			// folder checkbox is filled completely".
-			//
-			// THE ROOT WAS RIGHT AND ITS NEIGHBOURS WERE THE PROBLEM. Every
-			// box below counts over `exportFiles()` — the manuscript being
-			// compiled — while the TREE draws the whole vault. So a folder
-			// outside the scope got a box whose `mine` is empty, which makes
-			// `all` false and `some` false forever: an EMPTY box that cannot
-			// become anything else. Tick the manuscript and the root honestly
-			// reads FULL while a dozen siblings sit under it reading EMPTY,
-			// and a parent claiming "all" above children claiming "none" is
-			// the contradiction that was reported.
-			//
-			// MEASURED in the writer's vault, scope `Test Folder/Book 1` with
-			// 11 files: TWELVE folder boxes and SEVENTEEN file boxes governed
-			// nothing at all, against seven folder boxes that did.
-			//
-			// SO IT IS THE RULE DIRECTLY ABOVE, ONE LEVEL UP. That one says a
-			// tick on an image would be "a control promising something it
-			// cannot do" — and a tick on a folder the compile will never read
-			// promises exactly as little.
-			//
-			// THE TREATMENT CHANGED IN A228 AND THIS ARGUMENT DID NOT. What
-			// it removed was a box that looked ABLE; what is drawn now is one
-			// that is visibly and really disabled. Read on.
-			//
-			// THE EMPTY PATH IS THE WHOLE VAULT, which is why the root asks for
-			// `all` rather than for a bucket: no file's path begins with '/',
-			// so a prefix test on the empty path used to match nothing and the
-			// root's box governed zero files — a control that looks like it
-			// works and does not. The index keeps that answer and stops paying
-			// a walk of the manuscript for it. (See `underIndex`.)
-			const mine = zgUnderRow(underIndex(), path, kind);
-			// ── A BOX THAT CANNOT ACT STAYS AND SAYS SO (A228) ──────────────
-			//
-			// Writer, 2026-09-06: “just click on a folder and see what it does,
-			// it shows and hides the ticks … it’s buggy”.
-			//
-			// IT WAS `return`, and I defended that on a first reading because the
-			// rule is written down: a row with no files IN SCOPE has nothing to
-			// tick. The rule is right and the treatment was wrong. Choosing a
-			// folder narrows the scope, so most of the tree loses its boxes at
-			// once — MEASURED: 40 boxes to 6 on one click, over the same 31 rows
-			// — and choosing another brings a different six back. Nothing is
-			// broken and the tree looks broken, which is the same thing to the
-			// person using it.
-			//
-			// AND THE GESTURE IS ONE FOLDER, CLICKED TWICE (the writer, once he
-			// had found it): “clicking again on a folder in the organiser file
-			// tree it selects the folder and if i click again it selects the
-			// root”. That toggle is deliberate and it stays — see `select`,
-			// where a plain click on the only chosen row clears it, “how a
-			// writer gets back to the whole vault without hunting for a control
-			// that says so”. So the same folder, clicked twice, used to swing
-			// every box in the tree off and back on again. THE TOGGLE IS NOT
-			// THE FAULT; the tree changing shape under it was.
-			//
-			// The block above holds the argument the removal was made on, and
-			// it survives intact: what it removed was a box that LOOKED able. A
-			// visibly disabled one is not that box — it holds its place, it
-			// cannot be pressed, and it says why when asked.
-			const box = cell.createEl('input', { cls: 'zg-export-cb zg-uni-check' });
-			box.type = 'checkbox';
-			if (!mine.length) {
-				// NOT PART OF WHAT IS GOING OUT. `disabled` is the browser's own
-				// word for it, so the pointer, the keyboard and a screen reader
-				// all get the same answer without any of them being told
-				// separately.
-				// NO CLASS BESIDE IT. `:disabled` is a state the browser owns
-				// and enforces; a class saying the same thing is a second
-				// writer of one fact, and the stylesheet can only be written
-				// against one of them.
-				box.disabled = true;
-				box.title = 'Outside what is being exported \u2014 choose this folder,'
-					+ ' or a folder above it, to include it';
-				return;
-			}
-			// NOT DRAGGABLE, and this is why ticking stopped working. The
-			// Export tab puts the tree into Custom sort, which makes
-			// every row `draggable`, and a draggable ancestor takes the
-			// mousedown that would have toggled a checkbox inside it — so the
-			// boxes drew, hovered, and did nothing. It worked when it was
-			// tested because the tree was in another sort at the time.
-			box.draggable = false;
-			box.addEventListener('mousedown', (ev) => ev.stopPropagation());
-			// THE EMPTY PATH IS THE WHOLE VAULT (2026-08-26). Without this
-			// clause `under('')` reads `p === '' || p.startsWith('/')`, which
-			// matches NOTHING — no file has the empty path and none begins
-			// with a slash. So the root's box would have drawn, hovered, and
-			// governed zero files: a control that looks like it works and
-			// does not, which is the shape this window keeps deleting.
-			//
-			// It is written HERE, in the one place that decides what a box
-			// is responsible for, rather than at the root row's call site —
-			// the root is a folder like any other, it just happens to be the
-			// folder that contains everything.
-			// (`under` and `mine` are computed ABOVE, before the box is made,
-			// because whether there is a box at all depends on them.)
-			const on = mine.filter(p => ticks && ticks.has(p)).length;
-			// `mine.length > 0` STOOD HERE and is now guaranteed by the
-			// early return above — kept as the comment rather than the test,
-			// because an empty `mine` used to make this false and that was
-			// the whole of the dead box.
-			const all = on === mine.length;
-			const some = on > 0 && !all;
-			box.checked = all;
-			// `indeterminate` STAYS SET — it is the honest state and screen
-			// readers announce it — while `is-part` draws it as half a box
-			// rather than as the browser's dash, which reads at a glance as
-			// "off, but grey". Same reasoning, same pair, as the export list.
-			box.indeterminate = some;
-			box.toggleClass('is-part', some);
-			box.addEventListener('click', (ev) => ev.stopPropagation());
-			box.addEventListener('change', (ev) => {
-				ev.stopPropagation();
-				if (!ticks) return;
-				// A part-ticked folder ticks fully: the writer pressing it is
-				// reaching for "all of this", not for "invert each of these".
-				const next = !all;
-				for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
-				rememberTicks();
-				draw();
-				drawPanel();
-			});
+		// THE TREE IS A FACTORY NOW (A252-3b): `src/43-organizer-tree.js`. The
+		// window hands it its own state through accessors — every name the
+		// tree reads or writes, and nothing else — and keeps what it used back.
+		const treeCtx = {
+			get ROW_BASE_PAD() { return ROW_BASE_PAD; },
+			get cmp() { return cmp; },
+			get cursor() { return cursor; }, set cursor(v) { cursor = v; },
+			get cursorDrives() { return cursorDrives; }, set cursorDrives(v) { cursorDrives = v; },
+			get draw() { return draw; }, set draw(v) { draw = v; },
+			get drawPanel() { return drawPanel; },
+			get drawTypeChip() { return drawTypeChip; },
+			get exportOpts() { return exportOpts; },
+			get fill() { return fill; }, set fill(v) { fill = v; },
+			get folderOf() { return folderOf; },
+			get gradeBy() { return gradeBy; },
+			get hint() { return hint; },
+			get itemOf() { return itemOf; },
+			get keyOf() { return keyOf; },
+			get lastOrder() { return lastOrder; }, set lastOrder(v) { lastOrder = v; },
+			get lastPicked() { return lastPicked; }, set lastPicked(v) { lastPicked = v; },
+			get listWrap() { return listWrap; },
+			get liveFiles() { return liveFiles; },
+			get matches() { return matches; },
+			get moreBy() { return moreBy; },
+			get nameOf() { return nameOf; },
+			get orgDropRun() { return orgDropRun; },
+			get orgFolder() { return orgFolder; },
+			get orgFolderIcon() { return orgFolderIcon; },
+			get orgMark() { return orgMark; },
+			get orgNote() { return orgNote; },
+			get orgSelect() { return orgSelect; },
+			get ownerDoc() { return ownerDoc; },
+			get ownerWin() { return ownerWin; },
+			get query() { return query; },
+			get rankIn() { return rankIn; },
+			get rememberShut() { return rememberShut; },
+			get rememberTicks() { return rememberTicks; },
+			get said() { return said; },
+			get sel() { return sel; },
+			get ses() { return ses; },
+			get showItem() { return showItem; },
+			get showShape() { return showShape; },
+			get shut() { return shut; },
+			get stampCols() { return stampCols; },
+			get tab() { return tab; },
+			get ticks() { return ticks; },
+			get underIn() { return underIn; }, set underIn(v) { underIn = v; },
+			get underIndex() { return underIndex; },
+			get uniPanelShow() { return uniPanelShow; },
+			get uniRootShut() { return uniRootShut; },
+			get uniRootShutSet() { return uniRootShutSet; },
+			get watchPane() { return watchPane; },
+			get wordsBy() { return wordsBy; },
 		};
-
-		// ── TOMBSTONE: `readings`, 302 LINES (2026-09-02) ───────────────────
-		//
-		// The writer, asked whether to delete the dead region: "delete it".
-		//
-		// IT BUILT THE GOALS LIST'S NUMBERS — the words count, today's count,
-		// the reading grade, and the target with its fill bar. Declared once
-		// and CALLED FROM NOWHERE. Every other mention of the word in src/ is
-		// the English word in a comment, checked one by one rather than by a
-		// count, because "readings" appears fifty-three times as prose.
-		//
-		// AND NOTHING ELSE BUILT WHAT IT BUILT: `zg-goals-col-words`,
-		// `zg-goals-goalface` and `zg-goals-fill` appeared ONLY inside it. So
-		// this is not a helper that lost its last caller and might be wanted
-		// again — it is a feature that has not drawn a pixel in the running
-		// app for however long, and the rows it fed have been showing names
-		// with no numbers beside them.
-		//
-		// `.zg-goals-list` ITSELF IS LIVE and stays: it is a class on the
-		// Organizer's tree list, and its stylesheet rules style rows that do
-		// exist. Only the readings inside a row went.
-		//
-		// TWO NEIGHBOURS ARE UNREACHABLE TOO — `openGoalsModal` and
-		// `renderGoalList`, neither called from anywhere — which is more dead
-		// than the inbox card described. They are NOT cut here: one proven
-		// deletion per batch, each measured on its own, is how this stays
-		// reversible. Card 46.
-		//
-		// AND THE SWEEP THAT FOUND THIS WAS WRONG ABOUT OTHER THINGS. A
-		// hand-rolled comment-and-string stripper reported `setFlagBadge` as
-		// unreferenced — a method measured drawing badges in the vault an hour
-		// earlier. It mis-parses a quote in code and swallows everything
-		// after it. No parser is installed here, so nothing was cut on the
-		// sweep's word: this span was proved by hand.
-
-		// ── Dragging a row into place ───────────────────────────────────────
-		//
-		// The same order, written from the other tree. A drag here rewrites
-		// the folder's section in `ws-export.md`, which is what Obsidian's own
-		// explorer sorts by and what the manuscript compiles in — so a
-		// chapter moved in this window has moved everywhere, and there is
-		// only ever one answer to "what order is the book in".
-		//
-		// ONLY IN MANUSCRIPT ORDER. Dragging a row in a list sorted by word
-		// count is a gesture with nowhere to land: the sort would put it
-		// straight back, and a row that springs back reads as a bug rather
-		// than as a rule. The rows are not draggable at all in the other
-		// sorts, and the band says which one is on.
-		//
-		// WITHIN ONE FOLDER, like the explorer's. Dragging across folders
-		// would have to MOVE the file, and that is a different act with a
-		// different undo; this window is where a book is arranged, not where
-		// files are filed.
-		let dragKey = null;
-		const dropAim = (ev, row) => {
-			// `sort !== 'order'` stood here too and was never true.
-			if (!dragKey) return null;
-			const over = row && row.getAttribute && row.getAttribute('data-goalpath');
-			const moved = itemOf(dragKey).path;
-			if (!over || over === moved) return null;
-			let rect = null;
-			try { rect = row.getBoundingClientRect(); } catch (_) { return null; }
-			if (!rect || !rect.height) return null;
-			const at = (ev.clientY - rect.top) / rect.height;
-			// THE MIDDLE OF A FOLDER MEANS INTO IT, the same as in Obsidian's
-			// own tree — which is the point: a writer who has learnt that
-			// gesture in the explorer should not find it means something else
-			// twelve inches away. Edges reorder, the middle of a folder moves.
-			//
-			// A NOTE HAS NO MIDDLE. Dropping a scene on a scene could only
-			// mean "beside it", so the whole row is edges there and there is
-			// no band a writer can drop into and have nothing happen.
-			const overRow = itemOf(row.getAttribute('data-goalkey') || ('file\u0000' + over));
-			// ── HOW WIDE AN EDGE IS, AND WHY IT IS THIS WIDE ─────────────────
-			//
-			// A FIFTH, not a bit over a quarter. The bands are measured as a
-			// fraction of one row, but a writer aims at the gap BETWEEN two
-			// rows — and that gap is one row's bottom band plus the next row's
-			// top band, so it is twice as wide as either number suggests.
-			//
-			// At 0.28 on a 26px row that is 7px of edge each side, an 11px
-			// middle, and a 15px reorder strip between two middles. The strip
-			// is WIDER than the target it separates, so passing down a column
-			// of folders feels like there are two middles with something else
-			// in between — reported exactly that way. At 0.2 the edges are 5px,
-			// the middle is 16px, and the strip is 10px: smaller than the
-			// middle, which is the relationship that makes the middle findable.
-			//
-			// THE TRADE IS DELIBERATE AND IT IS NOT SYMMETRIC. Reordering is a
-			// gesture a writer repeats — miss it and you drag again, and the
-			// rows are all still on screen. Moving into a folder happens
-			// occasionally and getting it wrong takes a file out of the folder
-			// they were looking at. So the occasional one gets the easier
-			// target, and the repeated one gets the smaller.
-			const EDGE = 0.2;
-			if (overRow.kind === 'folder' && at > EDGE && at < 1 - EDGE) {
-				// Not into the folder it is already in: that is a move that
-				// changes nothing, and drawing a target for it says something
-				// is about to happen.
-				if (folderOf(moved) === over) return null;
-				return { into: over, moved, row };
-			}
-			const above = at < 0.5;
-			// REORDERING IS WITHIN ONE FOLDER. Across folders the answer is
-			// the move above, on the folder's own row, so there is exactly one
-			// way to say each of the two things.
-			if (folderOf(over) !== folderOf(moved)) return null;
-			let before = over;
-			if (!above) {
-				const kids = this.treeOrderCurrent(folderOf(over));
-				const next = kids[kids.indexOf(over) + 1];
-				before = next == null ? null : next;
-			}
-			return { parent: folderOf(over), moved, before, row, above };
-		};
-		let dropRow = null;
-		const paintDrop = (aim) => {
-			if (dropRow && dropRow !== (aim && aim.row)) {
-				dropRow.removeClass('zg-drop-above');
-				dropRow.removeClass('zg-drop-below');
-				dropRow.removeClass('zg-drop-into');
-			}
-			if (dropRow && dropRow !== (aim && aim.row)) dropRow.removeClass('zg-drop-into');
-			dropRow = aim ? aim.row : null;
-			if (!aim) return;
-			// A LINE FOR "HERE", A BOX FOR "INTO". Two different acts must not
-			// share one mark, or a writer cannot tell which one a release is
-			// about to perform.
-			aim.row.toggleClass('zg-drop-into', !!aim.into);
-			aim.row.toggleClass('zg-drop-above', !aim.into && !!aim.above);
-			aim.row.toggleClass('zg-drop-below', !aim.into && !aim.above);
-		};
-		const draggable = (row, it) => {
-			// (a `sort !== 'order'` guard stood here and never fired.)
-			row.setAttribute('draggable', 'true');
-			row.addEventListener('dragstart', (ev) => {
-				dragKey = keyOf(it);
-				// SAID ON THE LIST, not on the row. The pointer leaves the
-				// row it started on within a few pixels, and a grabbing hand
-				// that reverts the moment you move is worse than none.
-				row.addClass('is-dragging');
-				listWrap.addClass('is-dragging');
-				try { ev.dataTransfer.setData('text/plain', it.path); } catch (_) {}
-			});
-			row.addEventListener('dragover', (ev) => {
-				const aim = dropAim(ev, row);
-				paintDrop(aim);
-				if (!aim) return;
-				ev.preventDefault();
-				try { ev.dataTransfer.dropEffect = 'move'; } catch (_) {}
-			});
-			row.addEventListener('drop', async (ev) => {
-				const aim = dropAim(ev, row);
-				paintDrop(null);
-				dragKey = null;
-				if (!aim) return;
-				ev.preventDefault();
-				if (aim.into != null) {
-					// A MOVE, not a reorder: the file changes address, every
-					// link that pointed at it is rewritten, and the order in
-					// both folders follows it.
-					//
-					// The folder is opened BEFORE the move, and the redraw is
-					// left to the vault's own rename event — see
-					// `treeShapeChanged`. Drawing here would paint the tree as
-					// it was a moment ago: `renameFile` resolves before
-					// Obsidian's index has the note at its new address, so
-					// this window's own `getMarkdownFiles()` still answers
-					// with the old one.
-					shut.delete(aim.into);
-					rememberShut();
-					const done = await this.treeMoveInto(aim.moved, aim.into);
-					if (done && !done.ok && done.said) said(done.said, true);
-					else if (done && done.ok) {
-						// THE ONE ACT IN THIS WINDOW WHOSE COST IS A FILE THE
-						// WRITER CANNOT FIND. Everything else here is a tick or
-						// a line's position, both visible and both reversed by
-						// doing them again; a move takes the file out of the
-						// folder they were looking at and rewrites its links.
-						// ── TOMBSTONE: AN UNDO BUTTON ON THIS LINE ───────────
-						//
-						// It was offered here and it did not work in a vault.
-						// The mechanism is sound and driven — `treeMoveUndo`
-						// has seven assertions and every sabotage of it is
-						// caught — so what failed is the wiring between this
-						// line and that method, in a window a probe builds and
-						// a writer uses differently.
-						//
-						// REMOVED RATHER THAN LEFT WHILE I GUESS. A control
-						// that does nothing when pressed is worse than no
-						// control: the writer presses it, watches the file not
-						// come back, and now distrusts the say-line — which is
-						// where every refusal in this window is reported. The
-						// method stays, with its probe, for when the wiring is
-						// understood rather than guessed at.
-						said('Moved \u201c' + nameOf(aim.moved) + '\u201d into '
-							+ (aim.into ? nameOf(aim.into) : 'the vault root') + '.', false);
-					}
-					return;
-				}
-				await this.treeOrderMove(aim.parent, aim.moved, aim.before);
-			});
-			row.addEventListener('dragend', () => {
-				dragKey = null;
-				paintDrop(null);
-				row.removeClass('is-dragging');
-				listWrap.removeClass('is-dragging');
-			});
-			// ── AND THE SAME MOVE, WITH A FINGER ────────────────────────────
-			//
-			// REGRESSION, FOUND BY A PROBE WHEN THE OLD EXPORT WINDOW WAS
-			// DELETED. That window called `touchDrag` on its rows and its
-			// folders, so a press-and-hold on a tablet moved a scene. This
-			// tree reorders with HTML5 drag — `draggable`, `dragstart`,
-			// `drop` — and a touch screen fires none of those. The rows could
-			// be read and ticked and not reordered, on the devices where a
-			// writer is most likely to be reading rather than typing.
-			//
-			// THE SAME DESTINATION AS THE MOUSE, deliberately:
-			// `treeOrderMove` is what the drop handler above calls, so a
-			// finger and a pointer cannot come to disagree about what a
-			// reorder means or about which file gets written.
-			//
-			// `idOf` READS `data-goalkey`, which is the key the rest of this
-			// window sorts, selects and draws by — the old list had its own
-			// `data-row` and this tree has no such attribute.
-			this.touchDrag(row, keyOf(it), {
-				rows: () => Array.from(listWrap.querySelectorAll('.zg-goals-rowline')),
-				idOf: (el) => el.getAttribute('data-goalkey'),
-				drop: async (from, to, below) => {
-					// `itemOf` is the window's own key parser — the same one
-					// the selection and the cursor use. Inventing a second
-					// reader of this format is how two halves of one window
-					// come to disagree about which row is which.
-					const moved = itemOf(String(from || ''));
-					const onto  = itemOf(String(to || ''));
-					if (!moved.path || !onto.path) return;
-					// ── AND IT IS THE MOUSE'S RUNNER, NOT A COPY OF IT ────
-					//
-					// TOMBSTONE 1: `!below` was passed as the before-PATH here
-					// — a boolean, which `indexOf` never finds, so every touch
-					// reorder landed at the END of the folder whatever row the
-					// finger dropped it on.
-					//
-					// TOMBSTONE 2 (2026-08-28): the fix for that shared the
-					// ARITHMETIC — `zgOrgDropBefore` — and copied everything
-					// around it: the same-folder guard, the parent, the call to
-					// `treeOrderMove`. `orgDropRun` already did all three for
-					// the mouse and for the OTHER touch surface in this window,
-					// so a finger on the tree was the one path with its own
-					// copy.
-					//
-					// FOUND BY A SABOTAGE CASE THAT HAD ROTTED. The case named
-					// the pre-`zgOrgDropBefore` line and reported NOT APPLIED;
-					// re-aimed at the copy, it flipped which side the finger
-					// dropped on and `export_probe` PASSED ANYWAY. The gap was
-					// not an assertion — it was the second copy.
-					//
-					// The same-folder refusal lives in `orgDropRun` too: a
-					// reorder only, never a move into a folder, because the
-					// mouse gets that from the middle band of a row and a
-					// hold-and-drag has no pointer position to read it from.
-					await orgDropRun(moved.path, onto.path, below);
-				}
-			});
-		};
-
-		// ── Choosing rows ───────────────────────────────────────────────────
-		// ── AND A MODIFIER OPENS IT BESIDE, NOT INSTEAD (2026-09-02) ────
-		//
-		// "if i ctrl click a backlink i want to open that in a new tab (like
-		// obsidian does it)."
-		//
-		// "LIKE OBSIDIAN DOES IT" IS THE SPEC and it is a real one:
-		// `openLinkText` takes the destination directly, so this is a
-		// modifier READ and not a mechanism to build. `metaKey` beside
-		// `ctrlKey` because the same gesture is cmd on macOS, taken from the
-		// EVENT rather than from a platform flag this window would then have
-		// to keep in step with the host.
-		//
-		// THE EVENT IS OPTIONAL, AND THAT IS THE SCOPE. Only the backlink
-		// hands one over; the row click, the Enter key and the tree all call
-		// this with one argument as before, so `ev` is undefined and the
-		// behaviour they have is the behaviour they keep. The writer asked
-		// about backlinks, so backlinks is what changes.
-		//
-		// STILL ONE WRITER, which is why it goes here rather than in the
-		// link handler: the note above `orgBackCell` records that a link
-		// taking its own route would be the row-click and the name-click
-		// disagreeing the day either changes. Passing the event keeps one
-		// door and gives it a hinge.
-		const openRow = (it, ev) => {
-			if (it.kind !== 'file') return;
-			const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
-			try {
-				this.app.workspace.openLinkText(it.path, '', newTab ? 'tab' : false);
-			} catch (_) {}
-		};
-		// THE MENU CONTEXT, built once and handed to every row. The acts a menu
-		// needs that only this window can do — say something in the foot, open
-		// a folder it has just made, hand a row to the report — are passed IN
-		// rather than reached for, so `outlinerRowMenu` stays a method that can
-		// be driven without a window around it.
-		// True while a name on a row is being typed into. Escape and the
-		// tree's other keys both have to know: see the Escape ladder below.
-		let renaming = false;
-		// HOW TO CANCEL THE RENAME THAT IS IN PROGRESS, held for the ladder.
-		//
-		// The ladder used to answer "a rename is running, so refuse the key"
-		// and leave the cancelling to the row's own handler. THOSE TWO CANNOT
-		// BOTH RUN. The ladder is a CAPTURE listener above the row, so its
-		// `stopImmediatePropagation` is exactly what stops the event ever
-		// reaching the row — the rung defeated the handler it was deferring
-		// to, and Escape mid-rename did nothing at all.
-		//
-		// So the rung does the work itself. `finish` guards on `settled`, so
-		// the row's handler running as well is harmless on any build where
-		// the event does reach it.
-		let cancelRename = null;
-		const menuCtx = {
-			said: (msg, bad) => { if (msg) said(msg, bad); },
-			reveal: (path) => { shut.delete(path); rememberShut(); },
-			// One repaint hook rather than callbacks the caller has to
-			// remember in order. (It also repainted the scope chip while
-			// the folder scope existed — both retired.)
-			redraw: () => {
-				draw(); fill(); drawPanel();
-			},
-			// ── THE NAME BECOMES A BOX, ON THE ROW ──────────────────────────
-			//
-			// What the file explorer does, and what two previous attempts at
-			// this were not: a dialog titled "Rename file" over a folder, and
-			// then a command that renamed the active note and had to open the
-			// file to do it.
-			//
-			// The row is found by `data-path` rather than kept from the menu:
-			// the tree redraws on anything that changes it, so an element held
-			// across a menu opening may already be detached — and a detached
-			// input takes the writer's typing nowhere.
-			rename: (item) => {
-				if (!item || !item.path) return;
-				const isFolder = item.kind === 'folder';
-				const row = listWrap.querySelector('[data-path="'
-					+ String(item.path).replace(/"/g, '\\"') + '"]');
-				const nameEl = row && row.querySelector('.zg-export-name, .zg-export-foldername');
-				const parts = this.outlinerRenameParts(item.path, isFolder);
-				if (!nameEl) {
-					said('That row is no longer on screen.', true);
-					return;
-				}
-				// ── THE NAME ITSELF BECOMES EDITABLE ────────────────────────
-				//
-				// TOMBSTONE: an `<input>` put inside the name element. It was
-				// inline and it still was not what the file explorer does —
-				// an input carries a border, a background and a form field's
-				// metrics, so the row grew a box in it. Obsidian makes the
-				// EXISTING text editable and changes nothing else, which is
-				// why theirs looks like a row you happen to be typing in.
-				//
-				// `contenteditable` on the element that already holds the
-				// name means the theme's typography, colour and truncation
-				// are the ones already there; nothing has to be matched.
-				// `is-being-renamed` is the class Obsidian puts on the row
-				// while this is happening, so a theme that styles their
-				// rename styles this one.
-				renaming = true;
-				// The ladder above the row needs a way to END this, not just
-				// a flag saying it is running. See the tombstone there.
-				// `finish` is declared below and this only ever RUNS after the
-				// whole builder has, so the closure is safe.
-				cancelRename = () => finish(false);
-				row.addClass('is-being-renamed');
-				nameEl.addClass('zg-uni-renaming');
-				nameEl.setAttribute('contenteditable', 'plaintext-only');
-				nameEl.setAttribute('spellcheck', 'false');
-				nameEl.textContent = parts.base;
-
-				let settled = false;
-				const finish = async (commit) => {
-					if (settled) return;
-					settled = true;
-					renaming = false;
-					cancelRename = null;
-					const typed = (nameEl.textContent || '');
-					try {
-						nameEl.removeAttribute('contenteditable');
-						row.removeClass('is-being-renamed');
-					} catch (_) {}
-					if (!commit) { draw(); return; }
-					const r = await this.outlinerRenameTo(item.path, isFolder, typed);
-					if (r && !r.ok && r.said) said(r.said, true);
-					if (!r || !r.ok) draw();
-				};
-				nameEl.addEventListener('keydown', (ev) => {
-					if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
-					else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
-					// THE TREE'S OWN KEYS STAND DOWN while the caret is here.
-					// Space flags a row and the arrows move a cursor in this
-					// window — and Escape closes it, which would take the
-					// whole window away mid-rename.
-					ev.stopPropagation();
-				});
-				// COMMITTING ON BLUR is what the explorer does: clicking away
-				// keeps what you typed rather than throwing it away.
-				nameEl.addEventListener('blur', () => { finish(true); });
-				nameEl.addEventListener('click', (ev) => ev.stopPropagation());
-				nameEl.addEventListener('mousedown', (ev) => ev.stopPropagation());
-				try {
-					nameEl.focus();
-					// THE WHOLE NAME SELECTED, caret in it — typing replaces,
-					// End appends. A range rather than `setSelectionRange`,
-					// which contenteditable does not have.
-					const range = ownerDoc().createRange();
-					range.selectNodeContents(nameEl);
-					const picksel = ownerWin().getSelection();
-					picksel.removeAllRanges();
-					picksel.addRange(range);
-				} catch (_) {}
-			},
-			report: (item) => {
-				// THE ROW, NOT THE SELECTION. A writer who right-clicks a
-				// chapter and asks for its figures means that chapter, even if
-				// four other rows happen to be lit from an earlier click.
-				try { this.openReportModal(item && item.path); } catch (_) {}
-			}
-		};
-		const rowMenu = (row, it) => {
-			row.addEventListener('contextmenu', (ev) => {
-				ev.preventDefault();
-				// STOPPED HERE, or the list's own handler answers as well and
-				// the writer gets the empty-space menu on top of the row's.
-				ev.stopPropagation();
-				const menu = new Menu();
-				this.outlinerRowMenu(menu, it, menuCtx);
-				menu.showAtMouseEvent(ev);
-			});
-		};
-
-		const select = (row, it, order) => {
-			row.addEventListener('click', (ev) => {
-				if (ev.target && ev.target !== row && ev.target.closest
-					&& ev.target.closest('input, select, button, .zg-goals-chip, .zg-goals-chev')) return;
-				// ── THE ORGANIZER'S GRAMMAR IS SIMPLER ──────────────────────
-				//
-				// A folder click SELECTS it, through the one writer. A file
-				// click SHOWS it - its folder in the right pane with the note
-				// marked - and the second click opens it (G6, 2026-08-24): the
-				// grammar History and Export have always had. It OPENED on the
-				// first click until then, which made this the one tab where a
-				// writer could not look at a row without leaving the window.
-				//
-				// The multi-select grammar below belongs to the old tabs.
-				if (tab === 'organizer') {
-					// Clicking the folder that is already chosen CLEARS the
-					// choice - the same way back to the whole manuscript this
-					// window already taught, needed here because the root is
-					// not a row.
-					if (it.kind === 'folder') {
-						orgSelect(it.path === orgFolder ? '' : it.path);
-					} else showItem(it);
-					return;
-				}
-				const k = keyOf(it);
-				// The grammar of every file list a writer has used, which is
-				// why it beats a checkbox column: the rows are already there
-				// and the gesture is already known.
-				if (ev.shiftKey && lastPicked) {
-					const a = order.indexOf(lastPicked), b = order.indexOf(k);
-					if (a !== -1 && b !== -1) {
-						for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
-							sel.set(order[i], itemOf(order[i]));
-						}
-					}
-				} else if (ev.ctrlKey || ev.metaKey) {
-					if (sel.has(k)) sel.delete(k); else sel.set(k, it);
-					lastPicked = k;
-				} else {
-					// A plain click on the only selected row CLEARS it, which
-					// is how a writer gets back to the whole vault without
-					// hunting for a control that says so.
-					const only = sel.size === 1 && sel.has(k);
-					sel.clear();
-					if (!only) { sel.set(k, it); lastPicked = k; }
-				}
-				cursor = k;
-				cursorDrives = true;
-				uniPanelShow();
-				draw();
-				drawPanel();
-			});
-			row.addEventListener('dblclick', (ev) => {
-				if (ev.target && ev.target.closest
-					&& ev.target.closest('input, select, button, .zg-goals-chip, .zg-goals-chev')) return;
-				if (it.kind === 'file') { openRow(it); return; }
-				// A folder has nothing to open, so the second click does what
-				// the first would have if it had landed on the triangle —
-				// including the sweep, and including `rememberShut`, which
-				// this path used to skip: a fold made by double-click was
-				// forgotten on reopen while the same fold by chevron was
-				// kept.
-				toggleFold(it.path);
-			});
-		};
-
-		// ── FOLDING, ANIMATED AROUND THE REDRAW ─────────────────────────────
-		//
-		// The explorer's open and close SWEEP; ours snapped. Two reasons,
-		// both ours: a shut folder's children are not drawn at all, and the
-		// container hid with `display: none`, which is not animatable. The
-		// drawing model is kept — always drawing a four-hundred-note vault
-		// to make height animatable would trade a nicety for every draw's
-		// budget — and the sweep runs AROUND the redraw instead:
-		//
-		//   OPEN:  redraw first (the children now exist), then find the new
-		//          container and run its height 0 → measured.
-		//   CLOSE: sweep the standing container's height → 0 FIRST, and only
-		//          then mark it shut and redraw. The redraw happens after
-		//          the animation, not instead of it.
-		//
-		// ONE CLOCK. The transition is the clock; `transitionend` ends the
-		// run and a broom timeout only CLEANS UP if the event never fired —
-		// tab hidden, or a theme that removed the transition. Two live
-		// clocks on one animation is the jar handover's recorded trap, and
-		// this is one clock and a broom.
-		//
-		// FOUND BY SCAN, never by selector. A path can only go into an
-		// attribute selector escaped, and both the NUL trap and the
-		// CSS.escape trap in this file were exactly that fault. A linear
-		// scan of the folder rows is cheap at this size and cannot be
-		// mis-escaped.
-		//
-		// `prefers-reduced-motion` skips the whole machine — in the
-		// stylesheet AND here, because a transition the stylesheet has
-		// removed is an end event that never comes, and waiting out the
-		// broom on every fold is a delay those users asked not to have.
-		const foldRun = new Map();   // folder path -> finish()
-		const foldStill = () => {
-			try { return ownerWin().matchMedia('(prefers-reduced-motion: reduce)').matches; }
-			catch (_) { return false; }
-		};
-		const foldBoxOf = (path) => {
-			const rows = listWrap.querySelectorAll(
-				'.tree-item-self[data-goalkind="folder"]');
-			for (const r of rows) {
-				if (r.getAttribute('data-goalpath') !== path) continue;
-				const item = r.parentElement;
-				if (!item) return null;
-				for (const ch of item.children) {
-					if (ch.classList
-						&& ch.classList.contains('tree-item-children')) return ch;
-				}
-				return null;
-			}
-			return null;
-		};
-		const foldSweep = (path, box, toH, after) => {
-			const stale = foldRun.get(path);
-			if (stale) { try { stale(); } catch (_) {} }
-			let done = false;
-			const finish = () => {
-				if (done) return;
-				done = true;
-				foldRun.delete(path);
-				try {
-					box.classList.remove('zg-folding');
-					box.style.removeProperty('height');
-				} catch (_) {}
-				if (after) after();
-			};
-			foldRun.set(path, finish);
-			box.classList.add('zg-folding');
-			box.style.height = (toH === 0 ? box.scrollHeight : 0) + 'px';
-			void box.offsetHeight;   // the reflow that makes it a transition
-			box.style.height = toH + 'px';
-			box.addEventListener('transitionend', (ev) => {
-				if (ev.target === box && ev.propertyName === 'height') finish();
-			}, { once: true });
-			window.setTimeout(finish, 320);   // the broom, not a second clock
-		};
-		const toggleFold = (path) => {
-			const opening = shut.has(path);
-			if (foldStill()) {
-				if (opening) shut.delete(path); else shut.add(path);
-				rememberShut(); draw(); fill();
-				return;
-			}
-			if (opening) {
-				shut.delete(path); rememberShut(); draw(); fill();
-				const box = foldBoxOf(path);
-				if (!box || !box.scrollHeight) return;
-				foldSweep(path, box, box.scrollHeight, null);
-			} else {
-				const box = foldBoxOf(path);
-				const settle = () => { shut.add(path); rememberShut(); draw(); fill(); };
-				// Nothing standing to sweep — already empty, or the row is
-				// off screen — is a jump cut, not an error.
-				if (!box || !box.scrollHeight) { settle(); return; }
-				foldSweep(path, box, 0, settle);
-			}
-		};
-
-		// ── The draw ────────────────────────────────────────────────────────
-		draw = () => {
-			listWrap.textContent = '';
-			// The stored order can have been rewritten since the last draw —
-			// by a drag in here, by a drag in Obsidian's tree, or by the file
-			// changing under us — so the per-draw cache starts empty.
-			rankIn.clear();
-			// AND SO DOES THE ONE SAYING WHICH FILES A ROW GOVERNS: the scope
-			// can have changed, a file can have been added, a tick can have
-			// moved. It is built on the first row that asks and dropped here.
-			underIn = null;
-			// STAMPED HERE, because the columns change with the TAB and not only
-			// with the readings menu. It was stamped at build and by that menu, so
-			// switching to Structure left the grid holding the slim tab's TWO
-			// tracks with four cells to put in them: the band wrapped onto a
-			// second line and every row wrapped under it. That is the "structure
-			// is botched" screenshot.
-			stampCols();
-			// AND FROM HERE ON, WHENEVER THE PANE CHANGES WIDTH. The ceiling
-			// on the band is only as good as the last time it was applied, and
-			// before this it was applied when a column was touched and never
-			// when the ROOM around it moved.
-			watchPane();
-			// (applyNameW ran here once — the name width is a grid track now,
-			// stamped by stampCols, and no per-box class remains to switch.)
-			// (The sort/filter button labels were painted here — Phase 5,
-			//  and `drawHead()` was called here until its stub went — see its
-			//  tombstone below.)
-			// ── NEITHER CONTROL EXISTS ON HISTORY OR EXPORT ──────────────────
-			//
-			// TOMBSTONE, and the reasoning is worth keeping because the case
-			// FOR them was argued and lost.
-			//
-			// Both changed what you could SEE without changing what the tab was
-			// about. On Export that is the dangerous half: the compile takes
-			// what is TICKED, in the book's order, and neither a filter nor a
-			// sort touches either — so a writer who filtered to a flag, ticked
-			// what they saw and exported got the rows they could not see as
-			// well. A hidden row still going out is worse than a two-step job,
-			// and it is worst on the one tab where what is on screen and what
-			// comes out must not drift apart.
-			//
-			// On History the pair simply did nothing: the panel answers for the
-			// selection, and reordering or hiding rows in the navigator beside
-			// it changes no figure on the page. A control that does nothing
-			// teaches a writer to distrust the row it sits in, and that row also
-			// holds the search box and the columns button, which do work.
-			//
-			// I argued for keeping the filter on Export — filter to a flag,
-			// untick that set — and that was wrong for the reason above.
-			//
-			// THE CHIP STAYS on Export, because there the order IS the output
-			// and saying so is worth a line. It is a chip and not a disabled
-			// button: a greyed-out control still promises something and invites
-			// a click to find out what.
-			// TOMBSTONE (Phase 5): `const bare = tab !== 'organise'` — the
-			// sort, filter and Board buttons were the OLD tab's controls and
-			// hid everywhere else. The tab is gone; so are they. The sort
-			// CHIP stays on Export (the order IS the output, and saying so
-			// is worth a line), and the KIND chip narrows every tab.
-			drawTypeChip();
-			// ── AND THE EYE GOES ON EXPORT ───────────────────────────────────
-			//
-			// Asked for from a vault. The columns button was the one control
-			// in this row that was never hidden anywhere, and on Export it
-			// offers to show and hide readings beside rows whose only column
-			// that matters is the TICK — which it cannot turn off, and should
-			// not be able to. So it opened a menu about columns that are not
-			// what that tab is for, next to a chip explaining that the order
-			// is fixed.
-			//
-			// TOMBSTONE: "IT STAYS ON HISTORY — the columns do work there."
-			// That reasoning was mine and the writer overruled it, which is
-			// theirs to do. The History panel is a chart of the whole vault
-			// and the tree beside it is a way of narrowing WHAT the chart is
-			// about — not a table anybody reads across. Columns on those
-			// rows answer a question that tab does not ask, and a screenshot
-			// showed the eye sitting alone in a toolbar whose sort and filter
-			// had already gone for exactly that reason.
-			//
-			// Which leaves it on the Outliner only, where the row IS a table
-			// and the columns are the reading.
-			// (colsBtn's tab toggle stood here — the button is gone.)
-			// ── THE HINT ONLY SPEAKS WHEN IT HAS SOMETHING TO SAY ───────
-			//
-			// TOMBSTONE: "Drag a row to reorder, or onto a folder to move
-			// it. Right-click for the rest." — shown under the tree at all
-			// times while the sort was Custom. Removed on request, and it
-			// had earned removal: it is a line of instructions a writer
-			// reads once and then sits under their manuscript for ever,
-			// costing a row of height on every window and every phone.
-			//
-			// WHAT IT SAID THAT MATTERED IS KEPT. A writer who has sorted
-			// by words and tries to drag gets nothing, and nothing is the
-			// worst answer — so the OTHER branch stays, because that one
-			// explains something the window is refusing to do rather than
-			// describing something it already does.
-			const files = liveFiles();
-			// \u2500\u2500 AND IT SAYS WHAT THE SORT TOOK AWAY \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-			//
-			// MOVED BELOW `liveFiles`, which is the whole point: the count of
-			// rows the empty-value rule hid does not exist until the list has
-			// been built, and this line ran above it. A hint that cannot see
-			// the number it is reporting is a hint that reports nothing.
-			//
-			// A TREE THAT SILENTLY LOSES TWO THIRDS OF ITSELF when a heading
-			// is clicked looks broken, and the writer has no way to tell the
-			// rule from a bug. So the rule announces itself, in the line that
-			// is already explaining why the rows cannot be dragged.
-			// The label is looked up here since Phase 5 — it used to ride in
-			// with the sort button's own caption, which retired.
-			// ── TOMBSTONE: THE SORT HINT (A58, 2026-09-03) ───────────────
-			//
-			// A sentence naming the sorted column and how many rows the
-			// empty-value prune had hidden, ending "Switch to Custom sort to
-			// drag rows into place." All of it sat behind
-			// `sort === 'order' ? '' : …`, and `sort` is always `'order'` — so
-			// the strip drew the empty half on every build ever made, and the
-			// class below hid the line at the same moment.
-			//
-			// IT ALSO READ `emptyHidden`, which the prune fed and which was
-			// always 0: two dead things holding each other up.
-			//
-			// THE ELEMENT STAYS, EMPTY AND HIDDEN, because the strip lays out
-			// around it and removing a box is a layout change nobody asked for.
-			hint.setText('');
-			hint.toggleClass('is-live', false);
-			hint.toggleClass('zg-is-hidden', true);
-			// ── THE FOLDERS ARE THE VAULT'S OWN, PRUNED ─────────────────
-			//
-			// TOMBSTONE: the tree derived from the FILES — every folder
-			// holding a note, plus every folder above one. That derivation
-			// is why an empty folder could not exist here, why a session
-			// memory (`_outlinerMade`) had to prop up folders made in this
-			// window, and why nothing but markdown could ever be drawn.
-			//
-			// Now the real folder tree is walked — `vault.getRoot()`, the
-			// walk `exportKnownPaths` already does — and every narrowing is
-			// a PRUNING over it: the scope drops branches the writer has
-			// not asked for. An active search or flag filter falls back to
-			// the leaves-up rule, because "hide folders with no matching
-			// descendant" is exactly what that rule computes, and a
-			// filtered view that stays a tree without inventing levels is
-			// the one thing it protected.
-			//
-			// The stubbed vaults the probes drive have no `getRoot`, so the
-			// leaves-up derivation stands in there too — under a stub every
-			// folder holds a file, so the two rules give one answer.
-			const wanted = new Set();
-			const filterOn = !!query;
-			const root = (() => {
-				try { return this.app.vault.getRoot ? this.app.vault.getRoot() : null; }
-				catch (_) { return null; }
-			})();
-			if (root) {
-				// ── AND A FILTER PRUNES IT RATHER THAN REPLACING IT ─────
-				//
-				// TOMBSTONE: `if (!filterOn && root)`. The real tree was
-				// walked only while NOTHING was narrowing it; the moment a
-				// search or a filter came on, the derivation fell back to
-				// the leaves-up rule — every folder holding a surviving
-				// file, plus its ancestors.
-				//
-				// THAT MADE A FOLDER UNFINDABLE BY NAME. Reported from a
-				// vault: "the search bar does not work i type in booksa (i
-				// have a empty folder named Booksa) and it does not find
-				// it." An empty folder holds no file, so leaves-up can
-				// never produce it — the one search a writer is most
-				// certain about is the one that could not work.
-				//
-				// SO THE PRUNE IS THE FILTER. A folder is kept when it
-				// matches the query ITSELF, or when anything beneath it
-				// survives. That is what the leaves-up rule was computing
-				// in the filtered case, plus the folder's own name — and
-				// it keeps the one thing that rule protected: a filtered
-				// view that is still a tree, with no levels invented.
-				const live = new Set(files);
-				// ── EMPTY IS NOT THE SAME AS ALL-HIDDEN ─────────────────
-				//
-				// `matches` answers "does this match the SEARCH", and with no
-				// search it is vacuously true — so a first version kept every
-				// folder on that alone, and brought back the one folder the
-				// tree is supposed to hide: `Word-Smith`, whose only contents
-				// are the plugin's own order, goals and history notes. The
-				// leaves-up rule hid it for free, by never producing a folder
-				// with no surviving file.
-				//
-				// A FOLDER WITH NOTHING IN IT IS DRAWN; a folder whose files
-				// are all hidden is not. That is the distinction leaves-up
-				// could not express — it saw both as "no surviving file" —
-				// and it is the whole reason an empty folder was unfindable.
-				const keepFolder = (folder) => {
-					let live1 = false, anyFile = false, keptSub = false;
-					for (const k of (folder.children || [])) {
-						if (k && k.children) {
-							if (keepFolder(k)) keptSub = true;
-						} else if (k) {
-							anyFile = true;
-							if (live.has(k.path)) live1 = true;
-						}
-					}
-					const keep = live1 || keptSub
-						// ITS OWN NAME, but only while something is being
-						// searched for: otherwise this is the vacuous truth
-						// that hid the bug above.
-						|| !!(query && folder.path && matches(folder.path, true))
-						// AND A GENUINELY EMPTY ONE, when nothing is being
-						// searched for. Under a search it has to earn its
-						// place by name like everything else.
-						|| (!anyFile && !query);
-					// THE ROOT IS NOT A ROW. Its path is '/', which is truthy —
-					// the walk this replaced started from the root's CHILDREN
-					// and so never had to say this out loud. Without it the
-					// tree grows a row for the vault itself, above everything,
-					// and a search that matched anything drew it.
-					if (keep && folder.path && folder !== root) wanted.add(folder.path);
-					return keep;
-				};
-				keepFolder(root);
-			} else {
-				for (const path of files) {
-					let dir = folderOf(path);
-					while (dir) { wanted.add(dir); dir = folderOf(dir); }
-				}
-				// …AND THE FOLDERS MADE IN HERE THIS SESSION, which the
-				// leaves-up rule cannot hold because they are empty. Only
-				// this FILTERED branch still needs the memory: the rename
-				// that follows "New folder" finds its row by `data-path`,
-				// and a row not drawn takes the writer's typing nowhere.
-				// The real walk above holds every folder without being
-				// reminded, which is the point of it.
-				for (const made of (this._outlinerMade || [])) {
-					let at = this.app.vault.getAbstractFileByPath(made);
-					if (!at || !at.children) continue;   // deleted since
-					let dir = made;
-					while (dir) { wanted.add(dir); dir = folderOf(dir); }
-				}
-			}
-			const order = [];
-			// key -> the row element drawn for it, this pass. See the cursor
-			// note at the foot of the walk for why this is not a query.
-			const elByKey = new Map();
-			let rowsDrawn = 0;
-
-			// `depth` is the depth of the things INSIDE `dir`: the folder
-			// headings and the notes at this level both sit at it, and the
-			// recursion adds one. Getting that wrong puts a note one step
-			// further in than the folder heading above it, which reads as a
-			// level of nesting that is not there.
-			// ── THE TREE IS OBSIDIAN'S OWN MARKUP ───────────────────────────
-			//
-			// `.nav-folder` / `.nav-folder-title` / `.nav-folder-children` /
-			// `.nav-file` / `.nav-file-title` / `.tree-item-self` /
-			// `.collapse-icon` — the same element names the file explorer
-			// uses, NESTED the same way. Three things follow from that and
-			// none of them had to be written:
-			//
-			//   · a theme or a CSS snippet that styles the explorer styles
-			//     this window too, for free, and goes on doing it when the
-			//     writer changes theme;
-			//   · the indent and its guide lines come from the nesting, so
-			//     the hand-drawn `--zg-depth` gradient is gone — and with it
-			//     the class of bug where an inline padding moved the text
-			//     without moving the lines;
-			//   · there is ONE description of a tree row in this plugin
-			//     instead of two that have to be kept in step.
-			//
-			// The class this plugin already used stays on the same element
-			// beside Obsidian's, because the rows are what its own stylesheet
-			// and its probes both name. One element, two names — not two
-			// elements.
-			//
-			// THE READINGS ARE ONE TRAILING CHILD, not cells of the row.
-			// Obsidian's rows are flex and the readings are a grid, and the
-			// brief's warning is the exact fault behind the "structure is
-			// botched" screenshot: two layout systems on one row. So the row
-			// stays THEIRS, flex and untouched, and everything this plugin
-			// adds to it goes inside a single `.zg-uni-marks` box that is the
-			// grid — the same shape as the explorer's `.zg-treemarks`.
-			// ── THE ROW'S OWN INDENT, THE WAY THE EXPLORER WRITES IT ────
-			//
-			// Measured against the file explorer in a vault: every row there
-			// carries an INLINE `margin-inline-start` / `padding-inline-start`
-			// with `!important`, computed from its depth. Every row here
-			// carried none. A depth-0 folder is `0 / 24`; a depth-1 file is
-			// `-17 / 41`.
-			//
-			// The 17 is the nested container's own indent — margin 12 +
-			// padding 4 + border 1, which is what `.nav-folder-children`
-			// measures. So the row is pulled BACK by exactly what the nesting
-			// pushed it, and the same amount is added to its padding: the
-			// background then runs the full width of the pane while the
-			// content stays where the indent put it. That is the whole
-			// mechanism, and we had half of it — the containers without the
-			// compensation.
-			//
-			// TWO BUGS, ONE CAUSE. The guide lines "not like in the filetree"
-			// and the root folders' missing chevrons are the same missing
-			// indent: at depth 0 Obsidian's 24px of padding is exactly where
-			// the collapse icon sits, and our rows had 6px, so a 16px chevron
-			// overhung to x = -14. The number matched before the cause was
-			// found, which is why the first fix — padding the LIST — looked
-			// right and was in the wrong place.
-			//
-			// INLINE, because the app's own are `!important` and a stylesheet
-			// cannot answer that. Read from the same custom properties the
-			// container uses, so a theme that changes its tree metrics
-			// changes ours with it.
-			const indentStep = () => {
-				try {
-					const cs = ownerWin().getComputedStyle(listWrap);
-					const n = (v, d) => {
-						const raw = parseFloat(cs.getPropertyValue(v));
-						return isNaN(raw) ? d : raw;
-					};
-					return n('--nested-item-margin', 12) + n('--nested-item-padding', 4)
-						+ n('--nested-item-border-width', 1);
-				} catch (_) { return 17; }
-			};
-			// ── THE INDENT LIVES IN THE NAME CELL NOW ───────────────────
-			//
-			// TOMBSTONE: Obsidian's arrangement — the row pulled LEFT by
-			// `margin-inline-start: -back` and pushed in again by
-			// `padding-inline-start: 24 + back` — so the highlight ran the
-			// full width while the name stepped in. A subgrid row spans the
-			// grid's tracks; a margin on it would drag every READING off its
-			// column, so the indent moves into the one cell it was ever
-			// about. Two custom properties on the row (they inherit): the
-			// name cell pads by `--zg-row-pad`, and the guide gradient sizes
-			// itself by `--zg-row-indent`.
-			//
-			// AND THE GUIDE IS OURS AGAIN — legitimately this time. The last
-			// tombstone here said the container draws it (`app.css`'s border
-			// on `.tree-item-children`) and warned that a row-drawn line plus
-			// an opaque row background had produced TWO lines. Both premises
-			// die together in one grid: the wrappers are `display: contents`
-			// and generate NO boxes — app.css's border has nothing to paint
-			// on — and the name cell is opaque BY DESIGN (it is the frozen
-			// pane). So the name cell draws the guides, all `depth` of them,
-			// as a repeating gradient in its own padding — there is no second
-			// line left to collide with. See "THE GUIDES, IN THE FROZEN
-			// PANE" in styles.css.
-			const indentRow = (el, depth) => {
-				const back = indentStep() * Math.max(0, depth);
-				try {
-					el.style.setProperty('--zg-row-pad', (ROW_BASE_PAD + back) + 'px');
-					el.style.setProperty('--zg-row-indent', back + 'px');
-				} catch (_) {}
-			};
-			const walk = (dir, depth, into) => {
-				const kids = Array.from(wanted).filter(d => folderOf(d) === dir);
-				const mine = files.filter(p2 => folderOf(p2) === dir).sort(cmp('file'));
-				// Folders before files at the same level, which is the export
-				// tree's order and the file explorer's.
-				for (const sub of kids.sort(cmp('folder'))) {
-					// ── FILES ONLY DRAWS NO FOLDER ROW ──────────────────
-					//
-					// It still WALKS the folder — the files inside it are the
-					// whole point — and hands them to the same container at the
-					// same depth, so what comes out is one flat list rather than
-					// a tree with its branches invisible. A shut folder stays
-					// shut: hiding the row must not also silently open it.
-					if (showShape() === 'files') {
-						// ── AND IT IGNORES THE FOLD STATE ───────────────
-						//
-						// TOMBSTONE: `if (!shut.has(sub))`, which kept a shut
-						// folder shut. It reads as careful — hiding a row
-						// should not silently open it — and it turns the
-						// fold state into an INVISIBLE FILTER: there are no
-						// folder rows in this mode, so nothing on screen can
-						// be unfolded and a writer has no way back to the
-						// files inside a folder they closed earlier.
-						//
-						// Reported from a vault: "if i close some folders and
-						// put filter by notes — only those notes that are in
-						// the opened folders appear in the organizer."
-						//
-						// The folds are REMEMBERED, not lost: `shut` is
-						// untouched, so switching back to a tree finds every
-						// folder where it was left.
-						walk(sub, depth, into);
-						continue;
-					}
-					const it = { path: sub, kind: 'folder' };
-					const k = keyOf(it);
-					const folderEl = into.createDiv({
-						cls: 'tree-item nav-folder'
-							+ (shut.has(sub) ? ' is-collapsed' : '') });
-					// `mod-collapsible` IS NOT DECORATION. Obsidian puts it on
-					// a folder title that has a chevron, and a theme's rules
-					// for the indent, the hover and the icon's box are written
-					// against it — without it the row is styled as a leaf that
-					// happens to have an arrow in it.
-					const h = folderEl.createDiv({
-						cls: 'tree-item-self nav-folder-title is-clickable mod-collapsible'
-							+ ' zg-export-folder zg-goals-rowline'
-							+ (sel.has(k) ? ' is-picked' : '')
-							// The Organizer's selected folder, marked where the
-							// writer chose it — the right pane is ABOUT this row.
-							+ (tab === 'organizer' && sub === orgFolder
-								? ' zg-org-current' : '')
-					});
-					// Obsidian's own rows carry this, and a snippet that
-					// targets one folder by path is a thing writers write.
-					h.setAttribute('data-path', sub);
-					h.setAttribute('data-goalpath', sub);
-					h.setAttribute('data-goalkind', 'folder');
-					h.setAttribute('data-goalkey', k);
-					indentRow(h, depth);
-					// ── THE NAME CELL, ONE ELEMENT ──────────────────────
-					//
-					// The row is a subgrid now (BRIEF-TABLE-SUBGRID Phase 2)
-					// and its first track is the frozen name column, so
-					// everything that is "the name" — tick, chevron, folder
-					// glyph, label — rides in ONE grid item that can be
-					// sticky, opaque and padded by the indent. Loose in the
-					// row, each would land in its own reading track.
-					const nc = h.createDiv({ cls: 'zg-uni-namecell' });
-					tickBox(nc, sub, 'folder');
-					const chev = nc.createDiv({
-						cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
-							+ (shut.has(sub) ? ' is-collapsed' : '') });
-					// ── OBSIDIAN'S OWN GLYPH, NOT A DRAWN ONE ────────────
-					//
-					// TOMBSTONE: a hand-drawn triangle pointing DOWN with the
-					// app's rotation cancelled in the stylesheet. It was drawn
-					// because `setIcon('right-triangle')` had once given a
-					// glyph whose direction changed under us, and cancelled
-					// because `collapse-icon` carries a rotation of its own
-					// that composed with ours and pointed an open folder LEFT.
-					//
-					// Both were treating a symptom. The two rotations fought
-					// because ours pointed the wrong way to begin with:
-					// Obsidian's glyph points RIGHT and their CSS turns it down
-					// when the folder opens. Ask for their icon and the
-					// composition is the one the file explorer gets, which is
-					// the entire point of wearing their classes.
-					//
-					// The drawn path stays as a fallback — pointing RIGHT like
-					// theirs — for a build where the icon is not registered: a
-					// folder with no chevron is worse than one whose glyph is a
-					// shade off.
-					let gotChev = false;
-					try {
-						if (setIcon) {
-							setIcon(chev, 'right-triangle');
-							gotChev = !!chev.querySelector('svg');
-						}
-					} catch (_) {}
-					if (!gotChev) {
-						chev.innerHTML = '<svg class="svg-icon right-triangle" viewBox="0 0 12 12" '
-							+ 'width="9" height="9" aria-hidden="true">'
-							+ '<path d="M3.5 2.2 L9.3 6 L3.5 9.8 Z" fill="currentColor"/></svg>';
-					}
-					chev.addEventListener('click', (ev) => {
-						ev.stopPropagation();
-						ev.preventDefault();
-						toggleFold(sub);
-					});
-					// A COLOURED FOLDER IS COLOURED HERE TOO. A colour set in
-					// one tree and absent in the other is two answers to
-					// "which folder is this" — and this window is the one a
-					// writer arranges the book in.
-					// TOMBSTONE: a manuscript folder was drawn as a BOOK here,
-					// in place of the folder glyph. The concept is retired —
-					// see the tombstone on the row that used to set it — so
-					// every folder is a folder.
-					// WHICH ICONS THE TREE WEARS is the writer's (inbox,
-					// 2026-08-22: "a drop down so i can choose — i like the
-					// first ones too"). `organizerIcons`: 'obsidian' (lucide,
-					// the default), 'drawn' (Word-Smith's own folder glyph,
-					// the first ones), 'none'.
-					// ONE BUILDER, shared with the table's group rows — see
-					// `orgFolderIcon`, which carries the style rules, the
-					// checked name list and the folder colour.
-					orgFolderIcon(nc, sub, !shut.has(sub));
-					// `tree-item-inner` TOO. It is the class a theme styles the
-					// NAME with — `-title-content` says which kind of row it
-					// is, and `tree-item-inner` carries the font, the colour
-					// and the ellipsis. A row with one and not the other gets a
-					// theme's folder colour and none of its typography.
-					nc.createDiv({ cls: 'tree-item-inner nav-folder-title-content zg-export-foldername',
-						text: nameOf(sub) });
-					// NO SYNOPSIS CHEVRON ON A FOLDER. A folder has no
-					// frontmatter, so there is nowhere for one to live.
-					// NO CELLS ON ANY TAB (one filetree only — writer,
-					// 2026-08-22): the readings live in the Organizer table.
-					order.push(k);
-					elByKey.set(k, h);
-					select(h, it, order);
-					rowMenu(h, it);
-					draggable(h, it);
-					rowsDrawn++;
-					// THE CHILDREN CONTAINER IS DRAWN EITHER WAY, empty when
-					// the folder is shut. Obsidian's markup expects it, a
-					// theme's indent guide is drawn ON it, and a folder that
-					// loses the element when it closes cannot be transitioned
-					// open — the guide would appear a frame after the rows.
-					// `tree-item-children` IS WHAT DRAWS THE INDENT GUIDES.
-					// Obsidian's vertical lines are a pseudo-element on THIS
-					// class; `nav-folder-children` names the kind of container
-					// and carries none of the drawing. Without it the nesting
-					// is correct and the guides are simply absent — which is
-					// most of what "it does not look like the file explorer"
-					// turned out to be.
-					const kidsWrap = folderEl.createDiv({
-						cls: 'tree-item-children nav-folder-children' });
-					if (!shut.has(sub)) walk(sub, depth + 1, kidsWrap);
-				}
-				// ── FOLDERS ONLY DRAWS NO FILES ─────────────────────────
-				//
-				// Asked for from a vault alongside "files only" and a "notes
-				// only" that hides folders too. It is a SHAPE filter and the
-				// kinds filter beside it is about EXTENSIONS — two different
-				// questions that both narrow the tree, kept apart in the code
-				// for the same reason they read as one list in the menu.
-				if (showShape() === 'folders') return;
-				for (const path of mine) {
-					const it = { path, kind: 'file' };
-					const k = keyOf(it);
-					const fileEl = into.createDiv({ cls: 'tree-item nav-file' });
-					const row = fileEl.createDiv({
-						cls: 'tree-item-self nav-file-title is-clickable'
-							+ ' zg-export-row zg-goals-rowline'
-							+ (sel.has(k) ? ' is-picked' : '')
-							// The followed note (inbox): accent-marked, the
-							// way the selected folder is.
-							+ (tab === 'organizer' && path === orgNote
-								? ' zg-org-active' : '')
-					});
-					row.setAttribute('data-path', path);
-					row.setAttribute('data-goalpath', path);
-					row.setAttribute('data-goalkind', 'file');
-					row.setAttribute('data-goalkey', k);
-					indentRow(row, depth);
-					// The same one-element name cell the folder rows build —
-					// see the comment there.
-					const nc = row.createDiv({ cls: 'zg-uni-namecell' });
-					tickBox(nc, path, 'file');
-					// ── THE SYNOPSIS CHEVRON GOES IN FRONT ───────────────
-					//
-					// TOMBSTONE: built AFTER the readings box, which put it at
-					// the far right end of the row — and that is not merely
-					// where it looked wrong. The readings are a grid whose
-					// tracks the BAND repeats; a fifteen-pixel control after
-					// them shortened the row's grid by fifteen pixels and
-					// every figure slid left of the label above it. One
-					// misplaced element, and a writer reported the table as
-					// misaligned and the column rules as botched.
-					//
-					// IN FRONT, where a folder's chevron is. That is what it
-					// is — a thing that opens a row — and it costs the grid
-					// nothing, because it sits beside the NAME, which is the
-					// flexible column that gives the space back.
-					// A NON-MARKDOWN ROW HAS NO SYNOPSIS AND NO READINGS.
-					// Frontmatter is markdown's, so there is nothing for the
-					// chevron to open; and a word count of an image is not
-					// zero, it is NOT A READING — the cells render BLANK,
-					// because a zero is an answer and a blank is "not a
-					// text". What it gets instead is its KIND, said the way
-					// the explorer says it: a small icon before the name.
-					const isMd = /\.md$/i.test(String(path));
-					// TOMBSTONE (writer, 2026-08-22): the synopsis CHEVRON and
-					// its strip under the row — "i don't want synopsis or
-					// proprieties in the file tree — we already have the
-					// table for that." The Outline drawer is where a synopsis
-					// reads and edits now; the tree is a navigator, full stop.
-					// The chevron is not built at all now; `synopsisStrip` went
-					// with it (2026-08-31), having been unreachable behind a
-					// `null` since the writer asked for it out.
-					// EVERY file wears its kind now (writer's pass: "add
-					// icons for notes too") — a note gets the note glyph the
-					// way an image gets the image one.
-					// ONE BUILDER, shared with the table's rows — the style
-					// rules and the checked name list live in `orgKindIcon`.
-					this.orgKindIcon(nc, path);
-					nc.createDiv({ cls: 'tree-item-inner nav-file-title-content zg-export-name',
-						text: nameOf(path) });
-					// AFTER THE NAME, which is where Obsidian puts it — the name
-					// takes the room and the format sits at the end of the line.
-					// ONE CALL SITE for all three tabs: this builder is the only
-					// tree there is since "one filetree only" (2026-08-22), so
-					// the Organizer, the Export list and the History tree get it
-					// together, which is what "including in the organizers,
-					// export, history file tree" asks for.
-					this.orgKindTag(nc, path);
-					// (The readings box stood here — no cells on any tab now;
-					// one filetree only, writer 2026-08-22.)
-					// ── THE SYNOPSIS, UNDER THE ROW IT BELONGS TO ────────
-					//
-					// A line or two about what this scene DOES. It opens
-					// under the row rather than in a panel to the side,
-					// because the thing a writer is comparing it against is
-					// the rows above and below it — that is what an outline
-					// IS — and a panel puts the comparison a click away.
-					//
-					// Under `fileEl`, not `row`: the row is the clickable
-					// line itself and a block inside it would be inside the
-					// thing that opens the note.
-					order.push(k);
-					elByKey.set(k, row);
-					select(row, it, order);
-					rowMenu(row, it);
-					draggable(row, it);
-					rowsDrawn++;
-				}
-			};
-			// ── EMPTY SPACE IS A PLACE TOO ──────────────────────────────────────
-		// Right-clicking below the last row is how a writer adds the chapter
-		// they have just decided on, in Obsidian's own tree and now in this
-		// one. Bound on the CONTAINER rather than on a row, and the rows stop
-		// the event, so the two menus never both appear.
-		// ── THE TREE IS THE READER'S NAVIGATION (A225) ──────────────
-		//
-		// Writer, 2026-09-06: “make the navigation using the left file tree -
-		// click a ticked file and it jumps there”, replacing the rail's ticks.
-		//
-		// IT IS THE BETTER CONTROL AND THAT IS WHY IT WON: the tree is where
-		// the writer already is, it shows which files are going out, and every
-		// entry carries its own NAME — which is exactly what a column of
-		// unlabelled marks could not.
-		//
-		// DELEGATED, so it costs one listener for a tree of any size and no
-		// row has to remember to wire itself. And INERT IN PAGES: `jumpTo`
-		// answers false when the reader is not open, so this changes nothing
-		// about a click in the ordinary Export tab.
-		listWrap.addEventListener('click', (ev) => {
-			if (tab !== 'export') return;
-			try {
-				const t = ev && ev.target;
-				if (!t || !t.closest) return;
-				// NOT THE TICK BOX. Ticking is what that control is for, and
-				// jumping on the same press would move the reader every time the
-				// writer changed their mind about a file.
-				if (t.closest('.zg-export-cb')) return;
-				const row = t.closest('.zg-export-row[data-path]');
-				if (!row) return;
-				const path = row.getAttribute('data-path');
-				if (exportOpts && exportOpts.jumpTo) exportOpts.jumpTo(path);
-			} catch (_) {}
-		});
-		listWrap.addEventListener('contextmenu', (ev) => {
-			ev.preventDefault();
-			// STOPPED HERE TOO, not only on the rows.
-			//
-			// A BEST GUESS AT THE HALO reported behind this menu: the event was
-			// left to bubble out of the modal, and anything else listening for
-			// a contextmenu on the way up — the app's own handling, another
-			// plugin's — gets to answer the same click. Two menus at one
-			// pointer, one of them empty, read as a shadow rather than as a
-			// second menu. It costs nothing to stop it here, and a right-click
-			// inside this window is this window's.
-			ev.stopPropagation();
-			const menu = new Menu();
-			this.outlinerRowMenu(menu, null, menuCtx);
-			menu.showAtMouseEvent(ev);
-		});
-
-		// ── THE TREE HANGS FROM A ROOT FOLDER, LIKE THE EXPLORER'S ──────────
-		//
-		// Obsidian's file explorer is not a flat list inside a container: it
-		// is `.nav-folder.mod-root > .tree-item-children.nav-folder-children`,
-		// and EVERY row — including the top-level ones — lives inside that
-		// children box. The guides are drawn on those boxes, so the outermost
-		// one is what a first-level line hangs off.
-		//
-		// We appended rows straight into the pane, so that box did not exist
-		// and every level's guide was one container out of step. Reported as
-		// "the vertical lines are all over the place", and after the row
-		// indents landed it was the only thing left that could be.
-		//
-		// WEARING THE CLASSES IS NOT ENOUGH; the NESTING is half of what a
-		// theme's rules match on. This is the same shape the menu panel's
-		// tree already uses — see `.zg-menu-panel .mod-root` in the
-		// stylesheet, which zeroes the root box's own indent so top-level
-		// entries are not children of anything.
-		const rootFolder = listWrap.createDiv({ cls: 'tree-item nav-folder mod-root' });
-		// ── THE ROOT IS A ROW (writer, 2026-08-23) ──────────────────────
-		//
-		// "add the root folder with the vault name and the obsidian icon".
-		//
-		// IT CLOSES A COMMENT IN `select`: a re-click on the chosen folder
-		// clears the choice, "needed here because the root is not a row".
-		// It is one now, so the way back to the whole vault is a thing to
-		// point at rather than a gesture a writer has to be told about.
-		// The re-click STAYS - it costs nothing and it is what a writer who
-		// learnt it will keep doing.
-		//
-		// IT NAMES WHAT THE TREE IS ACTUALLY ROOTED AT — which, since the
-		// manuscript root was retired (2026-08-30), is always the vault.
-		// The name/icon branch below is KEPT: it costs nothing and it is
-		// what stops a row wearing the vault's name above a tree that is
-		// not the vault, should anything ever root elsewhere again.
-		//
-		// CLICKABLE ONLY WHERE A FOLDER CLICK MEANS SOMETHING. The
-		// Organizer's grammar is "a folder click selects it"; Export ticks
-		// and History has no such gesture, so there the row is a HEADING -
-		// and it does not wear `is-clickable`, because a row that looks
-		// pressable and is not is worse than no row.
-		// NOT IN A FLAT LIST. `Files only` and `Notes only` draw no folder
-		// rows at all - the tree becomes one flat run on purpose - and a
-		// root heading above it would be the only hierarchy left standing,
-		// which is a shape the writer switched off. Two assertions already
-		// said so and both went red the moment this row appeared.
-		if (showShape() !== 'files' && showShape() !== 'notes') {
-			// Always the vault: the manuscript root is retired (2026-08-30),
-			// so all three tabs root at the same place.
-			const rootPath = '';
-			const isVault = !rootPath;
-			// ── EVERY TAB CAN GET BACK TO THE WHOLE VAULT ────────────
-			//
-			// Writer, 2026-08-25: "i can't select the whole vault root in
-			// export and history".
-			//
-			// This was `tab === 'organizer'`, and the stylesheet rule below
-			// justified it: "Export ticks and History has no folder-click
-			// gesture, so there the row is a heading and nothing else."
-			// HALF OF THAT WAS WRONG, measured live before changing it:
-			// History's folder rows ARE `is-clickable` and go through the
-			// same `select()` Export's do. So the root was the only row in
-			// the tree a writer could not act on, on two tabs out of three.
-			//
-			// AND IT STORES NOTHING NEW. On these tabs an EMPTY selection
-			// already IS the whole vault — `select()` says so itself: "a
-			// plain click on the only selected row CLEARS it, which is how
-			// a writer gets back to the whole vault without hunting for a
-			// control that says so". This row is that control, said out
-			// loud. A second notion of scope is the fault this window keeps
-			// removing, so there is not one.
-			const pickable = true;
-			// ── THE ROOT IS A FOLDER ROW LIKE THE REST (writer,
-			// ── 2026-08-24, with a picture of it not being one) ────────
-			//
-			// It was a bare `tree-item-self nav-folder-title` with the icon
-			// and the label loose inside it: 22px against every other
-			// folder's 28px, no `mod-collapsible`, no name cell, no
-			// chevron. Measured side by side before changing it, because
-			// "looks different" and "is built differently" are not the same
-			// report - here they happened to be.
-			//
-			// AND IT DOES NOT FOLD (writer, 2026-08-25, having looked at 323:
-			// "remove the chevron and the collapsible stuff of the root").
-			// The chevron shipped for one pair and took collapse-all with it,
-			// which CURRENT.md had been holding back as G3's other half - so
-			// that half goes back on the shelf, and it goes back UNBUILT
-			// rather than built-and-hidden. What the row keeps is everything
-			// they asked for and kept: the name cell, the height, Obsidian's
-			// mark, and children indented under it.
-			//
-			// NO `mod-collapsible` EITHER. Obsidian puts it on a folder title
-			// that HAS a chevron and a theme's rules are written against that
-			// pairing; wearing it without one is a row that reserves space for
-			// a control it does not have.
-			// MARKED THE WAY ITS OWN TAB MARKS THINGS. The Organizer has one
-			// chosen folder and says so with `zg-org-current`; the other two
-			// have a SET, and a row in it wears `is-picked`. The root is in
-			// that set exactly when the set is empty, which is the state the
-			// window opens in — so the tree now opens saying what its scope
-			// is instead of saying nothing.
-			// ── THE ROOT FOLDS, AND THIS REVERSES 323 ───────────────────
-			//
-			// Writer, 2026-08-26: "the vault root in organizer must have a
-			// chevron too with collapse expand" — the LEFT TREE, asked and
-			// answered.
-			//
-			// 323 BUILT THIS AND THE WRITER ASKED IT BACK OUT. The comment
-			// below still said so ("the TREE's root does not fold — that is
-			// still the writer's decision from 323"), and CURRENT.md lists
-			// it among eight thrown-away builds. It has now been asked for
-			// twice and removed once; that is worth a line rather than a
-			// silent re-add.
-			//
-			// `mod-collapsible` IS OBSIDIAN'S OWN CLASS and the note above
-			// warns against wearing it without a chevron — "a row that
-			// reserves space for a control it does not have". So the class
-			// and the control arrive together, on the same condition.
-			// EVERY TAB'S ROOT FOLDS (writer, 2026-08-27: “export and history
-			// file tree - does not have the chevron on the root folder”).
-			//
-			// Was `tab === 'organizer'`. All three tabs draw this row from this
-			// builder; 349 gave the chevron to the Organizer alone, so Export and
-			// History got the row WITHOUT the control that makes it read as the
-			// parent of everything under it. Widening the gate is the whole
-			// change — a second implementation of this row is the fault this
-			// window keeps deleting.
-			const rootFolds = true;
-			const rh = rootFolder.createDiv({
-				cls: 'tree-item-self nav-folder-title zg-uni-root'
-					+ (rootFolds ? ' mod-collapsible' : '')
-					+ (pickable ? ' is-clickable' : '')
-					+ (tab === 'organizer'
-						? (orgFolder === rootPath ? ' zg-org-current' : '')
-						: (sel.size ? '' : ' is-picked'))
-			});
-			rh.setAttribute('data-path', rootPath);
-			// ── ONE STEP LEFT OF EVERYTHING IT CONTAINS ──────────────────
-			//
-			// Writer, 2026-08-27: “indent everything under it so we know that
-			// that is the root folder” — then, given the two directions and what
-			// each costs, “pull the root one step left”.
-			//
-			// MEASURED IN THE VAULT FIRST. The name cell's x read 116.8 for the
-			// root and 116.8 for its children, then 133.6 / 150.4 / 167.2 going
-			// down — so the ladder stepped at every level EXCEPT across the root,
-			// which sat exactly level with the rows it contains. Nothing on
-			// screen said that row was the parent. Not specific to Export and
-			// History either: the Organizer had it too, and only read better
-			// because it was the one tab with a chevron.
-			//
-			// WHY THE ROOT AND ITS CHILDREN CAME OUT EQUAL. `indentRow` gives a
-			// depth-1 row `ROW_BASE_PAD + indentStep()`; the root was given no
-			// `indentRow` call at all and fell back to the stylesheet's plain
-			// `ROW_BASE_PAD`. One step apart in the variable — and level on
-			// screen, because the row also carries a negative margin of the same
-			// size, which is what lets the highlight span the full width. The
-			// two cancel BY CONSTRUCTION, so the root needs to go a step further
-			// out than “depth 0” to read as the parent.
-			//
-			// AND IT IS DONE IN THE STYLESHEET, NOT HERE — the first attempt at
-			// this set `--zg-row-pad` on this row and MOVED NOTHING. Deployed and
-			// re-measured, the root still read 116.8 with the variable sitting on
-			// it at 7px, because the ROW's padding is
-			// `calc(24px + var(--zg-row-indent))` and the name cell's
-			// `--zg-row-pad` padding is overridden to 0 on every tab. The probe
-			// assertion went green on the variable while the pane was unchanged:
-			// a quantity next to the claim, not the claim.
-			// See `.zg-uni-root` in styles.css for the rule that actually wins.
-			// ONE NAME CELL, as every other folder row has. The row is a
-			// subgrid and its first track is the frozen name column, so the
-			// chevron, the glyph and the label have to ride in ONE grid item
-			// or each lands in its own reading track.
-			const rnc = rh.createDiv({ cls: 'zg-uni-namecell' });
-			// ── AND A BOX, ON EXPORT (writer, 2026-08-26) ───────────────
-			//
-			// "the root folder should get a checkbox too in the export."
-			// `tickBox` stands down on every other tab by itself, so this is
-			// the same unconditional call every folder row makes — the root
-			// is a folder, it just happens to be the one containing
-			// everything. FIRST in the cell, where the box sits on every row
-			// under it.
-			//
-			// SAME FAMILY AS 328: that found the table's subject was a
-			// `<td colspan>` and its figures "structurally ABSENT, not
-			// empty". This row was drawn without the one control that makes
-			// the list a list, so "everything" was the single scope a writer
-			// could not tick.
-			tickBox(rnc, rootPath, 'folder');
-			// THE CHEVRON, BUILT THE WAY EVERY FOLDER ROW BUILDS ITS OWN —
-			// Obsidian's `right-triangle` in Obsidian's classes, with the
-			// drawn path as the fallback for a build that does not register
-			// the icon. The note on the folder version explains why asking
-			// for THEIR glyph is the point: their CSS turns it down when the
-			// row opens, and a hand-drawn one fights that rotation.
-			//
-			// FIRST IN THE CELL, before the vault mark and the name, which is
-			// where the chevron sits on every row under it.
-			if (rootFolds) {
-				const rshut = uniRootShut();
-				const rchev = rnc.createDiv({
-					cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
-						+ (rshut ? ' is-collapsed' : '') });
-				let drew = false;
-				try {
-					if (setIcon) {
-						setIcon(rchev, 'right-triangle');
-						drew = !!rchev.querySelector('svg');
-					}
-				} catch (_) {}
-				if (!drew) {
-					rchev.innerHTML = '<svg class="svg-icon right-triangle" viewBox="0 0 12 12" '
-						+ 'width="9" height="9" aria-hidden="true">'
-						+ '<path d="M3.5 2.2 L9.3 6 L3.5 9.8 Z" fill="currentColor"/></svg>';
-				}
-				rchev.addEventListener('click', (ev) => {
-					ev.stopPropagation();
-					ev.preventDefault();
-					// ITS OWN STORE, NOT THE TABLE'S. What stood here called
-					// `orgRootShutSet` and argued that the tree's root and the
-					// table's subject "are the same root asking the same
-					// question". They are not: the subject is the folder the
-					// TABLE is showing, which is only the vault root when the
-					// scope happens to be the vault. Measured on 2026-08-31,
-					// folding the subject took this tree from 37 rows to 1.
-					uniRootShutSet(!uniRootShut());
-				});
-			}
-			if (isVault) {
-				// OBSIDIAN'S OWN MARK, and `setIcon` FAILS SILENTLY on a
-				// name this build does not know - it leaves the element
-				// empty and throws nothing, which is how the export glyph
-				// went missing for a release. Tried in order, checked, and
-				// the winner stamped on the element.
-				// OBSIDIAN'S OWN MARK (writer, 2026-08-24: "put the obsidian
-				// icon instead of that vault icon"). The loop that stood here
-				// asked Lucide for `obsidian` first and fell through to `vault`
-				// every time, because Lucide has no such name - so the row wore
-				// a safe door. `zgObsidianSvg` is the app's OWN wireframe path,
-				// not a drawing of it; see the note beside it in the preamble.
-				this.orgVaultIcon(rnc);
-			} else if (!isVault) {
-				// WAS `!rootShut`, AND `rootShut` WAS NEVER DECLARED — a
-				// ReferenceError waiting for anyone who set a manuscript root,
-				// which is the only way this branch runs. Left behind when 323’s
-				// root chevron and its collapsible state were taken back out at
-				// the writer’s word; the removal missed the one reader. Found
-				// 2026-08-25 while giving the SUBJECT row a fold.
-				//
-				// The TREE’s root does not fold — that is still the writer’s
-				// decision from 323 — so its glyph is always the open one. The
-				// fold that now exists is the TABLE’s subject row, which is a
-				// different row in a different pane.
-				orgFolderIcon(rnc, rootPath, true);
-			}
-			rnc.createDiv({
-				cls: 'tree-item-inner nav-folder-title-content zg-uni-rootname',
-				text: isVault
-					? ((this.app.vault && this.app.vault.getName
-						&& this.app.vault.getName()) || 'Vault')
-					: nameOf(rootPath)
-			});
-			if (pickable) {
-				rh.addEventListener('click', () => {
-					// THROUGH THE ONE WRITER. `orgSelect` is what every other
-					// folder click goes through, and a second path to the same
-					// store is the fault this window keeps removing.
-					if (tab === 'organizer') { orgSelect(rootPath); return; }
-					// AND ON THE OTHER TABS, CLEARING THE SET IS THE WHOLE
-					// VAULT — the same act as unpicking the last folder by
-					// hand, which is how this scope has always been reached.
-					// Nothing is written and nothing is remembered.
-					// THE CURSOR STANDS DOWN WITH THE SET, and both halves are
-					// needed. `subjectRows()` falls through - the SET, then the
-					// CURSOR, then empty - so emptying the set alone lands on the
-					// cursor branch and the scope stays on whatever row was last
-					// clicked or arrowed. Measured live 2026-08-25 with every class
-					// assertion green: the root painted itself chosen and History
-					// went on reporting 859 added for 00 DASHBOARD, against 20,497
-					// for the vault. The window even said which it was using -
-					// "under the cursor" - and that hint is what holds it now.
-					if (!sel.size && !cursorDrives) return;
-					sel.clear();
-					lastPicked = null;
-					cursorDrives = false;
-					draw();
-					drawPanel();
-				});
-			}
-		}
-		const rootKids = rootFolder.createDiv({
-			cls: 'tree-item-children nav-folder-children' });
-			// The Organizer tab hangs the tree from the manuscript root (spec,
-			// SCOPE): everything outside it simply is not walked. The other
-			// tabs keep the whole vault — their machinery retires in Phase 5,
-			// and narrowing them now would change tabs the brief says to leave.
-			// FOLDED AWAY WHEN THE ROOT IS SHUT. This is the collapse-all half
-			// of G3, and it arrives with the chevron rather than as a second
-			// control: the children are simply not walked, which is the same
-			// thing every other folder does with its own fold.
-			// DEPTH 1, NOT 0 (writer, 2026-08-24: "indent everything under the
-			// vault root folder"). The root is a folder ROW, so what hangs off
-			// it is one level in - at depth 0 the top-level folders sat flush
-			// with the vault and the hierarchy read as a list with a heading.
-			// The step itself is Obsidian's own, from `indentRow`.
-			//
-			// GUARDED AGAIN (2026-08-26), and the history is the point: this
-			// was guarded at 323, unguarded at 2026-08-25 when the writer
-			// asked the root chevron back out, and is guarded once more
-			// because they have asked for it again. Twice asked, once
-			// removed — the note that stood here said "collapse-all is back
-			// on the shelf where CURRENT.md had it", and it has come off it.
-			//
-			// THE CHILDREN ARE SIMPLY NOT WALKED, which is the same thing
-			// every other folder does with its own fold — not a second
-			// control and not a display rule, so nothing can disagree about
-			// whether a hidden row exists.
-			// `tab === 'organizer'` SPELLED OUT rather than reusing the
-			// `rootFolds` const beside the chevron: that one is scoped to the
-			// root-row block and this walk is outside it. Reaching for it
-			// here threw `rootFolds is not defined` and took the whole window
-			// down — the probe's first assertion is "openManuscriptModal
-			// builds without throwing", and it caught it on the next run.
-			// …AND THE FOLD ACTUALLY FOLDS, on every tab. This read
-			// `tab === 'organizer' && orgRootShut()`, so a chevron on Export or
-			// History would have drawn, turned, and hidden nothing — which is
-			// worse than no chevron at all.
-			//
-			// THE FOLD STATE IS SHARED ACROSS TABS, and that is a decision
-			// rather than an oversight: `uniRootShut` is one key, so shutting
-			// the root on one tab shuts it on all three. It is ONE ROW — the
-			// vault root — in one pane, and giving it three keys would be three
-			// writers of one fact. Say the word if the tabs should remember it
-			// separately.
-			//
-			// IT IS NO LONGER SHARED WITH THE TABLE. This read
-			// `organizerRootShut`, the table's subject fold, and that is what
-			// collapsed the tree when the writer folded the table.
-			if (!uniRootShut()) {
-				walk('', 1, rootKids);
-			}
-
-			// The cursor is a row that is ON SCREEN. Folding away the row it
-			// was on, or filtering it out, would otherwise leave the arrow
-			// keys pointing at nothing.
-			//
-			// FOUND BY THE ELEMENT KEPT DURING THE WALK, never by a selector.
-			// The key is `kind + NUL + path`, and a NUL inside an attribute
-			// selector matches NOTHING — the CSS tokenizer replaces it with
-			// U+FFFD, so `[data-goalkey="file\0Ch 01.md"]` looks for a value
-			// no element has. The attribute is written, the query finds
-			// nothing, and the ring silently never draws. (The board has this
-			// bug; see the same note there.) The row is in hand when it is
-			// built, so there is nothing to look up.
-			if (cursor && !elByKey.has(cursor)) cursor = order[0] || null;
-			if (cursor && elByKey.has(cursor)) elByKey.get(cursor).addClass('is-cursor');
-			// THE ONE WRITER OF THE MEMORY (A211). Six places assign `cursor`;
-			// this is the one place it becomes REAL — after the fallback above
-			// has had its say — so remembering it here cannot record a key the
-			// window never actually drew.
-			ses.cursor = cursor;
-			lastOrder = order;
-
-			if (!rowsDrawn) {
-				listWrap.createDiv({ cls: 'zg-goals-empty', text: query
-					? 'Nothing in the vault by that name.'
-					: 'Nothing here to show.' });
-			}
-			// (sizeCols ran here — the grid measures the drawn rows itself;
-			// paintFoot ran here too, deleted with the standing totals.)
-		};
-
-		// ── The counts ──────────────────────────────────────────────────────
-		// ONLY WHAT IS ON SCREEN. Reading four hundred notes to fill in rows
-		// inside folded chapters is work nobody asked for: the fill walks the
-		// rows that were actually drawn, and runs again whenever a folder
-		// opens.
-		let filling = false, fillAgain = false;
-		fill = async () => {
-			// COALESCED, NOT DROPPED. A fill is started when a folder opens,
-			// when a note changes and when a column is switched on, and any
-			// two of those can arrive together — the second used to return
-			// immediately and do nothing, which fails nothing and reports
-			// nothing: the figures are simply never asked for again.
-			//
-			// This shipped UNPROVEN for a while and the comment here said so,
-			// because the obvious assertion passed the sabotage: a test that
-			// changed a note and waited was answered by the IN-FLIGHT fill,
-			// which reads the file itself and picked the change up on its way
-			// past. The dropped fill cost nothing visible, so the assertion
-			// sat beside the bug rather than on it.
-			//
-			// It is driven now, by making the queued fill the only thing that
-			// CAN supply the answer: two notes changed two seconds apart, the
-			// first fill reading one of them slowly and having no interest in
-			// the other. See `unified_probe` — "a fill asked for while one is
-			// running is not dropped".
-			if (filling) { fillAgain = true; return; }
-			filling = true;
-			try {
-				const want = [];
-				// NESTED NOW, so the rows are not the container's children.
-				// `children` used to be every row; with Obsidian's markup it is a
-				// handful of `.nav-folder` wrappers, and reading it would fill in
-				// the top level and leave every row inside a folder saying
-				// “…” for ever.
-				for (const el of Array.from(listWrap.querySelectorAll('[data-goalpath]'))) {
-					const path = el.getAttribute('data-goalpath');
-					const kind = el.getAttribute('data-goalkind');
-					if (path && !wordsBy.has(path)) want.push({ path, kind });
-				}
-				// ── AND EVERYTHING THE SORT IS ABOUT TO JUDGE ───────────────
-				//
-				// DRAWN ROWS ARE THE RIGHT SET RIGHT UP UNTIL A COLUMN STARTS
-				// HIDING ROWS. Reading only what is on screen is what keeps a
-				// large vault quick, and while an unmeasured note merely sorted
-				// last it cost nothing. Now a sorted column hides the rows with
-				// no value — and `hasSortValue` refuses to call an unmeasured
-				// note empty, correctly, which without this leaves every note
-				// in a folded folder sitting in the tree unmeasured for ever
-				// and the writer's answer permanently half-right.
-				//
-				// SO THE PRUNE PAYS FOR ITSELF, and only while it is on: sorted
-				// by tasks, every file the filters kept is read once, and the
-				// tree then says something true. Custom order and name touch
-				// nothing extra, which is the browsing case and the common one.
-				//
-				// TOMBSTONE (A58, 2026-09-03): a top-up that widened this read
-				// while a prune was on, so a row was never hidden merely for
-				// being unmeasured. `pruneEmpty()` was always false, so the
-				// block never ran; the prune it served is gone with it.
-				for (const it of want) {
-					try {
-						if (it.kind === 'folder') {
-							const st2 = await this.analyzeFolder(it.path);
-							wordsBy.set(it.path, (st2 && st2.words) || 0);
-							if (st2 && st2.sentences) gradeBy.set(it.path, st2.grade);
-							// A FOLDER WAS LAST TOUCHED WHEN ITS NEWEST NOTE
-							// WAS. A folder's own mtime is when something was
-							// added to or renamed inside it, which answers a
-							// different question and is wrong far more often.
-							let newest = 0;
-							try {
-								for (const f2 of this.filesInFolder(it.path || '/', true)) {
-									if (f2 && f2.stat && f2.stat.mtime > newest) newest = f2.stat.mtime;
-								}
-							} catch (_) {}
-							// A FOLDER'S TASKS ARE ITS CHILDREN'S, SUMMED — the
-							// question is where the work is, and a folder that
-							// answered 0/0 while holding nine unticked boxes
-							// would send a writer looking in the wrong part.
-							//
-							// TOMBSTONE: this summed `taskOf` over the folder's
-							// files — reading the cache that the window's own
-							// FILE ROWS populate. That cache holds only what has
-							// been drawn, in the order it was drawn, so a folder
-							// processed before its children summed nothing and a
-							// folder whose children sit inside a shut folder
-							// summed nothing for ever. Every folder drew an
-							// empty Tasks cell.
-							//
-							// `analyzeFolder` walks the vault and already reads
-							// every descendant. It counts the boxes now, so this
-							// is one number from one place regardless of what is
-							// on screen.
-							moreBy.set(it.path, {
-								paras: (st2 && st2.paragraphs) || 0,
-								mtime: newest || null,
-								tasks: (st2 && st2.tasks) || null
-							});
-						} else {
-							const f = this.app.vault.getAbstractFileByPath(it.path);
-							if (!f) { wordsBy.set(it.path, 0); continue; }
-							// One read, both figures: reading a manuscript
-							// twice — once to count it, once to grade it — is
-							// what makes a big vault feel slow.
-							const st2 = this.analyzeText(await this.app.vault.cachedRead(f));
-							wordsBy.set(it.path, st2.words || 0);
-							if (st2.sentences) gradeBy.set(it.path, st2.grade);
-							const txt = await this.app.vault.cachedRead(f);
-							const tk = this.countTasks(txt);
-							moreBy.set(it.path, {
-								paras: st2.paragraphs || 0,
-								mtime: (f.stat && f.stat.mtime) || null,
-								tasks: tk.all ? tk : null
-							});
-						}
-					} catch (_) { wordsBy.set(it.path, 0); }
-				}
-				// The readings arrived; the tracks re-measure themselves, so
-				// only a prune-driven redraw is left to ask for.
-				if (want.length) draw();
-			} finally { filling = false; }
-			if (fillAgain) { fillAgain = false; await fill(); }
-		};
+		const tree = this.orgTreeMake(treeCtx);
+		const openRow = tree.openRow;
 
 		// THE FIGURES GO STALE WHEN THE WRITER WRITES. `wordsBy` is a cache
 		// keyed by path with no expiry, which is right — reading four hundred
@@ -41770,7 +40503,7 @@ module.exports = class WordSmith extends Plugin {
 				} catch (_) {}
 				// THE SAME TAB, NOT THE FIRST ONE (A219). Popping the pane out
 				// into the window is a change of CONTAINER, not of view — being
-				// thrown back to the Organiser from the History tab is the
+				// thrown back to the Organizer from the History tab is the
 				// gesture undoing half of itself. The session holds the tab this
 				// pane was on, so saying nothing here is saying the right thing.
 				try { this.openManuscriptModal(); } catch (_) {}
@@ -42045,6 +40778,18 @@ module.exports = class WordSmith extends Plugin {
 					uniBackFace();
 					body.removeClass('is-treewide');
 					body.removeClass('is-treeoff');
+					// THE READER'S CLASS IS EXPORT'S (A249): it hides the tree for
+					// the whole body, and a tab switch used to leave it on — “if i
+					// switch tabs when expanded is on, no filetree appears”. Export
+					// puts it back itself when its reader is still up.
+					body.removeClass('is-reader');
+					// THE CURSOR EXPORT LEFT IS DROPPED HERE (A244, writer 2026-09-08:
+					// “it still leaves traces of two things selected. one click -
+					// one show”). A row clicked on Export or History is the cursor
+					// too, and the Organizer drew it beside its own chosen row as a
+					// second highlight. The cursor itself stays a feature — the keys
+					// step from it and paint it — but it starts empty on this tab.
+					if (tab === 'organizer') cursor = null;
 					drawTabs();
 					drawHideTree();
 					// ── AND THE SAY-LINE IS CLEARED ─────────────────────────
@@ -42111,2668 +40856,98 @@ module.exports = class WordSmith extends Plugin {
 				: nameOf(it.path));
 		};
 
-		// A GENERATION, because the report reads files and a writer arrowing
-		// down a tree starts a read per row. Without it the answer to a row
-		// left three rows ago can land after the answer to the one they are
-		// on, and the panel silently describes the wrong chapter.
-		// ── THE ORGANIZER'S RIGHT PANE — the Table view (Phase 2) ───────────
-		//
-		// A native <table>, because the data is flat now: column sizing from
-		// real glyphs, header/cell alignment by construction, sticky header
-		// and sticky name column — ZERO custom sizing code, which is where
-		// the whole ch-model bug family lived. Caps are `max-width` +
-		// ellipsis on the cell, the full value on the hover.
-		//
-		// Custom order (no lens): rows grouped under folder headers, book
-		// order. ANY lens up: the groups DISSOLVE to a flat list, each row
-		// carrying its faint path — groups pin rows to folders, a sort
-		// claims the order, and both cannot hold. Everything is drawn from
-		// the INDEX and the stores; the fold state and the tree's DOM do
-		// not exist on this side of the window.
-		const drawOrg = () => {
-			// THE SCAN IS ONE DRAW OLD AT MOST — see `orgAllFilePaths`.
-			orgFilePathCache = null;
-			// AND SO IS THE COLUMN CEILING (A139): the pane may have been
-			// resized since the last draw, so the cached `clientWidth` is
-			// dropped here and re-read ONCE, rather than once a cell.
-			orgColCeilReset();
-			// THE EDIT-GUARD'S TEETH: while an editor holds focus, the pane
-			// is not rebuilt — the redraw waits for the edit to end. This is
-			// the one gate every repaint passes, so no caller can forget it.
-			if (orgEditGuard) { orgRedrawPending = true; return; }
-			// ── AND WHERE THE WRITER WAS LOOKING (A156) ─────────────────
-			//
-			// Writer, 2026-09-04: "when typing in a propriety cell and
-			// pressing enter, the window scrolls up after pressing enter".
-			//
-			// THE SCROLLER IS BUILT FRESH EVERY DRAW. `.zg-org-panel` is
-			// `overflow: auto` and it is created by this function — so the
-			// element the writer scrolled is thrown away and a new one, at
-			// zero, takes its place. Nothing was resetting the position;
-			// there was no position to reset, which is why `scrollTop`
-			// appeared NOWHERE in this file before this line.
-			//
-			// SO IT IS EVERY REDRAW, NOT ONLY ENTER. Committing a cell,
-			// pressing Escape, clicking another cell while one is open, a
-			// property landing from the index ring — all of them rebuild
-			// the pane, and all of them threw the writer to the first row.
-			// Enter is simply the one they were doing when they noticed.
-			// Carried HERE, at the one gate every repaint passes, rather
-			// than at the commit — a fix at the commit would leave the
-			// other three.
-			// READ FROM THE VARIABLE, NOT FROM THE ELEMENT — see
-			// `orgScrollTop`, where the reason is. This line used to be a
-			// `querySelector` and a `scrollTop`, and it was a third of the
-			// draw.
-			const orgKeepScroll = orgScrollTop;
-			// Idempotent kick: the first draw starts the sweep, the ring
-			// repaints when it lands. Everything below reads what the index
-			// knows NOW and blanks what it does not — unknown is not empty.
-			this.orgIndexEnsure();
-			const at = orgAt();
-			// ── OUTLINE HIDES THE TABLE ─────────────────────────────
-			//
-			// The writer's own words, and the whole difference between the
-			// two modes: the columns go, the name and the properties stay.
-			// Expressed as an EMPTY COLUMN LIST rather than as a second
-			// renderer, because every row, header, drag, sort and drawer
-			// below already reads `cols` - a second renderer would be a
-			// second writer of the row, which is the fault this window
-			// keeps removing.
-			//
-			// `uniColsOff` IS NOT TOUCHED. Leaving the mode must give the
-			// writer back the columns they had, so the mode may not be
-			// implemented by switching them off.
-			const cols = setCols();
-			const lensed = orgLensOn();
-			// A LENS SEES THE WHOLE SELECTION, FLAT; the book's own order is a
-			// hierarchy. One list function, two questions.
-			// ── …AND THE THIRD QUESTION IS WHAT SHAPE OF THING ─────────
-			//
-			// The writer, 2026-08-30: "the filter does not work to show only
-			// folders and such. recheck the whole filter thing."
-			//
-			// MEASURED IN THE VAULT: with `uniShow` set to `all`, `folders`
-			// and `files` in turn, this pane drew the SAME two note rows and
-			// zero folder rows every time — while the bar’s own chip read
-			// "Folders only" correctly. The setting landed and the chip said
-			// so; the table never asked. `showShape()` was read by the tree,
-			// by the chip and by the kinds menu, and by no part of the pane.
-			//
-			// HERE AND NOT IN `orgRowList`. That walk has two other callers —
-			// `orgPropKeys` and the tag list — which use it to ENUMERATE what
-			// is under the selection for the filter menu. Narrowing it there
-			// would empty both menus while Folders only is up, leaving a
-			// writer unable to build the filter that would get them out.
-			//
-			// FILES ONLY FLATTENS, and it has to. Dropping folder ROWS from a
-			// grouped walk strands every note in a shut folder: no row left
-			// to unfold, and a fold that filters is the fault this file has
-			// recorded three times. A lens flattens for the same reason.
-			const shaped = showShape();
-			// ── AND THE FOURTH QUESTION IS WHICH KINDS (2026-08-30) ────
-			//
-			// "I want attachements as table rows." The Kind axis reached the
-			// tree and not the table because `orgRowList` threw every
-			// non-`.md` away before a filter could see one. It enumerates
-			// the vault now and the narrowing is here, next to the shape,
-			// for the same reason the shape is here and not in the walk.
-			//
-			// NOTHING CHANGES FOR A WRITER WHO HAS NOT ASKED. `uniTypeSet`
-			// answers `['md']` when the store is absent or empty — its own
-			// comment says why: "an empty set would draw a tree of folders
-			// with nothing in them and read as broken rather than as
-			// strict" — so this pane draws exactly what it drew yesterday
-			// until a kind is ticked.
-			//
-			// ONE STORE, ASKED ONCE. The tree, the chip and the kinds menu
-			// all read `uniTypes`; this reads the same set rather than
-			// keeping a second opinion about which kinds are shown.
-			const kinds = this.uniTypeSet();
-			const list = orgRowList(at, lensed || shaped === 'files')
-				.filter(r0 => r0.kind === 'folder' || kinds.has(r0.group))
-				.filter(r0 => (shaped === 'folders' ? r0.kind === 'folder'
-					: shaped === 'files' ? r0.kind !== 'folder' : true));
-			const sortCol = orgLens.sort
-				? (cols.filter(c => c.id === orgLens.sort.id)[0] || null) : null;
-
-			// ── which rows the lens leaves ──────────────────────────────
-			// (The `q` branch stood first — retired with the pane's own
-			// search box, writer 2026-08-22 second pass.)
-			const shown = list.filter(row => {
-				for (const c of orgLens.chips) {
-					if (!c.off && !orgChipHit(c, row.path)) return false;
-				}
-				// Sorting BY a reading hides what has no value for it; the
-				// strip's "N of M" accounts for them below.
-				if (sortCol && orgColRaw(sortCol, row.path) === null) return false;
-				return true;
-			});
-			let rows = shown;
-			if (sortCol) {
-				const dir = orgLens.sort.dir === 'asc' ? 1 : -1;
-				rows = shown.slice().sort((a, b) => {
-					const ka = orgColSortKey(sortCol, a.path);
-					const kb = orgColSortKey(sortCol, b.path);
-					let d = 0;
-					if (typeof ka === 'number' && typeof kb === 'number') d = ka - kb;
-					else d = String(ka).localeCompare(String(kb), undefined, { numeric: true });
-					if (d) return d * dir;
-					return a.idx - b.idx;   // stable: ties keep book order
-				});
-			}
-
-			// ── AND IF NOTHING BUT ONE CELL CHANGED, ONLY THAT CELL (A209) ──
-			//
-			// THE GUARD IS THE REAL LIST, NOT A GUESS ABOUT IT. A flag can
-			// legitimately MOVE a row — the table can be sorted by it — or
-			// HIDE one, because a lens chip can filter on it. A fast path that
-			// assumed otherwise would leave a stale order on screen, which is a
-			// correctness bug bought with speed.
-			//
-			// So the rows are computed FIRST, by the code that always computes
-			// them, and the shortcut is taken only when the answer is
-			// identical. Nothing here knows what the sort or the chips do, and
-			// nothing here has to: **if the list moved, this falls through and
-			// the pane is rebuilt exactly as before.**
-			//
-			// THE DATA HALF IS NOT THE COST. Measured across a whole draw:
-			// 0.1ms in every data helper together, against 8.2ms for the draw.
-			// Computing the list twice to skip the DOM is a good trade at any
-			// size, and a better one the bigger the table.
-			const sig = rows.map(r0 => r0.path).join('\n');
-			const hint = orgCellHint;
-			orgCellHint = null;
-			if (hint && orgDrawnSig !== null && sig === orgDrawnSig
-				&& orgRepaintFlagCell(hint.td, hint.path)) {
-				return;
-			}
-			orgDrawnSig = sig;
-
-			// ── the summary strip (always visible; spec, RIGHT PANE) ────
-			subject.textContent = '';
-			subject.createSpan({ cls: 'zg-uni-subjectname',
-				// NOT "the whole manuscript" (writer, 2026-08-24): the root row
-				// says the vault's own name three inches to the left, and a
-				// strip answering it with a different word for the same thing
-				// is two names for one scope.
-				//
-				// AND "The whole vault" WAS STILL A SECOND NAME. 2026-09-01:
-				// "dont say the whole vault it sounds bad." `vaultWhole()'s
-				// "All of myNotes" carries the row's own name inside it, which
-				// is what the note above wanted and what its wording could not
-				// give it.
-				text: at ? nameOf(at) : this.vaultWhole() });
-			const agg = this.orgAggUnder(at);
-			if (agg && agg.files) {
-				let said = agg.words.toLocaleString() + ' words · '
-					+ agg.files.toLocaleString() + ' notes';
-				if (agg.tasksAll) said += ' · ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
-				subject.createSpan({ cls: 'zg-org-agg', text: said });
-			}
-			// ── TODAY'S NET UNDER THIS FOLDER (LATER-2, the strip figure) ──
-			// The history store is loaded on demand the first time the
-			// Organizer draws; until it answers, the figure simply is not
-			// there — unknown is not zero.
-			if (this.settings.historyTracking && !this._historyReady) {
-				this.historyLoad().then(() => {
-					if (tab === 'organizer') drawPanel();
-				}).catch(() => {});
-			}
-			// TOMBSTONE: THE TODAY DELTA (writer, 2026-09-01: "remove that -20
-			// today shit", crossing it out in a shot of the subject line).
-			//
-			// It summed `todayNetOf` across the rows in view and wrote
-			// "-20 today" after the tasks. Two things were wrong with it as a
-			// reading on THIS line: the rest of that sentence describes what
-			// the folder IS — words, notes, tasks — and this described what
-			// happened to it since midnight, which is a different question and
-			// the one History exists to answer. And it appeared and vanished on
-			// its own (`thit && tsum !== 0`), so the line changed length for a
-			// reason nothing on screen explained.
-			//
-			// `todayNetOf` STAYS — the goals board still draws a per-row today
-			// column through it, which is a place the question makes sense.
-			// N OF M IS ABOUT NOTES (2026-08-23). Folders became rows in this
-			// pair, and counting them here would have made the strip say
-			// "1 of 6" about a folder holding four notes - a number the
-			// writer could not check against anything. The lens hides notes;
-			// this says how many.
-			// ── …AND ABOUT THE SAME NOTES THE STRIP COUNTS ─────────────
-			//
-			// The writer, with both lines in one shot: "it says nothing passes
-			// the lens clear it to see the 46 notes and up top it says that
-			// the vault has 43 notes...(something is fucked)". They are right
-			// and it was two counters for one fact.
-			//
-			// MEASURED: the vault holds 46 markdown files and the index holds
-			// 43. The three it leaves out are `ws-structure.md`,
-			// `ws-settings.md` and `ws-history.md` — the plugin’s own store
-			// notes. `isFileCounted` refuses them so a record of the writing
-			// never counts as writing, and the strip’s "43 notes" is the
-			// partner of its "28,576 words": both come from the index.
-			//
-			// THE ROWS ARE RIGHT AS THEY ARE. Hiding those three would square
-			// the numbers and undo "also show all the filess in organizer
-			// including ws-strucutre ws-setting" (2026-08-25). So the COUNT
-			// moves, not the rows.
-			//
-			// THIS IS THE SAME EXEMPTION FOLDERS ALREADY HAD. The line under
-			// this one has skipped folder rows since 2026-08-23, for the
-			// reason written there: a row is not a note. A store note is a row
-			// that is not a note either, and now it is asked the one question
-			// the index asks rather than a second one that agrees by luck.
-			//
-			// ASKED OF `isFileCounted` AND NOT OF THE INDEX, deliberately: the
-			// index fills in asynchronously, so "not in the index" also means
-			// "not read yet", and a fresh window would count 0 notes for a
-			// moment. Unknown is not empty.
-			const orgCounted = (p0) => {
-				try {
-					const f0 = this.app.vault.getAbstractFileByPath(String(p0 || ''));
-					return !!f0 && !f0.children && this.isFileCounted(f0);
-				} catch (_) { return false; }
-			};
-			const noteCount = (rr) => rr.filter(r0 => r0.kind !== 'folder'
-				&& orgCounted(r0.path)).length;
-			const narrowed = noteCount(rows) < noteCount(list);
-			// ── ONE PLACE, AND IT IS THE CHIP ROW (writer, 2026-09-01) ──
-			//
-			// "i want the lens to be displayed in only on place not two, and
-			// imprve the text font, and make it more visually in line with
-			// the rest ui", circling both: this line in the heading and the
-			// chips under the buttons.
-			//
-			// THE CHIP ROW WINS BECAUSE IT CAN ACT. It names WHICH filter is
-			// on, sets one aside with a tick, and removes one with its ×.
-			// This line could only report a number and offer all-or-nothing,
-			// so keeping it would mean keeping the half that says less.
-			//
-			// NOTHING IS LOST: the count and the way out move INTO that row,
-			// beside the chips they are about, rather than being deleted —
-			// see the tail built after the chips.
-			// ── …AND ONE TAP OUT (brief C2: “N of M shown · clear”) ─────────
-			//
-			// Escape has cleared the lens for pairs, and a key nobody knows about
-			// is not a door — the same argument that put the Properties button in
-			// the bar when its right-click was retired.
-			//
-			// OUTSIDE THE “N of M”, and that is the correction: it was written
-			// inside it, and that line only draws when the lens actually HID
-			// something. Measured in the vault — a filter matching every note
-			// showed the count badge on the button and offered no way out at all,
-			// because nothing had been narrowed. A lens that is ON is a lens that
-			// needs taking off, whether or not it happened to remove a row.
-			// ── "PICK A PROSE FIELD IN PROPERTIES" (brief B3) ───────────────
-			//
-			// "IF proseProperty IS UNSET or the vault has no such property,
-			// Outline cards show chips only, plus one quiet line: 'Pick a prose
-			// field in Properties'. No empty furniture, no invented key."
-			//
-			// THE CHIPS-ONLY HALF NEEDED NO CODE and that is worth writing
-			// down: `synopsisKey()` returns '' when the setting is cleared,
-			// `orgChipKeys` filters against '', and every chosen field becomes
-			// a chip. The tombstone in `20-scope.js` is where that was arranged.
-			//
-			// ONCE, NOT ONCE PER CARD. The brief's sentence is about the cards,
-			// and a line inside each of them is forty copies of one sentence in
-			// a vault this size — furniture at its worst, in the batch whose
-			// own rule is "no empty furniture". It goes in the strip, where the
-			// window already says one true thing about what is on screen.
-			//
-			// AND IN OUTLINE ONLY. Table draws no cards, so there is no
-			// paragraph missing from it and nothing for the line to be about.
-			// ── TOMBSTONE: "Pick a long field in Properties" ─────────────
-			//
-			// A button in the strip, shown in Outline whenever no long field
-			// was usable, that named the state and opened the panel. Writer,
-			// 2026-08-30: "remove this 'pick a long field in proprieties'".
-			//
-			// IT CAME FROM THE BRIEF ("IF proseProperty IS UNSET … cards show
-			// chips only, plus one quiet line") and it was built as one line
-			// rather than forty. The writer has decided the line itself is the
-			// furniture: with no long field the cards simply show chips, which
-			// is a state that needs no announcing.
-			//
-			// THE DOOR IS NOT LOST WITH IT. Properties is a button in the same
-			// bar, two controls along, and it opens the same panel — which is
-			// why removing this one takes nothing away.
-			// (The "· clear" button stood here. It went with the count above
-			// it, into the chip row, for the reason written there.)
-			// (The Table|Outline toggle stood here, and the Frontmatter
-			// toggle after it - see the tombstone in the bar builder. The
-			// strip's right end is the subject's again.)
-
-			// ── the bar: Sort by + AND-combined property chips ──────────
-			// (The pane's own search input stood first — retired, writer
-			// 2026-08-22 second pass: the sidebar's tree search is THE
-			// search.)
-			panel.textContent = '';
-			const bar = panel.createDiv({ cls: 'zg-org-bar' });
-			// FIRST IN THE BAR. The three lenses below arrange, narrow and
-			// choose readings; this one decides which VIEW they are doing it
-			// to, so it reads before them rather than after.
-			// (`drawModes(bar)` stood here — see its tombstone.)
-			// ── SORT BY, said out loud (inbox) ──────────────────────────
-			// The header click still cycles; this menu is the same lens
-			// through a control a writer can FIND. One writer underneath:
-			// everything goes through orgLensSet.
-			// ── THE THREE LENSES WEAR BASES' OWN ICONS ──────────────────
-			//
-			// "sort filter and columns (rename it to proprieties) should
-			// have obsidian bases icons" (writer, 2026-08-22). A writer who
-			// has used Bases already knows what these three do, and this
-			// window is dressed as Obsidian everywhere else — borrowing the
-			// app's vocabulary is cheaper than teaching our own.
-			//
-			// TRIED IN ORDER AND CHECKED, and the chosen name is RECORDED on
-			// the element: `setIcon` with a name this build's Lucide does not
-			// know leaves the element empty instead of throwing, which is how
-			// the export icon went missing for a release. `data-icon` is what
-			// lets a probe say WHICH name drew rather than merely that
-			// something did.
-			// The attribute records the name that DREW, or the first
-			// candidate when none did — never the word 'none', which would
-			// let "an icon was asked for" pass on a build where the call
-			// was deleted. A probe can then assert a real name in jsdom
-			// (where `setIcon` is a no-op stub and nothing can draw) and
-			// the live check reads the glyph itself.
-			const lensIcon = (btn, names) => {
-				for (const n of names) {
-					try { if (setIcon) setIcon(btn, n); } catch (_) {}
-					if (btn.childElementCount > 0) { btn.dataset.icon = n; return n; }
-					btn.textContent = '';
-				}
-				btn.dataset.icon = names[0];
-				return null;
-			};
-			// ── SORT IS TABLE’S (writer, 2026-08-25) ──────────────
-			//
-			// "remove the sort button from outline", said after the
-			// measurement that made it determinate. Driven live in the
-			// vault: in Outline this menu offered EXACTLY ONE row — "The
-			// book’s own order", already ticked — because `sortMenuCols`
-			// is `cols.slice()` and `cols` is `[]` there. Every sort id
-			// then resolves against an empty list, so `sortCol` is always
-			// null and no reading can arrange anything.
-			//
-			// A control offering one choice, which is the state it is
-			// already in, answers nothing — the same fault as the
-			// Frontmatter toggle and the header’s property picker, in the
-			// third of the three lenses and the last of them to go.
-			//
-			// FILTER STAYS. Measured in the same drive: its five axes
-			// (Kind · Tasks · Flag · Tag · Property) read the ROWS, not
-			// `cols`, and every one of them works here. Taking both away
-			// would have satisfied the ask and been the wrong change.
-			//
-			// AND THE STORED SORT SURVIVES THE MODE — see `orgLensOn`,
-			// which stopped counting it in Outline in this same pair. It
-			// is kept and unread, so switching back to Table finds the
-			// arrangement where it was left.
-			const sortBtn = bar.createEl('button',
-				{ cls: 'zg-export-mini zg-org-sortby' });
-			lensIcon(sortBtn, ['arrow-up-down', 'arrow-down-up',
-				'arrow-up-narrow-wide', 'sort-asc']);
-			// A LABEL SPAN, not `setText`: setText replaces every child, so
-			// it would take the icon straight back out again.
-			sortBtn.createSpan({ text: sortCol
-				? 'Sort: ' + sortCol.label + zgSortArrow(orgLens.sort.dir)
-				: 'Sort' });
-			sortBtn.title = 'Arrange the rows by a reading — Custom Order is a click away';
-			sortBtn.addEventListener('click', (ev) => {
-				const menu = new Menu();
-				// RENAMED WITH THE STATEMENT, not after it. The Outline's
-				// statement is documented as using “the same words the sort menu
-				// uses for this state, so the two places naming one order cannot
-				// drift apart”. Changing one and not the other would make that
-				// sentence false the moment it was written.
-				menu.addItem((i) => i.setTitle('Custom Order')
-					.setIcon('list-ordered')
-					.setChecked(!orgLens.sort)
-					.onClick(() => orgLensSet({ sort: null })));
-				menu.addSeparator();
-				// THE SORT MENU HAS AN ORDER OF ITS OWN (writer, 2026-08-23:
-				// "arrange better the sorting submenu, by relevance to an
-				// obsidian user; right now last modified is the first
-				// column, so it makes no sense for that to be at the top").
-				//
-				// It was at the top BECAUSE it was the first column: this
-				// loop ran over `cols`, which is the TABLE's order after the
-				// writer's own column drags. So dragging a column silently
-				// reordered the sort menu, and two lists answering two
-				// different questions shared one order. A column order says
-				// what you want to READ side by side; a sort order says what
-				// you want to ARRANGE by, and those are not the same ranking.
-				//
-				// Ordered by what a writer steers on: the size of the thing
-				// and the size it is meant to be, then what is outstanding
-				// and where it is up to, then time, then the analytical
-				// readings, and last the metadata columns — which fall
-				// through with rank `length`, so a writer's own property
-				// columns keep their table order among themselves. Array
-				// sort is stable, so that tie is a real guarantee.
-				//
-				// A NEW COLUMN NEEDS NO ENTRY HERE: an unnamed id ranks
-				// last rather than throwing or vanishing, which is the
-				// failure the hand-typed `GROUPS` list in the Properties
-				// menu had to grow a self-completing tail to survive.
-				const SORT_RELEVANCE = ['words', 'goal', 'tasks', 'mark',
-					'modified', 'created', 'grade', 'paras', 'tags'];
-				const sortRank = (c) => {
-					const at = SORT_RELEVANCE.indexOf(c.id);
-					return at === -1 ? SORT_RELEVANCE.length : at;
-				};
-				const sortMenuCols = cols.slice()
-					.sort((a, b) => sortRank(a) - sortRank(b));
-				for (const col of sortMenuCols) {
-					menu.addItem((i) => {
-						const here = sortCol && sortCol.id === col.id;
-						i.setTitle(col.label + (here
-							? zgSortArrow(orgLens.sort.dir) : ''));
-						// ── AND EACH ROW WEARS ITS OWN GLYPH AGAIN ────────
-						//
-						// FOUND BY A ROTATING SWEEP, not by looking: three
-						// sabotage cases aimed at `i.setIcon(so.icon)`, which
-						// appears 0 times in the build. The 2026-08-23 rewrite
-						// — "arrange better the sorting submenu, by relevance to
-						// an obsidian user" — changed this loop from `SORTS` to
-						// `cols`, and the glyphs went with it. The ask was about
-						// ORDER; nobody asked for the icons to go, and "Custom
-						// Order" kept its own, which is what made the menu read
-						// as broken rather than as a decision.
-						//
-						// LOOKED UP BY ID in `SORTS`, so `BUILTIN_SORTS` stays
-						// the ONE writer of what each BUILT-IN reading looks
-						// like.
-						//
-						// A WRITER'S OWN PROPERTY COLUMN DOES GET ONE, and the
-						// sentence here used to say it did not (corrected
-						// 2026-08-30, after reading the menu in the vault and
-						// finding `Locations` and `Description` wearing
-						// `lucide-tag`). `sortDefs` concatenates the user
-						// columns with `icon: 'tag'`, so they are in `SORTS`
-						// too — one glyph for "this is a property of yours",
-						// which is a true thing to say about all of them.
-						// They still fall through to rank `length` in the
-						// order above; that half was right.
-						try {
-							const def = SORTS.filter((s) => s.id === col.id)[0];
-							if (def && def.icon && i.setIcon) i.setIcon(def.icon);
-						} catch (_) {}
-						i.setChecked(!!here);
-						// First pick sorts DESC (newest-biggest first, the
-						// header's own opening move); picking it again
-						// turns it round.
-						i.onClick(() => orgLensSet({ sort: {
-							id: col.id,
-							dir: here && orgLens.sort.dir === 'desc' ? 'asc' : 'desc'
-						} }));
-					});
-				}
-				menu.showAtMouseEvent(ev);
-			});
-			// ── FILTER BY, searchable (inbox) ───────────────────────────
-			// "i can search for one and add it": the button opens a NAMING
-			// input with the folder's own property keys as suggestions —
-			// type to narrow, Enter to pick, then the value stage as
-			// before. A menu of forty property rows was a list to read;
-			// this is a box to ask.
-			const addBtn = bar.createEl('button',
-				{ cls: 'zg-export-mini zg-org-addfilter' });
-			lensIcon(addBtn, ['list-filter', 'filter', 'funnel']);
-			addBtn.createSpan({ text: 'Filter' });
-			// ── AND HOW MANY ARE ON (brief C2) ────────────────────────
-			//
-			// “The button carries a count badge.” The chips beside it already say
-			// WHICH filters are on; this says HOW MANY without reading them, and
-			// it is the half that still shows when the strip is narrow.
-			//
-			// COUNTS THE APPLIED ONES ONLY. A chip can be unticked and left in
-			// place — that is what its checkbox is for — and a badge counting
-			// those would say the view is narrowed when it is not.
-			{
-				const on = orgLens.chips.filter(c => !c.off).length;
-				if (on) addBtn.createSpan({ cls: 'zg-org-filtercount', text: String(on) });
-			}
-			addBtn.title = 'Narrow by a property — type to search the folder’s own keys';
-			addBtn.addEventListener('click', (ev) => {
-				// ── FILTER IS A MENU OF AXES (writer, asked three times) ──
-				//
-				// "the filter button should have a submenu with filter by
-				// files type, tags, properties (then another submenu, etc)".
-				// Before this it opened a free-text key box: a writer had to
-				// already know a property's name to narrow by it, and the
-				// three axes they name most - kind, tag, flag - were not
-				// reachable from this button at all.
-				//
-				// A SEARCH BAR ONLY WHERE THE LIST IS LONG. Kind is 12 rows,
-				// Flag at most 6, Tasks 4 - a search box over those is
-				// furniture. Tag and Property are unbounded, so those open
-				// the picker.
-				//
-				// ONE PROBE, ON A SCRATCH MENU. Asking the live menu answers
-				// the question and leaves a titleless row behind, in every
-				// build, for ever - the tombstone is on the column menu.
-				let nests = false;
-				try {
-					new Menu().addItem((i) => {
-						nests = typeof i.setSubmenu === 'function';
-					});
-				} catch (_) { nests = false; }
-				const menu = new Menu();
-				// One probe for all five: a build with submenus has them
-				// everywhere, and asking per group could give one nested
-				// heading beside two flattened ones.
-				const group = (title, icon, fill) => {
-					if (nests) {
-						menu.addItem((i) => {
-							i.setTitle(title);
-							try { if (icon) i.setIcon(icon); } catch (_) {}
-							// FILLED INSIDE A GUARD: Obsidian pushes the item
-							// AFTER the callback returns, so a throw in here
-							// loses the whole row and the menu comes back
-							// silently missing a fifth of itself.
-							try { fill(i.setSubmenu()); }
-							catch (e) { console.error('Word-Smith: filter menu', e); }
-						});
-						return;
-					}
-					menu.addSeparator();
-					menu.addItem((i) => i.setTitle(title).setIsLabel(true));
-					fill(menu);
-				};
-				// LIFTED (brief C4) — see `orgAddChip` beside `orgAt`. The name
-				// stays local so the dozen call sites in this handler read the
-				// same as they always did.
-				const addChip = orgAddChip;
-
-				// KIND writes the store, not a chip: `uniTypes` already holds
-				// this and already draws its own chip in the bar. A second
-				// copy in the lens would be two writers of one fact.
-				group('Kind', 'shapes', (into) => typeRows(into));
-
-				// TASKS is a question, not a value - there is nothing to
-				// enumerate, so the four answers are named here. They are the
-				// only axis whose reading is an OBJECT, which is why
-				// orgChipHit has to know about it.
-				// TWO ROWS, NOT FOUR (writer, 2026-08-26): "the submenu for
-				// filter-task must say only - has tasks/ without taks,
-				// remove the rest of the options."
-				//
-				// TOMBSTONE: `{ id: 'open', label: 'Has unfinished tasks' }`
-				// and `{ id: 'done', label: 'All tasks done' }`. Their
-				// branches in `orgChipHit` went in the same pass — a
-				// matcher arm no menu can reach is a filter nobody can build
-				// and nobody can see is gone. Safe because `orgLens` is a
-				// LOCAL and is never persisted: no saved chip can arrive
-				// carrying a retired id.
-				group('Tasks', 'check-square', (into) => {
-					for (const t of [
-						{ id: 'any',  label: 'Has tasks' },
-						{ id: 'none', label: 'No tasks' }
-					]) {
-						into.addItem((i) => i.setTitle(t.label)
-							.onClick(() => addChip({ axis: 'tasks', id: t.id,
-								key: 'Tasks', value: t.label })));
-					}
-				});
-
-				// FLAG carries the ID and shows the LABEL: a writer can rename
-				// a flag in settings, and a chip holding the old word would
-				// quietly stop matching the rows it used to.
-				// ── AND EACH ROW WEARS ITS FLAG (writer, 2026-08-26) ────
-				//
-				// "add the flag icons in the submenu of filter - flags."
-				// These rows were bare text while every other surface —
-				// the row menu, the bar, the table cell, the outline title
-				// line — draws the flag's own shape beside its name.
-				//
-				// THE PATTERN IS `src/20-scope.js`'s, copied deliberately:
-				// a DocumentFragment holding a `.zg-menuflag` span with
-				// `zgFlagSvg` inside it, then the label as a text node. A
-				// menu title takes a fragment, and NO LUCIDE NAME DRAWS
-				// THESE SHAPES — FACTS records that the glyphs are put into
-				// the item by hand for exactly this reason, so `setIcon`
-				// is not an option here.
-				//
-				// ONE WRITER: `zgFlagSvg` is the only thing that knows what
-				// a flag looks like, and this is its fourth caller rather
-				// than a fourth drawing.
-				group('Flag', 'flag', (into) => {
-					let defs = [];
-					try { defs = this.flagDefs() || []; } catch (_) { defs = []; }
-					const titled = (id, label) => {
-						const frag = document.createDocumentFragment();
-						const mark = document.createElement('span');
-						mark.className = 'zg-menuflag is-' + id;
-						mark.innerHTML = zgFlagSvg(id, 12);
-						frag.appendChild(mark);
-						frag.appendChild(document.createTextNode(label));
-						return frag;
-					};
-					for (const d of defs) {
-						into.addItem((i) => i.setTitle(titled(d.id, d.label))
-							.onClick(() => addChip({ axis: 'flag', id: d.id,
-								key: 'Flag', value: d.label })));
-					}
-					// "No flag" GETS THE SLOT AND NO SHAPE. It is the absence
-					// of a flag, so drawing one would be a lie — but without
-					// the span its label starts at a different x from the six
-					// above it, which is the ragged column this window keeps
-					// removing. `zgFlagSvg('')` returns the outline mark, and
-					// the stylesheet's `.zg-menuflag.is-` holds the width.
-					into.addItem((i) => i.setTitle(titled('', 'No flag'))
-						.onClick(() => addChip({ axis: 'flag', id: '',
-							key: 'Flag', value: 'none' })));
-				});
-
-				// TAG is unbounded, so it opens the picker. `uniTagsInScope`
-				// is the enumerator whose own header says it is "the list the
-				// filter menu offers" - scope-scoped and commonest-first, and
-				// its counts are real, so the picker's count line is not a
-				// number nobody counted.
-				group('Tag', 'tag', (into) => {
-					into.addItem((i) => i.setTitle('Search tags…')
-						.onClick(() => {
-							let tags = [];
-							try {
-								tags = this.uniTagsInScope(
-									orgRowList(at, true).map(r => r.path)) || [];
-							} catch (_) { tags = []; }
-							if (!tags.length) {
-								try { new Notice('No tags in these notes'); } catch (_) {}
-								return;
-							}
-							const items = tags.map(t => ({ tag: t.tag,
-								label: '#' + t.tag, n: t.n }));
-							const take = (it) => addChip({ axis: 'tag',
-								key: 'Tag', value: it.tag });
-							if (WsPropSuggestModal) {
-								try {
-									new WsPropSuggestModal(this.app, items, take,
-										'Which tag?').open();
-									return;
-								} catch (_) {}
-							}
-							const pick = new Menu();
-							for (const it of items.slice(0, 20)) {
-								pick.addItem((i2) => i2.setTitle(it.label)
-									.onClick(() => take(it)));
-							}
-							try { pick.showAtMouseEvent(ev); }
-							catch (_) { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
-						}));
-				});
-
-				// PROPERTY: two long lists, so two pickers - the key, then its
-				// values under this selection. `orgPropKeys` is the right
-				// enumerator rather than `propKeysInScope`, which is built for
-				// COLUMNS: it drops tags and drops keys already shown, and a
-				// writer may well want to filter on a column they can see.
-				group('Property', 'table-properties', (into) => {
-					// ── THE TWO QUESTIONS THAT NEED NO VALUE (brief C2) ───────
-					//
-					// They come FIRST because they are the ones a writer arrives
-					// wanting: “which scenes have no synopsis” is the query the
-					// brief names as the reason this tool exists, and it cannot be
-					// asked by picking a value — there is no value to pick.
-					//
-					// ONE KEY PICKER, TWO ROWS, rather than a value picker with two
-					// special entries hidden in it: the value list is built from
-					// what EXISTS under the selection, so a key nobody has filled
-					// in has an empty list — and that is exactly the key this
-					// question is for.
-					const askEmpty = (op) => {
-						const keys = orgPropKeys(at);
-						if (!keys.length) {
-							try { new Notice('No properties in these notes'); } catch (_) {}
-							return;
-						}
-						const items = keys.map(k => ({ key: k, label: k }));
-						const take = (it) => addChip({ key: it.key, op: op, value: '' });
-						if (WsPropSuggestModal) {
-							try {
-								new WsPropSuggestModal(this.app, items, take,
-									op === 'empty' ? 'Which property is empty?'
-										: 'Which property is filled in?').open();
-								return;
-							} catch (_) {}
-						}
-						const pk2 = new Menu();
-						for (const it of items.slice(0, 20)) {
-							pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
-						}
-						try { pk2.showAtMouseEvent(ev); }
-						catch (_) { try { pk2.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
-					};
-					into.addItem((i) => i.setTitle('Is empty…')
-						.onClick(() => askEmpty('empty')));
-					into.addItem((i) => i.setTitle('Is not empty…')
-						.onClick(() => askEmpty('filled')));
-					into.addItem((i) => i.setTitle('Search properties…')
-						.onClick(() => {
-							const keys = orgPropKeys(at);
-							if (!keys.length) {
-								try { new Notice('No properties in these notes'); } catch (_) {}
-								return;
-							}
-							// LIFTED (brief C4) — `orgFilterByKey` beside `orgAt`, so
-							// the header's "Filter by this…" and this one enumerate
-							// the same values from the same subject.
-							const pickValue = (key) => orgFilterByKey(key, ev);
-							const items = keys.map(k => ({ key: k, label: k }));
-							if (WsPropSuggestModal) {
-								try {
-									new WsPropSuggestModal(this.app, items,
-										(it) => pickValue(it.key),
-										'Which property?').open();
-									return;
-								} catch (_) {}
-							}
-							const pk = new Menu();
-							for (const it of items.slice(0, 20)) {
-								pk.addItem((i2) => i2.setTitle(it.label)
-									.onClick(() => pickValue(it.key)));
-							}
-							try { pk.showAtMouseEvent(ev); }
-							catch (_) { try { pk.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
-						}));
-				});
-				try { menu.showAtMouseEvent(ev); }
-				catch (_) { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
-			});
-			// ── COLUMNS, A BUTTON AT LAST (writer, 2026-08-22) ──────────
-			//
-			// "a COLUMNS button with checkboxes joins the bar." The list
-			// itself is unchanged and unmoved — `colsMenu` is still the one
-			// builder, ticks and all — this is the door it never had since
-			// the eye button retired with the old tab.
-			// ── AND THE KIND NARROWING WEARS A CHIP HERE ────────────────
-			//
-			// The old `typeChip` is built into `.zg-goals-top`, which THIS
-			// TAB HIDES OUTRIGHT — so a writer who had switched every kind
-			// but Notes off saw a short tree and no sign at all, which is
-			// exactly the fault that chip was written to prevent. It still
-			// serves the other tabs; the Organizer gets its own, in the bar
-			// where the narrowing is made, in the same chip grammar as the
-			// property filters beside it.
-			//
-			// A READER, NOT A SECOND STORE: the label comes from
-			// `typeLabel()` and the × writes through `setShape`, the same
-			// one writer the menu uses.
-			// ── THE KIND CHIP MOVED DOWN WITH THE OTHERS (writer, 2026-09-03) ──
-			//
-			// "filter has that pill for types in the right, the rest are
-			// displayed below and pill is different visually. make them
-			// homogenous, put the pills bellow." It stood HERE, in the button
-			// row between Filter and Properties, while every other chip was
-			// drawn in the chip row beneath — one grammar spoken in two places.
-			//
-			// AND IT HAD TO MOVE IN THE CODE, NOT JUST CHANGE ITS PARENT, for
-			// the same reason the chip row's own comment gives: `chipHost` and
-			// `chipBtn` are declared further down, so a call from here is a
-			// temporal-dead-zone throw, not a misplaced element. It is built
-			// beside the property chips now — see "THE KIND NARROWING" there.
-			// PROPERTIES, not Columns (writer, 2026-08-22). The menu lists
-			// the readings AND the writer's own frontmatter keys, which is
-			// what Obsidian calls properties — "Columns" named the container
-			// rather than the contents.
-			const colsBtn = bar.createEl('button',
-				{ cls: 'zg-export-mini zg-org-colsbtn' });
-			lensIcon(colsBtn, ['table-properties', 'settings-2', 'list',
-				'columns-3']);
-			colsBtn.createSpan({ text: 'Properties' });
-			// ── AND ONE DOOR THAT SHUTS EVERYTHING ────────────────────
-			//
-			// "add a Collapse all expand all button in the right of
-			// proprieties" (writer, 2026-08-31).
-			//
-			// THIS CONTROL HAS HISTORY AND IT IS THEIRS. It was built at 323
-			// as a fold on the ROOT ROW and asked back out on 2026-08-25 —
-			// "remove the chevron and the collapsible stuff of the root" —
-			// which took collapse-all with it. What is asked for now is a
-			// BUTTON IN THE BAR, which is a different control: the root row
-			// keeps exactly what they kept last time, and this does not put
-			// a chevron back on it.
-			//
-			// ONE BUTTON, TWO JOBS, so its label is the only thing telling a
-			// writer which they are about to get — and the test is whether
-			// ANY folder is open, not whether all are. With nine folders and
-			// one open, "Expand all" would be a lie about the eight that are
-			// shut and would do nothing to the one that is not.
-			//
-			// IT WRITES THROUGH `orgOpenSet`, the one writer of the fold, so
-			// a folded-away row and a hidden row cannot come to mean two
-			// different things.
-			const foldBtn = bar.createEl('button',
-				{ cls: 'zg-export-mini zg-org-foldall' });
-			// EVERY ROW THAT CAN BE OPENED, note or folder (writer, 2026-08-31:
-			// "the expand all collapse all should open the notes too displaying
-			// the proprieties").
-			//
-			// This filtered to folders, which reads as the obvious meaning of
-			// "fold" in a tree and is not what the control is for here. A NOTE
-			// opens too, and what it opens is its property card — the tiny
-			// chevron on its own row. `orgOpen` has always held both, and
-			// `orgIsOpen` is the same question asked of either, so the filter
-			// was the only thing making them two different kinds of open.
-			//
-			// IT REACHES BOTH VIEWS. Table draws no cards, so opening a note
-			// there shows nothing until the writer switches — which is right,
-			// not a gap: the state is the same state, and a door that meant
-			// something different in each view would be two doors.
-			//
-			// ── AND IT READS THE WHOLE SUBTREE, NOT WHAT IS ON SCREEN ───────
-			//
-			// MEASURED, by driving the button in the vault: from a shut view,
-			// one click on "Expand all" opened four rows of fifteen. It asked
-			// `orgRowList(orgFolder, false)`, which walks only folders that
-			// are ALREADY OPEN — so expanding could only ever reveal one
-			// level, and the rows it uncovered stayed shut. Collapse looked
-			// right the whole time, because shutting a parent hides its
-			// children whether or not they were told.
-			//
-			// NEITHER FLAG ALONE IS "EVERYTHING": `flat` dives through every
-			// folder regardless of its fold but OMITS the folders from what
-			// it returns, and `!flat` returns both kinds but walks only what
-			// is open. So the files come from the flat walk and the folders
-			// from their own paths — no second tree walk, and no chance of a
-			// second walker disagreeing with the first about what is under a
-			// folder.
-			//
-			// A FOLDER WITH NO NOTES UNDER IT IS NOT IN THE LIST, because no
-			// file names it. Opening it would reveal nothing, so the only
-			// difference is its own chevron — said here rather than left for
-			// somebody to find.
-			const foldable = () => {
-				const out = new Set();
-				for (const r0 of orgRowList(orgFolder, true)) {
-					out.add(r0.path);
-					const bits = String(r0.path).split('/');
-					bits.pop();
-					let acc = '';
-					for (const b of bits) {
-						acc = acc ? acc + '/' + b : b;
-						// Only what is at or under the scope: an ancestor above it
-						// is not a row in this view and is not ours to fold.
-						if (!orgFolder || acc === orgFolder
-							|| acc.indexOf(orgFolder + '/') === 0) out.add(acc);
-					}
-				}
-				return Array.from(out);
-			};
-			const anyOpen = foldable().some(p0 => orgIsOpen(p0));
-			lensIcon(foldBtn, anyOpen ? ['chevrons-down-up', 'fold-vertical', 'minimize-2']
-				: ['chevrons-up-down', 'unfold-vertical', 'maximize-2']);
-			// THE GLYPH ALONE (writer, 2026-08-31, an hour after asking for
-			// the button: "put only the icon here, no need to write expand
-			// all"). It sits in a row of four labelled controls, and it was
-			// the widest of them for the least-used job.
-			//
-			// SO THE TITLE CARRIES THE WHOLE NAME, and it has to: the icon
-			// flips with the state, which means the picture is the only
-			// thing on screen saying which of two jobs a click will do. An
-			// `aria-label` as well, because a button whose only text is a
-			// drawing has no name at all to a screen reader.
-			// "every folder" stood here and stopped being true when the door
-			// reached the notes: what it opens is every row that HAS an open
-			// state, which is a folder and a note’s property card alike.
-			const foldSay = anyOpen ? 'Collapse all \u2014 shut every folder and card'
-				: 'Expand all \u2014 open every folder and card';
-			foldBtn.title = foldSay;
-			foldBtn.setAttribute('aria-label', foldSay);
-			foldBtn.addEventListener('click', (ev) => {
-				ev.stopPropagation();
-				const want = !anyOpen;
-				// ONE CALL, NOT ONE PER FOLDER — see `orgOpenSetMany`. This loop
-				// is what made the button slow: six saves and six whole-panel
-				// rebuilds for five rows, 640ms inside a single click.
-				orgOpenSetMany(foldable(), want);
-			});
-			// ── ONE DOOR, AND IT ANSWERS THE MODE IT IS STANDING IN ─────
-			//
-			// The checklist used to be `zg-org-headpickbtn`, a second door
-			// at the right end of the Outline header row. The writer asked
-			// for it folded in here (2026-08-25: "the property-checklist
-			// button is weird where it is — fold it into the Properties
-			// button"), and the categories ask above rearranges this very
-			// menu, so the two were built in one go: apart, the second
-			// undoes the first.
-			//
-			// IT IS NOT A MERGE OF THE TWO LISTS. Measured live in the
-			// vault, 2026-08-25, in Outline: the table draws TWO header
-			// cells (the name and the picker's spacer) while `uniColsOff`
-			// leaves seven columns switched on — because `cols` is `[]` in
-			// Outline by design, and the comment beside that line says so.
-			// So the columns list configures NOTHING here, and offering it
-			// would be the same fault as the Frontmatter toggle: a control
-			// answering a question this view does not have.
-			//
-			// The two modes get the menu that belongs to them. Table is the
-			// columns; Outline is the properties under every row.
-			// ── ONE DOOR, AND IT NO LONGER ASKS WHICH MODE IT IS IN ─────
-			//
-			// TOMBSTONE (brief C3): a tooltip that read “Which properties
-			// every row shows” in Outline and “which properties the table
-			// shows” in Table. It was right while the button opened TWO
-			// DIFFERENT MENUS — and that split was the fault: which
-			// properties existed depended on the mode you were standing in.
-			// One panel answers both questions at once, so the tooltip names
-			// both surfaces and stops changing under the writer.
-			colsBtn.title = 'Which properties this window shows — a column'
-				+ ' in the table, a field under every row in Outline';
-			// IT TOGGLES. A second press on an open panel shuts it, which is
-			// what a writer expects of a button that opened one — and what a
-			// probe driving this door has to know, because re-reading the
-			// list after a tick would otherwise CLOSE the panel and read
-			// nothing at all.
-			colsBtn.addEventListener('click', () => {
-				if (orgPropPopEl()) { orgPropPopClose(); return; }
-				orgPropPopOpen(colsBtn);
-			});
-			// TOMBSTONE: THE FRONTMATTER TOGGLE (2026-08-24) ---------------
-			//
-			// `.zg-org-drawer`, a bar button reading "Frontmatter" with a
-			// chevron that was its state, plus `orgDrawer`, `orgDrawerSet`
-			// and the `organizerDrawer` store behind it. Pairs 291 and 297
-			// spent three changes making it read as a toggle, so it was put
-			// to the writer as a question before anything was deleted.
-			//
-			// THEIR ANSWER, 2026-08-24: retire it. Two controls in one bar
-			// answered one question - Frontmatter-on in Table was very
-			// nearly Outline - and the mode picker is the one that names
-			// both of its states. What is lost with it is the combination
-			// the toggle alone could give: the columns AND the property
-			// rows at once. That was said before they chose, and they
-			// chose. Table is the columns; Outline is the properties.
-			//
-			// This also closes INBOX G0m, which had asked for the button to
-			// MOVE into the Properties menu as "Show properties". A menu
-			// item is still a second door onto the same question; the
-			// answer above deletes the question instead.
-			// (SAVED LENSES stood here, one day old; removed at the writers
-			// word — see the orgLens tombstone above.)
-			// ── TOMBSTONE: THE FREE-TEXT FILTER DRAFT (removed 2026-08-30) ──
-			//
-			// 114 lines stood here: a `property:` box with a datalist of
-			// every key under the subject, and behind it a `key:` box with a
-			// datalist of that key's values. Type a name, Enter, type a
-			// value, Enter, and a chip went up.
-			//
-			// **NOTHING COULD OPEN IT.** The outer block asked
-			// `orgChipDraft && orgChipDraft.naming`, and `orgChipDraft` had
-			// exactly ONE writer of a non-null value — inside that block, at
-			// the naming box's own Enter. No line in this repo ever set
-			// `naming`. The inner block, the value box, was reachable only
-			// from the outer one. Both were unreachable from the first
-			// keystroke a reader could make.
-			//
-			// MEASURED IN THE VAULT BEFORE REMOVING ANY OF IT: pressing
-			// Filter and choosing `Property` leaves `.is-draft` at 0
-			// elements and the modal's only `<input>` is the goals search.
-			// It opens the KEY PICKER instead — `orgFilterByKey`, which is
-			// the live path and goes through `orgAddChip` like every other.
-			//
-			// AND IT COST A BATCH BEFORE IT WENT. On 2026-08-30 I found the
-			// value box concatenating a chip of its own, bypassing the
-			// one-chip-for-one-narrowing rule, and read it as the writer's
-			// reported twin arriving through a second door. It was the right
-			// reading of the code and the wrong reading of the program: the
-			// door does not open. THAT is what CLAUDE.md means by "a method
-			// with no callers is not free" — it is a thing the next person
-			// reads, keeps working, and writes assertions about.
-			//
-			// The rule it was walking around is still enforced, at the one
-			// birth site, and `unified_probe` holds that there is one.
-
-			// ── THE ACTIVE CHIPS, UNDER THE CONTROLS THAT MADE THEM ──
-			//
-			// Writer, 2026-08-23. They were in the SUBJECT STRIP, far right,
-			// sharing a line with the word and note counts - so the thing
-			// that changed the list sat nowhere near the control that
-			// changed it. Under the buttons is where a writer looks.
-			//
-			// A SIBLING OF THE BAR, NOT A CHILD OF IT, and that is not a
-			// preference: `.zg-org-bar` is `flex-wrap`, so chips appended
-			// into it would sit BESIDE the buttons until the line filled,
-			// which is not "under" - and the kind chip is asserted to live
-			// INSIDE the bar, so the bar has to survive untouched.
-			//
-			// AND IT HAD TO MOVE IN THE CODE, not just change its parent:
-			// this ran before `bar` existed, and `panel.textContent = ''`
-			// two lines above the bar would have wiped anything appended
-			// early. It is built LAZILY so a lens-free window pays no empty
-			// row and no gap for it.
-			let chipRowEl = null;
-			const chipHost = () => (chipRowEl
-				|| (chipRowEl = panel.createDiv({ cls: 'zg-org-chiprow' })));
-			// The active lens, as dismissible chips — pressing one takes
-			// only ITS narrowing away.
-			const chipBtn = (label, undo) => {
-				const b = chipHost().createEl('button', { cls: 'zg-org-chip' });
-				b.createSpan({ text: label });
-				b.createSpan({ cls: 'zg-org-chipx', text: '×' });
-				b.title = 'Remove this';
-				b.addEventListener('click', undo);
-			};
-			if (sortCol) {
-				chipBtn(sortCol.label + zgSortArrow(orgLens.sort.dir),
-					() => orgLensSet({ sort: null }));
-			}
-			// (The “query” chip stood here — retired with the pane's search.)
-			for (const c of orgLens.chips) {
-				// A filter chip carries a CHECKBOX (inbox): unticking sets
-				// the filter aside without losing what was typed; the ×
-				// still removes it for good. Sort and search chips have no
-				// box — there is nothing of theirs to keep while off.
-				const b = chipHost().createEl('button',
-					{ cls: 'zg-org-chip' + (c.off ? ' is-off' : '') });
-				const tick = b.createEl('input', { cls: 'zg-org-chiptick' });
-				tick.type = 'checkbox';
-				tick.checked = !c.off;
-				tick.title = c.off ? 'Tick to apply this filter again'
-					: 'Untick to set this filter aside';
-				tick.addEventListener('click', (ev) => {
-					ev.stopPropagation();
-					orgLensSet({ chips: orgLens.chips.map(x => x === c
-						? Object.assign({}, x, { off: !x.off }) : x) });
-				});
-				// A CHIP SAYS WHAT IT ASKS. `synopsis: ` with nothing after the
-				// colon would be an empty-looking chip for a filter that is
-				// precisely ABOUT emptiness — unreadable, and indistinguishable
-				// from a filter whose value had been lost.
-				b.createSpan({ text: c.op === 'empty' ? c.key + ' is empty'
-					: c.op === 'filled' ? c.key + ' is not empty'
-					: c.key + ': ' + c.value });
-				b.createSpan({ cls: 'zg-org-chipx', text: '×' });
-				b.title = 'Remove this';
-				b.addEventListener('click', () => orgLensSet({
-					chips: orgLens.chips.filter(x => x !== c) }));
-			}
-			// ── WHAT THE LENS COSTS, AND THE WAY OUT, BESIDE THE CHIPS ──
-			//
-			// Both of these were in the heading, two lines above a row that
-			// was already about the lens. Here they sit with what they
-			// describe, and the pane says the lens once.
-			//
-			// THE COUNT ONLY WHEN SOMETHING IS HIDDEN, which is the reading
-			// the old line already had: "5 of 5 shown" is a sentence about
-			// nothing. THE WAY OUT WHENEVER THE LENS IS ON, which is the
-			// correction that line carried — a filter matching every note
-			// still has to come off, and offering the door only when a row
-			// happened to be hidden was measured in the vault as no door at
-			// all.
-			// ── THE KIND NARROWING, IN THE SAME ROW AND THE SAME SHAPE ──
-			//
-			// Moved here 2026-09-03 on the writer's word (see the tombstone
-			// where it used to stand). It is a BUTTON now, not a div, and it
-			// is dismissed by pressing it anywhere rather than by hitting the
-			// × alone — which is what every chip beside it already does, and
-			// the whole of what "homogenous" asks for. The × stays as the
-			// sign that it can be dismissed; it is no longer its own target.
-			//
-			// NOT `chipBtn`, THOUGH IT IS ITS TWIN: this one carries a second
-			// class so the probe and `selectors.js` can still name it, and its
-			// undo is async. Teaching `chipBtn` an options argument for one
-			// caller would be the more tangled of the two.
-			//
-			// OUTSIDE `orgLensOn()`, deliberately: the kinds are narrowed by
-			// the shape picker, not by the lens, so this chip must appear with
-			// no lens on at all. `chipHost()` builds the row lazily, so asking
-			// for it here is what makes the row exist in that case.
-			{
-				const onKinds = this.uniTypeSet();
-				const allKinds = this.uniTypeGroups();
-				if (onKinds.size < allKinds.length || showShape() !== 'all') {
-					const kc = chipHost().createEl('button',
-						{ cls: 'zg-org-chip zg-org-kindchip' });
-					kc.createSpan({ text: 'kind: ' + typeLabel() });
-					kc.createSpan({ cls: 'zg-org-chipx', text: '×' });
-					kc.title = 'Only some kinds of file are shown — press to show every kind again';
-					kc.addEventListener('click', async () => {
-						// BOTH STORES, as the old chip's × learnt the hard way:
-						// on "Folders only" (every kind, one shape) undoing the
-						// kinds alone changed nothing at all.
-						this.settings.uniTypes = allKinds.map(g => g.id);
-						await setShape('all');
-						drawPanel();
-					});
-				}
-			}
-			if (orgLensOn()) {
-				const tail = chipHost().createDiv({ cls: 'zg-org-chiptail' });
-				if (narrowed) {
-					tail.createSpan({ cls: 'zg-org-shownof',
-						text: noteCount(rows) + ' of ' + noteCount(list) + ' shown' });
-				}
-				const cl = tail.createEl('button', { cls: 'zg-org-clearlens' });
-				cl.setText('Clear all');
-				cl.title = 'Take the lens off — Escape does this too';
-				cl.addEventListener('click', (ev) => {
-					ev.stopPropagation();
-					orgLensClear();
-				});
-			}
-
-			// ── the table ───────────────────────────────────────────────
-			const wrap = panel.createDiv({ cls: 'zg-org-panel' });
-			// AND IT REPORTS WHERE IT IS (A157). A fresh box every draw means
-			// a fresh listener every draw — which is right, not wasteful: the
-			// old box is discarded with its listener, so nothing accumulates.
-			// `passive` because this never calls `preventDefault`, and a
-			// non-passive scroll listener makes the browser wait for it.
-			wrap.addEventListener('scroll', () => {
-				orgScrollTop = wrap.scrollTop;
-				ses.scroll = orgScrollTop;
-			}, { passive: true });
-			// THE TABLE WEARS ITS MODE. Everything that differs between the
-			// two views is an ARRANGEMENT, so it belongs in the stylesheet
-			// keyed off one stamped class - not in a second renderer. A
-			// second renderer is how a window ends up with two descriptions
-			// of a row that have to be kept in step.
-			const table = wrap.createEl('table', { cls: 'zg-org-table' });
-			orgNameStamp(table);
-			const thead = table.createEl('thead');
-			const hr = thead.createEl('tr');
-			// TOMBSTONE, AND THEN ITS REVERSAL (writer, 2026-08-22, then C4).
-			//
-			// WHAT WENT, AND WHY: the header's RIGHT-CLICK, which carried the
-			// whole columns menu and, under a separator, the kinds. "No
-			// right-click menu on the table's top header — everything through
-			// the bar's buttons." Two reasons beyond the asking: a gesture is
-			// not a door (a writer who never right-clicks a header never finds
-			// either LIST), and this header is already the SORT control, so
-			// one target answered three questions.
-			//
-			// WHAT CAME BACK, AND WHY IT IS NOT THE SAME THING: C4 asks for
-			// "header right-click menu (sort ↑, sort ↓, filter by this…, hide
-			// column)". It carries no LIST — the columns are the Properties
-			// panel and the kinds are behind Filter by — so the first reason
-			// no longer applies: nothing here is reachable ONLY from a
-			// gesture. It is decision (b)'s "extra ENTRY POINT into that
-			// state, never a second copy of it", and the menu is built beside
-			// the drag, four lines down.
-			// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
-			//
-			// NOT IN OUTLINE (writer, 2026-08-31: "remove that Name in the
-			// outline mode — it does nothing to outline mode"). The Outline
-			// header is ONE cell, so "Name" is a column heading standing over
-			// a view that has no columns to head: it names nothing, it sorts
-			// nothing, and the row beneath it is a title line rather than a
-			// Name cell.
-			//
-			// THE CELL STAYS. The table still needs a header row for its
-			// sticky top and for the row that sizes the pane; what goes is
-			// the word. Emptying it rather than dropping the `<th>` also
-			// keeps the two modes one table, which is what stops the switch
-			// rebuilding the whole thing.
-			const nameTh = hr.createEl('th',
-				{ cls: 'zg-org-name', text: 'Name' });
-			// NOT IN OUTLINE (writer, 2026-08-30: "we don’t need the separator
-			// in outline view"). There is one column there and nothing to
-			// separate it FROM, so a line down the pane is furniture with no
-			// job — and a grip that resized the only column would be a control
-			// for a width nothing competes for.
-			orgNameGripBind(panel, nameTh, table);
-			// ── AND THE SEAM RUNS THE PANE, NOT THE ROWS ──────────────
-			//
-			// Writer, 2026-08-30: "the vertical line is botched." Measured:
-			// the table ended at y=286.3 in a pane whose bottom is y=733.8, so
-			// the hairline stopped 447px short and hung in white space. A
-			// column separator that ends with the data reads as a fragment.
-			//
-			// SO IT IS THE HOST’S, NOT THE CELLS’. The Name column is sticky at
-			// the wrap’s left edge, so its right edge is at the SAME screen x
-			// whatever the table is scrolled to — which is exactly what lets one
-			// line outside the scroller stand in for a border on every cell.
-			// The cells’ own `border-right` comes off with this: two writers of
-			// one line is how a seam ends up doubled or stepped.
-			//
-			// MEASURED IN A FRAME, not at build time. The width is the table’s
-			// answer to its own content and there is no layout to ask until the
-			// rows are in.
-			// ── ONE DEVICE PIXEL, NOT ONE CSS PIXEL ────────────────────────
-			//
-			// Writer, twice: "make that selection accent line 1px", then — with
-			// it already at 1px — "the selected file line is not thinned", and
-			// then a shot of the bar itself: "that line."
-			//
-			// MEASURED ON THAT ROW: a plain 1px x 23.6px fill, no shadow, no
-			// border, no radius, no filter. Nothing widened its paint, and 1px
-			// is the floor for a CSS length. What made it read thick is where
-			// it landed: `devicePixelRatio` is 1.25 on this display, so the bar
-			// sat at CSS x 441.8 = device 552.25 and spanned to 553.5 — three
-			// quarters of one device pixel and half of the next. Two partly-lit
-			// columns read as a soft two-pixel line, which is exactly the
-			// complaint.
-			//
-			// SO IT IS SNAPPED ONTO THE DEVICE GRID and given exactly one device
-			// pixel of width. Both numbers are read from the machine at draw
-			// time — `devicePixelRatio` and the bar's own resolved offset — so
-			// nothing here is a literal that a different display would make
-			// wrong.
-			//
-			// THE OFFSET IS READ FROM THE PSEUDO-ELEMENT, which is the one
-			// writer of where the bar is: `getComputedStyle(el, '::before')`
-			// resolves the `calc(guidex + (depth - 1) * step)` the stylesheet
-			// owns, so this never restates that expression and cannot drift
-			// from it. THE SNAP IS ZEROED BEFORE READING, or the second call
-			// would measure a position that already includes the first call's
-			// correction and double it.
-			//
-			// BOTH SURFACES, because A35 and A42 both settled on "like in the
-			// organiser filetree" — thinning one alone is how they come to
-			// disagree again.
-			const orgSnapAccent = () => {
-				const w0 = ownerWin();
-				const dpr = (w0 && w0.devicePixelRatio) || 1;
-				// FROM THE WINDOW, AND WALKED UP FROM THE TABLE. The tree is the
-				// OTHER pane, so this pane found nothing and the snap went unwritten
-				// on the surface that shares the rule — measured as `snap: (unset)`
-				// on a tree bar still 1.25 device pixels wide.
-				//
-				// NOT FROM `host`. The `host` in scope HERE is the one
-				// `openManuscriptModal` opens with — `o.host || this.modalHost()` —
-				// and it is not always an element: it threw
-				// `host.querySelector is not a function` in the running vault, out
-				// of `orgNameLine`, which took the seam stamping down with it. The
-				// element-valued `host` is a DIFFERENT binding declared inside
-				// `orgNameLine` as `wrap.parentElement`, and it is not in scope here.
-				// `table` is an element in both.
-				const scope = table.closest('.zg-uni-modal')
-					|| table.closest('.modal') || table.ownerDocument;
-				// THE RATIO GOES ON THE WINDOW, THE SNAP ON THE MARK. They are
-				// two different facts and they become knowable at different
-				// times: the ratio is true of the whole window from the first
-				// paint, while the snap needs the mark to EXIST and be laid out.
-				// MEASURED: on an open where the followed note was already
-				// active, the tree row is built after this runs, so it read
-				// `snap: (unset)` and stayed 1.25 device pixels wide while the
-				// table beside it was 1 — the two surfaces A35 and A42 both said
-				// to keep matched, disagreeing. Inherited from here, the width is
-				// right on both from the start; the position follows on the next
-				// draw.
-				if (scope && scope.style) {
-					scope.style.setProperty('--zg-dpr', String(dpr));
-				}
-				const marks = [
-					table.querySelector('.zg-org-row.zg-org-active td.zg-org-name'),
-					scope.querySelector('.zg-uni-list .zg-org-active')
-				];
-				for (const el of marks) {
-					if (!el) continue;
-					try {
-						el.style.setProperty('--zg-dpr', String(dpr));
-						el.style.setProperty('--zg-org-snap', '0px');
-						const off = parseFloat(
-							w0.getComputedStyle(el, '::before').insetInlineStart);
-						if (!isFinite(off)) continue;
-						const x = el.getBoundingClientRect().left + off;
-						// ── SNAP TO THE GUIDE, NOT TO THE PIXEL GRID (A201) ──
-						//
-						// Writer, 2026-09-06, with the row circled: "there is a
-						// tiny mismatch of the accented line, it does not stays
-						// perfectly on the chevron line".
-						//
-						// MEASURED before touching it, at depth 3 and dpr 1.25:
-						// the accent's left edge sat at 188.0 and the guide's at
-						// 188.4 — and `--zg-org-snap` read **-0.400px**. The
-						// snap was the thing moving it. It rounded the bar onto
-						// a DEVICE PIXEL, which is the right answer for a
-						// hairline that has nothing to line up with, and the
-						// wrong one here: the guide is Obsidian's own border and
-						// lands where its layout puts it — 188.4 is 235.5 device
-						// pixels, not on the grid at all. Snapping to the grid
-						// therefore moved our bar AWAY from the line it exists
-						// to sit on.
-						//
-						// SO THE GUIDE IS THE TARGET WHEN THERE IS ONE. The
-						// `- 4.8px` in the stylesheet gets the bar close from a
-						// measurement taken once; this puts it exactly there,
-						// per row, at whatever depth and whatever that inset
-						// really is today. The constant becomes the first guess
-						// and the measurement is the answer.
-						const box = (typeof el.closest === 'function')
-							? el.closest('.tree-item-children') : null;
-						let want = null;
-						if (box) {
-							const bx = box.getBoundingClientRect().left;
-							if (isFinite(bx)) want = bx;
-						}
-						// NO GUIDE, NO TARGET. The table's mark has no
-						// indentation line beside it, so it keeps the device
-						// grid — a hairline with nothing to align to should at
-						// least be crisp. A35 and A42 keep the two surfaces'
-						// WIDTHS matched, which is what was asked; only the
-						// tree has a line to sit on.
-						if (want === null) want = Math.round(x * dpr) / dpr;
-						el.style.setProperty('--zg-org-snap', (want - x).toFixed(3) + 'px');
-					} catch (_) {}
-				}
-			};
-			const orgNameLine = () => {
-				try {
-					const host = wrap.parentElement;
-					if (!host) return;
-					// OUTLINE DRAWS NEITHER. The variables are REMOVED rather than
-					// zeroed: the host keeps its style attribute across a redraw,
-					// so a stale width left behind would put a line down an
-					// Outline the moment anything else repainted it.
-					host.style.removeProperty('--zg-org-outw');
-					const w = nameTh.getBoundingClientRect().width;
-					if (!(w > 0)) return;
-					// THE WRAP’S OWN INSET COUNTS. The seam is positioned
-					// against the HOST and the column is measured inside the
-					// WRAP, and the wrap does not start at the host’s left edge.
-					// Measured with the width alone: the seam landed at x=760.8
-					// against a column ending at 772.8 — twelve pixels left, the
-					// exact inset, drawn straight through the names.
-					host.style.setProperty('--zg-org-nameline',
-						Math.round(wrap.offsetLeft + w) + 'px');
-					host.style.setProperty('--zg-org-nametop',
-						Math.round(wrap.offsetTop) + 'px');
-					// AND IT STOPS WITH THE ROWS (writer: "the separator is too
-					// long, make it stop somewhere is logical").
-					//
-					// It ran to the floor of the pane, which was the fix for it
-					// stopping 447px short as a cell border — and overshot the
-					// other way: a rule down 450px of empty white. THE LOGICAL
-					// STOP IS THE LAST ROW, because that is where the columns it
-					// separates end.
-					//
-					// CLAMPED TO THE PANE, or a table taller than its pane would
-					// stamp a height that reaches past the bottom of the window.
-					//
-					// AND NOT ROUNDED (writer, 2026-09-01: "i want the intersection
-					// of the column separator and row to be perfects, no overshoots
-					// like that").
-					//
-					// A TABLE IS NOT A WHOLE NUMBER OF PIXELS TALL. Measured in the
-					// writer's vault: the table stood at 166.8px and `Math.round`
-					// stamped 167, so the grip — which takes this as its height —
-					// ended 0.2px BELOW the last row it is meant to stop with. Every
-					// row height here is fractional (23.6px rows, a 24.4px header),
-					// so rounding to a whole pixel cannot land on a row edge except
-					// by accident.
-					//
-					// TWO DECIMALS, NOT NONE. The raw double would stamp a
-					// seventeen-digit string into a style attribute on every draw;
-					// hundredths are finer than a device pixel at any ratio this
-					// runs at, so the seam and the grip land on the row edge and the
-					// attribute stays readable.
-					//
-					// AND `tall` IS DECLARED HERE, which it stopped being for three
-					// deploys: an anchored edit to this block dropped the line and
-					// nothing said so. The reference threw, the enclosing `catch (_)`
-					// swallowed it, and the symptom was a grip 23.6px tall and a name
-					// grip of 0 — with `--zg-org-nameline` set two lines above, which
-					// is what finally located it: the function ran and stopped in the
-					// middle. A SILENT CATCH AROUND A WHOLE FUNCTION BODY IS A PLACE
-					// A MISSING LINE CAN HIDE.
-					const tall = Math.min(table.getBoundingClientRect().height,
-						wrap.clientHeight);
-					host.style.setProperty('--zg-org-nameend',
-						Math.max(0, tall).toFixed(2) + 'px');
-				} catch (_) {}
-				// WITH THE SEAM, so the accent is re-snapped by every trigger the
-				// seam already has — the synchronous stamp, the ResizeObserver on
-				// the table, and the task queued after the build. A pane dragged
-				// narrower moves the cell, which moves the bar off the grid.
-				// GUARDED ON ITS OWN. This is decoration; the seam and the grip
-				// height above are structure. A throw in here must not take them
-				// with it — which it can, because the stamp above sits in a try
-				// whose catch is silent, so the failure would show up as a grip
-				// with no height and no error anywhere.
-				try { orgSnapAccent(); } catch (_) {}
-			};
-			// THE FIT MEASURES THIS TABLE. Installed beside the seam’s own
-			// closure and for the same reason: both are built here and read
-			// from somewhere else.
-			//
-			// READ EVERYTHING, THEN WRITE. The stamps come off, one layout is
-			// forced by the first read, every width is taken, and only then is
-			// anything set — interleaving makes the browser lay the table out
-			// again on every column.
-			orgColFitNow = () => {
-				const ths = Array.from(table.querySelectorAll('thead th[data-col]'));
-				if (!ths.length) return;
-				// EVERY CELL, not every header — `orgColLive` writes a column by
-				// walking `th, td`, and this is the same walk undone. Measuring
-				// after clearing only the headers is what made this button a
-				// round trip; see `orgColUnfix`.
-				for (const cell of Array.from(
-					table.querySelectorAll('th[data-col], td[data-col]'))) {
-					orgColUnfix(cell);
-				}
-				const ceil = orgColCeil(wrap);
-				const got = ths.map((th2) => ({
-					id: th2.getAttribute('data-col'),
-					w: Math.round(th2.getBoundingClientRect().width)
-				}));
-				const m = Object.assign({}, orgColPx());
-				for (const g of got) {
-					if (!g.id || !(g.w > 0)) continue;
-					// THE CEILING BINDS HERE TOO, which is the writer’s caveat:
-					// "for long columns like a description, the resize should
-					// not make the column too wide". A Description holding a
-					// sentence is exactly the column that would take the pane.
-					m[g.id] = Math.max(ORG_COL_MIN, Math.min(ceil, g.w));
-				}
-				s.uniColPx = m;
-				this.saveSettings().catch(() => {});
-				drawPanel();
-			};
-			orgNameLineNow = orgNameLine;
-			// STAMPED NOW AND AGAIN NEXT FRAME.
-			//
-			// Writer, 2026-08-30: "no vertical separator". Their window had
-			// `--zg-org-nameline` UNSET, so the seam sat at its `-1px` fallback
-			// and the cells no longer draw one — a table with no separator at
-			// all. The window was built before this code existed and kept
-			// running against the new stylesheet, which is what a deploy does
-			// to an open window; but a seam that shows NOTHING when its stamp
-			// has not run is one missed frame away from that state at any time.
-			//
-			// SO IT IS SET SYNCHRONOUSLY TOO. Reading the width here forces the
-			// layout the rAF was waiting for, and the rAF stays because a pane
-			// that is still being sized answers differently a frame later.
-			// ── AND IT IS MEASURED WHEN THERE IS SOMETHING TO MEASURE ──
-			//
-			// Writer, 2026-08-30: "no vertical separator" — twice, the second
-			// time on a freshly opened window, which ruled out the orphaned-
-			// window explanation I had given for the first.
-			//
-			// TRACED: `--zg-org-nameline` was UNSET at 80ms, 300ms, 900ms and
-			// 1800ms after opening, in a table with 12 columns and 2 rows and
-			// a header cell 752px wide. So it was never stamped, not stamped
-			// and lost. THE CALL RUNS HERE — between creating the Name heading
-			// and the loop that adds the other eleven — so at that instant the
-			// cell measures 0 and the guard against a zero width returns.
-			//
-			// A ResizeObserver IS THE ANSWER, not a later call site. It fires
-			// once as soon as the cell HAS a size, which is the moment the
-			// number becomes knowable, and again whenever it changes — so the
-			// seam follows a pane being dragged narrower, which no amount of
-			// stamping at build time would have done.
-			//
-			// ONE AT A TIME. The panel redraws often; an observer per draw
-			// would hold every dead table in the session and stamp from all
-			// of them.
-			// ── TOMBSTONE: `orgReadWidths` AND THE OUTLINE READING SLOTS ──
-			//
-			// It sized `.zg-org-outread[data-read]` slots so one reading kept
-			// one width down the whole outline — "align them like in the mockup
-			// so they look good". The Outline card went at 485 and nothing has
-			// built that class since: NOT `src/`, NOT the stylesheet. Its only
-			// occurrence in the whole build was the `querySelectorAll` inside
-			// this function, looking for itself.
-			//
-			// SO IT RAN ON EVERY DRAW AND RETURNED AT ITS FIRST LINE — the
-			// `if (!all.length) return` guard — twice per panel, once here and
-			// once from the post-build timeout below.
-			//
-			// FOUND BY THE GATE ONLY AFTER THE GATE WAS TAUGHT TO SEE IT
-			// (486w): `ws-dev/selectors.js` greps main.js as TEXT, so a class
-			// that is only ever QUERIED reads the same as one that is BUILT.
-			// It now reports "READ BUT NEVER BUILT", and this was the one and
-			// only name it named.
-			//
-			// `orgNameLine` below is live and stays: it is the Name column's
-			// seam, watched by the ResizeObserver described above.
-			orgNameLine();
-			try {
-				if (orgNameRO) { orgNameRO.disconnect(); orgNameRO = null; }
-				const w0 = ownerWin();
-				if (w0 && w0.ResizeObserver) {
-					// THE TABLE, NOT THE HEADING. Observing the cell alone was
-					// unreliable in a way worth writing down: it fired once
-					// while the header held only the Name column, stamped a
-					// width and a height from THAT — 785px and 24px against a
-					// finished table of 1253.8 and 96.6 — and had no reason to
-					// fire again, because adding rows does not resize a cell.
-					// Sometimes it had not fired at all by 1.6s. The TABLE
-					// changes size as it is built, so it is the thing to watch.
-					orgNameRO = new w0.ResizeObserver(() => orgNameLine());
-					orgNameRO.observe(table);
-					orgNameRO.observe(wrap);
-				}
-				// AND ONCE MORE AFTER THE BUILD, unconditionally. The panel is
-				// drawn in one synchronous pass, so a task queued here runs
-				// with the finished table in front of it — which is the one
-				// moment every number this needs is knowable. The observer is
-				// what keeps it true afterwards; this is what makes it true.
-				if (w0 && w0.setTimeout) w0.setTimeout(() => {
-					orgNameLine();
-				}, 0);
-			} catch (_) {}
-			for (const col of cols) {
-				const th = hr.createEl('th', { cls: colTextish(col) ? 'is-text' : '' });
-				th.setAttribute('data-col', col.id);
-				// NAMED, so it can be given a box of its own to be clipped in.
-				// The `th` cannot do it: the resize grip is a CHILD of this cell
-				// and hangs 3px past its right edge and the whole height of the
-				// table, so `overflow: hidden` here would clip the control the
-				// writer just asked to be able to grab.
-				th.createSpan({ cls: 'zg-org-headlabel', text: col.label });
-				// ── THE STORED WIDTH, IF THERE IS ONE ──────────────────
-				//
-				// Absent means "the table decides", which is what every
-				// column has always got and what a double-click hands back.
-				// All three properties, because a `<table>` treats `width` as
-				// a suggestion and will overrule it from the content alone.
-				orgColStamp(th, col.id, wrap);
-				orgColGripBind(th, col, wrap);
-				if (sortCol && sortCol.id === col.id) {
-					th.createSpan({ cls: 'zg-org-sortmark',
-						text: zgSortArrow(orgLens.sort.dir) });
-				}
-				// desc → asc → custom, the spec's cycle. A click is a LENS,
-				// so it goes through the lens's one writer.
-				th.title = 'Sort: newest-biggest first, then smallest, then the book’s order';
-				th.addEventListener('click', () => {
-					// NOT THE ONE THAT ENDS A DRAG. See `orgGripReleasedAt`: the
-					// click a grip release synthesises lands here, because the
-					// grip itself takes no pointer events.
-					if (Date.now() - orgGripReleasedAt < ORG_GRIP_CLICK_MS) return;
-					const cur = orgLens.sort;
-					if (!cur || cur.id !== col.id) {
-						orgLensSet({ sort: { id: col.id, dir: 'desc' } });
-					} else if (cur.dir === 'desc') {
-						orgLensSet({ sort: { id: col.id, dir: 'asc' } });
-					} else {
-						orgLensSet({ sort: null });
-					}
-				});
-				// ── AND A DRAG MOVES IT (inbox: draggable columns) ──────
-				// The old band's exact grammar and arithmetic: a drop TAKES
-				// THE TARGET'S PLACE (not a swap), the hidden columns keep
-				// their rank, `uniColOrder` is the one store. The NAME
-				// header is outside this loop on purpose — it is the sticky
-				// first column and does not move.
-				th.setAttribute('draggable', 'true');
-				th.addEventListener('dragstart', (ev) => {
-					orgDragCol = col.id;
-					try { ev.dataTransfer.setData('text/plain', col.id); } catch (_) {}
-				});
-				th.addEventListener('dragover', (ev) => {
-					if (orgDragCol && orgDragCol !== col.id) ev.preventDefault();
-				});
-				th.addEventListener('drop', async (ev) => {
-					ev.preventDefault();
-					const moved = orgDragCol;
-					orgDragCol = null;
-					if (!moved || moved === col.id) return;
-					const now = cols.map(x => x.id);
-					const from = now.indexOf(moved);
-					if (from !== -1) now.splice(from, 1);
-					const at = now.indexOf(col.id);
-					now.splice(at === -1 ? now.length : at, 0, moved);
-					const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : [])
-						.filter(id => now.indexOf(id) === -1);
-					s.uniColOrder = now.concat(rest);
-					await this.saveSettings();
-					drawPanel();
-				});
-				th.addEventListener('dragend', () => { orgDragCol = null; });
-				// ── AND A RIGHT-CLICK IS BACK (brief C4) ───────────────────
-				//
-				// THIS REVERSES 2026-08-22, and the reversal is the writer's own
-				// ("header right-click menu — sort ↑, sort ↓, filter by this…,
-				// hide column"). The tombstone that stood here gave two reasons
-				// for removing it, and only one of them has been answered:
-				//
-				//  · "A GESTURE IS NOT A DOOR" — still true, and still the rule.
-				//    What changed is that it is no longer the ONLY door to any
-				//    of these. Sort is a bar button, Filter is a bar button, the
-				//    columns are the Properties panel. This is an extra ENTRY
-				//    POINT into the same state — decision (b)'s own words —
-				//    rather than the place a writer has to find something.
-				//  · "ONE TARGET ANSWERED THREE QUESTIONS" — the header is
-				//    still the sort control on a plain click. That is why the
-				//    two sort rows say ↑ and ↓ rather than repeating the cycle:
-				//    the click cycles, the menu picks.
-				//
-				// AND IT CARRIES THE REMOVAL, which is not a nicety. Removing a
-				// property column lived in `colsMenu`'s per-property submenu
-				// until 375 replaced that menu with the panel — and the panel
-				// does not offer it, because unticking ▦ HIDES rather than
-				// removes and a panel row that could delete itself is a tick
-				// away from a mistake. So for two pairs there was no reachable
-				// way to remove one at all. It belongs beside the thing it
-				// removes, which is this header — the same argument the old
-				// `columnItems` comment made before its menu became unreachable.
-				th.addEventListener('contextmenu', (ev) => {
-					ev.preventDefault();
-					ev.stopPropagation();
-					const menu = new Menu();
-					menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-					menu.addItem((i) => i.setTitle('Sort \u2191')
-						.setIcon('arrow-up')
-						.onClick(() => orgLensSet({
-							sort: { id: col.id, dir: 'asc' } })));
-					menu.addItem((i) => i.setTitle('Sort \u2193')
-						.setIcon('arrow-down')
-						.onClick(() => orgLensSet({
-							sort: { id: col.id, dir: 'desc' } })));
-					// FILTER ONLY WHERE THERE ARE VALUES TO ENUMERATE. A reading
-					// is arithmetic over the note, not a value the note carries,
-					// and `orgDistinctUnder` has nothing to answer with — a row
-					// that always ends in "No values for Words" is a control
-					// that only ever apologises.
-					const fkey = col.user ? String(col.key)
-						: (col.id === 'tags' ? 'tags' : '');
-					if (fkey) {
-						menu.addItem((i) => i.setTitle('Filter by this\u2026')
-							.setIcon('list-filter')
-							.onClick(() => orgFilterByKey(fkey, ev)));
-					}
-					menu.addSeparator();
-					menu.addItem((i) => i.setTitle('Hide this column')
-						.setIcon('eye-off')
-						.onClick(async () => {
-							colOff.add(col.id);
-							s.uniColsOff = Array.from(colOff);
-							await this.saveSettings();
-							stampCols();
-							draw(); fill(); drawPanel();
-						}));
-					// ── TOMBSTONE: "Remove this property" (writer, 2026-09-04) ──
-					//
-					// "the right click on a propriety header in the table (remove
-					// a propriety vs hide a propriety -- maybe it's best just to
-					// have only hide) and the deletion of a propriety to be made
-					// by the user in a note or with propriety view core plugin".
-					//
-					// THE PRINCIPLE, said twice about two controls: THIS PLUGIN
-					// SHOWS AND HIDES COLUMNS; OBSIDIAN DELETES PROPERTIES.
-					//
-					// AND IT MATCHES WHAT THE CODE ALREADY DID. `removeProp`
-					// touched four settings and NO file — measured at A133 —
-					// so this item wore a trash icon beside "Hide this column"
-					// and the difference between them was invisible: one hid a
-					// column, the other forgot it. Neither deleted anything a
-					// writer could see.
-					//
-					// WHERE DELETION LIVES NOW: a note's property is removed in
-					// Obsidian's own Properties view or by editing the
-					// frontmatter; a non-md file's is removed by CLEARING ITS
-					// CELL, which drops the row from `ws-structure.md`.
-					try { menu.showAtMouseEvent(ev); }
-					catch (_) { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
-				});
-			}
-			// ── TOMBSTONE: THE HEADER'S OWN PROPERTY PICKER ───────────
-			//
-			// `.zg-org-headpickbtn` — a button at the right end of the
-			// Outline header row, Scrivener's arrangement, which the writer
-			// chose on 2026-08-23 over two drafts of their own. Retired
-			// 2026-08-25 at the same writer's word: “the property-checklist
-			// button is weird where it is — fold it into the Properties
-			// button.” It opens from `zg-org-colsbtn` in the bar now, which
-			// is the button whose question it answers, so there is one door
-			// onto the set instead of two.
-			//
-			// WHAT SURVIVES THE RETIREMENT, and it is not optional: the
-			// header CELL. Every row builds a matching `zg-org-pickcell`, and
-			// a header one cell short is the ragged table that `one cell per
-			// heading` reported the moment this column arrived — and the
-			// drawer rows' colspan is `cols.length + 2`, the second of which
-			// is this cell. Dropping the button is the change; dropping the
-			// column is a different one and would have to move the colspan
-			// with it. So the cell is still drawn in BOTH modes, exactly as
-			// before, and only its contents are gone.
-			//
-			// NOT DRAGGABLE AND NOT A SORT, still: every other th in this row
-			// is both, and this one never was, because it is not a column.
-			// ── AND OUTLINE HAS EXACTLY ONE COLUMN ───────────────────────
-			//
-			// "it’s still cut", and the colspan did not settle it either.
-			// MEASURED: the name cell spanned both columns and STILL came out
-			// 428px while the field rows beside it, spanning the same two,
-			// measured 773.4. The difference is `display: flex` — which is
-			// what makes `max-width` apply to a table cell, and which stops it
-			// being a table cell, so neither its `width` NOR its `colspan`
-			// reaches the column algorithm. The surplus went to the sticky
-			// pick column and sat there as a 337px hole.
-			//
-			// A TABLE’S COLUMNS FILL IT. With one column there is nowhere for
-			// a surplus to go, so the arithmetic stops mattering: the cell is
-			// the row and the row is the table. The pick cell exists to hold
-			// the header picker level with eleven other columns — in Outline
-			// there are no other columns, and the picker lives in the bar.
-			hr.createEl('th', { cls: 'zg-org-headpick' });
-			const tbody = table.createEl('tbody');
-			// +2, NOT +1: the Name column and the picker's own header cell.
-			// A drawer row that spans one column short leaves the picker's
-			// column drawing a stray vertical rule down the whole table.
-			// ONE COLUMN IN OUTLINE, so the cards span one. `cols.length + 2`
-			// counts the Name and the pick cell beside the readings; Outline
-			// emits neither the readings nor the pick.
-			const colspan = cols.length + 2;
-			// THE ONE TRANSITION the design brief allows the table (writer's
-			// Fable notes): a ~150ms fade when the binder dissolves into the
-			// flat list or comes back - it teaches "my folders melted
-			// because I sorted". Only on the CHANGE, never on an ordinary
-			// repaint, and the stylesheet stands down under
-			// prefers-reduced-motion.
-			//
-			// TOMBSTONE: it used to watch a `grouping` flag - lens down AND
-			// more than one parent among the rows - because a folder reached
-			// the table only as a run-break header. A folder is a ROW now, so
-			// that flag lost its meaning: at the top level every row shares
-			// one parent and it read false while the hierarchy was plainly
-			// there. What actually dissolves is the BINDER, and what
-			// dissolves it is a lens. So that is what is watched.
-			if (orgLastGrouping !== null && lensed !== orgLastGrouping) {
-				table.addClass('is-melt');
-			}
-			orgLastGrouping = lensed;
-			// (The `is-grouped` class went with the flag: the indent is a
-			// per-row depth now, not one flat step for a single level.)
-			// THE PROPERTY BLOCKS SLIDE IN, and only when they ARRIVE.
-			// `drawPanel` rebuilds this table on every sort, filter,
-			// edit-commit and property swap; an animation keyed to a field
-			// row merely existing would replay on all of them, which is the
-			// twitch this stamp exists to avoid.
-			//
-			// IT WATCHED THE DRAWER FLAG UNTIL 2026-08-24. The toggle is
-			// retired, so what reveals the properties is arriving in
-			// OUTLINE - the same event, one control along. Arriving only,
-			// never leaving: going back to Table is a rebuild WITHOUT the
-			// rows, so there is nothing left on screen to animate out.
-			// ── TOMBSTONE: THE GROUP HEADER ROW ─────────────────────────
-			//
-			// A folder used to reach this table only as a run-break: when
-			// `row.parent` changed, a `zg-org-group` row was emitted with
-			// the folder's RELATIVE PATH as its label and its immediate
-			// notes' totals in the columns. Two faults came with it, and
-			// the writer named both (2026-08-23): a folder holding both
-			// notes and subfolders got its header a SECOND time, at the
-			// bottom, under its own subfolders' contents - because the walk
-			// emitted subtrees before a folder's own notes; and there was
-			// no way to arrange the folders themselves, because they were
-			// not rows and had nothing to drag.
-			//
-			// A FOLDER IS A ROW NOW. It sits in the one interleaved order
-			// its parent already stores, it carries the same cells every
-			// other row carries, and it folds. What the header used to do
-			// - the folder glyph, the folder's context menu, being a drop
-			// target that MOVES a note in - the row does, on itself.
-			// ── THE TABLE NAMES ITS SUBJECT (writer, 2026-08-23) ────────
-			//
-			// "add the selected folder header row." One caption for the
-			// whole table, emitted once, HERE - outside the loop below, so
-			// that it cannot become the run-break header the tombstone
-			// above records. It names the folder the pane is already about,
-			// which is never also one of the rows under it.
-			//
-			// THE COUNT COMES FROM THE INDEX, not from `rows`. `rows` is
-			// what is DRAWN - folded folders keep their contents out of it -
-			// so a caption counting them would say "2 notes" about a folder
-			// holding forty, and change when a writer folded something. The
-			// folder cells already read `orgUnder` for exactly this reason.
-			// ── THE LENS EMPTIED IT, OR A FOLD DID (writer, 2026-08-30) ──
-			//
-			// W1: "the vault ROW still draws when nothing passes." Three
-			// options were costed and they chose 2 — **hide it when a LENS
-			// emptied the table, keep it when a FOLD did** — and the cost
-			// was stated before they chose: the totals go while a filter is
-			// up, so you cannot see what you are filtering against.
-			//
-			// THE FOLD CASE MUST KEEP IT, and that is the whole reason this
-			// is a condition rather than a deletion. With the root shut the
-			// subject row is the only thing on screen and its CHEVRON IS THE
-			// ONLY WAY BACK IN. Hiding it there would be a window a writer
-			// could not reopen without touching the store.
-			//
-			// THE THREE TERMS, each doing work:
-			//   !rows.length   nothing is drawn
-			//   list.length    but there was something to draw — `list` is
-			//                  post-SHAPE and pre-LENS, so "Folders only"
-			//                  over a folder with no subfolders leaves it 0
-			//                  and this stays false; that is a scope with
-			//                  nothing in it, not a filter that hid things
-			//   !orgRootShut() and it was not the fold that did it
-			//
-			// ONE WRITER: the empty-state block below asks the same question
-			// to choose its own words, and reads this rather than repeating
-			// the three terms. Two copies of one condition is how a window
-			// ends up hiding a row and then explaining why it is still there.
-			const orgLensEmptied = !rows.length && !!list.length && !orgRootShut();
-			if (!orgLensEmptied) {
-				const subj = tbody.createEl('tr', { cls: 'zg-org-subrow' });
-				// A NAME CELL, NOT A CAPTION SPANNING THE TABLE (writer,
-				// 2026-08-25, with a shot circling the empty cells: "the
-				// clicked on folders does not aggregate info in the rows").
-				//
-				// It was ONE `<td colspan>` holding the words, so the figures
-				// were not empty - they were STRUCTURALLY ABSENT, and no
-				// amount of filling cells in could have helped while the row
-				// had none. Measured before changing it: a folder row under
-				// this one carried fourteen cells with real aggregates and
-				// this row carried one.
-				//
-				// `zg-org-name` IS THE CLASS THE FIRST COLUMN IS FROZEN BY,
-				// so the subject's name rides the same sticky track every
-				// other row's does rather than scrolling out sideways.
-				const std = subj.createEl('td', { cls: 'zg-org-name' });
-				const box = std.createDiv({ cls: 'zg-org-subject-in' });
-				// THE CHEVRON IS THE DOOR (writer, 2026-08-25). Built FIRST, so it
-				// sits ahead of the glyph and the name exactly as it does on every
-				// folder row under it — same class, same glyphs, same title, so it
-				// is the same control rather than a second one that looks like it.
-				const rootOpen = !orgRootShut();
-				// ONE BUILDER WITH THE ROWS BELOW IT (2026-08-25). This was
-				// a hand-written span carrying the same class and the same
-				// text glyphs, and the comment above it said why: "same
-				// class, same glyphs, same title, so it is the same control
-				// rather than a second one that looks like it". That held
-				// exactly until the rows' chevron became Obsidian's triangle
-				// and this one stayed a text glyph. Sharing the BUILDER is
-				// what that sentence was actually asking for; two copies of
-				// one control is how one of them changes alone.
-				const rtwist = orgChevron(box, rootOpen);
-				// AND THE DEPTH EVERY ROW IS COUNTED FROM. Rows below stamp
-				// `row.depth + 1`; this is the 0, said out loud rather than
-				// left to the stylesheet's `var(--zg-org-depth, 0)` fallback.
-				// A fallback is not a statement, and this row standing at the
-				// outer edge is the whole of what the writer asked for.
-				try { std.style.setProperty('--zg-org-depth', '0'); }
-				catch (_) {}
-				rtwist.title = rootOpen ? 'Fold everything' : 'Unfold everything';
-				rtwist.addEventListener('click', (ev) => {
-					ev.stopPropagation();
-					orgRootShutSet(rootOpen);
-				});
-				if (at) {
-					// OPEN OR SHUT, LIKE EVERY OTHER FOLDER ROW (writer, 2026-09-01:
-					// "in table the main folder row icons does not open or close if
-					// colapsed it stays as an open foder icon only").
-					//
-					// It was a literal `true`. Every other folder row asks
-					// `orgIsOpen(row.path)` and gets a shut folder when it is shut;
-					// this one drew an open folder over a closed subtree, next to a
-					// chevron that WAS turning — two glyphs about the same fact,
-					// disagreeing.
-					//
-					// `rootOpen` IS THE FACT, and it is already in scope: the chevron
-					// beside it is built from the same value ten lines up, so the two
-					// cannot drift.
-					orgFolderIcon(box, at, rootOpen);
-				} else {
-					// THE VAULT WEARS THE SAME MARK IT WEARS IN THE TREE, and
-					// now it actually does (writer, 2026-08-25: "it does not
-					// appear in the table row, it still has the vault icon").
-					//
-					// A `setIcon` LOOP STOOD HERE and its own comment said why
-					// it could not work: `obsidian` is not a registered Lucide
-					// name, so the loop asked for it, got nothing, and fell
-					// through to the `vault` safe door EVERY time. The tree's
-					// root row hit the same wall at 323 and was given the app's
-					// own wireframe path instead; the caption was left behind,
-					// so the two surfaces named the same vault with two glyphs.
-					//
-					// ONE WRITER FOR THE MARK: `zgObsidianSvg`, the same call
-					// the tree makes. The 13 is a fallback the stylesheet
-					// overrides (measured: it renders at `--icon-size`), not a
-					// second opinion about how big the glyph is.
-					this.orgVaultIcon(box);
-				}
-				// ── THE VAULT SAYS ITS OWN NAME (writer, 2026-08-25) ───
-				//
-				// "in the right pane there in the row don’t say the whole
-				// vault, instead say the name of the vault", with a shot
-				// circling this row.
-				//
-				// THIS REVERSES HALF OF 2026-08-24, and the half it reverses
-				// should be named rather than quietly overwritten. That day
-				// chose "The whole vault" over "the whole manuscript",
-				// reasoning that the tree's root row says the vault's name
-				// three inches to the left and two names for one scope is
-				// one too many. The name is the SAME name now, so the two
-				// agree instead of competing — which is what that reasoning
-				// wanted and what the wording it chose could not give it.
-				//
-				// THE SUMMARY STRIP IS NOT TOUCHED. It carries the same
-				// phrase a few pixels up and the writer circled the ROW; a
-				// strip is a sentence about a scope and a row is the scope
-				// itself. Flagged on the inbox card rather than guessed.
-				box.createSpan({ cls: 'zg-org-subjectname',
-					// THROUGH `vaultName()`, WHICH ALREADY EXISTS. The first
-					// draft called `this.app.vault.getName()` here and took
-					// the Organizer's whole table down in the harness — the
-					// fixture's vault has no such method, so the call threw
-					// mid-draw and the tab rendered nothing at all. Two
-					// assertions three hundred lines apart went red and one
-					// section CRASHED, which is a failure however the count
-					// prints.
-					//
-					// `20-scope.js` has carried the guarded form as a class
-					// method the whole time. A second hand-written copy of
-					// it would have been a second writer of the same fact
-					// AND the trap that caught this one, so this reads it.
-					text: at ? nameOf(at)
-						// A NAME SLOT, so the fallback is a name. It only fires in a
-						// vault whose own name is empty, and "All of the vault" is a
-						// sentence where every other row holds a word.
-						: (this.vaultName() || 'Vault') });
-				// ── AND IT ANSWERS THE COLUMNS ──────────────────────
-				//
-				// THE SAME TWO CALLS A FOLDER ROW MAKES, deliberately: this
-				// row is the subject folder, and a subject that totalled its
-				// subtree differently from the folder rows under it would be
-				// two answers to one question. `orgUnder('')` is every path in
-				// the index, which is what the whole vault means.
-				//
-				// FROM THE INDEX, NEVER FROM THE DRAWN ROWS - the rule the
-				// folder cells already keep: read off what is on screen and
-				// shutting a folder would change its own total, which is the
-				// fold-as-filter fault this file has recorded three times.
-				const subUnder = orgUnder(at);
-				for (const col of cols) {
-					const td = subj.createEl('td',
-						{ cls: colTextish(col) ? 'is-text' : '' });
-					td.setAttribute('data-col', col.id);
-					// THE WIDTH REACHES THE CELL, not only the header — see
-					// `orgColStamp`. Without this the column is as wide as its
-					// widest cell whatever the header asks for.
-					orgColStamp(td, col.id, wrap);
-					const agg = orgColAgg(col, subUnder);
-					if (agg) {
-						td.setText(agg.text);
-						if (agg.title) td.title = agg.title;
-					}
-				}
-				// AND THE PICKER’S COLUMN, so the row is not one cell short
-				// and the table draws level - the same trailing cell every
-				// other row emits, for the same reason. In Outline the subject
-				// spans instead, exactly as the rows under it do.
-				subj.createEl('td', { cls: 'zg-org-pickcell' });
-				// TOMBSTONE: `zg-org-subjectcount` (writer, 2026-08-24, "i
-				// don't want to say 6 notes"). The strip above the table
-				// already carries the count - and two of them, four lines
-				// apart, is the repetition this window keeps deleting. What
-				// is left is what the caption was for: naming the folder.
-			}
-			for (const row of rows) {
-				const isFolder = row.kind === 'folder';
-				// KEEPS `zg-org-row`, and that is a decision rather than a
-				// convenience: it is the class the first-column freeze, the
-				// touch-drag row list and `npm run measure` all select on.
-				// A folder row that wore its own class would be invisible to
-				// the deploy gate - quieter than breaking it, and worse.
-				const tr = tbody.createEl('tr',
-					{ cls: 'zg-org-row' + (isFolder ? ' is-folder' : '') });
-				tr.setAttribute('data-path', row.path);
-				// The followed note is marked HERE too (inbox): the writer
-				// asked for the folder with "the note itself selected", and
-				// the table is where the folder is read.
-				if (row.path === orgNote) tr.addClass('zg-org-active');
-				const nameTd = tr.createEl('td', { cls: 'zg-org-name' });
-				// THE ROW'S KIND, drawn by the tree's own builder (writer,
-				// 2026-08-22) — same dropdown, same checked names, so a
-				// note reads as a note and a PDF as a PDF in both places.
-				// BEFORE the label, which is where the tree puts it and
-				// where the eye looks for it.
-				// THE INDENT, as a depth the stylesheet turns into padding:
-				// the step is read from Obsidian's own --nested-item-* vars
-				// there, which is where the tree beside this table reads it,
-				// so both panes step by the same amount under any theme.
-				//
-				// ── PLUS ONE: THE SUBJECT ROW IS THE PARENT ─────────────
-				//
-				// Writer, 2026-08-25, with a shot circling the vault row:
-				// "indent the rest under the vault row". Measured before
-				// the change and it was exact — the subject row's name
-				// cell and a top-level folder's both began at x=501.8, so
-				// the root's chevron stood in the same column as its
-				// children's and read as a sibling of the first row rather
-				// than the parent of all of them.
-				//
-				// The subject IS the folder these rows are inside, so every
-				// row is one level under it. `row.depth` still counts from
-				// the subject; the `+ 1` is the subject itself, and it is
-				// added HERE rather than by giving the subject a negative
-				// depth, because the stylesheet's step is
-				// `calc(10px + depth * step)` and a depth of -1 resolves to
-				// a negative padding.
-				try {
-					// AND A LENS FLATTENS THE DEPTH WITH THE TREE (writer,
-					// 2026-09-03: 'when i filter stuff the chevrons lines
-					// appear'). A lens draws NO folder rows - measured in the
-					// writer's vault, 5 folder rows became 0 - while eleven
-					// rows kept depth 3, so 33 guide lines pointed at rows
-					// that were not on screen.
-					//
-					// ONE, NOT ZERO: the subject row IS still drawn, so a
-					// single guide back to it is the one that has its row.
-					// The faint path label is what carries real location now.
-					nameTd.style.setProperty('--zg-org-depth',
-						String(lensed ? 1 : (row.depth || 0) + 1));
-				} catch (_) {}
-				// A FOLDER'S CHEVRON IS ITS DOOR. Every control needs a
-				// visible one, and folding is the only thing here that has
-				// no other way in - the writer asked for a level at a time.
-				if (isFolder) {
-					const open = orgIsOpen(row.path);
-					const twist = orgChevron(nameTd, open);
-					twist.title = open ? 'Fold this folder' : 'Unfold this folder';
-					twist.addEventListener('click', (ev) => {
-						ev.stopPropagation();
-						orgOpenSet(row.path, !orgIsOpen(row.path));
-					});
-				} else {
-					// \u2500\u2500 AND A NOTE RESERVES THE SLOT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-					//
-					// MEASURED, and it is the reason the indent read
-					// backwards rather than merely flat: a note's glyph
-					// drew at x=527.8 while its PARENT folder's drew at
-					// x=535.8 \u2014 the child eight pixels LEFT of the thing
-					// it is inside. A folder row spends 16px of chevron
-					// plus 2px of margin that a note row spent nothing on,
-					// and the indent step is only 16px, so one level in
-					// bought less than the chevron slot cost.
-					//
-					// Obsidian's explorer reserves it, and this plugin
-					// already knew: `00-preamble.js` draws the same spacer
-					// in the menu pane and its comment says why \u2014 "rows
-					// that ACT rather than open get a spacer of the same
-					// width, or every label in the panel would sit at a
-					// different left edge."
-					//
-					// A DIFFERENT CLASS FROM THE REAL ONE, deliberately.
-					// Seven places reach for the first `.zg-org-twist` in
-					// a row and click it; a blank one answering them would
-					// be a dead door reporting as a live one.
-					// IT WEARS THE APP'S CHEVRON BOX TOO, empty. That is how
-					// it is guaranteed to be exactly as wide as the real
-					// one under any theme — the alternative is a 16px of
-					// ours beside Obsidian's box, which is two writers of
-					// one width and a new numeric constant in layout code
-					// with nothing to assert it against.
-					// ── AND IN OUTLINE IT IS A DOOR (writer, 2026-08-29) ──
-					//
-					// "build that thing where you expand a note to see full
-					// proprieties like in the mockup (smaller chevrons and all
-					// that)." The slot was reserved for alignment and held
-					// nothing; opened, a note shows every chosen field rather
-					// than only the ones it carries.
-					//
-					// A CLASS OF ITS OWN, and the paragraph above is why: seven
-					// places reach for the first `.zg-org-twist` in a row and
-					// click it, and a note answering them would fold something
-					// else. It wears the same app box, so it is exactly as wide
-					// as a folder’s under any theme and the labels stay in line.
-					//
-					// THE SPACER SURVIVES, for Table. There is no card to open
-					// there — the columns already are the wide reading — so a
-					// chevron would be the dead control this window keeps
-					// removing, and the row still needs the 16px.
-					// TOMBSTONE: THE NOTE'S OWN CHEVRON (`zg-org-cardtwist`),
-					// retired 2026-08-30. Writer: "no more tiny chevrons that
-					// shows all proprieties of a note."
-					//
-					// IT WAS NOT WHAT DREW THE CARD. A note with chosen
-					// properties has had one under it for weeks; the chevron
-					// added a STATE — every key the note carries instead of the
-					// chosen ones, an empty row for each unfilled one, and the
-					// "Add a property" door beneath them. The three go together:
-					// the empties existed only as somewhere to type, and the door
-					// is what they typed into. "we have the table for that."
-					//
-					// It was drawn with `clip-path` and not a glyph, because this
-					// vault reads in Roboto Mono and a character the font has not
-					// got renders as tofu. That reasoning outlives the control:
-					// it is why the ★ and the drag grip are drawn as they are.
-					//
-					// THE SPACER IS BOTH MODES NOW rather than Table's alone. The
-					// name column is built around that 16px and every label in
-					// the tree lines up on it.
-					nameTd.createSpan({ cls: 'zg-org-twistgap tree-item-icon'
-						+ ' collapse-icon nav-folder-collapse-indicator' });
-				}
-				// A FOLDER WEARS THE TREE'S FOLDER GLYPH, drawn open or shut
-				// to match its own state; a note wears its kind glyph.
-				// `orgKindIcon` tests for `.md` and would give a folder the
-				// generic file glyph, which is the sort of miss that reads
-				// as a theme problem rather than a wiring one.
-				if (isFolder) orgFolderIcon(nameTd, row.path, orgIsOpen(row.path));
-				else this.orgKindIcon(nameTd, row.path);
-				// The label wears a class because the rename finds it by one:
-				// a bare span would make the lookup positional, and the first
-				// markup change would point the rename at the wrong element.
-				// ── THE FOLDER LEADS, THE FILE FOLLOWS ──────────────────
-				//
-				// Writer, 2026-09-03: "put the folder name first then the file
-				// name with a mark like that '/', improve it." 486cy put the
-				// name first and wrote down the reading it had NOT taken —
-				// that the order was what was being asked for. It was.
-				//
-				// THE COST WAS NAMED AND ACCEPTED: folder paths vary in
-				// length, so the file names no longer align down a left edge.
-				// The writer has seen it running and asked for it anyway.
-				//
-				// ORDER IN THE DOM, NOT `order:` IN THE SHEET. The cell is a
-				// flex row and CSS could reorder it — but the tick box and the
-				// kind glyph are flex items here too, and an `order` that only
-				// mentions two of four is a rule the next item silently joins
-				// the wrong side of. It also keeps reading order and paint
-				// order the same thing, which is what a screen reader gets.
-				if (lensed && row.rel) {
-					nameTd.createDiv({ cls: 'zg-org-path', text: row.rel });
-				}
-				nameTd.createSpan({ cls: 'zg-org-namelabel', text: nameOf(row.path) });
-				// THE WHOLE LOCATION ON HOVER, now that the row shows both
-				// halves: a truncated cell is exactly when a writer asks.
-				nameTd.title = (lensed && row.rel)
-					? row.rel + ' / ' + nameOf(row.path)
-					: nameOf(row.path);
-				// ── THE OUTLINE'S TITLE LINE CARRIES ITS READINGS ───────
-				//
-				// The writer's second mock draws them out to the right of
-				// the title: a status flag and a word count. Without them
-				// the mode is strictly less than the table it replaces -
-				// hiding the columns took Target, Tasks, Today and the
-				// counts with it, and an outline that answers "what is this
-				// scene" while answering nothing about how far along it is
-				// is half a view.
-				//
-				// ONLY THESE TWO, and that is a decision rather than a
-				// start: the mock shows two, the line has room for two, and
-				// a title line that grows a reading per column is the table
-				// again with worse alignment. The columns are one click
-				// away in Table.
-				//
-				// ── AND A FOLDER ADDS UP WHAT IS UNDER IT ────────────────
-				//
-				// "make the folders rows in outline mode aggregate too (sum of
-				// words, average grade, sum of tasks, etc)" (writer,
-				// 2026-08-31).
-				//
-				// THE REFUSAL THAT STOOD HERE was worth keeping the reason of:
-				// "a folder's count is its subtree's, which is a different
-				// reading wearing the same number". That is true, and it is
-				// ANSWERED rather than contradicted — the Table has drawn
-				// these totals all along and marks them `zg-org-aggcell`, a
-				// lighter weight so nobody reads a folder’s average as a
-				// measurement. The Outline wears the same mark for the same
-				// reason, and the two panes now say the same thing about the
-				// same chapter.
-				//
-				// THE FLAG IS STILL A FILE’S — see below. `markOf` returns
-				// '' for a folder, so a flag there would be a control that
-				// cycles nothing.
-				// (The reveal button stood here — see the orgReveal tombstone.)
-				for (const col of cols) {
-					const td = tr.createEl('td', { cls: colTextish(col) ? 'is-text' : '' });
-					td.setAttribute('data-col', col.id);
-					orgColStamp(td, col.id, wrap);
-					// A FOLDER'S CELLS ARE ITS SUBTREE'S TOTAL (writer,
-					// 2026-08-23: the existing columns carry the total, the
-					// way Scrivener's Total columns do). Taken from the
-					// INDEX via `orgUnder`, never from the drawn rows: read
-					// off what is on screen, shutting a folder would change
-					// its own number, and a fold that moves a total is the
-					// fold-as-filter fault this file has recorded three
-					// times.
-					if (isFolder) {
-						const agg = orgColAgg(col, orgUnder(row.path));
-						if (agg) {
-							// A SUMMARY IS NOT A MEASUREMENT (brief A2): “folder
-							// aggregate cells render in a visibly different weight
-							// from note values, so nobody reads a folder's average
-							// as a measurement”. It matters most for the weighted
-							// grade, which is a figure no note actually carries.
-							td.addClass('zg-org-aggcell');
-							td.setText(agg.text);
-							if (agg.title) td.title = agg.title;
-						}
-						continue;
-					}
-					const text = orgColText(col, row.path);
-					// ── MALFORMED FRONTMATTER IS VISIBLE, NOT PLAUSIBLE ──────
-					//
-					// Writer, brief A1: a value that does not parse as its DECLARED
-					// type is drawn muted with the raw string on hover, “so
-					// malformed frontmatter is VISIBLE rather than silently printed
-					// as if fine”. Their own example was `28 07` sitting in a date.
-					//
-					// ASKED ONLY OF THE PROPERTY COLUMNS, which is what `col.user`
-					// marks. The built-in readings are computed by this plugin, not
-					// typed by a person, so there is nothing there to be malformed
-					// — and parse-checking them would invent a way for a word count
-					// to look broken.
-					if (col.user) {
-						const raw = orgColRaw(col, row.path);
-						const pk = col.key || col.id;
-						const fmt = this.formatValue(pk, raw, this.orgPropType(pk),
-							this.dateStyle());
-						if (!fmt.ok) {
-							td.addClass('zg-org-badval');
-							td.title = 'This is not a valid ' + (this.orgPropType(pk) || 'value')
-								+ ': ' + String(raw);
-						}
-					}
-					// The mark and goal cells are CONTROLS as well as readings
-					// (writer's pass): the flag cycles, the target edits.
-					if (col.id === 'mark') { orgFlagCell(td, row, text); continue; }
-					if (col.id === 'goal') { orgGoalCell(td, row, text); continue; }
-					if (col.id === 'tags') { orgTagsCell(td, row); continue; }
-					// A FILE ROW ONLY. A folder has no backlinks of its own; its cell
-					// is the aggregate over the notes beneath it, which is a count and
-					// not a list of doors.
-					if (col.id === 'backlinks' && !isFolder) {
-						td.textContent = '';
-						orgBackCell(td, row);
-						continue;
-					}
-					// ── AND A PROPERTY IS WRITTEN WHERE IT IS READ ──────
-					//
-					// Writer, 2026-08-25: "i also want to write proprieties
-					// in the table view."
-					//
-					// NOT THE FRONTMATTER TOGGLE COMING BACK. That put the
-					// Outline's property ROWS under a table of columns, and
-					// the writer retired it — "Table is the columns; Outline
-					// is the properties". This changes neither: a property
-					// COLUMN is already the columns. What was odd is that
-					// its cell was the only reading in the row a writer
-					// could not change in place — the flag cycles and the
-					// target edits, both since the writer's own pass, and
-					// this one alone was `setText` and nothing more.
-					// ── A CHECKBOX IS A BOX, NOT A TICK GLYPH (A129) ────
-					//
-					// Writer, 2026-09-04: "make the checkbox propriety in the
-					// table look like a checkbox in the table", and "the
-					// checkbox displayed does not look like a checkbox the
-					// themes uses".
-					//
-					// MEASURED: `formatValue` answers '\u2713' for true and
-					// THE EMPTY STRING for false, so the cell was a tick or
-					// nothing at all. An unticked box and an empty cell are
-					// different facts — one says "not done", the other says
-					// "never answered" — and the table could not tell them
-					// apart. It also cost the writer the hit area: at rest
-					// there was nothing to press.
-					//
-					// OBSIDIAN'S OWN INPUT, undressed. A bare
-					// `input[type=checkbox]` is what the app styles for every
-					// other checkbox a theme sees, so this takes the theme's
-					// look for free and follows it when the theme changes —
-					// which is the whole of what was asked.
-					//
-					// NOT DRAWN FOR A FOLDER ROW: that cell is the aggregate
-					// over what is beneath it, a count and not a state.
-					if (col.user && !isFolder
-						&& String(this.orgPropType(col.key || col.id)).toLowerCase() === 'checkbox') {
-						// ── AND ABSENT IS NOT FALSE (A145, 2026-09-04) ──────
-						//
-						// Writer: "i can see that it adds checkbox proprieties to
-						// all notes in that view. so if a note does not have a
-						// checkbox propriety added then it should display nothing
-						// until i add it", and "how can i remove the checkbox
-						// propriety if i don't want it on a file?".
-						//
-						// A CHECKBOX HAS TWO STATES AND A PROPERTY HAS THREE.
-						// 486ds drew a box on every row, so a note that has never
-						// carried the key looked exactly like one deliberately
-						// left unticked. Nothing was WRITTEN — the cell only
-						// reads — but the table asserted a fact about every note
-						// that was true of almost none.
-						//
-						// SO THE CELL CYCLES, which is this window's own grammar:
-						// the flag cell has cycled since the writer's own pass.
-						//
-						//     nothing  ->  ticked  ->  unticked  ->  nothing
-						//
-						// AND THAT IS THE ONLY WAY "DISPLAY NOTHING UNTIL I ADD
-						// IT" CAN HOLD: once empty means absent, there has to be
-						// a road back to empty, or a property could be added and
-						// never removed. The third press is that road, and it is
-						// the answer to their second question.
-						const rawv = orgColRaw(col, row.path);
-						const has = rawv !== null && rawv !== undefined && rawv !== '';
-						td.textContent = '';
-						const canEdit = orgCanHoldProps(row.path);
-						if (canEdit) td.addClass('is-prop');
-						const bx = has
-							? td.createEl('input', { cls: 'zg-org-cellcheck' })
-							: null;
-						if (bx) {
-							bx.type = 'checkbox';
-							bx.checked = rawv === true;
-							bx.disabled = !canEdit;
-						}
-						td.title = !canEdit
-							? 'This kind of file cannot hold properties'
-							: (!has
-								? 'Not set \u2014 press to add it, ticked'
-								: (rawv === true
-									? 'Ticked \u2014 press to untick'
-									: 'Unticked \u2014 press to remove it from this file'));
-						// THE WHOLE CELL IS THE TARGET, which is the other half
-						// of the report: a 13px box in a 24px row is a thing to
-						// aim at, and the cell is not.
-						// ONE WRITER FOR THE CYCLE, whichever element was pressed.
-						// The box and the cell both land in `step`, and the next
-						// state is worked out from the VALUE — not from what the
-						// input is showing. A checkbox toggled by the browser has
-						// already changed itself, and reading that back would
-						// lose the third state before it was ever written.
-						const nextOf = (v) => {
-							if (v === null || v === undefined || v === '') return true;
-							if (v === true) return false;
-							return '';
-						};
-						const step = async () => {
-							if (!canEdit) { orgPropRefuse(row.path); return; }
-							const stored = this.propStoreHolds(row.path);
-							orgRedrawPending = true;
-							await orgPropSet(row.path,
-								col.key || col.id, nextOf(rawv));
-							if (stored) orgEditDone();
-						};
-						td.addEventListener('click', (ev) => {
-							ev.stopPropagation();
-							step();
-						});
-						if (bx) {
-							// THE BROWSER'S OWN TOGGLE IS REFUSED. Left to itself
-							// the input would flip to a state the cycle may not be
-							// going to — unticked is not what follows unticked —
-							// and the redraw would then correct it in front of
-							// the writer. That is the on-off-on 486dx removed.
-							bx.addEventListener('click', (ev) => {
-								ev.stopPropagation();
-								ev.preventDefault();
-								step();
-							});
-						}
-						// ── ONE REDRAW, AND NOT BEFORE THE WRITE LANDS ──────
-						//
-						// Writer, 2026-09-04: "when I click a checkbox in table
-						// it displayed on then off then on again and the folder
-						// row aggregates update (its very laggy)".
-						//
-						// ON-OFF-ON IS TWO REDRAWS RACING ONE WRITE. The click
-						// sets the box (on); a redraw reads the value BACK
-						// before `processFrontMatter` has landed and Obsidian's
-						// cache has caught up, so it paints the old state (off);
-						// the cache updates and it paints on again.
-						//
-						// AND A NOTE ALREADY GETS ITS REDRAW FOR FREE: writing
-						// frontmatter changes the file, Obsidian fires a
-						// metadata event and the index ring redraws. Asking for
-						// another here is the second of the two.
-						//
-						// A STORE-HELD FILE FIRES NOTHING, so that one still
-						// has to be asked — the same asymmetry A125 found when
-						// a stored property was saved and never shown.
-						//
-						// MEASURED WHILE LOOKING FOR THE COST: a draw of their
-						// Test Folder is 337ms, of which everything this batch
-						// added is about 10 — 308 store reads at 2.4ms, 534
-						// type reads at 1.7. The lag is not the store; it is
-						// paying for a whole draw twice for one tick.
-						// (the `change` handler stood here — `step` above is the
-						// one writer now, and a `change` beside it would write
-						// twice for one press. The reasoning about ONE REDRAW is
-						// kept above it, because it still governs `step`.)
-						continue;
-					}
-					if (col.user) { orgPropCell(td, row, col, text); continue; }
-					td.setText(text);
-					// The cap cuts, the hover answers — same trade the old
-					// table made, kept because it is the right one.
-					if (text) td.title = text;
-					// TOMBSTONE (2026-08-31): the words cell’s progress wash.
-					//
-					// A faint accent fill behind the count, its width a custom
-					// property the stylesheet drew. Asked for on 2026-08-22 ("the
-					// words column becomes loading bar, faint colored"), quietened
-					// to one 10% fill at 462, and asked out at 466: "remove the
-					// coloring of the words cell by the target completely".
-					//
-					// The reading it carried is in the TARGET cell now, in words —
-					// see `orgTargetSay`. A bar behind a number was the wrong
-					// instrument for it, which is the writer’s own conclusion after
-					// looking at it running for four days.
-				}
-				// THE PICKER'S COLUMN, kept level. The header carries a cell
-				// ── EXCEPT IN OUTLINE, WHERE THE NAME CELL IS THE ROW ─────
-				//
-				// "it’s still cut", three times, and this is the last of it.
-				//
-				// Outline has ONE real column, and lifting the 32ch cap off it
-				// did not help: the cell carries `display: flex` — which is what
-				// makes `max-width` apply to a table cell at all — and a flex
-				// container is no longer a table-cell, so its `width` never
-				// reaches the column algorithm. MEASURED after setting
-				// `width: 100%` on it and confirming that rule WON: the column
-				// stayed 428px and the surplus went to the sticky pick column,
-				// whose 7.7px cell then sat alone at the far right. That gap is
-				// the cut, and the hover band ends there too.
-				//
-				// SO THE ROW SPANS BOTH COLUMNS, which is what the field rows
-				// beneath it have always done — they measure the full 773.4px
-				// while the name rows measured 428. One arrangement for both,
-				// and no cell left to hold the surplus.
-				//
-				// THE PICK CELL IS THE TABLE’S, and it stays there: the header
-				// picker needs a column to sit in, and every Table row still
-				// emits one so the table draws level.
-				tr.createEl('td', { cls: 'zg-org-pickcell' });
-				// SINGLE CLICK SHOWS, DOUBLE CLICK OPENS (G6, 2026-08-24), the
-				// same pair the binder beside it answers to. This row opened
-				// the note on the first click, which is what the spec said
-				// ("Row click/tap opens the note") back when a REVEAL
-				// affordance sat beside it to do the selecting. That button is
-				// gone at the writer's word, so the row had to carry both acts
-				// or lose one - and it was the quiet one that had been lost.
-				// RULES-OF-THE-WINDOW is amended to match.
-				//
-				// FILES ONLY. A folder row already has the one door folding
-				// has - its twist - and making the row body navigate into the
-				// folder is a second act nobody asked for.
-				//
-				// GUARDED THE WAY THE BINDER ROW IS, and the same list. Every
-				// control in these cells already stops propagation itself, so
-				// this changes nothing TODAY - it is here so the next cell to
-				// grow a handler does not have to remember, which is the whole
-				// reason `select()` carries one. Deliberately NOT sabotaged: a
-				// case over it reports PASSED ANYWAY and means nothing.
-				//
-				// A TAG CHIP IS NOT ON THE LIST. It carries no handler - it is
-				// text in a cell - so excluding it would make one patch of the
-				// row inert for no reason a writer could see.
-				const inCtl = (ev) => !!(ev.target && ev.target !== tr
-					&& ev.target.closest && ev.target.closest(
-						'input, select, button, textarea, .zg-goals-chip,'
-						+ ' .zg-goals-chev, .zg-org-twist'));
-				tr.addEventListener('click', (ev) => {
-					if (inCtl(ev)) return;
-					// ── A FOLDER ROW FOLDS ITSELF ON A NARROW SCREEN ────────
-					//
-					// Writer, 2026-08-30, choosing between three costed options
-					// for the phone: "yes, tap the row".
-					//
-					// MEASURED FIRST, which is why this is the option worth
-					// having: the twist is 16 x 15.6px, the smallest control in
-					// the window and the one that opens a folder. It reaches
-					// 28 x 44 under `is-narrow` and no further, because its width
-					// IS the tree's indent per level — at 44 a three-deep folder
-					// would spend 132px of a 390px screen on indent alone. The
-					// row is 1672 x 44 and costs nothing.
-					//
-					// NOTHING IS TAKEN. This row was INERT on click — its own
-					// comment above says a folder "already has the one door
-					// folding has, its twist", and that navigating from the body
-					// was a second act nobody asked for. Still true: this is the
-					// SAME act as the twist, with a bigger target.
-					//
-					// NARROW ONLY. On a desktop the twist is a good target for a
-					// mouse, and a whole row that folds on any stray click is
-					// worse than a small one you aim at. `orgNarrowNow` reads the
-					// CLASS the ResizeObserver maintains, not the platform flag —
-					// a docked 300px pane on a desktop is narrow too.
-					//
-					// AND THE TWIST IS NOT DOUBLE-FIRED: `inCtl` already names
-					// `.zg-org-twist`, so a tap on the chevron returns above.
-					if (isFolder) {
-						if (orgNarrowNow()) orgOpenSet(row.path, !orgIsOpen(row.path));
-						return;
-					}
-					// ── A CLICK HERE SELECTS. IT DOES NOT NAVIGATE ─────────
-					//
-					// Writer, 2026-08-31: "one click on a file in the table
-					// gets me in the folder of that file (i want only to double
-					// click open that file and 1 click just to select it)".
-					//
-					// MEASURED IN THEIR VAULT BEFORE IT WAS CHANGED: with the
-					// pane on `Test Folder/Book 1` and 15 rows, one click on a
-					// note two levels down moved the scope to
-					// `…/Chapter 1 - The Road` and left 2 rows. The gesture was
-					// doing exactly what it was written to do; what it was
-					// written to do is not what they want.
-					//
-					// AND NOTHING IS LOST BY IT, which is why this is a flag and
-					// not a question: asked whether the table row was the only
-					// way into a folder, they answered "the way into a folder is
-					// the organiser filetree in the left". The tree keeps the
-					// follow — `showItem` with no flag, a few hundred lines up —
-					// so a note clicked THERE still takes the pane to it, which
-					// is the 2026-08-21 ask and is untouched.
-					showItem({ path: row.path, kind: row.kind }, true);
-				});
-				tr.addEventListener('dblclick', (ev) => {
-					if (inCtl(ev) || isFolder) return;
-					openRow({ path: row.path, kind: row.kind });
-				});
-				// The right-click is the tree's own menu — see orgMenuCtx.
-				tr.addEventListener('contextmenu', (ev) => {
-					ev.preventDefault();
-					ev.stopPropagation();
-					const menu = new Menu();
-					this.outlinerRowMenu(menu,
-						{ path: row.path, kind: row.kind }, orgMenuCtx);
-					menu.showAtMouseEvent(ev);
-				});
-				// Drag exists only while the book's own order is showing —
-				// under any lens this call is simply never made, and the
-				// probes assert the affordance's ABSENCE, not merely a guard.
-				// Drag exists only while the book's own order is showing —
-				// under any lens this call is simply never made, and the
-				// probes assert the affordance's ABSENCE, not merely a guard.
-				//
-				// A FOLDER ROW CARRIES BOTH: reorder at its edges, and the
-				// move-into that used to live on the group header. That door
-				// closed when the header did, and it is the writer's own ask
-				// from 2026-08-22 - moving a note between folders from the
-				// right pane - so it moves onto the row rather than dying
-				// with the thing it was bolted to.
-				if (!lensed) {
-					orgRowDrag(tr, row);
-					if (isFolder) orgGroupDrop(tr, row.path);
-				}
-				// The Outline: the same row plus its ONE field (Phase 4).
-				// The Outline: the same row plus its ONE field (Phase 4).
-				// NOT ON A FOLDER - the drawer edits FRONTMATTER through
-				// `processFrontMatter`, and a folder has none. The modal's
-				// own tree already says so where it refuses the synopsis
-				// chevron on a folder.
-				// ONE ROW PER CHOSEN PROPERTY, under EVERY note (writer, Q6:
-				// "all file for now - i want to mimic the scrivener
-				// outliner"). The cost was named before they chose it: five
-				// ticked properties over ten notes is fifty extra rows.
-				// AND THE PROPERTIES ARE THE OUTLINE, FULL STOP (2026-08-24).
-				// This read `orgDrawer || orgOutlining()`: Table could show the
-				// columns AND these rows at once, behind a Frontmatter toggle
-				// in the bar. The writer retired that toggle - two controls
-				// answering one question - so Table is the columns, Outline is
-				// the properties, and there is no third arrangement to reach.
-			}
-			// A FOLD IS NOT AN EMPTY RESULT. This block says "Nothing passes the
-			// lens — clear it" whenever there are no rows and the list is not
-			// empty, and once the subject can be folded that is a LIE about
-			// something the writer just did — offering a button that would fix
-			// nothing. The subject row is still on screen with its totals, and
-			// its chevron is the way back.
-			// SAME QUESTION, ONE WRITER. This was `!rows.length &&
-			// !orgRootShut()`, which is two of `orgLensEmptied`'s three
-			// terms; the third — `list.length` — is what its own `if` asks
-			// one line down to choose between the two sentences. Reading the
-			// const keeps the row that is hidden and the words that explain
-			// the hiding deciding from one place.
-			if (orgLensEmptied || (!rows.length && !orgRootShut())) {
-				// A DEAD END MUST SPEAK AND OFFER THE WAY OUT (design brief:
-				// every empty state answers "what do I do now" in one tap) —
-				// the clearing is a BUTTON here, not a sentence about one.
-				const tr0 = tbody.createEl('tr', { cls: 'zg-org-row is-empty' });
-				const td0 = tr0.createEl('td');
-				td0.setAttribute('colspan', String(colspan));
-				if (list.length) {
-					td0.createSpan({ text: 'Nothing passes the lens — ' });
-					const b0 = td0.createEl('button', {
-						cls: 'zg-export-mini zg-org-clearempty', text: 'clear it' });
-					b0.addEventListener('click', (ev) => {
-						ev.stopPropagation();
-						orgLensClear();
-					});
-					td0.createSpan({ text: ' to see the '
-						// `list.length` stood here and it counted rows, so it said 46
-						// while the strip one line up said 43. `noteCount` is the
-						// strip’s own counter — see the note beside it.
-						+ noteCount(list) + ' notes here.' });
-				} else {
-					// IT NAMES WHAT IT WENT LOOKING FOR. With "Folders only" up,
-					// a scope holding no subfolder is not a scope holding no
-					// notes, and saying the second sends a writer to check the
-					// wrong thing.
-					td0.setText(shaped === 'folders'
-						? 'No folders under this folder.'
-						: 'No notes under this folder.');
-				}
-			}
-			// (findHadFocus restore stood here — gone with the pane search.)
-			// ── THE CELL THE WRITER ACTUALLY PRESSED ────────────────────
-			//
-			// A click on a cell while another editor was open rebuilds the
-			// pane rather than opening a second box, and the `td` it was
-			// pressed on does not survive that. This re-opens the one that
-			// was asked for, so the redraw is invisible to the writer: they
-			// pressed a cell and that cell is open.
-			//
-			// TAKEN BEFORE IT IS USED, so a failure to find the cell cannot
-			// leave the request standing and re-open it on the NEXT redraw,
-			// which would be a box appearing from nothing.
-			if (orgOpenAfter) {
-				const want = orgOpenAfter;
-				orgOpenAfter = null;
-				try {
-					const td2 = panel.querySelector('.zg-org-row[data-path="'
-						+ want.path + '"] td[data-col="' + want.id + '"]');
-					if (td2 && !td2.querySelector('.zg-org-editor')) {
-						td2.textContent = '';
-						orgFieldEditor(td2, want.path, want.key, false);
-					}
-				} catch (_) {}
-			}
-			// AND THE WRITER IS PUT BACK WHERE THEY WERE (A156). LAST,
-			// because the rows have to exist first: a scroller whose content
-			// is not in yet clamps the assignment to whatever fits, which is
-			// usually zero — the same fault, silently.
-			if (orgKeepScroll > 0) {
-				try {
-					const w1 = panel.querySelector('.zg-org-panel');
-					// WRITTEN, NEVER READ BACK. Setting it is a layout write and
-					// costs nothing here; reading it to check would put the 5.8ms
-					// straight back, one line below the comment explaining why it
-					// was taken out.
-					if (w1) w1.scrollTop = orgKeepScroll;
-				} catch (_) {}
-			}
+		// LIFTED (A252-3c): `src/44-organizer-table.js`. The window hands the factory its
+		// own state through accessors — every name the region reads or
+		// writes, and nothing else — and keeps what it used back.
+		const tableCtx = {
+			get ORG_COL_MIN() { return ORG_COL_MIN; },
+			get ORG_GRIP_CLICK_MS() { return ORG_GRIP_CLICK_MS; },
+			get SORTS() { return SORTS; },
+			get colOff() { return colOff; },
+			get colTextish() { return colTextish; },
+			get draw() { return draw; },
+			get drawPanel() { return drawPanel; },
+			get fill() { return fill; },
+			get nameOf() { return nameOf; },
+			get openRow() { return openRow; },
+			get orgAddChip() { return orgAddChip; },
+			get orgAt() { return orgAt; },
+			get orgBackCell() { return orgBackCell; },
+			get orgCanHoldProps() { return orgCanHoldProps; },
+			get orgCellHint() { return orgCellHint; }, set orgCellHint(v) { orgCellHint = v; },
+			get orgChevron() { return orgChevron; },
+			get orgChipHit() { return orgChipHit; },
+			get orgColAgg() { return orgColAgg; },
+			get orgColCeil() { return orgColCeil; },
+			get orgColCeilReset() { return orgColCeilReset; },
+			get orgColFitNow() { return orgColFitNow; }, set orgColFitNow(v) { orgColFitNow = v; },
+			get orgColGripBind() { return orgColGripBind; },
+			get orgColPx() { return orgColPx; },
+			get orgColRaw() { return orgColRaw; },
+			get orgColSortKey() { return orgColSortKey; },
+			get orgColStamp() { return orgColStamp; },
+			get orgColText() { return orgColText; },
+			get orgColUnfix() { return orgColUnfix; },
+			get orgDragCol() { return orgDragCol; }, set orgDragCol(v) { orgDragCol = v; },
+			get orgDrawnSig() { return orgDrawnSig; }, set orgDrawnSig(v) { orgDrawnSig = v; },
+			get orgEditDone() { return orgEditDone; },
+			get orgEditGuard() { return orgEditGuard; },
+			get orgFieldEditor() { return orgFieldEditor; },
+			get orgFilePathCache() { return orgFilePathCache; }, set orgFilePathCache(v) { orgFilePathCache = v; },
+			get orgFilterByKey() { return orgFilterByKey; },
+			get orgFlagCell() { return orgFlagCell; },
+			get orgFolder() { return orgFolder; },
+			get orgFolderIcon() { return orgFolderIcon; },
+			get orgGoalCell() { return orgGoalCell; },
+			get orgGripReleasedAt() { return orgGripReleasedAt; },
+			get orgGroupDrop() { return orgGroupDrop; },
+			get orgIsOpen() { return orgIsOpen; },
+			get orgLastGrouping() { return orgLastGrouping; }, set orgLastGrouping(v) { orgLastGrouping = v; },
+			get orgLens() { return orgLens; },
+			get orgLensClear() { return orgLensClear; },
+			get orgLensOn() { return orgLensOn; },
+			get orgLensSet() { return orgLensSet; },
+			get orgMenuCtx() { return orgMenuCtx; },
+			get orgNameGripBind() { return orgNameGripBind; },
+			get orgNameLineNow() { return orgNameLineNow; }, set orgNameLineNow(v) { orgNameLineNow = v; },
+			get orgNameRO() { return orgNameRO; }, set orgNameRO(v) { orgNameRO = v; },
+			get orgNameStamp() { return orgNameStamp; },
+			get orgNarrowNow() { return orgNarrowNow; },
+			get orgNote() { return orgNote; },
+			get orgOpenAfter() { return orgOpenAfter; }, set orgOpenAfter(v) { orgOpenAfter = v; },
+			get orgOpenSet() { return orgOpenSet; },
+			get orgOpenSetMany() { return orgOpenSetMany; },
+			get orgPropCell() { return orgPropCell; },
+			get orgPropKeys() { return orgPropKeys; },
+			get orgPropPopClose() { return orgPropPopClose; },
+			get orgPropPopEl() { return orgPropPopEl; },
+			get orgPropPopOpen() { return orgPropPopOpen; },
+			get orgPropRefuse() { return orgPropRefuse; },
+			get orgPropSet() { return orgPropSet; },
+			get orgRedrawPending() { return orgRedrawPending; }, set orgRedrawPending(v) { orgRedrawPending = v; },
+			get orgRepaintFlagCell() { return orgRepaintFlagCell; },
+			get orgRootShut() { return orgRootShut; },
+			get orgRootShutSet() { return orgRootShutSet; },
+			get orgRowDrag() { return orgRowDrag; },
+			get orgRowList() { return orgRowList; },
+			get orgScrollTop() { return orgScrollTop; }, set orgScrollTop(v) { orgScrollTop = v; },
+			get orgTagsCell() { return orgTagsCell; },
+			get orgUnder() { return orgUnder; },
+			get ownerWin() { return ownerWin; },
+			get panel() { return panel; },
+			get s() { return s; },
+			get ses() { return ses; },
+			get setCols() { return setCols; },
+			get setShape() { return setShape; },
+			get showItem() { return showItem; },
+			get showShape() { return showShape; },
+			get stampCols() { return stampCols; },
+			get subject() { return subject; },
+			get tab() { return tab; },
+			get typeLabel() { return typeLabel; },
+			get typeRows() { return typeRows; },
 		};
+		const { drawOrg } = this.orgTableMake(tableCtx);
 		// Left-aligned columns: the ones holding WORDS rather than figures.
 		// `ftype` IS A WORD, not a figure: "xlsx" lines up with "md" on its
 		// first letter, the way every other column of words in this table
@@ -44849,6 +41024,14 @@ module.exports = class WordSmith extends Plugin {
 					// nothing to re-hide — and format is not shaped by the scope.
 					// An unasserted call is the thing that rots.)
 					try { if (exportOpts && exportOpts.refresh) exportOpts.refresh(); } catch (_) {}
+					// AND THE TREE (A245, writer 2026-09-08: “clicking on a folder
+					// (not on the checkbox) deselects it (unticks it)”). The click
+					// drew the tree at once, with the ticks of the scope it was
+					// LEAVING — Part One's box counted its notes against the root's
+					// section and read empty — and nothing drew it again once its
+					// own section had been read. The compile was right the whole
+					// time; the boxes described the wrong scope.
+					try { draw(); } catch (_) {}
 				}, () => {});
 				return;
 			}
@@ -44940,290 +41123,12 @@ module.exports = class WordSmith extends Plugin {
 		// variable that is only ever assigned and nulled is state pretending
 		// to be a feature.
 		let exportOpts = null;
-		const drawExport = async () => {
-			// TOMBSTONE: `if (sort !== 'order') { sort = 'order'; … }` — the
-			// other half of the sortLocked guard (see its tombstone). The
-			// compile reads the store, not the drawn tree; a writer who sorts
-			// the ticks by words is asking a question, and the answer to
-			// "what order does it compile in" is the flat list this panel
-			// already draws from `exportFiles()`.
-			// ── ONE LIST, AND THE PANE COUNTS THE ONE THE BUTTON COMPILES ───
-			//
-			// This filter was written TWICE: once for `compileList`, which is
-			// what `runExport` is handed, and once for the figures under the
-			// controls. Two answers to "which notes are going out", four
-			// lines apart — and the pane saying one thing while the button
-			// does another is exactly what 466 is fixing one level up.
-			//
-			// The count cannot drift from the compile now: there is nothing
-			// for it to drift from.
-			const exportGoing = () => exportFiles().filter(
-				f => ticks && ticks.has(f.path));
-			panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
-			await loadTicks();
-			if (tab !== 'export') return;
-			panel.textContent = '';
-			// ── SAID WHERE IT IS MET (moved here 2026-08-30) ────────────────
-			//
-			// This stood in the Export SETTINGS tab and went with it when the
-			// tab was cut. Nobody asked for the warning to go, and the pane is
-			// its better home: a reader on a phone meets the problem HERE,
-			// with the ticks and the drag in front of them, not in a settings
-			// tab they may never open.
-			//
-			// `isPhone`, NOT `isMobile`. A tablet is a perfectly good size for
-			// this — it is the machine somebody curates a manuscript on — and
-			// "mobile" would tell an iPad owner something untrue. The gate
-			// travelled with the text for that reason.
-			//
-			// AND IT SAYS EVERYTHING WORKS, first. A warning that reads as a
-			// refusal would stop a reader trying something that does in fact
-			// succeed; this one is about comfort, and says so in its own
-			// opening clause.
-			try {
-				if (Platform && Platform.isPhone) {
-					panel.createEl('p', { cls: 'zg-export-note is-warning',
-						text: 'This is a small window for a phone. Everything works \u2014 all '
-							+ 'three formats, this one included \u2014 but choosing files and putting '
-							+ 'them in order is much easier on a tablet or a desktop.' });
-				}
-			} catch (_) {}
-			const act = panel.createDiv({ cls: 'zg-export-top zg-uni-act' });
-			const actHandle = this.buildExportAct(act, {
-				scope: () => exportScope(),
-				compileList: () => exportGoing(),
-				// A TAB DOES NOT CLOSE ITSELF. The export window is a modal
-				// and closing it after a compile is right there; here the
-				// writer is standing in their manuscript and has somewhere to
-				// go back to.
-				onDone: () => { draw(); drawPanel(); }
-			});
-			// WHAT IS BEING COMPILED, SAID BEFORE THE FIGURES. The scope rule
-			// is invisible and it is a trap: every other tab is about what is
-			// selected, so a writer who has ctrl-clicked three chapters and
-			// come here reasonably expects those three — and gets the whole
-			// manuscript, because a multi-selection is not a scope. Saying it
-			// costs one line and removes the surprise.
-			// ── HOW MANY ARE GOING OUT, COUNTED ONCE ──────────────────
-			//
-			// The scope line and the count line beneath it both need this,
-			// and both were computing it — the same list filtered against the
-			// same Set, three lines apart. Two answers to one question is how
-			// this pane came to say "Compiling the whole vault" over "11 of
-			// 46 notes going out" in the first place.
-			const gathered = exportFiles();
-			const all = gathered.length;
-			const ticked = exportGoing();
-			const inList = ticked.length;
-			// ── TOMBSTONE: THE "Compiling …" LINE (writer, 2026-09-01) ───────
-			//
-			// "delete that compiling - we already have that info in the top
-			// header".
-			//
-			// IT WAS A THIRD ANSWER TO A QUESTION TWO THINGS ALREADY ANSWER.
-			// The subject heading says what the scope is, and the count beside
-			// the Export button says how many are going out — and that figure
-			// was moved next to the button on the writer’s word, because it is
-			// "the most important fact on the tab". Once it sat there, this
-			// line was reading the same two facts back in a grey sentence.
-			//
-			// WHAT WENT WITH IT, AND THIS IS THE PART TO WATCH. The line also
-			// carried the multi-selection warning — "— not just the rows you
-			// have selected" — which exists because a writer who ctrl-clicks
-			// three chapters and comes here gets the whole manuscript: a
-			// selection of NOTES is not a scope. That trap is now unsaid. It
-			// is an OPEN CARD rather than a thing quietly moved somewhere
-			// else, because where it should live is the writer’s call.
-			//
-			// `exportTickRoot` went with it — its only caller was here.
-			// ── BESIDE THE BUTTON, BECAUSE IT IS THE FACT THAT MATTERS ─────
-			//
-			// Writer, 2026-09-01: "45 notes going out is the most important
-			// fact on the tab and it's small, grey and centred. It belongs
-			// next to the Export button."
-			//
-			// MEASURED WHERE IT WAS: 12px, rgb(171, 171, 171), centred across
-			// 560px at y=201.7, while the button sat at x=1267.6 on a row 72px
-			// above it. Small, grey, centred, and nowhere near the thing it
-			// describes — all four, exactly as reported.
-			//
-			// THE ROW ALREADY EXISTS BY NOW. `.zg-export-top` and this element
-			// are both children of the same `.zg-uni-panel`, and the row is
-			// built first — measured, this element was index 2 in the panel and
-			// the row was above it. So the count is put INTO that row rather
-			// than a copy being made there.
-			//
-			// AND IF IT IS NOT THERE, NOTHING BREAKS. The panel keeps it where
-			// it has always been; a reading that moved or vanished depending on
-			// draw order would be worse than one that is merely in the old
-			// place.
-			//
-			// THIS IS THE EXPORT TAB ONLY — the whole function returns above
-			// when the tab is anything else, so the count drawn on the other
-			// tab is untouched.
-			//
-			// AND THAT SENTENCE IS WORDED AROUND A CHECK. It first read
-			// "returns above on [backtick]tab !== [quote]export[quote][backtick],
-			// so the Organiz-er[quote]s own count", and the retired-name scan
-			// read the run from that apostrophe back to the earlier quote as a
-			// STRING shown to a writer — so a comment about not touching a pane
-			// failed the gate for naming it. The scan does not mask comments;
-			// quoting a retired name in one is enough to trip it.
-			const actRow = panel.querySelector('.zg-export-top');
-			const goEl = actRow ? actRow.querySelector('.zg-export-go') : null;
-			const countEl = (actRow || panel).createDiv({
-				cls: 'zg-uni-count' + (actRow ? ' is-besidego' : '') });
-			// BEFORE the button, so it reads as the sentence the button acts on.
-			if (actRow && goEl) actRow.insertBefore(countEl, goEl);
-			// ── TOMBSTONE: "11 of 47 notes going out" (writer, 2026-09-02) ──
-			//
-			// "remove 11 of 47 notes going out, add that 47 notes stuff to the
-			// line next to it where it says 11 files 16534 word 66 pages so
-			// write 11 out of 47 notes 16534 words ..." — struck through in red
-			// on the shot.
-			//
-			// IT WAS THE SECOND OF TWO LINES ANSWERING THE SAME QUESTION, which
-			// is the fault this pane keeps having: the tombstone directly below
-			// records a THIRD ("Compiling …"), cut on 2026-09-01 for the same
-			// reason. A count of notes and a count of files, three inches apart,
-			// both about the same compile.
-			//
-			// THE COUNTS SURVIVE — they moved into the figures line, which is
-			// where the words and the pages already were. What is gone is a
-			// sentence, not a number.
-			//
-			// AND THE FILTER WARNING STAYS HERE, because it is not a figure: it
-			// is the one thing on this row that can be WRONG rather than large,
-			// and it wears `is-warn`. Folding it into a run of totals would
-			// bury it among them.
-			const bits = [];
-			// HOW MANY THE FILTER IS HIDING, said ALWAYS and not only when it
-			// is a problem.
-			//
-			// The filter is shared with the other tabs, so a writer can reach
-			// this one with "Needs revision" still on — and ticks apply to
-			// rows they cannot see. That is not a reason to take the filter
-			// away: filtering to one flag and unticking that whole set is the
-			// only tool for a real job. It is a reason for the compile never
-			// to be describable in a number that leaves the hidden rows out.
-			//
-			// A permanent line rather than a warning that appears when
-			// something is wrong: a figure that only shows up in trouble is
-			// one nobody has learnt to read by the time trouble arrives.
-			const hidden = gathered.filter(f => !keepFile(f.path)).length;
-			if (hidden) {
-				bits.push(hidden.toLocaleString() + ' hidden by the filter');
-			}
-			countEl.setText(bits.join('  \u00b7  '));
-			// AN EMPTY ROW STILL TAKES ROOM. With the going-out sentence gone,
-			// `bits` is empty whenever the filter is hiding nothing — which is
-			// most of the time — and a div with no text still carries its own
-			// padding and the row gap beside it. Hidden outright rather than
-			// left blank, so the figures line sits where the caption used to
-			// start rather than being pushed along by a space with nothing in it.
-			countEl.style.display = bits.length ? '' : 'none';
-			countEl.toggleClass('is-warn', hidden > 0);
-			// AN EMPTY COMPILE, SAID BEFORE IT IS PRESSED rather than after it
-			// has written a file with nothing in it.
-			//
-			// AND TAKEN BACK WHEN IT STOPS BEING TRUE. This branch only ever
-			// WROTE the refusal; nothing cleared it, so once a writer ticked
-			// a note the count updated at once and the foot went on saying
-			// "Nothing is ticked" until its own nine-second timer ran out.
-			// That is a second, independent cause of the same report the
-			// empty-gather bug caused, and it would have outlived the fix.
-			//
-			// IT CLEARS ONLY WHAT IT WROTE. The foot is shared — a compile
-			// error, a rename refusal and this all speak through `said` —
-			// so an unconditional `said('')` on every redraw would stomp a
-			// message some other writer had just put up. The flag is the
-			// cheapest way to own one sentence without owning the surface.
-			// TOMBSTONE: "Nothing is ticked, so there is nothing to compile."
-			//
-			// "delete that down message that says nothing is ticked" (writer,
-			// 2026-09-01). The count beside the button already reads 0, and a
-			// sentence at the foot saying the same thing in words is a second
-			// writer of one fact — the reason it needed a flag to take itself
-			// back was precisely that it could disagree with the figure.
-			//
-			// THE REFUSAL STILL STANDS. `compileList` checks the list and says
-			// "nothing selected to export" if the button is pressed with none.
-			// What goes is the standing message, not the guard.
-			// THE OPTIONS GET THE LIST TOO (2026-09-02). The preview lives
-			// beside them now and compiles what is TICKED, so a ctx carrying
-			// only the scope left it with nothing to show: `compileList` was
-			// undefined, the guard returned an empty array, and the pane said
-			// “nothing ticked” over a list with thirteen ticks in it.
-			//
-			// THE SAME TWO THE ACT LINE GETS, from the same two functions — a
-			// preview compiling a different list from the button beside it is
-			// the fault `compileList` exists to prevent.
-			exportOpts = this.buildExportOptions(panel, {
-				scope: () => exportScope(),
-				compileList: () => exportGoing(),
-				// HOW MANY THERE ARE TO GO OUT, not how many are ticked. The
-				// figures line beside the button says "11 out of 47 notes" now,
-				// and 47 is a fact only this side knows: the preview is handed a
-				// compiled list and cannot see what was left out of it.
-				//
-				// A FUNCTION, NOT A NUMBER, for the same reason `scope` and
-				// `compileList` are: the pane recompiles on every option change
-				// and a captured count would be the one that was true when the
-				// pane was built.
-				total: () => exportFiles().length
-			});
-			// ── AND THEN THE FORMAT IS PAINTED AGAIN ────────────────────
-			//
-			// Writer, 2026-09-01: "for md the typesettings dont go off".
-			//
-			// I RECORDED THIS AS AN ORPHANED WINDOW AND IT WAS NOT. The card
-			// said the section "measures as off", from a run against a window
-			// left open by a deploy. Measured properly, on every format: three
-			// elements are marked as needing pages and all three stay visible
-			// under Markdown.
-			//
-			// THE CAUSE IS THE ORDER OF THESE TWO LINES. `buildExportAct` ends
-			// by calling its own `paintFmt`, which sweeps the pane for the
-			// controls that need pages and hides them — and the act row is
-			// built a hundred lines ABOVE the options, so at that moment there
-			// is nothing in the pane to find. The sweep was correct and it ran
-			// against an empty pane every single time.
-			//
-			// THE HANDLE ALREADY EXISTED FOR THIS. `buildExportAct` returns
-			// `{ progress, repaint }` and nothing had ever called `repaint`.
-			// Guarded, because a future caller may not return one.
-			try { if (actHandle && actHandle.repaint) actHandle.repaint(); } catch (_) {}
-			// The tree grows its boxes when this tab comes up, and loses them
-			// when it goes. Drawn after the panel so a slow store read cannot
-			// leave the tree showing boxes it has no ticks for.
-			draw();
-		};
-
-		const drawHistory = (rows) => {
-			// The paths, not the rows: the record is kept per path, and a
-			// folder covers everything beneath it by prefix — which is also
-			// what makes an overlapping selection count a day once.
-			histState.scope = rows.map(r => r.path);
-			try {
-				if (plugin.settings.historyTracking && !plugin._historyReady) {
-					panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
-					plugin.historyLoad().then(() => {
-						// The period, not the scope: reopening the record must
-						// not throw away the tree's selection.
-						const at = plugin.historyOpeningPeriod();
-						histState.year = at.year;
-						histState.month = at.month;
-						if (tab === 'history') drawPanel();
-					});
-					return;
-				}
-				plugin.renderHistoryTab(panel, histState, () => drawPanel());
-			} catch (e) {
-				panel.textContent = '';
-				panel.createDiv({ text: 'History failed \u2014 '
-					+ (e && e.message ? e.message : String(e)) });
-			}
-		};
+		// LIFTED (A252-3a): the Export and History panels are methods in
+		// `src/42-organizer-tabs.js`; the window hands them what they read.
+		const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => ticks,
+			draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, keepFile, loadTicks,
+			setExportOpts: (o) => { exportOpts = o; } });
+		const drawHistory = (rows) => this.orgDrawHistory({ panel, tab: () => tab, drawPanel: () => drawPanel(), histState }, rows);
 
 		// ── The foot ────────────────────────────────────────────────────────
 		// WHAT WENT WRONG, SAID HERE. Refusals used to be Notices, which
@@ -45516,8 +41421,8 @@ module.exports = class WordSmith extends Plugin {
 			// be reachable by the cursor, it just may not be flagged.
 			if (it.kind !== 'file') return;
 			const next = zgStatusNext(markOf(it.path, it.kind));
-			if (next) s[statusStore(it.kind)][it.path] = next;
-			else delete s[statusStore(it.kind)][it.path];
+			if (next) s[statusStore()][it.path] = next;
+			else delete s[statusStore()][it.path];
 			// THE KEYBOARD PATH, and the same trade: Space on a row is the one
 			// gesture a writer repeats fastest of all.
 			await this.saveSettings();
@@ -45564,8 +41469,8 @@ module.exports = class WordSmith extends Plugin {
 			// `finish` is guarded by its own `settled` flag, so a build
 			// where the event DOES reach the row runs it twice and the
 			// second run returns immediately.
-			if (renaming) {
-				try { if (cancelRename) cancelRename(); } catch (_) {}
+			if (tree.renaming) {
+				try { if (tree.cancelRename) tree.cancelRename(); } catch (_) {}
 				return true;
 			}
 			// ── THE ORGANIZER'S OWN RUNGS (spec: Escape clears the lens) ──
@@ -45732,8 +41637,8 @@ module.exports = class WordSmith extends Plugin {
 					orgPropPopClose();
 					return true;
 				}
-				if (!renaming) return false;
-				try { if (cancelRename) cancelRename(); } catch (_) {}
+				if (!tree.renaming) return false;
+				try { if (tree.cancelRename) tree.cancelRename(); } catch (_) {}
 				return true;
 			});
 		}
@@ -46151,6 +42056,4923 @@ module.exports = class WordSmith extends Plugin {
 	// `isFileCounted` decides membership, exactly as analyzeFolder does: a
 	// note carrying `wordsmith: off`, and the plugin's own three stores, are
 	// out of every total in the plugin or they are out of none of them.
+	// ════════════════════════════════════════════════════════════════════════
+	// THE EXPORT AND HISTORY PANELS, OUT OF THE WINDOW (A252-3a)
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// Stability brief item 13. Both drew inside `openManuscriptModal` as
+	// closures over the window's sixty `let`s; each reached for a handful.
+	// They are methods now, and the window hands them exactly that handful
+	// as `ctx` — the reads as functions (`tab()`, `ticks()`), because a
+	// `let` copied at call time is the value it had then; the one write
+	// (`exportOpts`) as a setter. Nothing else changed: the bodies are the
+	// bodies, comments and all, one tab to the left.
+
+	async orgDrawExport(ctx) {
+		const { panel, exportFiles, exportScope, keepFile, loadTicks } = ctx;
+		const draw = () => ctx.draw();
+		const drawPanel = () => ctx.drawPanel();
+		// TOMBSTONE: `if (sort !== 'order') { sort = 'order'; … }` — the
+		// other half of the sortLocked guard (see its tombstone). The
+		// compile reads the store, not the drawn tree; a writer who sorts
+		// the ticks by words is asking a question, and the answer to
+		// "what order does it compile in" is the flat list this panel
+		// already draws from `exportFiles()`.
+		// ── ONE LIST, AND THE PANE COUNTS THE ONE THE BUTTON COMPILES ───
+		//
+		// This filter was written TWICE: once for `compileList`, which is
+		// what `runExport` is handed, and once for the figures under the
+		// controls. Two answers to "which notes are going out", four
+		// lines apart — and the pane saying one thing while the button
+		// does another is exactly what 466 is fixing one level up.
+		//
+		// The count cannot drift from the compile now: there is nothing
+		// for it to drift from.
+		const exportGoing = () => { const ticks = ctx.ticks(); return exportFiles().filter(
+			f => ticks && ticks.has(f.path)); };
+		panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
+		await loadTicks();
+		if (ctx.tab() !== 'export') return;
+		panel.textContent = '';
+		// ── SAID WHERE IT IS MET (moved here 2026-08-30) ────────────────
+		//
+		// This stood in the Export SETTINGS tab and went with it when the
+		// tab was cut. Nobody asked for the warning to go, and the pane is
+		// its better home: a reader on a phone meets the problem HERE,
+		// with the ticks and the drag in front of them, not in a settings
+		// tab they may never open.
+		//
+		// `isPhone`, NOT `isMobile`. A tablet is a perfectly good size for
+		// this — it is the machine somebody curates a manuscript on — and
+		// "mobile" would tell an iPad owner something untrue. The gate
+		// travelled with the text for that reason.
+		//
+		// AND IT SAYS EVERYTHING WORKS, first. A warning that reads as a
+		// refusal would stop a reader trying something that does in fact
+		// succeed; this one is about comfort, and says so in its own
+		// opening clause.
+		try {
+			if (Platform && Platform.isPhone) {
+				panel.createEl('p', { cls: 'zg-export-note is-warning',
+					text: 'This is a small window for a phone. Everything works \u2014 all '
+						+ 'three formats, this one included \u2014 but choosing files and putting '
+						+ 'them in order is much easier on a tablet or a desktop.' });
+			}
+		} catch (_) {}
+		const act = panel.createDiv({ cls: 'zg-export-top zg-uni-act' });
+		const actHandle = this.buildExportAct(act, {
+			scope: () => exportScope(),
+			compileList: () => exportGoing(),
+			// A TAB DOES NOT CLOSE ITSELF. The export window is a modal
+			// and closing it after a compile is right there; here the
+			// writer is standing in their manuscript and has somewhere to
+			// go back to.
+			onDone: () => { draw(); drawPanel(); }
+		});
+		// WHAT IS BEING COMPILED, SAID BEFORE THE FIGURES. The scope rule
+		// is invisible and it is a trap: every other tab is about what is
+		// selected, so a writer who has ctrl-clicked three chapters and
+		// come here reasonably expects those three — and gets the whole
+		// manuscript, because a multi-selection is not a scope. Saying it
+		// costs one line and removes the surprise.
+		// ── HOW MANY ARE GOING OUT, COUNTED ONCE ──────────────────
+		//
+		// The scope line and the count line beneath it both need this,
+		// and both were computing it — the same list filtered against the
+		// same Set, three lines apart. Two answers to one question is how
+		// this pane came to say "Compiling the whole vault" over "11 of
+		// 46 notes going out" in the first place.
+		const gathered = exportFiles();
+		const all = gathered.length;
+		const ticked = exportGoing();
+		const inList = ticked.length;
+		// ── TOMBSTONE: THE "Compiling …" LINE (writer, 2026-09-01) ───────
+		//
+		// "delete that compiling - we already have that info in the top
+		// header".
+		//
+		// IT WAS A THIRD ANSWER TO A QUESTION TWO THINGS ALREADY ANSWER.
+		// The subject heading says what the scope is, and the count beside
+		// the Export button says how many are going out — and that figure
+		// was moved next to the button on the writer’s word, because it is
+		// "the most important fact on the tab". Once it sat there, this
+		// line was reading the same two facts back in a grey sentence.
+		//
+		// WHAT WENT WITH IT, AND THIS IS THE PART TO WATCH. The line also
+		// carried the multi-selection warning — "— not just the rows you
+		// have selected" — which exists because a writer who ctrl-clicks
+		// three chapters and comes here gets the whole manuscript: a
+		// selection of NOTES is not a scope. That trap is now unsaid. It
+		// is an OPEN CARD rather than a thing quietly moved somewhere
+		// else, because where it should live is the writer’s call.
+		//
+		// `exportTickRoot` went with it — its only caller was here.
+		// ── BESIDE THE BUTTON, BECAUSE IT IS THE FACT THAT MATTERS ─────
+		//
+		// Writer, 2026-09-01: "45 notes going out is the most important
+		// fact on the tab and it's small, grey and centred. It belongs
+		// next to the Export button."
+		//
+		// MEASURED WHERE IT WAS: 12px, rgb(171, 171, 171), centred across
+		// 560px at y=201.7, while the button sat at x=1267.6 on a row 72px
+		// above it. Small, grey, centred, and nowhere near the thing it
+		// describes — all four, exactly as reported.
+		//
+		// THE ROW ALREADY EXISTS BY NOW. `.zg-export-top` and this element
+		// are both children of the same `.zg-uni-panel`, and the row is
+		// built first — measured, this element was index 2 in the panel and
+		// the row was above it. So the count is put INTO that row rather
+		// than a copy being made there.
+		//
+		// AND IF IT IS NOT THERE, NOTHING BREAKS. The panel keeps it where
+		// it has always been; a reading that moved or vanished depending on
+		// draw order would be worse than one that is merely in the old
+		// place.
+		//
+		// THIS IS THE EXPORT TAB ONLY — the whole function returns above
+		// when the tab is anything else, so the count drawn on the other
+		// tab is untouched.
+		//
+		// AND THAT SENTENCE IS WORDED AROUND A CHECK. It first read
+		// "returns above on [backtick]tab !== [quote]export[quote][backtick],
+		// so the Organiz-er[quote]s own count", and the retired-name scan
+		// read the run from that apostrophe back to the earlier quote as a
+		// STRING shown to a writer — so a comment about not touching a pane
+		// failed the gate for naming it. The scan does not mask comments;
+		// quoting a retired name in one is enough to trip it.
+		const actRow = panel.querySelector('.zg-export-top');
+		const goEl = actRow ? actRow.querySelector('.zg-export-go') : null;
+		const countEl = (actRow || panel).createDiv({
+			cls: 'zg-uni-count' + (actRow ? ' is-besidego' : '') });
+		// BEFORE the button, so it reads as the sentence the button acts on.
+		if (actRow && goEl) actRow.insertBefore(countEl, goEl);
+		// ── TOMBSTONE: "11 of 47 notes going out" (writer, 2026-09-02) ──
+		//
+		// "remove 11 of 47 notes going out, add that 47 notes stuff to the
+		// line next to it where it says 11 files 16534 word 66 pages so
+		// write 11 out of 47 notes 16534 words ..." — struck through in red
+		// on the shot.
+		//
+		// IT WAS THE SECOND OF TWO LINES ANSWERING THE SAME QUESTION, which
+		// is the fault this pane keeps having: the tombstone directly below
+		// records a THIRD ("Compiling …"), cut on 2026-09-01 for the same
+		// reason. A count of notes and a count of files, three inches apart,
+		// both about the same compile.
+		//
+		// THE COUNTS SURVIVE — they moved into the figures line, which is
+		// where the words and the pages already were. What is gone is a
+		// sentence, not a number.
+		//
+		// AND THE FILTER WARNING STAYS HERE, because it is not a figure: it
+		// is the one thing on this row that can be WRONG rather than large,
+		// and it wears `is-warn`. Folding it into a run of totals would
+		// bury it among them.
+		const bits = [];
+		// HOW MANY THE FILTER IS HIDING, said ALWAYS and not only when it
+		// is a problem.
+		//
+		// The filter is shared with the other tabs, so a writer can reach
+		// this one with "Needs revision" still on — and ticks apply to
+		// rows they cannot see. That is not a reason to take the filter
+		// away: filtering to one flag and unticking that whole set is the
+		// only tool for a real job. It is a reason for the compile never
+		// to be describable in a number that leaves the hidden rows out.
+		//
+		// A permanent line rather than a warning that appears when
+		// something is wrong: a figure that only shows up in trouble is
+		// one nobody has learnt to read by the time trouble arrives.
+		const hidden = gathered.filter(f => !keepFile(f.path)).length;
+		if (hidden) {
+			bits.push(hidden.toLocaleString() + ' hidden by the filter');
+		}
+		countEl.setText(bits.join('  \u00b7  '));
+		// AN EMPTY ROW STILL TAKES ROOM. With the going-out sentence gone,
+		// `bits` is empty whenever the filter is hiding nothing — which is
+		// most of the time — and a div with no text still carries its own
+		// padding and the row gap beside it. Hidden outright rather than
+		// left blank, so the figures line sits where the caption used to
+		// start rather than being pushed along by a space with nothing in it.
+		countEl.style.display = bits.length ? '' : 'none';
+		countEl.toggleClass('is-warn', hidden > 0);
+		// AN EMPTY COMPILE, SAID BEFORE IT IS PRESSED rather than after it
+		// has written a file with nothing in it.
+		//
+		// AND TAKEN BACK WHEN IT STOPS BEING TRUE. This branch only ever
+		// WROTE the refusal; nothing cleared it, so once a writer ticked
+		// a note the count updated at once and the foot went on saying
+		// "Nothing is ticked" until its own nine-second timer ran out.
+		// That is a second, independent cause of the same report the
+		// empty-gather bug caused, and it would have outlived the fix.
+		//
+		// IT CLEARS ONLY WHAT IT WROTE. The foot is shared — a compile
+		// error, a rename refusal and this all speak through `said` —
+		// so an unconditional `said('')` on every redraw would stomp a
+		// message some other writer had just put up. The flag is the
+		// cheapest way to own one sentence without owning the surface.
+		// TOMBSTONE: "Nothing is ticked, so there is nothing to compile."
+		//
+		// "delete that down message that says nothing is ticked" (writer,
+		// 2026-09-01). The count beside the button already reads 0, and a
+		// sentence at the foot saying the same thing in words is a second
+		// writer of one fact — the reason it needed a flag to take itself
+		// back was precisely that it could disagree with the figure.
+		//
+		// THE REFUSAL STILL STANDS. `compileList` checks the list and says
+		// "nothing selected to export" if the button is pressed with none.
+		// What goes is the standing message, not the guard.
+		// THE OPTIONS GET THE LIST TOO (2026-09-02). The preview lives
+		// beside them now and compiles what is TICKED, so a ctx carrying
+		// only the scope left it with nothing to show: `compileList` was
+		// undefined, the guard returned an empty array, and the pane said
+		// “nothing ticked” over a list with thirteen ticks in it.
+		//
+		// THE SAME TWO THE ACT LINE GETS, from the same two functions — a
+		// preview compiling a different list from the button beside it is
+		// the fault `compileList` exists to prevent.
+		ctx.setExportOpts(this.buildExportOptions(panel, {
+			scope: () => exportScope(),
+			compileList: () => exportGoing(),
+			// HOW MANY THERE ARE TO GO OUT, not how many are ticked. The
+			// figures line beside the button says "11 out of 47 notes" now,
+			// and 47 is a fact only this side knows: the preview is handed a
+			// compiled list and cannot see what was left out of it.
+			//
+			// A FUNCTION, NOT A NUMBER, for the same reason `scope` and
+			// `compileList` are: the pane recompiles on every option change
+			// and a captured count would be the one that was true when the
+			// pane was built.
+			total: () => exportFiles().length
+		}));
+		// ── AND THEN THE FORMAT IS PAINTED AGAIN ────────────────────
+		//
+		// Writer, 2026-09-01: "for md the typesettings dont go off".
+		//
+		// I RECORDED THIS AS AN ORPHANED WINDOW AND IT WAS NOT. The card
+		// said the section "measures as off", from a run against a window
+		// left open by a deploy. Measured properly, on every format: three
+		// elements are marked as needing pages and all three stay visible
+		// under Markdown.
+		//
+		// THE CAUSE IS THE ORDER OF THESE TWO LINES. `buildExportAct` ends
+		// by calling its own `paintFmt`, which sweeps the pane for the
+		// controls that need pages and hides them — and the act row is
+		// built a hundred lines ABOVE the options, so at that moment there
+		// is nothing in the pane to find. The sweep was correct and it ran
+		// against an empty pane every single time.
+		//
+		// THE HANDLE ALREADY EXISTED FOR THIS. `buildExportAct` returns
+		// `{ progress, repaint }` and nothing had ever called `repaint`.
+		// Guarded, because a future caller may not return one.
+		try { if (actHandle && actHandle.repaint) actHandle.repaint(); } catch (_) {}
+		// The tree grows its boxes when this tab comes up, and loses them
+		// when it goes. Drawn after the panel so a slow store read cannot
+		// leave the tree showing boxes it has no ticks for.
+		draw();
+	};
+
+
+	orgDrawHistory(ctx, rows) {
+		const { panel, histState } = ctx;
+		const plugin = this;
+		const drawPanel = () => ctx.drawPanel();
+		// The paths, not the rows: the record is kept per path, and a
+		// folder covers everything beneath it by prefix — which is also
+		// what makes an overlapping selection count a day once.
+		histState.scope = rows.map(r => r.path);
+		try {
+			if (plugin.settings.historyTracking && !plugin._historyReady) {
+				panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
+				plugin.historyLoad().then(() => {
+					// The period, not the scope: reopening the record must
+					// not throw away the tree's selection.
+					const at = plugin.historyOpeningPeriod();
+					histState.year = at.year;
+					histState.month = at.month;
+					if (ctx.tab() === 'history') drawPanel();
+				});
+				return;
+			}
+			plugin.renderHistoryTab(panel, histState, () => drawPanel());
+		} catch (e) {
+			panel.textContent = '';
+			panel.createDiv({ text: 'History failed \u2014 '
+				+ (e && e.message ? e.message : String(e)) });
+		}
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// THE TREE, OUT OF THE WINDOW (A252-3b)
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// Stability brief item 13, second cut. The tick box, the drag, the row
+	// menu, the select grammar, the folds, `draw` and `fill` — everything
+	// that draws and drives the left-hand tree — drew inside
+	// `openManuscriptModal` as closures over the window's lets. They are a
+	// factory now. `ctx` is the window's own state seen through accessor
+	// properties: a read of `ctx.tab` is the window's `tab` at that moment,
+	// an assignment to `ctx.draw` sets the window's `draw`. Nothing here
+	// copies a value; nothing here owns one the window also owns. The
+	// bodies are the bodies, comments and all, at the depth they had, with
+	// `ctx.` in front of 49 names the scan found reaching out.
+	//
+	// What comes back is what the rest of the window used: `openRow`, and
+	// the rename state as getters.
+	orgTreeMake(ctx) {
+		// The box, drawn only on the Export tab. A folder's box ticks
+		// everything beneath it and shows the export list's own half-mark
+		// when only some of it is in — the box and the tree have to give one
+		// answer, or a writer has two ways to ask the same question and gets
+		// different replies.
+		const tickBox = (cell, path, kind) => {
+			if (ctx.tab !== 'export') return;
+			// A NON-MARKDOWN FILE GETS NO BOX. The compile consumes
+			// markdown — its own rule, at the point of consumption — so a
+			// tick on an image would be a control promising something it
+			// cannot do. The row is still drawn: it is context, the way an
+			// empty folder is.
+			if (kind === 'file' && !/\.md$/i.test(String(path))) return;
+			// THE EXPORT LIST'S OWN CONTROL, not something that looks like it:
+			// a real checkbox with `zg-export-cb`, so it inherits the tick,
+			// the focus ring and — the part that matters — the half-diagonal
+			// a part-ticked folder draws. The first version of this was a
+			// span with a class nobody had written a rule for, which drew
+			// nothing at all: borrowing a look means borrowing the element
+			// the look was written for.
+			// ── AND NEITHER DOES A ROW WITH NOTHING IN THE EXPORT ──────
+			//
+			// Writer, 2026-09-04: "i ticked only Test Folder and the root
+			// folder checkbox is filled completely".
+			//
+			// THE ROOT WAS RIGHT AND ITS NEIGHBOURS WERE THE PROBLEM. Every
+			// box below counts over `exportFiles()` — the manuscript being
+			// compiled — while the TREE draws the whole vault. So a folder
+			// outside the scope got a box whose `mine` is empty, which makes
+			// `all` false and `some` false forever: an EMPTY box that cannot
+			// become anything else. Tick the manuscript and the root honestly
+			// reads FULL while a dozen siblings sit under it reading EMPTY,
+			// and a parent claiming "all" above children claiming "none" is
+			// the contradiction that was reported.
+			//
+			// MEASURED in the writer's vault, scope `Test Folder/Book 1` with
+			// 11 files: TWELVE folder boxes and SEVENTEEN file boxes governed
+			// nothing at all, against seven folder boxes that did.
+			//
+			// SO IT IS THE RULE DIRECTLY ABOVE, ONE LEVEL UP. That one says a
+			// tick on an image would be "a control promising something it
+			// cannot do" — and a tick on a folder the compile will never read
+			// promises exactly as little.
+			//
+			// THE TREATMENT CHANGED IN A228 AND THIS ARGUMENT DID NOT. What
+			// it removed was a box that looked ABLE; what is drawn now is one
+			// that is visibly and really disabled. Read on.
+			//
+			// THE EMPTY PATH IS THE WHOLE VAULT, which is why the root asks for
+			// `all` rather than for a bucket: no file's path begins with '/',
+			// so a prefix test on the empty path used to match nothing and the
+			// root's box governed zero files — a control that looks like it
+			// works and does not. The index keeps that answer and stops paying
+			// a walk of the manuscript for it. (See `underIndex`.)
+			const mine = zgUnderRow(ctx.underIndex(), path, kind);
+			// ── A BOX THAT CANNOT ACT STAYS AND SAYS SO (A228) ──────────────
+			//
+			// Writer, 2026-09-06: “just click on a folder and see what it does,
+			// it shows and hides the ticks … it’s buggy”.
+			//
+			// IT WAS `return`, and I defended that on a first reading because the
+			// rule is written down: a row with no files IN SCOPE has nothing to
+			// tick. The rule is right and the treatment was wrong. Choosing a
+			// folder narrows the scope, so most of the tree loses its boxes at
+			// once — MEASURED: 40 boxes to 6 on one click, over the same 31 rows
+			// — and choosing another brings a different six back. Nothing is
+			// broken and the tree looks broken, which is the same thing to the
+			// person using it.
+			//
+			// AND THE GESTURE IS ONE FOLDER, CLICKED TWICE (the writer, once he
+			// had found it): “clicking again on a folder in the organiser file
+			// tree it selects the folder and if i click again it selects the
+			// root”. That toggle is deliberate and it stays — see `select`,
+			// where a plain click on the only chosen row clears it, “how a
+			// writer gets back to the whole vault without hunting for a control
+			// that says so”. So the same folder, clicked twice, used to swing
+			// every box in the tree off and back on again. THE TOGGLE IS NOT
+			// THE FAULT; the tree changing shape under it was.
+			//
+			// The block above holds the argument the removal was made on, and
+			// it survives intact: what it removed was a box that LOOKED able. A
+			// visibly disabled one is not that box — it holds its place, it
+			// cannot be pressed, and it says why when asked.
+			const box = cell.createEl('input', { cls: 'zg-export-cb zg-uni-check' });
+			box.type = 'checkbox';
+			if (!mine.length) {
+				// NOT PART OF WHAT IS GOING OUT. `disabled` is the browser's own
+				// word for it, so the pointer, the keyboard and a screen reader
+				// all get the same answer without any of them being told
+				// separately.
+				// NO CLASS BESIDE IT. `:disabled` is a state the browser owns
+				// and enforces; a class saying the same thing is a second
+				// writer of one fact, and the stylesheet can only be written
+				// against one of them.
+				box.disabled = true;
+				box.title = 'Outside what is being exported \u2014 choose this folder,'
+					+ ' or a folder above it, to include it';
+				return;
+			}
+			// NOT DRAGGABLE, and this is why ticking stopped working. The
+			// Export tab puts the tree into Custom sort, which makes
+			// every row `draggable`, and a draggable ancestor takes the
+			// mousedown that would have toggled a checkbox inside it — so the
+			// boxes drew, hovered, and did nothing. It worked when it was
+			// tested because the tree was in another sort at the time.
+			box.draggable = false;
+			box.addEventListener('mousedown', (ev) => ev.stopPropagation());
+			// THE EMPTY PATH IS THE WHOLE VAULT (2026-08-26). Without this
+			// clause `under('')` reads `p === '' || p.startsWith('/')`, which
+			// matches NOTHING — no file has the empty path and none begins
+			// with a slash. So the root's box would have drawn, hovered, and
+			// governed zero files: a control that looks like it works and
+			// does not, which is the shape this window keeps deleting.
+			//
+			// It is written HERE, in the one place that decides what a box
+			// is responsible for, rather than at the root row's call site —
+			// the root is a folder like any other, it just happens to be the
+			// folder that contains everything.
+			// (`under` and `mine` are computed ABOVE, before the box is made,
+			// because whether there is a box at all depends on them.)
+			const on = mine.filter(p => ctx.ticks && ctx.ticks.has(p)).length;
+			// `mine.length > 0` STOOD HERE and is now guaranteed by the
+			// early return above — kept as the comment rather than the test,
+			// because an empty `mine` used to make this false and that was
+			// the whole of the dead box.
+			const all = on === mine.length;
+			const some = on > 0 && !all;
+			box.checked = all;
+			// `indeterminate` STAYS SET — it is the honest state and screen
+			// readers announce it — while `is-part` draws it as half a box
+			// rather than as the browser's dash, which reads at a glance as
+			// "off, but grey". Same reasoning, same pair, as the export list.
+			box.indeterminate = some;
+			box.toggleClass('is-part', some);
+			box.addEventListener('click', (ev) => ev.stopPropagation());
+			box.addEventListener('change', (ev) => {
+				ev.stopPropagation();
+				if (!ctx.ticks) return;
+				// A part-ticked folder ticks fully: the writer pressing it is
+				// reaching for "all of this", not for "invert each of these".
+				const next = !all;
+				for (const p of mine) { if (next) ctx.ticks.add(p); else ctx.ticks.delete(p); }
+				ctx.rememberTicks();
+				ctx.draw();
+				ctx.drawPanel();
+			});
+		};
+
+		// ── TOMBSTONE: `readings`, 302 LINES (2026-09-02) ───────────────────
+		//
+		// The writer, asked whether to delete the dead region: "delete it".
+		//
+		// IT BUILT THE GOALS LIST'S NUMBERS — the words count, today's count,
+		// the reading grade, and the target with its fill bar. Declared once
+		// and CALLED FROM NOWHERE. Every other mention of the word in src/ is
+		// the English word in a comment, checked one by one rather than by a
+		// count, because "readings" appears fifty-three times as prose.
+		//
+		// AND NOTHING ELSE BUILT WHAT IT BUILT: `zg-goals-col-words`,
+		// `zg-goals-goalface` and `zg-goals-fill` appeared ONLY inside it. So
+		// this is not a helper that lost its last caller and might be wanted
+		// again — it is a feature that has not drawn a pixel in the running
+		// app for however long, and the rows it fed have been showing names
+		// with no numbers beside them.
+		//
+		// `.zg-goals-list` ITSELF IS LIVE and stays: it is a class on the
+		// Organizer's tree list, and its stylesheet rules style rows that do
+		// exist. Only the readings inside a row went.
+		//
+		// TWO NEIGHBOURS ARE UNREACHABLE TOO — `openGoalsModal` and
+		// `renderGoalList`, neither called from anywhere — which is more dead
+		// than the inbox card described. They are NOT cut here: one proven
+		// deletion per batch, each measured on its own, is how this stays
+		// reversible. Card 46.
+		//
+		// AND THE SWEEP THAT FOUND THIS WAS WRONG ABOUT OTHER THINGS. A
+		// hand-rolled comment-and-string stripper reported `setFlagBadge` as
+		// unreferenced — a method measured drawing badges in the vault an hour
+		// earlier. It mis-parses a quote in code and swallows everything
+		// after it. No parser is installed here, so nothing was cut on the
+		// sweep's word: this span was proved by hand.
+
+		// ── Dragging a row into place ───────────────────────────────────────
+		//
+		// The same order, written from the other tree. A drag here rewrites
+		// the folder's section in `ws-export.md`, which is what Obsidian's own
+		// explorer sorts by and what the manuscript compiles in — so a
+		// chapter moved in this window has moved everywhere, and there is
+		// only ever one answer to "what order is the book in".
+		//
+		// ONLY IN MANUSCRIPT ORDER. Dragging a row in a list sorted by word
+		// count is a gesture with nowhere to land: the sort would put it
+		// straight back, and a row that springs back reads as a bug rather
+		// than as a rule. The rows are not draggable at all in the other
+		// sorts, and the band says which one is on.
+		//
+		// WITHIN ONE FOLDER, like the explorer's. Dragging across folders
+		// would have to MOVE the file, and that is a different act with a
+		// different undo; this window is where a book is arranged, not where
+		// files are filed.
+		let dragKey = null;
+		const dropAim = (ev, row) => {
+			// `sort !== 'order'` stood here too and was never true.
+			if (!dragKey) return null;
+			const over = row && row.getAttribute && row.getAttribute('data-goalpath');
+			const moved = ctx.itemOf(dragKey).path;
+			if (!over || over === moved) return null;
+			let rect = null;
+			try { rect = row.getBoundingClientRect(); } catch (_) { return null; }
+			if (!rect || !rect.height) return null;
+			const at = (ev.clientY - rect.top) / rect.height;
+			// THE MIDDLE OF A FOLDER MEANS INTO IT, the same as in Obsidian's
+			// own tree — which is the point: a writer who has learnt that
+			// gesture in the explorer should not find it means something else
+			// twelve inches away. Edges reorder, the middle of a folder moves.
+			//
+			// A NOTE HAS NO MIDDLE. Dropping a scene on a scene could only
+			// mean "beside it", so the whole row is edges there and there is
+			// no band a writer can drop into and have nothing happen.
+			const overRow = ctx.itemOf(row.getAttribute('data-goalkey') || ('file\u0000' + over));
+			// ── HOW WIDE AN EDGE IS, AND WHY IT IS THIS WIDE ─────────────────
+			//
+			// A FIFTH, not a bit over a quarter. The bands are measured as a
+			// fraction of one row, but a writer aims at the gap BETWEEN two
+			// rows — and that gap is one row's bottom band plus the next row's
+			// top band, so it is twice as wide as either number suggests.
+			//
+			// At 0.28 on a 26px row that is 7px of edge each side, an 11px
+			// middle, and a 15px reorder strip between two middles. The strip
+			// is WIDER than the target it separates, so passing down a column
+			// of folders feels like there are two middles with something else
+			// in between — reported exactly that way. At 0.2 the edges are 5px,
+			// the middle is 16px, and the strip is 10px: smaller than the
+			// middle, which is the relationship that makes the middle findable.
+			//
+			// THE TRADE IS DELIBERATE AND IT IS NOT SYMMETRIC. Reordering is a
+			// gesture a writer repeats — miss it and you drag again, and the
+			// rows are all still on screen. Moving into a folder happens
+			// occasionally and getting it wrong takes a file out of the folder
+			// they were looking at. So the occasional one gets the easier
+			// target, and the repeated one gets the smaller.
+			const EDGE = 0.2;
+			if (overRow.kind === 'folder' && at > EDGE && at < 1 - EDGE) {
+				// Not into the folder it is already in: that is a move that
+				// changes nothing, and drawing a target for it says something
+				// is about to happen.
+				if (ctx.folderOf(moved) === over) return null;
+				return { into: over, moved, row };
+			}
+			const above = at < 0.5;
+			// REORDERING IS WITHIN ONE FOLDER. Across folders the answer is
+			// the move above, on the folder's own row, so there is exactly one
+			// way to say each of the two things.
+			if (ctx.folderOf(over) !== ctx.folderOf(moved)) return null;
+			let before = over;
+			if (!above) {
+				const kids = this.treeOrderCurrent(ctx.folderOf(over));
+				const next = kids[kids.indexOf(over) + 1];
+				before = next == null ? null : next;
+			}
+			return { parent: ctx.folderOf(over), moved, before, row, above };
+		};
+		let dropRow = null;
+		const paintDrop = (aim) => {
+			if (dropRow && dropRow !== (aim && aim.row)) {
+				dropRow.removeClass('zg-drop-above');
+				dropRow.removeClass('zg-drop-below');
+				dropRow.removeClass('zg-drop-into');
+			}
+			if (dropRow && dropRow !== (aim && aim.row)) dropRow.removeClass('zg-drop-into');
+			dropRow = aim ? aim.row : null;
+			if (!aim) return;
+			// A LINE FOR "HERE", A BOX FOR "INTO". Two different acts must not
+			// share one mark, or a writer cannot tell which one a release is
+			// about to perform.
+			aim.row.toggleClass('zg-drop-into', !!aim.into);
+			aim.row.toggleClass('zg-drop-above', !aim.into && !!aim.above);
+			aim.row.toggleClass('zg-drop-below', !aim.into && !aim.above);
+		};
+		const draggable = (row, it) => {
+			// (a `sort !== 'order'` guard stood here and never fired.)
+			row.setAttribute('draggable', 'true');
+			row.addEventListener('dragstart', (ev) => {
+				dragKey = ctx.keyOf(it);
+				// SAID ON THE LIST, not on the row. The pointer leaves the
+				// row it started on within a few pixels, and a grabbing hand
+				// that reverts the moment you move is worse than none.
+				row.addClass('is-dragging');
+				ctx.listWrap.addClass('is-dragging');
+				try { ev.dataTransfer.setData('text/plain', it.path); } catch (_) {}
+			});
+			row.addEventListener('dragover', (ev) => {
+				const aim = dropAim(ev, row);
+				paintDrop(aim);
+				if (!aim) return;
+				ev.preventDefault();
+				try { ev.dataTransfer.dropEffect = 'move'; } catch (_) {}
+			});
+			row.addEventListener('drop', async (ev) => {
+				const aim = dropAim(ev, row);
+				paintDrop(null);
+				dragKey = null;
+				if (!aim) return;
+				ev.preventDefault();
+				if (aim.into != null) {
+					// A MOVE, not a reorder: the file changes address, every
+					// link that pointed at it is rewritten, and the order in
+					// both folders follows it.
+					//
+					// The folder is opened BEFORE the move, and the redraw is
+					// left to the vault's own rename event — see
+					// `treeShapeChanged`. Drawing here would paint the tree as
+					// it was a moment ago: `renameFile` resolves before
+					// Obsidian's index has the note at its new address, so
+					// this window's own `getMarkdownFiles()` still answers
+					// with the old one.
+					ctx.shut.delete(aim.into);
+					ctx.rememberShut();
+					const done = await this.treeMoveInto(aim.moved, aim.into);
+					if (done && !done.ok && done.said) ctx.said(done.said, true);
+					else if (done && done.ok) {
+						// THE ONE ACT IN THIS WINDOW WHOSE COST IS A FILE THE
+						// WRITER CANNOT FIND. Everything else here is a tick or
+						// a line's position, both visible and both reversed by
+						// doing them again; a move takes the file out of the
+						// folder they were looking at and rewrites its links.
+						// ── TOMBSTONE: AN UNDO BUTTON ON THIS LINE ───────────
+						//
+						// It was offered here and it did not work in a vault.
+						// The mechanism is sound and driven — `treeMoveUndo`
+						// has seven assertions and every sabotage of it is
+						// caught — so what failed is the wiring between this
+						// line and that method, in a window a probe builds and
+						// a writer uses differently.
+						//
+						// REMOVED RATHER THAN LEFT WHILE I GUESS. A control
+						// that does nothing when pressed is worse than no
+						// control: the writer presses it, watches the file not
+						// come back, and now distrusts the say-line — which is
+						// where every refusal in this window is reported. The
+						// method stays, with its probe, for when the wiring is
+						// understood rather than guessed at.
+						ctx.said('Moved \u201c' + ctx.nameOf(aim.moved) + '\u201d into '
+							+ (aim.into ? ctx.nameOf(aim.into) : 'the vault root') + '.', false);
+					}
+					return;
+				}
+				await this.treeOrderMove(aim.parent, aim.moved, aim.before);
+			});
+			row.addEventListener('dragend', () => {
+				dragKey = null;
+				paintDrop(null);
+				row.removeClass('is-dragging');
+				ctx.listWrap.removeClass('is-dragging');
+			});
+			// ── AND THE SAME MOVE, WITH A FINGER ────────────────────────────
+			//
+			// REGRESSION, FOUND BY A PROBE WHEN THE OLD EXPORT WINDOW WAS
+			// DELETED. That window called `touchDrag` on its rows and its
+			// folders, so a press-and-hold on a tablet moved a scene. This
+			// tree reorders with HTML5 drag — `draggable`, `dragstart`,
+			// `drop` — and a touch screen fires none of those. The rows could
+			// be read and ticked and not reordered, on the devices where a
+			// writer is most likely to be reading rather than typing.
+			//
+			// THE SAME DESTINATION AS THE MOUSE, deliberately:
+			// `treeOrderMove` is what the drop handler above calls, so a
+			// finger and a pointer cannot come to disagree about what a
+			// reorder means or about which file gets written.
+			//
+			// `idOf` READS `data-goalkey`, which is the key the rest of this
+			// window sorts, selects and draws by — the old list had its own
+			// `data-row` and this tree has no such attribute.
+			this.touchDrag(row, ctx.keyOf(it), {
+				rows: () => Array.from(ctx.listWrap.querySelectorAll('.zg-goals-rowline')),
+				idOf: (el) => el.getAttribute('data-goalkey'),
+				drop: async (from, to, below) => {
+					// `itemOf` is the window's own key parser — the same one
+					// the selection and the cursor use. Inventing a second
+					// reader of this format is how two halves of one window
+					// come to disagree about which row is which.
+					const moved = ctx.itemOf(String(from || ''));
+					const onto  = ctx.itemOf(String(to || ''));
+					if (!moved.path || !onto.path) return;
+					// ── AND IT IS THE MOUSE'S RUNNER, NOT A COPY OF IT ────
+					//
+					// TOMBSTONE 1: `!below` was passed as the before-PATH here
+					// — a boolean, which `indexOf` never finds, so every touch
+					// reorder landed at the END of the folder whatever row the
+					// finger dropped it on.
+					//
+					// TOMBSTONE 2 (2026-08-28): the fix for that shared the
+					// ARITHMETIC — `zgOrgDropBefore` — and copied everything
+					// around it: the same-folder guard, the parent, the call to
+					// `treeOrderMove`. `orgDropRun` already did all three for
+					// the mouse and for the OTHER touch surface in this window,
+					// so a finger on the tree was the one path with its own
+					// copy.
+					//
+					// FOUND BY A SABOTAGE CASE THAT HAD ROTTED. The case named
+					// the pre-`zgOrgDropBefore` line and reported NOT APPLIED;
+					// re-aimed at the copy, it flipped which side the finger
+					// dropped on and `export_probe` PASSED ANYWAY. The gap was
+					// not an assertion — it was the second copy.
+					//
+					// The same-folder refusal lives in `orgDropRun` too: a
+					// reorder only, never a move into a folder, because the
+					// mouse gets that from the middle band of a row and a
+					// hold-and-drag has no pointer position to read it from.
+					await ctx.orgDropRun(moved.path, onto.path, below);
+				}
+			});
+		};
+
+		// ── Choosing rows ───────────────────────────────────────────────────
+		// ── AND A MODIFIER OPENS IT BESIDE, NOT INSTEAD (2026-09-02) ────
+		//
+		// "if i ctrl click a backlink i want to open that in a new tab (like
+		// obsidian does it)."
+		//
+		// "LIKE OBSIDIAN DOES IT" IS THE SPEC and it is a real one:
+		// `openLinkText` takes the destination directly, so this is a
+		// modifier READ and not a mechanism to build. `metaKey` beside
+		// `ctrlKey` because the same gesture is cmd on macOS, taken from the
+		// EVENT rather than from a platform flag this window would then have
+		// to keep in step with the host.
+		//
+		// THE EVENT IS OPTIONAL, AND THAT IS THE SCOPE. Only the backlink
+		// hands one over; the row click, the Enter key and the tree all call
+		// this with one argument as before, so `ev` is undefined and the
+		// behaviour they have is the behaviour they keep. The writer asked
+		// about backlinks, so backlinks is what changes.
+		//
+		// STILL ONE WRITER, which is why it goes here rather than in the
+		// link handler: the note above `orgBackCell` records that a link
+		// taking its own route would be the row-click and the name-click
+		// disagreeing the day either changes. Passing the event keeps one
+		// door and gives it a hinge.
+		const openRow = (it, ev) => {
+			if (it.kind !== 'file') return;
+			const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
+			try {
+				this.app.workspace.openLinkText(it.path, '', newTab ? 'tab' : false);
+			} catch (_) {}
+		};
+		// THE MENU CONTEXT, built once and handed to every row. The acts a menu
+		// needs that only this window can do — say something in the foot, open
+		// a folder it has just made, hand a row to the report — are passed IN
+		// rather than reached for, so `outlinerRowMenu` stays a method that can
+		// be driven without a window around it.
+		// True while a name on a row is being typed into. Escape and the
+		// tree's other keys both have to know: see the Escape ladder below.
+		let renaming = false;
+		// HOW TO CANCEL THE RENAME THAT IS IN PROGRESS, held for the ladder.
+		//
+		// The ladder used to answer "a rename is running, so refuse the key"
+		// and leave the cancelling to the row's own handler. THOSE TWO CANNOT
+		// BOTH RUN. The ladder is a CAPTURE listener above the row, so its
+		// `stopImmediatePropagation` is exactly what stops the event ever
+		// reaching the row — the rung defeated the handler it was deferring
+		// to, and Escape mid-rename did nothing at all.
+		//
+		// So the rung does the work itself. `finish` guards on `settled`, so
+		// the row's handler running as well is harmless on any build where
+		// the event does reach it.
+		let cancelRename = null;
+		const menuCtx = {
+			said: (msg, bad) => { if (msg) ctx.said(msg, bad); },
+			reveal: (path) => { ctx.shut.delete(path); ctx.rememberShut(); },
+			// One repaint hook rather than callbacks the caller has to
+			// remember in order. (It also repainted the scope chip while
+			// the folder scope existed — both retired.)
+			redraw: () => {
+				ctx.draw(); ctx.fill(); ctx.drawPanel();
+			},
+			// ── THE NAME BECOMES A BOX, ON THE ROW ──────────────────────────
+			//
+			// What the file explorer does, and what two previous attempts at
+			// this were not: a dialog titled "Rename file" over a folder, and
+			// then a command that renamed the active note and had to open the
+			// file to do it.
+			//
+			// The row is found by `data-path` rather than kept from the menu:
+			// the tree redraws on anything that changes it, so an element held
+			// across a menu opening may already be detached — and a detached
+			// input takes the writer's typing nowhere.
+			rename: (item) => {
+				if (!item || !item.path) return;
+				const isFolder = item.kind === 'folder';
+				const row = ctx.listWrap.querySelector('[data-path="'
+					+ String(item.path).replace(/"/g, '\\"') + '"]');
+				const nameEl = row && row.querySelector('.zg-export-name, .zg-export-foldername');
+				const parts = this.outlinerRenameParts(item.path, isFolder);
+				if (!nameEl) {
+					ctx.said('That row is no longer on screen.', true);
+					return;
+				}
+				// ── THE NAME ITSELF BECOMES EDITABLE ────────────────────────
+				//
+				// TOMBSTONE: an `<input>` put inside the name element. It was
+				// inline and it still was not what the file explorer does —
+				// an input carries a border, a background and a form field's
+				// metrics, so the row grew a box in it. Obsidian makes the
+				// EXISTING text editable and changes nothing else, which is
+				// why theirs looks like a row you happen to be typing in.
+				//
+				// `contenteditable` on the element that already holds the
+				// name means the theme's typography, colour and truncation
+				// are the ones already there; nothing has to be matched.
+				// `is-being-renamed` is the class Obsidian puts on the row
+				// while this is happening, so a theme that styles their
+				// rename styles this one.
+				renaming = true;
+				// The ladder above the row needs a way to END this, not just
+				// a flag saying it is running. See the tombstone there.
+				// `finish` is declared below and this only ever RUNS after the
+				// whole builder has, so the closure is safe.
+				cancelRename = () => finish(false);
+				row.addClass('is-being-renamed');
+				nameEl.addClass('zg-uni-renaming');
+				nameEl.setAttribute('contenteditable', 'plaintext-only');
+				nameEl.setAttribute('spellcheck', 'false');
+				nameEl.textContent = parts.base;
+
+				let settled = false;
+				const finish = async (commit) => {
+					if (settled) return;
+					settled = true;
+					renaming = false;
+					cancelRename = null;
+					const typed = (nameEl.textContent || '');
+					try {
+						nameEl.removeAttribute('contenteditable');
+						row.removeClass('is-being-renamed');
+					} catch (_) {}
+					if (!commit) { ctx.draw(); return; }
+					const r = await this.outlinerRenameTo(item.path, isFolder, typed);
+					if (r && !r.ok && r.said) ctx.said(r.said, true);
+					if (!r || !r.ok) ctx.draw();
+				};
+				nameEl.addEventListener('keydown', (ev) => {
+					if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+					else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+					// THE TREE'S OWN KEYS STAND DOWN while the caret is here.
+					// Space flags a row and the arrows move a cursor in this
+					// window — and Escape closes it, which would take the
+					// whole window away mid-rename.
+					ev.stopPropagation();
+				});
+				// COMMITTING ON BLUR is what the explorer does: clicking away
+				// keeps what you typed rather than throwing it away.
+				nameEl.addEventListener('blur', () => { finish(true); });
+				nameEl.addEventListener('click', (ev) => ev.stopPropagation());
+				nameEl.addEventListener('mousedown', (ev) => ev.stopPropagation());
+				try {
+					nameEl.focus();
+					// THE WHOLE NAME SELECTED, caret in it — typing replaces,
+					// End appends. A range rather than `setSelectionRange`,
+					// which contenteditable does not have.
+					const range = ctx.ownerDoc().createRange();
+					range.selectNodeContents(nameEl);
+					const picksel = ctx.ownerWin().getSelection();
+					picksel.removeAllRanges();
+					picksel.addRange(range);
+				} catch (_) {}
+			},
+			report: (item) => {
+				// THE ROW, NOT THE SELECTION. A writer who right-clicks a
+				// chapter and asks for its figures means that chapter, even if
+				// four other rows happen to be lit from an earlier click.
+				try { this.openReportModal(item && item.path); } catch (_) {}
+			}
+		};
+		const rowMenu = (row, it) => {
+			row.addEventListener('contextmenu', (ev) => {
+				ev.preventDefault();
+				// STOPPED HERE, or the list's own handler answers as well and
+				// the writer gets the empty-space menu on top of the row's.
+				ev.stopPropagation();
+				const menu = new Menu();
+				this.outlinerRowMenu(menu, it, menuCtx);
+				menu.showAtMouseEvent(ev);
+			});
+		};
+
+		const select = (row, it, order) => {
+			row.addEventListener('click', (ev) => {
+				if (ev.target && ev.target !== row && ev.target.closest
+					&& ev.target.closest('input, select, button, .zg-goals-chip, .zg-goals-chev')) return;
+				// ── THE ORGANIZER'S GRAMMAR IS SIMPLER ──────────────────────
+				//
+				// A folder click SELECTS it, through the one writer. A file
+				// click SHOWS it - its folder in the right pane with the note
+				// marked - and the second click opens it (G6, 2026-08-24): the
+				// grammar History and Export have always had. It OPENED on the
+				// first click until then, which made this the one tab where a
+				// writer could not look at a row without leaving the window.
+				//
+				// The multi-select grammar below belongs to the old tabs.
+				if (ctx.tab === 'organizer') {
+					// A FOLDER NAME ONLY EVER CHOOSES (A232). A second click on
+					// the chosen folder used to CLEAR the choice, "because the
+					// root is not a row" — and the root has been a row, and
+					// clickable, since 2026-08-25. The writer met the old
+					// gesture twice and called it buggy both times (A228,
+					// A232): one folder, clicked twice, swung the scope to the
+					// vault. The root row is the way back.
+					if (it.kind === 'folder') ctx.orgSelect(it.path);
+					else ctx.showItem(it);
+					return;
+				}
+				const k = ctx.keyOf(it);
+				// The grammar of every file list a writer has used, which is
+				// why it beats a checkbox column: the rows are already there
+				// and the gesture is already known.
+				if (ev.shiftKey && ctx.lastPicked) {
+					const a = order.indexOf(ctx.lastPicked), b = order.indexOf(k);
+					if (a !== -1 && b !== -1) {
+						for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
+							ctx.sel.set(order[i], ctx.itemOf(order[i]));
+						}
+					}
+				} else if (ev.ctrlKey || ev.metaKey) {
+					if (ctx.sel.has(k)) ctx.sel.delete(k); else ctx.sel.set(k, it);
+					ctx.lastPicked = k;
+				} else {
+					// A plain click on the only selected FILE clears it, which
+					// is how a writer gets back to the whole vault without
+					// hunting for a control that says so. NOT A FOLDER (A232):
+					// a folder name is the scope control on these tabs, and a
+					// second click on it un-scoped the whole window — "in
+					// export it sometimes deselects the whole thing". The root
+					// row has been that control since 2026-08-25, so the
+					// folder's name only ever picks it.
+					const only = it.kind !== 'folder' && ctx.sel.size === 1 && ctx.sel.has(k);
+					ctx.sel.clear();
+					if (!only) { ctx.sel.set(k, it); ctx.lastPicked = k; }
+				}
+				ctx.cursor = k;
+				ctx.cursorDrives = true;
+				ctx.uniPanelShow();
+				ctx.draw();
+				ctx.drawPanel();
+			});
+			row.addEventListener('dblclick', (ev) => {
+				if (ev.target && ev.target.closest
+					&& ev.target.closest('input, select, button, .zg-goals-chip, .zg-goals-chev')) return;
+				// A FOLDER'S SECOND CLICK IS NOT A FOLD (A232). It used to be —
+				// "a folder has nothing to open, so the second click does
+				// what the first would have if it had landed on the triangle"
+				// — and that is exactly what the writer met: two clicks on a
+				// name to scope the window shut the folder they had just
+				// chosen ("collapse and expand the folder … so i can not
+				// scope properly"). Folding has one door, the chevron.
+				if (it.kind === 'file') openRow(it);
+			});
+		};
+
+		// ── FOLDING, ANIMATED AROUND THE REDRAW ─────────────────────────────
+		//
+		// The explorer's open and close SWEEP; ours snapped. Two reasons,
+		// both ours: a shut folder's children are not drawn at all, and the
+		// container hid with `display: none`, which is not animatable. The
+		// drawing model is kept — always drawing a four-hundred-note vault
+		// to make height animatable would trade a nicety for every draw's
+		// budget — and the sweep runs AROUND the redraw instead:
+		//
+		//   OPEN:  redraw first (the children now exist), then find the new
+		//          container and run its height 0 → measured.
+		//   CLOSE: sweep the standing container's height → 0 FIRST, and only
+		//          then mark it shut and redraw. The redraw happens after
+		//          the animation, not instead of it.
+		//
+		// ONE CLOCK. The transition is the clock; `transitionend` ends the
+		// run and a broom timeout only CLEANS UP if the event never fired —
+		// tab hidden, or a theme that removed the transition. Two live
+		// clocks on one animation is the jar handover's recorded trap, and
+		// this is one clock and a broom.
+		//
+		// FOUND BY SCAN, never by selector. A path can only go into an
+		// attribute selector escaped, and both the NUL trap and the
+		// CSS.escape trap in this file were exactly that fault. A linear
+		// scan of the folder rows is cheap at this size and cannot be
+		// mis-escaped.
+		//
+		// `prefers-reduced-motion` skips the whole machine — in the
+		// stylesheet AND here, because a transition the stylesheet has
+		// removed is an end event that never comes, and waiting out the
+		// broom on every fold is a delay those users asked not to have.
+		const foldRun = new Map();   // folder path -> finish()
+		const foldStill = () => {
+			try { return ctx.ownerWin().matchMedia('(prefers-reduced-motion: reduce)').matches; }
+			catch (_) { return false; }
+		};
+		const foldBoxOf = (path) => {
+			const rows = ctx.listWrap.querySelectorAll(
+				'.tree-item-self[data-goalkind="folder"]');
+			for (const r of rows) {
+				if (r.getAttribute('data-goalpath') !== path) continue;
+				const item = r.parentElement;
+				if (!item) return null;
+				for (const ch of item.children) {
+					if (ch.classList
+						&& ch.classList.contains('tree-item-children')) return ch;
+				}
+				return null;
+			}
+			return null;
+		};
+		const foldSweep = (path, box, toH, after) => {
+			const stale = foldRun.get(path);
+			if (stale) { try { stale(); } catch (_) {} }
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				foldRun.delete(path);
+				try {
+					box.classList.remove('zg-folding');
+					box.style.removeProperty('height');
+				} catch (_) {}
+				if (after) after();
+			};
+			foldRun.set(path, finish);
+			box.classList.add('zg-folding');
+			box.style.height = (toH === 0 ? box.scrollHeight : 0) + 'px';
+			void box.offsetHeight;   // the reflow that makes it a transition
+			box.style.height = toH + 'px';
+			box.addEventListener('transitionend', (ev) => {
+				if (ev.target === box && ev.propertyName === 'height') finish();
+			}, { once: true });
+			window.setTimeout(finish, 320);   // the broom, not a second clock
+		};
+		const toggleFold = (path) => {
+			const opening = ctx.shut.has(path);
+			if (foldStill()) {
+				if (opening) ctx.shut.delete(path); else ctx.shut.add(path);
+				ctx.rememberShut(); ctx.draw(); ctx.fill();
+				return;
+			}
+			if (opening) {
+				ctx.shut.delete(path); ctx.rememberShut(); ctx.draw(); ctx.fill();
+				const box = foldBoxOf(path);
+				if (!box || !box.scrollHeight) return;
+				foldSweep(path, box, box.scrollHeight, null);
+			} else {
+				const box = foldBoxOf(path);
+				const settle = () => { ctx.shut.add(path); ctx.rememberShut(); ctx.draw(); ctx.fill(); };
+				// Nothing standing to sweep — already empty, or the row is
+				// off screen — is a jump cut, not an error.
+				if (!box || !box.scrollHeight) { settle(); return; }
+				foldSweep(path, box, 0, settle);
+			}
+		};
+
+		// ── The draw ────────────────────────────────────────────────────────
+		ctx.draw = () => {
+			ctx.listWrap.textContent = '';
+			// The stored order can have been rewritten since the last draw —
+			// by a drag in here, by a drag in Obsidian's tree, or by the file
+			// changing under us — so the per-draw cache starts empty.
+			ctx.rankIn.clear();
+			// AND SO DOES THE ONE SAYING WHICH FILES A ROW GOVERNS: the scope
+			// can have changed, a file can have been added, a tick can have
+			// moved. It is built on the first row that asks and dropped here.
+			ctx.underIn = null;
+			// STAMPED HERE, because the columns change with the TAB and not only
+			// with the readings menu. It was stamped at build and by that menu, so
+			// switching to Structure left the grid holding the slim tab's TWO
+			// tracks with four cells to put in them: the band wrapped onto a
+			// second line and every row wrapped under it. That is the "structure
+			// is botched" screenshot.
+			ctx.stampCols();
+			// AND FROM HERE ON, WHENEVER THE PANE CHANGES WIDTH. The ceiling
+			// on the band is only as good as the last time it was applied, and
+			// before this it was applied when a column was touched and never
+			// when the ROOM around it moved.
+			ctx.watchPane();
+			// (applyNameW ran here once — the name width is a grid track now,
+			// stamped by stampCols, and no per-box class remains to switch.)
+			// (The sort/filter button labels were painted here — Phase 5,
+			//  and `drawHead()` was called here until its stub went — see its
+			//  tombstone below.)
+			// ── NEITHER CONTROL EXISTS ON HISTORY OR EXPORT ──────────────────
+			//
+			// TOMBSTONE, and the reasoning is worth keeping because the case
+			// FOR them was argued and lost.
+			//
+			// Both changed what you could SEE without changing what the tab was
+			// about. On Export that is the dangerous half: the compile takes
+			// what is TICKED, in the book's order, and neither a filter nor a
+			// sort touches either — so a writer who filtered to a flag, ticked
+			// what they saw and exported got the rows they could not see as
+			// well. A hidden row still going out is worse than a two-step job,
+			// and it is worst on the one tab where what is on screen and what
+			// comes out must not drift apart.
+			//
+			// On History the pair simply did nothing: the panel answers for the
+			// selection, and reordering or hiding rows in the navigator beside
+			// it changes no figure on the page. A control that does nothing
+			// teaches a writer to distrust the row it sits in, and that row also
+			// holds the search box and the columns button, which do work.
+			//
+			// I argued for keeping the filter on Export — filter to a flag,
+			// untick that set — and that was wrong for the reason above.
+			//
+			// THE CHIP STAYS on Export, because there the order IS the output
+			// and saying so is worth a line. It is a chip and not a disabled
+			// button: a greyed-out control still promises something and invites
+			// a click to find out what.
+			// TOMBSTONE (Phase 5): `const bare = tab !== 'organise'` — the
+			// sort, filter and Board buttons were the OLD tab's controls and
+			// hid everywhere else. The tab is gone; so are they. The sort
+			// CHIP stays on Export (the order IS the output, and saying so
+			// is worth a line), and the KIND chip narrows every tab.
+			ctx.drawTypeChip();
+			// ── AND THE EYE GOES ON EXPORT ───────────────────────────────────
+			//
+			// Asked for from a vault. The columns button was the one control
+			// in this row that was never hidden anywhere, and on Export it
+			// offers to show and hide readings beside rows whose only column
+			// that matters is the TICK — which it cannot turn off, and should
+			// not be able to. So it opened a menu about columns that are not
+			// what that tab is for, next to a chip explaining that the order
+			// is fixed.
+			//
+			// TOMBSTONE: "IT STAYS ON HISTORY — the columns do work there."
+			// That reasoning was mine and the writer overruled it, which is
+			// theirs to do. The History panel is a chart of the whole vault
+			// and the tree beside it is a way of narrowing WHAT the chart is
+			// about — not a table anybody reads across. Columns on those
+			// rows answer a question that tab does not ask, and a screenshot
+			// showed the eye sitting alone in a toolbar whose sort and filter
+			// had already gone for exactly that reason.
+			//
+			// Which leaves it on the Outliner only, where the row IS a table
+			// and the columns are the reading.
+			// (colsBtn's tab toggle stood here — the button is gone.)
+			// ── THE HINT ONLY SPEAKS WHEN IT HAS SOMETHING TO SAY ───────
+			//
+			// TOMBSTONE: "Drag a row to reorder, or onto a folder to move
+			// it. Right-click for the rest." — shown under the tree at all
+			// times while the sort was Custom. Removed on request, and it
+			// had earned removal: it is a line of instructions a writer
+			// reads once and then sits under their manuscript for ever,
+			// costing a row of height on every window and every phone.
+			//
+			// WHAT IT SAID THAT MATTERED IS KEPT. A writer who has sorted
+			// by words and tries to drag gets nothing, and nothing is the
+			// worst answer — so the OTHER branch stays, because that one
+			// explains something the window is refusing to do rather than
+			// describing something it already does.
+			const files = ctx.liveFiles();
+			// \u2500\u2500 AND IT SAYS WHAT THE SORT TOOK AWAY \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+			//
+			// MOVED BELOW `liveFiles`, which is the whole point: the count of
+			// rows the empty-value rule hid does not exist until the list has
+			// been built, and this line ran above it. A hint that cannot see
+			// the number it is reporting is a hint that reports nothing.
+			//
+			// A TREE THAT SILENTLY LOSES TWO THIRDS OF ITSELF when a heading
+			// is clicked looks broken, and the writer has no way to tell the
+			// rule from a bug. So the rule announces itself, in the line that
+			// is already explaining why the rows cannot be dragged.
+			// The label is looked up here since Phase 5 — it used to ride in
+			// with the sort button's own caption, which retired.
+			// ── TOMBSTONE: THE SORT HINT (A58, 2026-09-03) ───────────────
+			//
+			// A sentence naming the sorted column and how many rows the
+			// empty-value prune had hidden, ending "Switch to Custom sort to
+			// drag rows into place." All of it sat behind
+			// `sort === 'order' ? '' : …`, and `sort` is always `'order'` — so
+			// the strip drew the empty half on every build ever made, and the
+			// class below hid the line at the same moment.
+			//
+			// IT ALSO READ `emptyHidden`, which the prune fed and which was
+			// always 0: two dead things holding each other up.
+			//
+			// THE ELEMENT STAYS, EMPTY AND HIDDEN, because the strip lays out
+			// around it and removing a box is a layout change nobody asked for.
+			ctx.hint.setText('');
+			ctx.hint.toggleClass('is-live', false);
+			ctx.hint.toggleClass('zg-is-hidden', true);
+			// ── THE FOLDERS ARE THE VAULT'S OWN, PRUNED ─────────────────
+			//
+			// TOMBSTONE: the tree derived from the FILES — every folder
+			// holding a note, plus every folder above one. That derivation
+			// is why an empty folder could not exist here, why a session
+			// memory (`_outlinerMade`) had to prop up folders made in this
+			// window, and why nothing but markdown could ever be drawn.
+			//
+			// Now the real folder tree is walked — `vault.getRoot()`, the
+			// walk `exportKnownPaths` already does — and every narrowing is
+			// a PRUNING over it: the scope drops branches the writer has
+			// not asked for. An active search or flag filter falls back to
+			// the leaves-up rule, because "hide folders with no matching
+			// descendant" is exactly what that rule computes, and a
+			// filtered view that stays a tree without inventing levels is
+			// the one thing it protected.
+			//
+			// The stubbed vaults the probes drive have no `getRoot`, so the
+			// leaves-up derivation stands in there too — under a stub every
+			// folder holds a file, so the two rules give one answer.
+			const wanted = new Set();
+			const filterOn = !!ctx.query;
+			const root = (() => {
+				try { return this.app.vault.getRoot ? this.app.vault.getRoot() : null; }
+				catch (_) { return null; }
+			})();
+			if (root) {
+				// ── AND A FILTER PRUNES IT RATHER THAN REPLACING IT ─────
+				//
+				// TOMBSTONE: `if (!filterOn && root)`. The real tree was
+				// walked only while NOTHING was narrowing it; the moment a
+				// search or a filter came on, the derivation fell back to
+				// the leaves-up rule — every folder holding a surviving
+				// file, plus its ancestors.
+				//
+				// THAT MADE A FOLDER UNFINDABLE BY NAME. Reported from a
+				// vault: "the search bar does not work i type in booksa (i
+				// have a empty folder named Booksa) and it does not find
+				// it." An empty folder holds no file, so leaves-up can
+				// never produce it — the one search a writer is most
+				// certain about is the one that could not work.
+				//
+				// SO THE PRUNE IS THE FILTER. A folder is kept when it
+				// matches the query ITSELF, or when anything beneath it
+				// survives. That is what the leaves-up rule was computing
+				// in the filtered case, plus the folder's own name — and
+				// it keeps the one thing that rule protected: a filtered
+				// view that is still a tree, with no levels invented.
+				const live = new Set(files);
+				// ── EMPTY IS NOT THE SAME AS ALL-HIDDEN ─────────────────
+				//
+				// `matches` answers "does this match the SEARCH", and with no
+				// search it is vacuously true — so a first version kept every
+				// folder on that alone, and brought back the one folder the
+				// tree is supposed to hide: `Word-Smith`, whose only contents
+				// are the plugin's own order, goals and history notes. The
+				// leaves-up rule hid it for free, by never producing a folder
+				// with no surviving file.
+				//
+				// A FOLDER WITH NOTHING IN IT IS DRAWN; a folder whose files
+				// are all hidden is not. That is the distinction leaves-up
+				// could not express — it saw both as "no surviving file" —
+				// and it is the whole reason an empty folder was unfindable.
+				const keepFolder = (folder) => {
+					let live1 = false, anyFile = false, keptSub = false;
+					for (const k of (folder.children || [])) {
+						if (k && k.children) {
+							if (keepFolder(k)) keptSub = true;
+						} else if (k) {
+							anyFile = true;
+							if (live.has(k.path)) live1 = true;
+						}
+					}
+					const keep = live1 || keptSub
+						// ITS OWN NAME, but only while something is being
+						// searched for: otherwise this is the vacuous truth
+						// that hid the bug above.
+						|| !!(ctx.query && folder.path && ctx.matches(folder.path))
+						// AND A GENUINELY EMPTY ONE, when nothing is being
+						// searched for. Under a search it has to earn its
+						// place by name like everything else.
+						|| (!anyFile && !ctx.query);
+					// THE ROOT IS NOT A ROW. Its path is '/', which is truthy —
+					// the walk this replaced started from the root's CHILDREN
+					// and so never had to say this out loud. Without it the
+					// tree grows a row for the vault itself, above everything,
+					// and a search that matched anything drew it.
+					if (keep && folder.path && folder !== root) wanted.add(folder.path);
+					return keep;
+				};
+				keepFolder(root);
+			} else {
+				for (const path of files) {
+					let dir = ctx.folderOf(path);
+					while (dir) { wanted.add(dir); dir = ctx.folderOf(dir); }
+				}
+				// …AND THE FOLDERS MADE IN HERE THIS SESSION, which the
+				// leaves-up rule cannot hold because they are empty. Only
+				// this FILTERED branch still needs the memory: the rename
+				// that follows "New folder" finds its row by `data-path`,
+				// and a row not drawn takes the writer's typing nowhere.
+				// The real walk above holds every folder without being
+				// reminded, which is the point of it.
+				for (const made of (this._outlinerMade || [])) {
+					let at = this.app.vault.getAbstractFileByPath(made);
+					if (!at || !at.children) continue;   // deleted since
+					let dir = made;
+					while (dir) { wanted.add(dir); dir = ctx.folderOf(dir); }
+				}
+			}
+			const order = [];
+			// key -> the row element drawn for it, this pass. See the cursor
+			// note at the foot of the walk for why this is not a query.
+			const elByKey = new Map();
+			let rowsDrawn = 0;
+
+			// `depth` is the depth of the things INSIDE `dir`: the folder
+			// headings and the notes at this level both sit at it, and the
+			// recursion adds one. Getting that wrong puts a note one step
+			// further in than the folder heading above it, which reads as a
+			// level of nesting that is not there.
+			// ── THE TREE IS OBSIDIAN'S OWN MARKUP ───────────────────────────
+			//
+			// `.nav-folder` / `.nav-folder-title` / `.nav-folder-children` /
+			// `.nav-file` / `.nav-file-title` / `.tree-item-self` /
+			// `.collapse-icon` — the same element names the file explorer
+			// uses, NESTED the same way. Three things follow from that and
+			// none of them had to be written:
+			//
+			//   · a theme or a CSS snippet that styles the explorer styles
+			//     this window too, for free, and goes on doing it when the
+			//     writer changes theme;
+			//   · the indent and its guide lines come from the nesting, so
+			//     the hand-drawn `--zg-depth` gradient is gone — and with it
+			//     the class of bug where an inline padding moved the text
+			//     without moving the lines;
+			//   · there is ONE description of a tree row in this plugin
+			//     instead of two that have to be kept in step.
+			//
+			// The class this plugin already used stays on the same element
+			// beside Obsidian's, because the rows are what its own stylesheet
+			// and its probes both name. One element, two names — not two
+			// elements.
+			//
+			// THE READINGS ARE ONE TRAILING CHILD, not cells of the row.
+			// Obsidian's rows are flex and the readings are a grid, and the
+			// brief's warning is the exact fault behind the "structure is
+			// botched" screenshot: two layout systems on one row. So the row
+			// stays THEIRS, flex and untouched, and everything this plugin
+			// adds to it goes inside a single `.zg-uni-marks` box that is the
+			// grid — the same shape as the explorer's `.zg-treemarks`.
+			// ── THE ROW'S OWN INDENT, THE WAY THE EXPLORER WRITES IT ────
+			//
+			// Measured against the file explorer in a vault: every row there
+			// carries an INLINE `margin-inline-start` / `padding-inline-start`
+			// with `!important`, computed from its depth. Every row here
+			// carried none. A depth-0 folder is `0 / 24`; a depth-1 file is
+			// `-17 / 41`.
+			//
+			// The 17 is the nested container's own indent — margin 12 +
+			// padding 4 + border 1, which is what `.nav-folder-children`
+			// measures. So the row is pulled BACK by exactly what the nesting
+			// pushed it, and the same amount is added to its padding: the
+			// background then runs the full width of the pane while the
+			// content stays where the indent put it. That is the whole
+			// mechanism, and we had half of it — the containers without the
+			// compensation.
+			//
+			// TWO BUGS, ONE CAUSE. The guide lines "not like in the filetree"
+			// and the root folders' missing chevrons are the same missing
+			// indent: at depth 0 Obsidian's 24px of padding is exactly where
+			// the collapse icon sits, and our rows had 6px, so a 16px chevron
+			// overhung to x = -14. The number matched before the cause was
+			// found, which is why the first fix — padding the LIST — looked
+			// right and was in the wrong place.
+			//
+			// INLINE, because the app's own are `!important` and a stylesheet
+			// cannot answer that. Read from the same custom properties the
+			// container uses, so a theme that changes its tree metrics
+			// changes ours with it.
+			const indentStep = () => {
+				try {
+					const cs = ctx.ownerWin().getComputedStyle(ctx.listWrap);
+					const n = (v, d) => {
+						const raw = parseFloat(cs.getPropertyValue(v));
+						return isNaN(raw) ? d : raw;
+					};
+					return n('--nested-item-margin', 12) + n('--nested-item-padding', 4)
+						+ n('--nested-item-border-width', 1);
+				} catch (_) { return 17; }
+			};
+			// ── THE INDENT LIVES IN THE NAME CELL NOW ───────────────────
+			//
+			// TOMBSTONE: Obsidian's arrangement — the row pulled LEFT by
+			// `margin-inline-start: -back` and pushed in again by
+			// `padding-inline-start: 24 + back` — so the highlight ran the
+			// full width while the name stepped in. A subgrid row spans the
+			// grid's tracks; a margin on it would drag every READING off its
+			// column, so the indent moves into the one cell it was ever
+			// about. Two custom properties on the row (they inherit): the
+			// name cell pads by `--zg-row-pad`, and the guide gradient sizes
+			// itself by `--zg-row-indent`.
+			//
+			// AND THE GUIDE IS OURS AGAIN — legitimately this time. The last
+			// tombstone here said the container draws it (`app.css`'s border
+			// on `.tree-item-children`) and warned that a row-drawn line plus
+			// an opaque row background had produced TWO lines. Both premises
+			// die together in one grid: the wrappers are `display: contents`
+			// and generate NO boxes — app.css's border has nothing to paint
+			// on — and the name cell is opaque BY DESIGN (it is the frozen
+			// pane). So the name cell draws the guides, all `depth` of them,
+			// as a repeating gradient in its own padding — there is no second
+			// line left to collide with. See "THE GUIDES, IN THE FROZEN
+			// PANE" in styles.css.
+			const indentRow = (el, depth) => {
+				const back = indentStep() * Math.max(0, depth);
+				try {
+					el.style.setProperty('--zg-row-pad', (ctx.ROW_BASE_PAD + back) + 'px');
+					el.style.setProperty('--zg-row-indent', back + 'px');
+				} catch (_) {}
+			};
+			const walk = (dir, depth, into) => {
+				const kids = Array.from(wanted).filter(d => ctx.folderOf(d) === dir);
+				const mine = files.filter(p2 => ctx.folderOf(p2) === dir).sort(ctx.cmp('file'));
+				// Folders before files at the same level, which is the export
+				// tree's order and the file explorer's.
+				for (const sub of kids.sort(ctx.cmp('folder'))) {
+					// ── FILES ONLY DRAWS NO FOLDER ROW ──────────────────
+					//
+					// It still WALKS the folder — the files inside it are the
+					// whole point — and hands them to the same container at the
+					// same depth, so what comes out is one flat list rather than
+					// a tree with its branches invisible. A shut folder stays
+					// shut: hiding the row must not also silently open it.
+					if (ctx.showShape() === 'files') {
+						// ── AND IT IGNORES THE FOLD STATE ───────────────
+						//
+						// TOMBSTONE: `if (!shut.has(sub))`, which kept a shut
+						// folder shut. It reads as careful — hiding a row
+						// should not silently open it — and it turns the
+						// fold state into an INVISIBLE FILTER: there are no
+						// folder rows in this mode, so nothing on screen can
+						// be unfolded and a writer has no way back to the
+						// files inside a folder they closed earlier.
+						//
+						// Reported from a vault: "if i close some folders and
+						// put filter by notes — only those notes that are in
+						// the opened folders appear in the organizer."
+						//
+						// The folds are REMEMBERED, not lost: `shut` is
+						// untouched, so switching back to a tree finds every
+						// folder where it was left.
+						walk(sub, depth, into);
+						continue;
+					}
+					const it = { path: sub, kind: 'folder' };
+					const k = ctx.keyOf(it);
+					const folderEl = into.createDiv({
+						cls: 'tree-item nav-folder'
+							+ (ctx.shut.has(sub) ? ' is-collapsed' : '') });
+					// `mod-collapsible` IS NOT DECORATION. Obsidian puts it on
+					// a folder title that has a chevron, and a theme's rules
+					// for the indent, the hover and the icon's box are written
+					// against it — without it the row is styled as a leaf that
+					// happens to have an arrow in it.
+					const h = folderEl.createDiv({
+						cls: 'tree-item-self nav-folder-title is-clickable mod-collapsible'
+							+ ' zg-export-folder zg-goals-rowline'
+							// NOT ON THE ORGANIZER TAB (A244): the pick is Export's and
+							// History's scope control; painted here it read as a second
+							// selection beside the chosen folder.
+							+ (ctx.tab !== 'organizer' && ctx.sel.has(k) ? ' is-picked' : '')
+							// The Organizer's selected folder, marked where the
+							// writer chose it — the right pane is ABOUT this row.
+							+ (ctx.tab === 'organizer' && ctx.orgMark === 'folder' && sub === ctx.orgFolder
+								? ' zg-org-current' : '')
+					});
+					// Obsidian's own rows carry this, and a snippet that
+					// targets one folder by path is a thing writers write.
+					h.setAttribute('data-path', sub);
+					h.setAttribute('data-goalpath', sub);
+					h.setAttribute('data-goalkind', 'folder');
+					h.setAttribute('data-goalkey', k);
+					indentRow(h, depth);
+					// ── THE NAME CELL, ONE ELEMENT ──────────────────────
+					//
+					// The row is a subgrid now (BRIEF-TABLE-SUBGRID Phase 2)
+					// and its first track is the frozen name column, so
+					// everything that is "the name" — tick, chevron, folder
+					// glyph, label — rides in ONE grid item that can be
+					// sticky, opaque and padded by the indent. Loose in the
+					// row, each would land in its own reading track.
+					const nc = h.createDiv({ cls: 'zg-uni-namecell' });
+					tickBox(nc, sub, 'folder');
+					const chev = nc.createDiv({
+						cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
+							+ (ctx.shut.has(sub) ? ' is-collapsed' : '') });
+					// ── OBSIDIAN'S OWN GLYPH, NOT A DRAWN ONE ────────────
+					//
+					// TOMBSTONE: a hand-drawn triangle pointing DOWN with the
+					// app's rotation cancelled in the stylesheet. It was drawn
+					// because `setIcon('right-triangle')` had once given a
+					// glyph whose direction changed under us, and cancelled
+					// because `collapse-icon` carries a rotation of its own
+					// that composed with ours and pointed an open folder LEFT.
+					//
+					// Both were treating a symptom. The two rotations fought
+					// because ours pointed the wrong way to begin with:
+					// Obsidian's glyph points RIGHT and their CSS turns it down
+					// when the folder opens. Ask for their icon and the
+					// composition is the one the file explorer gets, which is
+					// the entire point of wearing their classes.
+					//
+					// The drawn path stays as a fallback — pointing RIGHT like
+					// theirs — for a build where the icon is not registered: a
+					// folder with no chevron is worse than one whose glyph is a
+					// shade off.
+					let gotChev = false;
+					try {
+						if (setIcon) {
+							setIcon(chev, 'right-triangle');
+							gotChev = !!chev.querySelector('svg');
+						}
+					} catch (_) {}
+					if (!gotChev) {
+						chev.innerHTML = '<svg class="svg-icon right-triangle" viewBox="0 0 12 12" '
+							+ 'width="9" height="9" aria-hidden="true">'
+							+ '<path d="M3.5 2.2 L9.3 6 L3.5 9.8 Z" fill="currentColor"/></svg>';
+					}
+					chev.addEventListener('click', (ev) => {
+						ev.stopPropagation();
+						ev.preventDefault();
+						toggleFold(sub);
+					});
+					// A COLOURED FOLDER IS COLOURED HERE TOO. A colour set in
+					// one tree and absent in the other is two answers to
+					// "which folder is this" — and this window is the one a
+					// writer arranges the book in.
+					// TOMBSTONE: a manuscript folder was drawn as a BOOK here,
+					// in place of the folder glyph. The concept is retired —
+					// see the tombstone on the row that used to set it — so
+					// every folder is a folder.
+					// WHICH ICONS THE TREE WEARS is the writer's (inbox,
+					// 2026-08-22: "a drop down so i can choose — i like the
+					// first ones too"). `organizerIcons`: 'obsidian' (lucide,
+					// the default), 'drawn' (Word-Smith's own folder glyph,
+					// the first ones), 'none'.
+					// ONE BUILDER, shared with the table's group rows — see
+					// `orgFolderIcon`, which carries the style rules, the
+					// checked name list and the folder colour.
+					ctx.orgFolderIcon(nc, sub, !ctx.shut.has(sub));
+					// `tree-item-inner` TOO. It is the class a theme styles the
+					// NAME with — `-title-content` says which kind of row it
+					// is, and `tree-item-inner` carries the font, the colour
+					// and the ellipsis. A row with one and not the other gets a
+					// theme's folder colour and none of its typography.
+					nc.createDiv({ cls: 'tree-item-inner nav-folder-title-content zg-export-foldername',
+						text: ctx.nameOf(sub) });
+					// NO SYNOPSIS CHEVRON ON A FOLDER. A folder has no
+					// frontmatter, so there is nowhere for one to live.
+					// NO CELLS ON ANY TAB (one filetree only — writer,
+					// 2026-08-22): the readings live in the Organizer table.
+					order.push(k);
+					elByKey.set(k, h);
+					select(h, it, order);
+					rowMenu(h, it);
+					draggable(h, it);
+					rowsDrawn++;
+					// THE CHILDREN CONTAINER IS DRAWN EITHER WAY, empty when
+					// the folder is shut. Obsidian's markup expects it, a
+					// theme's indent guide is drawn ON it, and a folder that
+					// loses the element when it closes cannot be transitioned
+					// open — the guide would appear a frame after the rows.
+					// `tree-item-children` IS WHAT DRAWS THE INDENT GUIDES.
+					// Obsidian's vertical lines are a pseudo-element on THIS
+					// class; `nav-folder-children` names the kind of container
+					// and carries none of the drawing. Without it the nesting
+					// is correct and the guides are simply absent — which is
+					// most of what "it does not look like the file explorer"
+					// turned out to be.
+					const kidsWrap = folderEl.createDiv({
+						cls: 'tree-item-children nav-folder-children' });
+					if (!ctx.shut.has(sub)) walk(sub, depth + 1, kidsWrap);
+				}
+				// ── FOLDERS ONLY DRAWS NO FILES ─────────────────────────
+				//
+				// Asked for from a vault alongside "files only" and a "notes
+				// only" that hides folders too. It is a SHAPE filter and the
+				// kinds filter beside it is about EXTENSIONS — two different
+				// questions that both narrow the tree, kept apart in the code
+				// for the same reason they read as one list in the menu.
+				if (ctx.showShape() === 'folders') return;
+				for (const path of mine) {
+					const it = { path, kind: 'file' };
+					const k = ctx.keyOf(it);
+					const fileEl = into.createDiv({ cls: 'tree-item nav-file' });
+					const row = fileEl.createDiv({
+						cls: 'tree-item-self nav-file-title is-clickable'
+							+ ' zg-export-row zg-goals-rowline'
+							+ (ctx.tab !== 'organizer' && ctx.sel.has(k) ? ' is-picked' : '')
+							// The followed note (inbox): accent-marked, the
+							// way the selected folder is.
+							+ (ctx.tab === 'organizer' && ctx.orgMark === 'note' && path === ctx.orgNote
+								? ' zg-org-active' : '')
+					});
+					row.setAttribute('data-path', path);
+					row.setAttribute('data-goalpath', path);
+					row.setAttribute('data-goalkind', 'file');
+					row.setAttribute('data-goalkey', k);
+					indentRow(row, depth);
+					// The same one-element name cell the folder rows build —
+					// see the comment there.
+					const nc = row.createDiv({ cls: 'zg-uni-namecell' });
+					tickBox(nc, path, 'file');
+					// ── THE SYNOPSIS CHEVRON GOES IN FRONT ───────────────
+					//
+					// TOMBSTONE: built AFTER the readings box, which put it at
+					// the far right end of the row — and that is not merely
+					// where it looked wrong. The readings are a grid whose
+					// tracks the BAND repeats; a fifteen-pixel control after
+					// them shortened the row's grid by fifteen pixels and
+					// every figure slid left of the label above it. One
+					// misplaced element, and a writer reported the table as
+					// misaligned and the column rules as botched.
+					//
+					// IN FRONT, where a folder's chevron is. That is what it
+					// is — a thing that opens a row — and it costs the grid
+					// nothing, because it sits beside the NAME, which is the
+					// flexible column that gives the space back.
+					// A NON-MARKDOWN ROW HAS NO SYNOPSIS AND NO READINGS.
+					// Frontmatter is markdown's, so there is nothing for the
+					// chevron to open; and a word count of an image is not
+					// zero, it is NOT A READING — the cells render BLANK,
+					// because a zero is an answer and a blank is "not a
+					// text". What it gets instead is its KIND, said the way
+					// the explorer says it: a small icon before the name.
+					const isMd = /\.md$/i.test(String(path));
+					// TOMBSTONE (writer, 2026-08-22): the synopsis CHEVRON and
+					// its strip under the row — "i don't want synopsis or
+					// proprieties in the file tree — we already have the
+					// table for that." The Outline drawer is where a synopsis
+					// reads and edits now; the tree is a navigator, full stop.
+					// The chevron is not built at all now; `synopsisStrip` went
+					// with it (2026-08-31), having been unreachable behind a
+					// `null` since the writer asked for it out.
+					// EVERY file wears its kind now (writer's pass: "add
+					// icons for notes too") — a note gets the note glyph the
+					// way an image gets the image one.
+					// ONE BUILDER, shared with the table's rows — the style
+					// rules and the checked name list live in `orgKindIcon`.
+					this.orgKindIcon(nc, path);
+					nc.createDiv({ cls: 'tree-item-inner nav-file-title-content zg-export-name',
+						text: ctx.nameOf(path) });
+					// AFTER THE NAME, which is where Obsidian puts it — the name
+					// takes the room and the format sits at the end of the line.
+					// ONE CALL SITE for all three tabs: this builder is the only
+					// tree there is since "one filetree only" (2026-08-22), so
+					// the Organizer, the Export list and the History tree get it
+					// together, which is what "including in the organizers,
+					// export, history file tree" asks for.
+					this.orgKindTag(nc, path);
+					// (The readings box stood here — no cells on any tab now;
+					// one filetree only, writer 2026-08-22.)
+					// ── THE SYNOPSIS, UNDER THE ROW IT BELONGS TO ────────
+					//
+					// A line or two about what this scene DOES. It opens
+					// under the row rather than in a panel to the side,
+					// because the thing a writer is comparing it against is
+					// the rows above and below it — that is what an outline
+					// IS — and a panel puts the comparison a click away.
+					//
+					// Under `fileEl`, not `row`: the row is the clickable
+					// line itself and a block inside it would be inside the
+					// thing that opens the note.
+					order.push(k);
+					elByKey.set(k, row);
+					select(row, it, order);
+					rowMenu(row, it);
+					draggable(row, it);
+					rowsDrawn++;
+				}
+			};
+			// ── EMPTY SPACE IS A PLACE TOO ──────────────────────────────────────
+		// Right-clicking below the last row is how a writer adds the chapter
+		// they have just decided on, in Obsidian's own tree and now in this
+		// one. Bound on the CONTAINER rather than on a row, and the rows stop
+		// the event, so the two menus never both appear.
+		// ── THE TREE IS THE READER'S NAVIGATION (A225) ──────────────
+		//
+		// Writer, 2026-09-06: “make the navigation using the left file tree -
+		// click a ticked file and it jumps there”, replacing the rail's ticks.
+		//
+		// IT IS THE BETTER CONTROL AND THAT IS WHY IT WON: the tree is where
+		// the writer already is, it shows which files are going out, and every
+		// entry carries its own NAME — which is exactly what a column of
+		// unlabelled marks could not.
+		//
+		// DELEGATED, so it costs one listener for a tree of any size and no
+		// row has to remember to wire itself. And INERT IN PAGES: `jumpTo`
+		// answers false when the reader is not open, so this changes nothing
+		// about a click in the ordinary Export tab.
+		ctx.listWrap.addEventListener('click', (ev) => {
+			if (ctx.tab !== 'export') return;
+			try {
+				const t = ev && ev.target;
+				if (!t || !t.closest) return;
+				// NOT THE TICK BOX. Ticking is what that control is for, and
+				// jumping on the same press would move the reader every time the
+				// writer changed their mind about a file.
+				if (t.closest('.zg-export-cb')) return;
+				const row = t.closest('.zg-export-row[data-path]');
+				if (!row) return;
+				const path = row.getAttribute('data-path');
+				if (ctx.exportOpts && ctx.exportOpts.jumpTo) ctx.exportOpts.jumpTo(path);
+			} catch (_) {}
+		});
+		ctx.listWrap.addEventListener('contextmenu', (ev) => {
+			ev.preventDefault();
+			// STOPPED HERE TOO, not only on the rows.
+			//
+			// A BEST GUESS AT THE HALO reported behind this menu: the event was
+			// left to bubble out of the modal, and anything else listening for
+			// a contextmenu on the way up — the app's own handling, another
+			// plugin's — gets to answer the same click. Two menus at one
+			// pointer, one of them empty, read as a shadow rather than as a
+			// second menu. It costs nothing to stop it here, and a right-click
+			// inside this window is this window's.
+			ev.stopPropagation();
+			const menu = new Menu();
+			this.outlinerRowMenu(menu, null, menuCtx);
+			menu.showAtMouseEvent(ev);
+		});
+
+		// ── THE TREE HANGS FROM A ROOT FOLDER, LIKE THE EXPLORER'S ──────────
+		//
+		// Obsidian's file explorer is not a flat list inside a container: it
+		// is `.nav-folder.mod-root > .tree-item-children.nav-folder-children`,
+		// and EVERY row — including the top-level ones — lives inside that
+		// children box. The guides are drawn on those boxes, so the outermost
+		// one is what a first-level line hangs off.
+		//
+		// We appended rows straight into the pane, so that box did not exist
+		// and every level's guide was one container out of step. Reported as
+		// "the vertical lines are all over the place", and after the row
+		// indents landed it was the only thing left that could be.
+		//
+		// WEARING THE CLASSES IS NOT ENOUGH; the NESTING is half of what a
+		// theme's rules match on. This is the same shape the menu panel's
+		// tree already uses — see `.zg-menu-panel .mod-root` in the
+		// stylesheet, which zeroes the root box's own indent so top-level
+		// entries are not children of anything.
+		const rootFolder = ctx.listWrap.createDiv({ cls: 'tree-item nav-folder mod-root' });
+		// ── THE ROOT IS A ROW (writer, 2026-08-23) ──────────────────────
+		//
+		// "add the root folder with the vault name and the obsidian icon".
+		//
+		// IT CLOSES A COMMENT IN `select`: a re-click on the chosen folder
+		// clears the choice, "needed here because the root is not a row".
+		// It is one now, so the way back to the whole vault is a thing to
+		// point at rather than a gesture a writer has to be told about.
+		// The re-click STAYS - it costs nothing and it is what a writer who
+		// learnt it will keep doing.
+		//
+		// IT NAMES WHAT THE TREE IS ACTUALLY ROOTED AT — which, since the
+		// manuscript root was retired (2026-08-30), is always the vault.
+		// The name/icon branch below is KEPT: it costs nothing and it is
+		// what stops a row wearing the vault's name above a tree that is
+		// not the vault, should anything ever root elsewhere again.
+		//
+		// CLICKABLE ONLY WHERE A FOLDER CLICK MEANS SOMETHING. The
+		// Organizer's grammar is "a folder click selects it"; Export ticks
+		// and History has no such gesture, so there the row is a HEADING -
+		// and it does not wear `is-clickable`, because a row that looks
+		// pressable and is not is worse than no row.
+		// NOT IN A FLAT LIST. `Files only` and `Notes only` draw no folder
+		// rows at all - the tree becomes one flat run on purpose - and a
+		// root heading above it would be the only hierarchy left standing,
+		// which is a shape the writer switched off. Two assertions already
+		// said so and both went red the moment this row appeared.
+		if (ctx.showShape() !== 'files') {
+			// Always the vault: the manuscript root is retired (2026-08-30),
+			// so all three tabs root at the same place.
+			const rootPath = '';
+			const isVault = !rootPath;
+			// ── EVERY TAB CAN GET BACK TO THE WHOLE VAULT ────────────
+			//
+			// Writer, 2026-08-25: "i can't select the whole vault root in
+			// export and history".
+			//
+			// This was `tab === 'organizer'`, and the stylesheet rule below
+			// justified it: "Export ticks and History has no folder-click
+			// gesture, so there the row is a heading and nothing else."
+			// HALF OF THAT WAS WRONG, measured live before changing it:
+			// History's folder rows ARE `is-clickable` and go through the
+			// same `select()` Export's do. So the root was the only row in
+			// the tree a writer could not act on, on two tabs out of three.
+			//
+			// AND IT STORES NOTHING NEW. On these tabs an EMPTY selection
+			// already IS the whole vault — `select()` says so itself: "a
+			// plain click on the only selected row CLEARS it, which is how
+			// a writer gets back to the whole vault without hunting for a
+			// control that says so". This row is that control, said out
+			// loud. A second notion of scope is the fault this window keeps
+			// removing, so there is not one.
+			const pickable = true;
+			// ── THE ROOT IS A FOLDER ROW LIKE THE REST (writer,
+			// ── 2026-08-24, with a picture of it not being one) ────────
+			//
+			// It was a bare `tree-item-self nav-folder-title` with the icon
+			// and the label loose inside it: 22px against every other
+			// folder's 28px, no `mod-collapsible`, no name cell, no
+			// chevron. Measured side by side before changing it, because
+			// "looks different" and "is built differently" are not the same
+			// report - here they happened to be.
+			//
+			// AND IT DOES NOT FOLD (writer, 2026-08-25, having looked at 323:
+			// "remove the chevron and the collapsible stuff of the root").
+			// The chevron shipped for one pair and took collapse-all with it,
+			// which CURRENT.md had been holding back as G3's other half - so
+			// that half goes back on the shelf, and it goes back UNBUILT
+			// rather than built-and-hidden. What the row keeps is everything
+			// they asked for and kept: the name cell, the height, Obsidian's
+			// mark, and children indented under it.
+			//
+			// NO `mod-collapsible` EITHER. Obsidian puts it on a folder title
+			// that HAS a chevron and a theme's rules are written against that
+			// pairing; wearing it without one is a row that reserves space for
+			// a control it does not have.
+			// MARKED THE WAY ITS OWN TAB MARKS THINGS. The Organizer has one
+			// chosen folder and says so with `zg-org-current`; the other two
+			// have a SET, and a row in it wears `is-picked`. The root is in
+			// that set exactly when the set is empty, which is the state the
+			// window opens in — so the tree now opens saying what its scope
+			// is instead of saying nothing.
+			// ── THE ROOT FOLDS, AND THIS REVERSES 323 ───────────────────
+			//
+			// Writer, 2026-08-26: "the vault root in organizer must have a
+			// chevron too with collapse expand" — the LEFT TREE, asked and
+			// answered.
+			//
+			// 323 BUILT THIS AND THE WRITER ASKED IT BACK OUT. The comment
+			// below still said so ("the TREE's root does not fold — that is
+			// still the writer's decision from 323"), and CURRENT.md lists
+			// it among eight thrown-away builds. It has now been asked for
+			// twice and removed once; that is worth a line rather than a
+			// silent re-add.
+			//
+			// `mod-collapsible` IS OBSIDIAN'S OWN CLASS and the note above
+			// warns against wearing it without a chevron — "a row that
+			// reserves space for a control it does not have". So the class
+			// and the control arrive together, on the same condition.
+			// EVERY TAB'S ROOT FOLDS (writer, 2026-08-27: “export and history
+			// file tree - does not have the chevron on the root folder”).
+			//
+			// Was `tab === 'organizer'`. All three tabs draw this row from this
+			// builder; 349 gave the chevron to the Organizer alone, so Export and
+			// History got the row WITHOUT the control that makes it read as the
+			// parent of everything under it. Widening the gate is the whole
+			// change — a second implementation of this row is the fault this
+			// window keeps deleting.
+			const rootFolds = true;
+			const rh = rootFolder.createDiv({
+				cls: 'tree-item-self nav-folder-title zg-uni-root'
+					+ (rootFolds ? ' mod-collapsible' : '')
+					+ (pickable ? ' is-clickable' : '')
+					+ (ctx.tab === 'organizer'
+						? (ctx.orgMark === 'folder' && ctx.orgFolder === rootPath ? ' zg-org-current' : '')
+						: (ctx.sel.size ? '' : ' is-picked'))
+			});
+			rh.setAttribute('data-path', rootPath);
+			// ── ONE STEP LEFT OF EVERYTHING IT CONTAINS ──────────────────
+			//
+			// Writer, 2026-08-27: “indent everything under it so we know that
+			// that is the root folder” — then, given the two directions and what
+			// each costs, “pull the root one step left”.
+			//
+			// MEASURED IN THE VAULT FIRST. The name cell's x read 116.8 for the
+			// root and 116.8 for its children, then 133.6 / 150.4 / 167.2 going
+			// down — so the ladder stepped at every level EXCEPT across the root,
+			// which sat exactly level with the rows it contains. Nothing on
+			// screen said that row was the parent. Not specific to Export and
+			// History either: the Organizer had it too, and only read better
+			// because it was the one tab with a chevron.
+			//
+			// WHY THE ROOT AND ITS CHILDREN CAME OUT EQUAL. `indentRow` gives a
+			// depth-1 row `ROW_BASE_PAD + indentStep()`; the root was given no
+			// `indentRow` call at all and fell back to the stylesheet's plain
+			// `ROW_BASE_PAD`. One step apart in the variable — and level on
+			// screen, because the row also carries a negative margin of the same
+			// size, which is what lets the highlight span the full width. The
+			// two cancel BY CONSTRUCTION, so the root needs to go a step further
+			// out than “depth 0” to read as the parent.
+			//
+			// AND IT IS DONE IN THE STYLESHEET, NOT HERE — the first attempt at
+			// this set `--zg-row-pad` on this row and MOVED NOTHING. Deployed and
+			// re-measured, the root still read 116.8 with the variable sitting on
+			// it at 7px, because the ROW's padding is
+			// `calc(24px + var(--zg-row-indent))` and the name cell's
+			// `--zg-row-pad` padding is overridden to 0 on every tab. The probe
+			// assertion went green on the variable while the pane was unchanged:
+			// a quantity next to the claim, not the claim.
+			// See `.zg-uni-root` in styles.css for the rule that actually wins.
+			// ONE NAME CELL, as every other folder row has. The row is a
+			// subgrid and its first track is the frozen name column, so the
+			// chevron, the glyph and the label have to ride in ONE grid item
+			// or each lands in its own reading track.
+			const rnc = rh.createDiv({ cls: 'zg-uni-namecell' });
+			// ── AND A BOX, ON EXPORT (writer, 2026-08-26) ───────────────
+			//
+			// "the root folder should get a checkbox too in the export."
+			// `tickBox` stands down on every other tab by itself, so this is
+			// the same unconditional call every folder row makes — the root
+			// is a folder, it just happens to be the one containing
+			// everything. FIRST in the cell, where the box sits on every row
+			// under it.
+			//
+			// SAME FAMILY AS 328: that found the table's subject was a
+			// `<td colspan>` and its figures "structurally ABSENT, not
+			// empty". This row was drawn without the one control that makes
+			// the list a list, so "everything" was the single scope a writer
+			// could not tick.
+			tickBox(rnc, rootPath, 'folder');
+			// THE CHEVRON, BUILT THE WAY EVERY FOLDER ROW BUILDS ITS OWN —
+			// Obsidian's `right-triangle` in Obsidian's classes, with the
+			// drawn path as the fallback for a build that does not register
+			// the icon. The note on the folder version explains why asking
+			// for THEIR glyph is the point: their CSS turns it down when the
+			// row opens, and a hand-drawn one fights that rotation.
+			//
+			// FIRST IN THE CELL, before the vault mark and the name, which is
+			// where the chevron sits on every row under it.
+			if (rootFolds) {
+				const rshut = ctx.uniRootShut();
+				const rchev = rnc.createDiv({
+					cls: 'tree-item-icon collapse-icon nav-folder-collapse-indicator'
+						+ (rshut ? ' is-collapsed' : '') });
+				let drew = false;
+				try {
+					if (setIcon) {
+						setIcon(rchev, 'right-triangle');
+						drew = !!rchev.querySelector('svg');
+					}
+				} catch (_) {}
+				if (!drew) {
+					rchev.innerHTML = '<svg class="svg-icon right-triangle" viewBox="0 0 12 12" '
+						+ 'width="9" height="9" aria-hidden="true">'
+						+ '<path d="M3.5 2.2 L9.3 6 L3.5 9.8 Z" fill="currentColor"/></svg>';
+				}
+				rchev.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					ev.preventDefault();
+					// ITS OWN STORE, NOT THE TABLE'S. What stood here called
+					// `orgRootShutSet` and argued that the tree's root and the
+					// table's subject "are the same root asking the same
+					// question". They are not: the subject is the folder the
+					// TABLE is showing, which is only the vault root when the
+					// scope happens to be the vault. Measured on 2026-08-31,
+					// folding the subject took this tree from 37 rows to 1.
+					ctx.uniRootShutSet(!ctx.uniRootShut());
+				});
+			}
+			if (isVault) {
+				// OBSIDIAN'S OWN MARK, and `setIcon` FAILS SILENTLY on a
+				// name this build does not know - it leaves the element
+				// empty and throws nothing, which is how the export glyph
+				// went missing for a release. Tried in order, checked, and
+				// the winner stamped on the element.
+				// OBSIDIAN'S OWN MARK (writer, 2026-08-24: "put the obsidian
+				// icon instead of that vault icon"). The loop that stood here
+				// asked Lucide for `obsidian` first and fell through to `vault`
+				// every time, because Lucide has no such name - so the row wore
+				// a safe door. `zgObsidianSvg` is the app's OWN wireframe path,
+				// not a drawing of it; see the note beside it in the preamble.
+				this.orgVaultIcon(rnc);
+			} else if (!isVault) {
+				// WAS `!rootShut`, AND `rootShut` WAS NEVER DECLARED — a
+				// ReferenceError waiting for anyone who set a manuscript root,
+				// which is the only way this branch runs. Left behind when 323’s
+				// root chevron and its collapsible state were taken back out at
+				// the writer’s word; the removal missed the one reader. Found
+				// 2026-08-25 while giving the SUBJECT row a fold.
+				//
+				// The TREE’s root does not fold — that is still the writer’s
+				// decision from 323 — so its glyph is always the open one. The
+				// fold that now exists is the TABLE’s subject row, which is a
+				// different row in a different pane.
+				ctx.orgFolderIcon(rnc, rootPath, true);
+			}
+			rnc.createDiv({
+				cls: 'tree-item-inner nav-folder-title-content zg-uni-rootname',
+				text: isVault
+					? ((this.app.vault && this.app.vault.getName
+						&& this.app.vault.getName()) || 'Vault')
+					: ctx.nameOf(rootPath)
+			});
+			if (pickable) {
+				rh.addEventListener('click', () => {
+					// THROUGH THE ONE WRITER. `orgSelect` is what every other
+					// folder click goes through, and a second path to the same
+					// store is the fault this window keeps removing.
+					if (ctx.tab === 'organizer') { ctx.orgSelect(rootPath); return; }
+					// AND ON THE OTHER TABS, CLEARING THE SET IS THE WHOLE
+					// VAULT — the same act as unpicking the last folder by
+					// hand, which is how this scope has always been reached.
+					// Nothing is written and nothing is remembered.
+					// THE CURSOR STANDS DOWN WITH THE SET, and both halves are
+					// needed. `subjectRows()` falls through - the SET, then the
+					// CURSOR, then empty - so emptying the set alone lands on the
+					// cursor branch and the scope stays on whatever row was last
+					// clicked or arrowed. Measured live 2026-08-25 with every class
+					// assertion green: the root painted itself chosen and History
+					// went on reporting 859 added for 00 DASHBOARD, against 20,497
+					// for the vault. The window even said which it was using -
+					// "under the cursor" - and that hint is what holds it now.
+					if (!ctx.sel.size && !ctx.cursorDrives) return;
+					ctx.sel.clear();
+					ctx.lastPicked = null;
+					ctx.cursorDrives = false;
+					ctx.draw();
+					ctx.drawPanel();
+				});
+			}
+		}
+		const rootKids = rootFolder.createDiv({
+			cls: 'tree-item-children nav-folder-children' });
+			// The Organizer tab hangs the tree from the manuscript root (spec,
+			// SCOPE): everything outside it simply is not walked. The other
+			// tabs keep the whole vault — their machinery retires in Phase 5,
+			// and narrowing them now would change tabs the brief says to leave.
+			// FOLDED AWAY WHEN THE ROOT IS SHUT. This is the collapse-all half
+			// of G3, and it arrives with the chevron rather than as a second
+			// control: the children are simply not walked, which is the same
+			// thing every other folder does with its own fold.
+			// DEPTH 1, NOT 0 (writer, 2026-08-24: "indent everything under the
+			// vault root folder"). The root is a folder ROW, so what hangs off
+			// it is one level in - at depth 0 the top-level folders sat flush
+			// with the vault and the hierarchy read as a list with a heading.
+			// The step itself is Obsidian's own, from `indentRow`.
+			//
+			// GUARDED AGAIN (2026-08-26), and the history is the point: this
+			// was guarded at 323, unguarded at 2026-08-25 when the writer
+			// asked the root chevron back out, and is guarded once more
+			// because they have asked for it again. Twice asked, once
+			// removed — the note that stood here said "collapse-all is back
+			// on the shelf where CURRENT.md had it", and it has come off it.
+			//
+			// THE CHILDREN ARE SIMPLY NOT WALKED, which is the same thing
+			// every other folder does with its own fold — not a second
+			// control and not a display rule, so nothing can disagree about
+			// whether a hidden row exists.
+			// `tab === 'organizer'` SPELLED OUT rather than reusing the
+			// `rootFolds` const beside the chevron: that one is scoped to the
+			// root-row block and this walk is outside it. Reaching for it
+			// here threw `rootFolds is not defined` and took the whole window
+			// down — the probe's first assertion is "openManuscriptModal
+			// builds without throwing", and it caught it on the next run.
+			// …AND THE FOLD ACTUALLY FOLDS, on every tab. This read
+			// `tab === 'organizer' && orgRootShut()`, so a chevron on Export or
+			// History would have drawn, turned, and hidden nothing — which is
+			// worse than no chevron at all.
+			//
+			// THE FOLD STATE IS SHARED ACROSS TABS, and that is a decision
+			// rather than an oversight: `uniRootShut` is one key, so shutting
+			// the root on one tab shuts it on all three. It is ONE ROW — the
+			// vault root — in one pane, and giving it three keys would be three
+			// writers of one fact. Say the word if the tabs should remember it
+			// separately.
+			//
+			// IT IS NO LONGER SHARED WITH THE TABLE. This read
+			// `organizerRootShut`, the table's subject fold, and that is what
+			// collapsed the tree when the writer folded the table.
+			if (!ctx.uniRootShut()) {
+				walk('', 1, rootKids);
+			}
+
+			// The cursor is a row that is ON SCREEN. Folding away the row it
+			// was on, or filtering it out, would otherwise leave the arrow
+			// keys pointing at nothing.
+			//
+			// FOUND BY THE ELEMENT KEPT DURING THE WALK, never by a selector.
+			// The key is `kind + NUL + path`, and a NUL inside an attribute
+			// selector matches NOTHING — the CSS tokenizer replaces it with
+			// U+FFFD, so `[data-goalkey="file\0Ch 01.md"]` looks for a value
+			// no element has. The attribute is written, the query finds
+			// nothing, and the ring silently never draws. (The board has this
+			// bug; see the same note there.) The row is in hand when it is
+			// built, so there is nothing to look up.
+			if (ctx.cursor && !elByKey.has(ctx.cursor)) ctx.cursor = order[0] || null;
+			if (ctx.cursor && elByKey.has(ctx.cursor)) elByKey.get(ctx.cursor).addClass('is-cursor');
+			// THE ONE WRITER OF THE MEMORY (A211). Six places assign `cursor`;
+			// this is the one place it becomes REAL — after the fallback above
+			// has had its say — so remembering it here cannot record a key the
+			// window never actually drew.
+			ctx.ses.cursor = ctx.cursor;
+			ctx.lastOrder = order;
+
+			if (!rowsDrawn) {
+				ctx.listWrap.createDiv({ cls: 'zg-goals-empty', text: ctx.query
+					? 'Nothing in the vault by that name.'
+					: 'Nothing here to show.' });
+			}
+			// (sizeCols ran here — the grid measures the drawn rows itself;
+			// paintFoot ran here too, deleted with the standing totals.)
+		};
+
+		// ── The counts ──────────────────────────────────────────────────────
+		// ONLY WHAT IS ON SCREEN. Reading four hundred notes to fill in rows
+		// inside folded chapters is work nobody asked for: the fill walks the
+		// rows that were actually drawn, and runs again whenever a folder
+		// opens.
+		let filling = false, fillAgain = false;
+		ctx.fill = async () => {
+			// COALESCED, NOT DROPPED. A fill is started when a folder opens,
+			// when a note changes and when a column is switched on, and any
+			// two of those can arrive together — the second used to return
+			// immediately and do nothing, which fails nothing and reports
+			// nothing: the figures are simply never asked for again.
+			//
+			// This shipped UNPROVEN for a while and the comment here said so,
+			// because the obvious assertion passed the sabotage: a test that
+			// changed a note and waited was answered by the IN-FLIGHT fill,
+			// which reads the file itself and picked the change up on its way
+			// past. The dropped fill cost nothing visible, so the assertion
+			// sat beside the bug rather than on it.
+			//
+			// It is driven now, by making the queued fill the only thing that
+			// CAN supply the answer: two notes changed two seconds apart, the
+			// first fill reading one of them slowly and having no interest in
+			// the other. See `unified_probe` — "a fill asked for while one is
+			// running is not dropped".
+			if (filling) { fillAgain = true; return; }
+			filling = true;
+			try {
+				const want = [];
+				// NESTED NOW, so the rows are not the container's children.
+				// `children` used to be every row; with Obsidian's markup it is a
+				// handful of `.nav-folder` wrappers, and reading it would fill in
+				// the top level and leave every row inside a folder saying
+				// “…” for ever.
+				for (const el of Array.from(ctx.listWrap.querySelectorAll('[data-goalpath]'))) {
+					const path = el.getAttribute('data-goalpath');
+					const kind = el.getAttribute('data-goalkind');
+					if (path && !ctx.wordsBy.has(path)) want.push({ path, kind });
+				}
+				// ── AND EVERYTHING THE SORT IS ABOUT TO JUDGE ───────────────
+				//
+				// DRAWN ROWS ARE THE RIGHT SET RIGHT UP UNTIL A COLUMN STARTS
+				// HIDING ROWS. Reading only what is on screen is what keeps a
+				// large vault quick, and while an unmeasured note merely sorted
+				// last it cost nothing. Now a sorted column hides the rows with
+				// no value — and `hasSortValue` refuses to call an unmeasured
+				// note empty, correctly, which without this leaves every note
+				// in a folded folder sitting in the tree unmeasured for ever
+				// and the writer's answer permanently half-right.
+				//
+				// SO THE PRUNE PAYS FOR ITSELF, and only while it is on: sorted
+				// by tasks, every file the filters kept is read once, and the
+				// tree then says something true. Custom order and name touch
+				// nothing extra, which is the browsing case and the common one.
+				//
+				// TOMBSTONE (A58, 2026-09-03): a top-up that widened this read
+				// while a prune was on, so a row was never hidden merely for
+				// being unmeasured. `pruneEmpty()` was always false, so the
+				// block never ran; the prune it served is gone with it.
+				for (const it of want) {
+					try {
+						if (it.kind === 'folder') {
+							const st2 = await this.analyzeFolder(it.path);
+							ctx.wordsBy.set(it.path, (st2 && st2.words) || 0);
+							if (st2 && st2.sentences) ctx.gradeBy.set(it.path, st2.grade);
+							// A FOLDER WAS LAST TOUCHED WHEN ITS NEWEST NOTE
+							// WAS. A folder's own mtime is when something was
+							// added to or renamed inside it, which answers a
+							// different question and is wrong far more often.
+							let newest = 0;
+							try {
+								for (const f2 of this.filesInFolder(it.path || '/', true)) {
+									if (f2 && f2.stat && f2.stat.mtime > newest) newest = f2.stat.mtime;
+								}
+							} catch (_) {}
+							// A FOLDER'S TASKS ARE ITS CHILDREN'S, SUMMED — the
+							// question is where the work is, and a folder that
+							// answered 0/0 while holding nine unticked boxes
+							// would send a writer looking in the wrong part.
+							//
+							// TOMBSTONE: this summed `taskOf` over the folder's
+							// files — reading the cache that the window's own
+							// FILE ROWS populate. That cache holds only what has
+							// been drawn, in the order it was drawn, so a folder
+							// processed before its children summed nothing and a
+							// folder whose children sit inside a shut folder
+							// summed nothing for ever. Every folder drew an
+							// empty Tasks cell.
+							//
+							// `analyzeFolder` walks the vault and already reads
+							// every descendant. It counts the boxes now, so this
+							// is one number from one place regardless of what is
+							// on screen.
+							ctx.moreBy.set(it.path, {
+								paras: (st2 && st2.paragraphs) || 0,
+								mtime: newest || null,
+								tasks: (st2 && st2.tasks) || null
+							});
+						} else {
+							const f = this.app.vault.getAbstractFileByPath(it.path);
+							if (!f) { ctx.wordsBy.set(it.path, 0); continue; }
+							// One read, both figures: reading a manuscript
+							// twice — once to count it, once to grade it — is
+							// what makes a big vault feel slow.
+							const st2 = this.analyzeText(await this.app.vault.cachedRead(f));
+							ctx.wordsBy.set(it.path, st2.words || 0);
+							if (st2.sentences) ctx.gradeBy.set(it.path, st2.grade);
+							const txt = await this.app.vault.cachedRead(f);
+							const tk = this.countTasks(txt);
+							ctx.moreBy.set(it.path, {
+								paras: st2.paragraphs || 0,
+								mtime: (f.stat && f.stat.mtime) || null,
+								tasks: tk.all ? tk : null
+							});
+						}
+					} catch (_) { ctx.wordsBy.set(it.path, 0); }
+				}
+				// The readings arrived; the tracks re-measure themselves, so
+				// only a prune-driven redraw is left to ask for.
+				if (want.length) ctx.draw();
+			} finally { filling = false; }
+			if (fillAgain) { fillAgain = false; await ctx.fill(); }
+		};
+		return { openRow, get renaming() { return renaming; }, get cancelRename() { return cancelRename; } };
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// THE TABLE, OUT OF THE WINDOW (A252-3c)
+	// ════════════════════════════════════════════════════════════════════════
+	//
+	// Stability brief item 13. The table drawer `drawOrg` — the columns, the rows, the cells, the
+	// grouping, the grips — drew inside `openManuscriptModal` as one
+	// 2,649-line closure over the window's lets.
+	// It is a factory now. `ctx` is the window's own state seen through
+	// accessor properties: a read of `ctx.tab` is the window's `tab` at that
+	// moment, an assignment through `ctx` sets the window's variable. Nothing
+	// here copies a value; nothing here owns one the window also owns. The
+	// body is the body, comments and all, at the depth it had, with `ctx.`
+	// in front of 86 names the scan found reaching out.
+	orgTableMake(ctx) {
+		const s = ctx.s;
+		const fill = (...a) => ctx.fill(...a);
+		// A GENERATION, because the report reads files and a writer arrowing
+		// down a tree starts a read per row. Without it the answer to a row
+		// left three rows ago can land after the answer to the one they are
+		// on, and the panel silently describes the wrong chapter.
+		// ── THE ORGANIZER'S RIGHT PANE — the Table view (Phase 2) ───────────
+		//
+		// A native <table>, because the data is flat now: column sizing from
+		// real glyphs, header/cell alignment by construction, sticky header
+		// and sticky name column — ZERO custom sizing code, which is where
+		// the whole ch-model bug family lived. Caps are `max-width` +
+		// ellipsis on the cell, the full value on the hover.
+		//
+		// Custom order (no lens): rows grouped under folder headers, book
+		// order. ANY lens up: the groups DISSOLVE to a flat list, each row
+		// carrying its faint path — groups pin rows to folders, a sort
+		// claims the order, and both cannot hold. Everything is drawn from
+		// the INDEX and the stores; the fold state and the tree's DOM do
+		// not exist on this side of the window.
+		const drawOrg = () => {
+			// THE SCAN IS ONE DRAW OLD AT MOST — see `orgAllFilePaths`.
+			ctx.orgFilePathCache = null;
+			// AND SO IS THE COLUMN CEILING (A139): the pane may have been
+			// resized since the last draw, so the cached `clientWidth` is
+			// dropped here and re-read ONCE, rather than once a cell.
+			ctx.orgColCeilReset();
+			// THE EDIT-GUARD'S TEETH: while an editor holds focus, the pane
+			// is not rebuilt — the redraw waits for the edit to end. This is
+			// the one gate every repaint passes, so no caller can forget it.
+			if (ctx.orgEditGuard) { ctx.orgRedrawPending = true; return; }
+			// ── AND WHERE THE WRITER WAS LOOKING (A156) ─────────────────
+			//
+			// Writer, 2026-09-04: "when typing in a propriety cell and
+			// pressing enter, the window scrolls up after pressing enter".
+			//
+			// THE SCROLLER IS BUILT FRESH EVERY DRAW. `.zg-org-panel` is
+			// `overflow: auto` and it is created by this function — so the
+			// element the writer scrolled is thrown away and a new one, at
+			// zero, takes its place. Nothing was resetting the position;
+			// there was no position to reset, which is why `scrollTop`
+			// appeared NOWHERE in this file before this line.
+			//
+			// SO IT IS EVERY REDRAW, NOT ONLY ENTER. Committing a cell,
+			// pressing Escape, clicking another cell while one is open, a
+			// property landing from the index ring — all of them rebuild
+			// the pane, and all of them threw the writer to the first row.
+			// Enter is simply the one they were doing when they noticed.
+			// Carried HERE, at the one gate every repaint passes, rather
+			// than at the commit — a fix at the commit would leave the
+			// other three.
+			// READ FROM THE VARIABLE, NOT FROM THE ELEMENT — see
+			// `orgScrollTop`, where the reason is. This line used to be a
+			// `querySelector` and a `scrollTop`, and it was a third of the
+			// draw.
+			const orgKeepScroll = ctx.orgScrollTop;
+			// Idempotent kick: the first draw starts the sweep, the ring
+			// repaints when it lands. Everything below reads what the index
+			// knows NOW and blanks what it does not — unknown is not empty.
+			this.orgIndexEnsure();
+			const at = ctx.orgAt();
+			// ── OUTLINE HIDES THE TABLE ─────────────────────────────
+			//
+			// The writer's own words, and the whole difference between the
+			// two modes: the columns go, the name and the properties stay.
+			// Expressed as an EMPTY COLUMN LIST rather than as a second
+			// renderer, because every row, header, drag, sort and drawer
+			// below already reads `cols` - a second renderer would be a
+			// second writer of the row, which is the fault this window
+			// keeps removing.
+			//
+			// `uniColsOff` IS NOT TOUCHED. Leaving the mode must give the
+			// writer back the columns they had, so the mode may not be
+			// implemented by switching them off.
+			const cols = ctx.setCols();
+			const lensed = ctx.orgLensOn();
+			// A LENS SEES THE WHOLE SELECTION, FLAT; the book's own order is a
+			// hierarchy. One list function, two questions.
+			// ── …AND THE THIRD QUESTION IS WHAT SHAPE OF THING ─────────
+			//
+			// The writer, 2026-08-30: "the filter does not work to show only
+			// folders and such. recheck the whole filter thing."
+			//
+			// MEASURED IN THE VAULT: with `uniShow` set to `all`, `folders`
+			// and `files` in turn, this pane drew the SAME two note rows and
+			// zero folder rows every time — while the bar’s own chip read
+			// "Folders only" correctly. The setting landed and the chip said
+			// so; the table never asked. `showShape()` was read by the tree,
+			// by the chip and by the kinds menu, and by no part of the pane.
+			//
+			// HERE AND NOT IN `orgRowList`. That walk has two other callers —
+			// `orgPropKeys` and the tag list — which use it to ENUMERATE what
+			// is under the selection for the filter menu. Narrowing it there
+			// would empty both menus while Folders only is up, leaving a
+			// writer unable to build the filter that would get them out.
+			//
+			// FILES ONLY FLATTENS, and it has to. Dropping folder ROWS from a
+			// grouped walk strands every note in a shut folder: no row left
+			// to unfold, and a fold that filters is the fault this file has
+			// recorded three times. A lens flattens for the same reason.
+			const shaped = ctx.showShape();
+			// ── AND THE FOURTH QUESTION IS WHICH KINDS (2026-08-30) ────
+			//
+			// "I want attachements as table rows." The Kind axis reached the
+			// tree and not the table because `orgRowList` threw every
+			// non-`.md` away before a filter could see one. It enumerates
+			// the vault now and the narrowing is here, next to the shape,
+			// for the same reason the shape is here and not in the walk.
+			//
+			// NOTHING CHANGES FOR A WRITER WHO HAS NOT ASKED. `uniTypeSet`
+			// answers `['md']` when the store is absent or empty — its own
+			// comment says why: "an empty set would draw a tree of folders
+			// with nothing in them and read as broken rather than as
+			// strict" — so this pane draws exactly what it drew yesterday
+			// until a kind is ticked.
+			//
+			// ONE STORE, ASKED ONCE. The tree, the chip and the kinds menu
+			// all read `uniTypes`; this reads the same set rather than
+			// keeping a second opinion about which kinds are shown.
+			const kinds = this.uniTypeSet();
+			const list = ctx.orgRowList(at, lensed || shaped === 'files')
+				.filter(r0 => r0.kind === 'folder' || kinds.has(r0.group))
+				.filter(r0 => (shaped === 'folders' ? r0.kind === 'folder'
+					: shaped === 'files' ? r0.kind !== 'folder' : true));
+			const sortCol = ctx.orgLens.sort
+				? (cols.filter(c => c.id === ctx.orgLens.sort.id)[0] || null) : null;
+
+			// ── which rows the lens leaves ──────────────────────────────
+			// (The `q` branch stood first — retired with the pane's own
+			// search box, writer 2026-08-22 second pass.)
+			const shown = list.filter(row => {
+				for (const c of ctx.orgLens.chips) {
+					if (!c.off && !ctx.orgChipHit(c, row.path)) return false;
+				}
+				// Sorting BY a reading hides what has no value for it; the
+				// strip's "N of M" accounts for them below.
+				if (sortCol && ctx.orgColRaw(sortCol, row.path) === null) return false;
+				return true;
+			});
+			let rows = shown;
+			if (sortCol) {
+				const dir = ctx.orgLens.sort.dir === 'asc' ? 1 : -1;
+				rows = shown.slice().sort((a, b) => {
+					const ka = ctx.orgColSortKey(sortCol, a.path);
+					const kb = ctx.orgColSortKey(sortCol, b.path);
+					let d = 0;
+					if (typeof ka === 'number' && typeof kb === 'number') d = ka - kb;
+					else d = String(ka).localeCompare(String(kb), undefined, { numeric: true });
+					if (d) return d * dir;
+					return a.idx - b.idx;   // stable: ties keep book order
+				});
+			}
+
+			// ── AND IF NOTHING BUT ONE CELL CHANGED, ONLY THAT CELL (A209) ──
+			//
+			// THE GUARD IS THE REAL LIST, NOT A GUESS ABOUT IT. A flag can
+			// legitimately MOVE a row — the table can be sorted by it — or
+			// HIDE one, because a lens chip can filter on it. A fast path that
+			// assumed otherwise would leave a stale order on screen, which is a
+			// correctness bug bought with speed.
+			//
+			// So the rows are computed FIRST, by the code that always computes
+			// them, and the shortcut is taken only when the answer is
+			// identical. Nothing here knows what the sort or the chips do, and
+			// nothing here has to: **if the list moved, this falls through and
+			// the pane is rebuilt exactly as before.**
+			//
+			// THE DATA HALF IS NOT THE COST. Measured across a whole draw:
+			// 0.1ms in every data helper together, against 8.2ms for the draw.
+			// Computing the list twice to skip the DOM is a good trade at any
+			// size, and a better one the bigger the table.
+			const sig = rows.map(r0 => r0.path).join('\n');
+			const hint = ctx.orgCellHint;
+			ctx.orgCellHint = null;
+			if (hint && ctx.orgDrawnSig !== null && sig === ctx.orgDrawnSig
+				&& ctx.orgRepaintFlagCell(hint.td, hint.path)) {
+				return;
+			}
+			ctx.orgDrawnSig = sig;
+
+			// ── the summary strip (always visible; spec, RIGHT PANE) ────
+			ctx.subject.textContent = '';
+			ctx.subject.createSpan({ cls: 'zg-uni-subjectname',
+				// NOT "the whole manuscript" (writer, 2026-08-24): the root row
+				// says the vault's own name three inches to the left, and a
+				// strip answering it with a different word for the same thing
+				// is two names for one scope.
+				//
+				// AND "The whole vault" WAS STILL A SECOND NAME. 2026-09-01:
+				// "dont say the whole vault it sounds bad." `vaultWhole()'s
+				// "All of myNotes" carries the row's own name inside it, which
+				// is what the note above wanted and what its wording could not
+				// give it.
+				text: at ? ctx.nameOf(at) : this.vaultWhole() });
+			const agg = this.orgAggUnder(at);
+			if (agg && agg.files) {
+				let said = agg.words.toLocaleString() + ' words · '
+					+ agg.files.toLocaleString() + ' notes';
+				if (agg.tasksAll) said += ' · ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
+				ctx.subject.createSpan({ cls: 'zg-org-agg', text: said });
+			}
+			// ── TODAY'S NET UNDER THIS FOLDER (LATER-2, the strip figure) ──
+			// The history store is loaded on demand the first time the
+			// Organizer draws; until it answers, the figure simply is not
+			// there — unknown is not zero.
+			if (this.settings.historyTracking && !this._historyReady) {
+				this.historyLoad().then(() => {
+					if (ctx.tab === 'organizer') ctx.drawPanel();
+				}).catch(() => {});
+			}
+			// TOMBSTONE: THE TODAY DELTA (writer, 2026-09-01: "remove that -20
+			// today shit", crossing it out in a shot of the subject line).
+			//
+			// It summed `todayNetOf` across the rows in view and wrote
+			// "-20 today" after the tasks. Two things were wrong with it as a
+			// reading on THIS line: the rest of that sentence describes what
+			// the folder IS — words, notes, tasks — and this described what
+			// happened to it since midnight, which is a different question and
+			// the one History exists to answer. And it appeared and vanished on
+			// its own (`thit && tsum !== 0`), so the line changed length for a
+			// reason nothing on screen explained.
+			//
+			// `todayNetOf` STAYS — the goals board still draws a per-row today
+			// column through it, which is a place the question makes sense.
+			// N OF M IS ABOUT NOTES (2026-08-23). Folders became rows in this
+			// pair, and counting them here would have made the strip say
+			// "1 of 6" about a folder holding four notes - a number the
+			// writer could not check against anything. The lens hides notes;
+			// this says how many.
+			// ── …AND ABOUT THE SAME NOTES THE STRIP COUNTS ─────────────
+			//
+			// The writer, with both lines in one shot: "it says nothing passes
+			// the lens clear it to see the 46 notes and up top it says that
+			// the vault has 43 notes...(something is fucked)". They are right
+			// and it was two counters for one fact.
+			//
+			// MEASURED: the vault holds 46 markdown files and the index holds
+			// 43. The three it leaves out are `ws-structure.md`,
+			// `ws-settings.md` and `ws-history.md` — the plugin’s own store
+			// notes. `isFileCounted` refuses them so a record of the writing
+			// never counts as writing, and the strip’s "43 notes" is the
+			// partner of its "28,576 words": both come from the index.
+			//
+			// THE ROWS ARE RIGHT AS THEY ARE. Hiding those three would square
+			// the numbers and undo "also show all the filess in organizer
+			// including ws-strucutre ws-setting" (2026-08-25). So the COUNT
+			// moves, not the rows.
+			//
+			// THIS IS THE SAME EXEMPTION FOLDERS ALREADY HAD. The line under
+			// this one has skipped folder rows since 2026-08-23, for the
+			// reason written there: a row is not a note. A store note is a row
+			// that is not a note either, and now it is asked the one question
+			// the index asks rather than a second one that agrees by luck.
+			//
+			// ASKED OF `isFileCounted` AND NOT OF THE INDEX, deliberately: the
+			// index fills in asynchronously, so "not in the index" also means
+			// "not read yet", and a fresh window would count 0 notes for a
+			// moment. Unknown is not empty.
+			const orgCounted = (p0) => {
+				try {
+					const f0 = this.app.vault.getAbstractFileByPath(String(p0 || ''));
+					return !!f0 && !f0.children && this.isFileCounted(f0);
+				} catch (_) { return false; }
+			};
+			const noteCount = (rr) => rr.filter(r0 => r0.kind !== 'folder'
+				&& orgCounted(r0.path)).length;
+			const narrowed = noteCount(rows) < noteCount(list);
+			// ── ONE PLACE, AND IT IS THE CHIP ROW (writer, 2026-09-01) ──
+			//
+			// "i want the lens to be displayed in only on place not two, and
+			// imprve the text font, and make it more visually in line with
+			// the rest ui", circling both: this line in the heading and the
+			// chips under the buttons.
+			//
+			// THE CHIP ROW WINS BECAUSE IT CAN ACT. It names WHICH filter is
+			// on, sets one aside with a tick, and removes one with its ×.
+			// This line could only report a number and offer all-or-nothing,
+			// so keeping it would mean keeping the half that says less.
+			//
+			// NOTHING IS LOST: the count and the way out move INTO that row,
+			// beside the chips they are about, rather than being deleted —
+			// see the tail built after the chips.
+			// ── …AND ONE TAP OUT (brief C2: “N of M shown · clear”) ─────────
+			//
+			// Escape has cleared the lens for pairs, and a key nobody knows about
+			// is not a door — the same argument that put the Properties button in
+			// the bar when its right-click was retired.
+			//
+			// OUTSIDE THE “N of M”, and that is the correction: it was written
+			// inside it, and that line only draws when the lens actually HID
+			// something. Measured in the vault — a filter matching every note
+			// showed the count badge on the button and offered no way out at all,
+			// because nothing had been narrowed. A lens that is ON is a lens that
+			// needs taking off, whether or not it happened to remove a row.
+			// ── "PICK A PROSE FIELD IN PROPERTIES" (brief B3) ───────────────
+			//
+			// "IF proseProperty IS UNSET or the vault has no such property,
+			// Outline cards show chips only, plus one quiet line: 'Pick a prose
+			// field in Properties'. No empty furniture, no invented key."
+			//
+			// THE CHIPS-ONLY HALF NEEDED NO CODE and that is worth writing
+			// down: `synopsisKey()` returns '' when the setting is cleared,
+			// `orgChipKeys` filters against '', and every chosen field becomes
+			// a chip. The tombstone in `20-scope.js` is where that was arranged.
+			//
+			// ONCE, NOT ONCE PER CARD. The brief's sentence is about the cards,
+			// and a line inside each of them is forty copies of one sentence in
+			// a vault this size — furniture at its worst, in the batch whose
+			// own rule is "no empty furniture". It goes in the strip, where the
+			// window already says one true thing about what is on screen.
+			//
+			// AND IN OUTLINE ONLY. Table draws no cards, so there is no
+			// paragraph missing from it and nothing for the line to be about.
+			// ── TOMBSTONE: "Pick a long field in Properties" ─────────────
+			//
+			// A button in the strip, shown in Outline whenever no long field
+			// was usable, that named the state and opened the panel. Writer,
+			// 2026-08-30: "remove this 'pick a long field in proprieties'".
+			//
+			// IT CAME FROM THE BRIEF ("IF proseProperty IS UNSET … cards show
+			// chips only, plus one quiet line") and it was built as one line
+			// rather than forty. The writer has decided the line itself is the
+			// furniture: with no long field the cards simply show chips, which
+			// is a state that needs no announcing.
+			//
+			// THE DOOR IS NOT LOST WITH IT. Properties is a button in the same
+			// bar, two controls along, and it opens the same panel — which is
+			// why removing this one takes nothing away.
+			// (The "· clear" button stood here. It went with the count above
+			// it, into the chip row, for the reason written there.)
+			// (The Table|Outline toggle stood here, and the Frontmatter
+			// toggle after it - see the tombstone in the bar builder. The
+			// strip's right end is the subject's again.)
+
+			// ── the bar: Sort by + AND-combined property chips ──────────
+			// (The pane's own search input stood first — retired, writer
+			// 2026-08-22 second pass: the sidebar's tree search is THE
+			// search.)
+			ctx.panel.textContent = '';
+			const bar = ctx.panel.createDiv({ cls: 'zg-org-bar' });
+			// FIRST IN THE BAR. The three lenses below arrange, narrow and
+			// choose readings; this one decides which VIEW they are doing it
+			// to, so it reads before them rather than after.
+			// (`drawModes(bar)` stood here — see its tombstone.)
+			// ── SORT BY, said out loud (inbox) ──────────────────────────
+			// The header click still cycles; this menu is the same lens
+			// through a control a writer can FIND. One writer underneath:
+			// everything goes through orgLensSet.
+			// ── THE THREE LENSES WEAR BASES' OWN ICONS ──────────────────
+			//
+			// "sort filter and columns (rename it to proprieties) should
+			// have obsidian bases icons" (writer, 2026-08-22). A writer who
+			// has used Bases already knows what these three do, and this
+			// window is dressed as Obsidian everywhere else — borrowing the
+			// app's vocabulary is cheaper than teaching our own.
+			//
+			// TRIED IN ORDER AND CHECKED, and the chosen name is RECORDED on
+			// the element: `setIcon` with a name this build's Lucide does not
+			// know leaves the element empty instead of throwing, which is how
+			// the export icon went missing for a release. `data-icon` is what
+			// lets a probe say WHICH name drew rather than merely that
+			// something did.
+			// The attribute records the name that DREW, or the first
+			// candidate when none did — never the word 'none', which would
+			// let "an icon was asked for" pass on a build where the call
+			// was deleted. A probe can then assert a real name in jsdom
+			// (where `setIcon` is a no-op stub and nothing can draw) and
+			// the live check reads the glyph itself.
+			const lensIcon = (btn, names) => {
+				for (const n of names) {
+					try { if (setIcon) setIcon(btn, n); } catch (_) {}
+					if (btn.childElementCount > 0) { btn.dataset.icon = n; return n; }
+					btn.textContent = '';
+				}
+				btn.dataset.icon = names[0];
+				return null;
+			};
+			// ── SORT IS TABLE’S (writer, 2026-08-25) ──────────────
+			//
+			// "remove the sort button from outline", said after the
+			// measurement that made it determinate. Driven live in the
+			// vault: in Outline this menu offered EXACTLY ONE row — "The
+			// book’s own order", already ticked — because `sortMenuCols`
+			// is `cols.slice()` and `cols` is `[]` there. Every sort id
+			// then resolves against an empty list, so `sortCol` is always
+			// null and no reading can arrange anything.
+			//
+			// A control offering one choice, which is the state it is
+			// already in, answers nothing — the same fault as the
+			// Frontmatter toggle and the header’s property picker, in the
+			// third of the three lenses and the last of them to go.
+			//
+			// FILTER STAYS. Measured in the same drive: its five axes
+			// (Kind · Tasks · Flag · Tag · Property) read the ROWS, not
+			// `cols`, and every one of them works here. Taking both away
+			// would have satisfied the ask and been the wrong change.
+			//
+			// AND THE STORED SORT SURVIVES THE MODE — see `orgLensOn`,
+			// which stopped counting it in Outline in this same pair. It
+			// is kept and unread, so switching back to Table finds the
+			// arrangement where it was left.
+			const sortBtn = bar.createEl('button',
+				{ cls: 'zg-export-mini zg-org-sortby' });
+			lensIcon(sortBtn, ['arrow-up-down', 'arrow-down-up',
+				'arrow-up-narrow-wide', 'sort-asc']);
+			// A LABEL SPAN, not `setText`: setText replaces every child, so
+			// it would take the icon straight back out again.
+			sortBtn.createSpan({ text: sortCol
+				? 'Sort: ' + sortCol.label + zgSortArrow(ctx.orgLens.sort.dir)
+				: 'Sort' });
+			sortBtn.title = 'Arrange the rows by a reading — Custom Order is a click away';
+			sortBtn.addEventListener('click', (ev) => {
+				const menu = new Menu();
+				// RENAMED WITH THE STATEMENT, not after it. The Outline's
+				// statement is documented as using “the same words the sort menu
+				// uses for this state, so the two places naming one order cannot
+				// drift apart”. Changing one and not the other would make that
+				// sentence false the moment it was written.
+				menu.addItem((i) => i.setTitle('Custom Order')
+					.setIcon('list-ordered')
+					.setChecked(!ctx.orgLens.sort)
+					.onClick(() => ctx.orgLensSet({ sort: null })));
+				menu.addSeparator();
+				// THE SORT MENU HAS AN ORDER OF ITS OWN (writer, 2026-08-23:
+				// "arrange better the sorting submenu, by relevance to an
+				// obsidian user; right now last modified is the first
+				// column, so it makes no sense for that to be at the top").
+				//
+				// It was at the top BECAUSE it was the first column: this
+				// loop ran over `cols`, which is the TABLE's order after the
+				// writer's own column drags. So dragging a column silently
+				// reordered the sort menu, and two lists answering two
+				// different questions shared one order. A column order says
+				// what you want to READ side by side; a sort order says what
+				// you want to ARRANGE by, and those are not the same ranking.
+				//
+				// Ordered by what a writer steers on: the size of the thing
+				// and the size it is meant to be, then what is outstanding
+				// and where it is up to, then time, then the analytical
+				// readings, and last the metadata columns — which fall
+				// through with rank `length`, so a writer's own property
+				// columns keep their table order among themselves. Array
+				// sort is stable, so that tie is a real guarantee.
+				//
+				// A NEW COLUMN NEEDS NO ENTRY HERE: an unnamed id ranks
+				// last rather than throwing or vanishing, which is the
+				// failure the hand-typed `GROUPS` list in the Properties
+				// menu had to grow a self-completing tail to survive.
+				const SORT_RELEVANCE = ['words', 'goal', 'tasks', 'mark',
+					'modified', 'created', 'grade', 'paras', 'tags'];
+				const sortRank = (c) => {
+					const at = SORT_RELEVANCE.indexOf(c.id);
+					return at === -1 ? SORT_RELEVANCE.length : at;
+				};
+				const sortMenuCols = cols.slice()
+					.sort((a, b) => sortRank(a) - sortRank(b));
+				for (const col of sortMenuCols) {
+					menu.addItem((i) => {
+						const here = sortCol && sortCol.id === col.id;
+						i.setTitle(col.label + (here
+							? zgSortArrow(ctx.orgLens.sort.dir) : ''));
+						// ── AND EACH ROW WEARS ITS OWN GLYPH AGAIN ────────
+						//
+						// FOUND BY A ROTATING SWEEP, not by looking: three
+						// sabotage cases aimed at `i.setIcon(so.icon)`, which
+						// appears 0 times in the build. The 2026-08-23 rewrite
+						// — "arrange better the sorting submenu, by relevance to
+						// an obsidian user" — changed this loop from `SORTS` to
+						// `cols`, and the glyphs went with it. The ask was about
+						// ORDER; nobody asked for the icons to go, and "Custom
+						// Order" kept its own, which is what made the menu read
+						// as broken rather than as a decision.
+						//
+						// LOOKED UP BY ID in `SORTS`, so `BUILTIN_SORTS` stays
+						// the ONE writer of what each BUILT-IN reading looks
+						// like.
+						//
+						// A WRITER'S OWN PROPERTY COLUMN DOES GET ONE, and the
+						// sentence here used to say it did not (corrected
+						// 2026-08-30, after reading the menu in the vault and
+						// finding `Locations` and `Description` wearing
+						// `lucide-tag`). `sortDefs` concatenates the user
+						// columns with `icon: 'tag'`, so they are in `SORTS`
+						// too — one glyph for "this is a property of yours",
+						// which is a true thing to say about all of them.
+						// They still fall through to rank `length` in the
+						// order above; that half was right.
+						try {
+							const def = ctx.SORTS.filter((s) => s.id === col.id)[0];
+							if (def && def.icon && i.setIcon) i.setIcon(def.icon);
+						} catch (_) {}
+						i.setChecked(!!here);
+						// First pick sorts DESC (newest-biggest first, the
+						// header's own opening move); picking it again
+						// turns it round.
+						i.onClick(() => ctx.orgLensSet({ sort: {
+							id: col.id,
+							dir: here && ctx.orgLens.sort.dir === 'desc' ? 'asc' : 'desc'
+						} }));
+					});
+				}
+				menu.showAtMouseEvent(ev);
+			});
+			// ── FILTER BY, searchable (inbox) ───────────────────────────
+			// "i can search for one and add it": the button opens a NAMING
+			// input with the folder's own property keys as suggestions —
+			// type to narrow, Enter to pick, then the value stage as
+			// before. A menu of forty property rows was a list to read;
+			// this is a box to ask.
+			const addBtn = bar.createEl('button',
+				{ cls: 'zg-export-mini zg-org-addfilter' });
+			lensIcon(addBtn, ['list-filter', 'filter', 'funnel']);
+			addBtn.createSpan({ text: 'Filter' });
+			// ── AND HOW MANY ARE ON (brief C2) ────────────────────────
+			//
+			// “The button carries a count badge.” The chips beside it already say
+			// WHICH filters are on; this says HOW MANY without reading them, and
+			// it is the half that still shows when the strip is narrow.
+			//
+			// COUNTS THE APPLIED ONES ONLY. A chip can be unticked and left in
+			// place — that is what its checkbox is for — and a badge counting
+			// those would say the view is narrowed when it is not.
+			{
+				const on = ctx.orgLens.chips.filter(c => !c.off).length;
+				if (on) addBtn.createSpan({ cls: 'zg-org-filtercount', text: String(on) });
+			}
+			addBtn.title = 'Narrow by a property — type to search the folder’s own keys';
+			addBtn.addEventListener('click', (ev) => {
+				// ── FILTER IS A MENU OF AXES (writer, asked three times) ──
+				//
+				// "the filter button should have a submenu with filter by
+				// files type, tags, properties (then another submenu, etc)".
+				// Before this it opened a free-text key box: a writer had to
+				// already know a property's name to narrow by it, and the
+				// three axes they name most - kind, tag, flag - were not
+				// reachable from this button at all.
+				//
+				// A SEARCH BAR ONLY WHERE THE LIST IS LONG. Kind is 12 rows,
+				// Flag at most 6, Tasks 4 - a search box over those is
+				// furniture. Tag and Property are unbounded, so those open
+				// the picker.
+				//
+				// ONE PROBE, ON A SCRATCH MENU. Asking the live menu answers
+				// the question and leaves a titleless row behind, in every
+				// build, for ever - the tombstone is on the column menu.
+				let nests = false;
+				try {
+					new Menu().addItem((i) => {
+						nests = typeof i.setSubmenu === 'function';
+					});
+				} catch (_) { nests = false; }
+				const menu = new Menu();
+				// One probe for all five: a build with submenus has them
+				// everywhere, and asking per group could give one nested
+				// heading beside two flattened ones.
+				const group = (title, icon, fill) => {
+					if (nests) {
+						menu.addItem((i) => {
+							i.setTitle(title);
+							try { if (icon) i.setIcon(icon); } catch (_) {}
+							// FILLED INSIDE A GUARD: Obsidian pushes the item
+							// AFTER the callback returns, so a throw in here
+							// loses the whole row and the menu comes back
+							// silently missing a fifth of itself.
+							try { fill(i.setSubmenu()); }
+							catch (e) { console.error('Word-Smith: filter menu', e); }
+						});
+						return;
+					}
+					menu.addSeparator();
+					menu.addItem((i) => i.setTitle(title).setIsLabel(true));
+					fill(menu);
+				};
+				// LIFTED (brief C4) — see `orgAddChip` beside `orgAt`. The name
+				// stays local so the dozen call sites in this handler read the
+				// same as they always did.
+				const addChip = ctx.orgAddChip;
+
+				// KIND writes the store, not a chip: `uniTypes` already holds
+				// this and already draws its own chip in the bar. A second
+				// copy in the lens would be two writers of one fact.
+				group('Kind', 'shapes', (into) => ctx.typeRows(into));
+
+				// TASKS is a question, not a value - there is nothing to
+				// enumerate, so the four answers are named here. They are the
+				// only axis whose reading is an OBJECT, which is why
+				// orgChipHit has to know about it.
+				// TWO ROWS, NOT FOUR (writer, 2026-08-26): "the submenu for
+				// filter-task must say only - has tasks/ without taks,
+				// remove the rest of the options."
+				//
+				// TOMBSTONE: `{ id: 'open', label: 'Has unfinished tasks' }`
+				// and `{ id: 'done', label: 'All tasks done' }`. Their
+				// branches in `orgChipHit` went in the same pass — a
+				// matcher arm no menu can reach is a filter nobody can build
+				// and nobody can see is gone. Safe because `orgLens` is a
+				// LOCAL and is never persisted: no saved chip can arrive
+				// carrying a retired id.
+				group('Tasks', 'check-square', (into) => {
+					for (const t of [
+						{ id: 'any',  label: 'Has tasks' },
+						{ id: 'none', label: 'No tasks' }
+					]) {
+						into.addItem((i) => i.setTitle(t.label)
+							.onClick(() => addChip({ axis: 'tasks', id: t.id,
+								key: 'Tasks', value: t.label })));
+					}
+				});
+
+				// FLAG carries the ID and shows the LABEL: a writer can rename
+				// a flag in settings, and a chip holding the old word would
+				// quietly stop matching the rows it used to.
+				// ── AND EACH ROW WEARS ITS FLAG (writer, 2026-08-26) ────
+				//
+				// "add the flag icons in the submenu of filter - flags."
+				// These rows were bare text while every other surface —
+				// the row menu, the bar, the table cell, the outline title
+				// line — draws the flag's own shape beside its name.
+				//
+				// THE PATTERN IS `src/20-scope.js`'s, copied deliberately:
+				// a DocumentFragment holding a `.zg-menuflag` span with
+				// `zgFlagSvg` inside it, then the label as a text node. A
+				// menu title takes a fragment, and NO LUCIDE NAME DRAWS
+				// THESE SHAPES — FACTS records that the glyphs are put into
+				// the item by hand for exactly this reason, so `setIcon`
+				// is not an option here.
+				//
+				// ONE WRITER: `zgFlagSvg` is the only thing that knows what
+				// a flag looks like, and this is its fourth caller rather
+				// than a fourth drawing.
+				group('Flag', 'flag', (into) => {
+					let defs = [];
+					try { defs = this.flagDefs() || []; } catch (_) { defs = []; }
+					const titled = (id, label) => {
+						const frag = document.createDocumentFragment();
+						const mark = document.createElement('span');
+						mark.className = 'zg-menuflag is-' + id;
+						mark.innerHTML = zgFlagSvg(id, 12);
+						frag.appendChild(mark);
+						frag.appendChild(document.createTextNode(label));
+						return frag;
+					};
+					for (const d of defs) {
+						into.addItem((i) => i.setTitle(titled(d.id, d.label))
+							.onClick(() => addChip({ axis: 'flag', id: d.id,
+								key: 'Flag', value: d.label })));
+					}
+					// "No flag" GETS THE SLOT AND NO SHAPE. It is the absence
+					// of a flag, so drawing one would be a lie — but without
+					// the span its label starts at a different x from the six
+					// above it, which is the ragged column this window keeps
+					// removing. `zgFlagSvg('')` returns the outline mark, and
+					// the stylesheet's `.zg-menuflag.is-` holds the width.
+					into.addItem((i) => i.setTitle(titled('', 'No flag'))
+						.onClick(() => addChip({ axis: 'flag', id: '',
+							key: 'Flag', value: 'none' })));
+				});
+
+				// TAG is unbounded, so it opens the picker. `uniTagsInScope`
+				// is the enumerator whose own header says it is "the list the
+				// filter menu offers" - scope-scoped and commonest-first, and
+				// its counts are real, so the picker's count line is not a
+				// number nobody counted.
+				group('Tag', 'tag', (into) => {
+					into.addItem((i) => i.setTitle('Search tags…')
+						.onClick(() => {
+							let tags = [];
+							try {
+								tags = this.uniTagsInScope(
+									ctx.orgRowList(at, true).map(r => r.path)) || [];
+							} catch (_) { tags = []; }
+							if (!tags.length) {
+								try { new Notice('No tags in these notes'); } catch (_) {}
+								return;
+							}
+							const items = tags.map(t => ({ tag: t.tag,
+								label: '#' + t.tag, n: t.n }));
+							const take = (it) => addChip({ axis: 'tag',
+								key: 'Tag', value: it.tag });
+							if (WsPropSuggestModal) {
+								try {
+									new WsPropSuggestModal(this.app, items, take,
+										'Which tag?').open();
+									return;
+								} catch (_) {}
+							}
+							const pick = new Menu();
+							for (const it of items.slice(0, 20)) {
+								pick.addItem((i2) => i2.setTitle(it.label)
+									.onClick(() => take(it)));
+							}
+							try { pick.showAtMouseEvent(ev); }
+							catch (_) { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
+						}));
+				});
+
+				// PROPERTY: two long lists, so two pickers - the key, then its
+				// values under this selection. `orgPropKeys` is the right
+				// enumerator rather than `propKeysInScope`, which is built for
+				// COLUMNS: it drops tags and drops keys already shown, and a
+				// writer may well want to filter on a column they can see.
+				group('Property', 'table-properties', (into) => {
+					// ── THE TWO QUESTIONS THAT NEED NO VALUE (brief C2) ───────
+					//
+					// They come FIRST because they are the ones a writer arrives
+					// wanting: “which scenes have no synopsis” is the query the
+					// brief names as the reason this tool exists, and it cannot be
+					// asked by picking a value — there is no value to pick.
+					//
+					// ONE KEY PICKER, TWO ROWS, rather than a value picker with two
+					// special entries hidden in it: the value list is built from
+					// what EXISTS under the selection, so a key nobody has filled
+					// in has an empty list — and that is exactly the key this
+					// question is for.
+					const askEmpty = (op) => {
+						const keys = ctx.orgPropKeys(at);
+						if (!keys.length) {
+							try { new Notice('No properties in these notes'); } catch (_) {}
+							return;
+						}
+						const items = keys.map(k => ({ key: k, label: k }));
+						const take = (it) => addChip({ key: it.key, op: op, value: '' });
+						if (WsPropSuggestModal) {
+							try {
+								new WsPropSuggestModal(this.app, items, take,
+									op === 'empty' ? 'Which property is empty?'
+										: 'Which property is filled in?').open();
+								return;
+							} catch (_) {}
+						}
+						const pk2 = new Menu();
+						for (const it of items.slice(0, 20)) {
+							pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
+						}
+						try { pk2.showAtMouseEvent(ev); }
+						catch (_) { try { pk2.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
+					};
+					into.addItem((i) => i.setTitle('Is empty…')
+						.onClick(() => askEmpty('empty')));
+					into.addItem((i) => i.setTitle('Is not empty…')
+						.onClick(() => askEmpty('filled')));
+					into.addItem((i) => i.setTitle('Search properties…')
+						.onClick(() => {
+							const keys = ctx.orgPropKeys(at);
+							if (!keys.length) {
+								try { new Notice('No properties in these notes'); } catch (_) {}
+								return;
+							}
+							// LIFTED (brief C4) — `orgFilterByKey` beside `orgAt`, so
+							// the header's "Filter by this…" and this one enumerate
+							// the same values from the same subject.
+							const pickValue = (key) => ctx.orgFilterByKey(key, ev);
+							const items = keys.map(k => ({ key: k, label: k }));
+							if (WsPropSuggestModal) {
+								try {
+									new WsPropSuggestModal(this.app, items,
+										(it) => pickValue(it.key),
+										'Which property?').open();
+									return;
+								} catch (_) {}
+							}
+							const pk = new Menu();
+							for (const it of items.slice(0, 20)) {
+								pk.addItem((i2) => i2.setTitle(it.label)
+									.onClick(() => pickValue(it.key)));
+							}
+							try { pk.showAtMouseEvent(ev); }
+							catch (_) { try { pk.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
+						}));
+				});
+				try { menu.showAtMouseEvent(ev); }
+				catch (_) { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
+			});
+			// ── COLUMNS, A BUTTON AT LAST (writer, 2026-08-22) ──────────
+			//
+			// "a COLUMNS button with checkboxes joins the bar." The list
+			// itself is unchanged and unmoved — `colsMenu` is still the one
+			// builder, ticks and all — this is the door it never had since
+			// the eye button retired with the old tab.
+			// ── AND THE KIND NARROWING WEARS A CHIP HERE ────────────────
+			//
+			// The old `typeChip` is built into `.zg-goals-top`, which THIS
+			// TAB HIDES OUTRIGHT — so a writer who had switched every kind
+			// but Notes off saw a short tree and no sign at all, which is
+			// exactly the fault that chip was written to prevent. It still
+			// serves the other tabs; the Organizer gets its own, in the bar
+			// where the narrowing is made, in the same chip grammar as the
+			// property filters beside it.
+			//
+			// A READER, NOT A SECOND STORE: the label comes from
+			// `typeLabel()` and the × writes through `setShape`, the same
+			// one writer the menu uses.
+			// ── THE KIND CHIP MOVED DOWN WITH THE OTHERS (writer, 2026-09-03) ──
+			//
+			// "filter has that pill for types in the right, the rest are
+			// displayed below and pill is different visually. make them
+			// homogenous, put the pills bellow." It stood HERE, in the button
+			// row between Filter and Properties, while every other chip was
+			// drawn in the chip row beneath — one grammar spoken in two places.
+			//
+			// AND IT HAD TO MOVE IN THE CODE, NOT JUST CHANGE ITS PARENT, for
+			// the same reason the chip row's own comment gives: `chipHost` and
+			// `chipBtn` are declared further down, so a call from here is a
+			// temporal-dead-zone throw, not a misplaced element. It is built
+			// beside the property chips now — see "THE KIND NARROWING" there.
+			// PROPERTIES, not Columns (writer, 2026-08-22). The menu lists
+			// the readings AND the writer's own frontmatter keys, which is
+			// what Obsidian calls properties — "Columns" named the container
+			// rather than the contents.
+			const colsBtn = bar.createEl('button',
+				{ cls: 'zg-export-mini zg-org-colsbtn' });
+			lensIcon(colsBtn, ['table-properties', 'settings-2', 'list',
+				'columns-3']);
+			colsBtn.createSpan({ text: 'Properties' });
+			// ── AND ONE DOOR THAT SHUTS EVERYTHING ────────────────────
+			//
+			// "add a Collapse all expand all button in the right of
+			// proprieties" (writer, 2026-08-31).
+			//
+			// THIS CONTROL HAS HISTORY AND IT IS THEIRS. It was built at 323
+			// as a fold on the ROOT ROW and asked back out on 2026-08-25 —
+			// "remove the chevron and the collapsible stuff of the root" —
+			// which took collapse-all with it. What is asked for now is a
+			// BUTTON IN THE BAR, which is a different control: the root row
+			// keeps exactly what they kept last time, and this does not put
+			// a chevron back on it.
+			//
+			// ONE BUTTON, TWO JOBS, so its label is the only thing telling a
+			// writer which they are about to get — and the test is whether
+			// ANY folder is open, not whether all are. With nine folders and
+			// one open, "Expand all" would be a lie about the eight that are
+			// shut and would do nothing to the one that is not.
+			//
+			// IT WRITES THROUGH `orgOpenSet`, the one writer of the fold, so
+			// a folded-away row and a hidden row cannot come to mean two
+			// different things.
+			const foldBtn = bar.createEl('button',
+				{ cls: 'zg-export-mini zg-org-foldall' });
+			// EVERY ROW THAT CAN BE OPENED, note or folder (writer, 2026-08-31:
+			// "the expand all collapse all should open the notes too displaying
+			// the proprieties").
+			//
+			// This filtered to folders, which reads as the obvious meaning of
+			// "fold" in a tree and is not what the control is for here. A NOTE
+			// opens too, and what it opens is its property card — the tiny
+			// chevron on its own row. `orgOpen` has always held both, and
+			// `orgIsOpen` is the same question asked of either, so the filter
+			// was the only thing making them two different kinds of open.
+			//
+			// IT REACHES BOTH VIEWS. Table draws no cards, so opening a note
+			// there shows nothing until the writer switches — which is right,
+			// not a gap: the state is the same state, and a door that meant
+			// something different in each view would be two doors.
+			//
+			// ── AND IT READS THE WHOLE SUBTREE, NOT WHAT IS ON SCREEN ───────
+			//
+			// MEASURED, by driving the button in the vault: from a shut view,
+			// one click on "Expand all" opened four rows of fifteen. It asked
+			// `orgRowList(orgFolder, false)`, which walks only folders that
+			// are ALREADY OPEN — so expanding could only ever reveal one
+			// level, and the rows it uncovered stayed shut. Collapse looked
+			// right the whole time, because shutting a parent hides its
+			// children whether or not they were told.
+			//
+			// NEITHER FLAG ALONE IS "EVERYTHING": `flat` dives through every
+			// folder regardless of its fold but OMITS the folders from what
+			// it returns, and `!flat` returns both kinds but walks only what
+			// is open. So the files come from the flat walk and the folders
+			// from their own paths — no second tree walk, and no chance of a
+			// second walker disagreeing with the first about what is under a
+			// folder.
+			//
+			// A FOLDER WITH NO NOTES UNDER IT IS NOT IN THE LIST, because no
+			// file names it. Opening it would reveal nothing, so the only
+			// difference is its own chevron — said here rather than left for
+			// somebody to find.
+			const foldable = () => {
+				const out = new Set();
+				for (const r0 of ctx.orgRowList(ctx.orgFolder, true)) {
+					out.add(r0.path);
+					const bits = String(r0.path).split('/');
+					bits.pop();
+					let acc = '';
+					for (const b of bits) {
+						acc = acc ? acc + '/' + b : b;
+						// Only what is at or under the scope: an ancestor above it
+						// is not a row in this view and is not ours to fold.
+						if (!ctx.orgFolder || acc === ctx.orgFolder
+							|| acc.indexOf(ctx.orgFolder + '/') === 0) out.add(acc);
+					}
+				}
+				return Array.from(out);
+			};
+			const anyOpen = foldable().some(p0 => ctx.orgIsOpen(p0));
+			lensIcon(foldBtn, anyOpen ? ['chevrons-down-up', 'fold-vertical', 'minimize-2']
+				: ['chevrons-up-down', 'unfold-vertical', 'maximize-2']);
+			// THE GLYPH ALONE (writer, 2026-08-31, an hour after asking for
+			// the button: "put only the icon here, no need to write expand
+			// all"). It sits in a row of four labelled controls, and it was
+			// the widest of them for the least-used job.
+			//
+			// SO THE TITLE CARRIES THE WHOLE NAME, and it has to: the icon
+			// flips with the state, which means the picture is the only
+			// thing on screen saying which of two jobs a click will do. An
+			// `aria-label` as well, because a button whose only text is a
+			// drawing has no name at all to a screen reader.
+			// "every folder" stood here and stopped being true when the door
+			// reached the notes: what it opens is every row that HAS an open
+			// state, which is a folder and a note’s property card alike.
+			const foldSay = anyOpen ? 'Collapse all \u2014 shut every folder and card'
+				: 'Expand all \u2014 open every folder and card';
+			foldBtn.title = foldSay;
+			foldBtn.setAttribute('aria-label', foldSay);
+			foldBtn.addEventListener('click', (ev) => {
+				ev.stopPropagation();
+				const want = !anyOpen;
+				// ONE CALL, NOT ONE PER FOLDER — see `orgOpenSetMany`. This loop
+				// is what made the button slow: six saves and six whole-panel
+				// rebuilds for five rows, 640ms inside a single click.
+				ctx.orgOpenSetMany(foldable(), want);
+			});
+			// ── ONE DOOR, AND IT ANSWERS THE MODE IT IS STANDING IN ─────
+			//
+			// The checklist used to be `zg-org-headpickbtn`, a second door
+			// at the right end of the Outline header row. The writer asked
+			// for it folded in here (2026-08-25: "the property-checklist
+			// button is weird where it is — fold it into the Properties
+			// button"), and the categories ask above rearranges this very
+			// menu, so the two were built in one go: apart, the second
+			// undoes the first.
+			//
+			// IT IS NOT A MERGE OF THE TWO LISTS. Measured live in the
+			// vault, 2026-08-25, in Outline: the table draws TWO header
+			// cells (the name and the picker's spacer) while `uniColsOff`
+			// leaves seven columns switched on — because `cols` is `[]` in
+			// Outline by design, and the comment beside that line says so.
+			// So the columns list configures NOTHING here, and offering it
+			// would be the same fault as the Frontmatter toggle: a control
+			// answering a question this view does not have.
+			//
+			// The two modes get the menu that belongs to them. Table is the
+			// columns; Outline is the properties under every row.
+			// ── ONE DOOR, AND IT NO LONGER ASKS WHICH MODE IT IS IN ─────
+			//
+			// TOMBSTONE (brief C3): a tooltip that read “Which properties
+			// every row shows” in Outline and “which properties the table
+			// shows” in Table. It was right while the button opened TWO
+			// DIFFERENT MENUS — and that split was the fault: which
+			// properties existed depended on the mode you were standing in.
+			// One panel answers both questions at once, so the tooltip names
+			// both surfaces and stops changing under the writer.
+			colsBtn.title = 'Which properties this window shows — a column'
+				+ ' in the table, a field under every row in Outline';
+			// IT TOGGLES. A second press on an open panel shuts it, which is
+			// what a writer expects of a button that opened one — and what a
+			// probe driving this door has to know, because re-reading the
+			// list after a tick would otherwise CLOSE the panel and read
+			// nothing at all.
+			colsBtn.addEventListener('click', () => {
+				if (ctx.orgPropPopEl()) { ctx.orgPropPopClose(); return; }
+				ctx.orgPropPopOpen(colsBtn);
+			});
+			// TOMBSTONE: THE FRONTMATTER TOGGLE (2026-08-24) ---------------
+			//
+			// `.zg-org-drawer`, a bar button reading "Frontmatter" with a
+			// chevron that was its state, plus `orgDrawer`, `orgDrawerSet`
+			// and the `organizerDrawer` store behind it. Pairs 291 and 297
+			// spent three changes making it read as a toggle, so it was put
+			// to the writer as a question before anything was deleted.
+			//
+			// THEIR ANSWER, 2026-08-24: retire it. Two controls in one bar
+			// answered one question - Frontmatter-on in Table was very
+			// nearly Outline - and the mode picker is the one that names
+			// both of its states. What is lost with it is the combination
+			// the toggle alone could give: the columns AND the property
+			// rows at once. That was said before they chose, and they
+			// chose. Table is the columns; Outline is the properties.
+			//
+			// This also closes INBOX G0m, which had asked for the button to
+			// MOVE into the Properties menu as "Show properties". A menu
+			// item is still a second door onto the same question; the
+			// answer above deletes the question instead.
+			// (SAVED LENSES stood here, one day old; removed at the writers
+			// word — see the orgLens tombstone above.)
+			// ── TOMBSTONE: THE FREE-TEXT FILTER DRAFT (removed 2026-08-30) ──
+			//
+			// 114 lines stood here: a `property:` box with a datalist of
+			// every key under the subject, and behind it a `key:` box with a
+			// datalist of that key's values. Type a name, Enter, type a
+			// value, Enter, and a chip went up.
+			//
+			// **NOTHING COULD OPEN IT.** The outer block asked
+			// `orgChipDraft && orgChipDraft.naming`, and `orgChipDraft` had
+			// exactly ONE writer of a non-null value — inside that block, at
+			// the naming box's own Enter. No line in this repo ever set
+			// `naming`. The inner block, the value box, was reachable only
+			// from the outer one. Both were unreachable from the first
+			// keystroke a reader could make.
+			//
+			// MEASURED IN THE VAULT BEFORE REMOVING ANY OF IT: pressing
+			// Filter and choosing `Property` leaves `.is-draft` at 0
+			// elements and the modal's only `<input>` is the goals search.
+			// It opens the KEY PICKER instead — `orgFilterByKey`, which is
+			// the live path and goes through `orgAddChip` like every other.
+			//
+			// AND IT COST A BATCH BEFORE IT WENT. On 2026-08-30 I found the
+			// value box concatenating a chip of its own, bypassing the
+			// one-chip-for-one-narrowing rule, and read it as the writer's
+			// reported twin arriving through a second door. It was the right
+			// reading of the code and the wrong reading of the program: the
+			// door does not open. THAT is what CLAUDE.md means by "a method
+			// with no callers is not free" — it is a thing the next person
+			// reads, keeps working, and writes assertions about.
+			//
+			// The rule it was walking around is still enforced, at the one
+			// birth site, and `unified_probe` holds that there is one.
+
+			// ── THE ACTIVE CHIPS, UNDER THE CONTROLS THAT MADE THEM ──
+			//
+			// Writer, 2026-08-23. They were in the SUBJECT STRIP, far right,
+			// sharing a line with the word and note counts - so the thing
+			// that changed the list sat nowhere near the control that
+			// changed it. Under the buttons is where a writer looks.
+			//
+			// A SIBLING OF THE BAR, NOT A CHILD OF IT, and that is not a
+			// preference: `.zg-org-bar` is `flex-wrap`, so chips appended
+			// into it would sit BESIDE the buttons until the line filled,
+			// which is not "under" - and the kind chip is asserted to live
+			// INSIDE the bar, so the bar has to survive untouched.
+			//
+			// AND IT HAD TO MOVE IN THE CODE, not just change its parent:
+			// this ran before `bar` existed, and `panel.textContent = ''`
+			// two lines above the bar would have wiped anything appended
+			// early. It is built LAZILY so a lens-free window pays no empty
+			// row and no gap for it.
+			let chipRowEl = null;
+			const chipHost = () => (chipRowEl
+				|| (chipRowEl = ctx.panel.createDiv({ cls: 'zg-org-chiprow' })));
+			// The active lens, as dismissible chips — pressing one takes
+			// only ITS narrowing away.
+			const chipBtn = (label, undo) => {
+				const b = chipHost().createEl('button', { cls: 'zg-org-chip' });
+				b.createSpan({ text: label });
+				b.createSpan({ cls: 'zg-org-chipx', text: '×' });
+				b.title = 'Remove this';
+				b.addEventListener('click', undo);
+			};
+			if (sortCol) {
+				chipBtn(sortCol.label + zgSortArrow(ctx.orgLens.sort.dir),
+					() => ctx.orgLensSet({ sort: null }));
+			}
+			// (The “query” chip stood here — retired with the pane's search.)
+			for (const c of ctx.orgLens.chips) {
+				// A filter chip carries a CHECKBOX (inbox): unticking sets
+				// the filter aside without losing what was typed; the ×
+				// still removes it for good. Sort and search chips have no
+				// box — there is nothing of theirs to keep while off.
+				const b = chipHost().createEl('button',
+					{ cls: 'zg-org-chip' + (c.off ? ' is-off' : '') });
+				const tick = b.createEl('input', { cls: 'zg-org-chiptick' });
+				tick.type = 'checkbox';
+				tick.checked = !c.off;
+				tick.title = c.off ? 'Tick to apply this filter again'
+					: 'Untick to set this filter aside';
+				tick.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					ctx.orgLensSet({ chips: ctx.orgLens.chips.map(x => x === c
+						? Object.assign({}, x, { off: !x.off }) : x) });
+				});
+				// A CHIP SAYS WHAT IT ASKS. `synopsis: ` with nothing after the
+				// colon would be an empty-looking chip for a filter that is
+				// precisely ABOUT emptiness — unreadable, and indistinguishable
+				// from a filter whose value had been lost.
+				b.createSpan({ text: c.op === 'empty' ? c.key + ' is empty'
+					: c.op === 'filled' ? c.key + ' is not empty'
+					: c.key + ': ' + c.value });
+				b.createSpan({ cls: 'zg-org-chipx', text: '×' });
+				b.title = 'Remove this';
+				b.addEventListener('click', () => ctx.orgLensSet({
+					chips: ctx.orgLens.chips.filter(x => x !== c) }));
+			}
+			// ── WHAT THE LENS COSTS, AND THE WAY OUT, BESIDE THE CHIPS ──
+			//
+			// Both of these were in the heading, two lines above a row that
+			// was already about the lens. Here they sit with what they
+			// describe, and the pane says the lens once.
+			//
+			// THE COUNT ONLY WHEN SOMETHING IS HIDDEN, which is the reading
+			// the old line already had: "5 of 5 shown" is a sentence about
+			// nothing. THE WAY OUT WHENEVER THE LENS IS ON, which is the
+			// correction that line carried — a filter matching every note
+			// still has to come off, and offering the door only when a row
+			// happened to be hidden was measured in the vault as no door at
+			// all.
+			// ── THE KIND NARROWING, IN THE SAME ROW AND THE SAME SHAPE ──
+			//
+			// Moved here 2026-09-03 on the writer's word (see the tombstone
+			// where it used to stand). It is a BUTTON now, not a div, and it
+			// is dismissed by pressing it anywhere rather than by hitting the
+			// × alone — which is what every chip beside it already does, and
+			// the whole of what "homogenous" asks for. The × stays as the
+			// sign that it can be dismissed; it is no longer its own target.
+			//
+			// NOT `chipBtn`, THOUGH IT IS ITS TWIN: this one carries a second
+			// class so the probe and `selectors.js` can still name it, and its
+			// undo is async. Teaching `chipBtn` an options argument for one
+			// caller would be the more tangled of the two.
+			//
+			// OUTSIDE `orgLensOn()`, deliberately: the kinds are narrowed by
+			// the shape picker, not by the lens, so this chip must appear with
+			// no lens on at all. `chipHost()` builds the row lazily, so asking
+			// for it here is what makes the row exist in that case.
+			{
+				const onKinds = this.uniTypeSet();
+				const allKinds = this.uniTypeGroups();
+				if (onKinds.size < allKinds.length || ctx.showShape() !== 'all') {
+					const kc = chipHost().createEl('button',
+						{ cls: 'zg-org-chip zg-org-kindchip' });
+					kc.createSpan({ text: 'kind: ' + ctx.typeLabel() });
+					kc.createSpan({ cls: 'zg-org-chipx', text: '×' });
+					kc.title = 'Only some kinds of file are shown — press to show every kind again';
+					kc.addEventListener('click', async () => {
+						// BOTH STORES, as the old chip's × learnt the hard way:
+						// on "Folders only" (every kind, one shape) undoing the
+						// kinds alone changed nothing at all.
+						this.settings.uniTypes = allKinds.map(g => g.id);
+						await ctx.setShape('all');
+						ctx.drawPanel();
+					});
+				}
+			}
+			if (ctx.orgLensOn()) {
+				const tail = chipHost().createDiv({ cls: 'zg-org-chiptail' });
+				if (narrowed) {
+					tail.createSpan({ cls: 'zg-org-shownof',
+						text: noteCount(rows) + ' of ' + noteCount(list) + ' shown' });
+				}
+				const cl = tail.createEl('button', { cls: 'zg-org-clearlens' });
+				cl.setText('Clear all');
+				cl.title = 'Take the lens off — Escape does this too';
+				cl.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					ctx.orgLensClear();
+				});
+			}
+
+			// ── the table ───────────────────────────────────────────────
+			const wrap = ctx.panel.createDiv({ cls: 'zg-org-panel' });
+			// AND IT REPORTS WHERE IT IS (A157). A fresh box every draw means
+			// a fresh listener every draw — which is right, not wasteful: the
+			// old box is discarded with its listener, so nothing accumulates.
+			// `passive` because this never calls `preventDefault`, and a
+			// non-passive scroll listener makes the browser wait for it.
+			wrap.addEventListener('scroll', () => {
+				ctx.orgScrollTop = wrap.scrollTop;
+				ctx.ses.scroll = ctx.orgScrollTop;
+			}, { passive: true });
+			// THE TABLE WEARS ITS MODE. Everything that differs between the
+			// two views is an ARRANGEMENT, so it belongs in the stylesheet
+			// keyed off one stamped class - not in a second renderer. A
+			// second renderer is how a window ends up with two descriptions
+			// of a row that have to be kept in step.
+			const table = wrap.createEl('table', { cls: 'zg-org-table' });
+			ctx.orgNameStamp(table);
+			const thead = table.createEl('thead');
+			const hr = thead.createEl('tr');
+			// TOMBSTONE, AND THEN ITS REVERSAL (writer, 2026-08-22, then C4).
+			//
+			// WHAT WENT, AND WHY: the header's RIGHT-CLICK, which carried the
+			// whole columns menu and, under a separator, the kinds. "No
+			// right-click menu on the table's top header — everything through
+			// the bar's buttons." Two reasons beyond the asking: a gesture is
+			// not a door (a writer who never right-clicks a header never finds
+			// either LIST), and this header is already the SORT control, so
+			// one target answered three questions.
+			//
+			// WHAT CAME BACK, AND WHY IT IS NOT THE SAME THING: C4 asks for
+			// "header right-click menu (sort ↑, sort ↓, filter by this…, hide
+			// column)". It carries no LIST — the columns are the Properties
+			// panel and the kinds are behind Filter by — so the first reason
+			// no longer applies: nothing here is reachable ONLY from a
+			// gesture. It is decision (b)'s "extra ENTRY POINT into that
+			// state, never a second copy of it", and the menu is built beside
+			// the drag, four lines down.
+			// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
+			//
+			// NOT IN OUTLINE (writer, 2026-08-31: "remove that Name in the
+			// outline mode — it does nothing to outline mode"). The Outline
+			// header is ONE cell, so "Name" is a column heading standing over
+			// a view that has no columns to head: it names nothing, it sorts
+			// nothing, and the row beneath it is a title line rather than a
+			// Name cell.
+			//
+			// THE CELL STAYS. The table still needs a header row for its
+			// sticky top and for the row that sizes the pane; what goes is
+			// the word. Emptying it rather than dropping the `<th>` also
+			// keeps the two modes one table, which is what stops the switch
+			// rebuilding the whole thing.
+			const nameTh = hr.createEl('th',
+				{ cls: 'zg-org-name', text: 'Name' });
+			// NOT IN OUTLINE (writer, 2026-08-30: "we don’t need the separator
+			// in outline view"). There is one column there and nothing to
+			// separate it FROM, so a line down the pane is furniture with no
+			// job — and a grip that resized the only column would be a control
+			// for a width nothing competes for.
+			ctx.orgNameGripBind(ctx.panel, nameTh, table);
+			// ── AND THE SEAM RUNS THE PANE, NOT THE ROWS ──────────────
+			//
+			// Writer, 2026-08-30: "the vertical line is botched." Measured:
+			// the table ended at y=286.3 in a pane whose bottom is y=733.8, so
+			// the hairline stopped 447px short and hung in white space. A
+			// column separator that ends with the data reads as a fragment.
+			//
+			// SO IT IS THE HOST’S, NOT THE CELLS’. The Name column is sticky at
+			// the wrap’s left edge, so its right edge is at the SAME screen x
+			// whatever the table is scrolled to — which is exactly what lets one
+			// line outside the scroller stand in for a border on every cell.
+			// The cells’ own `border-right` comes off with this: two writers of
+			// one line is how a seam ends up doubled or stepped.
+			//
+			// MEASURED IN A FRAME, not at build time. The width is the table’s
+			// answer to its own content and there is no layout to ask until the
+			// rows are in.
+			// ── ONE DEVICE PIXEL, NOT ONE CSS PIXEL ────────────────────────
+			//
+			// Writer, twice: "make that selection accent line 1px", then — with
+			// it already at 1px — "the selected file line is not thinned", and
+			// then a shot of the bar itself: "that line."
+			//
+			// MEASURED ON THAT ROW: a plain 1px x 23.6px fill, no shadow, no
+			// border, no radius, no filter. Nothing widened its paint, and 1px
+			// is the floor for a CSS length. What made it read thick is where
+			// it landed: `devicePixelRatio` is 1.25 on this display, so the bar
+			// sat at CSS x 441.8 = device 552.25 and spanned to 553.5 — three
+			// quarters of one device pixel and half of the next. Two partly-lit
+			// columns read as a soft two-pixel line, which is exactly the
+			// complaint.
+			//
+			// SO IT IS SNAPPED ONTO THE DEVICE GRID and given exactly one device
+			// pixel of width. Both numbers are read from the machine at draw
+			// time — `devicePixelRatio` and the bar's own resolved offset — so
+			// nothing here is a literal that a different display would make
+			// wrong.
+			//
+			// THE OFFSET IS READ FROM THE PSEUDO-ELEMENT, which is the one
+			// writer of where the bar is: `getComputedStyle(el, '::before')`
+			// resolves the `calc(guidex + (depth - 1) * step)` the stylesheet
+			// owns, so this never restates that expression and cannot drift
+			// from it. THE SNAP IS ZEROED BEFORE READING, or the second call
+			// would measure a position that already includes the first call's
+			// correction and double it.
+			//
+			// BOTH SURFACES, because A35 and A42 both settled on "like in the
+			// organiser filetree" — thinning one alone is how they come to
+			// disagree again.
+			const orgSnapAccent = () => {
+				const w0 = ctx.ownerWin();
+				const dpr = (w0 && w0.devicePixelRatio) || 1;
+				// FROM THE WINDOW, AND WALKED UP FROM THE TABLE. The tree is the
+				// OTHER pane, so this pane found nothing and the snap went unwritten
+				// on the surface that shares the rule — measured as `snap: (unset)`
+				// on a tree bar still 1.25 device pixels wide.
+				//
+				// NOT FROM `host`. The `host` in scope HERE is the one
+				// `openManuscriptModal` opens with — `o.host || this.modalHost()` —
+				// and it is not always an element: it threw
+				// `host.querySelector is not a function` in the running vault, out
+				// of `orgNameLine`, which took the seam stamping down with it. The
+				// element-valued `host` is a DIFFERENT binding declared inside
+				// `orgNameLine` as `wrap.parentElement`, and it is not in scope here.
+				// `table` is an element in both.
+				const scope = table.closest('.zg-uni-modal')
+					|| table.closest('.modal') || table.ownerDocument;
+				// THE RATIO GOES ON THE WINDOW, THE SNAP ON THE MARK. They are
+				// two different facts and they become knowable at different
+				// times: the ratio is true of the whole window from the first
+				// paint, while the snap needs the mark to EXIST and be laid out.
+				// MEASURED: on an open where the followed note was already
+				// active, the tree row is built after this runs, so it read
+				// `snap: (unset)` and stayed 1.25 device pixels wide while the
+				// table beside it was 1 — the two surfaces A35 and A42 both said
+				// to keep matched, disagreeing. Inherited from here, the width is
+				// right on both from the start; the position follows on the next
+				// draw.
+				if (scope && scope.style) {
+					scope.style.setProperty('--zg-dpr', String(dpr));
+				}
+				const marks = [
+					table.querySelector('.zg-org-row.zg-org-active td.zg-org-name'),
+					scope.querySelector('.zg-uni-list .zg-org-active')
+				];
+				for (const el of marks) {
+					if (!el) continue;
+					try {
+						el.style.setProperty('--zg-dpr', String(dpr));
+						el.style.setProperty('--zg-org-snap', '0px');
+						const off = parseFloat(
+							w0.getComputedStyle(el, '::before').insetInlineStart);
+						if (!isFinite(off)) continue;
+						const x = el.getBoundingClientRect().left + off;
+						// ── SNAP TO THE GUIDE, NOT TO THE PIXEL GRID (A201) ──
+						//
+						// Writer, 2026-09-06, with the row circled: "there is a
+						// tiny mismatch of the accented line, it does not stays
+						// perfectly on the chevron line".
+						//
+						// MEASURED before touching it, at depth 3 and dpr 1.25:
+						// the accent's left edge sat at 188.0 and the guide's at
+						// 188.4 — and `--zg-org-snap` read **-0.400px**. The
+						// snap was the thing moving it. It rounded the bar onto
+						// a DEVICE PIXEL, which is the right answer for a
+						// hairline that has nothing to line up with, and the
+						// wrong one here: the guide is Obsidian's own border and
+						// lands where its layout puts it — 188.4 is 235.5 device
+						// pixels, not on the grid at all. Snapping to the grid
+						// therefore moved our bar AWAY from the line it exists
+						// to sit on.
+						//
+						// SO THE GUIDE IS THE TARGET WHEN THERE IS ONE. The
+						// `- 4.8px` in the stylesheet gets the bar close from a
+						// measurement taken once; this puts it exactly there,
+						// per row, at whatever depth and whatever that inset
+						// really is today. The constant becomes the first guess
+						// and the measurement is the answer.
+						const box = (typeof el.closest === 'function')
+							? el.closest('.tree-item-children') : null;
+						let want = null;
+						if (box) {
+							const bx = box.getBoundingClientRect().left;
+							if (isFinite(bx)) want = bx;
+						}
+						// NO GUIDE, NO TARGET. The table's mark has no
+						// indentation line beside it, so it keeps the device
+						// grid — a hairline with nothing to align to should at
+						// least be crisp. A35 and A42 keep the two surfaces'
+						// WIDTHS matched, which is what was asked; only the
+						// tree has a line to sit on.
+						if (want === null) want = Math.round(x * dpr) / dpr;
+						el.style.setProperty('--zg-org-snap', (want - x).toFixed(3) + 'px');
+					} catch (_) {}
+				}
+			};
+			const orgNameLine = () => {
+				try {
+					const host = wrap.parentElement;
+					if (!host) return;
+					// OUTLINE DRAWS NEITHER. The variables are REMOVED rather than
+					// zeroed: the host keeps its style attribute across a redraw,
+					// so a stale width left behind would put a line down an
+					// Outline the moment anything else repainted it.
+					host.style.removeProperty('--zg-org-outw');
+					const w = nameTh.getBoundingClientRect().width;
+					if (!(w > 0)) return;
+					// THE WRAP’S OWN INSET COUNTS. The seam is positioned
+					// against the HOST and the column is measured inside the
+					// WRAP, and the wrap does not start at the host’s left edge.
+					// Measured with the width alone: the seam landed at x=760.8
+					// against a column ending at 772.8 — twelve pixels left, the
+					// exact inset, drawn straight through the names.
+					host.style.setProperty('--zg-org-nameline',
+						Math.round(wrap.offsetLeft + w) + 'px');
+					host.style.setProperty('--zg-org-nametop',
+						Math.round(wrap.offsetTop) + 'px');
+					// AND IT STOPS WITH THE ROWS (writer: "the separator is too
+					// long, make it stop somewhere is logical").
+					//
+					// It ran to the floor of the pane, which was the fix for it
+					// stopping 447px short as a cell border — and overshot the
+					// other way: a rule down 450px of empty white. THE LOGICAL
+					// STOP IS THE LAST ROW, because that is where the columns it
+					// separates end.
+					//
+					// CLAMPED TO THE PANE, or a table taller than its pane would
+					// stamp a height that reaches past the bottom of the window.
+					//
+					// AND NOT ROUNDED (writer, 2026-09-01: "i want the intersection
+					// of the column separator and row to be perfects, no overshoots
+					// like that").
+					//
+					// A TABLE IS NOT A WHOLE NUMBER OF PIXELS TALL. Measured in the
+					// writer's vault: the table stood at 166.8px and `Math.round`
+					// stamped 167, so the grip — which takes this as its height —
+					// ended 0.2px BELOW the last row it is meant to stop with. Every
+					// row height here is fractional (23.6px rows, a 24.4px header),
+					// so rounding to a whole pixel cannot land on a row edge except
+					// by accident.
+					//
+					// TWO DECIMALS, NOT NONE. The raw double would stamp a
+					// seventeen-digit string into a style attribute on every draw;
+					// hundredths are finer than a device pixel at any ratio this
+					// runs at, so the seam and the grip land on the row edge and the
+					// attribute stays readable.
+					//
+					// AND `tall` IS DECLARED HERE, which it stopped being for three
+					// deploys: an anchored edit to this block dropped the line and
+					// nothing said so. The reference threw, the enclosing `catch (_)`
+					// swallowed it, and the symptom was a grip 23.6px tall and a name
+					// grip of 0 — with `--zg-org-nameline` set two lines above, which
+					// is what finally located it: the function ran and stopped in the
+					// middle. A SILENT CATCH AROUND A WHOLE FUNCTION BODY IS A PLACE
+					// A MISSING LINE CAN HIDE.
+					const tall = Math.min(table.getBoundingClientRect().height,
+						wrap.clientHeight);
+					host.style.setProperty('--zg-org-nameend',
+						Math.max(0, tall).toFixed(2) + 'px');
+				} catch (_) {}
+				// WITH THE SEAM, so the accent is re-snapped by every trigger the
+				// seam already has — the synchronous stamp, the ResizeObserver on
+				// the table, and the task queued after the build. A pane dragged
+				// narrower moves the cell, which moves the bar off the grid.
+				// GUARDED ON ITS OWN. This is decoration; the seam and the grip
+				// height above are structure. A throw in here must not take them
+				// with it — which it can, because the stamp above sits in a try
+				// whose catch is silent, so the failure would show up as a grip
+				// with no height and no error anywhere.
+				try { orgSnapAccent(); } catch (_) {}
+			};
+			// THE FIT MEASURES THIS TABLE. Installed beside the seam’s own
+			// closure and for the same reason: both are built here and read
+			// from somewhere else.
+			//
+			// READ EVERYTHING, THEN WRITE. The stamps come off, one layout is
+			// forced by the first read, every width is taken, and only then is
+			// anything set — interleaving makes the browser lay the table out
+			// again on every column.
+			ctx.orgColFitNow = () => {
+				const ths = Array.from(table.querySelectorAll('thead th[data-col]'));
+				if (!ths.length) return;
+				// EVERY CELL, not every header — `orgColLive` writes a column by
+				// walking `th, td`, and this is the same walk undone. Measuring
+				// after clearing only the headers is what made this button a
+				// round trip; see `orgColUnfix`.
+				for (const cell of Array.from(
+					table.querySelectorAll('th[data-col], td[data-col]'))) {
+					ctx.orgColUnfix(cell);
+				}
+				const ceil = ctx.orgColCeil(wrap);
+				const got = ths.map((th2) => ({
+					id: th2.getAttribute('data-col'),
+					w: Math.round(th2.getBoundingClientRect().width)
+				}));
+				const m = Object.assign({}, ctx.orgColPx());
+				for (const g of got) {
+					if (!g.id || !(g.w > 0)) continue;
+					// THE CEILING BINDS HERE TOO, which is the writer’s caveat:
+					// "for long columns like a description, the resize should
+					// not make the column too wide". A Description holding a
+					// sentence is exactly the column that would take the pane.
+					m[g.id] = Math.max(ctx.ORG_COL_MIN, Math.min(ceil, g.w));
+				}
+				s.uniColPx = m;
+				this.saveSettings().catch(() => {});
+				ctx.drawPanel();
+			};
+			ctx.orgNameLineNow = orgNameLine;
+			// STAMPED NOW AND AGAIN NEXT FRAME.
+			//
+			// Writer, 2026-08-30: "no vertical separator". Their window had
+			// `--zg-org-nameline` UNSET, so the seam sat at its `-1px` fallback
+			// and the cells no longer draw one — a table with no separator at
+			// all. The window was built before this code existed and kept
+			// running against the new stylesheet, which is what a deploy does
+			// to an open window; but a seam that shows NOTHING when its stamp
+			// has not run is one missed frame away from that state at any time.
+			//
+			// SO IT IS SET SYNCHRONOUSLY TOO. Reading the width here forces the
+			// layout the rAF was waiting for, and the rAF stays because a pane
+			// that is still being sized answers differently a frame later.
+			// ── AND IT IS MEASURED WHEN THERE IS SOMETHING TO MEASURE ──
+			//
+			// Writer, 2026-08-30: "no vertical separator" — twice, the second
+			// time on a freshly opened window, which ruled out the orphaned-
+			// window explanation I had given for the first.
+			//
+			// TRACED: `--zg-org-nameline` was UNSET at 80ms, 300ms, 900ms and
+			// 1800ms after opening, in a table with 12 columns and 2 rows and
+			// a header cell 752px wide. So it was never stamped, not stamped
+			// and lost. THE CALL RUNS HERE — between creating the Name heading
+			// and the loop that adds the other eleven — so at that instant the
+			// cell measures 0 and the guard against a zero width returns.
+			//
+			// A ResizeObserver IS THE ANSWER, not a later call site. It fires
+			// once as soon as the cell HAS a size, which is the moment the
+			// number becomes knowable, and again whenever it changes — so the
+			// seam follows a pane being dragged narrower, which no amount of
+			// stamping at build time would have done.
+			//
+			// ONE AT A TIME. The panel redraws often; an observer per draw
+			// would hold every dead table in the session and stamp from all
+			// of them.
+			// ── TOMBSTONE: `orgReadWidths` AND THE OUTLINE READING SLOTS ──
+			//
+			// It sized `.zg-org-outread[data-read]` slots so one reading kept
+			// one width down the whole outline — "align them like in the mockup
+			// so they look good". The Outline card went at 485 and nothing has
+			// built that class since: NOT `src/`, NOT the stylesheet. Its only
+			// occurrence in the whole build was the `querySelectorAll` inside
+			// this function, looking for itself.
+			//
+			// SO IT RAN ON EVERY DRAW AND RETURNED AT ITS FIRST LINE — the
+			// `if (!all.length) return` guard — twice per panel, once here and
+			// once from the post-build timeout below.
+			//
+			// FOUND BY THE GATE ONLY AFTER THE GATE WAS TAUGHT TO SEE IT
+			// (486w): `ws-dev/selectors.js` greps main.js as TEXT, so a class
+			// that is only ever QUERIED reads the same as one that is BUILT.
+			// It now reports "READ BUT NEVER BUILT", and this was the one and
+			// only name it named.
+			//
+			// `orgNameLine` below is live and stays: it is the Name column's
+			// seam, watched by the ResizeObserver described above.
+			orgNameLine();
+			try {
+				if (ctx.orgNameRO) { ctx.orgNameRO.disconnect(); ctx.orgNameRO = null; }
+				const w0 = ctx.ownerWin();
+				if (w0 && w0.ResizeObserver) {
+					// THE TABLE, NOT THE HEADING. Observing the cell alone was
+					// unreliable in a way worth writing down: it fired once
+					// while the header held only the Name column, stamped a
+					// width and a height from THAT — 785px and 24px against a
+					// finished table of 1253.8 and 96.6 — and had no reason to
+					// fire again, because adding rows does not resize a cell.
+					// Sometimes it had not fired at all by 1.6s. The TABLE
+					// changes size as it is built, so it is the thing to watch.
+					ctx.orgNameRO = new w0.ResizeObserver(() => orgNameLine());
+					ctx.orgNameRO.observe(table);
+					ctx.orgNameRO.observe(wrap);
+				}
+				// AND ONCE MORE AFTER THE BUILD, unconditionally. The panel is
+				// drawn in one synchronous pass, so a task queued here runs
+				// with the finished table in front of it — which is the one
+				// moment every number this needs is knowable. The observer is
+				// what keeps it true afterwards; this is what makes it true.
+				if (w0 && w0.setTimeout) w0.setTimeout(() => {
+					orgNameLine();
+				}, 0);
+			} catch (_) {}
+			for (const col of cols) {
+				const th = hr.createEl('th', { cls: ctx.colTextish(col) ? 'is-text' : '' });
+				th.setAttribute('data-col', col.id);
+				// NAMED, so it can be given a box of its own to be clipped in.
+				// The `th` cannot do it: the resize grip is a CHILD of this cell
+				// and hangs 3px past its right edge and the whole height of the
+				// table, so `overflow: hidden` here would clip the control the
+				// writer just asked to be able to grab.
+				th.createSpan({ cls: 'zg-org-headlabel', text: col.label });
+				// ── THE STORED WIDTH, IF THERE IS ONE ──────────────────
+				//
+				// Absent means "the table decides", which is what every
+				// column has always got and what a double-click hands back.
+				// All three properties, because a `<table>` treats `width` as
+				// a suggestion and will overrule it from the content alone.
+				ctx.orgColStamp(th, col.id, wrap);
+				ctx.orgColGripBind(th, col, wrap);
+				if (sortCol && sortCol.id === col.id) {
+					th.createSpan({ cls: 'zg-org-sortmark',
+						text: zgSortArrow(ctx.orgLens.sort.dir) });
+				}
+				// desc → asc → custom, the spec's cycle. A click is a LENS,
+				// so it goes through the lens's one writer.
+				th.title = 'Sort: newest-biggest first, then smallest, then the book’s order';
+				th.addEventListener('click', () => {
+					// NOT THE ONE THAT ENDS A DRAG. See `orgGripReleasedAt`: the
+					// click a grip release synthesises lands here, because the
+					// grip itself takes no pointer events.
+					if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
+					const cur = ctx.orgLens.sort;
+					if (!cur || cur.id !== col.id) {
+						ctx.orgLensSet({ sort: { id: col.id, dir: 'desc' } });
+					} else if (cur.dir === 'desc') {
+						ctx.orgLensSet({ sort: { id: col.id, dir: 'asc' } });
+					} else {
+						ctx.orgLensSet({ sort: null });
+					}
+				});
+				// ── AND A DRAG MOVES IT (inbox: draggable columns) ──────
+				// The old band's exact grammar and arithmetic: a drop TAKES
+				// THE TARGET'S PLACE (not a swap), the hidden columns keep
+				// their rank, `uniColOrder` is the one store. The NAME
+				// header is outside this loop on purpose — it is the sticky
+				// first column and does not move.
+				th.setAttribute('draggable', 'true');
+				th.addEventListener('dragstart', (ev) => {
+					ctx.orgDragCol = col.id;
+					try { ev.dataTransfer.setData('text/plain', col.id); } catch (_) {}
+				});
+				th.addEventListener('dragover', (ev) => {
+					if (ctx.orgDragCol && ctx.orgDragCol !== col.id) ev.preventDefault();
+				});
+				th.addEventListener('drop', async (ev) => {
+					ev.preventDefault();
+					const moved = ctx.orgDragCol;
+					ctx.orgDragCol = null;
+					if (!moved || moved === col.id) return;
+					const now = cols.map(x => x.id);
+					const from = now.indexOf(moved);
+					if (from !== -1) now.splice(from, 1);
+					const at = now.indexOf(col.id);
+					now.splice(at === -1 ? now.length : at, 0, moved);
+					const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : [])
+						.filter(id => now.indexOf(id) === -1);
+					s.uniColOrder = now.concat(rest);
+					await this.saveSettings();
+					ctx.drawPanel();
+				});
+				th.addEventListener('dragend', () => { ctx.orgDragCol = null; });
+				// ── AND A RIGHT-CLICK IS BACK (brief C4) ───────────────────
+				//
+				// THIS REVERSES 2026-08-22, and the reversal is the writer's own
+				// ("header right-click menu — sort ↑, sort ↓, filter by this…,
+				// hide column"). The tombstone that stood here gave two reasons
+				// for removing it, and only one of them has been answered:
+				//
+				//  · "A GESTURE IS NOT A DOOR" — still true, and still the rule.
+				//    What changed is that it is no longer the ONLY door to any
+				//    of these. Sort is a bar button, Filter is a bar button, the
+				//    columns are the Properties panel. This is an extra ENTRY
+				//    POINT into the same state — decision (b)'s own words —
+				//    rather than the place a writer has to find something.
+				//  · "ONE TARGET ANSWERED THREE QUESTIONS" — the header is
+				//    still the sort control on a plain click. That is why the
+				//    two sort rows say ↑ and ↓ rather than repeating the cycle:
+				//    the click cycles, the menu picks.
+				//
+				// AND IT CARRIES THE REMOVAL, which is not a nicety. Removing a
+				// property column lived in `colsMenu`'s per-property submenu
+				// until 375 replaced that menu with the panel — and the panel
+				// does not offer it, because unticking ▦ HIDES rather than
+				// removes and a panel row that could delete itself is a tick
+				// away from a mistake. So for two pairs there was no reachable
+				// way to remove one at all. It belongs beside the thing it
+				// removes, which is this header — the same argument the old
+				// `columnItems` comment made before its menu became unreachable.
+				th.addEventListener('contextmenu', (ev) => {
+					ev.preventDefault();
+					ev.stopPropagation();
+					const menu = new Menu();
+					menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
+					menu.addItem((i) => i.setTitle('Sort \u2191')
+						.setIcon('arrow-up')
+						.onClick(() => ctx.orgLensSet({
+							sort: { id: col.id, dir: 'asc' } })));
+					menu.addItem((i) => i.setTitle('Sort \u2193')
+						.setIcon('arrow-down')
+						.onClick(() => ctx.orgLensSet({
+							sort: { id: col.id, dir: 'desc' } })));
+					// FILTER ONLY WHERE THERE ARE VALUES TO ENUMERATE. A reading
+					// is arithmetic over the note, not a value the note carries,
+					// and `orgDistinctUnder` has nothing to answer with — a row
+					// that always ends in "No values for Words" is a control
+					// that only ever apologises.
+					const fkey = col.user ? String(col.key)
+						: (col.id === 'tags' ? 'tags' : '');
+					if (fkey) {
+						menu.addItem((i) => i.setTitle('Filter by this\u2026')
+							.setIcon('list-filter')
+							.onClick(() => ctx.orgFilterByKey(fkey, ev)));
+					}
+					menu.addSeparator();
+					menu.addItem((i) => i.setTitle('Hide this column')
+						.setIcon('eye-off')
+						.onClick(async () => {
+							ctx.colOff.add(col.id);
+							s.uniColsOff = Array.from(ctx.colOff);
+							await this.saveSettings();
+							ctx.stampCols();
+							ctx.draw(); fill(); ctx.drawPanel();
+						}));
+					// ── TOMBSTONE: "Remove this property" (writer, 2026-09-04) ──
+					//
+					// "the right click on a propriety header in the table (remove
+					// a propriety vs hide a propriety -- maybe it's best just to
+					// have only hide) and the deletion of a propriety to be made
+					// by the user in a note or with propriety view core plugin".
+					//
+					// THE PRINCIPLE, said twice about two controls: THIS PLUGIN
+					// SHOWS AND HIDES COLUMNS; OBSIDIAN DELETES PROPERTIES.
+					//
+					// AND IT MATCHES WHAT THE CODE ALREADY DID. `removeProp`
+					// touched four settings and NO file — measured at A133 —
+					// so this item wore a trash icon beside "Hide this column"
+					// and the difference between them was invisible: one hid a
+					// column, the other forgot it. Neither deleted anything a
+					// writer could see.
+					//
+					// WHERE DELETION LIVES NOW: a note's property is removed in
+					// Obsidian's own Properties view or by editing the
+					// frontmatter; a non-md file's is removed by CLEARING ITS
+					// CELL, which drops the row from `ws-structure.md`.
+					try { menu.showAtMouseEvent(ev); }
+					catch (_) { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) {} }
+				});
+			}
+			// ── TOMBSTONE: THE HEADER'S OWN PROPERTY PICKER ───────────
+			//
+			// `.zg-org-headpickbtn` — a button at the right end of the
+			// Outline header row, Scrivener's arrangement, which the writer
+			// chose on 2026-08-23 over two drafts of their own. Retired
+			// 2026-08-25 at the same writer's word: “the property-checklist
+			// button is weird where it is — fold it into the Properties
+			// button.” It opens from `zg-org-colsbtn` in the bar now, which
+			// is the button whose question it answers, so there is one door
+			// onto the set instead of two.
+			//
+			// WHAT SURVIVES THE RETIREMENT, and it is not optional: the
+			// header CELL. Every row builds a matching `zg-org-pickcell`, and
+			// a header one cell short is the ragged table that `one cell per
+			// heading` reported the moment this column arrived — and the
+			// drawer rows' colspan is `cols.length + 2`, the second of which
+			// is this cell. Dropping the button is the change; dropping the
+			// column is a different one and would have to move the colspan
+			// with it. So the cell is still drawn in BOTH modes, exactly as
+			// before, and only its contents are gone.
+			//
+			// NOT DRAGGABLE AND NOT A SORT, still: every other th in this row
+			// is both, and this one never was, because it is not a column.
+			// ── AND OUTLINE HAS EXACTLY ONE COLUMN ───────────────────────
+			//
+			// "it’s still cut", and the colspan did not settle it either.
+			// MEASURED: the name cell spanned both columns and STILL came out
+			// 428px while the field rows beside it, spanning the same two,
+			// measured 773.4. The difference is `display: flex` — which is
+			// what makes `max-width` apply to a table cell, and which stops it
+			// being a table cell, so neither its `width` NOR its `colspan`
+			// reaches the column algorithm. The surplus went to the sticky
+			// pick column and sat there as a 337px hole.
+			//
+			// A TABLE’S COLUMNS FILL IT. With one column there is nowhere for
+			// a surplus to go, so the arithmetic stops mattering: the cell is
+			// the row and the row is the table. The pick cell exists to hold
+			// the header picker level with eleven other columns — in Outline
+			// there are no other columns, and the picker lives in the bar.
+			hr.createEl('th', { cls: 'zg-org-headpick' });
+			const tbody = table.createEl('tbody');
+			// +2, NOT +1: the Name column and the picker's own header cell.
+			// A drawer row that spans one column short leaves the picker's
+			// column drawing a stray vertical rule down the whole table.
+			// ONE COLUMN IN OUTLINE, so the cards span one. `cols.length + 2`
+			// counts the Name and the pick cell beside the readings; Outline
+			// emits neither the readings nor the pick.
+			const colspan = cols.length + 2;
+			// THE ONE TRANSITION the design brief allows the table (writer's
+			// Fable notes): a ~150ms fade when the binder dissolves into the
+			// flat list or comes back - it teaches "my folders melted
+			// because I sorted". Only on the CHANGE, never on an ordinary
+			// repaint, and the stylesheet stands down under
+			// prefers-reduced-motion.
+			//
+			// TOMBSTONE: it used to watch a `grouping` flag - lens down AND
+			// more than one parent among the rows - because a folder reached
+			// the table only as a run-break header. A folder is a ROW now, so
+			// that flag lost its meaning: at the top level every row shares
+			// one parent and it read false while the hierarchy was plainly
+			// there. What actually dissolves is the BINDER, and what
+			// dissolves it is a lens. So that is what is watched.
+			if (ctx.orgLastGrouping !== null && lensed !== ctx.orgLastGrouping) {
+				table.addClass('is-melt');
+			}
+			ctx.orgLastGrouping = lensed;
+			// (The `is-grouped` class went with the flag: the indent is a
+			// per-row depth now, not one flat step for a single level.)
+			// THE PROPERTY BLOCKS SLIDE IN, and only when they ARRIVE.
+			// `drawPanel` rebuilds this table on every sort, filter,
+			// edit-commit and property swap; an animation keyed to a field
+			// row merely existing would replay on all of them, which is the
+			// twitch this stamp exists to avoid.
+			//
+			// IT WATCHED THE DRAWER FLAG UNTIL 2026-08-24. The toggle is
+			// retired, so what reveals the properties is arriving in
+			// OUTLINE - the same event, one control along. Arriving only,
+			// never leaving: going back to Table is a rebuild WITHOUT the
+			// rows, so there is nothing left on screen to animate out.
+			// ── TOMBSTONE: THE GROUP HEADER ROW ─────────────────────────
+			//
+			// A folder used to reach this table only as a run-break: when
+			// `row.parent` changed, a `zg-org-group` row was emitted with
+			// the folder's RELATIVE PATH as its label and its immediate
+			// notes' totals in the columns. Two faults came with it, and
+			// the writer named both (2026-08-23): a folder holding both
+			// notes and subfolders got its header a SECOND time, at the
+			// bottom, under its own subfolders' contents - because the walk
+			// emitted subtrees before a folder's own notes; and there was
+			// no way to arrange the folders themselves, because they were
+			// not rows and had nothing to drag.
+			//
+			// A FOLDER IS A ROW NOW. It sits in the one interleaved order
+			// its parent already stores, it carries the same cells every
+			// other row carries, and it folds. What the header used to do
+			// - the folder glyph, the folder's context menu, being a drop
+			// target that MOVES a note in - the row does, on itself.
+			// ── THE TABLE NAMES ITS SUBJECT (writer, 2026-08-23) ────────
+			//
+			// "add the selected folder header row." One caption for the
+			// whole table, emitted once, HERE - outside the loop below, so
+			// that it cannot become the run-break header the tombstone
+			// above records. It names the folder the pane is already about,
+			// which is never also one of the rows under it.
+			//
+			// THE COUNT COMES FROM THE INDEX, not from `rows`. `rows` is
+			// what is DRAWN - folded folders keep their contents out of it -
+			// so a caption counting them would say "2 notes" about a folder
+			// holding forty, and change when a writer folded something. The
+			// folder cells already read `orgUnder` for exactly this reason.
+			// ── THE LENS EMPTIED IT, OR A FOLD DID (writer, 2026-08-30) ──
+			//
+			// W1: "the vault ROW still draws when nothing passes." Three
+			// options were costed and they chose 2 — **hide it when a LENS
+			// emptied the table, keep it when a FOLD did** — and the cost
+			// was stated before they chose: the totals go while a filter is
+			// up, so you cannot see what you are filtering against.
+			//
+			// THE FOLD CASE MUST KEEP IT, and that is the whole reason this
+			// is a condition rather than a deletion. With the root shut the
+			// subject row is the only thing on screen and its CHEVRON IS THE
+			// ONLY WAY BACK IN. Hiding it there would be a window a writer
+			// could not reopen without touching the store.
+			//
+			// THE THREE TERMS, each doing work:
+			//   !rows.length   nothing is drawn
+			//   list.length    but there was something to draw — `list` is
+			//                  post-SHAPE and pre-LENS, so "Folders only"
+			//                  over a folder with no subfolders leaves it 0
+			//                  and this stays false; that is a scope with
+			//                  nothing in it, not a filter that hid things
+			//   !orgRootShut() and it was not the fold that did it
+			//
+			// ONE WRITER: the empty-state block below asks the same question
+			// to choose its own words, and reads this rather than repeating
+			// the three terms. Two copies of one condition is how a window
+			// ends up hiding a row and then explaining why it is still there.
+			const orgLensEmptied = !rows.length && !!list.length && !ctx.orgRootShut();
+			if (!orgLensEmptied) {
+				const subj = tbody.createEl('tr', { cls: 'zg-org-subrow' });
+				// A NAME CELL, NOT A CAPTION SPANNING THE TABLE (writer,
+				// 2026-08-25, with a shot circling the empty cells: "the
+				// clicked on folders does not aggregate info in the rows").
+				//
+				// It was ONE `<td colspan>` holding the words, so the figures
+				// were not empty - they were STRUCTURALLY ABSENT, and no
+				// amount of filling cells in could have helped while the row
+				// had none. Measured before changing it: a folder row under
+				// this one carried fourteen cells with real aggregates and
+				// this row carried one.
+				//
+				// `zg-org-name` IS THE CLASS THE FIRST COLUMN IS FROZEN BY,
+				// so the subject's name rides the same sticky track every
+				// other row's does rather than scrolling out sideways.
+				const std = subj.createEl('td', { cls: 'zg-org-name' });
+				const box = std.createDiv({ cls: 'zg-org-subject-in' });
+				// THE CHEVRON IS THE DOOR (writer, 2026-08-25). Built FIRST, so it
+				// sits ahead of the glyph and the name exactly as it does on every
+				// folder row under it — same class, same glyphs, same title, so it
+				// is the same control rather than a second one that looks like it.
+				const rootOpen = !ctx.orgRootShut();
+				// ONE BUILDER WITH THE ROWS BELOW IT (2026-08-25). This was
+				// a hand-written span carrying the same class and the same
+				// text glyphs, and the comment above it said why: "same
+				// class, same glyphs, same title, so it is the same control
+				// rather than a second one that looks like it". That held
+				// exactly until the rows' chevron became Obsidian's triangle
+				// and this one stayed a text glyph. Sharing the BUILDER is
+				// what that sentence was actually asking for; two copies of
+				// one control is how one of them changes alone.
+				const rtwist = ctx.orgChevron(box, rootOpen);
+				// AND THE DEPTH EVERY ROW IS COUNTED FROM. Rows below stamp
+				// `row.depth + 1`; this is the 0, said out loud rather than
+				// left to the stylesheet's `var(--zg-org-depth, 0)` fallback.
+				// A fallback is not a statement, and this row standing at the
+				// outer edge is the whole of what the writer asked for.
+				try { std.style.setProperty('--zg-org-depth', '0'); }
+				catch (_) {}
+				rtwist.title = rootOpen ? 'Fold everything' : 'Unfold everything';
+				rtwist.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					ctx.orgRootShutSet(rootOpen);
+				});
+				if (at) {
+					// OPEN OR SHUT, LIKE EVERY OTHER FOLDER ROW (writer, 2026-09-01:
+					// "in table the main folder row icons does not open or close if
+					// colapsed it stays as an open foder icon only").
+					//
+					// It was a literal `true`. Every other folder row asks
+					// `orgIsOpen(row.path)` and gets a shut folder when it is shut;
+					// this one drew an open folder over a closed subtree, next to a
+					// chevron that WAS turning — two glyphs about the same fact,
+					// disagreeing.
+					//
+					// `rootOpen` IS THE FACT, and it is already in scope: the chevron
+					// beside it is built from the same value ten lines up, so the two
+					// cannot drift.
+					ctx.orgFolderIcon(box, at, rootOpen);
+				} else {
+					// THE VAULT WEARS THE SAME MARK IT WEARS IN THE TREE, and
+					// now it actually does (writer, 2026-08-25: "it does not
+					// appear in the table row, it still has the vault icon").
+					//
+					// A `setIcon` LOOP STOOD HERE and its own comment said why
+					// it could not work: `obsidian` is not a registered Lucide
+					// name, so the loop asked for it, got nothing, and fell
+					// through to the `vault` safe door EVERY time. The tree's
+					// root row hit the same wall at 323 and was given the app's
+					// own wireframe path instead; the caption was left behind,
+					// so the two surfaces named the same vault with two glyphs.
+					//
+					// ONE WRITER FOR THE MARK: `zgObsidianSvg`, the same call
+					// the tree makes. The 13 is a fallback the stylesheet
+					// overrides (measured: it renders at `--icon-size`), not a
+					// second opinion about how big the glyph is.
+					this.orgVaultIcon(box);
+				}
+				// ── THE VAULT SAYS ITS OWN NAME (writer, 2026-08-25) ───
+				//
+				// "in the right pane there in the row don’t say the whole
+				// vault, instead say the name of the vault", with a shot
+				// circling this row.
+				//
+				// THIS REVERSES HALF OF 2026-08-24, and the half it reverses
+				// should be named rather than quietly overwritten. That day
+				// chose "The whole vault" over "the whole manuscript",
+				// reasoning that the tree's root row says the vault's name
+				// three inches to the left and two names for one scope is
+				// one too many. The name is the SAME name now, so the two
+				// agree instead of competing — which is what that reasoning
+				// wanted and what the wording it chose could not give it.
+				//
+				// THE SUMMARY STRIP IS NOT TOUCHED. It carries the same
+				// phrase a few pixels up and the writer circled the ROW; a
+				// strip is a sentence about a scope and a row is the scope
+				// itself. Flagged on the inbox card rather than guessed.
+				box.createSpan({ cls: 'zg-org-subjectname',
+					// THROUGH `vaultName()`, WHICH ALREADY EXISTS. The first
+					// draft called `this.app.vault.getName()` here and took
+					// the Organizer's whole table down in the harness — the
+					// fixture's vault has no such method, so the call threw
+					// mid-draw and the tab rendered nothing at all. Two
+					// assertions three hundred lines apart went red and one
+					// section CRASHED, which is a failure however the count
+					// prints.
+					//
+					// `20-scope.js` has carried the guarded form as a class
+					// method the whole time. A second hand-written copy of
+					// it would have been a second writer of the same fact
+					// AND the trap that caught this one, so this reads it.
+					text: at ? ctx.nameOf(at)
+						// A NAME SLOT, so the fallback is a name. It only fires in a
+						// vault whose own name is empty, and "All of the vault" is a
+						// sentence where every other row holds a word.
+						: (this.vaultName() || 'Vault') });
+				// ── AND IT ANSWERS THE COLUMNS ──────────────────────
+				//
+				// THE SAME TWO CALLS A FOLDER ROW MAKES, deliberately: this
+				// row is the subject folder, and a subject that totalled its
+				// subtree differently from the folder rows under it would be
+				// two answers to one question. `orgUnder('')` is every path in
+				// the index, which is what the whole vault means.
+				//
+				// FROM THE INDEX, NEVER FROM THE DRAWN ROWS - the rule the
+				// folder cells already keep: read off what is on screen and
+				// shutting a folder would change its own total, which is the
+				// fold-as-filter fault this file has recorded three times.
+				const subUnder = ctx.orgUnder(at);
+				for (const col of cols) {
+					const td = subj.createEl('td',
+						{ cls: ctx.colTextish(col) ? 'is-text' : '' });
+					td.setAttribute('data-col', col.id);
+					// THE WIDTH REACHES THE CELL, not only the header — see
+					// `orgColStamp`. Without this the column is as wide as its
+					// widest cell whatever the header asks for.
+					ctx.orgColStamp(td, col.id, wrap);
+					const agg = ctx.orgColAgg(col, subUnder);
+					if (agg) {
+						td.setText(agg.text);
+						if (agg.title) td.title = agg.title;
+					}
+				}
+				// AND THE PICKER’S COLUMN, so the row is not one cell short
+				// and the table draws level - the same trailing cell every
+				// other row emits, for the same reason. In Outline the subject
+				// spans instead, exactly as the rows under it do.
+				subj.createEl('td', { cls: 'zg-org-pickcell' });
+				// TOMBSTONE: `zg-org-subjectcount` (writer, 2026-08-24, "i
+				// don't want to say 6 notes"). The strip above the table
+				// already carries the count - and two of them, four lines
+				// apart, is the repetition this window keeps deleting. What
+				// is left is what the caption was for: naming the folder.
+			}
+			for (const row of rows) {
+				const isFolder = row.kind === 'folder';
+				// KEEPS `zg-org-row`, and that is a decision rather than a
+				// convenience: it is the class the first-column freeze, the
+				// touch-drag row list and `npm run measure` all select on.
+				// A folder row that wore its own class would be invisible to
+				// the deploy gate - quieter than breaking it, and worse.
+				const tr = tbody.createEl('tr',
+					{ cls: 'zg-org-row' + (isFolder ? ' is-folder' : '') });
+				tr.setAttribute('data-path', row.path);
+				// The followed note is marked HERE too (inbox): the writer
+				// asked for the folder with "the note itself selected", and
+				// the table is where the folder is read.
+				if (row.path === ctx.orgNote) tr.addClass('zg-org-active');
+				const nameTd = tr.createEl('td', { cls: 'zg-org-name' });
+				// THE ROW'S KIND, drawn by the tree's own builder (writer,
+				// 2026-08-22) — same dropdown, same checked names, so a
+				// note reads as a note and a PDF as a PDF in both places.
+				// BEFORE the label, which is where the tree puts it and
+				// where the eye looks for it.
+				// THE INDENT, as a depth the stylesheet turns into padding:
+				// the step is read from Obsidian's own --nested-item-* vars
+				// there, which is where the tree beside this table reads it,
+				// so both panes step by the same amount under any theme.
+				//
+				// ── PLUS ONE: THE SUBJECT ROW IS THE PARENT ─────────────
+				//
+				// Writer, 2026-08-25, with a shot circling the vault row:
+				// "indent the rest under the vault row". Measured before
+				// the change and it was exact — the subject row's name
+				// cell and a top-level folder's both began at x=501.8, so
+				// the root's chevron stood in the same column as its
+				// children's and read as a sibling of the first row rather
+				// than the parent of all of them.
+				//
+				// The subject IS the folder these rows are inside, so every
+				// row is one level under it. `row.depth` still counts from
+				// the subject; the `+ 1` is the subject itself, and it is
+				// added HERE rather than by giving the subject a negative
+				// depth, because the stylesheet's step is
+				// `calc(10px + depth * step)` and a depth of -1 resolves to
+				// a negative padding.
+				try {
+					// AND A LENS FLATTENS THE DEPTH WITH THE TREE (writer,
+					// 2026-09-03: 'when i filter stuff the chevrons lines
+					// appear'). A lens draws NO folder rows - measured in the
+					// writer's vault, 5 folder rows became 0 - while eleven
+					// rows kept depth 3, so 33 guide lines pointed at rows
+					// that were not on screen.
+					//
+					// ONE, NOT ZERO: the subject row IS still drawn, so a
+					// single guide back to it is the one that has its row.
+					// The faint path label is what carries real location now.
+					nameTd.style.setProperty('--zg-org-depth',
+						String(lensed ? 1 : (row.depth || 0) + 1));
+				} catch (_) {}
+				// A FOLDER'S CHEVRON IS ITS DOOR. Every control needs a
+				// visible one, and folding is the only thing here that has
+				// no other way in - the writer asked for a level at a time.
+				if (isFolder) {
+					const open = ctx.orgIsOpen(row.path);
+					const twist = ctx.orgChevron(nameTd, open);
+					twist.title = open ? 'Fold this folder' : 'Unfold this folder';
+					twist.addEventListener('click', (ev) => {
+						ev.stopPropagation();
+						ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+					});
+				} else {
+					// \u2500\u2500 AND A NOTE RESERVES THE SLOT \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+					//
+					// MEASURED, and it is the reason the indent read
+					// backwards rather than merely flat: a note's glyph
+					// drew at x=527.8 while its PARENT folder's drew at
+					// x=535.8 \u2014 the child eight pixels LEFT of the thing
+					// it is inside. A folder row spends 16px of chevron
+					// plus 2px of margin that a note row spent nothing on,
+					// and the indent step is only 16px, so one level in
+					// bought less than the chevron slot cost.
+					//
+					// Obsidian's explorer reserves it, and this plugin
+					// already knew: `00-preamble.js` draws the same spacer
+					// in the menu pane and its comment says why \u2014 "rows
+					// that ACT rather than open get a spacer of the same
+					// width, or every label in the panel would sit at a
+					// different left edge."
+					//
+					// A DIFFERENT CLASS FROM THE REAL ONE, deliberately.
+					// Seven places reach for the first `.zg-org-twist` in
+					// a row and click it; a blank one answering them would
+					// be a dead door reporting as a live one.
+					// IT WEARS THE APP'S CHEVRON BOX TOO, empty. That is how
+					// it is guaranteed to be exactly as wide as the real
+					// one under any theme — the alternative is a 16px of
+					// ours beside Obsidian's box, which is two writers of
+					// one width and a new numeric constant in layout code
+					// with nothing to assert it against.
+					// ── AND IN OUTLINE IT IS A DOOR (writer, 2026-08-29) ──
+					//
+					// "build that thing where you expand a note to see full
+					// proprieties like in the mockup (smaller chevrons and all
+					// that)." The slot was reserved for alignment and held
+					// nothing; opened, a note shows every chosen field rather
+					// than only the ones it carries.
+					//
+					// A CLASS OF ITS OWN, and the paragraph above is why: seven
+					// places reach for the first `.zg-org-twist` in a row and
+					// click it, and a note answering them would fold something
+					// else. It wears the same app box, so it is exactly as wide
+					// as a folder’s under any theme and the labels stay in line.
+					//
+					// THE SPACER SURVIVES, for Table. There is no card to open
+					// there — the columns already are the wide reading — so a
+					// chevron would be the dead control this window keeps
+					// removing, and the row still needs the 16px.
+					// TOMBSTONE: THE NOTE'S OWN CHEVRON (`zg-org-cardtwist`),
+					// retired 2026-08-30. Writer: "no more tiny chevrons that
+					// shows all proprieties of a note."
+					//
+					// IT WAS NOT WHAT DREW THE CARD. A note with chosen
+					// properties has had one under it for weeks; the chevron
+					// added a STATE — every key the note carries instead of the
+					// chosen ones, an empty row for each unfilled one, and the
+					// "Add a property" door beneath them. The three go together:
+					// the empties existed only as somewhere to type, and the door
+					// is what they typed into. "we have the table for that."
+					//
+					// It was drawn with `clip-path` and not a glyph, because this
+					// vault reads in Roboto Mono and a character the font has not
+					// got renders as tofu. That reasoning outlives the control:
+					// it is why the ★ and the drag grip are drawn as they are.
+					//
+					// THE SPACER IS BOTH MODES NOW rather than Table's alone. The
+					// name column is built around that 16px and every label in
+					// the tree lines up on it.
+					nameTd.createSpan({ cls: 'zg-org-twistgap tree-item-icon'
+						+ ' collapse-icon nav-folder-collapse-indicator' });
+				}
+				// A FOLDER WEARS THE TREE'S FOLDER GLYPH, drawn open or shut
+				// to match its own state; a note wears its kind glyph.
+				// `orgKindIcon` tests for `.md` and would give a folder the
+				// generic file glyph, which is the sort of miss that reads
+				// as a theme problem rather than a wiring one.
+				if (isFolder) ctx.orgFolderIcon(nameTd, row.path, ctx.orgIsOpen(row.path));
+				else this.orgKindIcon(nameTd, row.path);
+				// The label wears a class because the rename finds it by one:
+				// a bare span would make the lookup positional, and the first
+				// markup change would point the rename at the wrong element.
+				// ── THE FOLDER LEADS, THE FILE FOLLOWS ──────────────────
+				//
+				// Writer, 2026-09-03: "put the folder name first then the file
+				// name with a mark like that '/', improve it." 486cy put the
+				// name first and wrote down the reading it had NOT taken —
+				// that the order was what was being asked for. It was.
+				//
+				// THE COST WAS NAMED AND ACCEPTED: folder paths vary in
+				// length, so the file names no longer align down a left edge.
+				// The writer has seen it running and asked for it anyway.
+				//
+				// ORDER IN THE DOM, NOT `order:` IN THE SHEET. The cell is a
+				// flex row and CSS could reorder it — but the tick box and the
+				// kind glyph are flex items here too, and an `order` that only
+				// mentions two of four is a rule the next item silently joins
+				// the wrong side of. It also keeps reading order and paint
+				// order the same thing, which is what a screen reader gets.
+				if (lensed && row.rel) {
+					nameTd.createDiv({ cls: 'zg-org-path', text: row.rel });
+				}
+				nameTd.createSpan({ cls: 'zg-org-namelabel', text: ctx.nameOf(row.path) });
+				// THE WHOLE LOCATION ON HOVER, now that the row shows both
+				// halves: a truncated cell is exactly when a writer asks.
+				nameTd.title = (lensed && row.rel)
+					? row.rel + ' / ' + ctx.nameOf(row.path)
+					: ctx.nameOf(row.path);
+				// ── THE OUTLINE'S TITLE LINE CARRIES ITS READINGS ───────
+				//
+				// The writer's second mock draws them out to the right of
+				// the title: a status flag and a word count. Without them
+				// the mode is strictly less than the table it replaces -
+				// hiding the columns took Target, Tasks, Today and the
+				// counts with it, and an outline that answers "what is this
+				// scene" while answering nothing about how far along it is
+				// is half a view.
+				//
+				// ONLY THESE TWO, and that is a decision rather than a
+				// start: the mock shows two, the line has room for two, and
+				// a title line that grows a reading per column is the table
+				// again with worse alignment. The columns are one click
+				// away in Table.
+				//
+				// ── AND A FOLDER ADDS UP WHAT IS UNDER IT ────────────────
+				//
+				// "make the folders rows in outline mode aggregate too (sum of
+				// words, average grade, sum of tasks, etc)" (writer,
+				// 2026-08-31).
+				//
+				// THE REFUSAL THAT STOOD HERE was worth keeping the reason of:
+				// "a folder's count is its subtree's, which is a different
+				// reading wearing the same number". That is true, and it is
+				// ANSWERED rather than contradicted — the Table has drawn
+				// these totals all along and marks them `zg-org-aggcell`, a
+				// lighter weight so nobody reads a folder’s average as a
+				// measurement. The Outline wears the same mark for the same
+				// reason, and the two panes now say the same thing about the
+				// same chapter.
+				//
+				// THE FLAG IS STILL A FILE’S — see below. `markOf` returns
+				// '' for a folder, so a flag there would be a control that
+				// cycles nothing.
+				// (The reveal button stood here — see the orgReveal tombstone.)
+				for (const col of cols) {
+					const td = tr.createEl('td', { cls: ctx.colTextish(col) ? 'is-text' : '' });
+					td.setAttribute('data-col', col.id);
+					ctx.orgColStamp(td, col.id, wrap);
+					// A FOLDER'S CELLS ARE ITS SUBTREE'S TOTAL (writer,
+					// 2026-08-23: the existing columns carry the total, the
+					// way Scrivener's Total columns do). Taken from the
+					// INDEX via `orgUnder`, never from the drawn rows: read
+					// off what is on screen, shutting a folder would change
+					// its own number, and a fold that moves a total is the
+					// fold-as-filter fault this file has recorded three
+					// times.
+					if (isFolder) {
+						const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path));
+						if (agg) {
+							// A SUMMARY IS NOT A MEASUREMENT (brief A2): “folder
+							// aggregate cells render in a visibly different weight
+							// from note values, so nobody reads a folder's average
+							// as a measurement”. It matters most for the weighted
+							// grade, which is a figure no note actually carries.
+							td.addClass('zg-org-aggcell');
+							td.setText(agg.text);
+							if (agg.title) td.title = agg.title;
+						}
+						continue;
+					}
+					const text = ctx.orgColText(col, row.path);
+					// ── MALFORMED FRONTMATTER IS VISIBLE, NOT PLAUSIBLE ──────
+					//
+					// Writer, brief A1: a value that does not parse as its DECLARED
+					// type is drawn muted with the raw string on hover, “so
+					// malformed frontmatter is VISIBLE rather than silently printed
+					// as if fine”. Their own example was `28 07` sitting in a date.
+					//
+					// ASKED ONLY OF THE PROPERTY COLUMNS, which is what `col.user`
+					// marks. The built-in readings are computed by this plugin, not
+					// typed by a person, so there is nothing there to be malformed
+					// — and parse-checking them would invent a way for a word count
+					// to look broken.
+					if (col.user) {
+						const raw = ctx.orgColRaw(col, row.path);
+						const pk = col.key || col.id;
+						const fmt = this.formatValue(pk, raw, this.orgPropType(pk),
+							this.dateStyle());
+						if (!fmt.ok) {
+							td.addClass('zg-org-badval');
+							td.title = 'This is not a valid ' + (this.orgPropType(pk) || 'value')
+								+ ': ' + String(raw);
+						}
+					}
+					// The mark and goal cells are CONTROLS as well as readings
+					// (writer's pass): the flag cycles, the target edits.
+					if (col.id === 'mark') { ctx.orgFlagCell(td, row, text); continue; }
+					if (col.id === 'goal') { ctx.orgGoalCell(td, row, text); continue; }
+					if (col.id === 'tags') { ctx.orgTagsCell(td, row); continue; }
+					// A FILE ROW ONLY. A folder has no backlinks of its own; its cell
+					// is the aggregate over the notes beneath it, which is a count and
+					// not a list of doors.
+					if (col.id === 'backlinks' && !isFolder) {
+						td.textContent = '';
+						ctx.orgBackCell(td, row);
+						continue;
+					}
+					// ── AND A PROPERTY IS WRITTEN WHERE IT IS READ ──────
+					//
+					// Writer, 2026-08-25: "i also want to write proprieties
+					// in the table view."
+					//
+					// NOT THE FRONTMATTER TOGGLE COMING BACK. That put the
+					// Outline's property ROWS under a table of columns, and
+					// the writer retired it — "Table is the columns; Outline
+					// is the properties". This changes neither: a property
+					// COLUMN is already the columns. What was odd is that
+					// its cell was the only reading in the row a writer
+					// could not change in place — the flag cycles and the
+					// target edits, both since the writer's own pass, and
+					// this one alone was `setText` and nothing more.
+					// ── A CHECKBOX IS A BOX, NOT A TICK GLYPH (A129) ────
+					//
+					// Writer, 2026-09-04: "make the checkbox propriety in the
+					// table look like a checkbox in the table", and "the
+					// checkbox displayed does not look like a checkbox the
+					// themes uses".
+					//
+					// MEASURED: `formatValue` answers '\u2713' for true and
+					// THE EMPTY STRING for false, so the cell was a tick or
+					// nothing at all. An unticked box and an empty cell are
+					// different facts — one says "not done", the other says
+					// "never answered" — and the table could not tell them
+					// apart. It also cost the writer the hit area: at rest
+					// there was nothing to press.
+					//
+					// OBSIDIAN'S OWN INPUT, undressed. A bare
+					// `input[type=checkbox]` is what the app styles for every
+					// other checkbox a theme sees, so this takes the theme's
+					// look for free and follows it when the theme changes —
+					// which is the whole of what was asked.
+					//
+					// NOT DRAWN FOR A FOLDER ROW: that cell is the aggregate
+					// over what is beneath it, a count and not a state.
+					if (col.user && !isFolder
+						&& String(this.orgPropType(col.key || col.id)).toLowerCase() === 'checkbox') {
+						// ── AND ABSENT IS NOT FALSE (A145, 2026-09-04) ──────
+						//
+						// Writer: "i can see that it adds checkbox proprieties to
+						// all notes in that view. so if a note does not have a
+						// checkbox propriety added then it should display nothing
+						// until i add it", and "how can i remove the checkbox
+						// propriety if i don't want it on a file?".
+						//
+						// A CHECKBOX HAS TWO STATES AND A PROPERTY HAS THREE.
+						// 486ds drew a box on every row, so a note that has never
+						// carried the key looked exactly like one deliberately
+						// left unticked. Nothing was WRITTEN — the cell only
+						// reads — but the table asserted a fact about every note
+						// that was true of almost none.
+						//
+						// SO THE CELL CYCLES, which is this window's own grammar:
+						// the flag cell has cycled since the writer's own pass.
+						//
+						//     nothing  ->  ticked  ->  unticked  ->  nothing
+						//
+						// AND THAT IS THE ONLY WAY "DISPLAY NOTHING UNTIL I ADD
+						// IT" CAN HOLD: once empty means absent, there has to be
+						// a road back to empty, or a property could be added and
+						// never removed. The third press is that road, and it is
+						// the answer to their second question.
+						const rawv = ctx.orgColRaw(col, row.path);
+						const has = rawv !== null && rawv !== undefined && rawv !== '';
+						td.textContent = '';
+						const canEdit = ctx.orgCanHoldProps(row.path);
+						if (canEdit) td.addClass('is-prop');
+						const bx = has
+							? td.createEl('input', { cls: 'zg-org-cellcheck' })
+							: null;
+						if (bx) {
+							bx.type = 'checkbox';
+							bx.checked = rawv === true;
+							bx.disabled = !canEdit;
+						}
+						td.title = !canEdit
+							? 'This kind of file cannot hold properties'
+							: (!has
+								? 'Not set \u2014 press to add it, ticked'
+								: (rawv === true
+									? 'Ticked \u2014 press to untick'
+									: 'Unticked \u2014 press to remove it from this file'));
+						// THE WHOLE CELL IS THE TARGET, which is the other half
+						// of the report: a 13px box in a 24px row is a thing to
+						// aim at, and the cell is not.
+						// ONE WRITER FOR THE CYCLE, whichever element was pressed.
+						// The box and the cell both land in `step`, and the next
+						// state is worked out from the VALUE — not from what the
+						// input is showing. A checkbox toggled by the browser has
+						// already changed itself, and reading that back would
+						// lose the third state before it was ever written.
+						const nextOf = (v) => {
+							if (v === null || v === undefined || v === '') return true;
+							if (v === true) return false;
+							return '';
+						};
+						const step = async () => {
+							if (!canEdit) { ctx.orgPropRefuse(row.path); return; }
+							const stored = this.propStoreHolds(row.path);
+							ctx.orgRedrawPending = true;
+							await ctx.orgPropSet(row.path,
+								col.key || col.id, nextOf(rawv));
+							if (stored) ctx.orgEditDone();
+						};
+						td.addEventListener('click', (ev) => {
+							ev.stopPropagation();
+							step();
+						});
+						if (bx) {
+							// THE BROWSER'S OWN TOGGLE IS REFUSED. Left to itself
+							// the input would flip to a state the cycle may not be
+							// going to — unticked is not what follows unticked —
+							// and the redraw would then correct it in front of
+							// the writer. That is the on-off-on 486dx removed.
+							bx.addEventListener('click', (ev) => {
+								ev.stopPropagation();
+								ev.preventDefault();
+								step();
+							});
+						}
+						// ── ONE REDRAW, AND NOT BEFORE THE WRITE LANDS ──────
+						//
+						// Writer, 2026-09-04: "when I click a checkbox in table
+						// it displayed on then off then on again and the folder
+						// row aggregates update (its very laggy)".
+						//
+						// ON-OFF-ON IS TWO REDRAWS RACING ONE WRITE. The click
+						// sets the box (on); a redraw reads the value BACK
+						// before `processFrontMatter` has landed and Obsidian's
+						// cache has caught up, so it paints the old state (off);
+						// the cache updates and it paints on again.
+						//
+						// AND A NOTE ALREADY GETS ITS REDRAW FOR FREE: writing
+						// frontmatter changes the file, Obsidian fires a
+						// metadata event and the index ring redraws. Asking for
+						// another here is the second of the two.
+						//
+						// A STORE-HELD FILE FIRES NOTHING, so that one still
+						// has to be asked — the same asymmetry A125 found when
+						// a stored property was saved and never shown.
+						//
+						// MEASURED WHILE LOOKING FOR THE COST: a draw of their
+						// Test Folder is 337ms, of which everything this batch
+						// added is about 10 — 308 store reads at 2.4ms, 534
+						// type reads at 1.7. The lag is not the store; it is
+						// paying for a whole draw twice for one tick.
+						// (the `change` handler stood here — `step` above is the
+						// one writer now, and a `change` beside it would write
+						// twice for one press. The reasoning about ONE REDRAW is
+						// kept above it, because it still governs `step`.)
+						continue;
+					}
+					if (col.user) { ctx.orgPropCell(td, row, col, text); continue; }
+					td.setText(text);
+					// The cap cuts, the hover answers — same trade the old
+					// table made, kept because it is the right one.
+					if (text) td.title = text;
+					// TOMBSTONE (2026-08-31): the words cell’s progress wash.
+					//
+					// A faint accent fill behind the count, its width a custom
+					// property the stylesheet drew. Asked for on 2026-08-22 ("the
+					// words column becomes loading bar, faint colored"), quietened
+					// to one 10% fill at 462, and asked out at 466: "remove the
+					// coloring of the words cell by the target completely".
+					//
+					// The reading it carried is in the TARGET cell now, in words —
+					// see `orgTargetSay`. A bar behind a number was the wrong
+					// instrument for it, which is the writer’s own conclusion after
+					// looking at it running for four days.
+				}
+				// THE PICKER'S COLUMN, kept level. The header carries a cell
+				// ── EXCEPT IN OUTLINE, WHERE THE NAME CELL IS THE ROW ─────
+				//
+				// "it’s still cut", three times, and this is the last of it.
+				//
+				// Outline has ONE real column, and lifting the 32ch cap off it
+				// did not help: the cell carries `display: flex` — which is what
+				// makes `max-width` apply to a table cell at all — and a flex
+				// container is no longer a table-cell, so its `width` never
+				// reaches the column algorithm. MEASURED after setting
+				// `width: 100%` on it and confirming that rule WON: the column
+				// stayed 428px and the surplus went to the sticky pick column,
+				// whose 7.7px cell then sat alone at the far right. That gap is
+				// the cut, and the hover band ends there too.
+				//
+				// SO THE ROW SPANS BOTH COLUMNS, which is what the field rows
+				// beneath it have always done — they measure the full 773.4px
+				// while the name rows measured 428. One arrangement for both,
+				// and no cell left to hold the surplus.
+				//
+				// THE PICK CELL IS THE TABLE’S, and it stays there: the header
+				// picker needs a column to sit in, and every Table row still
+				// emits one so the table draws level.
+				tr.createEl('td', { cls: 'zg-org-pickcell' });
+				// SINGLE CLICK SHOWS, DOUBLE CLICK OPENS (G6, 2026-08-24), the
+				// same pair the binder beside it answers to. This row opened
+				// the note on the first click, which is what the spec said
+				// ("Row click/tap opens the note") back when a REVEAL
+				// affordance sat beside it to do the selecting. That button is
+				// gone at the writer's word, so the row had to carry both acts
+				// or lose one - and it was the quiet one that had been lost.
+				// RULES-OF-THE-WINDOW is amended to match.
+				//
+				// FILES ONLY. A folder row already has the one door folding
+				// has - its twist - and making the row body navigate into the
+				// folder is a second act nobody asked for.
+				//
+				// GUARDED THE WAY THE BINDER ROW IS, and the same list. Every
+				// control in these cells already stops propagation itself, so
+				// this changes nothing TODAY - it is here so the next cell to
+				// grow a handler does not have to remember, which is the whole
+				// reason `select()` carries one. Deliberately NOT sabotaged: a
+				// case over it reports PASSED ANYWAY and means nothing.
+				//
+				// A TAG CHIP IS NOT ON THE LIST. It carries no handler - it is
+				// text in a cell - so excluding it would make one patch of the
+				// row inert for no reason a writer could see.
+				const inCtl = (ev) => !!(ev.target && ev.target !== tr
+					&& ev.target.closest && ev.target.closest(
+						'input, select, button, textarea, .zg-goals-chip,'
+						+ ' .zg-goals-chev, .zg-org-twist'));
+				tr.addEventListener('click', (ev) => {
+					if (inCtl(ev)) return;
+					// ── A FOLDER ROW FOLDS ITSELF ON A NARROW SCREEN ────────
+					//
+					// Writer, 2026-08-30, choosing between three costed options
+					// for the phone: "yes, tap the row".
+					//
+					// MEASURED FIRST, which is why this is the option worth
+					// having: the twist is 16 x 15.6px, the smallest control in
+					// the window and the one that opens a folder. It reaches
+					// 28 x 44 under `is-narrow` and no further, because its width
+					// IS the tree's indent per level — at 44 a three-deep folder
+					// would spend 132px of a 390px screen on indent alone. The
+					// row is 1672 x 44 and costs nothing.
+					//
+					// NOTHING IS TAKEN. This row was INERT on click — its own
+					// comment above says a folder "already has the one door
+					// folding has, its twist", and that navigating from the body
+					// was a second act nobody asked for. Still true: this is the
+					// SAME act as the twist, with a bigger target.
+					//
+					// NARROW ONLY. On a desktop the twist is a good target for a
+					// mouse, and a whole row that folds on any stray click is
+					// worse than a small one you aim at. `orgNarrowNow` reads the
+					// CLASS the ResizeObserver maintains, not the platform flag —
+					// a docked 300px pane on a desktop is narrow too.
+					//
+					// AND THE TWIST IS NOT DOUBLE-FIRED: `inCtl` already names
+					// `.zg-org-twist`, so a tap on the chevron returns above.
+					if (isFolder) {
+						if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+						return;
+					}
+					// ── A CLICK HERE SELECTS. IT DOES NOT NAVIGATE ─────────
+					//
+					// Writer, 2026-08-31: "one click on a file in the table
+					// gets me in the folder of that file (i want only to double
+					// click open that file and 1 click just to select it)".
+					//
+					// MEASURED IN THEIR VAULT BEFORE IT WAS CHANGED: with the
+					// pane on `Test Folder/Book 1` and 15 rows, one click on a
+					// note two levels down moved the scope to
+					// `…/Chapter 1 - The Road` and left 2 rows. The gesture was
+					// doing exactly what it was written to do; what it was
+					// written to do is not what they want.
+					//
+					// AND NOTHING IS LOST BY IT, which is why this is a flag and
+					// not a question: asked whether the table row was the only
+					// way into a folder, they answered "the way into a folder is
+					// the organiser filetree in the left". The tree keeps the
+					// follow — `showItem` with no flag, a few hundred lines up —
+					// so a note clicked THERE still takes the pane to it, which
+					// is the 2026-08-21 ask and is untouched.
+					ctx.showItem({ path: row.path, kind: row.kind }, true);
+				});
+				tr.addEventListener('dblclick', (ev) => {
+					if (inCtl(ev) || isFolder) return;
+					ctx.openRow({ path: row.path, kind: row.kind });
+				});
+				// The right-click is the tree's own menu — see orgMenuCtx.
+				tr.addEventListener('contextmenu', (ev) => {
+					ev.preventDefault();
+					ev.stopPropagation();
+					const menu = new Menu();
+					this.outlinerRowMenu(menu,
+						{ path: row.path, kind: row.kind }, ctx.orgMenuCtx);
+					menu.showAtMouseEvent(ev);
+				});
+				// Drag exists only while the book's own order is showing —
+				// under any lens this call is simply never made, and the
+				// probes assert the affordance's ABSENCE, not merely a guard.
+				// Drag exists only while the book's own order is showing —
+				// under any lens this call is simply never made, and the
+				// probes assert the affordance's ABSENCE, not merely a guard.
+				//
+				// A FOLDER ROW CARRIES BOTH: reorder at its edges, and the
+				// move-into that used to live on the group header. That door
+				// closed when the header did, and it is the writer's own ask
+				// from 2026-08-22 - moving a note between folders from the
+				// right pane - so it moves onto the row rather than dying
+				// with the thing it was bolted to.
+				if (!lensed) {
+					ctx.orgRowDrag(tr, row);
+					if (isFolder) ctx.orgGroupDrop(tr, row.path);
+				}
+				// The Outline: the same row plus its ONE field (Phase 4).
+				// The Outline: the same row plus its ONE field (Phase 4).
+				// NOT ON A FOLDER - the drawer edits FRONTMATTER through
+				// `processFrontMatter`, and a folder has none. The modal's
+				// own tree already says so where it refuses the synopsis
+				// chevron on a folder.
+				// ONE ROW PER CHOSEN PROPERTY, under EVERY note (writer, Q6:
+				// "all file for now - i want to mimic the scrivener
+				// outliner"). The cost was named before they chose it: five
+				// ticked properties over ten notes is fifty extra rows.
+				// AND THE PROPERTIES ARE THE OUTLINE, FULL STOP (2026-08-24).
+				// This read `orgDrawer || orgOutlining()`: Table could show the
+				// columns AND these rows at once, behind a Frontmatter toggle
+				// in the bar. The writer retired that toggle - two controls
+				// answering one question - so Table is the columns, Outline is
+				// the properties, and there is no third arrangement to reach.
+			}
+			// A FOLD IS NOT AN EMPTY RESULT. This block says "Nothing passes the
+			// lens — clear it" whenever there are no rows and the list is not
+			// empty, and once the subject can be folded that is a LIE about
+			// something the writer just did — offering a button that would fix
+			// nothing. The subject row is still on screen with its totals, and
+			// its chevron is the way back.
+			// SAME QUESTION, ONE WRITER. This was `!rows.length &&
+			// !orgRootShut()`, which is two of `orgLensEmptied`'s three
+			// terms; the third — `list.length` — is what its own `if` asks
+			// one line down to choose between the two sentences. Reading the
+			// const keeps the row that is hidden and the words that explain
+			// the hiding deciding from one place.
+			if (orgLensEmptied || (!rows.length && !ctx.orgRootShut())) {
+				// A DEAD END MUST SPEAK AND OFFER THE WAY OUT (design brief:
+				// every empty state answers "what do I do now" in one tap) —
+				// the clearing is a BUTTON here, not a sentence about one.
+				const tr0 = tbody.createEl('tr', { cls: 'zg-org-row is-empty' });
+				const td0 = tr0.createEl('td');
+				td0.setAttribute('colspan', String(colspan));
+				if (list.length) {
+					td0.createSpan({ text: 'Nothing passes the lens — ' });
+					const b0 = td0.createEl('button', {
+						cls: 'zg-export-mini zg-org-clearempty', text: 'clear it' });
+					b0.addEventListener('click', (ev) => {
+						ev.stopPropagation();
+						ctx.orgLensClear();
+					});
+					td0.createSpan({ text: ' to see the '
+						// `list.length` stood here and it counted rows, so it said 46
+						// while the strip one line up said 43. `noteCount` is the
+						// strip’s own counter — see the note beside it.
+						+ noteCount(list) + ' notes here.' });
+				} else {
+					// IT NAMES WHAT IT WENT LOOKING FOR. With "Folders only" up,
+					// a scope holding no subfolder is not a scope holding no
+					// notes, and saying the second sends a writer to check the
+					// wrong thing.
+					td0.setText(shaped === 'folders'
+						? 'No folders under this folder.'
+						: 'No notes under this folder.');
+				}
+			}
+			// (findHadFocus restore stood here — gone with the pane search.)
+			// ── THE CELL THE WRITER ACTUALLY PRESSED ────────────────────
+			//
+			// A click on a cell while another editor was open rebuilds the
+			// pane rather than opening a second box, and the `td` it was
+			// pressed on does not survive that. This re-opens the one that
+			// was asked for, so the redraw is invisible to the writer: they
+			// pressed a cell and that cell is open.
+			//
+			// TAKEN BEFORE IT IS USED, so a failure to find the cell cannot
+			// leave the request standing and re-open it on the NEXT redraw,
+			// which would be a box appearing from nothing.
+			if (ctx.orgOpenAfter) {
+				const want = ctx.orgOpenAfter;
+				ctx.orgOpenAfter = null;
+				try {
+					const td2 = ctx.panel.querySelector('.zg-org-row[data-path="'
+						+ want.path + '"] td[data-col="' + want.id + '"]');
+					if (td2 && !td2.querySelector('.zg-org-editor')) {
+						td2.textContent = '';
+						ctx.orgFieldEditor(td2, want.path, want.key, false);
+					}
+				} catch (_) {}
+			}
+			// AND THE WRITER IS PUT BACK WHERE THEY WERE (A156). LAST,
+			// because the rows have to exist first: a scroller whose content
+			// is not in yet clamps the assignment to whatever fits, which is
+			// usually zero — the same fault, silently.
+			if (orgKeepScroll > 0) {
+				try {
+					const w1 = ctx.panel.querySelector('.zg-org-panel');
+					// WRITTEN, NEVER READ BACK. Setting it is a layout write and
+					// costs nothing here; reading it to check would put the 5.8ms
+					// straight back, one line below the comment explaining why it
+					// was taken out.
+					if (w1) w1.scrollTop = orgKeepScroll;
+				} catch (_) {}
+			}
+		};
+		return { drawOrg };
+	}
+
 	selectionFiles(rows) {
 		const out = new Map();
 		const add = (f) => {
@@ -46289,7 +47111,7 @@ module.exports = class WordSmith extends Plugin {
 	// Reads the cache the export window fills; the store is one file and one
 	// parse, whoever asked for it first.
 	treeOrderFor(folder) {
-		const store = this._structStore;
+		const store = this.structureCached();
 		if (!store) return [];
 		const rows = store[this.treeOrderKey(folder)];
 		if (!rows || !rows.length) return [];
@@ -47464,7 +48286,7 @@ module.exports = class WordSmith extends Plugin {
 			// what "export" in lower case was, and exactly what the
 			// assertion about raw ids exists to catch.
 			{ id: 'export',    name: 'Export',       icon: 'file-output' },
-		{ id: 'organizer', name: 'Organiser',    icon: 'list-tree' }
+		{ id: 'organizer', name: 'Organizer',    icon: 'list-tree' }
 		];
 	}
 
@@ -47836,7 +48658,7 @@ module.exports = class WordSmith extends Plugin {
 		// whole release is about had no row in the plugin's own menu.
 		// FIRST of the four, not last: Report, History and Export all look
 		// at writing that exists, and this is where the writing is arranged.
-		{ id: 'organizer', label: 'Organiser', wide: true, reopen: true,
+		{ id: 'organizer', label: 'Organizer', wide: true, reopen: true,
 			run: () => plugin.openManuscriptModal() },
 		];
 	}
@@ -52668,7 +53490,7 @@ module.exports = class WordSmith extends Plugin {
 			HISTORY:  () => this.buildHistoryIndicator(),
 			EXPORT:   () => this.buildExportIndicator(),
 			OUTLINER: () => this.buildOutlinerIndicator(),
-			FLAG:     () => this.buildFlagIndicator('both'),
+			FLAG:     () => this.buildFlagIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
 			NUM:      () => this.buildNumIndicator(),
 			CLOCK:    () => this.buildClockFace(),
@@ -53592,20 +54414,35 @@ module.exports = class WordSmith extends Plugin {
 		// replacement: the window-level number is still the right answer when
 		// the pane runs to the bottom, and it is the one that accounts for the
 		// bar and the status bar. A pane that ends early simply ends earlier.
+		//
+		// THE BAR'S EDGE IS KEPT BEFORE THE CLAMP MOVES sBottom. The clamp
+		// is the masks' business only; the pane reservation below needs the
+		// bar's top, and for one build (486cq to A229) it was handed the
+		// clamped value instead. In a top pane that is the pane's own foot,
+		// so every pane beneath it was reserved to the depth of the bottom
+		// pane — and worse, the margin that reservation writes SHRINKS the
+		// scroller, the next pass measured the shrunk scroller's foot and
+		// reserved deeper still: 50px → 458px → 712px in three passes,
+		// measured 2026-09-07, converging on a blank note. That was GitHub
+		// #16's slow wipe, and the invariant stampBarReserve's comment
+		// states — nothing measured there moves when it is applied — only
+		// holds while this edge does not come from the scroller.
+		const barTopEdge = sBottom;
 		let paneFoot = false;
 		if (sr.bottom > sTop && sr.bottom < sBottom) { sBottom = sr.bottom; paneFoot = true; }
 		const sHeight = Math.max(0, sBottom - sTop);
 
 		// The bar's top edge is exactly what the pane reservation needs, and
-		// it has just been established in this coordinate space — measured
+		// it was established above in this coordinate space — measured
 		// where possible, reconstructed from the viewport height and the
-		// gutter where not. Zero unless the RETRO bar is what occupies the
-		// strip: with it off, sBottom is measured from Obsidian's own
-		// status bar, and reserving pane space for that is not this
+		// gutter where not — BEFORE the pane-foot clamp, which is for the
+		// masks and must never reach here (A229). Zero unless the RETRO bar
+		// is what occupies the strip: with it off, the edge is Obsidian's
+		// own status bar, and reserving pane space for that is not this
 		// feature's business.
 		this.stampBarReserve(
 			(!this.barIsHidden() && this.settings.enableRetroStatus && this.retroStatusBarEl)
-				? sBottom : 0);
+				? barTopEdge : 0);
 		this.checkZoomChange();
 
 		let maskH = this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26;
@@ -55165,7 +56002,11 @@ module.exports = class WordSmith extends Plugin {
 	// betting on one and failing silently.
 	vimApi() {
 		const routes = [
-			() => require('@replit/codemirror-vim').Vim,
+			// NOT ON A PHONE (A239): Obsidian's mobile `require` shows a notice
+			// ("attempted to load NodeJS package") before it throws, and this
+			// runs on every leaf change. The three routes below are the ones
+			// mobile ever had.
+			() => this.isMobileApp() ? null : require('@replit/codemirror-vim').Vim,
 			() => window.CodeMirrorAdapter && window.CodeMirrorAdapter.Vim,
 			() => window.CodeMirror && window.CodeMirror.Vim,
 			() => this.app.workspace.activeEditor
@@ -55311,22 +56152,32 @@ module.exports = class WordSmith extends Plugin {
 	// A SECOND PRIVATE PATCH, and the same discipline as the first: if the
 	// method is not there, the entry is simply absent and everything else
 	// goes on working. Nothing here may throw into Obsidian's menu.
+	// ONE WRITER OF WHAT IS MISSING (A241; stability brief item 8). Three
+	// sites each carried a once-flag and a sentence of their own about an
+	// internal the explorer did not offer — three copies of what ZG_INTERNALS
+	// already says under `what` and `without`, and the diagnostics dump read
+	// a `caps` nobody had told. This says the table's sentence, once per id,
+	// in the A199 shape — what was observed, blaming nobody — and marks the
+	// capability false so the dump and the console agree.
+	capMissing(id) {
+		const item = ZG_INTERNALS.filter((i) => i.id === id)[0];
+		if (!item) return false;
+		if (!this.caps || typeof this.caps !== 'object') this.caps = {};
+		this.caps[id] = false;
+		this._capSaid = this._capSaid || {};
+		if (this._capSaid[id]) return true;
+		this._capSaid[id] = true;
+		try {
+			console.warn('Word-Smith: ' + item.where + ' did not offer ' + item.what
+				+ ', so ' + item.without);
+		} catch (_) {}
+		return true;
+	}
+
 	patchExplorerSortMenu(view) {
 		if (view._zgMenuPatched) return;
 		if (typeof view.onHeaderMenu !== 'function') {
-			if (!this._zgMenuWarned) {
-				this._zgMenuWarned = true;
-				// THE THIRD OF THESE, and found by the assertion written for the
-				// other two (A199). Same misattribution, same cause: a DEFERRED
-				// pane's stub has no `onHeaderMenu` either, so a writer whose
-				// sidebar opened on Search was told their Obsidian lacked a
-				// method it has. Deferred panes are filtered out of
-				// `explorerViews` now; this says what was observed rather than
-				// whose fault it is.
-				console.warn('Word-Smith: the file explorer did not offer '
-					+ 'onHeaderMenu, so "Custom sort" is not added to its sort '
-					+ 'menu. The switch in Settings \u2192 File tree still works.');
-			}
+			this.capMissing('sortMenu');
 			return;
 		}
 		view._zgMenuPatched = true;
@@ -55555,20 +56406,7 @@ module.exports = class WordSmith extends Plugin {
 				// Said once, and only to the console: a Notice on every
 				// layout change would be a nag about something the writer
 				// cannot fix.
-				if (!this._zgSortWarned) {
-					this._zgSortWarned = true;
-					// IT SAYS WHAT WAS OBSERVED, not whose fault it is (A199). This
-					// read “this Obsidian build has no getSortedFolderItems” and
-					// was quoted back twice by writers on a build that HAS it —
-					// they were reading a deferred pane. Deferred panes are skipped
-					// above now, so this is the genuine case; it still does not
-					// name a culprit, because a third-party explorer would reach
-					// here too and Obsidian would be blamed for that as well.
-					console.warn('Word-Smith: the file explorer did not offer '
-						+ 'getSortedFolderItems, so the manuscript order is not '
-						+ 'applied to it. It is tried again whenever the layout '
-						+ 'changes.');
-				}
+				this.capMissing('explorerSort');
 				continue;
 			}
 			// Whether the method was the VIEW's or its prototype's decides how
@@ -55640,15 +56478,7 @@ module.exports = class WordSmith extends Plugin {
 					}
 				} catch (_) {}
 			}
-			if (!done && !this._zgResortWarned) {
-				this._zgResortWarned = true;
-				// SAME CORRECTION AS THE ONE ABOVE (A199): a deferred pane has
-				// none of these three either, and this line was quoted back by a
-				// writer whose build has all of them.
-				console.warn('Word-Smith: the file explorer offered no way to be '
-					+ 'asked to sort again, so a dragged row may not move until the '
-					+ 'folder is folded and reopened.');
-			}
+			if (!done) this.capMissing('explorerResort');
 		}
 	}
 
@@ -56954,13 +57784,48 @@ module.exports = class WordSmith extends Plugin {
 		if (badge.textContent !== count.toLocaleString()) badge.textContent = count.toLocaleString();
 	}
 
+	// EVERYTHING THE EXPLORER PAINTERS ADD, not only the counts (A233).
+	// Writer, 2026-09-07: "the plugin kill switch leaves the folder icons
+	// in the obsidian filetree". This is the one remover both teardowns
+	// call, and it took back four of the seven kinds of element the
+	// painters add: the folder icon, the kind icon and the marks box were
+	// painted by later batches and nobody brought them here. The colour
+	// attribute and variable on a folder row, and the inline flex the
+	// marks box writes on a row and its title, are the plugin's as well.
+	// The name is historical; lifecycle_probe holds the explorer to "as
+	// found" across the switch and across unload.
 	removeWordCounts() {
-		document.querySelectorAll('.zg-count').forEach(el => el.remove());
-		document.querySelectorAll('.zg-tasks').forEach(el => el.remove());
-		document.querySelectorAll('.zg-treepct').forEach(el => el.remove());
-		// …and the flags beside them: this runs when the plugin stands down,
-		// and half a decoration left in the tree is worse than all of it.
-		document.querySelectorAll('.zg-treeflag').forEach(el => el.remove());
+		for (const sel of ['.zg-count', '.zg-tasks', '.zg-treepct', '.zg-treeflag',
+			'.zg-treemarks', '.zg-treefolder', '.zg-treekind']) {
+			document.querySelectorAll(sel).forEach(el => el.remove());
+		}
+		const rows = document.querySelectorAll(
+			'.workspace-leaf-content[data-type="file-explorer"] .nav-folder-title,'
+			+ ' .workspace-leaf-content[data-type="file-explorer"] .nav-file-title');
+		for (const row of Array.from(rows)) {
+			try {
+				row.removeAttribute('data-zg-colour');
+				row.style.removeProperty('--zg-folder-colour');
+				row.classList.remove('zg-has-colour', 'zg-drop-above', 'zg-drop-below');
+				// treeMarksBox's layout, taken back only where it is ours: the
+				// values it writes, and no other inline value Obsidian or another
+				// plugin may have put there.
+				if (row.style.display === 'flex') row.style.removeProperty('display');
+				if (row.style.alignItems === 'center') row.style.removeProperty('align-items');
+				const inner = row.querySelector(
+					'.nav-file-title-content, .nav-folder-title-content, .tree-item-inner');
+				if (inner) {
+					// `flex = '1'` reads back as the three longhands it set.
+					const fx = inner.style.flex;
+					if (fx === '1' || fx === '1 1 0%' || fx === '1 1 0px') inner.style.removeProperty('flex');
+					const mine = { minWidth: '0', overflow: 'hidden',
+						textOverflow: 'ellipsis', whiteSpace: 'nowrap' };
+					for (const k of Object.keys(mine)) {
+						if (inner.style[k] === mine[k]) inner.style[k] = '';
+					}
+				}
+			} catch (_) {}
+		}
 		if (this.wordCountCache) this.wordCountCache.clear();
 	}
 };
@@ -57002,6 +57867,19 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// quieter "Word-Smith" on a page that already had one at the top.
 		// One name, carrying its own number.
 		new Setting(containerEl).setName('Word-Smith ' + ZG_PLUGIN_VERSION).setHeading();
+		// A BLOCKED START (A243): the reason at the top, the door under it, and
+		// nothing else \u2014 the tabs describe surfaces that were not built.
+		if (this.plugin._startBlocked) {
+			const b = this.plugin._startBlocked;
+			const ban = containerEl.createEl('div', { cls: 'ws-start-banner is-' + b.kind });
+			ban.createEl('p', { text: b.text });
+			if (b.kind === 'safe') {
+				const btn = ban.createEl('button', { text: 'Try again', cls: 'mod-cta' });
+				btn.addEventListener('click', () => { this.plugin.startAgain(); });
+			}
+			restoreScroll();
+			return;
+		}
 
 		// ── Master on/off ──────────────────────────────────────────────────────
 		new Setting(containerEl)
@@ -57058,7 +57936,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// filed under Export. The `id` is safe to change: `_activeTab` is
 			// set to null in the constructor and is never persisted, so no
 			// saved state keys on the old string.
-			{ id: 'organizer',  label: 'Organiser',    render: this.displayOrganizerTab },
+			{ id: 'organizer',  label: 'Organizer',    render: this.displayOrganizerTab },
 			{ id: 'filetree',   label: 'File tree',    render: this.displayFileTreeTab },
 			{ id: 'misc',       label: 'Misc',         render: this.displayMiscTab }
 			// TOMBSTONE: a Vim tab stood here, last in the list because it
@@ -57082,10 +57960,57 @@ class WordSmithSettingTab extends PluginSettingTab {
 			});
 		});
 
-		const bodyEl = containerEl.createEl('div', { cls: 'ws-tab-body' });
-		const active = TABS.find(t => t.id === this._activeTab);
-		active.render.call(this, bodyEl);
+		// SEARCH EVERY TAB (A237 24). 282 keys over 65 rows is a lot of
+		// scrolling. With a query, every tab renders under its own name and
+		// the rows that do not say the words are hidden; the box keeps the
+		// caret across the re-render, because display() rebuilds everything.
+		const searchRow = containerEl.createEl('div', { cls: 'ws-settings-search' });
+		const search = searchRow.createEl('input', { cls: 'ws-settings-search-input',
+			attr: { type: 'search', placeholder: 'Search every tab\u2026', spellcheck: 'false' } });
+		search.value = this._searchQuery || '';
+		search.addEventListener('input', () => {
+			this._searchQuery = search.value;
+			this._searchCaret = search.selectionStart;
+			this.display();
+		});
+		const q = String(this._searchQuery || '').trim();
+		const bodyEl = containerEl.createEl('div', { cls: 'ws-tab-body' + (q ? ' is-searching' : '') });
+		if (q) {
+			for (const tab of TABS) {
+				const wrap = bodyEl.createEl('div', { cls: 'ws-search-tab' });
+				wrap.createEl('h3', { cls: 'ws-search-tabname', text: tab.label });
+				try { tab.render.call(this, wrap); } catch (_) {}
+			}
+			const n = this.settingsSearchApply(bodyEl, q);
+			if (!n) bodyEl.createEl('p', { cls: 'ws-search-empty', text: 'Nothing says \u201c' + q + '\u201d.' });
+			try {
+				search.focus();
+				const c = typeof this._searchCaret === 'number' ? this._searchCaret : search.value.length;
+				search.setSelectionRange(c, c);
+			} catch (_) {}
+		} else {
+			const active = TABS.find(t => t.id === this._activeTab);
+			active.render.call(this, bodyEl);
+		}
 		restoreScroll();
+	}
+
+	// Hides every `.setting-item` that does not say all the words, and every
+	// search section left with nothing. Returns how many rows are shown.
+	settingsSearchApply(bodyEl, query) {
+		const words = String(query || '').toLowerCase().split(/\s+/).filter(Boolean);
+		let shown = 0;
+		for (const it of Array.from(bodyEl.querySelectorAll('.setting-item'))) {
+			const text = (it.textContent || '').toLowerCase();
+			const hit = words.every((w) => text.indexOf(w) !== -1);
+			it.hidden = !hit;
+			if (hit) shown++;
+		}
+		for (const sec of Array.from(bodyEl.querySelectorAll('.ws-search-tab'))) {
+			const any = Array.from(sec.querySelectorAll('.setting-item')).some((it) => !it.hidden);
+			sec.hidden = !any;
+		}
+		return shown;
 	}
 
 	// ── Scope picker (sits directly under the master switch) ──────────────────
@@ -57550,7 +58475,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 
 		H('Buttons \u2014 you can click these, and they never get dropped');
 		L('{syntax} {prose} {markers} {font} {theme} {report} {history} {export}');
-		L('{organizer}', 'the Organiser, on the tab you arrange it in');
+		L('{organizer}', 'the Organizer, on the tab you arrange it in');
 		L('{flag}', 'where this note is up to \u2014 click for the next one.');
 		L('', 'Flag, word, or both: you choose above.');
 		L('{words}:f  {file};f', 'paint any segment in the flag\u2019s own colour, or ink it');
@@ -58304,7 +59229,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			// line’s room was reserved whether or not vim was on. Now it is
 			// theirs: 5px, 0, or 30.
 			//
-			// ON THE POWERLINE TAB, not the Organiser one, because it is
+			// ON THE POWERLINE TAB, not the Organizer one, because it is
 			// where the bar is — and inside the `enableRetroStatus` branch,
 			// because a gap under a bar that is switched off is a control
 			// with nothing to move.
@@ -58856,7 +59781,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 	// the whole tab, write about those 3 files in the Misc tab".
 	//
 	// WHAT WAS IN IT, counted before it went: one BUTTON ("Export a
-	// manuscript", which the command palette and the Organiser's own Export
+	// manuscript", which the command palette and the Organizer's own Export
 	// tab both already offer), SIX paragraphs of prose about what export
 	// does, and THREE controls — the only door to `structurePath`,
 	// `settingsMirror` and `settingsMirrorPath`.
@@ -59330,7 +60255,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// icons (same as int the file tree tab in the plugins settings)".
 		//
 		// HERE BECAUSE THIS TAB IS WHERE THE ORGANISER LIVES — "we'll keep
-		// every setting for the Organiser there", which is why it stopped
+		// every setting for the Organizer there", which is why it stopped
 		// being the Flags tab at 353.
 		//
 		// WORDED LIKE THE PAIR IT WAS ASKED TO MATCH, on the File tree tab:
@@ -59342,7 +60267,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// AND BOTH SURFACES OF THE WINDOW AT ONCE — the table and the tree
 		// beside it — because the switch is answered where the glyph is made
 		// and both draw through the same two methods.
-		this.label(containerEl, 'Icons in the Organiser');
+		this.label(containerEl, 'Icons in the Organizer');
 		this.toggle(containerEl, 'Folder icons',
 			'A glyph beside each folder name in this window.',
 			'orgFolderIcons', () => this.plugin.saveSettings(true));
@@ -59366,7 +60291,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// fresh vault gets the default. Nothing migrates.
 		//
 		// It said: "File kind icons — A glyph beside each file saying what
-		// kind it is." (the Organiser tab)
+		// kind it is." (the Organizer tab)
 		// TOMBSTONE (writer, 2026-08-30): TWO BLOCKS, and they went for
 		// different reasons.
 		//
@@ -59404,7 +60329,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 			const SAMPLE = Date.UTC(1999, 0, 22, 9, 30);
 			const show = (id) => this.plugin.dateText(1999, 0, 22, null, null, id);
 			const row = new Setting(containerEl).setName('Date format')
-				.setDesc('Used by every date the Organiser shows.');
+				.setDesc('Used by every date the Organizer shows.');
 			row.addDropdown(d => {
 				for (const id of ['human', 'iso', 'dmy', 'mdy']) d.addOption(id, show(id));
 				d.setValue(this.plugin.dateStyle());
@@ -59539,7 +60464,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// ── TOMBSTONE: THE PRUNE (A176, writer 2026-09-05) ─────────────
 		//
 		// “the propery columns in the organiser settings is shittyyyy —
-		// remove that from Organiser tab settings”. Built at 486fk on
+		// remove that from Organizer tab settings”. Built at 486fk on
 		// their own earlier answer — “one prune in the settings tab, away
 		// from the table” — and reversed the same day on seeing it run.
 		//
@@ -59589,7 +60514,7 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// row, a flag is a mark on the few that carry one, and a writer may
 		// well want the second without the first.
 		this.toggle(containerEl, 'File tree flags',
-			'A tiny flag on anything flagged in the Organiser.',
+			'A tiny flag on anything flagged in the Organizer.',
 			'fileTreeFlags', () => this.display());
 		// FOLDER ICONS. Obsidian draws a chevron and a name; a folder glyph
 		// is what tells a folder from a note at a glance in a deep tree, and
@@ -59711,6 +60636,47 @@ class WordSmithSettingTab extends PluginSettingTab {
 		// without it is what a verbatim move gets wrong: it threw on the
 		// first render, before the vault ever saw it.
 		const plugin = this.plugin;
+		// YOUR SETTINGS AS TEXT, AND A REPAIR (A237 23, 27). Copy puts every
+		// setting on the clipboard as JSON — a bug report can carry the whole
+		// configuration, and a setup can move between vaults. Paste reads it
+		// back through the loader's own repair, so a wrong shape is reset and
+		// named; Undo puts the previous settings back, once. Repair is the
+		// kill switch's off-and-on without the switch: every surface torn down
+		// and drawn again, which lifecycle_probe holds to a clean document.
+		this.label(containerEl, 'Your settings');
+		const ys = this.sub(containerEl);
+		new Setting(ys)
+			.setName('As text')
+			.setDesc('Copy every setting to the clipboard as JSON, or paste a copy back in. A paste replaces everything; Undo puts the previous settings back.')
+			.addButton((b) => b.setButtonText('Copy').onClick(async () => {
+				try { await navigator.clipboard.writeText(plugin.settingsCopyText()); new Notice('Word-Smith: settings copied.', 4000); }
+				catch (_) { new Notice('Word-Smith: could not reach the clipboard.', 6000); }
+			}))
+			.addButton((b) => b.setButtonText('Paste').onClick(async () => {
+				let text = '';
+				try { text = await navigator.clipboard.readText(); }
+				catch (_) { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
+				const r = await plugin.settingsPasteText(text);
+				if (r.error) { new Notice('Word-Smith: ' + r.error, 8000); return; }
+				new Notice('Word-Smith: ' + r.applied + ' setting' + (r.applied === 1 ? '' : 's') + ' pasted'
+					+ (r.repaired.length ? ', ' + r.repaired.length + ' reset to the default (' + r.repaired.join(', ') + ')' : '')
+					+ '. Undo is on the Misc tab.', 8000);
+				this.display();
+			}))
+			.addButton((b) => {
+				b.setButtonText('Undo paste').setDisabled(!plugin._settingsUndo).onClick(async () => {
+					const r = await plugin.settingsUndoPaste();
+					new Notice('Word-Smith: ' + (r.error || 'the previous settings are back.'), 6000);
+					this.display();
+				});
+			});
+		new Setting(ys)
+			.setName('Repair the display')
+			.setDesc('Tears every surface down and draws it again \u2014 the bar, the masks, the file tree\u2019s icons and counts. Nothing you set changes.')
+			.addButton((b) => b.setButtonText('Repair').onClick(() => {
+				plugin.repairDisplay();
+				new Notice('Word-Smith: repaired.', 4000);
+			}));
 		this.label(containerEl, 'Quick panels');
 		const qp = this.sub(containerEl);
 		qp.createEl('p', {
@@ -60101,6 +61067,11 @@ class WordSmithSettingTab extends PluginSettingTab {
 module.exports.zgStatusNext = zgStatusNext;
 module.exports.zgStatusLabel = zgStatusLabel;
 module.exports.zgFlagSvg = zgFlagSvg;
+// The repair pass, so a probe can drive it over a shape of its own.
+module.exports.zgRepairSettings = zgRepairSettings;
+// The caret's line for a clicked paragraph, so a probe can hold the lookup.
+module.exports.zgLineOfSnippet = zgLineOfSnippet;
+module.exports.zgCtxScope = zgCtxScope;
 // Exported for the same reason zgFlagSvg is: a drawing is a pure function
 // returning a string, so a probe can assert what it DREW. `setIcon` is a
 // no-op stub under jsdom, which means a named icon can only ever be tested
@@ -60128,6 +61099,7 @@ module.exports.zgGuard = zgGuard;
 module.exports.zgGuardReset = zgGuardReset;
 module.exports.zgGuardSeen = zgGuardSeen;
 module.exports.zgGuardTell = zgGuardTell;
+module.exports.zgGuardReport = zgGuardReport;
 module.exports.zgCompat = zgCompat;
 module.exports.zgCompatText = zgCompatText;
 module.exports.ZG_INTERNALS = ZG_INTERNALS;
