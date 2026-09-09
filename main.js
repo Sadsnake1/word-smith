@@ -2478,7 +2478,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.4';
+const ZG_PLUGIN_VERSION = '1.4.5';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -2915,8 +2915,6 @@ vimColorVisualLight: "#6a5cb8",
 vimColorReplaceLight: "#a03c36",
 vimColorCommandLight: "#b96f1e",
 goalTarget: 200,
-goalBaseline: 0,
-goalsFile: true,
 goalsPath: 'Word-Smith/ws-goals.md',
 exportListPath: 'Word-Smith/ws-export.md',
 structurePath: 'Word-Smith/ws-structure.md',
@@ -2930,11 +2928,6 @@ settingsMirrorPath: 'Word-Smith/ws-settings.md',
 fileGoals: {},
 fileStatus: {},
 goalLabelMode: 'fraction',
-goalRingWeight: 16,
-goalOrientation: 'vertical',
-goalLenWriting: 30,
-goalLenFile: 40,
-goalLenFolder: 85,
 retroCustomColors: false,
 retroDarkBgColor: "#141010",
 retroDarkTextColor: "#f2f2f2",
@@ -4610,6 +4603,13 @@ delete this.settings.organizerRoot;
 delete this.settings.uniRootShut;
 delete this.settings.uniTreeWidth;
 delete this.settings.uniShut;
+delete this.settings.goalsFile;
+delete this.settings.goalBaseline;
+delete this.settings.goalRingWeight;
+delete this.settings.goalOrientation;
+delete this.settings.goalLenWriting;
+delete this.settings.goalLenFile;
+delete this.settings.goalLenFolder;
 if (raw.organizerMode === 'outline') this.settings.organizerMode = 'table';
 delete this.settings.organizerOutlineProps;
 delete this.settings.synopsisKey;
