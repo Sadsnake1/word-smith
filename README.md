@@ -12,7 +12,7 @@
   A dedicated writing studio inside Obsidian.</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
-  <p><sub>Zen mode, the letter box, and a powerline bar you wrote yourself.</sub></p>
+  
 
 </div>
 
