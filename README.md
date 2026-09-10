@@ -40,7 +40,8 @@ Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes e
 
 
 
-https://github.com/user-attachments/assets/cba69116-d592-4251-9a3e-1bd17178e5d1
+https://github.com/user-attachments/assets/d16a2b67-6984-402b-950f-85bf59a62219
+
 
 
 ### Writing modes
