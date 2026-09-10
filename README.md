@@ -12,6 +12,7 @@
   A dedicated writing studio inside Obsidian.</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
+  <p><sub>Zen mode, the letter box, and a powerline bar you wrote yourself.</sub></p>
 
 </div>
 
@@ -19,24 +20,9 @@ Lightweight, free, and working within the vault you already have. No project wiz
 
 Everything has its own toggle, so take what you like and leave the rest off.
 
+Staring at a dull screen for hours is boring. This is the screen I wanted to stare at.
+
 ## What do you get?
-
-### Writing modes
-
-Zen, letter box, typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
-
-<table>
-  <tr>
-    <td width="50%"><img alt="Zen mode with the powerline bar" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" /></td>
-    <td width="50%"><img alt="A colour scheme applied to the whole workspace" src="https://github.com/user-attachments/assets/cbd3aec7-6fdf-4318-8fd8-d9090bbfb815" /></td>
-  </tr>
-  <tr>
-    <td width="50%"><img alt="Another scheme, with the letter box" src="https://github.com/user-attachments/assets/3039b88e-f9fd-498d-8778-0fd207d72c18" /></td>
-    <td width="50%"><img alt="The letter box narrowing the page" src="https://github.com/user-attachments/assets/98f54322-b68e-42e0-9c04-c8e68d0c1d5c" /></td>
-  </tr>
-</table>
-
-Themes repaint the whole workspace, dark and light. Read more about [writing modes](docs/writing-modes.md) and [themes](docs/themes.md).
 
 ### The Organizer
 
@@ -44,17 +30,47 @@ The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner
 
 Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass. Watch a folder add itself up.
 
-<img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
+<div align="center">
+  <img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
+  <p><sub>Your manuscript on the left, everything about it on the right.</sub></p>
+</div>
 
 It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
 
 Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes every file in your vault, and adds order, targets, flags, task counts and a compiler on top. Read more about [the Organizer](docs/organizer.md).
 
+### Writing modes
+
+Zen, letter box, typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Zen mode with the powerline bar" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" /><br><sub>Zen. The interface goes away, a piece at a time.</sub></td>
+    <td width="50%"><img alt="The letter box narrowing the page" src="https://github.com/user-attachments/assets/98f54322-b68e-42e0-9c04-c8e68d0c1d5c" /><br><sub>The letter box. Only the part you're working on.</sub></td>
+  </tr>
+</table>
+
+Themes repaint the whole workspace, dark and light.
+
+<table>
+  <tr>
+    <td width="50%"><img alt="A colour scheme applied to the whole workspace" src="https://github.com/user-attachments/assets/cbd3aec7-6fdf-4318-8fd8-d9090bbfb815" /></td>
+    <td width="50%"><img alt="Another scheme, with the letter box" src="https://github.com/user-attachments/assets/3039b88e-f9fd-498d-8778-0fd207d72c18" /></td>
+  </tr>
+</table>
+
+<sub>The same vault, two schemes. Editor, sidebars and panels all follow.</sub>
+
+Read more about [writing modes](docs/writing-modes.md) and [themes](docs/themes.md).
+
 ### Export
 
 PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is written, laid out to the submission standard.
 
-<img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
+<div align="center">
+  <img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
+  <p><sub>The pages, before anything is written to disk.</sub></p>
+</div>
 
 Read more about [Export](docs/export.md).
 
@@ -64,8 +80,8 @@ Words you added rise from the centre line. Words you cut fall below it. A day sp
 
 <table>
   <tr>
-    <td width="50%"><img alt="History, day view" src="https://github.com/user-attachments/assets/5a751b82-0882-4d7b-95b8-7cf6dc35e8d0" /></td>
-    <td width="50%"><img alt="History, calendar view" src="https://github.com/user-attachments/assets/a8c415e5-0768-4289-984b-54ab9bf4951c" /></td>
+    <td width="50%"><img alt="History, day view" src="https://github.com/user-attachments/assets/5a751b82-0882-4d7b-95b8-7cf6dc35e8d0" /><br><sub>Day by day, added above, cut below.</sub></td>
+    <td width="50%"><img alt="History, calendar view" src="https://github.com/user-attachments/assets/a8c415e5-0768-4289-984b-54ab9bf4951c" /><br><sub>The whole year, at a glance.</sub></td>
   </tr>
 </table>
 
@@ -77,9 +93,19 @@ Read more about [history and the report](docs/history-and-report.md).
 
 [A status bar you build yourself](docs/powerline.md). You write it as text, and the punctuation you type between tokens becomes the shape you get.
 
-<img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
+<table>
+  <tr>
+    <td width="50%"><img alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" /><br><sub>As plain as you like.</sub></td>
+    <td width="50%"><img alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" /><br><sub>Or not.</sub></td>
+  </tr>
+</table>
 
 [The menu](docs/commands-and-menu.md). Everything you change while writing, in one keyboard-driven pop-up. Any Obsidian command can go in it, other plugins included.
+
+<div align="center">
+  <img width="1920" alt="The Word-Smith menu" src="https://github.com/user-attachments/assets/c851d326-50d3-46da-afa9-51f63204e275" />
+  <p><sub>Type to search it. Never touch the mouse.</sub></p>
+</div>
 
 Plus typography, text options, Vim niceties and word counts in Obsidian's own file tree.
 
