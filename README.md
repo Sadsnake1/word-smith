@@ -20,7 +20,10 @@ Lightweight, free, and working within the vault you already have. No project wiz
 
 Everything has its own toggle, so take what you like and leave the rest off.
 
-Staring at a dull screen for hours is boring. This is the screen I wanted to stare at.
+
+https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
+
+
 
 ## What do you get?
 
