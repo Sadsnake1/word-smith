@@ -68,6 +68,12 @@ Themes repaint the whole workspace, dark and light.
 
 Read more about [writing modes](docs/writing-modes.md) and [themes](docs/themes.md).
 
+
+
+https://github.com/user-attachments/assets/43a91d87-0775-4e93-8f44-67bcca09f08f
+
+
+
 ### Export
 
 PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is written, laid out to the submission standard.
