@@ -15,11 +15,9 @@
 
 </div>
 
-
-Here to present Word-Smith, a plugin that turns Obsidian into a dedicated writing studio. Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book can be in any folder, your chapters can be any file, and Word-Smith takes it from there.
+Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there.
 
 Everything has its own toggle, so take what you like and leave the rest off.
-
 
 ## What do you get?
 
@@ -44,11 +42,11 @@ Themes repaint the whole workspace, dark and light. Read more about [writing mod
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to custom sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass. Watch a folder add itself up.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass. Watch a folder add itself up.
 
 <img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even make an e-book database with it, with real epub files. Simple to use, vastly useful for any domain of work.
+It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
 
 Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes every file in your vault, and adds order, targets, flags, task counts and a compiler on top. Read more about [the Organizer](docs/organizer.md).
 
@@ -97,7 +95,7 @@ Desktop, tablet and phone. The Organizer wants a bigger screen.
 
 ## Five minutes in
 
-1. Run **Open the Organizer** from the command palette and click a folder in Obsidian's file explorer. That's your work, as a table.
+1. Run **Open the Organizer** from the command palette, then click a folder in its tree. That's your work, as a table.
 2. Press **Properties**, add a column, click a cell to edit it.
 3. **Settings → Word-Smith → Powerline**. Try a shipped bar before writing your own.
 4. Turn on **Zen** and **Letter box**. Write something.
@@ -105,7 +103,7 @@ Desktop, tablet and phone. The Organizer wants a bigger screen.
 
 ## And a fancier cursor
 
-Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret. It's the most advanced cursor engine there is: cursor types, thickness, effects, smooth movement, motion smears, sharing codes, and presets so you can try them fast.
+Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret. The most advanced cursor engine out there (maybe): cursor types, thickness, effects, smooth movement, motion smears, sharing codes, and presets so you can try them fast.
 
 ## Docs
 
