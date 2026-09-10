@@ -40,7 +40,7 @@ Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes e
 
 ### Writing modes
 
-Zen, letter box, typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
+Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
 
 <table>
   <tr>
