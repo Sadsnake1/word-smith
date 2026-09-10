@@ -15,13 +15,11 @@
 
 </div>
 
-Hellooooooooo!
 
 Here to present Word-Smith, a plugin that turns Obsidian into a dedicated writing studio. Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book is a folder, your chapters are files, and Word-Smith takes it from there.
 
 Everything has its own toggle, so take what you like and leave the rest off.
 
-Staring at a dull screen for hours is boring. This is the screen I wanted to stare at.
 
 ## What do you get?
 
