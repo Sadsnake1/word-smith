@@ -32,7 +32,6 @@ Drag and drop to sort, and the order sticks: in your file tree, in the table, an
 
 <div align="center">
   <img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
-  <p><sub>Your manuscript on the left, everything about it on the right.</sub></p>
 </div>
 
 It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
