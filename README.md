@@ -16,7 +16,7 @@
 </div>
 
 
-Here to present Word-Smith, a plugin that turns Obsidian into a dedicated writing studio. Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book is a folder, your chapters are files, and Word-Smith takes it from there.
+Here to present Word-Smith, a plugin that turns Obsidian into a dedicated writing studio. Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book can be in any folder, your chapters can be any file, and Word-Smith takes it from there.
 
 Everything has its own toggle, so take what you like and leave the rest off.
 
