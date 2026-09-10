@@ -38,6 +38,11 @@ It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book
 
 Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes every file in your vault, and adds order, targets, flags, task counts and a compiler on top. Read more about [the Organizer](docs/organizer.md).
 
+
+
+https://github.com/user-attachments/assets/cba69116-d592-4251-9a3e-1bd17178e5d1
+
+
 ### Writing modes
 
 Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
