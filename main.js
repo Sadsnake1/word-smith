@@ -1,5 +1,5 @@
 'use strict';
-const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon, getAllTags, Platform, ItemView, addIcon, apiVersion } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, MarkdownView, TFile, TFolder, FuzzySuggestModal, Menu, Modal, Notice, setIcon, getAllTags, Platform, ItemView, addIcon, apiVersion, normalizePath } = require('obsidian');
 const WsPathSuggestModal = FuzzySuggestModal ? class extends FuzzySuggestModal {
 constructor(app, items, placeholder, onPick) {
 super(app);
@@ -1398,6 +1398,15 @@ function zgCatchSeen() {
 return Array.from(ZG_CATCH_SEEN, ([where, r]) => ({ where, n: r.n, last: r.last }));
 }
 function zgCatchReset() { ZG_CATCH_SEEN.clear(); }
+function zgPathNorm(p) {
+const s = String(p == null ? '' : p);
+let out = '';
+if (typeof normalizePath === 'function') {
+try { out = String(normalizePath(s)); } catch (_) { zgCatch('zgPathNorm: out = String(normalizePath(s));', _); out = ''; }
+}
+if (!out) out = s.trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
+return out === '/' ? '' : out;
+}
 function zgCtxScope(ctx) {
 try {
 const s = ctx && ctx.scope;
@@ -2462,7 +2471,7 @@ return '[' + done + '/' + all + ']';
 function zgSortArrow(dir) {
 return dir === 'desc' ? ' ↓' : ' ↑';
 }
-const ZG_STYLESHEET_VERSION = 523;
+const ZG_STYLESHEET_VERSION = 527;
 const ZG_INSTALLER_REFUSE = 1009;
 const ZG_INSTALLER_REFUSE_TEXT = '1.9';
 const ZG_INSTALLER_WARN = 1013;
@@ -2478,7 +2487,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.5';
+const ZG_PLUGIN_VERSION = '1.4.6';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -2551,7 +2560,8 @@ return inp;
 function zgFlagSvg(id, size) {
 const px = size || 11;
 const shape = zgFlagShapeOf(id);
-const open = (body) => '<svg class="zg-flag is-' + id + '" viewBox="0 0 13 14" width="' + px
+const tok = String(id == null ? '' : id).replace(/[^\w-]/g, '');
+const open = (body) => '<svg class="zg-flag is-' + tok + '" viewBox="0 0 13 14" width="' + px
 + '" height="' + Math.round(px * 14 / 13) + '" aria-hidden="true">' + body + '</svg>';
 const pole = '<path d="M2 1.5 L2 12.5" stroke="currentColor" stroke-width="1.6" '
 + 'stroke-linecap="round" fill="none"/>';
@@ -2853,6 +2863,7 @@ typewriterAnchor: 50,
 dimUnfocusedEnabled: false,
 dimFocusMode: 'paragraph',
 dimOpacity: 0.55,
+retroBarOnPhone: false,
 enableRetroStatus: true,
 retroBarHidden: false,
 statusBarRows: 1,
@@ -3874,6 +3885,11 @@ this.addCommand({
 id: 'toggle-retro-bar',
 name: 'Toggle the powerline bar',
 callback: async () => {
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone
+&& !this.settings.retroBarOnPhone) {
+new Notice('Word-Smith: the bar is off on phones by default. Switch it on under Settings \u2192 Word-Smith \u2192 Powerline.', 6000);
+return;
+}
 this.settings.enableRetroStatus = !this.settings.enableRetroStatus;
 this.updateStatusBar();
 this.updateRetroStatusBar();
@@ -6517,17 +6533,18 @@ return !!(this.settings.zenHideBar && this.zenActive());
 }
 wsOwnViewActive() {
 try {
-const leaf = this.app.workspace.activeLeaf;
-const t = leaf && leaf.view && leaf.view.getViewType ? leaf.view.getViewType() : null;
-if (!t) return false;
-for (const k of Object.keys(WS_PANE_VIEWS)) if (WS_PANE_VIEWS[k] === t) return true;
-return false;
-} catch (_) { zgCatch('wsOwnViewActive: const leaf = this.app.workspace.activeLeaf;', _); return false; }
+if (!WsOutlinerView) return false;
+const ws = this.app.workspace;
+const v = ws && typeof ws.getActiveViewOfType === 'function' ? ws.getActiveViewOfType(WsOutlinerView) : null;
+return !!v;
+} catch (_) { zgCatch('wsOwnViewActive: const v = ws.getActiveViewOfType(WsOutlinerView);', _); return false; }
 }
 retroBarActive() {
 if (!this.settings.enableRetroStatus) return false;
-if (this.isActiveFileInScope()) return true;
-return !!(this.wsOwnViewActive() && this.isFileInScope(this.activeNoteFile()));
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone
+&& !this.settings.retroBarOnPhone) return false;
+if (this.wsOwnViewActive()) return false;
+return this.isActiveFileInScope();
 }
 updateStatusBar() {
 const wantBar = this.retroBarActive();
@@ -6577,7 +6594,6 @@ stopClockTick() {
 if (this.clockInterval) { window.clearInterval(this.clockInterval); this.clockInterval = null; }
 }
 refreshBattery() {
-if (this.readBatteryFromOS()) return;
 const bm = this._batteryManager;
 if (!bm) return;
 try {
@@ -6585,41 +6601,7 @@ if (typeof bm.level === 'number') this.batteryLevel = Math.round(bm.level * 100)
 this.batteryCharging = !!bm.charging;
 } catch (_) { zgCatch('refreshBattery: if (typeof bm.level === \'number\') this.batteryLevel = …', _); }
 }
-readBatteryFromOS() {
-if (this._batteryOSOff) return false;
-try {
-if (Platform && Platform.isDesktopApp === false) { this._batteryOSOff = true; return false; }
-if (typeof process === 'undefined' || process.platform !== 'linux') {
-this._batteryOSOff = true; return false;
-}
-const fs = require('fs');
-const base = this._batteryBase || '/sys/class/power_supply';
-if (this._batteryPath === undefined) {
-this._batteryPath = null;
-for (const name of fs.readdirSync(base)) {
-let kind = '';
-try { kind = String(fs.readFileSync(base + '/' + name + '/type', 'utf8')).trim(); } catch (_) { zgCatch('readBatteryFromOS: kind = String(fs.readFileSync(base + \'/\' + name + \'/type\', …', _); }
-if (kind !== 'Battery') continue;
-if (!fs.existsSync(base + '/' + name + '/capacity')) continue;
-this._batteryPath = base + '/' + name;
-break;
-}
-}
-if (!this._batteryPath) { this._batteryOSOff = true; return false; }
-const pct = parseInt(String(fs.readFileSync(this._batteryPath + '/capacity', 'utf8')).trim(), 10);
-if (!isFinite(pct)) return false;
-this.batteryLevel = Math.max(0, Math.min(100, pct));
-let state = '';
-try { state = String(fs.readFileSync(this._batteryPath + '/status', 'utf8')).trim(); } catch (_) { zgCatch('readBatteryFromOS: state = String(fs.readFileSync(this._batteryPath + \'/status\', …', _); }
-this.batteryCharging = state === 'Charging';
-return true;
-} catch (_) {
-this._batteryOSOff = true;
-return false;
-}
-}
 async setupBattery() {
-if (this.readBatteryFromOS()) this.updateRetroStatusBar();
 if (!navigator.getBattery) return;
 try {
 const bm = await navigator.getBattery();
@@ -7268,7 +7250,7 @@ this._goalsWritten = true;
 } catch (_) { zgCatch('goalsFileLoad: const store = await this.structureRead();', _); }
 }
 settingsMirrorPathFor() {
-const want = String(this.settings.settingsMirrorPath || '').replace(/^\/+/, '');
+const want = zgPathNorm(this.settings.settingsMirrorPath);
 return want || 'Word-Smith/ws-settings.md';
 }
 settingsMirrorMachineKeys() {
@@ -7350,7 +7332,7 @@ this.settings.settingsMirrorPath, [], this._mirrorFoundAt);
 const f = found
 ? this.app.vault.getAbstractFileByPath(found) : null;
 if (f && !f.children) {
-await this.app.vault.modify(f, text);
+await this.app.vault.process(f, () => text);
 this._mirrorFoundAt = found;
 } else {
 const path = this.settingsMirrorPathFor();
@@ -7763,7 +7745,7 @@ else if (ax[i] !== bx[i]) return ax[i] < bx[i] ? -1 : 1;
 return ax.length - bx.length;
 }
 storeResolve(configured, legacy) {
-const want = String(configured || legacy).replace(/^\/+/, '');
+const want = zgPathNorm(configured) || zgPathNorm(legacy);
 try {
 const at = this.app.vault.getAbstractFileByPath(want);
 if (at && !at.children) return want;
@@ -7892,7 +7874,7 @@ if (at) {
 const cut = at.lastIndexOf('/');
 return (cut === -1 ? '' : at.slice(0, cut + 1)) + STRUCT_BASENAME;
 }
-const want = String(this.settings.structurePath || '').replace(/^\/+/, '');
+const want = zgPathNorm(this.settings.structurePath);
 return want || ('Word-Smith/' + STRUCT_BASENAME);
 }
 async structureSources() {
@@ -7929,16 +7911,17 @@ async storeRetire(path, wentTo) {
 try {
 const f = this.app.vault.getAbstractFileByPath(path);
 if (!f || f.children) return;
-const text = String(await this.app.vault.read(f));
 const note = 'Word-Smith kept what was here in [[' + wentTo + ']].';
-let next = text;
+await this.app.vault.process(f, (was) => {
+let next = String(was);
 for (const [s, e] of [[STRUCT_MARK_START, STRUCT_MARK_END],
 [EXPORT_MARK_START, EXPORT_MARK_END], [GOALS_MARK_START, GOALS_MARK_END]]) {
 const a = next.indexOf(s), b = next.indexOf(e);
 if (a === -1 || b === -1 || b < a) continue;
 next = next.slice(0, a) + note + next.slice(b + e.length);
 }
-if (next !== text) await this.app.vault.modify(f, next);
+return next;
+});
 } catch (e) { console.error('Word-Smith: could not retire ' + path, e); }
 }
 async structureMigrate() {
@@ -8150,9 +8133,12 @@ all[scope] = rows;
 return await this.structureWrite();
 }
 structureWrite() {
-this._structWriteQ = (this._structWriteQ || Promise.resolve())
-.then(() => this.structureWriteNow());
-return this._structWriteQ;
+return this.structureQueue(() => this.structureWriteNow());
+}
+structureQueue(fn) {
+const q = (this._structWriteQ || Promise.resolve()).then(fn, fn);
+this._structWriteQ = q;
+return q;
 }
 async structureWriteNow() {
 const all = this.structureStore();
@@ -8162,7 +8148,7 @@ const path = await this.structureMigrate();
 const f = this.app.vault.getAbstractFileByPath(path);
 this._structText = text;
 if (f && !f.children) {
-await this.app.vault.modify(f, text);
+await this.app.vault.process(f, () => text);
 } else {
 await this.storeEnsureFolder(path);
 await this.app.vault.create(path, text);
@@ -8259,10 +8245,7 @@ async structureForgetStore(gone) {
 try {
 await this.structureRead();
 if (!this.structureForgetPath(gone)) return;
-const path = this.structurePathNow();
-const text = this.structureCompose(this._structStore);
-const f = this.app.vault.getAbstractFileByPath(path);
-if (f && !f.children) await this.app.vault.modify(f, text);
+await this.structureQueue(() => this.structureLand());
 this.storeWriteOk(WS_WRITE.forget);
 } catch (e) {
 this.storeWriteFailed(WS_WRITE.forget, e,
@@ -8391,15 +8374,21 @@ async structureRenameStore(oldPath, newPath) {
 try {
 await this.structureRead();
 if (!this.structureRenamePath(oldPath, newPath)) return;
-const path = this.structurePathNow();
-const text = this.structureCompose(this._structStore);
-const f = this.app.vault.getAbstractFileByPath(path);
-if (f && !f.children) await this.app.vault.modify(f, text);
+await this.structureQueue(() => this.structureLand());
 this.storeWriteOk(WS_WRITE.rename);
 } catch (e) {
 this.storeWriteFailed(WS_WRITE.rename, e,
 'The list still points at the old name.');
 }
+}
+async structureLand() {
+const path = this.structurePathNow();
+const text = this.structureCompose(this.structureStore());
+const f = this.app.vault.getAbstractFileByPath(path);
+if (!f || f.children) return false;
+this._structText = text;
+await this.app.vault.process(f, () => text);
+return true;
 }
 touchDrag(el, id, opts) {
 const HOLD = 400;
@@ -10928,9 +10917,7 @@ let file = this.app.vault.getAbstractFileByPath(this._historyPath || '');
 if (!file || !(file instanceof TFile)) file = await this.historyFindFile();
 if (file) {
 this._historyPath = file.path;
-const text = await this.app.vault.read(file);
-const next = this.historyCompose(text);
-if (next !== text) await this.app.vault.modify(file, next);
+await this.app.vault.process(file, (was) => this.historyCompose(String(was)));
 await this.historyMarkSeen();
 return true;
 }
@@ -12413,8 +12400,13 @@ const above = r.top - ceilY - 8;
 const up = below < 160 && above > below;
 const cap = winH * 0.42;
 const room = Math.max(96, Math.min(up ? above : below, cap));
-hits.style.width = Math.max(r.width, 220) + 'px';
-hits.style.left = Math.round(r.left) + 'px';
+const winW = fwin.innerWidth || 0;
+let boxW = Math.max(r.width, 220);
+if (winW > 8) boxW = Math.min(boxW, winW - 8);
+let boxL = Math.round(r.left);
+if (winW > 0) boxL = Math.max(4, Math.min(boxL, winW - boxW - 4));
+hits.style.width = boxW + 'px';
+hits.style.left = boxL + 'px';
 hits.style.maxHeight = Math.round(room) + 'px';
 if (up) {
 hits.style.top = '';
@@ -14270,8 +14262,23 @@ stopWidth = () => { try { ro.disconnect(); } catch (_) { zgCatch('openManuscript
 } catch (_) { zgCatch('openManuscriptModal: const narrow = zgNarrowState();', _); }
 }
 const ses = this._wsSession || (this._wsSession = zgSessionNew());
+let zoomHost = null;
+const zoomTag = () => {
+if (!zoomHost) return;
+const z = ses.zoom || 1;
+let t = zoomHost.querySelector('.zg-uni-zoomtag');
+if (Math.abs(z - 1) < 0.001) { if (t) t.remove(); return; }
+if (!t) {
+t = zoomHost.createEl('button', { cls: 'zg-export-mini zg-uni-zoomtag' });
+t.title = 'Back to 100%';
+t.setAttribute('aria-label', 'Zoom back to 100%');
+t.addEventListener('click', (ev) => { ev.stopPropagation(); ses.zoom = 1; zoomApply(); });
+}
+t.setText(Math.round(z * 100) + '%');
+};
 const zoomApply = () => {
 try { body.style.setProperty('--zg-uni-zoom', String(ses.zoom || 1)); } catch (_) { zgCatch('zoomApply: body.style.setProperty', _); }
+try { zoomTag(); } catch (_) { zgCatch('zoomApply: zoomTag();', _); }
 };
 zoomApply();
 body.addEventListener('wheel', (ev) => {
@@ -14281,6 +14288,22 @@ const step = ev.deltaY < 0 ? 0.1 : -0.1;
 ses.zoom = Math.min(2, Math.max(0.6, Math.round(((ses.zoom || 1) + step) * 10) / 10));
 zoomApply();
 }, { passive: false });
+let pinch = null;
+const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+body.addEventListener('touchstart', (ev) => {
+pinch = ev.touches.length === 2 ? { d0: span(ev.touches) || 1, z0: ses.zoom || 1 } : null;
+}, { passive: true });
+body.addEventListener('touchmove', (ev) => {
+if (!pinch || ev.touches.length !== 2) return;
+ev.preventDefault();
+const z = pinch.z0 * span(ev.touches) / pinch.d0;
+const next = Math.min(2, Math.max(0.6, Math.round(z * 10) / 10));
+if (next === (ses.zoom || 1)) return;
+ses.zoom = next;
+zoomApply();
+}, { passive: false });
+body.addEventListener('touchend', (ev) => { if (ev.touches.length < 2) pinch = null; }, { passive: true });
+body.addEventListener('touchcancel', () => { pinch = null; }, { passive: true });
 this._orgZoom = () => ses.zoom || 1;
 const sel = new Map();
 const keyOf = (it) => it.kind + '\u0000' + it.path;
@@ -14998,6 +15021,13 @@ if (v === null) return null;
 switch (col.id) {
 case 'tasks': return v.all - v.done;
 case 'tags': return v.length;
+case 'goal': {
+const t = Number(v) || 0;
+if (!(t > 0)) return null;
+let w = 0;
+try { w = Number(orgColRaw({ id: 'words' }, path)) || 0; } catch (_) { w = 0; }
+return w / t;
+}
 case 'mark': {
 const ids = this.flagDefs().map(f => f.id);
 const i = ids.indexOf(v);
@@ -15258,6 +15288,21 @@ orgFieldEditor(td, row.path, col.key, false);
 };
 const orgGoalCell = (td, row, text) => {
 td.setText(text);
+try {
+const tgt = Number(orgColRaw({ id: 'goal' }, row.path)) || 0;
+const wds = Number(orgColRaw({ id: 'words' }, row.path)) || 0;
+if (tgt > 0) {
+const pct = Math.max(0, Math.min(100, Math.round(wds / tgt * 100)));
+td.style.setProperty('--zg-goal-pct', String(pct));
+td.addClass('has-band');
+const step = pct >= 100 ? 'done' : pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
+for (const k of ['low', 'mid', 'high', 'done']) td.toggleClass('is-band-' + k, k === step);
+} else {
+td.style.removeProperty('--zg-goal-pct');
+td.removeClass('has-band');
+for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
+}
+} catch (_) { zgCatch('openManuscriptModal / orgGoalCell: const tgt = Number(orgColRaw({ id: goal }, row.path)) || 0;', _); }
 const canGoal = orgCanHoldGoal(row.path);
 if (canGoal) td.addClass('is-goal');
 if (canGoal) {
@@ -16059,6 +16104,7 @@ door.open(ev);
 });
 }
 orgPropPopRender();
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) return pop;
 try {
 const r = anchor.getBoundingClientRect();
 const w0 = ownerWin();
@@ -16067,7 +16113,7 @@ const room = (w0.innerWidth || 0) - wide;
 const base = orgPopBase(pop);
 const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
 pop.style.left = Math.round(x - base.left) + 'px';
-pop.style.top = Math.round(r.bottom - base.top) + 'px';
+pop.style.top = Math.round(r.bottom - base.top) + 2 + 'px';
 } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();', _); }
 const onDown = (ev) => {
 try {
@@ -16748,6 +16794,7 @@ try { await this.openOutlinerPane(); } catch (_) { zgCatch('openManuscriptModal:
 } else {
 }
 const subject = right.createDiv({ cls: 'zg-uni-subject' });
+zoomHost = subject;
 const panel = right.createDiv({ cls: 'zg-uni-panel' });
 panel.addEventListener('click', () => {
 if (panel.querySelector('.zg-org-editor')) drawOrg();
@@ -16839,6 +16886,7 @@ let said = agg.words.toLocaleString() + ' words · '
 if (agg.tasksAll) said += ' · ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
 subject.createSpan({ cls: 'zg-org-agg', text: said });
 }
+zoomTag();
 };
 this._orgSubject = () => subject;
 this._orgScope = () => exportScope();
@@ -17283,8 +17331,8 @@ panel.textContent = '';
 try {
 if (Platform && Platform.isPhone) {
 panel.createEl('p', { cls: 'zg-export-note is-warning',
-text: 'This is a small window for a phone. Everything works \u2014 all '
-+ 'three formats, this one included \u2014 but choosing files and putting '
+text: 'This is a small window for a phone. Everything works, all four '
++ 'formats included, but choosing files and putting '
 + 'them in order is much easier on a tablet or a desktop.' });
 }
 } catch (_) { zgCatch('orgDrawExport: if (Platform && Platform.isPhone)', _); }
@@ -17407,7 +17455,7 @@ const menuUnder = (menu, btn, ev) => {
 try {
 const r = btn && btn.getBoundingClientRect ? btn.getBoundingClientRect() : null;
 if (r && (r.width || r.height)) {
-menu.showAtPosition({ x: Math.round(r.left), y: Math.round(r.bottom) });
+menu.showAtPosition({ x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width), overlap: true });
 return;
 }
 } catch (_) { zgCatch('orgTableMake / menuUnder: const r = btn && btn.getBoundingClientRect', _); }
@@ -17785,8 +17833,25 @@ const host = wrap.parentElement;
 if (!host) return;
 host.style.removeProperty('--zg-org-outw');
 const zoom = orgZoomOf(nameTh);
-const w = nameTh.getBoundingClientRect().width / zoom;
+let w = nameTh.getBoundingClientRect().width / zoom;
 if (!(w > 0)) return;
+try {
+const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
+if (narrow) {
+const tableW = table.getBoundingClientRect().width / zoom;
+const room = Math.floor(wrap.clientWidth - Math.max(0, tableW - w));
+const was = table.style.getPropertyValue('--zg-org-nameroom');
+const now = room > 0 ? room + 'px' : '';
+if (was !== now) {
+if (now) table.style.setProperty('--zg-org-nameroom', now);
+else table.style.removeProperty('--zg-org-nameroom');
+w = nameTh.getBoundingClientRect().width / zoom;
+}
+} else if (table.style.getPropertyValue('--zg-org-nameroom')) {
+table.style.removeProperty('--zg-org-nameroom');
+w = nameTh.getBoundingClientRect().width / zoom;
+}
+} catch (_) { zgCatch('orgNameLine / nameroom: const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());', _); }
 host.style.setProperty('--zg-org-nameline',
 Math.round(wrap.offsetLeft + w) + 'px');
 host.style.setProperty('--zg-org-nametop',
@@ -24380,7 +24445,7 @@ redisplay();
 });
 }
 }
-containerEl.createEl('h4', { text: 'Options' });
+new Setting(containerEl).setName('Options').setHeading();
 const schemeOn = plugin.settings.barThemeEnabled !== false
 && !!plugin.settings.barTheme && plugin.settings.barTheme !== 'custom';
 const NEEDS_SCHEME = 'Needs a scheme \u2014 under Default the workspace is '
@@ -24719,6 +24784,18 @@ this.plugin.updateRetroStatusBar();
 await this.plugin.saveSettings(true);
 this.display();
 }));
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) {
+new Setting(containerEl)
+.setName('Show the bar on phones')
+.setDesc('Off by default: a phone screen is too small for a status line. Switch it on if you want the bar here anyway.')
+.addToggle(t => t.setValue(!!this.plugin.settings.retroBarOnPhone)
+.onChange(async v => {
+this.plugin.settings.retroBarOnPhone = v;
+this.plugin.updateStatusBar();
+this.plugin.updateRetroStatusBar();
+await this.plugin.saveSettings(true);
+}));
+}
 if (this.plugin.settings.enableRetroStatus) {
 const rb = this.sub(containerEl);
 const s0 = this.plugin.settings;
@@ -25560,7 +25637,7 @@ containerEl.createEl('p', { cls: 'ws-settings-note', text:
 + 'targets and which properties are columns. Delete it and those '
 + 'go; your notes are untouched.' });
 }
-containerEl.createEl('h3', { text: 'A readable copy of your settings' });
+new Setting(containerEl).setName('A readable copy of your settings').setHeading();
 containerEl.createEl('p', { cls: 'ws-settings-note', text:
 'A copy of your settings in the vault, read back only when there are '
 + 'none to read \u2014 a reinstall, or a restore that kept the notes and not '
@@ -25729,6 +25806,7 @@ t.onChange(async v => { const n = parseInt(v, 10); if (!isNaN(n) && n >= min && 
 module.exports.zgStatusNext = zgStatusNext;
 module.exports.zgStatusLabel = zgStatusLabel;
 module.exports.zgFlagSvg = zgFlagSvg;
+module.exports.WsOutlinerView = WsOutlinerView;
 module.exports.zgRepairSettings = zgRepairSettings;
 module.exports.zgLineOfSnippet = zgLineOfSnippet;
 module.exports.zgCtxScope = zgCtxScope;
