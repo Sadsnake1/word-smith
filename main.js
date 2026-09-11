@@ -1398,6 +1398,13 @@ function zgCatchSeen() {
 return Array.from(ZG_CATCH_SEEN, ([where, r]) => ({ where, n: r.n, last: r.last }));
 }
 function zgCatchReset() { ZG_CATCH_SEEN.clear(); }
+function zgNavbarOverlap(el) {
+const nav = document.querySelector('.mobile-navbar');
+if (!nav || !el) return 0;
+const n = nav.getBoundingClientRect(), b = el.getBoundingClientRect();
+if (!(n.height > 0) || !(b.height > 0)) return 0;
+return Math.max(0, Math.round(b.bottom - n.top));
+}
 function zgPathNorm(p) {
 const s = String(p == null ? '' : p);
 let out = '';
@@ -1406,6 +1413,79 @@ try { out = String(normalizePath(s)); } catch (_) { zgCatch('zgPathNorm: out = S
 }
 if (!out) out = s.trim().replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\/+|\/+$/g, '');
 return out === '/' ? '' : out;
+}
+let ZG_LAST_SHEET = null;
+const ZG_SHEET_KEY = 'word-smith:last-sheet';
+function zgLocalStore() {
+try { return window.localStorage || null; } catch (_) { return null; }
+}
+function zgSheetRecord(dom, phone, store) {
+try {
+const R = (r) => Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height);
+const items = Array.from(dom.querySelectorAll('.menu-item'));
+const efp = typeof document.elementFromPoint === 'function' ? (x, y) => document.elementFromPoint(x, y) : null;
+let hidden = 0, covered = 0, over = '';
+for (const it of items) {
+const r = it.getBoundingClientRect();
+if (!(r.width > 0 && r.height > 0)) { hidden++; continue; }
+if (!efp) continue;
+const top = efp(r.left + r.width / 2, r.top + r.height / 2);
+if (top && (top === it || it.contains(top))) continue;
+covered++;
+if (!over) over = top ? String(top.tagName).toLowerCase() + '.' + String(top.className || '').split(' ').slice(0, 2).join('.') : 'nothing';
+}
+const a = dom.getBoundingClientRect();
+const cs = getComputedStyle(dom);
+const nav = document.querySelector('.mobile-navbar');
+const n = nav ? nav.getBoundingClientRect() : null;
+const sc = dom.querySelector('.menu-scroll');
+const d = new Date();
+const line = [d.toTimeString().slice(0, 8), 'phone ' + (phone ? 'yes' : 'no'),
+'items ' + items.length, 'hidden ' + hidden, 'covered ' + covered + (over ? ' by ' + over : ''),
+'rect ' + R(a), 'bottom ' + Math.round(a.bottom),
+'css bottom ' + cs.bottom + ' z ' + cs.zIndex + ' pos ' + cs.position + ' class "' + dom.className + '"',
+'body var ' + (document.body.style.getPropertyValue('--zg-mobilebar-h') || 'none'), 'innerH ' + window.innerHeight,
+'navbar ' + (n ? R(n) + ' z ' + getComputedStyle(nav).zIndex : 'none'),
+'scroll ' + (sc ? sc.scrollHeight + '/' + sc.clientHeight : '-')].join(' ');
+if (store !== false) {
+ZG_LAST_SHEET = line;
+const ls = zgLocalStore();
+if (ls) ls.setItem(ZG_SHEET_KEY, line);
+}
+return line;
+} catch (_) { zgCatch('zgSheetRecord: const items = Array.from(dom.querySelectorAll(.menu-item));', _); }
+return 'could not be read';
+}
+function zgLastSheet() {
+if (ZG_LAST_SHEET) return ZG_LAST_SHEET;
+const ls = zgLocalStore();
+const kept = ls ? ls.getItem(ZG_SHEET_KEY) : null;
+return kept ? 'none this session; kept from an earlier one: ' + kept : 'none this session';
+}
+function zgSheetLift(menu) {
+try {
+const dom = menu && menu.dom;
+if (!dom || !dom.classList) return;
+const phone = !!(typeof Platform !== 'undefined' && Platform && Platform.isPhone);
+if (phone) {
+dom.classList.add('zg-sheet');
+const nav = document.querySelector('.mobile-navbar');
+const n = nav ? nav.getBoundingClientRect() : null;
+const h = n && n.height > 0 ? Math.max(0, Math.round(window.innerHeight - n.top)) : 0;
+if (h > 0) document.body.style.setProperty('--zg-mobilebar-h', h + 'px');
+else document.body.style.removeProperty('--zg-mobilebar-h');
+}
+setTimeout(() => zgSheetRecord(dom, phone, !(dom.dataset && dom.dataset.zgSelftest === '1')), 300);
+} catch (_) { zgCatch('zgSheetLift: dom.classList.add(zg-sheet);', _); }
+}
+function zgMenu() {
+const m = new Menu();
+for (const k of ['showAtPosition', 'showAtMouseEvent']) {
+const f = m[k];
+if (typeof f !== 'function') continue;
+m[k] = function () { const r = f.apply(m, arguments); zgSheetLift(m); return r === undefined ? m : r; };
+}
+return m;
 }
 function zgCtxScope(ctx) {
 try {
@@ -1445,7 +1525,7 @@ text: ['editorPaddingH', 'enableParagraphIndent', 'justifyText', 'limitLineLengt
 markers: ['markBlankLines', 'markEndOfLines', 'markParagraphs', 'markSpaces', 'markTabs', 'markersEnabled'],
 typography: ['typoApostrophe', 'typoArrows', 'typoCloseDouble', 'typoCloseSingle', 'typoComparisons', 'typoCustomQuotes', 'typoDashes', 'typoEllipsis', 'typoFractions', 'typoGuillemets', 'typoOpenDouble', 'typoOpenSingle', 'typoSmartQuotes', 'typographyEnabled'],
 history: ['countExclude', 'historyPerFile', 'historyTracking'],
-organizer: ['flagCount', 'flags', 'orgFolderIcons', 'orgTargetShow'],
+organizer: ['flagCount', 'flags', 'orgFolderIcons', 'orgTargetShow', 'organizerOn'],
 filetree: ['enableFileTreeCounts', 'enableOutlineCounts', 'fileTreeFlags', 'fileTreeFolderIcons', 'fileTreeGoals', 'fileTreeTasks', 'treeOrder'],
 misc: ['quickCycle', 'quickCycleCloseOnLeave', 'quickExplorer', 'quickOutline', 'settingsMirror', 'vimSoftWrapMotion'],
 };
@@ -2471,7 +2551,7 @@ return '[' + done + '/' + all + ']';
 function zgSortArrow(dir) {
 return dir === 'desc' ? ' ↓' : ' ↑';
 }
-const ZG_STYLESHEET_VERSION = 527;
+const ZG_STYLESHEET_VERSION = 532;
 const ZG_INSTALLER_REFUSE = 1009;
 const ZG_INSTALLER_REFUSE_TEXT = '1.9';
 const ZG_INSTALLER_WARN = 1013;
@@ -2487,7 +2567,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.6';
+const ZG_PLUGIN_VERSION = '1.4.7';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -3047,6 +3127,7 @@ treeOrder: true,
 treeOrderForcedOn: false,
 fileTreeFolderIcons: false,
 fileTreeKindIcons: false,
+organizerOn: true,
 organizerRootShut: false,
 organizerDateFormat: 'human',
 folderColors: {},
@@ -3851,6 +3932,8 @@ this.addCommand({
 id: 'copy-diagnostics',
 name: 'Copy diagnostics for a bug report',
 callback: async () => {
+await new Promise((r) => setTimeout(r, 1200));
+try { await this.sheetSelfTest(); } catch (_) { zgCatch('onload / callback: await this.sheetSelfTest();', _); }
 let text = '';
 try { text = this.diagnostics(); }
 catch (e) { text = 'Word-Smith: diagnostics failed — ' + ((e && e.message) || e); }
@@ -3944,7 +4027,11 @@ callback: () => this.openHistoryModal()
 this.addCommand({
 id: 'open-manuscript',
 name: 'Open the Organizer',
-callback: () => this.orgOpenTab('organizer')
+checkCallback: (checking) => {
+if (this.settings.organizerOn === false) return false;
+if (!checking) this.orgOpenTab('organizer');
+return true;
+}
 });
 const quickCmd = (id, name, key, viewType) => this.addCommand({
 id, name,
@@ -4765,6 +4852,82 @@ out.push({ name: m[i][0], ms: Math.round((m[i][1] - m[i - 1][1]) * 10) / 10 });
 out.push({ name: 'TOTAL', ms: Math.round((m[m.length - 1][1] - m[0][1]) * 10) / 10 });
 return out;
 }
+geometryLines() {
+const L = [];
+const R = (el) => { if (!el) return 'none'; const r = el.getBoundingClientRect(); return Math.round(r.left) + ',' + Math.round(r.top) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height); };
+const q = (sel, root) => (root || document).querySelector(sel);
+try {
+const vv = window.visualViewport;
+L.push('geometry: window ' + window.innerWidth + 'x' + window.innerHeight
++ (vv ? ', visual ' + Math.round(vv.width) + 'x' + Math.round(vv.height) + ' at ' + Math.round(vv.offsetTop) : '')
++ ', dpr ' + window.devicePixelRatio + ', body ' + String(document.body.className || '').split(' ').filter((c) => /^is-/.test(c)).join(' '));
+const sup = (x) => (typeof CSS !== 'undefined' && CSS.supports ? (CSS.supports(x) ? 'yes' : 'NO') : '?');
+L.push('  engine: container queries ' + sup('container-type: inline-size') + ', :has ' + sup('selector(:has(a))') + ', color-mix ' + sup('color: color-mix(in srgb, red, blue)'));
+const probe = document.body.createDiv();
+probe.style.cssText = 'position:fixed;left:-9999px;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+const pc = getComputedStyle(probe);
+L.push('  safe area t/r/b/l ' + pc.paddingTop + ' ' + pc.paddingRight + ' ' + pc.paddingBottom + ' ' + pc.paddingLeft);
+const bs = getComputedStyle(document.body);
+L.push('  obsidian vars: safe-area-inset-top ' + bs.getPropertyValue('--safe-area-inset-top').trim() + '  view-top-spacing ' + bs.getPropertyValue('--view-top-spacing').trim() + '  view-header-height ' + bs.getPropertyValue('--view-header-height').trim());
+probe.remove();
+L.push('  chain: body ' + R(document.body) + '  app ' + R(q('.app-container')) + '  main ' + R(q('.horizontal-main-container')) + '  workspace ' + R(q('.workspace')));
+const nav = q('.mobile-navbar') || q('.mobile-toolbar') || q('.mobile-tab-switcher') || q('[class*="mobile-navbar"]') || q('[class*="navbar"]');
+L.push('  navbar ' + (nav ? nav.className + ' ' + R(nav) : 'none by any name'));
+L.push('  last sheet ' + zgLastSheet());
+L.push('  sheet test ' + (this._sheetTest || 'not run (the command runs it before the report)'));
+L.push('  active leaf ' + R(q('.workspace-leaf.mod-active .workspace-leaf-content')) + '   its view-content ' + R(q('.workspace-leaf.mod-active .view-content')) + '   its header ' + R(q('.workspace-leaf.mod-active .view-header')));
+const roots = Array.from(document.querySelectorAll('.zg-uni-modal'));
+L.push('  pane roots ' + roots.length + ': ' + roots.map((r) => R(r) + (r.classList.contains('zg-uni-pane') ? ' pane' : ' modal') + (r.classList.contains('is-narrow') ? '/narrow' : '')).join(' | '));
+let win = null, best = 0;
+for (const r of roots) { const b = r.getBoundingClientRect(); if (b.width * b.height > best) { best = b.width * b.height; win = r; } }
+if (!win) { L.push('  no pane root has a box'); return L; }
+L.push('  on screen: window ' + R(win) + '  body ' + R(q('.zg-uni-body', win)) + '  panel ' + R(q('.zg-uni-panel', win)) + '  subject ' + R(q('.zg-uni-subject', win)) + '  zoom tag ' + R(q('.zg-uni-zoomtag', win)) + '  foot ' + R(q('.zg-uni-foot', win)));
+const panel = q('.zg-uni-panel', win);
+if (panel) { const ps = getComputedStyle(panel); L.push('  panel: container-type ' + ps.containerType + ' name ' + ps.containerName + ' width ' + ps.width + ' display ' + ps.display + ' overflow-y ' + ps.overflowY + ' scroll ' + panel.scrollHeight + '/' + panel.clientHeight + ' top ' + panel.scrollTop); }
+const ro = q('.zg-hist-readout', win);
+if (ro) {
+const cs = getComputedStyle(ro);
+L.push('  readout ' + R(ro) + ' white-space ' + cs.whiteSpace + ' display ' + cs.display + ' scroll ' + ro.scrollWidth + '/' + ro.clientWidth + ' "' + String(ro.textContent || '').slice(0, 60) + '"');
+const chain = []; let e = ro.parentElement; while (e && chain.length < 8 && !e.classList.contains('workspace-leaf-content')) { chain.push(String(e.className || e.tagName).slice(0, 34)); e = e.parentElement; }
+L.push('  readout ancestors: ' + chain.join(' < '));
+const hits = [];
+for (const sheet of Array.from(document.styleSheets)) {
+let rules = null; try { rules = sheet.cssRules; } catch (_) { continue; }
+const walk = (list, inside) => { for (const r of Array.from(list || [])) {
+if (r.cssRules && r.cssRules.length && (r.type === 4 || r.type === 12 || String(r.constructor && r.constructor.name).indexOf('Container') !== -1)) { walk(r.cssRules, (inside ? inside + ' > ' : '') + '@' + (r.conditionText || r.containerQuery || r.media && r.media.mediaText || '?')); continue; }
+if (!r.selectorText || !r.style || !r.style.whiteSpace) continue;
+let m = false; try { m = ro.matches(r.selectorText); } catch (_) { m = false; }
+if (m) hits.push((inside ? '[' + inside + '] ' : '') + r.selectorText + ' { white-space: ' + r.style.whiteSpace + ' }');
+} };
+walk(rules, '');
+}
+L.push('  white-space rules matching the readout (' + hits.length + '): ' + hits.join(' ; '));
+}
+const cr = q('.zg-cal-read', win);
+if (cr) L.push('  cal strip ' + R(cr) + ' scroll ' + cr.scrollHeight + '/' + cr.clientHeight + '   legend ' + R(q('.zg-cal-legend', win)));
+const th = Array.from(win.querySelectorAll('.zg-org-table thead th')).map((t) => (t.getAttribute('data-col') || '?') + ':' + Math.round(t.getBoundingClientRect().width));
+if (th.length) L.push('  columns ' + th.join(' '));
+const last = Array.from(win.querySelectorAll('.zg-uni-panel > *')).pop();
+if (last) L.push('  last thing in the panel ' + String(last.className).slice(0, 30) + ' ' + R(last));
+L.push('  ua ' + String(navigator.userAgent || '').replace(/^.*?\) /, '').slice(0, 120));
+} catch (e) { L.push('  (geometry could not be read: ' + ((e && e.message) || e) + ')'); }
+return L;
+}
+async sheetSelfTest() {
+this._sheetTest = 'not run';
+let m = null;
+try {
+if (!Menu) { this._sheetTest = 'no Menu in this build'; return; }
+m = zgMenu();
+if (m.dom && m.dom.dataset) m.dom.dataset.zgSelftest = '1';
+for (let i = 1; i <= 6; i++) m.addItem((it) => it.setTitle('sheet row ' + i));
+m.showAtPosition({ x: 200, y: 200 });
+await new Promise((r) => setTimeout(r, 350));
+const phone = !!(typeof Platform !== 'undefined' && Platform && Platform.isPhone);
+this._sheetTest = m.dom ? zgSheetRecord(m.dom, phone, false) : 'no dom';
+} catch (e) { this._sheetTest = 'threw: ' + ((e && e.message) || e); }
+try { if (m && typeof m.hide === 'function') m.hide(); } catch (_) { zgCatch('sheetSelfTest: m.hide();', _); }
+}
 diagnostics() {
 const L = [];
 const yn = (v) => (v === true ? 'on' : v === false ? 'off' : String(v));
@@ -4775,6 +4938,7 @@ L.push('Obsidian api ' + (typeof apiVersion !== 'undefined' ? apiVersion : '?')
 + '   platform ' + (typeof Platform !== 'undefined'
 ? (Platform.isMobile ? 'mobile' : 'desktop') : '?')
 + '   ' + ((typeof navigator !== 'undefined' && navigator.platform) || ''));
+for (const line of this.geometryLines()) L.push(line);
 let ss = '';
 try {
 ss = getComputedStyle(document.body)
@@ -5848,7 +6012,6 @@ return [
 + ' overflow: hidden; }',
 '.zg-hist-readout { min-height: 20px; font-size: var(--zg-h-body);'
 + ' font-family: inherit; font-variant-numeric: tabular-nums;'
-+ ' white-space: nowrap;'
 + ' overflow: hidden; text-overflow: ellipsis; }',
 '.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
 '.zg-hist-series { display: flex; flex-wrap: wrap; gap: 4px; }',
@@ -7187,6 +7350,7 @@ this.settings.folderColors, this.settings.uniUserCols]);
 } catch (_) { return ''; }
 }
 goalsFileSync() {
+if (this.settings.organizerOn === false) return;
 const sig = this.goalsSignature();
 if (!sig) return;
 if (sig === this._goalsSig) return;
@@ -8141,6 +8305,7 @@ this._structWriteQ = q;
 return q;
 }
 async structureWriteNow() {
+if (this.settings && this.settings.organizerOn === false) return false;
 const all = this.structureStore();
 const text = this.structureCompose(all);
 try {
@@ -8382,6 +8547,7 @@ this.storeWriteFailed(WS_WRITE.rename, e,
 }
 }
 async structureLand() {
+if (this.settings.organizerOn === false) return false;
 const path = this.structurePathNow();
 const text = this.structureCompose(this.structureStore());
 const f = this.app.vault.getAbstractFileByPath(path);
@@ -14214,6 +14380,22 @@ return isFinite(n) && n > 0 ? n : fallback;
 const narrow = !!(Platform && Platform.isMobile);
 if (narrow) host.rootEl.addClass('is-narrow');
 let stopWidth = () => {};
+let stopNav = () => {};
+if (host.kind === 'leaf' && typeof Platform !== 'undefined' && Platform && Platform.isMobile) {
+const navStamp = () => {
+try {
+const px = zgNavbarOverlap(body);
+if (px > 0) host.rootEl.style.setProperty('--zg-under-navbar', px + 'px');
+else host.rootEl.style.removeProperty('--zg-under-navbar');
+const rootPx = zgNavbarOverlap(host.rootEl);
+if (rootPx > 0) host.rootEl.style.setProperty('--zg-mobilebar-h', rootPx + 'px');
+else host.rootEl.style.removeProperty('--zg-mobilebar-h');
+} catch (_) { zgCatch('openManuscriptModal / navStamp: const px = zgNavbarOverlap(body);', _); }
+};
+zgSoon(navStamp);
+window.addEventListener('resize', navStamp);
+stopNav = () => { try { window.removeEventListener('resize', navStamp); } catch (_) { zgCatch('openManuscriptModal / stopNav: window.removeEventListener(resize, navStamp);', _); } };
+}
 if (!narrow && host.kind === 'modal'
 && typeof window.matchMedia === 'function') {
 try {
@@ -14517,7 +14699,7 @@ drawPanel();
 };
 let nests2 = false;
 try {
-const scratch = new Menu();
+const scratch = zgMenu();
 scratch.addItem((i2) => { nests2 = typeof i2.setSubmenu === 'function'; });
 } catch (_) { nests2 = false; }
 const propRows = (sub, c) => {
@@ -14557,9 +14739,9 @@ const TABS = [
 { id: 'organizer', label: 'Organizer', icon: 'list-tree', tree: 'binder' },
 { id: 'export', label: 'Export', icon: 'file-output', tree: 'ticks' },
 { id: 'history', label: 'History', icon: 'history', tree: 'slim' }
-];
+].filter((t) => t.id !== 'organizer' || this.settings.organizerOn !== false);
 let tab = TABS.some(t => t.id === o.tab) ? o.tab
-: (TABS.some(t => t.id === ses.tab) ? ses.tab : 'organizer');
+: (TABS.some(t => t.id === ses.tab) ? ses.tab : TABS[0].id);
 ses.tab = tab;
 const orgFolderOk = (p) => {
 if (!p) return false;
@@ -14681,7 +14863,7 @@ new WsPropSuggestModal(this.app, items, take,
 return;
 } catch (_) { zgCatch('openManuscriptModal / orgFilterByKey: new WsPropSuggestModal(this.app, items, take,', _); }
 }
-const pv = new Menu();
+const pv = zgMenu();
 for (const it of items.slice(0, 20)) {
 pv.addItem((i3) => i3.setTitle(it.label).onClick(() => take(it)));
 }
@@ -15175,7 +15357,7 @@ drawPanel();
 };
 const orgFlagMenu = (ev, row, td) => {
 const now = markOf(row.path, 'file');
-const m = new Menu();
+const m = zgMenu();
 try { if (m.dom && m.dom.addClass) m.dom.addClass('zg-flag-menu'); } catch (_) { zgCatch('openManuscriptModal / orgFlagMenu: if (m.dom && m.dom.addClass) m.dom.addClass(\'zg-flag-menu\');', _); }
 const row1 = (title, id) => m.addItem((i) => {
 i.setTitle(title);
@@ -15549,6 +15731,7 @@ return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
 };
 const orgColW = (id, host) => {
 const n = Number(orgColPx()[String(id)]);
+if (id !== 'name' && orgNarrowNow()) return 0;
 if (!isFinite(n) || n <= 0) return 0;
 const lo = id === 'name' ? ORG_NAME_MIN : ORG_COL_MIN;
 const hi = Math.min(ORG_NAME_MAX, orgColCeil(host));
@@ -15603,7 +15786,7 @@ if (y < hb.top || y > hb.bottom) return null;
 for (const g of Array.from(host.querySelectorAll('.zg-org-colgrip'))) {
 const r = g.getBoundingClientRect();
 const mid = (r.left + r.right) / 2;
-if (Math.abs(x - mid) <= ORG_GRIP_NEAR) return g;
+if (Math.abs(x - mid) <= Math.max(ORG_GRIP_NEAR, r.width / 2)) return g;
 }
 return null;
 };
@@ -15647,6 +15830,7 @@ live = 0;
 };
 host.addEventListener('pointerdown', (ev) => {
 if (orgGripAt(host, ev.clientX, ev.clientY) !== grip) return;
+try { if (grip.setPointerCapture && ev.pointerId != null) grip.setPointerCapture(ev.pointerId); } catch (_) { zgCatch('openManuscriptModal / orgColGripBind: grip.setPointerCapture(ev.pointerId);', _); }
 ev.preventDefault();
 ev.stopPropagation();
 from = ev.clientX;
@@ -16580,7 +16764,7 @@ draw(); fill(); drawPanel();
 const askPropType = (ev2, done) => {
 if (!Menu) { done(''); return; }
 try {
-const mm = new Menu();
+const mm = zgMenu();
 for (const t of PROP_TYPES) {
 mm.addItem((i) => i.setTitle(t.label)
 .onClick(() => done(t.id)));
@@ -16641,7 +16825,7 @@ if (!found.length) {
 try { new Notice('No properties in these notes'); } catch (_) { zgCatch('openManuscriptModal / pickProp: new Notice(\'No properties in these notes\');', _); }
 return;
 }
-const pick = new Menu();
+const pick = zgMenu();
 pick.addItem((i2) => i2.setTitle('Add a property').setIsLabel(true));
 for (const info of found.slice(0, 20)) {
 pick.addItem((i2) => i2
@@ -17213,6 +17397,7 @@ try { stopWatching(); } catch (_) { zgCatch('openManuscriptModal: stopWatching()
 try { stopCounting(); } catch (_) { zgCatch('openManuscriptModal: stopCounting();', _); }
 try { stopEscape(); } catch (_) { zgCatch('openManuscriptModal: stopEscape();', _); }
 try { stopWidth(); } catch (_) { zgCatch('openManuscriptModal: stopWidth();', _); }
+try { stopNav(); } catch (_) { zgCatch('openManuscriptModal: stopNav();', _); }
 try { orgIndexChanged(); } catch (_) { zgCatch('openManuscriptModal: orgIndexChanged();', _); }
 try { if (orgDrawTimer) window.clearTimeout(orgDrawTimer); } catch (_) { zgCatch('openManuscriptModal: if (orgDrawTimer) window.clearTimeout(orgDrawTimer);', _); }
 try {
@@ -17480,7 +17665,7 @@ sortBtn.createSpan({ text: sortCol
 : 'Sort' });
 sortBtn.title = 'Arrange the rows by a reading — Custom Order is a click away';
 sortBtn.addEventListener('click', (ev) => {
-const menu = new Menu();
+const menu = zgMenu();
 menu.addItem((i) => i.setTitle('Custom Order')
 .setIcon('list-ordered')
 .setChecked(!ctx.orgLens.sort)
@@ -17524,11 +17709,11 @@ addBtn.title = 'Narrow by a property — type to search the folder’s own keys'
 addBtn.addEventListener('click', (ev) => {
 let nests = false;
 try {
-new Menu().addItem((i) => {
+zgMenu().addItem((i) => {
 nests = typeof i.setSubmenu === 'function';
 });
 } catch (_) { nests = false; }
-const menu = new Menu();
+const menu = zgMenu();
 const group = (title, icon, fill) => {
 if (nests) {
 menu.addItem((i) => {
@@ -17599,7 +17784,7 @@ new WsPropSuggestModal(this.app, items, take,
 return;
 } catch (_) { zgCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items, take,', _); }
 }
-const pick = new Menu();
+const pick = zgMenu();
 for (const it of items.slice(0, 20)) {
 pick.addItem((i2) => i2.setTitle(it.label)
 .onClick(() => take(it)));
@@ -17625,7 +17810,7 @@ op === 'empty' ? 'Which property is empty?'
 return;
 } catch (_) { zgCatch('orgTableMake / askEmpty: new WsPropSuggestModal(this.app, items, take,', _); }
 }
-const pk2 = new Menu();
+const pk2 = zgMenu();
 for (const it of items.slice(0, 20)) {
 pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
 }
@@ -17653,7 +17838,7 @@ new WsPropSuggestModal(this.app, items,
 return;
 } catch (_) { zgCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items,', _); }
 }
-const pk = new Menu();
+const pk = zgMenu();
 for (const it of items.slice(0, 20)) {
 pk.addItem((i2) => i2.setTitle(it.label)
 .onClick(() => pickValue(it.key)));
@@ -17949,7 +18134,7 @@ th.addEventListener('dragend', () => { ctx.orgDragCol = null; });
 th.addEventListener('contextmenu', (ev) => {
 ev.preventDefault();
 ev.stopPropagation();
-const menu = new Menu();
+const menu = zgMenu();
 menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
 menu.addItem((i) => i.setTitle('Sort \u2191')
 .setIcon('arrow-up')
@@ -18029,29 +18214,30 @@ const tr = tbody.createEl('tr',
 tr.setAttribute('data-path', row.path);
 if (row.path === ctx.orgNote) tr.addClass('zg-org-active');
 const nameTd = tr.createEl('td', { cls: 'zg-org-name' });
+const nameIn = nameTd.createDiv({ cls: 'zg-org-namein' });
 try {
 nameTd.style.setProperty('--zg-org-depth',
 String(lensed ? 1 : (row.depth || 0) + 1));
 } catch (_) { zgCatch('orgTableMake / drawOrg: nameTd.style.setProperty(\'--zg-org-depth\',', _); }
 if (isFolder) {
 const open = ctx.orgIsOpen(row.path);
-const twist = ctx.orgChevron(nameTd, open);
+const twist = ctx.orgChevron(nameIn, open);
 twist.title = open ? 'Fold this folder' : 'Unfold this folder';
 twist.addEventListener('click', (ev) => {
 ev.stopPropagation();
 ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
 });
 } else {
-nameTd.createSpan({ cls: 'zg-org-twistgap tree-item-icon'
+nameIn.createSpan({ cls: 'zg-org-twistgap tree-item-icon'
 + ' collapse-icon nav-folder-collapse-indicator' });
 }
-if (isFolder) ctx.orgFolderIcon(nameTd, row.path, ctx.orgIsOpen(row.path));
-else this.orgKindIcon(nameTd, row.path);
+if (isFolder) ctx.orgFolderIcon(nameIn, row.path, ctx.orgIsOpen(row.path));
+else this.orgKindIcon(nameIn, row.path);
 if (lensed && row.rel) {
-nameTd.createDiv({ cls: 'zg-org-path', text: row.rel });
+nameIn.createDiv({ cls: 'zg-org-path', text: row.rel });
 }
-nameTd.createSpan({ cls: 'zg-org-namelabel', text: ctx.nameOf(row.path) });
-if (!isFolder) this.orgKindTag(nameTd, row.path);
+nameIn.createSpan({ cls: 'zg-org-namelabel', text: ctx.nameOf(row.path) });
+if (!isFolder) this.orgKindTag(nameIn, row.path);
 nameTd.title = (lensed && row.rel)
 ? row.rel + ' / ' + ctx.nameOf(row.path)
 : ctx.nameOf(row.path);
@@ -18160,7 +18346,7 @@ ctx.openRow({ path: row.path, kind: row.kind });
 tr.addEventListener('contextmenu', (ev) => {
 ev.preventDefault();
 ev.stopPropagation();
-const menu = new Menu();
+const menu = zgMenu();
 this.outlinerRowMenu(menu,
 { path: row.path, kind: row.kind }, ctx.orgMenuCtx);
 menu.showAtMouseEvent(ev);
@@ -19060,7 +19246,7 @@ return out;
 }
 menuVisibleLayout() {
 const hidden = new Set(this.settings.menuHidden || []);
-return this.menuLayout().filter(id => !hidden.has(id));
+return this.menuLayout().filter(id => !hidden.has(id) && (id !== 'organizer' || this.settings.organizerOn !== false));
 }
 menuBands() {
 const joined = new Set(this.settings.menuJoined || []);
@@ -22059,7 +22245,7 @@ box(gl, 0, 0, 0); box(gr, 0, 0, 0);
 } catch (_) { zgCatch('stampMaskPositions: const n = this._maskNotches;', _); }
 }
 const arrowsFit = maskH >= ZG_ARROWS_MIN_PX;
-try {
+if (this.arrowsTopEl && this.arrowsBottomEl) try {
 this.arrowsTopEl.classList.toggle('is-hidden', !arrowsFit);
 this.arrowsBottomEl.classList.toggle('is-hidden', !arrowsFit);
 } catch (_) { zgCatch('stampMaskPositions: this.arrowsTopEl.classList.toggle(\'is-hidden\', !arrowsFit);', _); }
@@ -25412,6 +25598,18 @@ this.toggle(pn, 'Paragraph numbers', 'Works in reading view too.',
 }
 }
 displayOrganizerTab(containerEl) {
+new Setting(containerEl).setName('Organizer')
+.setDesc('Off: the Organizer is hidden and its file is never written.')
+.addToggle(t => t.setValue(this.plugin.settings.organizerOn !== false)
+.onChange(async v => {
+this.plugin.settings.organizerOn = v;
+await this.plugin.saveSettings();
+try { this.plugin.refreshMenuPanelsNow(); } catch (_) { zgCatch('displayOrganizerTab: this.plugin.refreshMenuPanelsNow();', _); }
+this.display();
+}));
+containerEl.createEl('p', { cls: 'ws-settings-note', text:
+'Off, Word-Smith/ws-structure.md is neither made nor changed, and the '
++ 'custom order, goals, ticks and non-note properties are not kept.' });
 this.label(containerEl, 'What the columns say');
 new Setting(containerEl).setName('Target column shows')
 .addDropdown(d => d
