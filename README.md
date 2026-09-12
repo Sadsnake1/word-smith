@@ -7,7 +7,7 @@
   <a href="https://www.buymeacoffee.com/sadsnake1" target="_blank"><img src="https://img.shields.io/badge/Buy_me_a_coffee-FFDD00?style=flat-square&logo=buymeacoffee&logoColor=000000&labelColor=FFDD00" alt="Buy Me a Coffee"></a>
 
   <h1>Word-Smith</h1>
-
+  <h3>Write without limits<h3>
   <p><strong>Typewriter. Binder. Compiler.</strong><br>
   *** The ultimate writing suite for Obsidian. Built for desktop & mobile. ***</p>
 
