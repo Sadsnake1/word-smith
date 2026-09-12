@@ -1462,6 +1462,36 @@ const ls = zgLocalStore();
 const kept = ls ? ls.getItem(ZG_SHEET_KEY) : null;
 return kept ? 'none this session; kept from an earlier one: ' + kept : 'none this session';
 }
+const ZG_KB_KEY = 'word-smith:last-keyboard';
+let ZG_LAST_KEYBOARD = null;
+function zgKeyboardRecord(root) {
+try {
+const R = (el) => { if (!el) return 'none'; const r = el.getBoundingClientRect(); return Math.round(r.top) + '..' + Math.round(r.bottom) + ' (' + Math.round(r.height) + ')'; };
+const q = (sel) => root.querySelector(sel);
+const leaf = root.closest ? root.closest('.workspace-leaf-content') : null;
+const body = q('.zg-uni-body'), panel = q('.zg-uni-panel');
+const act = document.activeElement;
+const vv = window.visualViewport;
+const d = new Date();
+const line = [d.toTimeString().slice(0, 8), 'leaf ' + R(leaf), 'root ' + R(root),
+'body ' + R(body) + (body ? ' pad ' + getComputedStyle(body).paddingBottom : ''),
+'panel ' + R(panel) + (panel ? ' scroll ' + panel.scrollHeight + '/' + panel.clientHeight + '@' + panel.scrollTop : ''),
+'field ' + (act && root.contains(act) ? act.tagName.toLowerCase() + '.' + String(act.className || '').split(' ')[0] + ' ' + R(act) : 'none in the pane'),
+'innerH ' + window.innerHeight, 'visualH ' + (vv ? Math.round(vv.height) : '-'),
+'keyboard ' + (getComputedStyle(document.body).getPropertyValue('--keyboard-height').trim() || '-'),
+'navbar ' + R(document.querySelector('.mobile-navbar')),
+'chain ' + (() => { const out = []; let e = body; while (e && out.length < 6 && e !== document.body) { const c = getComputedStyle(e); out.push(String(e.className || e.tagName).split(' ')[0] + ':' + R(e) + ' h=' + c.height + ' ' + c.display + (c.flexGrow !== '0' ? ' grow=' + c.flexGrow : '') + (c.maxHeight !== 'none' ? ' max=' + c.maxHeight : '')); e = e.parentElement; } return out.join(' > '); })()].join(' ');
+ZG_LAST_KEYBOARD = line;
+const ls = zgLocalStore();
+if (ls) ls.setItem(ZG_KB_KEY, line);
+} catch (_) { zgCatch('zgKeyboardRecord: const leaf = root.closest(.workspace-leaf-content);', _); }
+}
+function zgLastKeyboard() {
+if (ZG_LAST_KEYBOARD) return ZG_LAST_KEYBOARD;
+const ls = zgLocalStore();
+const kept = ls ? ls.getItem(ZG_KB_KEY) : null;
+return kept ? 'none this session; kept from an earlier one: ' + kept : 'none this session';
+}
 function zgSheetLift(menu) {
 try {
 const dom = menu && menu.dom;
@@ -2551,7 +2581,7 @@ return '[' + done + '/' + all + ']';
 function zgSortArrow(dir) {
 return dir === 'desc' ? ' ↓' : ' ↑';
 }
-const ZG_STYLESHEET_VERSION = 532;
+const ZG_STYLESHEET_VERSION = 541;
 const ZG_INSTALLER_REFUSE = 1009;
 const ZG_INSTALLER_REFUSE_TEXT = '1.9';
 const ZG_INSTALLER_WARN = 1013;
@@ -2567,7 +2597,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.7';
+const ZG_PLUGIN_VERSION = '1.4.8';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -3499,13 +3529,10 @@ if (i === -1) return null;
 if (!below) return ontoPath;
 return (i + 1 < rest.length) ? rest[i + 1] : null;
 };
-const zgOrgCounts = (ix, paths, key) => {
+const zgOrgCounts = (ix, paths, key, extra) => {
 const n = new Map();
 if (!ix || !key) return n;
-for (const p of (paths || [])) {
-const r = ix.get(String(p));
-if (!r || !r.props || !Object.prototype.hasOwnProperty.call(r.props, key)) continue;
-const v = r.props[key];
+const count = (v) => {
 const here = new Set();
 const take = (x) => {
 if (x === null || x === undefined) return;
@@ -3516,10 +3543,16 @@ if (s) here.add(s);
 };
 take(v);
 for (const s of here) n.set(s, (n.get(s) || 0) + 1);
+};
+for (const p of (paths || [])) {
+const r = ix.get(String(p));
+if (!r || !r.props || !Object.prototype.hasOwnProperty.call(r.props, key)) continue;
+count(r.props[key]);
 }
+for (const e of (extra || [])) count(e && e.value);
 return n;
 };
-const zgOrgDistinct = (ix, paths, key) => {
+const zgOrgDistinct = (ix, paths, key, extra) => {
 const seen = new Map();
 if (!ix || !key) return [];
 const take = (v) => {
@@ -3536,6 +3569,7 @@ if (r && r.props && Object.prototype.hasOwnProperty.call(r.props, key)) {
 take(r.props[key]);
 }
 }
+for (const e of (extra || [])) take(e && e.value);
 return Array.from(seen.keys())
 .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 .map(s => seen.get(s));
@@ -4875,6 +4909,7 @@ const nav = q('.mobile-navbar') || q('.mobile-toolbar') || q('.mobile-tab-switch
 L.push('  navbar ' + (nav ? nav.className + ' ' + R(nav) : 'none by any name'));
 L.push('  last sheet ' + zgLastSheet());
 L.push('  sheet test ' + (this._sheetTest || 'not run (the command runs it before the report)'));
+L.push('  last keyboard ' + zgLastKeyboard());
 L.push('  active leaf ' + R(q('.workspace-leaf.mod-active .workspace-leaf-content')) + '   its view-content ' + R(q('.workspace-leaf.mod-active .view-content')) + '   its header ' + R(q('.workspace-leaf.mod-active .view-header')));
 const roots = Array.from(document.querySelectorAll('.zg-uni-modal'));
 L.push('  pane roots ' + roots.length + ': ' + roots.map((r) => R(r) + (r.classList.contains('zg-uni-pane') ? ' pane' : ' modal') + (r.classList.contains('is-narrow') ? '/narrow' : '')).join(' | '));
@@ -7740,7 +7775,13 @@ const list = Array.isArray(raw) && raw.length ? raw : ['md'];
 return new Set(list);
 }
 uniTypeAllows(file) {
-return this.uniTypeSet().has(this.uniTypeGroupOf(file));
+const set = this.uniTypeSet();
+const g = this.uniTypeGroupOf(file);
+if (g !== 'other') return set.has(g);
+if (set.has('other')) return true;
+const ext = String((file && file.extension)
+|| String((file && file.path) || '').split('.').pop() || '').toLowerCase();
+return !!ext && set.has('ext:' + ext);
 }
 getFilePath(view) {
 const file = view && view.file;
@@ -8476,6 +8517,29 @@ for (const k of Object.keys(all)) {
 if (k.toLowerCase() === low) return all[k];
 }
 return undefined;
+}
+propStoreRowsUnder(folder, key) {
+const out = [];
+const want = String(key || '').trim().toLowerCase();
+if (!want) return out;
+const store = this.structureCached();
+if (!store) return out;
+const f = String(folder || '');
+const pre = f ? f + '/' : '';
+try {
+for (const scope of Object.keys(store)) {
+if (String(scope).indexOf('props: ') !== 0) continue;
+const k = String(scope).slice(7).trim();
+if (k.toLowerCase() !== want) continue;
+for (const r of (store[scope] || [])) {
+if (!r || r.note === undefined) continue;
+const p = String(r.path || '');
+if (!p || (pre && p.indexOf(pre) !== 0) || !this.propStoreHolds(p)) continue;
+out.push({ path: p, value: this.propStoreDecode(k, r.note) });
+}
+}
+} catch (_) { zgCatch('propStoreRowsUnder: for (const scope of Object.keys(store))', _); }
+return out;
 }
 async propStoreAll(path) {
 const out = {};
@@ -11348,11 +11412,11 @@ return (haveTotal
 : fileCount + (fileCount === 1 ? ' file' : ' files'))
 + ' \u00b7 ' + words.toLocaleString() + ' words';
 }
-exportReaderClicks(doc, open) {
+exportReaderClicks(doc, open, frame) {
 const root = doc && doc.documentElement;
 if (!doc || !root || root.__wsReaderClicks) return;
 root.__wsReaderClicks = true;
-if (typeof open !== 'function') open = (path, snippet, ev) => this.openNoteAt(path, snippet, ev);
+if (typeof open !== 'function') open = (path, snippet, ev) => this.openNoteAt(path, snippet, ev, frame);
 doc.addEventListener('click', (ev) => {
 try {
 const t = ev.target;
@@ -11369,6 +11433,10 @@ if (sel && String(sel).length) return;
 } catch (_) { zgCatch('exportReaderClicks: const sel = doc.getSelection && doc.getSelection();', _); }
 const block = t.closest('p, h1, h2, h3, h4, h5, h6, li, blockquote, pre');
 if (ev.preventDefault) ev.preventDefault();
+try {
+doc.querySelectorAll('.is-here').forEach((el) => el.classList.remove('is-here'));
+if (block) block.classList.add('is-here');
+} catch (_) { zgCatch('exportReaderClicks: block.classList.add(is-here)', _); }
 open(path, zgSnippetOf(block ? block.textContent : ''), ev);
 } catch (_) { zgCatch('exportReaderClicks: const t = ev.target;', _); }
 });
@@ -11424,7 +11492,7 @@ else win.scrollBy(0, dy);
 } catch (_) { zgCatch('exportReaderKeys: if (!doc.documentElement || !doc.documentElement.classList.contains(\'i …', _); }
 });
 }
-async openNoteAt(path, snippet, ev) {
+async openNoteAt(path, snippet, ev, frame) {
 const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
 let view = null;
 let opened = false;
@@ -11432,7 +11500,19 @@ try {
 const ws = this.app.workspace;
 const file = this.app.vault.getAbstractFileByPath(path);
 const root = ws.rootSplit;
-let leaf = (root && ws.getMostRecentLeaf) ? ws.getMostRecentLeaf(root) : null;
+let readerLeaf = null;
+try {
+if (frame && ws.iterateAllLeaves) ws.iterateAllLeaves((l) => { if (!readerLeaf && l && l.containerEl && l.containerEl.contains && l.containerEl.contains(frame)) readerLeaf = l; });
+} catch (_) { zgCatch('openNoteAt: ws.iterateAllLeaves((l) => l.containerEl.contains(frame))', _); readerLeaf = null; }
+let leaf = null;
+if (readerLeaf && !newTab) {
+const kept = this._readerBeside;
+const alive = !!(kept && kept !== readerLeaf && ws.getLeafById && ws.getLeafById(kept.id) === kept);
+if (alive) leaf = kept;
+else if (ws.createLeafBySplit) { leaf = ws.createLeafBySplit(readerLeaf, 'vertical'); this._readerBeside = leaf; }
+}
+if (!leaf) leaf = (root && ws.getMostRecentLeaf) ? ws.getMostRecentLeaf(root) : null;
+if (leaf && readerLeaf && leaf === readerLeaf && !newTab && ws.createLeafBySplit) { leaf = ws.createLeafBySplit(readerLeaf, 'vertical'); this._readerBeside = leaf; }
 if (leaf && file && typeof file.extension === 'string') {
 if (newTab && leaf.parent && ws.createLeafInParent) {
 leaf = ws.createLeafInParent(leaf.parent, leaf.parent.children.length);
@@ -11831,7 +11911,7 @@ doc.open(); doc.write(html); doc.close();
 if (!zoom) zoom = asText ? 1 : (this._exportZoom || fitZoom());
 apply();
 applyDark();
-try { this.exportReaderClicks(docOf()); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf());', _); }
+try { this.exportReaderClicks(docOf(), null, frame); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);', _); }
 try { this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => this.openNoteAt(p, sn), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig('vimMode')) }); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
 if (flow) { try { flowApply(); } catch (_) { zgCatch('exportPreviewInto / paint: flowApply();', _); } }
 armScroll();
@@ -12083,6 +12163,7 @@ return '<!doctype html><html><head><meta charset="utf-8">'
 + ' }'
 + ':root { color-scheme: light; }'
 + 'html { background: ' + (forScreen ? zgHostTint() : '#fff') + '; }'
++ (forScreen ? 'html.is-flow .is-here { background: rgba(127, 127, 127, 0.14); box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.14); border-radius: 2px; }' : '')
 + 'body { margin: 0; padding: ' + (forScreen ? '18px 0' : '0') + ';'
 + ' font-family: ' + font + ', Times, serif; font-size: ' + pt + 'pt;'
 + ' line-height: ' + lineH + ';'
@@ -14325,12 +14406,12 @@ return zgOrgAgg(this._orgIndex, zgOrgPathsUnder(this._orgIndex, folder));
 orgDistinctUnder(folder, key) {
 if (!this._orgIndex) return [];
 return zgOrgDistinct(this._orgIndex,
-zgOrgPathsUnder(this._orgIndex, folder), key);
+zgOrgPathsUnder(this._orgIndex, folder), key, this.propStoreRowsUnder(folder, key));
 }
 orgCountsUnder(folder, key) {
 if (!this._orgIndex) return new Map();
 return zgOrgCounts(this._orgIndex,
-zgOrgPathsUnder(this._orgIndex, folder), key);
+zgOrgPathsUnder(this._orgIndex, folder), key, this.propStoreRowsUnder(folder, key));
 }
 openManuscriptModal(opts) {
 const plugin = this;
@@ -14384,7 +14465,8 @@ let stopNav = () => {};
 if (host.kind === 'leaf' && typeof Platform !== 'undefined' && Platform && Platform.isMobile) {
 const navStamp = () => {
 try {
-const px = zgNavbarOverlap(body);
+const kbh = parseFloat(getComputedStyle(document.body).getPropertyValue('--keyboard-height')) || 0;
+const px = kbh > 0 ? 0 : zgNavbarOverlap(body);
 if (px > 0) host.rootEl.style.setProperty('--zg-under-navbar', px + 'px');
 else host.rootEl.style.removeProperty('--zg-under-navbar');
 const rootPx = zgNavbarOverlap(host.rootEl);
@@ -14394,7 +14476,21 @@ else host.rootEl.style.removeProperty('--zg-mobilebar-h');
 };
 zgSoon(navStamp);
 window.addEventListener('resize', navStamp);
-stopNav = () => { try { window.removeEventListener('resize', navStamp); } catch (_) { zgCatch('openManuscriptModal / stopNav: window.removeEventListener(resize, navStamp);', _); } };
+if (window.visualViewport) window.visualViewport.addEventListener('resize', navStamp);
+let kbTimer = 0;
+const onFocusIn = () => {
+window.setTimeout(navStamp, 500);
+window.clearTimeout(kbTimer);
+kbTimer = window.setTimeout(() => zgKeyboardRecord(host.rootEl), 700);
+};
+host.rootEl.addEventListener('focusin', onFocusIn);
+let kbObs = null;
+try {
+kbObs = new MutationObserver(() => { navStamp(); window.setTimeout(navStamp, 300); });
+kbObs.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+kbObs.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+} catch (_) { kbObs = null; zgCatch('openManuscriptModal / navStamp: kbObs.observe(document.documentElement)', _); }
+stopNav = () => { try { window.removeEventListener('resize', navStamp); if (window.visualViewport) window.visualViewport.removeEventListener('resize', navStamp); host.rootEl.removeEventListener('focusin', onFocusIn); window.clearTimeout(kbTimer); if (kbObs) kbObs.disconnect(); } catch (_) { zgCatch('openManuscriptModal / stopNav: window.removeEventListener(resize, navStamp);', _); } };
 }
 if (!narrow && host.kind === 'modal'
 && typeof window.matchMedia === 'function') {
@@ -14471,12 +14567,13 @@ ses.zoom = Math.min(2, Math.max(0.6, Math.round(((ses.zoom || 1) + step) * 10) /
 zoomApply();
 }, { passive: false });
 let pinch = null;
+let orgGripDrag = 0;
 const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
 body.addEventListener('touchstart', (ev) => {
 pinch = ev.touches.length === 2 ? { d0: span(ev.touches) || 1, z0: ses.zoom || 1 } : null;
 }, { passive: true });
 body.addEventListener('touchmove', (ev) => {
-if (!pinch || ev.touches.length !== 2) return;
+if (orgGripDrag || !pinch || ev.touches.length !== 2) return;
 ev.preventDefault();
 const z = pinch.z0 * span(ev.touches) / pinch.d0;
 const next = Math.min(2, Math.max(0.6, Math.round(z * 10) / 10));
@@ -14650,6 +14747,37 @@ try {
 if (typeof i.setChecked === 'function') i.setChecked(on.has(g.id));
 else if (on.has(g.id)) i.setTitle('\u2713 ' + g.label);
 } catch (_) { zgCatch('openManuscriptModal / typeRows: if (typeof i.setChecked === \'function\') i.setChecked(on.has(g.id));', _); }
+});
+}
+const known = new Set();
+for (const g of groups) for (const e of (g.ext || [])) known.add(e);
+const counts = new Map();
+try {
+for (const f of (this.app.vault.getFiles ? this.app.vault.getFiles() : [])) {
+const e = String((f && f.extension) || '').toLowerCase();
+if (!e || known.has(e)) continue;
+counts.set(e, (counts.get(e) || 0) + 1);
+}
+} catch (_) { zgCatch('openManuscriptModal / typeRows: for (const f of this.app.vault.getFiles())', _); }
+const exts = Array.from(counts.keys()).sort();
+if (exts.length) into.addSeparator();
+for (const e of exts) {
+const title = e + '  ·  ' + counts.get(e);
+const isOn = on.has('other') || on.has('ext:' + e);
+into.addItem((i) => {
+i.setTitle(title).setIcon('file')
+.onClick(() => {
+const next = new Set(this.uniTypeSet());
+const id = 'ext:' + e;
+if (next.has(id)) next.delete(id);
+else { next.add(id); next.delete('other'); }
+if (!next.size) next.add('md');
+setAnd(Array.from(next));
+});
+try {
+if (typeof i.setChecked === 'function') i.setChecked(isOn);
+else if (isOn) i.setTitle('\u2713 ' + title);
+} catch (_) { zgCatch('openManuscriptModal / typeRows: i.setChecked(isOn) for an extension', _); }
 });
 }
 };
@@ -15253,8 +15381,10 @@ void done;
 return false;
 }
 const rEmpty = this._orgIndex && this._orgIndex.get(path);
+const side = this.propStoreHolds(path) ? this.propStoreAllSync(path) : null;
+const propsOf = Object.assign({}, side || {}, (rEmpty && rEmpty.props) || {});
 if (chip.op === 'empty' || chip.op === 'filled') {
-const props = rEmpty && rEmpty.props;
+const props = propsOf;
 let has = false;
 if (props) {
 for (const k of Object.keys(props)) {
@@ -15268,11 +15398,9 @@ break;
 }
 return chip.op === 'empty' ? !has : has;
 }
-const r = this._orgIndex && this._orgIndex.get(path);
-if (!r || !r.props) return false;
-for (const k of Object.keys(r.props)) {
+for (const k of Object.keys(propsOf)) {
 if (k.toLowerCase() !== String(chip.key).toLowerCase()) continue;
-const v = r.props[k];
+const v = propsOf[k];
 const flat = Array.isArray(v) ? v : [v];
 return flat.some(x => x != null && typeof x !== 'object'
 && String(x).trim().toLowerCase() === want);
@@ -15285,8 +15413,9 @@ const ix = this._orgIndex;
 if (!ix) return [];
 for (const row of orgRowList(at, true)) {
 const r = ix.get(row.path);
-if (!r || !r.props) continue;
-for (const k of Object.keys(r.props)) {
+const props = (r && r.props) || (this.propStoreHolds(row.path) ? this.propStoreAllSync(row.path) : null);
+if (!props) continue;
+for (const k of Object.keys(props)) {
 const lc = k.toLowerCase();
 if (!seen.has(lc)) seen.set(lc, k);
 }
@@ -15796,15 +15925,24 @@ host.setAttribute('data-zg-griphover', '1');
 let lit = null;
 const light = (g) => {
 if (lit === g) return;
-if (lit) lit.removeClass('is-near');
+if (lit) { lit.removeClass('is-near'); if (lit.parentElement) lit.parentElement.removeClass('is-gripnear'); }
 lit = g;
-if (lit) lit.addClass('is-near');
+if (lit) { lit.addClass('is-near'); if (lit.parentElement) lit.parentElement.addClass('is-gripnear'); }
 host.toggleClass('is-gripnear', !!lit);
 };
 host.addEventListener('pointermove', (ev) => {
 light(orgGripAt(host, ev.clientX, ev.clientY));
 });
 host.addEventListener('pointerleave', () => light(null));
+host.addEventListener('contextmenu', (ev) => {
+if (!orgGripDrag) {
+const inHead = ev.target && ev.target.closest && ev.target.closest('thead');
+const g = inHead ? orgGripAt(host, ev.clientX, ev.clientY) : null;
+if (!g || !(g.getBoundingClientRect().width > 0)) return;
+}
+ev.preventDefault();
+ev.stopPropagation();
+}, true);
 };
 const orgColGripBind = (th, col, host) => {
 const grip = th.createDiv({ cls: 'zg-org-colgrip' });
@@ -15824,6 +15962,7 @@ ownerWin().removeEventListener('pointermove', move, true);
 ownerWin().removeEventListener('pointerup', up, true);
 } catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
 orgGripReleasedAt = Date.now();
+orgGripDrag = 0;
 if (!live) return;
 orgColWSet(col.id, live);
 live = 0;
@@ -15836,6 +15975,7 @@ ev.stopPropagation();
 from = ev.clientX;
 base = th.getBoundingClientRect().width || ORG_COL_MIN;
 live = 0;
+orgGripDrag = 1;
 try {
 ownerWin().addEventListener('pointermove', move, true);
 ownerWin().addEventListener('pointerup', up, true);
@@ -15871,6 +16011,7 @@ try {
 ownerWin().removeEventListener('pointermove', move, true);
 ownerWin().removeEventListener('pointerup', up, true);
 } catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
+orgGripDrag = 0;
 if (!live) return;
 orgColWSet('name', live);
 live = 0;
@@ -15881,6 +16022,7 @@ ev.stopPropagation();
 from = ev.clientX;
 base = th.getBoundingClientRect().width || ORG_NAME_MIN;
 live = 0;
+orgGripDrag = 1;
 try {
 ownerWin().addEventListener('pointermove', move, true);
 ownerWin().addEventListener('pointerup', up, true);
@@ -15948,6 +16090,7 @@ this.orgWindowAdd(treeDoor);
 this._orgNote = () => orgNote;
 this._orgLens = () => JSON.parse(JSON.stringify(orgLens));
 this._orgLensSet = (patch) => orgLensSet(patch);
+this._orgPropKeys = (at) => orgPropKeys(at);
 const orgPropsByUse = () => {
 const seen = new Map();
 for (const p2 of liveFiles()) {
@@ -16214,6 +16357,7 @@ orgPropSubClose();
 try { door.pick(t.id, ev); } catch (_) { zgCatch('openManuscriptModal / orgPropSubOpen: door.pick(t.id, ev);', _); }
 });
 }
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) return sub;
 try {
 const r = anchor.getBoundingClientRect();
 const box = (orgPropPopEl() || anchor).getBoundingClientRect();
@@ -16288,8 +16432,8 @@ door.open(ev);
 });
 }
 orgPropPopRender();
-if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) return pop;
-try {
+const phoneSheet = !!(typeof Platform !== 'undefined' && Platform && Platform.isPhone);
+if (!phoneSheet) try {
 const r = anchor.getBoundingClientRect();
 const w0 = ownerWin();
 const wide = pop.offsetWidth || 0;
@@ -16311,9 +16455,9 @@ orgPropPopClose();
 };
 try {
 const w0 = ownerWin();
-w0.addEventListener('mousedown', onDown, true);
+w0.addEventListener('pointerdown', onDown, true);
 orgPropPopOff = () => {
-try { w0.removeEventListener('mousedown', onDown, true); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: w0.removeEventListener(\'mousedown\', onDown, true);', _); }
+try { w0.removeEventListener('pointerdown', onDown, true); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: w0.removeEventListener(\'mousedown\', onDown, true);', _); }
 };
 } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();', _); }
 return pop;
@@ -17513,14 +17657,6 @@ panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
 await loadTicks();
 if (ctx.tab() !== 'export') return;
 panel.textContent = '';
-try {
-if (Platform && Platform.isPhone) {
-panel.createEl('p', { cls: 'zg-export-note is-warning',
-text: 'This is a small window for a phone. Everything works, all four '
-+ 'formats included, but choosing files and putting '
-+ 'them in order is much easier on a tablet or a desktop.' });
-}
-} catch (_) { zgCatch('orgDrawExport: if (Platform && Platform.isPhone)', _); }
 const act = panel.createDiv({ cls: 'zg-export-top zg-uni-act' });
 const actHandle = this.buildExportAct(act, {
 scope: () => exportScope(),
@@ -17584,9 +17720,8 @@ const at = ctx.orgAt();
 const cols = ctx.setCols();
 const lensed = ctx.orgLensOn();
 const shaped = ctx.showShape();
-const kinds = this.uniTypeSet();
 const list = ctx.orgRowList(at, lensed || shaped === 'files')
-.filter(r0 => r0.kind === 'folder' || kinds.has(r0.group))
+.filter(r0 => r0.kind === 'folder' || this.uniTypeAllows({ path: r0.path }))
 .filter(r0 => (shaped === 'folders' ? r0.kind === 'folder'
 : shaped === 'files' ? r0.kind !== 'folder' : true));
 const sortCol = ctx.orgLens.sort
@@ -17967,6 +18102,18 @@ const hr = thead.createEl('tr');
 const nameTh = hr.createEl('th',
 { cls: 'zg-org-name', text: 'Name' });
 ctx.orgNameGripBind(ctx.panel, nameTh, table);
+nameTh.title = 'Sort: A to Z, then Z to A, then the book’s order';
+if (ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
+nameTh.createSpan({ cls: 'zg-org-sortmark',
+text: zgSortArrow(ctx.orgLens.sort.dir) });
+}
+nameTh.addEventListener('click', () => {
+if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
+const cur = ctx.orgLens.sort;
+if (!cur || cur.id !== 'name') ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } });
+else if (cur.dir === 'asc') ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } });
+else ctx.orgLensSet({ sort: null });
+});
 const orgZoomOf = (el) => {
 let z = 1;
 try {
@@ -18870,7 +19017,7 @@ return { ok: false, said: 'Could not make that \u2014 '
 + (e && e.message ? e.message : String(e)) };
 }
 await this.outlinerJoinOrder(parent, path);
-try { this.app.workspace.openLinkText(path, '', false); } catch (_) { zgCatch('outlinerAddNote: this.app.workspace.openLinkText(path, \'\', false);', _); }
+try { this.app.workspace.openLinkText(path, '', false, { active: false }); } catch (_) { zgCatch('outlinerAddNote: this.app.workspace.openLinkText(path, \'\', false, { active: false });', _); }
 this.treeShapeChanged();
 return { ok: true, said: '', path, kind: 'file' };
 }
