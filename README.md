@@ -146,7 +146,7 @@ Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/
 
 ## Questions, ideas, bugs
 
-If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). Tell me your OS, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. I fix things fast, and half of what's in this plugin started as somebody's comment.
+If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). Tell me your OS, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can.
 
 Free and MIT. Thanks to everyone on r/ObsidianMD who reported bugs and sent ideas. Cheers!
 
