@@ -2597,7 +2597,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.8';
+const ZG_PLUGIN_VERSION = '1.4.9';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -12431,6 +12431,12 @@ sel.value = o.format;
 sel.addEventListener('change', () => {
 o.format = sel.value; this.saveSettings(); paintFmt();
 });
+if (!this.exportPdfAvailable()) {
+fmt.addClass('has-note');
+fmt.createDiv({ cls: 'zg-export-fmtnote',
+text: 'For a PDF, export the web page, open it in your browser '
++ 'and print it. Same pages, saved as PDF.' });
+}
 const compileList = () => ctx.compileList();
 const runBtn = (label, kind) => {
 const b = into.createEl('button', { cls: 'mod-cta zg-export-go', text: label });
@@ -15900,6 +15906,13 @@ if (cell.getAttribute('data-col') !== id) continue;
 orgColApply(cell, w);
 }
 };
+const orgColMark = (host, id, on) => {
+if (!host) return;
+for (const cell of Array.from(host.querySelectorAll('th, td'))) {
+if (cell.getAttribute('data-col') !== id) continue;
+cell.toggleClass('is-gripdrag', !!on);
+}
+};
 const orgColStamp = (cell, id, host) => {
 const w = orgColW(id, host);
 if (!w) return;
@@ -15914,6 +15927,7 @@ const hb = host.getBoundingClientRect();
 if (y < hb.top || y > hb.bottom) return null;
 for (const g of Array.from(host.querySelectorAll('.zg-org-colgrip'))) {
 const r = g.getBoundingClientRect();
+if (y < r.top || y > r.bottom) continue;
 const mid = (r.left + r.right) / 2;
 if (Math.abs(x - mid) <= Math.max(ORG_GRIP_NEAR, r.width / 2)) return g;
 }
@@ -15963,6 +15977,7 @@ ownerWin().removeEventListener('pointerup', up, true);
 } catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
 orgGripReleasedAt = Date.now();
 orgGripDrag = 0;
+orgColMark(host, col.id, false);
 if (!live) return;
 orgColWSet(col.id, live);
 live = 0;
@@ -15976,6 +15991,7 @@ from = ev.clientX;
 base = th.getBoundingClientRect().width || ORG_COL_MIN;
 live = 0;
 orgGripDrag = 1;
+orgColMark(host, col.id, true);
 try {
 ownerWin().addEventListener('pointermove', move, true);
 ownerWin().addEventListener('pointerup', up, true);
@@ -16012,6 +16028,7 @@ ownerWin().removeEventListener('pointermove', move, true);
 ownerWin().removeEventListener('pointerup', up, true);
 } catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
 orgGripDrag = 0;
+host.removeClass('is-namedrag');
 if (!live) return;
 orgColWSet('name', live);
 live = 0;
@@ -16023,6 +16040,7 @@ from = ev.clientX;
 base = th.getBoundingClientRect().width || ORG_NAME_MIN;
 live = 0;
 orgGripDrag = 1;
+host.addClass('is-namedrag');
 try {
 ownerWin().addEventListener('pointermove', move, true);
 ownerWin().addEventListener('pointerup', up, true);
@@ -16038,6 +16056,8 @@ drawPanel();
 };
 this._orgDraw = () => drawPanel();
 this._orgFit = () => { if (orgColFitNow) orgColFitNow(); };
+this._orgGripAt = (host, x, y) => orgGripAt(host, x, y);
+this._orgGripDrag = () => orgGripDrag;
 this._orgAt = () => orgFolder;
 const treeDoor = {
 kind: host.kind,
@@ -17726,6 +17746,9 @@ const list = ctx.orgRowList(at, lensed || shaped === 'files')
 : shaped === 'files' ? r0.kind !== 'folder' : true));
 const sortCol = ctx.orgLens.sort
 ? (cols.filter(c => c.id === ctx.orgLens.sort.id)[0] || null) : null;
+const sortByName = !sortCol && !!ctx.orgLens.sort && ctx.orgLens.sort.id === 'name';
+const sortLabel = sortCol ? sortCol.label + zgSortArrow(ctx.orgLens.sort.dir)
+: sortByName ? 'Name' + zgSortArrow(ctx.orgLens.sort.dir) : '';
 const shown = list.filter(row => {
 for (const c of ctx.orgLens.chips) {
 if (!c.off && !ctx.orgChipHit(c, row.path)) return false;
@@ -17734,6 +17757,15 @@ if (sortCol && ctx.orgColRaw(sortCol, row.path) === null) return false;
 return true;
 });
 let rows = shown;
+if (!sortCol && ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
+const dir = ctx.orgLens.sort.dir === 'asc' ? 1 : -1;
+rows = shown.slice().sort((a, b) => {
+const d = String(ctx.nameOf(a.path)).localeCompare(
+String(ctx.nameOf(b.path)), undefined, { numeric: true });
+if (d) return d * dir;
+return a.idx - b.idx;
+});
+}
 if (sortCol) {
 const dir = ctx.orgLens.sort.dir === 'asc' ? 1 : -1;
 rows = shown.slice().sort((a, b) => {
@@ -17795,9 +17827,7 @@ const sortBtn = bar.createEl('button',
 { cls: 'zg-export-mini zg-org-sortby' });
 lensIcon(sortBtn, ['arrow-up-down', 'arrow-down-up',
 'arrow-up-narrow-wide', 'sort-asc']);
-sortBtn.createSpan({ text: sortCol
-? 'Sort: ' + sortCol.label + zgSortArrow(ctx.orgLens.sort.dir)
-: 'Sort' });
+sortBtn.createSpan({ text: sortLabel ? 'Sort: ' + sortLabel : 'Sort' });
 sortBtn.title = 'Arrange the rows by a reading — Custom Order is a click away';
 sortBtn.addEventListener('click', (ev) => {
 const menu = zgMenu();
@@ -17805,6 +17835,12 @@ menu.addItem((i) => i.setTitle('Custom Order')
 .setIcon('list-ordered')
 .setChecked(!ctx.orgLens.sort)
 .onClick(() => ctx.orgLensSet({ sort: null })));
+for (const dir of ['asc', 'desc']) {
+menu.addItem((i) => i.setTitle('Name, ' + (dir === 'asc' ? 'A to Z' : 'Z to A'))
+.setIcon('case-sensitive')
+.setChecked(sortByName && ctx.orgLens.sort.dir === dir)
+.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir } })));
+}
 menu.addSeparator();
 const SORT_RELEVANCE = ['words', 'goal', 'tasks', 'mark',
 'modified', 'created', 'grade', 'paras', 'tags'];
@@ -18034,9 +18070,8 @@ b.createSpan({ cls: 'zg-org-chipx', text: '×' });
 b.title = 'Remove this';
 b.addEventListener('click', undo);
 };
-if (sortCol) {
-chipBtn(sortCol.label + zgSortArrow(ctx.orgLens.sort.dir),
-() => ctx.orgLensSet({ sort: null }));
+if (sortLabel) {
+chipBtn(sortLabel, () => ctx.orgLensSet({ sort: null }));
 }
 for (const c of ctx.orgLens.chips) {
 const b = chipHost().createEl('button',
@@ -18174,13 +18209,20 @@ const tableW = table.getBoundingClientRect().width / zoom;
 const room = Math.floor(wrap.clientWidth - Math.max(0, tableW - w));
 const was = table.style.getPropertyValue('--zg-org-nameroom');
 const now = room > 0 ? room + 'px' : '';
-if (was !== now) {
+const ceil = ctx.orgColCeil(ctx.panel);
+const ceilNow = ceil > 0 ? ceil + 'px' : '';
+const ceilWas = table.style.getPropertyValue('--zg-org-nameceil');
+if (was !== now || ceilWas !== ceilNow) {
 if (now) table.style.setProperty('--zg-org-nameroom', now);
 else table.style.removeProperty('--zg-org-nameroom');
+if (ceilNow) table.style.setProperty('--zg-org-nameceil', ceilNow);
+else table.style.removeProperty('--zg-org-nameceil');
 w = nameTh.getBoundingClientRect().width / zoom;
 }
-} else if (table.style.getPropertyValue('--zg-org-nameroom')) {
+} else if (table.style.getPropertyValue('--zg-org-nameroom')
+|| table.style.getPropertyValue('--zg-org-nameceil')) {
 table.style.removeProperty('--zg-org-nameroom');
+table.style.removeProperty('--zg-org-nameceil');
 w = nameTh.getBoundingClientRect().width / zoom;
 }
 } catch (_) { zgCatch('orgNameLine / nameroom: const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());', _); }
@@ -18188,6 +18230,8 @@ host.style.setProperty('--zg-org-nameline',
 Math.round(wrap.offsetLeft + w) + 'px');
 host.style.setProperty('--zg-org-nametop',
 Math.round(wrap.offsetTop) + 'px');
+host.style.setProperty('--zg-org-headh',
+(nameTh.getBoundingClientRect().height / zoom).toFixed(2) + 'px');
 const tall = Math.min(table.getBoundingClientRect().height / zoom,
 wrap.clientHeight);
 host.style.setProperty('--zg-org-nameend',
@@ -18197,7 +18241,8 @@ try { orgSnapAccent(); } catch (_) { zgCatch('orgTableMake / orgNameLine: orgSna
 };
 ctx.orgColFitNow = () => {
 const ths = Array.from(table.querySelectorAll('thead th[data-col]'));
-if (!ths.length) return;
+const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
+if (!ths.length && !narrow) return;
 for (const cell of Array.from(
 table.querySelectorAll('th[data-col], td[data-col]'))) {
 ctx.orgColUnfix(cell);
@@ -18213,6 +18258,7 @@ for (const g of got) {
 if (!g.id || !(g.w > 0)) continue;
 m[g.id] = Math.max(ctx.ORG_COL_MIN, Math.min(ceil, g.w));
 }
+if (narrow) delete m.name;
 s.uniColPx = m;
 this.saveSettings().catch(() => {});
 ctx.drawPanel();
