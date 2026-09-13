@@ -710,6 +710,11 @@ vertical-align: middle;
 line-height: 1;
 }
 .zg-barbtn.is-off { opacity: 0.45; }
+.zg-barbtn.is-icon svg {
+width: 1em;
+height: 1em;
+display: block;
+}
 .zg-tokact {
 cursor: pointer;
 color: inherit;
@@ -1635,6 +1640,10 @@ cursor: pointer;
 font-weight: 600;
 color: var(--text-muted);
 user-select: none;
+}
+.ws-token-help summary::marker,
+.ws-token-help summary::-webkit-details-marker {
+color: var(--interactive-accent);
 }
 .ws-token-help[open] summary {
 margin-bottom: 6px;
@@ -3385,6 +3394,7 @@ font-weight: 600;
 background: var(--interactive-accent-hover);
 border-color: var(--interactive-accent-hover);
 }
+.zg-export-prevfoot .zg-export-refresh:disabled { opacity: 0.6; cursor: progress; }
 .zg-export-zoom,
 .zg-export-flip {
 display: flex;
@@ -3930,7 +3940,7 @@ font-variant-numeric: tabular-nums;
 .zg-org-table td.is-text { text-align: left; }
 .zg-org-table thead th,
 .zg-org-table thead th.is-text { text-align: center; }
-.zg-org-table thead th.zg-org-name { text-align: left; }
+.zg-org-table thead th.zg-org-name { text-align: center; }
 .zg-org-table thead th {
 position: sticky;
 top: 0;
@@ -3972,6 +3982,13 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 .zg-org-table thead th.zg-org-name { z-index: 3; background-color: var(--background-secondary); }
+.zg-org-table thead th.zg-org-name,
+.zg-org-table tbody td.zg-org-name {
+border-left: 1px solid var(--background-modifier-border);
+}
+.zg-org-table tbody tr:last-child td:not(.zg-org-pickcell) {
+border-bottom: 1px solid var(--background-modifier-border);
+}
 .zg-org-table.is-namefixed .zg-org-name,
 .zg-org-table.is-namefixed .zg-org-row.is-folder td.zg-org-name {
 width: var(--zg-org-namew);
@@ -4161,6 +4178,10 @@ auto;
 background-repeat: no-repeat, no-repeat;
 }
 .zg-org-row.is-empty td { color: var(--text-faint); cursor: default; background: none; }
+.zg-org-table .zg-org-row.is-selected td,
+.zg-org-table .zg-org-row.is-selected td.zg-org-name {
+background-color: color-mix(in srgb, var(--text-selection, var(--interactive-accent)) 55%, transparent);
+}
 @media (prefers-reduced-motion: no-preference) {
 .zg-org-table.is-melt tbody tr { animation: zg-org-melt 150ms ease-out; }
 }
@@ -4181,7 +4202,22 @@ border-bottom: 1px solid var(--background-modifier-border);
 }
 .zg-org-table .zg-org-row td.zg-org-name,
 .zg-org-table .zg-org-subrow td.zg-org-name {
-padding-left: calc(10px + var(--zg-org-depth, 0) * var(--zg-org-step));
+padding-left: calc(10px + var(--zg-org-numw, 0px) + var(--zg-org-depth, 0) * var(--zg-org-step));
+}
+.zg-org-table .zg-org-num,
+.zg-org-table .zg-org-numhead {
+position: absolute;
+left: 10px;
+top: 50%;
+transform: translateY(-50%);
+color: var(--text-faint);
+font-size: var(--font-ui-smaller);
+font-variant-numeric: tabular-nums;
+white-space: nowrap;
+pointer-events: none;
+}
+.zg-org-table.has-num thead th.zg-org-name {
+padding-left: calc(10px + var(--zg-org-numw, 0px));
 }
 .zg-org-table .zg-org-row td.zg-org-name { display: table-cell; }
 .zg-org-table .zg-org-row td.zg-org-name .zg-org-namein {
@@ -4200,7 +4236,7 @@ var(--nav-indentation-guide-color, var(--background-modifier-border)) 0 1px,
 transparent 1px var(--zg-org-step));
 background-image: var(--zg-org-guide-img);
 background-repeat: no-repeat;
---zg-org-guidex: calc(10px + var(--size-4-4, 16px) / 2);
+--zg-org-guidex: calc(10px + var(--zg-org-numw, 0px) + var(--size-4-4, 16px) / 2);
 background-position: var(--zg-org-guidex) 0;
 background-size: calc(var(--zg-org-depth, 0) * var(--zg-org-step)) 100%;
 }
@@ -4245,6 +4281,19 @@ display: inline-flex;
 vertical-align: middle;
 margin-inline-end: 5px;
 }
+.zg-org-table td.zg-org-aggflags {
+text-align: left;
+white-space: nowrap;
+}
+.zg-org-aggflag {
+display: inline-flex;
+align-items: center;
+gap: 3px;
+margin-inline-end: 9px;
+}
+.zg-org-aggflag:last-child { margin-inline-end: 0; }
+.zg-org-aggflag > .zg-org-flagic { margin-inline-end: 0; }
+.zg-org-aggflagn { font-variant-numeric: tabular-nums; }
 td.is-flag,
 td.is-goal,
 td.is-prop { cursor: pointer; }
@@ -4601,6 +4650,7 @@ width: 0.95em;
 height: 0.95em;
 margin: 0 4px 0 0;
 cursor: pointer;
+align-self: center;
 }
 .nav-files-container .zg-treetick:checked::after {
 width: calc(100% + 2px);

@@ -1543,7 +1543,7 @@ function zgNarrowState() { return { isNarrow: null, flips: 0, flipWindow: 0 }; }
 const ZG_SESSION_KEYS = ['historyView', 'historySeries', 'historyCalMetric'];
 const ZG_TAB_KEYS = {
 menu: ['menuDock', 'menuHidden', 'menuJoined', 'menuOrder', 'menuRuleStyles'],
-retrobar: ['barBottomGap', 'barPresets', 'barRuleDarkBottomColor', 'barRuleDarkTopColor', 'barRuleLightBottomColor', 'barRuleLightTopColor', 'enableRetroStatus', 'fileTokenFormat', 'flagTokenFormat', 'fontTokenFormat', 'markersTokenFormat', 'powerlineColor1', 'powerlineColor2', 'powerlineColor3', 'powerlineColor4', 'powerlineColor5', 'powerlineColor6', 'powerlineColor7', 'powerlineColorLight1', 'powerlineColorLight2', 'powerlineColorLight3', 'powerlineColorLight4', 'powerlineColorLight5', 'powerlineColorLight6', 'powerlineColorLight7', 'powerlineModeColors', 'statusBarBorderBottom', 'statusBarBorderStyle', 'statusBarBorderTop', 'statusBarBorderWidth', 'statusBarFontFollowNote', 'statusBarFontSize', 'statusBarHeight', 'statusBarPadBottom', 'statusBarPadTop', 'statusRows', 'vimColorCommand', 'vimColorCommandLight', 'vimColorInsert', 'vimColorInsertLight', 'vimColorNormal', 'vimColorNormalLight', 'vimColorReplace', 'vimColorReplaceLight', 'vimColorVisual', 'vimColorVisualLight', 'vimFollowCursorSmith', 'vimLabelCommand', 'vimLabelInsert', 'vimLabelNormal', 'vimLabelReplace', 'vimLabelVisual'],
+retrobar: ['barBottomGap', 'barPresets', 'barRuleDarkBottomColor', 'barTokenIcons', 'barRuleDarkTopColor', 'barRuleLightBottomColor', 'barRuleLightTopColor', 'enableRetroStatus', 'fileTokenFormat', 'flagTokenFormat', 'fontTokenFormat', 'markersTokenFormat', 'powerlineColor1', 'powerlineColor2', 'powerlineColor3', 'powerlineColor4', 'powerlineColor5', 'powerlineColor6', 'powerlineColor7', 'powerlineColorLight1', 'powerlineColorLight2', 'powerlineColorLight3', 'powerlineColorLight4', 'powerlineColorLight5', 'powerlineColorLight6', 'powerlineColorLight7', 'powerlineModeColors', 'statusBarBorderBottom', 'statusBarBorderStyle', 'statusBarBorderTop', 'statusBarBorderWidth', 'statusBarFontFollowNote', 'statusBarFontSize', 'statusBarHeight', 'statusBarPadBottom', 'statusBarPadTop', 'statusRows', 'vimColorCommand', 'vimColorCommandLight', 'vimColorInsert', 'vimColorInsertLight', 'vimColorNormal', 'vimColorNormalLight', 'vimColorReplace', 'vimColorReplaceLight', 'vimColorVisual', 'vimColorVisualLight', 'vimFollowCursorSmith', 'vimLabelCommand', 'vimLabelInsert', 'vimLabelNormal', 'vimLabelReplace', 'vimLabelVisual'],
 theme: ['barTheme', 'barThemeBorderless', 'barThemeCheckbox', 'barThemeCode', 'barThemeCursor', 'barThemeEnabled', 'barThemeHeadings', 'barThemeHidden', 'barThemeMarkdown', 'barThemeOrder', 'barThemeSimplified', 'barThemeVim'],
 zen: ['barPeekMs', 'caretMarginPx', 'focusedFileMode', 'fullscreen', 'hideInlineTitle', 'hideLinkedMentions', 'hideProperties', 'hideRibbon', 'hideScrollBar', 'hideStatusBar', 'zenEnabled', 'zenEscExits', 'zenHideBar', 'zenTitlebarMatch'],
 letterbox: ['arrowCount', 'arrowDarkColor', 'arrowLightColor', 'arrowLineEnds', 'arrowScale', 'arrowStyle', 'enableLetterbox', 'letterboxCustomColors', 'letterboxPx', 'lineDarkColor', 'lineLightColor', 'maskMatchText', 'maskMatchTextPadded', 'separatorStyle', 'separatorWeight'],
@@ -1584,7 +1584,8 @@ if (c.axis) return true;
 if (c.key === undefined || c.key === null) return false;
 return keys.has(String(c.key).toLowerCase());
 });
-const sort = (lens.sort && lens.sort.id !== undefined && ids.has(lens.sort.id))
+const sort = (lens.sort && lens.sort.id !== undefined
+&& (ids.has(lens.sort.id) || lens.sort.id === 'name'))
 ? lens.sort : null;
 if (!sort && !chips.length) return null;
 return { sort: sort, chips: chips };
@@ -2597,7 +2598,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.4.9';
+const ZG_PLUGIN_VERSION = '1.5.0';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -3060,6 +3061,7 @@ barRuleLightTopColor: "#16181d",
 barRuleLightBottomColor: "#16181d",
 fontTokenFormat: 'glyph',
 markersTokenFormat: 'glyph',
+barTokenIcons: {},
 letterboxCustomColors: false,
 arrowDarkColor: "#fbfaf9",
 arrowLightColor: "#080808",
@@ -3180,6 +3182,7 @@ vimLabelReplace: "REPLACE",
 vimLabelCommand: "COMMAND",
 barPresets: {},
 barPresetsSeeded: false,
+barPresetsSeededNames: [],
 historyTracking: false,
 historyView: 'day',
 historyCalMetric: 'net',
@@ -3218,7 +3221,8 @@ const BAR_KEYS = [
 'barRuleDarkTopColor', 'barRuleDarkBottomColor',
 'barRuleLightTopColor', 'barRuleLightBottomColor',
 'fontTokenFormat', 'markersTokenFormat',
-'flagTokenFormat'
+'flagTokenFormat',
+'barTokenIcons'
 ];
 const BAR_KEYS_INERT = new Set([
 'powerlineEnabled',
@@ -3379,6 +3383,7 @@ const DEFAULT_BAR_PRESETS = {
 "barRuleLightBottomColor": "#16181d",
 "fontTokenFormat": "word",
 "markersTokenFormat": "word",
+"barTokenIcons": {},
 },
 "Code": {
 "statusBarRows": 1,
@@ -3432,6 +3437,115 @@ const DEFAULT_BAR_PRESETS = {
 "barRuleLightBottomColor": "#16181d",
 "fontTokenFormat": "glyph",
 "markersTokenFormat": "glyph",
+"barTokenIcons": {},
+},
+"Fade": {
+"statusBarRows": 1,
+"statusRows": [{"left":"{vim}:1 | {g}{g}{g} | {file}:2 > {#>}:3 | {ggg}","center":"{organizer}:b3 {export}:b3 {history}:b3","right":"{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {g}{g}{g} | {time}:7"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+"fileTokenFormat": "name",
+"flagTokenFormat": "both",
+"powerlineModeColors": true,
+"powerlineColor1": "#e06c75",
+"powerlineColor2": "#d19a66",
+"powerlineColor3": "#e5c07b",
+"powerlineColor4": "#98c379",
+"powerlineColor5": "#56b6c2",
+"powerlineColor6": "#61afef",
+"powerlineColor7": "#c678dd",
+"statusBarBorderStyle": "none",
+"statusBarBorderWidth": 1,
+"statusBarBorderTop": false,
+"statusBarBorderBottom": false,
+"statusBarFontSize": 13,
+"statusBarHeight": 22,
+"statusBarPadTop": 4,
+"statusBarPadBottom": 4,
+"vimFollowCursorSmith": true,
+"vimColorNormal": "#61afef",
+"vimColorInsert": "#98c379",
+"vimColorVisual": "#c678dd",
+"vimColorReplace": "#e06c75",
+"vimColorCommand": "#d19a66",
+"vimLabelNormal": "NORMAL",
+"vimLabelInsert": "INSERT",
+"vimLabelVisual": "VISUAL",
+"vimLabelReplace": "REPLACE",
+"vimLabelCommand": "COMMAND",
+"powerlineColorLight1": "#c0392b",
+"powerlineColorLight2": "#b9770e",
+"powerlineColorLight3": "#a88a1a",
+"powerlineColorLight4": "#5e9c3a",
+"powerlineColorLight5": "#2e8b9a",
+"powerlineColorLight6": "#2d6da4",
+"powerlineColorLight7": "#8e44ad",
+"vimColorNormalLight": "#2d6da4",
+"vimColorInsertLight": "#5e9c3a",
+"vimColorVisualLight": "#8e44ad",
+"vimColorReplaceLight": "#c0392b",
+"vimColorCommandLight": "#b9770e",
+"powerlineSepWidth": 78,
+"statusBarFontFollowNote": false,
+"barRuleDarkTopColor": "#fbfaf9",
+"barRuleDarkBottomColor": "#fbfaf9",
+"barRuleLightTopColor": "#16181d",
+"barRuleLightBottomColor": "#16181d",
+"fontTokenFormat": "glyph",
+"markersTokenFormat": "glyph",
+"barTokenIcons": {},
+},
+"Ink": {
+"statusBarRows": 1,
+"statusRows": [{"left":"{vim};vim :: {file} :: {#>}","center":"","right":"{flag} :: {tasks} :: {words} words :: {readtime} :: {time}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+"fileTokenFormat": "name",
+"flagTokenFormat": "word",
+"powerlineModeColors": false,
+"powerlineColor1": "#6b7280",
+"powerlineColor2": "#4b5563",
+"powerlineColor3": "#374151",
+"powerlineColor4": "#9ca3af",
+"powerlineColor5": "#d1d5db",
+"powerlineColor6": "#e5e7eb",
+"powerlineColor7": "#f3f4f6",
+"statusBarBorderStyle": "solid",
+"statusBarBorderWidth": 1,
+"statusBarBorderTop": true,
+"statusBarBorderBottom": false,
+"statusBarFontSize": 13,
+"statusBarHeight": 18,
+"statusBarPadTop": 3,
+"statusBarPadBottom": 3,
+"vimFollowCursorSmith": false,
+"vimColorNormal": "#9ca3af",
+"vimColorInsert": "#d1d5db",
+"vimColorVisual": "#e5e7eb",
+"vimColorReplace": "#f3f4f6",
+"vimColorCommand": "#6b7280",
+"vimLabelNormal": "normal",
+"vimLabelInsert": "insert",
+"vimLabelVisual": "visual",
+"vimLabelReplace": "replace",
+"vimLabelCommand": "command",
+"powerlineColorLight1": "#4b5563",
+"powerlineColorLight2": "#6b7280",
+"powerlineColorLight3": "#9ca3af",
+"powerlineColorLight4": "#374151",
+"powerlineColorLight5": "#1f2937",
+"powerlineColorLight6": "#111827",
+"powerlineColorLight7": "#030712",
+"vimColorNormalLight": "#4b5563",
+"vimColorInsertLight": "#1f2937",
+"vimColorVisualLight": "#374151",
+"vimColorReplaceLight": "#111827",
+"vimColorCommandLight": "#6b7280",
+"powerlineSepWidth": 78,
+"statusBarFontFollowNote": true,
+"barRuleDarkTopColor": "#5c6370",
+"barRuleDarkBottomColor": "#5c6370",
+"barRuleLightTopColor": "#9ca3af",
+"barRuleLightBottomColor": "#9ca3af",
+"fontTokenFormat": "word",
+"markersTokenFormat": "word",
+"barTokenIcons": {},
 },
 };
 const zgOrgIndex = () => new Map();
@@ -4289,6 +4403,7 @@ this.onAppEvent(this.app.vault, 'delete', (file) => {
 if (this.wordCountCache) this.wordCountCache.delete(file.path);
 this.removeScopePath(file.path);
 this.historyForgetPath(file.path);
+this.settingsMirrorForget(file.path);
 this.structureForgetStore(file.path);
 if (this.forgetGoalPaths(file.path)) this.saveSettings(true);
 this.treeShapeChanged();
@@ -4857,11 +4972,22 @@ if (!this.settings.barPresets || typeof this.settings.barPresets !== 'object'
 || this.settings.barPresets === DEFAULT_SETTINGS.barPresets) {
 this.settings.barPresets = {};
 }
-if (!this.settings.barPresetsSeeded) {
+{
+const had = Array.isArray(this.settings.barPresetsSeededNames)
+? this.settings.barPresetsSeededNames.slice() : [];
+const seeded = had.length ? had
+: (this.settings.barPresetsSeeded ? ['Plain', 'Code'] : []);
+let grew = false;
 for (const [name, snap] of Object.entries(DEFAULT_BAR_PRESETS)) {
+if (seeded.indexOf(name) !== -1) continue;
 if (!(name in this.settings.barPresets)) {
 this.settings.barPresets[name] = barCloneValue(snap);
 }
+seeded.push(name);
+grew = true;
+}
+if (grew || !Array.isArray(this.settings.barPresetsSeededNames)) {
+this.settings.barPresetsSeededNames = seeded;
 }
 this.settings.barPresetsSeeded = true;
 }
@@ -5738,7 +5864,8 @@ if (this.zenActive() && this.settings.hideScrollBar) return true;
 return !!(this.letterboxActive() && this.isActiveFileInScope());
 }
 shouldHideNativeStatusBar() {
-return !!(this.retroBarActive() || (this.zenActive() && this.settings.hideStatusBar));
+return !!(this.retroBarActive() || (this.zenActive() && this.settings.hideStatusBar)
+|| this.wsOwnViewActive());
 }
 applyNativeStatusBarVisibility(hide) {
 const nb = document.querySelector('.status-bar');
@@ -6746,6 +6873,11 @@ return this.isActiveFileInScope();
 }
 updateStatusBar() {
 const wantBar = this.retroBarActive();
+try {
+const hideNative = this.shouldHideNativeStatusBar();
+document.body.classList.toggle('zenmode-hide-status-bar', hideNative);
+this.applyNativeStatusBarVisibility(hideNative);
+} catch (_) { zgCatch('updateStatusBar: const hideNative = this.shouldHideNativeStatusBar();', _); }
 if (wantBar && !this.retroStatusBarEl) {
 this.retroStatusBarEl = document.body.createEl('div', { cls: 'zengrinder-status-bar' });
 this.retroPlinthEl = document.body.createEl('div', { cls: 'zg-bar-plinth' });
@@ -7518,6 +7650,13 @@ if (skip.has(k)) continue;
 out[k] = parsed.settings[k];
 }
 return out;
+}
+settingsMirrorForget(path) {
+if (!path) return;
+const at = this._mirrorFoundAt || this.settingsMirrorPathFor();
+if (path !== at) return;
+this._mirrorSig = '';
+this._mirrorFoundAt = null;
 }
 async settingsMirrorWrite() {
 if (!this.settings.settingsMirror) return;
@@ -8854,7 +8993,9 @@ else paras[paras.length - 1].end = i;
 inPara = false;
 }
 }
-const stats = { doc, totalWC, charCount, paras };
+let tasks = { done: 0, all: 0 };
+try { tasks = this.countTasks(full); } catch (_) { zgCatch('getDocStats: tasks = this.countTasks(full);', _); }
+const stats = { doc, totalWC, charCount, paras, tasks };
 if (doc) this._docStatsCache = stats;
 return stats;
 }
@@ -8997,6 +9138,33 @@ if (this._barPicker) { this._barPicker.remove(); this._barPicker = null; }
 plUnit() {
 const size = Number((this.settings || {}).statusBarFontSize) || 13;
 return Math.max(2, Math.round(size * 0.25));
+}
+barTokenIconOn(id) {
+const s = this.settings || {};
+if (id === 'font') return (s.fontTokenFormat || 'glyph') !== 'word';
+if (id === 'markers') return (s.markersTokenFormat || 'glyph') !== 'word';
+const m = s.barTokenIcons;
+return !!(m && typeof m === 'object' && m[id] === 'icon');
+}
+barTokenPaint(node, id, word) {
+node.textContent = '';
+node.classList.remove('is-icon');
+if (this.barTokenIconOn(id)) {
+let glyph = '';
+try { glyph = this.menuIconFor(id) || ''; } catch (_) { glyph = ''; }
+const alts = glyph ? (this.menuIconAlts ? this.menuIconAlts(glyph) : [glyph]) : [];
+for (const n of alts) {
+node.textContent = '';
+try { if (typeof setIcon === 'function') setIcon(node, n); } catch (_) { zgCatch('barTokenPaint: setIcon(node, n);', _); }
+if (node.childElementCount > 0) {
+node.classList.add('is-icon');
+node.setAttribute('aria-label', word);
+return;
+}
+}
+node.textContent = '';
+}
+node.textContent = word;
 }
 buildBarButton(cls, render, title, onClick) {
 const el = document.createElement('span');
@@ -10924,7 +11092,11 @@ if (h.today) rewrite(h.today.by);
 return changed;
 }
 historyForgetPath(path) {
-if (this._historyPath && path === this._historyPath) { this._historyPath = null; return; }
+if (this._historyPath && path === this._historyPath) {
+this._historyPath = null;
+this.settings.historySeen = false;
+return;
+}
 const base = this.historyBaselines();
 if (!Object.prototype.hasOwnProperty.call(base, path)) return;
 delete base[path];
@@ -11184,6 +11356,9 @@ this._historyWriting = false;
 async historyClear() {
 this._history = null;
 this.settings.historyBaselines = {};
+if (!this.app.vault.getAbstractFileByPath(this._historyPath || '')) {
+this.settings.historySeen = false;
+}
 this.historyEnsure();
 await this.historyFlush(true);
 }
@@ -11538,7 +11713,7 @@ if (ed.scrollIntoView) ed.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch
 return true;
 }
 exportPreviewInto(host, sections, o, fileCount, words, onExport, headHost,
-totalCount) {
+totalCount, onRefresh) {
 if (!host) return null;
 const body = host.createDiv({ cls: 'zg-export-prevbody' });
 const head = (headHost || body).createDiv({ cls: 'zg-export-prevhead'
@@ -11991,6 +12166,18 @@ expandBtn.toggleClass('is-on', flow);
 expandBtn.addEventListener('click', () => flowSet(!flow));
 sayFlow();
 flowSay = sayFlow;
+if (typeof onRefresh === 'function') {
+const rf = zoomBox.createEl('button',
+{ cls: 'zg-export-mini zg-export-refresh', text: 'Refresh' });
+rf.title = 'Compile again, with what the notes say now';
+rf.setAttribute('aria-label', rf.title);
+rf.addEventListener('click', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+rf.disabled = true;
+try { onRefresh(); } finally { window.setTimeout(() => { rf.disabled = false; }, 400); }
+});
+}
 if (flow) flowApply();
 apply();
 }
@@ -12578,7 +12765,8 @@ if (old) old.remove();
 prevHandle = this.exportPreviewInto(prevCol, secs,
 this.exportOptsFor(ctx.scope(), o, words), picked.length, words,
 null, actRow || null,
-typeof ctx.total === 'function' ? ctx.total() : undefined);
+typeof ctx.total === 'function' ? ctx.total() : undefined,
+() => refreshPreview(null));
 }, 220);
 };
 into.addEventListener('change', refreshPreview);
@@ -13814,19 +14002,19 @@ cap.setAttribute('title',
 }
 buildHistoryIndicator() {
 return this.buildBarButton('zg-barbtn-history',
-(node) => { node.textContent = 'History'; },
+(node) => this.barTokenPaint(node, 'history', 'History'),
 'Your writing history \u2014 click to open it',
 () => this.openHistoryModal());
 }
 buildExportIndicator() {
 return this.buildBarButton('zg-barbtn-export',
-(node) => { node.textContent = 'Export'; },
+(node) => this.barTokenPaint(node, 'export', 'Export'),
 'Compile a manuscript \u2014 click to open the export window',
 () => this.openExportModal());
 }
 buildOutlinerIndicator() {
 return this.buildBarButton('zg-barbtn-outliner',
-(node) => { node.textContent = 'Organizer'; },
+(node) => this.barTokenPaint(node, 'organizer', 'Organizer'),
 'Arrange the manuscript \u2014 click to open the Organizer',
 () => this.orgOpenTab('organizer'));
 }
@@ -13885,7 +14073,7 @@ await this.saveSettings();
 }
 buildReportIndicator() {
 return this.buildBarButton('zg-barbtn-report',
-(node) => { node.textContent = 'Report'; },
+(node) => this.barTokenPaint(node, 'report', 'Report'),
 'Word counts and more \u2014 click for the full report',
 () => this.openReportModal());
 }
@@ -14953,6 +15141,9 @@ const orgLensOn = () => !!(orgLens.sort
 const orgLensSet = (patch) => {
 orgLens = Object.assign({}, orgLens, patch);
 ses.lens = orgLensOn() ? orgLens : null;
+if (ses.lens) s.uniLens = JSON.parse(JSON.stringify(ses.lens));
+else delete s.uniLens;
+this.saveSettings().catch(() => {});
 drawPanel();
 };
 const orgLensClear = () => {
@@ -15140,13 +15331,20 @@ if (b === null || b === undefined) return false;
 return String(a) === String(b);
 };
 const orgPropSet = async (path, key, value) => {
-orgPendSet(path, key, value);
+const all = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
+let out;
+for (const p of all) {
+orgPendSet(p, key, value);
 try {
-return await this.orgPropWrite(path, key, value);
+out = await this.orgPropWrite(p, key, value);
 } catch (e) {
-orgPendDrop(path, key);
-throw e;
+orgPendDrop(p, key);
+if (p === path) throw e;
+zgCatch('orgPropSet / bulk: this.orgPropWrite(p, key, value);', e);
 }
+}
+if (all.length > 1) orgBulkSay(all.length, 'Property set');
+return out;
 };
 const orgColRaw = (col, path) => {
 const r = this._orgIndex && this._orgIndex.get(path);
@@ -15245,7 +15443,7 @@ this.orgFolderIcon(into, path, open);
 const ORG_AGG = {
 words: 'sum', paras: 'sum', goal: 'sum',
 today: 'sum', grade: 'avg', modified: 'newest',
-created: 'oldest', tasks: 'tasks', mark: 'none',
+created: 'oldest', tasks: 'tasks', mark: 'flags',
 read: 'sum', ftype: 'none',
 chars: 'sum', charsall: 'sum', sentences: 'sum'
 };
@@ -15269,6 +15467,10 @@ const v = orgColRaw(col, p);
 if (v === null || v === undefined) continue;
 if (how === 'tasks') { done += v.done; all += v.all; n++; continue; }
 if (how === 'ticked') { n++; if (v === true) done++; continue; }
+if (how === 'flags') {
+const k = String(v);
+seen.set(k, (seen.get(k) || 0) + 1); n++; continue;
+}
 if (how === 'count') {
 const take = (x) => {
 if (x === null || x === undefined) return;
@@ -15292,6 +15494,20 @@ if (w > 0) { wsum += w; wtot += num * w; }
 sum += num;
 }
 if (!n) return null;
+if (how === 'flags') {
+const defs = this.flagDefs();
+const ids = defs.map(f => f.id).filter(id => seen.has(id))
+.concat(Array.from(seen.keys()).filter(id => !defs.some(f => f.id === id)));
+const flags = ids.map(id => {
+const d = defs.filter(f => f.id === id)[0];
+return { id, n: seen.get(id), label: d ? d.label : id };
+});
+return {
+flags,
+text: flags.map(f => f.n + ' ' + f.label).join(', '),
+title: flags.map(f => f.n + (f.n === 1 ? ' file ' : ' files ') + f.label).join(', ')
+};
+}
 if (how === 'ticked') {
 return { text: done + '/' + n,
 title: done + ' of ' + n + ' ticked'
@@ -15483,10 +15699,14 @@ report: (item) => { try { this.openReportModal(item && item.path); } catch (_) {
 rename: (item) => orgRenameRow(item)
 };
 const orgFlagSet = async (row, id, cell) => {
-if (id) s[statusStore()][row.path] = id;
-else delete s[statusStore()][row.path];
+const paths = orgBulkPaths(row);
+for (const p of paths) {
+if (id) s[statusStore()][p] = id;
+else delete s[statusStore()][p];
+}
 await this.saveSettings();
-this.repaintExplorerFlag(row.path);
+for (const p of paths) this.repaintExplorerFlag(p);
+orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
 orgCellHint = cell ? { td: cell, path: row.path } : null;
 drawPanel();
 };
@@ -15657,9 +15877,13 @@ if (commit) {
 const n = parseFloat(inp.value);
 const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
 if (want !== was) {
-if (want > 0) s[goalStore()][row.path] = want;
-else delete s[goalStore()][row.path];
+const paths = orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
+for (const p of paths) {
+if (want > 0) s[goalStore()][p] = want;
+else delete s[goalStore()][p];
+}
 await this.saveSettings(true);
+orgBulkSay(paths.length, want > 0 ? 'Target set' : 'Target cleared');
 }
 }
 orgRedrawPending = true;
@@ -16793,9 +17017,18 @@ s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
 }
 let COLS = colDefs();
 {
-const back = zgSessionLens(ses.lens, COLS.map(c => c.id),
+const back = zgSessionLens(ses.lens || s.uniLens || null, COLS.map(c => c.id),
 COLS.map(c => c.key).filter(k => k));
 if (back) orgLens = back;
+{
+const stored = JSON.stringify(s.uniLens || null);
+const now = JSON.stringify(back);
+if (stored !== now) {
+if (back) s.uniLens = JSON.parse(now);
+else delete s.uniLens;
+this.saveSettings().catch(() => {});
+}
+}
 ses.lens = back;
 }
 const colById = (id) => COLS.filter(c => c.id === id)[0];
@@ -17047,6 +17280,53 @@ const k = keyOf(it);
 if (!sel.has(k) || sel.size < 2) return [it];
 return selRows();
 };
+const orgBulkOn = () => {
+try { if (Platform && Platform.isMobile) return false; } catch (_) { zgCatch('orgBulkOn: Platform.isMobile', _); }
+try { return !orgNarrowNow(); } catch (_) { return true; }
+};
+const orgBulkPaths = (row) => {
+if (!row || !orgBulkOn()) return [row && row.path].filter(Boolean);
+return spread({ kind: row.kind || 'file', path: row.path })
+.filter(it => it.kind !== 'folder').map(it => it.path);
+};
+const orgBulkSay = (n, what) => {
+if (n < 2) return;
+try { new Notice('Word-Smith: ' + what + ' on ' + n + ' notes.'); } catch (_) { zgCatch('orgBulkSay: new Notice', _); }
+};
+let orgSelAnchor = null;
+const orgSelClick = (ev, row, shownPaths) => {
+if (!orgBulkOn() || !ev || row.kind === 'folder') return false;
+const it = { kind: 'file', path: row.path };
+if (ev.shiftKey && orgSelAnchor) {
+const list = shownPaths || [];
+const a = list.indexOf(orgSelAnchor), b = list.indexOf(row.path);
+if (a !== -1 && b !== -1) {
+if (!(ev.ctrlKey || ev.metaKey)) sel.clear();
+for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
+const p = list[i];
+sel.set(keyOf({ kind: 'file', path: p }), { kind: 'file', path: p });
+}
+return true;
+}
+}
+if (ev.ctrlKey || ev.metaKey) {
+const k = keyOf(it);
+if (sel.has(k)) sel.delete(k); else sel.set(k, it);
+orgSelAnchor = row.path;
+return true;
+}
+if (sel.size) sel.clear();
+orgSelAnchor = row.path;
+return false;
+};
+const orgSelHas = (path) => sel.has(keyOf({ kind: 'file', path }));
+const orgSelCount = () => sel.size;
+this._orgSel = () => selRows().map(it => it.path);
+this._orgPropSet = (p, k, v) => orgPropSet(p, k, v);
+this._orgSelSet = (paths) => {
+sel.clear();
+for (const p of (paths || [])) sel.set(keyOf({ kind: 'file', path: p }), { kind: 'file', path: p });
+};
 const openRow = (it, ev) => {
 if (!it || it.kind !== 'file') return;
 const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
@@ -17297,6 +17577,10 @@ get orgNarrowNow() { return orgNarrowNow; },
 get orgNote() { return orgNote; },
 get orgOpenAfter() { return orgOpenAfter; }, set orgOpenAfter(v) { orgOpenAfter = v; },
 get orgOpenSet() { return orgOpenSet; },
+get orgSelClick() { return orgSelClick; },
+get orgSelHas() { return orgSelHas; },
+get orgSelCount() { return orgSelCount; },
+get orgBulkOn() { return orgBulkOn; },
 get orgOpenSetMany() { return orgOpenSetMany; },
 get orgPropCell() { return orgPropCell; },
 get orgPropKeys() { return orgPropKeys; },
@@ -17778,6 +18062,19 @@ if (d) return d * dir;
 return a.idx - b.idx;
 });
 }
+const nums = s.uniRowNumbers ? new Map() : null;
+let numW = 0;
+if (nums) {
+const counters = [];
+for (const r0 of rows) {
+const d = lensed ? 0 : (r0.depth || 0);
+counters.length = d + 1;
+counters[d] = (counters[d] || 0) + 1;
+const label = counters.slice(0, d + 1).join('.');
+nums.set(r0.path, label);
+if (label.length > numW) numW = label.length;
+}
+}
 const sig = rows.map(r0 => r0.path).join('\n');
 const hint = ctx.orgCellHint;
 ctx.orgCellHint = null;
@@ -17866,6 +18163,15 @@ dir: here && ctx.orgLens.sort.dir === 'desc' ? 'asc' : 'desc'
 } }));
 });
 }
+menu.addSeparator();
+menu.addItem((i) => i.setTitle('Row numbers')
+.setIcon('hash')
+.setChecked(!!s.uniRowNumbers)
+.onClick(() => {
+s.uniRowNumbers = !s.uniRowNumbers;
+this.saveSettings().catch(() => {});
+ctx.drawPanel();
+}));
 menuUnder(menu, sortBtn, ev);
 });
 const addBtn = bar.createEl('button',
@@ -18132,10 +18438,15 @@ ctx.orgScrollLeft = wrap.scrollLeft;
 }, { passive: true });
 const table = wrap.createEl('table', { cls: 'zg-org-table' });
 ctx.orgNameStamp(table);
+if (nums) {
+table.addClass('has-num');
+table.style.setProperty('--zg-org-numw', 'calc(' + Math.max(1, numW) + 'ch + 8px)');
+}
 const thead = table.createEl('thead');
 const hr = thead.createEl('tr');
 const nameTh = hr.createEl('th',
 { cls: 'zg-org-name', text: 'Name' });
+if (nums) nameTh.createSpan({ cls: 'zg-org-numhead', text: '#' });
 ctx.orgNameGripBind(ctx.panel, nameTh, table);
 nameTh.title = 'Sort: A to Z, then Z to A, then the book’s order';
 if (ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
@@ -18353,6 +18664,9 @@ s.uniColsOff = Array.from(ctx.colOff);
 await this.saveSettings();
 ctx.draw(); fill(); ctx.drawPanel();
 }));
+menu.addItem((i) => i.setTitle('Resize columns to fit')
+.setIcon('move-horizontal')
+.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
 try { menu.showAtMouseEvent(ev); }
 catch (_) { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('orgTableMake / drawOrg: menu.showAtPosition( x: 0, y: 0 );', _e); } }
 });
@@ -18387,26 +18701,50 @@ box.createSpan({ cls: 'zg-org-subjectname',
 text: at ? ctx.nameOf(at)
 : (this.vaultName() || 'Vault') });
 const subUnder = ctx.orgUnder(at);
+const aggInto = (td, agg) => {
+if (!agg) return;
+if (agg.flags) {
+td.addClass('zg-org-aggflags');
+for (const f of agg.flags) {
+const pair = td.createSpan({ cls: 'zg-org-aggflag' });
+pair.createSpan({ cls: 'zg-org-aggflagn', text: String(f.n) });
+const ic = pair.createSpan({ cls: 'zg-org-flagic' });
+ic.innerHTML = zgFlagSvg(String(f.id), 10);
+pair.title = f.n + (f.n === 1 ? ' file ' : ' files ') + f.label;
+}
+} else {
+td.setText(agg.text);
+}
+if (agg.title) td.title = agg.title;
+};
+ctx.orgAggInto = aggInto;
 for (const col of cols) {
 const td = subj.createEl('td',
 { cls: ctx.colTextish(col) ? 'is-text' : '' });
 td.setAttribute('data-col', col.id);
 ctx.orgColStamp(td, col.id, wrap);
-const agg = ctx.orgColAgg(col, subUnder);
-if (agg) {
-td.setText(agg.text);
-if (agg.title) td.title = agg.title;
-}
+aggInto(td, ctx.orgColAgg(col, subUnder));
 }
 subj.createEl('td', { cls: 'zg-org-pickcell' });
 }
+ctx.orgSelPaint = (body) => {
+for (const tr0 of Array.from(body.querySelectorAll('tr.zg-org-row'))) {
+const p = tr0.getAttribute('data-path') || '';
+tr0.toggleClass('is-selected', !tr0.classList.contains('is-folder') && ctx.orgSelHas(p));
+}
+table.toggleClass('has-sel', ctx.orgSelCount() >= 2);
+};
 for (const row of rows) {
 const isFolder = row.kind === 'folder';
 const tr = tbody.createEl('tr',
 { cls: 'zg-org-row' + (isFolder ? ' is-folder' : '') });
 tr.setAttribute('data-path', row.path);
 if (row.path === ctx.orgNote) tr.addClass('zg-org-active');
+if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass('is-selected');
 const nameTd = tr.createEl('td', { cls: 'zg-org-name' });
+if (nums && nums.has(row.path)) {
+nameTd.createSpan({ cls: 'zg-org-num', text: nums.get(row.path) });
+}
 const nameIn = nameTd.createDiv({ cls: 'zg-org-namein' });
 try {
 nameTd.style.setProperty('--zg-org-depth',
@@ -18442,8 +18780,8 @@ if (isFolder) {
 const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path));
 if (agg) {
 td.addClass('zg-org-aggcell');
-td.setText(agg.text);
-if (agg.title) td.title = agg.title;
+if (ctx.orgAggInto) ctx.orgAggInto(td, agg);
+else { td.setText(agg.text); if (agg.title) td.title = agg.title; }
 }
 continue;
 }
@@ -18530,6 +18868,11 @@ if (isFolder) {
 if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
 return;
 }
+if (ctx.orgSelClick(ev, row, rows.map(r0 => r0.path))) {
+ctx.orgSelPaint(tbody);
+return;
+}
+ctx.orgSelPaint(tbody);
 ctx.showItem({ path: row.path, kind: row.kind }, true);
 });
 tr.addEventListener('dblclick', (ev) => {
@@ -19356,7 +19699,7 @@ const name = theme
 : null;
 const el = this.buildBarButton(
 'zg-barbtn-theme' + (theme ? '' : ' is-off'),
-(node) => { node.textContent = 'Theme'; },
+(node) => this.barTokenPaint(node, 'theme', 'Theme'),
 name ? 'Theme: ' + name + ' \u2014 click to change'
 : 'Theme \u2014 click to choose',
 (anchor2) => this.openThemePicker(anchor2)
@@ -19368,8 +19711,8 @@ const current = this.opt('editorFont') || '';
 const el = this.buildBarButton(
 'zg-barbtn-font' + (current ? '' : ' is-off'),
 (node) => {
-node.textContent = this.settings.fontTokenFormat === 'word' ? 'Fonts' : 'Aa';
-if (current) node.style.fontFamily = current;
+this.barTokenPaint(node, 'font', 'Fonts');
+if (current && !node.classList.contains('is-icon')) node.style.fontFamily = current;
 },
 current ? 'Font: ' + current + ' \u2014 click to change' : 'Font \u2014 click to choose',
 (anchor) => this.openFontPicker(anchor)
@@ -20983,7 +21326,7 @@ const title = active.length
 : 'Syntax highlight is off';
 const el = this.buildBarButton(
 'zg-barbtn-syntax' + (active.length ? '' : ' is-off'),
-(node) => { node.textContent = 'Syntax'; },
+(node) => this.barTokenPaint(node, 'syntax', 'Syntax'),
 title,
 (anchor) => this.openSyntaxPicker(anchor)
 );
@@ -21043,7 +21386,7 @@ const s = this.settings;
 const active = s.checksEnabled ? this.getWriteChecks().filter(c => s[c.key]) : [];
 return this.buildBarButton(
 'zg-barbtn-writechecks' + (active.length ? '' : ' is-off'),
-(node) => { node.textContent = 'Prose'; },
+(node) => this.barTokenPaint(node, 'prose', 'Prose'),
 active.length ? 'Prose checks: ' + active.map(c => c.label.toLowerCase()).join(', ')
 : 'Prose checks are off',
 (anchor) => this.openWriteChecksPicker(anchor)
@@ -21073,10 +21416,7 @@ const any = this.markerOpt('showHiddenMarkers', false) &&
 (s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 return this.buildBarButton(
 'zg-barbtn-markers' + (any ? '' : ' is-off'),
-(node) => {
-node.textContent = this.settings.markersTokenFormat === 'word'
-? 'Markers' : '\u00b6';
-},
+(node) => this.barTokenPaint(node, 'markers', 'Markers'),
 any ? 'Hidden markers \u2014 click to change' : 'Hidden markers are off',
 (anchor) => this.openMarkersPicker(anchor)
 );
@@ -21151,7 +21491,7 @@ buildModeIndicator() {
 const anyOn = this.getActiveModes().length > 0 || this.letterboxActive();
 return this.buildBarButton(
 'zg-barbtn-modes' + (anyOn ? '' : ' is-off'),
-(node) => { node.textContent = 'Modes'; },
+(node) => this.barTokenPaint(node, 'modes', 'Modes'),
 anyOn ? 'Writing modes \u2014 click to change' : 'Writing modes are off',
 (anchor) => this.openModesPicker(anchor)
 );
@@ -21384,7 +21724,8 @@ const subs = {
 '{organizer}': '\x00OUTLINER\x00',
 '{outliner}': '\x00OUTLINER\x00',
 '{flag}': '\x00FLAG\x00',
-'{readtime}': this.formatReadTime(totalWC)
+'{readtime}': this.formatReadTime(totalWC),
+'{tasks}': stats && stats.tasks ? zgTaskSay(stats.tasks.done, stats.tasks.all) : ''
 };
 const rows = this.getStatusRows();
 const dir0 = readBarDirective((rows[0] || {}).left);
@@ -24664,6 +25005,7 @@ L('{file}', 'the note\u2019s name, or its folders too \u2014 you choose above');
 L('{words} {chars}', 'how much is in the note, or in your selection');
 L('{ln:col} {paragraph}', 'which line and column you\u2019re on; which paragraph of how many');
 L('{readtime}', 'how long the note takes to read');
+L('{tasks}', 'tasks ticked over tasks in the note, as the Organizer shows them: [3/7]; nothing when there are none');
 L('{backlinks}', 'how many other notes link to this one');
 L('{time} {clock}', 'the time, written out or drawn as a little dial');
 L('{dd} {mm} {yyyy} {yy}', 'the date, a piece at a time \u2014 join them however you like');
@@ -25292,10 +25634,31 @@ this.plugin.settings[key] = v;
 await this.plugin.saveSettings();
 this.plugin.updateRetroStatusBar();
 }));
-btnFmt('{font}', 'The specimen, or the word. Either one still renders in the '
-+ 'font you have chosen.', 'fontTokenFormat', 'Aa', 'Fonts');
-btnFmt('{markers}', 'The pilcrow, or the word.',
-'markersTokenFormat', '\u00b6  Pilcrow', 'Markers');
+btnFmt('{font}', 'The menu\u2019s icon, or the word \u2014 the word still renders in the '
++ 'font you have chosen.', 'fontTokenFormat', 'Icon', 'Fonts');
+btnFmt('{markers}', 'The menu\u2019s pilcrow icon, or the word.',
+'markersTokenFormat', 'Icon', 'Markers');
+const iconFmt = (token, id, word) =>
+new Setting(tf).setName(token).setDesc('The menu\u2019s icon, or the word.')
+.addDropdown(d => d
+.addOption('word', word)
+.addOption('icon', 'Icon')
+.setValue(((this.plugin.settings.barTokenIcons || {})[id]) === 'icon' ? 'icon' : 'word')
+.onChange(async v => {
+const m = Object.assign({}, this.plugin.settings.barTokenIcons || {});
+if (v === 'icon') m[id] = 'icon'; else delete m[id];
+this.plugin.settings.barTokenIcons = m;
+await this.plugin.saveSettings();
+this.plugin.updateRetroStatusBar();
+}));
+iconFmt('{mode}', 'modes', 'Modes');
+iconFmt('{syntax}', 'syntax', 'Syntax');
+iconFmt('{prose}', 'prose', 'Prose');
+iconFmt('{theme}', 'theme', 'Theme');
+iconFmt('{report}', 'report', 'Report');
+iconFmt('{history}', 'history', 'History');
+iconFmt('{export}', 'export', 'Export');
+iconFmt('{organizer}', 'organizer', 'Organizer');
 const df = this.sub(tf);
 df.createEl('p', {
 text: 'Format dates like {dd}.{mm}.{yy}',
@@ -26231,5 +26594,7 @@ module.exports.zgDeepestLevel = zgDeepestLevel;
 module.exports.zgTocSteps = zgTocSteps;
 module.exports.WsMenuView = WsMenuView;
 module.exports.zgSessionLens = zgSessionLens;
+module.exports.zgTaskSay = zgTaskSay;
+module.exports.DEFAULT_BAR_PRESETS = DEFAULT_BAR_PRESETS;
 module.exports.zgSessionNew = zgSessionNew;
 module.exports.zgForDisk = zgForDisk;
