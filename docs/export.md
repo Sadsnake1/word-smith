@@ -10,7 +10,7 @@ It's a pane of its own. Open it from the command palette (**Export a manuscriptâ
 
 ## What goes in
 
-While the Export pane is open, every file and folder in your chosen scope gets a tick box in Obsidian's explorer. Tick what goes in. The count keeps up. Order is the file tree's order, so drag a file to move it, drag a folder to move the whole chapter. Ticks and order are saved in `ws-structure.md`, so they survive closing the pane.
+While the Export pane is open, every note and folder in Obsidian's explorer gets a tick box. Tick what goes in, from anywhere in the vault: a note in another folder joins the manuscript, a folder ticked from outside comes in whole, and a folder with only some of its notes in shows a half tick. The count keeps up. Order is the file tree's order, so drag a file to move it, drag a folder to move the whole chapter. Ticks and order are saved in `ws-structure.md`, so they survive closing the pane.
 
 Several folders can be one book. Select Part One and Part Three, right-click, Export these, and they compile together in the order you picked them.
 
@@ -33,13 +33,13 @@ Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a no
 
 ## The preview
 
-The manuscript as pages, at the paper size you chose, before a single file is written. Page through it, zoom, **Fit** the whole sheet or **100%** for print size. Flip the paper dark for reading at night. Print still comes out ink on paper.
+The manuscript as pages, at the paper size you chose, before a single file is written. Page through it, zoom, **Fit** the whole sheet or **100%** for print size. Flip the paper dark for reading at night. Print still comes out ink on paper. **Refresh** redraws it after you edit and keeps your place.
 
-Press **Expand** and the preview takes the whole pane as one reading column. Click a paragraph and the note opens with the caret on it. That's the fastest way to read your book back.
+Press **Expand** and the preview takes the whole pane as one reading column. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
 
 ## The formats
 
-All four work on phones too.
+Word, web page and Markdown work on phones too. For a PDF on a phone, export the web page and print it from the browser; the pane says so where the format would be.
 
 - **PDF** is printed by Obsidian's own engine from the same document the preview draws, so it matches what you saw.
 - **Word** is a real `.docx` with styles.

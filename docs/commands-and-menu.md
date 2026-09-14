@@ -59,7 +59,7 @@ Sixteen tabs, each a feature with its own switch.
 
 | | |
 |---|---|
-| **Menu** | What the pop-up and the panel show |
+| **Powermenu** | What the pop-up and the panel show, each row with its icon |
 | **Powerline** | Rows, presets, share codes, colours, and the format reference |
 | **Theme** | The scheme shelf and its options |
 | **Zen** | What to hide, what Escape does |
@@ -72,6 +72,6 @@ Sixteen tabs, each a feature with its own switch.
 | **Markers** | Tabs, spaces, line ends, drawn |
 | **Typography** | Which substitutions run as you type |
 | **History** | Tracking and the history file |
-| **Organizer** | The target column, date format, your flags |
+| **Organizer** | The target column, date format, your flags and their shapes |
 | **File tree** | Custom order, counts, flags, icons in Obsidian's explorer |
-| **Misc** | Where it applies, quick panels, quick cycle, copy and paste settings, the three notes |
+| **Misc** | Where it applies, quick panels, quick cycle, copy and paste settings, where to add more fonts, the three notes |

@@ -45,6 +45,8 @@ Prose only. Frontmatter, `%%` and HTML comments, code blocks, maths, link target
 
 <img width="570" alt="The writing report" src="https://github.com/user-attachments/assets/809fc7a8-1d85-4a8e-9ea4-a03e6bff0cfd" />
 
-`{report}` on the bar, or the menu. Two tabs, this note and its folder, each with words, characters, syllables, sentences, paragraphs, pages, read time and a reading grade. Hover a figure and it explains itself.
+`{report}` on the bar, the menu, or right-click a row in the Organizer. Words against the target, with a gauge, then characters, syllables, sentences, paragraphs, pages, read time and a reading grade. Hover a figure and it explains itself.
 
-The folder tab has a breadcrumb of every folder above the note. Click one to total that level. How long is this chapter and will the book land are one click apart.
+The path under the title is a breadcrumb of every folder above the note. Click one to total that level. How long is this chapter and will the book land are one click apart. A report on an Organizer selection totals just those rows.
+
+Under the figures, **Words frequency**: every word in the note, how often it appears, and its share as a bar in the same colours the Organizer's target cells use. Common words (the, and, of) stay out until you tick **Include common words**. A share too small for two decimals shows as many as it needs, so a word that is there never reads as 0.00%.

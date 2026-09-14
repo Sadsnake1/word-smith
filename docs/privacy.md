@@ -16,7 +16,7 @@ Word-Smith is local. No network calls of any kind: no `fetch`, no `XMLHttpReques
 
 An exported manuscript is the obvious exception. You asked for your words in a file, so the file has your words in it.
 
-**Two things the community plugin review flags, so you know what they are.** The clipboard is touched only when you press a button that says copy or paste: settings, diagnostics, a share code. And on Linux, the `{battery}` token reads the battery level from the system's own `power_supply` folder, read only, because the browser's battery API doesn't work there. That's the only file access outside Obsidian's vault API, and it's one folder.
+**One thing the community plugin review flags, so you know what it is.** The clipboard is touched only when you press a button that says copy or paste: settings, diagnostics, a share code. There is no file access outside Obsidian's vault API. (Earlier versions read the battery level from a system folder on Linux; that read is gone, and `{battery}` uses the browser's own battery API everywhere.)
 
 Don't take my word for it:
 
@@ -33,7 +33,7 @@ Plain notes, all in `Word-Smith/` on a new vault, yours to read, edit, move or d
 | | |
 |---|---|
 | `ws-history.md` | One row per day: added, deleted, net |
-| `ws-structure.md` | Your book's order, targets, flags, folder colours, which properties are columns, what's ticked for export |
+| `ws-structure.md` | Your book's order, targets, flags, folder colours, which properties are columns, what's ticked for export, and the properties of files that have no frontmatter of their own (PDFs, spreadsheets, images) |
 | `ws-settings.md` | A readable mirror of your settings, so a new machine can be handed the lot |
 
 Each is found by the markers inside it, not by its name, so moving or renaming is safe. Their locations show under **Misc**. If you already have these in your vault root, they stay put.

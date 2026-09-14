@@ -6,7 +6,7 @@ The big boy. Obsidian's file explorer is the tree, the Organizer is the table. C
 
 <img width="1573" alt="The Organizer: a folder as a table of chapters" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It follows whatever note you open, and the arrow keys walk the table without changing the folder.
+Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It follows whatever note you open, and the arrow keys walk the table without changing the folder. On a phone, two fingers zoom the table.
 
 No project file, no special folder. Your folders and files, as they are.
 
@@ -18,13 +18,20 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 
 ## The table
 
-Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there.
+Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colours your tags colours them here too.
 
-- Click a header to sort. Click again to flip. Again to go back to book order.
-- **Filter** is a text search plus chips: pick a property, pick a value. Chips stack. No query language. The same button picks which kinds of file show up.
-- Click a row to look at it, click again to open it.
-- Folder rows add up what's inside them, folded or not.
+- Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
+- **Filter** is a text search plus chips: pick a property, pick a value. Chips stack. No query language. The same button picks which kinds of file show up. The search box sits above the tabs, so it's there on Export and History too.
+- Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
+- Folder rows add up what's inside them, folded or not, and a **Total** row at the foot adds up everything you're looking at.
+- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter.
 - A cell you're editing never gets redrawn under you.
+
+## Bulk edit and undo
+
+Ctrl (or Cmd) click gathers note rows into a selection, Shift click takes the range, a plain click or Escape lets it go. The bar says how many you hold. A flag, a target or a property set on one of them lands on all of them, and a list edit is a difference: adding a tag adds it, removing a tag removes only that one, and nothing else in those notes moves. Bulk edit is desktop only.
+
+Every act the Organizer writes is one step back: a flag, a target, a property, a rename, a bulk edit as one step. Ctrl+Z and Ctrl+Shift+Z while the pane has the focus, or the two buttons beside Collapse all. Undo says what it undid, right there beside the buttons.
 
 ## Properties
 
@@ -36,13 +43,13 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 Give a note a word count to aim for. A folder's target is the sum of its notes, so a book laid out as folders carries a target at every level for free.
 
-Five flags to start: **Sketch**, **Draft**, **Revise**, **Blocked**, **Done**. Each has a little shape beside the word, so they read at any size. Settings → Organizer sets how many you have, their names, one of ten shapes, and a colour for dark and light. Click a flag to cycle it, or press space on the row. Turn on **File tree → File tree flags** and the same flag shows in Obsidian's explorer.
+Five flags to start: **Sketch**, **Draft**, **Revise**, **Blocked**, **Done**. Each has a little shape beside the word, so they read at any size. Settings → Organizer sets how many you have, their names, one of thirteen shapes, and a colour for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → File tree flags** and the same flag shows in Obsidian's explorer.
 
 Targets and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
 ## Export
 
-Select several folders in the explorer, right-click, **Export these**. Or tick boxes in the explorer while the Export pane is open. See [Export](export.md).
+Select several folders in the explorer, right-click, **Export these**. Or tick boxes in the explorer while the Export pane is open: any note, any folder, from anywhere in the vault. See [Export](export.md).
 
 ## Your own order
 

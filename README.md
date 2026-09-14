@@ -20,6 +20,8 @@ Lightweight, free, and working within the vault you already have. No project wiz
 
 Everything has its own toggle, so take what you like and leave the rest off.
 
+Works with Obsidian 1.13.7 and newer, desktop and mobile.
+
 
 https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
@@ -31,11 +33,15 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass. Watch a folder add itself up.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with a shape and a colour of your own. Watch a folder add itself up, and a Total row at the foot add up the lot.
 
 <div align="center">
   <img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 </div>
+
+Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. Readings the frontmatter can't give you sit beside them: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
+
+Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, a search box above the tabs, and your sort and filter come back after a restart.
 
 It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
 
@@ -81,6 +87,8 @@ https://github.com/user-attachments/assets/43a91d87-0775-4e93-8f44-67bcca09f08f
 
 PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is written, laid out to the submission standard.
 
+The tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript; a folder with only some of its notes in shows a half tick. Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox.
+
 <div align="center">
   <img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
   <p><sub>The pages, before anything is written to disk.</sub></p>
@@ -99,13 +107,15 @@ Words you added rise from the centre line. Words you cut fall below it. A day sp
   </tr>
 </table>
 
+The Writing Report gives a note, a folder or a selection its numbers: words against target, characters, syllables, sentences, paragraphs, pages, reading time and grade. Under them, every word you used, how often, and its share drawn as a bar. Common words stay out until you tick them in.
+
 Read more about [history and the report](docs/history-and-report.md).
 
 ### And the rest
 
 [Prose checks and parts-of-speech colouring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in colour, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get a squiggle. No model, no network, no verdicts.
 
-[A status bar you build yourself](docs/powerline.md). You write it as text, and the punctuation you type between tokens becomes the shape you get.
+[A status bar you build yourself](docs/powerline.md). You write it as text, and the punctuation you type between tokens becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1393" alt="A short bar with a few colours" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
@@ -116,7 +126,7 @@ Read more about [history and the report](docs/history-and-report.md).
 
 [The menu](docs/commands-and-menu.md). Everything you change while writing, in one keyboard-driven pop-up. Any Obsidian command can go in it, other plugins included.
 
-Plus typography, text options, Vim niceties and word counts in Obsidian's own file tree.
+Plus typography, text options, Vim niceties and word counts, flags and targets in Obsidian's own file tree.
 
 ## Local, and only local
 
@@ -126,12 +136,14 @@ No account. No cloud. No subscription. No network calls, no telemetry, no depend
 
 **Settings → Community plugins → Browse**, search **Word-Smith**, install, enable.
 
-Desktop, tablet and phone. The Organizer wants a bigger screen.
+Needs Obsidian 1.13.7 or newer. Built and tested on the 1.13.7 installer; installers before 1.9 are refused at start, because Obsidian froze on enable in every one reported. Settings → General shows both numbers, and [troubleshooting](docs/troubleshooting.md) says what to do about an old installer.
+
+Desktop, tablet and phone. The Organizer wants a bigger screen, though it pinches to zoom on a phone.
 
 ## Five minutes in
 
-1. Run **Open the Organizer** from the command palette, then click a folder in its tree. That's your work, as a table.
-2. Press **Properties**, add a column, click a cell to edit it.
+1. Run **Open the Organizer** from the command palette, then click a folder in Obsidian's file tree. That's your work, as a table.
+2. Press **Properties**, add a column, click a cell to edit it. Ctrl-click two rows and set a flag on both.
 3. **Settings → Word-Smith → Powerline**. Try a shipped bar before writing your own.
 4. Turn on **Zen** and **Letter box**. Write something.
 5. Switch on **History** last. It counts from the day you turn it on.

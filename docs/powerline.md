@@ -7,7 +7,7 @@ A status bar you write yourself. One to three rows, each with a left, centre and
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
 
-Two bars ship with it, **Plain** and **Code**. Save your own as presets, and turn any preset into a share code you can send to someone. The full reference is also in the plugin, under **How to write a row** on the Powerline tab.
+Three bars ship with it, **Plain**, **Code** and **Fade**. Save your own as presets, and turn any preset into a share code you can send to someone. The full reference is also in the plugin, under **How to write a row** on the Powerline tab.
 
 ## Readouts
 
@@ -17,6 +17,8 @@ Two bars ship with it, **Plain** and **Code**. Save your own as presets, and tur
 | `{words}` `{chars}` | The note, or your selection |
 | `{ln:col}` `{paragraph}` | Where the cursor is |
 | `{readtime}` | How long the note takes to read |
+| `{tasks}` | Tasks ticked over tasks in the note, `[3/7]`, as the Organizer shows them. Nothing when there are none |
+| `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
 | `{time}` `{clock}` | The time, written or drawn as a dial |
 | `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts, joined however you like |
@@ -29,7 +31,9 @@ Two bars ship with it, **Plain** and **Code**. Save your own as presets, and tur
 
 ## Buttons
 
-`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}` and `{export}` open those panes. Buttons are never dropped, however narrow the window gets.
+`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes. Buttons are never dropped, however narrow the window gets.
+
+Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Token formats**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent colour under the pointer.
 
 ## Dividers
 
