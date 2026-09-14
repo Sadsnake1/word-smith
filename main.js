@@ -1047,6 +1047,19 @@ const REPETITION_STOPWORDS = new Set(`the a an and or but if then than that this
 	down off above below now new one two three way get got go went come came
 	said say says like make made take took see saw know knew think thought`
 .split(/\s+/).filter(Boolean));
+const REPORT_STOPWORDS = new Set(`the a an and or but nor if then than that this
+	these those there here it its it's is are was were be been being am do does
+	did done have has had having will would shall should can could may might must
+	ought i me my mine myself we us our ours you your yours he him his she her
+	hers they them their theirs who whom whose what which when where why how all
+	any both each few more most other some such no not only own same so too very
+	just also as at by for from in into of on to with about after before between
+	during over under again once out up down off above below through against
+	without within upon onto until while because although though whether either
+	neither yet don't didn't doesn't isn't wasn't weren't won't wouldn't couldn't
+	shouldn't can't cannot hasn't haven't hadn't i'm i've i'd i'll you're you've
+	he's she's we're we've they're they've that's there's what's`
+.split(/\s+/).filter(Boolean));
 function findDialogue(line) {
 const text = String(line || '');
 const out = [];
@@ -2307,7 +2320,7 @@ c5: '#4a4000', c6: '#552f5f', c7: '#620f2a',
 t1: '#ffffff', t2: '#0d0e1c', t3: '#989898', t4: '#b6a0ff',
 sel: '#555a66', bar: '#484d67', cur: '#ff66ff' },
 light: { b1: '#fbf7f0', b2: '#efe9dd', b3: '#dfd5cf', b4: '#9f9690',
-c1: '#595959', c2: '#efe9dd', c3: '#fbf7f0', c4: '#b3fabf',
+c1: '#f0c1cf', c2: '#efe9dd', c3: '#fbf7f0', c4: '#b3fabf',
 c5: '#fff576', c6: '#ffddff', c7: '#ffcfbf',
 t1: '#000000', t2: '#fbf7f0', t3: '#595959', t4: '#a0132f',
 sel: '#c2bcb5', bar: '#cab9b2', cur: '#d00000' }
@@ -2507,6 +2520,13 @@ const ZG_OBSIDIAN_PATH = 'M172.7 461.6c73.6-149.1 2.1-217-43.7-246.9'
 + 'l-82.3-84.8c-9-9.2-11.4-23-6.2-34.8 0 0 51-111.8 52.8-117.7l.7-3'
 + 'M293.1 30a31.5 31.5 0 0 0-44.4-2.3l-97.4 87.5c-5.4 5-9 11.5-10'
 + ' 18.8-3.7 24.5-9.7 68-12.3 80.7';
+const zgShareText = (v) => {
+const x = Number(v) || 0;
+if (x <= 0) return '0.00';
+let d = 2;
+while (d < 8 && Number(x.toFixed(d)) === 0) d++;
+return x.toFixed(d);
+};
 const zgObsidianSvg = (px) => '<svg class="svg-icon zg-obsidian-mark" '
 + 'viewBox="0 0 512 512" width="' + px + '" height="' + px + '" '
 + 'fill="none" stroke="currentColor" '
@@ -2598,7 +2618,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.5.0';
+const ZG_PLUGIN_VERSION = '1.5.1';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
@@ -2626,7 +2646,10 @@ const ZG_FLAG_SHAPES = [
 { id: 'hollow', label: 'Hollow pennant' },
 { id: 'swallow', label: 'Swallowtail' },
 { id: 'banner', label: 'Banner' },
-{ id: 'alert', label: 'Alert triangle' },
+{ id: 'alert', label: 'Exclamation' },
+{ id: 'triangle', label: 'Triangle' },
+{ id: 'question', label: 'Question mark' },
+{ id: 'star', label: 'Star' },
 { id: 'dot', label: 'Dot' },
 { id: 'square', label: 'Square' },
 { id: 'check', label: 'Tick' },
@@ -2686,10 +2709,18 @@ return open(pole + '<path d="M2.8 2 L11.6 2 L8.6 5.5 L11.6 9 L2.8 9 Z" fill="cur
 }
 if (shape === 'banner') return open(pole + '<path d="M2.8 2 L11.6 2 L11.6 9 L2.8 9 Z" fill="currentColor"/>');
 if (shape === 'alert') {
-return open('<path d="M6.5 1.6 L12.4 11.8 H0.6 Z" fill="currentColor"/>'
-+ '<path d="M6.5 5 V8.4" stroke="var(--zg-flag-ink, #1b1b1b)" stroke-width="1.5" '
-+ 'stroke-linecap="round"/>'
-+ '<circle cx="6.5" cy="10.2" r="0.85" fill="var(--zg-flag-ink, #1b1b1b)"/>');
+return open('<path d="M4.6 2.4 A1.9 1.9 0 0 1 8.4 2.4 L7.8 8.4 A1.3 1.3 0 0 1 5.2 8.4 Z" fill="currentColor"/>'
++ '<circle cx="6.5" cy="11.9" r="1.75" fill="currentColor"/>');
+}
+if (shape === 'triangle') return open('<path d="M6.5 1.8 L12.2 11.6 H0.8 Z" fill="currentColor"/>');
+if (shape === 'question') {
+return open('<path d="M3.7 4.4 A2.8 2.8 0 1 1 7.9 7 Q6.5 7.9 6.5 9.5" fill="none" stroke="currentColor" '
++ 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>'
++ '<circle cx="6.5" cy="12.1" r="1.45" fill="currentColor"/>');
+}
+if (shape === 'star') {
+return open('<path d="M6.5 1.4 L7.85 5.14 L11.83 5.27 L8.69 7.71 L9.79 11.53 L6.5 9.3 L3.21 11.53 '
++ 'L4.31 7.71 L1.17 5.27 L5.15 5.14 Z" fill="currentColor" stroke="currentColor" stroke-width="0.6" stroke-linejoin="round"/>');
 }
 if (shape === 'dot') return open('<circle cx="6.5" cy="6.5" r="3.6" fill="currentColor"/>');
 if (shape === 'square') return open('<rect x="3" y="3" width="7.2" height="7.2" rx="1.2" fill="currentColor"/>');
@@ -3441,7 +3472,7 @@ const DEFAULT_BAR_PRESETS = {
 },
 "Fade": {
 "statusBarRows": 1,
-"statusRows": [{"left":"{vim}:1 | {g}{g}{g} | {file}:2 > {#>}:3 | {ggg}","center":"{organizer}:b3 {export}:b3 {history}:b3","right":"{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {g}{g}{g} | {time}:7"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+"statusRows": [{"left":":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>","center":"","right":"{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
 "fileTokenFormat": "name",
 "flagTokenFormat": "both",
 "powerlineModeColors": true,
@@ -3493,9 +3524,10 @@ const DEFAULT_BAR_PRESETS = {
 "markersTokenFormat": "glyph",
 "barTokenIcons": {},
 },
-"Ink": {
+};
+const ZG_INK_RETIRED = {
 "statusBarRows": 1,
-"statusRows": [{"left":"{vim};vim :: {file} :: {#>}","center":"","right":"{flag} :: {tasks} :: {words} words :: {readtime} :: {time}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+"statusRows": [{"left":":b2{vim}","center":"","right":"{flag} {backlinks} {tasks} {words} words {organizer} "},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
 "fileTokenFormat": "name",
 "flagTokenFormat": "word",
 "powerlineModeColors": false,
@@ -3508,7 +3540,7 @@ const DEFAULT_BAR_PRESETS = {
 "powerlineColor7": "#f3f4f6",
 "statusBarBorderStyle": "solid",
 "statusBarBorderWidth": 1,
-"statusBarBorderTop": true,
+"statusBarBorderTop": false,
 "statusBarBorderBottom": false,
 "statusBarFontSize": 13,
 "statusBarHeight": 18,
@@ -3545,10 +3577,18 @@ const DEFAULT_BAR_PRESETS = {
 "barRuleLightBottomColor": "#9ca3af",
 "fontTokenFormat": "word",
 "markersTokenFormat": "word",
-"barTokenIcons": {},
-},
+"barTokenIcons": {"organizer":"icon","theme":"icon"},
 };
 const zgOrgIndex = () => new Map();
+const zgCountFootnotes = (text) => {
+const s = String(text || '');
+let n = 0;
+const defs = s.match(/^[ \t]*\[\^[^\]\s]+\]:/gm);
+if (defs) n += defs.length;
+const inl = s.match(/\^\[[^\]\n]+\]/g);
+if (inl) n += inl.length;
+return n;
+};
 const zgOrgPut = (ix, path, r) => {
 if (!ix || !path) return null;
 const src = r || {};
@@ -3563,6 +3603,7 @@ paras: Number(src.paras) || 0,
 charsNoSpaces: Number(src.charsNoSpaces) || 0,
 charsWithSpaces: Number(src.charsWithSpaces) || 0,
 sentences: Number(src.sentences) || 0,
+footnotes: Number(src.footnotes) || 0,
 tasks: src.tasks && Number(src.tasks.all) > 0
 ? { all: Number(src.tasks.all) || 0, done: Number(src.tasks.done) || 0 }
 : null,
@@ -4697,6 +4738,14 @@ if (JSON.stringify(raw[k]) !== JSON.stringify(DEFAULT_SETTINGS[k])) changed++;
 delete raw[k];
 }
 await this.settingsApplyRaw(raw);
+if (tabId === 'history') {
+try {
+if (this.settings.historySeen && !(await this.historyFindFile())) {
+this.settings.historySeen = false;
+await this.saveSettings();
+}
+} catch (_) { zgCatch('settingsResetTab: if (this.settings.historySeen && !(await this.historyFindFile()))', _); }
+}
 return { changed, keys: keys.length };
 }
 repairDisplay() {
@@ -4991,6 +5040,10 @@ this.settings.barPresetsSeededNames = seeded;
 }
 this.settings.barPresetsSeeded = true;
 }
+try {
+const cur = this.settings.barPresets && this.settings.barPresets.Ink;
+if (cur && JSON.stringify(cur) === JSON.stringify(ZG_INK_RETIRED)) delete this.settings.barPresets.Ink;
+} catch (_) { zgCatch('loadSettings: the retired Ink preset', _); }
 if (!Object.keys(raw).length && DEFAULT_BAR_PRESETS.Plain) {
 this.applyBarSnapshot(DEFAULT_BAR_PRESETS.Plain);
 this._activeBarPreset = 'Plain';
@@ -7183,6 +7236,13 @@ root.style.setProperty('--zg-flag-' + f.id, dark ? f.dark : f.light);
 root.style.setProperty('--zg-flag-ink', dark ? '#1b1b1b' : '#ffffff');
 } catch (_) { zgCatch('flagsApply: const root = document.body;', _); }
 try {
+const sig = JSON.stringify(ZG_STATUSES);
+if (this._flagsSig !== undefined && sig !== this._flagsSig && typeof this._orgDraw === 'function') {
+this._orgDraw();
+}
+this._flagsSig = sig;
+} catch (_) { zgCatch('flagsApply: if (sig !== this._flagsSig) this._orgDraw();', _); }
+try {
 const stamp = JSON.stringify(
 ZG_STATUSES.map((st) => [st.id, st.shape, st.label]));
 if (this._flagStamp !== stamp) {
@@ -7960,6 +8020,39 @@ chars: collapsed.replace(/\s+/g, '').length,
 charsNoSpaces: collapsed.replace(/\s+/g, '').length,
 charsWithSpaces: raw.length
 };
+}
+wordFreqInto(text, into) {
+const map = into || new Map();
+if (!text) return map;
+const lines = String(text).split('\n');
+const skip = scanNonProseLines(lines);
+const kept = [];
+for (let i = 0; i < lines.length; i++) {
+if (!skip.has(i + 1)) kept.push(maskForCounting(lines[i]));
+}
+const prose = kept.join('\n').replace(/%%[\s\S]*?%%/g, ' ').replace(CJK_CHAR, ' ');
+for (const run of prose.match(WORDISH) || []) {
+const w = run.toLowerCase().replace(/\u2019/g, "'").replace(/[-'_]+$/, '');
+if (!w || /^\p{N}/u.test(w)) continue;
+map.set(w, (map.get(w) || 0) + 1);
+}
+return map;
+}
+topWords(freq, n, common) {
+const rows = [];
+if (freq) for (const [w, c] of freq) {
+if (!common && REPORT_STOPWORDS.has(w)) continue;
+rows.push({ w, n: c });
+}
+rows.sort((a, b) => b.n - a.n || (a.w < b.w ? -1 : a.w > b.w ? 1 : 0));
+return rows.slice(0, n);
+}
+async wordFreqFor(files) {
+const map = new Map();
+for (const f of files || []) {
+try { this.wordFreqInto(await this.app.vault.cachedRead(f), map); } catch (_) { zgCatch('wordFreqFor: this.wordFreqInto(await this.app.vault.cachedRead(f), map);', _); }
+}
+return map;
 }
 analyzeText(text) {
 const base = this.countProse(text);
@@ -9139,26 +9232,47 @@ plUnit() {
 const size = Number((this.settings || {}).statusBarFontSize) || 13;
 return Math.max(2, Math.round(size * 0.25));
 }
-barTokenIconOn(id) {
+barTokenFormat(id) {
 const s = this.settings || {};
-if (id === 'font') return (s.fontTokenFormat || 'glyph') !== 'word';
-if (id === 'markers') return (s.markersTokenFormat || 'glyph') !== 'word';
+const own = (v) => (v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon');
+if (id === 'font') return own(s.fontTokenFormat || 'glyph');
+if (id === 'markers') return own(s.markersTokenFormat || 'glyph');
 const m = s.barTokenIcons;
-return !!(m && typeof m === 'object' && m[id] === 'icon');
+const v = m && typeof m === 'object' ? m[id] : '';
+if (id === 'properties' || id === 'backlinks') return v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon';
+return v === 'icon' ? 'icon' : v === 'both' ? 'both' : 'word';
+}
+barTokenIconOn(id) {
+return this.barTokenFormat(id) !== 'word';
+}
+barTokenIconName(id) {
+if (id === 'properties') return 'info';
+if (id === 'backlinks') return 'links-coming-in';
+try { return this.menuIconFor(id) || ''; } catch (_) { return ''; }
 }
 barTokenPaint(node, id, word) {
 node.textContent = '';
-node.classList.remove('is-icon');
-if (this.barTokenIconOn(id)) {
-let glyph = '';
-try { glyph = this.menuIconFor(id) || ''; } catch (_) { glyph = ''; }
+node.classList.remove('is-icon', 'is-both');
+if (typeof node.removeAttribute === 'function') node.removeAttribute('aria-label');
+const fmt = this.barTokenFormat(id);
+if (fmt !== 'word') {
+const glyph = this.barTokenIconName(id);
 const alts = glyph ? (this.menuIconAlts ? this.menuIconAlts(glyph) : [glyph]) : [];
 for (const n of alts) {
 node.textContent = '';
 try { if (typeof setIcon === 'function') setIcon(node, n); } catch (_) { zgCatch('barTokenPaint: setIcon(node, n);', _); }
 if (node.childElementCount > 0) {
 node.classList.add('is-icon');
+try { if (this.menuIconMirrored && this.menuIconMirrored(id)) node.classList.add('is-mirrored'); } catch (_) { zgCatch('barTokenPaint: menuIconMirrored(id)', _); }
+if (fmt === 'both') {
+node.classList.add('is-both');
+const w = document.createElement('span');
+w.className = 'zg-bartok-word';
+w.textContent = word;
+node.appendChild(w);
+} else {
 node.setAttribute('aria-label', word);
+}
 return;
 }
 }
@@ -10882,6 +10996,13 @@ if (this.settings.historyTracking) return false;
 this.settings.historyTracking = true;
 await this.saveSettings();
 await this.historyLoad();
+try {
+let notes = [];
+try { notes = this.app.vault.getMarkdownFiles() || []; } catch (_) { notes = []; }
+if (this.settings.historySeen && notes.length && !(await this.historyFindFile())) {
+this.settings.historySeen = false;
+}
+} catch (_) { zgCatch('historyTrackingOn: if (this.settings.historySeen && !(await this.historyFindFile()))', _); }
 await this.historyWrite(true);
 return true;
 }
@@ -11641,6 +11762,10 @@ case 'j': if (!vim) return; dy = step; break;
 case 'k': if (!vim) return; dy = -step; break;
 case 'Home': to = 0; break;
 case 'End': to = Math.max(1, (doc.documentElement && doc.documentElement.scrollHeight) || 1e9); break;
+case '[': case ']':
+ev.preventDefault();
+if (typeof act.step === 'function') act.step(ev.key === ']' ? 1 : -1);
+return;
 case 'Escape':
 ev.preventDefault();
 if (typeof act.collapse === 'function') act.collapse();
@@ -11715,6 +11840,11 @@ return true;
 exportPreviewInto(host, sections, o, fileCount, words, onExport, headHost,
 totalCount, onRefresh) {
 if (!host) return null;
+const flowY0 = (this._wsSession && typeof this._wsSession.flowScroll === 'number')
+? this._wsSession.flowScroll : 0;
+const flowTop0 = (this._wsSession && this._wsSession.flowTop && typeof this._wsSession.flowTop.idx === 'number')
+? { idx: this._wsSession.flowTop.idx, off: Number(this._wsSession.flowTop.off) || 0 } : null;
+let restoring = false;
 const body = host.createDiv({ cls: 'zg-export-prevbody' });
 const head = (headHost || body).createDiv({ cls: 'zg-export-prevhead'
 + (headHost ? ' is-inact' : '') });
@@ -11932,6 +12062,7 @@ if (body) body.classList.toggle('is-reader', flow);
 try { if (pageBox) pageBox.toggleClass('is-gone', flow); } catch (_) { zgCatch('exportPreviewInto / flowApply: if (pageBox) pageBox.toggleClass(\'is-gone\', flow);', _); }
 try { apply(); } catch (_) { zgCatch('exportPreviewInto / flowApply: apply();', _); }
 try { if (readPage) readPage.toggleClass('is-gone', !flow); } catch (_) { zgCatch('exportPreviewInto / flowApply: if (readPage) readPage.toggleClass(\'is-gone\', !flow);', _); }
+try { if (readFile) { readFile.toggleClass('is-gone', !flow); if (flow) readFileSay(); } } catch (_) { zgCatch('exportPreviewInto / flowApply: readFile.toggleClass(is-gone)', _); }
 if (flowSay) { try { flowSay(); } catch (_) { zgCatch('exportPreviewInto / flowApply: flowSay();', _); } }
 };
 const pageMap = () => {
@@ -11966,18 +12097,104 @@ win.scrollTo(0, Math.max(0, y - 12));
 return true;
 } catch (_) { return false; }
 };
+const restorePlace = (tries) => {
+if (!restoring || !flow) { restoring = false; return; }
+try {
+const doc = docOf();
+const win = doc && doc.defaultView;
+const sheet = pool[0] || (doc && (doc.querySelector('.sheet:not([hidden])') || doc.querySelector('.sheet')));
+const fl = sheet && sheet.querySelector('.flow');
+if (!win || !fl) {
+if (tries > 0) { window.setTimeout(() => restorePlace(tries - 1), 80); return; }
+restoring = false; return;
+}
+let target = flowY0;
+if (flowTop0 && flowTop0.idx >= 0) {
+const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+const k = kids[flowTop0.idx];
+if (k) target = k.getBoundingClientRect().top + (win.scrollY || 0) - flowTop0.off;
+}
+const max = Math.max(0, ((doc.documentElement && doc.documentElement.scrollHeight) || 0) - (win.innerHeight || 0));
+if (target > max + 2 && tries > 0) { window.setTimeout(() => restorePlace(tries - 1), 80); return; }
+win.scrollTo(0, Math.max(0, Math.min(target, max)));
+restoring = false;
+try { if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0; } catch (_) { zgCatch('exportPreviewInto / restorePlace: this._wsSession.flowScroll = win.scrollY', _); }
+try { readSay(); } catch (_) { zgCatch('exportPreviewInto / restorePlace: readSay();', _); }
+} catch (_) { restoring = false; zgCatch('exportPreviewInto / restorePlace: const doc = docOf();', _); }
+};
+const restoreArm = () => {
+if (!flow || !(flowY0 > 0 || (flowTop0 && flowTop0.idx >= 0))) return;
+restoring = true;
+let w = null;
+try { w = docOf() && docOf().defaultView; } catch (_) { w = null; }
+if (w && w.requestAnimationFrame) w.requestAnimationFrame(() => restorePlace(12));
+else window.setTimeout(() => restorePlace(12), 0);
+};
+const fileSecs = () => {
+try {
+const doc = docOf();
+const sheet = pool[0] || (doc && (doc.querySelector('.sheet:not([hidden])') || doc.querySelector('.sheet')));
+const fl = sheet && sheet.querySelector('.flow');
+return fl ? Array.from(fl.querySelectorAll('section[data-ws-note]')) : [];
+} catch (_) { return []; }
+};
+const fileAtTop = () => {
+const secs = fileSecs();
+let hit = secs[0] || null;
+for (const sec of secs) {
+try { if (sec.getBoundingClientRect().top <= 12) hit = sec; else break; } catch (_) { break; }
+}
+return hit ? hit.getAttribute('data-ws-note') : null;
+};
+const fileStep = (by) => {
+const secs = fileSecs().map((s) => s.getAttribute('data-ws-note'));
+if (!secs.length) return false;
+const at = secs.indexOf(fileAtTop());
+const to = Math.max(0, Math.min(secs.length - 1, (at === -1 ? 0 : at) + by));
+return jumpTo(secs[to]);
+};
+let readFile = null;
+const readFileSay = () => {
+if (!flow || !readFile) return;
+try {
+const secs = fileSecs();
+const want = secs.map((s) => s.getAttribute('data-ws-note')).join('\n');
+if (readFile.getAttribute('data-ws-list') !== want) {
+readFile.empty();
+for (const s of secs) {
+const p = s.getAttribute('data-ws-note');
+const o = readFile.createEl('option', { text: String(p).split('/').pop().replace(/\.md$/i, '') });
+o.value = p;
+}
+readFile.setAttribute('data-ws-list', want);
+}
+const top = fileAtTop();
+if (top !== null && readFile.value !== top) readFile.value = top;
+readFile.toggleClass('is-gone', !secs.length);
+} catch (_) { zgCatch('exportPreviewInto / readFileSay: const secs = fileSecs();', _); }
+};
 const readSay = () => {
+readFileSay();
 if (!flow || !readPage) return;
 try {
-const sheet = pool[0];
+const doc0 = docOf();
+const sheet = pool[0] || (doc0 && (doc0.querySelector('.sheet:not([hidden])') || doc0.querySelector('.sheet')));
 const fl = sheet && sheet.querySelector('.flow');
 const doc = fl && fl.ownerDocument;
 const win = doc && doc.defaultView;
 if (!win) return;
-try {
-if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;
-} catch (_) { zgCatch('exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;', _); }
 const top = topNow();
+if (!restoring) {
+try {
+if (this._wsSession) {
+this._wsSession.flowScroll = win.scrollY || 0;
+if (top) {
+const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+this._wsSession.flowTop = { idx: Array.prototype.indexOf.call(kids, top), off: top.getBoundingClientRect().top };
+}
+}
+} catch (_) { zgCatch('exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;', _); }
+}
 const n = (top && pageOf && pageOf.has(top)) ? pageOf.get(top) : null;
 readPage.setText(n === null || !pagesTotal
 ? '' : ('p. ' + (n + 1) + ' of ' + pagesTotal));
@@ -12002,10 +12219,13 @@ if (d && d.body) { d.body.setAttribute('tabindex', '-1'); d.body.focus(); }
 if (flow) {
 if (!keep) {
 try {
-const y0 = this._wsSession && this._wsSession.flowScroll;
+const y0 = flowY0;
 const w0 = docOf() && docOf().defaultView;
-if (w0 && typeof y0 === 'number' && y0 > 0) w0.scrollTo(0, y0);
-} catch (_) { zgCatch('exportPreviewInto / after: const y0 = this._wsSession && this._wsSession.flowScroll;', _); }
+if (w0 && typeof y0 === 'number' && y0 > 0) {
+w0.scrollTo(0, y0);
+try { if (this._wsSession) this._wsSession.flowScroll = y0; } catch (_) { zgCatch('exportPreviewInto / after: this._wsSession.flowScroll = y0;', _); }
+}
+} catch (_) { zgCatch('exportPreviewInto / after: const y0 = flowY0;', _); }
 }
 try { readSay(); } catch (_) { zgCatch('exportPreviewInto / after: readSay();', _); }
 }
@@ -12087,9 +12307,10 @@ if (!zoom) zoom = asText ? 1 : (this._exportZoom || fitZoom());
 apply();
 applyDark();
 try { this.exportReaderClicks(docOf(), null, frame); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);', _); }
-try { this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => this.openNoteAt(p, sn), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig('vimMode')) }); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
+try { this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => this.openNoteAt(p, sn), step: (by) => fileStep(by), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig('vimMode')) }); } catch (_) { zgCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
 if (flow) { try { flowApply(); } catch (_) { zgCatch('exportPreviewInto / paint: flowApply();', _); } }
 armScroll();
+try { restoreArm(); } catch (_) { zgCatch('exportPreviewInto / paint: restoreArm();', _); }
 try { window.requestAnimationFrame(() => syncPages()); } catch (_) { zgCatch('exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());', _); }
 };
 paint();
@@ -12151,6 +12372,12 @@ applyDark();
 sayDark();
 });
 sayDark();
+readFile = zoomBox.createEl('select', { cls: 'zg-export-readfile dropdown is-gone' });
+readFile.title = 'Go to a file \u2014 [ and ] step through them';
+readFile.setAttribute('aria-label', 'Go to a file');
+readFile.addEventListener('change', () => {
+try { jumpTo(readFile.value); } catch (_) { zgCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
+});
 readPage = zoomBox.createSpan({ cls: 'zg-export-readpage is-gone' });
 expandBtn = zoomBox.createEl('button',
 { cls: 'zg-export-mini zg-export-expand' });
@@ -14071,6 +14298,67 @@ this.repaintExplorerFlag(f.path);
 await this.saveSettings();
 });
 }
+propsCountOf(file) {
+try {
+const c = file && this.app.metadataCache.getFileCache(file);
+const fm = c && c.frontmatter;
+if (!fm) return 0;
+return Object.keys(fm).filter((k) => k !== 'position').length;
+} catch (_) { zgCatch('propsCountOf: this.app.metadataCache.getFileCache(file)', _); return 0; }
+}
+openPropertiesView() {
+try {
+const cmds = this.app.commands;
+if (cmds && typeof cmds.executeCommandById === 'function' && cmds.executeCommandById('file-properties:open')) return true;
+} catch (_) { zgCatch('openPropertiesView: executeCommandById(file-properties:open)', _); }
+try {
+const ws = this.app.workspace;
+let leaf = (ws.getLeavesOfType ? ws.getLeavesOfType('file-properties') : [])[0] || null;
+if (!leaf && ws.getRightLeaf) leaf = ws.getRightLeaf(false);
+if (!leaf) return false;
+Promise.resolve(leaf.setViewState({ type: 'file-properties', active: true })).then(() => { try { ws.revealLeaf(leaf); } catch (_) { zgCatch('openPropertiesView: ws.revealLeaf(leaf)', _); } });
+return true;
+} catch (_) { zgCatch('openPropertiesView: ws.getRightLeaf(false)', _); return false; }
+}
+buildPropsIndicator() {
+const file = this.activeNoteFile();
+const n = this.propsCountOf(file);
+return this.buildBarButton('zg-barbtn-props',
+(node) => this.barCountPaint(node, 'properties', n, n === 1 ? 'property' : 'properties'),
+n + (n === 1 ? ' property' : ' properties') + ' \u2014 click to open the Properties pane',
+() => this.openPropertiesView());
+}
+barCountPaint(node, id, n, word) {
+node.textContent = '';
+node.classList.remove('is-icon', 'is-both');
+const fmt = this.barTokenFormat(id);
+const num = document.createElement('span');
+num.className = 'zg-bartok-n';
+num.textContent = String(n);
+node.appendChild(num);
+if (fmt !== 'word') {
+const ic = document.createElement('span');
+ic.className = 'zg-bartok-ic';
+try { if (typeof setIcon === 'function') setIcon(ic, this.barTokenIconName(id)); } catch (_) { zgCatch('barCountPaint: setIcon(ic, …)', _); }
+if (ic.childElementCount > 0) { node.appendChild(ic); node.classList.add('is-icon'); }
+}
+if (fmt !== 'icon') {
+if (fmt === 'both') node.classList.add('is-both');
+const w = document.createElement('span');
+w.className = 'zg-bartok-word';
+w.textContent = word;
+node.appendChild(w);
+}
+}
+buildBacklinksIndicator() {
+const view = this.activeMarkdownView ? this.activeMarkdownView() : null;
+const text = this.getBacklinkCount(view);
+const n = text === '' ? '' : Number(text) || 0;
+return this.buildBarButton('zg-barbtn-backlinks',
+(node) => { if (text === '') { node.textContent = ''; return; } this.barCountPaint(node, 'backlinks', n, n === 1 ? 'backlink' : 'backlinks'); },
+'Show the notes that link to this one',
+() => this.openSidebarPanel('backlink'));
+}
 buildReportIndicator() {
 return this.buildBarButton('zg-barbtn-report',
 (node) => this.barTokenPaint(node, 'report', 'Report'),
@@ -14247,21 +14535,23 @@ const repour = () => {
 const jar = body.querySelector('.zg-goal-liquid');
 if (jar && typeof jar.zgPour === 'function') jar.zgPour();
 };
-let stats = null, target = 0;
+let stats = null, target = 0, freq = null;
 if (active === 'note') {
 if (!repFile) {
 body.empty();
 buildFinder(body);
 body.createDiv({ text: 'No note open \u2014 pick a folder above, '
-+ 'or right-click a row in the Outliner and ask for a report.' });
++ 'or right-click a row in the Organizer and ask for a report.' });
 return;
 }
 let text = '';
 try { text = await plugin.app.vault.cachedRead(repFile); } catch (_) { zgCatch('openReportModal / render: text = await plugin.app.vault.cachedRead(repFile);', _); }
 stats = plugin.analyzeText(text);
+freq = plugin.wordFreqInto(text, new Map());
 target = plugin.fileGoalFor(repFile.path);
 } else {
 stats = await plugin.analyzeFolder(folderSel);
+freq = await plugin.wordFreqFor(plugin.filesInFolder(folderSel, true).filter((f) => plugin.isFileCounted(f)));
 target = plugin.folderTargetRollup(folderSel).value;
 }
 body.empty();
@@ -14285,7 +14575,7 @@ text: 'Set one in the Organizer \u2014 in the table, on the '
 + 'Target column.'
 });
 }
-plugin.buildReportFigures(body, stats, target);
+plugin.buildReportFigures(body, stats, target, freq);
 } catch (e) {
 body.empty();
 body.createDiv({ text: 'Report failed \u2014 ' + (e && e.message ? e.message : String(e)) });
@@ -14295,7 +14585,7 @@ modal.contentEl.createDiv({ cls: 'zg-report-foot' });
 modal.open();
 return modal;
 }
-buildReportFigures(into, stats, target) {
+buildReportFigures(into, stats, target, freq) {
 const grid = into.createDiv({ cls: 'zg-report-grid' });
 const cell = (label, value, tip) => {
 const c = grid.createDiv({ cls: 'zg-report-cell' + (tip ? ' has-tip' : '') });
@@ -14322,7 +14612,61 @@ cell('Read time', this.formatReadTime(stats.words),
 'At ' + READ_WPM + ' words a minute.');
 cell('Grade', stats.sentences ? stats.grade.toFixed(1) : '\u2014',
 'Years of school needed to read it easily. Under 9 is easy going.');
+if (freq && freq.size) this.buildReportWords(into, stats, freq);
 return grid;
+}
+buildReportWords(into, stats, freq) {
+const box = into.createEl('details', { cls: 'zg-report-words' });
+const sum = box.createEl('summary');
+const chev = sum.createSpan({ cls: 'zg-report-words-chev' });
+try { if (setIcon) setIcon(chev, 'chevron-right'); } catch (_) { zgCatch('buildReportWords: setIcon(chev, chevron-right)', _); }
+if (!chev.childElementCount) chev.setText('\u203a');
+sum.createSpan({ cls: 'zg-report-words-title', text: 'Words frequency' });
+const bar = box.createDiv({ cls: 'zg-report-words-bar' });
+const lab = bar.createEl('label', { cls: 'zg-report-words-common' });
+const chk = lab.createEl('input');
+chk.type = 'checkbox';
+lab.createSpan({ text: ' Include common words' });
+const cols = (t) => {
+const cg = t.createEl('colgroup');
+cg.createEl('col', { cls: 'zg-report-col-word' });
+cg.createEl('col', { cls: 'zg-report-col-n' });
+cg.createEl('col', { cls: 'zg-report-col-pct' });
+};
+const headBox = box.createDiv({ cls: 'zg-report-words-head' });
+const htable = headBox.createEl('table', { cls: 'zg-report-words-table is-head' });
+cols(htable);
+const scroll = box.createDiv({ cls: 'zg-report-words-scroll' });
+const table = scroll.createEl('table', { cls: 'zg-report-words-table' });
+cols(table);
+const total = stats && stats.words ? stats.words : 0;
+const head = htable.createEl('thead').createEl('tr');
+head.createEl('th', { cls: 'zg-report-word', text: 'Word' });
+head.createEl('th', { cls: 'zg-report-wordn', text: 'Count' });
+head.createEl('th', { cls: 'zg-report-wordpct', text: 'Frequency' });
+const tbody = table.createEl('tbody');
+const draw = () => {
+tbody.empty();
+const rows = this.topWords(freq, Infinity, chk.checked);
+const top = rows.length ? rows[0].n : 0;
+for (const r of rows) {
+const tr = tbody.createEl('tr');
+tr.createEl('td', { cls: 'zg-report-word', text: r.w });
+tr.createEl('td', { cls: 'zg-report-wordn', text: r.n.toLocaleString() });
+const pct = tr.createEl('td', { cls: 'zg-report-wordpct has-band', text: total ? zgShareText(r.n * 100 / total) + '%' : '\u2014' });
+const ratio = top ? Math.max(0, Math.min(100, Math.round(r.n / top * 100))) : 0;
+pct.style.setProperty('--zg-goal-pct', String(ratio));
+const step = ratio >= 100 ? 'done' : ratio >= 80 ? 'high' : ratio >= 50 ? 'mid' : 'low';
+pct.addClass('is-band-' + step);
+}
+if (!rows.length) {
+const only = tbody.createEl('tr').createEl('td', { cls: 'zg-report-word is-muted', text: 'Only common words here.' });
+only.setAttribute('colspan', '3');
+}
+};
+chk.addEventListener('change', draw);
+draw();
+return box;
 }
 modalHost() {
 const modal = this.wsModal();
@@ -14402,6 +14746,7 @@ words: st.words, paras: st.paragraphs,
 charsNoSpaces: st.charsNoSpaces,
 charsWithSpaces: st.charsWithSpaces,
 sentences: st.sentences,
+footnotes: zgCountFootnotes(text),
 tasks: tk, grade: st.sentences ? st.grade : null,
 mtime: (f.stat && f.stat.mtime) || 0,
 ctime: (f.stat && f.stat.ctime) || 0,
@@ -14858,6 +15203,7 @@ tickTimer = window.setTimeout(() => {
 const many = exportScopes();
 if (many && many.length > 1) {
 for (const p of many) {
+if (/\.md$/i.test(String(p))) continue;
 const rows = this.exportGather(p).map(f => ({
 path: f.path, on: !ticks || ticks.has(f.path)
 }));
@@ -15131,6 +15477,7 @@ if (orgDrawTimer) window.clearTimeout(orgDrawTimer);
 orgDrawTimer = window.setTimeout(() => {
 orgDrawTimer = null;
 if (tab !== 'organizer') return;
+try { pruneUserCols(); } catch (_) { zgCatch('orgIndexChanged: pruneUserCols();', _); }
 draw();
 drawPanel();
 }, 150);
@@ -15198,7 +15545,7 @@ catch (_) { try { pv.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('ope
 if (!Array.isArray(s.organizerOpen)) s.organizerOpen = [];
 const orgOpen = new Set(s.organizerOpen);
 const orgIsOpen = (p) => orgOpen.has(p);
-const orgRootShut = () => !!s.organizerRootShut;
+const orgRootShut = () => false;
 const orgRootShutSet = (on) => {
 s.organizerRootShut = !!on;
 this.saveSettings().catch(() => {});
@@ -15285,6 +15632,17 @@ return hit ? sum : null;
 const b = by[path];
 return b ? (Number(b.n) || 0) : null;
 };
+const orgOutLinks = (path) => {
+const out = [];
+try {
+const mc = this.app.metadataCache;
+const res = (mc && mc.resolvedLinks && mc.resolvedLinks[path]) || {};
+for (const dest of Object.keys(res)) { if (dest !== path) out.push({ path: dest }); }
+const un = (mc && mc.unresolvedLinks && mc.unresolvedLinks[path]) || {};
+for (const name of Object.keys(un)) out.push({ text: name });
+} catch (_) { zgCatch('orgOutLinks: this.app.metadataCache.resolvedLinks[path]', _); }
+return out;
+};
 const orgBackMap = () => {
 const gen = this._linkGen || 0;
 const hit = this._orgBackMap;
@@ -15330,20 +15688,111 @@ if (a === null || a === undefined) return b === null || b === undefined;
 if (b === null || b === undefined) return false;
 return String(a) === String(b);
 };
-const orgPropSet = async (path, key, value) => {
-const all = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
-let out;
-for (const p of all) {
+const ORG_HIST_MAX = 50;
+const orgHist = { undo: [], redo: [], busy: false };
+const orgHistSay = () => {
+try { if (tableCtx.orgHistPaint) tableCtx.orgHistPaint(); } catch (_) { zgCatch('orgHistSay: tableCtx.orgHistPaint();', _); }
+};
+const ORG_BARSAY_MS = 6000;
+const orgBarSay = (msg) => {
+tableCtx.orgBarSaid = msg ? { msg: String(msg), until: Date.now() + ORG_BARSAY_MS } : null;
+try { if (tableCtx.orgBarSayPaint) tableCtx.orgBarSayPaint(); } catch (_) { zgCatch('orgBarSay: tableCtx.orgBarSayPaint();', _); }
+};
+this._orgBarSay = () => (tableCtx.orgBarSaid && Date.now() < tableCtx.orgBarSaid.until) ? tableCtx.orgBarSaid.msg : '';
+const orgHistPush = (entry) => {
+if (orgHist.busy || !entry) return;
+orgHist.undo.push(entry);
+if (orgHist.undo.length > ORG_HIST_MAX) orgHist.undo.shift();
+orgHist.redo.length = 0;
+orgHistSay();
+};
+const orgHistRun = async (dir) => {
+if (orgHist.busy) return false;
+const from = dir === 'redo' ? orgHist.redo : orgHist.undo;
+const to = dir === 'redo' ? orgHist.undo : orgHist.redo;
+const e = from.pop();
+if (!e) return false;
+orgHist.busy = true;
+try {
+await (dir === 'redo' ? e.redo() : e.undo());
+to.push(e);
+orgBarSay((dir === 'redo' ? 'Redone: ' : 'Undone: ') + e.label);
+} catch (err) {
+from.push(e);
+zgCatch('orgHistRun: ' + dir + ' ' + e.label, err);
+said('Could not ' + dir + ' \u2014 ' + (err && err.message ? err.message : String(err)), true);
+} finally {
+orgHist.busy = false;
+orgHistSay();
+}
+return true;
+};
+const orgHistApi = {
+canUndo: () => orgHist.undo.length > 0,
+canRedo: () => orgHist.redo.length > 0,
+undoLabel: () => (orgHist.undo.length ? orgHist.undo[orgHist.undo.length - 1].label : ''),
+redoLabel: () => (orgHist.redo.length ? orgHist.redo[orgHist.redo.length - 1].label : ''),
+run: (dir) => orgHistRun(dir),
+size: () => ({ undo: orgHist.undo.length, redo: orgHist.redo.length })
+};
+const orgHistName = (p) => String(p || '').split('/').pop().replace(/\.md$/i, '');
+const orgHistOn = (paths, what) => {
+const n = paths.length;
+return what + (n === 1 ? ' on ' + orgHistName(paths[0]) : ' on ' + n + ' notes');
+};
+const orgPropWriteOne = async (p, key, value, own) => {
 orgPendSet(p, key, value);
 try {
-out = await this.orgPropWrite(p, key, value);
+return await this.orgPropWrite(p, key, value);
 } catch (e) {
 orgPendDrop(p, key);
-if (p === path) throw e;
+if (own) throw e;
 zgCatch('orgPropSet / bulk: this.orgPropWrite(p, key, value);', e);
+return undefined;
 }
+};
+const orgPropSet = async (path, key, value) => {
+const all = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
+const before = all.map((p) => [p, orgPropValue(p, key)]);
+let out;
+for (const p of all) {
+const r = await orgPropWriteOne(p, key, value, p === path);
+if (p === path) out = r;
 }
 if (all.length > 1) orgBulkSay(all.length, 'Property set');
+orgHistPush({
+label: orgHistOn(all, String(key)),
+undo: async () => { for (const [p, v] of before) await orgPropWriteOne(p, key, v, false); },
+redo: async () => { for (const p of all) await orgPropWriteOne(p, key, value, false); }
+});
+return out;
+};
+const orgPropListSet = async (path, key, list, before) => {
+const str = (a) => (Array.isArray(a) ? a : (a === null || a === undefined || a === '' ? [] : [a])).map(String);
+const now = str(list), was = str(before);
+const added = now.filter((x) => was.indexOf(x) === -1);
+const removed = was.filter((x) => now.indexOf(x) === -1);
+const writes = [[path, orgPropValue(path, key), list]];
+const out = await orgPropWriteOne(path, key, list, true);
+let n = 1;
+if (added.length || removed.length) {
+const others = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path);
+for (const p of others) {
+const own = str(orgPropValue(p, key));
+const next = own.filter((x) => removed.indexOf(x) === -1)
+.concat(added.filter((x) => own.indexOf(x) === -1));
+if (next.length === own.length && next.every((x, i) => x === own[i])) continue;
+writes.push([p, own, next]);
+await orgPropWriteOne(p, key, next, false);
+n++;
+}
+}
+if (n > 1) orgBulkSay(n, 'Property set');
+orgHistPush({
+label: orgHistOn(writes.map((w) => w[0]), String(key)),
+undo: async () => { for (const [p, v] of writes) await orgPropWriteOne(p, key, v, false); },
+redo: async () => { for (const [p, , v] of writes) await orgPropWriteOne(p, key, v, false); }
+});
 return out;
 };
 const orgColRaw = (col, path) => {
@@ -15356,6 +15805,11 @@ case 'backlinks': {
 const list = orgBackMap().get(String(path || ''));
 return (list && list.length) ? list : null;
 }
+case 'outlinks': {
+const list = orgOutLinks(String(path || ''));
+return (list && list.length) ? list : null;
+}
+case 'footnotes': return r && typeof r.footnotes === 'number' ? r.footnotes : null;
 case 'ftype': {
 const m = /\.([A-Za-z0-9]+)$/.exec(String(path || ''));
 return m ? m[1].toLowerCase() : null;
@@ -15420,6 +15874,9 @@ return Number(v).toLocaleString();
 case 'ftype': return String(v);
 case 'backlinks':
 return (Array.isArray(v) ? v : [v]).map(nameOf).join(', ');
+case 'outlinks':
+return (Array.isArray(v) ? v : [v]).map((x) => (x && x.path ? nameOf(x.path) : String(x && x.text || x))).join(', ');
+case 'footnotes': return Number(v).toLocaleString();
 case 'read': return this.formatReadTime(v);
 case 'goal':
 return this.orgTargetSay(orgColRaw({ id: 'words' }, path), v);
@@ -15444,7 +15901,7 @@ const ORG_AGG = {
 words: 'sum', paras: 'sum', goal: 'sum',
 today: 'sum', grade: 'avg', modified: 'newest',
 created: 'oldest', tasks: 'tasks', mark: 'flags',
-read: 'sum', ftype: 'none',
+read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
 chars: 'sum', charsall: 'sum', sentences: 'sum'
 };
 const orgAggHow = (col) => {
@@ -15553,6 +16010,7 @@ if (v === null) return null;
 switch (col.id) {
 case 'tasks': return v.all - v.done;
 case 'tags': return v.length;
+case 'outlinks': return v.length;
 case 'goal': {
 const t = Number(v) || 0;
 if (!(t > 0)) return null;
@@ -15673,6 +16131,14 @@ orgEditDone();
 if (!commit) return;
 const r = await this.outlinerRenameTo(item.path, false, typed);
 if (r && !r.ok && r.said) said(r.said, true);
+if (r && r.ok && r.path) {
+const oldPath = item.path, newPath = r.path, oldBase = parts.base;
+orgHistPush({
+label: 'Rename ' + oldBase + ' \u2192 ' + String(typed).trim(),
+undo: async () => { const u = await this.outlinerRenameTo(newPath, false, oldBase); if (u && !u.ok) throw new Error(u.said || 'the rename could not be undone'); },
+redo: async () => { const u = await this.outlinerRenameTo(oldPath, false, typed); if (u && !u.ok) throw new Error(u.said || 'the rename could not be redone'); }
+});
+}
 };
 orgFieldEscape = () => { finish(false); };
 nameEl.addEventListener('keydown', (ev) => {
@@ -15696,19 +16162,30 @@ const orgMenuCtx = {
 said: (msg, bad) => { if (msg) said(msg, bad); },
 reveal: () => {},
 report: (item) => { try { this.openReportModal(item && item.path); } catch (_) { zgCatch('openManuscriptModal: this.openReportModal(item && item.path);', _); } },
+opens: false,
 rename: (item) => orgRenameRow(item)
 };
-const orgFlagSet = async (row, id, cell) => {
-const paths = orgBulkPaths(row);
-for (const p of paths) {
-if (id) s[statusStore()][p] = id;
+const orgFlagApply = async (pairs) => {
+for (const [p, v] of pairs) {
+if (v) s[statusStore()][p] = v;
 else delete s[statusStore()][p];
 }
 await this.saveSettings();
-for (const p of paths) this.repaintExplorerFlag(p);
-orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
-orgCellHint = cell ? { td: cell, path: row.path } : null;
+for (const [p] of pairs) this.repaintExplorerFlag(p);
 drawPanel();
+};
+const orgFlagSet = async (row, id, cell) => {
+const paths = orgBulkPaths(row);
+const before = paths.map((p) => [p, s[statusStore()][p] || '']);
+const after = paths.map((p) => [p, id || '']);
+orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
+orgCellHint = (cell && paths.length === 1) ? { td: cell, path: row.path } : null;
+orgHistPush({
+label: orgHistOn(paths, id ? 'Flag ' + zgStatusLabel(id) : 'Flag cleared'),
+undo: () => orgFlagApply(before),
+redo: () => orgFlagApply(after)
+});
+await orgFlagApply(after);
 };
 const orgFlagMenu = (ev, row, td) => {
 const now = markOf(row.path, 'file');
@@ -15749,6 +16226,27 @@ ic.innerHTML = zgFlagSvg(String(v), 10);
 td.createSpan({ text: text });
 if (more) td.appendChild(more);
 }
+try {
+const table = td.closest('table');
+const draw = tableCtx && tableCtx.orgAggInto;
+if (table && draw) {
+const redo = (cell, under) => {
+if (!cell) return;
+cell.textContent = '';
+cell.removeClass('zg-org-aggflags');
+const agg = orgColAgg(col, under);
+if (agg) draw(cell, agg);
+};
+for (const tr of Array.from(table.querySelectorAll('tr.zg-org-row.is-folder'))) {
+const fp = tr.getAttribute('data-path') || '';
+if (fp && String(path).indexOf(fp + '/') === 0) {
+redo(tr.querySelector('td[data-col="mark"]'), orgUnder(fp));
+}
+}
+const sub = table.querySelector('tr.zg-org-subrow td[data-col="mark"]');
+if (sub) redo(sub, orgUnder(orgAt()));
+}
+} catch (_) { zgCatch('orgRepaintFlagCell / folders above: const table = td.closest(\'table\');', _); }
 return true;
 } catch (_) { return false; }
 };
@@ -15765,7 +16263,9 @@ td.addEventListener('click', (ev) => {
 ev.stopPropagation();
 orgFlagMenu(ev, row, td);
 });
-const more = td.createSpan({ cls: 'zg-org-flagmore', text: '\u25be' });
+const more = td.createSpan({ cls: 'zg-org-flagmore' });
+try { if (setIcon) setIcon(more, 'chevron-down'); } catch (_) { zgCatch('orgFlagCell: setIcon(more, chevron-down);', _); }
+if (!more.childElementCount) more.setText('\u25be');
 more.setAttribute('aria-label', 'Choose a flag');
 more.title = 'Choose a flag';
 more.addEventListener('click', (ev) => {
@@ -15878,12 +16378,22 @@ const n = parseFloat(inp.value);
 const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
 if (want !== was) {
 const paths = orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
-for (const p of paths) {
-if (want > 0) s[goalStore()][p] = want;
+const before = paths.map((p) => [p, s[goalStore()][p] || 0]);
+const after = paths.map((p) => [p, want]);
+const apply = async (pairs) => {
+for (const [p, v] of pairs) {
+if (v > 0) s[goalStore()][p] = v;
 else delete s[goalStore()][p];
 }
 await this.saveSettings(true);
+};
+await apply(after);
 orgBulkSay(paths.length, want > 0 ? 'Target set' : 'Target cleared');
+orgHistPush({
+label: orgHistOn(paths, want > 0 ? 'Target ' + want : 'Target cleared'),
+undo: async () => { await apply(before); drawPanel(); },
+redo: async () => { await apply(after); drawPanel(); }
+});
 }
 }
 orgRedrawPending = true;
@@ -15912,6 +16422,23 @@ await this.treeOrderMove(parent, movedPath,
 zgOrgDropBefore(this.treeOrderCurrent(parent),
 movedPath, ontoPath, below));
 };
+const orgOutCell = (td, row) => {
+const list = orgColRaw({ id: 'outlinks' }, row.path);
+if (!list || !list.length) return;
+td.title = list.map((x) => (x.path ? nameOf(x.path) : String(x.text))).join(String.fromCharCode(10));
+for (let i = 0; i < list.length; i++) {
+const x = list[i];
+if (i) td.createSpan({ cls: 'zg-org-backsep', text: ', ' });
+if (!x.path) { td.createSpan({ cls: 'zg-org-outlink is-unresolved', text: String(x.text) }); continue; }
+const a = td.createSpan({ cls: 'zg-org-backlink zg-org-outlink', text: nameOf(x.path) });
+a.setAttribute('role', 'link');
+a.title = x.path;
+a.addEventListener('click', (ev) => {
+ev.stopPropagation();
+try { this.app.workspace.openLinkText(x.path, '', false); } catch (_) { zgCatch('orgOutCell: openLinkText(x.path)', _); }
+});
+}
+};
 const orgBackCell = (td, row) => {
 const list = orgColRaw({ id: 'backlinks' }, row.path);
 if (!list || !list.length) return;
@@ -15935,6 +16462,30 @@ if (ev.key === 'Enter' || ev.key === ' ') go(ev);
 });
 }
 };
+const orgTagWrap = (host, type) => {
+let w = host.querySelector(':scope > .zg-org-tagcell');
+if (!w) {
+w = host.createSpan({ cls: 'metadata-property-value zg-org-tagcell' });
+w.setAttribute('data-property-type', type || 'multitext');
+}
+return w;
+};
+const orgTagPill = (host, text, o) => {
+const opt = o || {};
+const pill = host.createSpan({ cls: 'multi-select-pill zg-org-tagchip' + (opt.intext ? ' is-intext' : '') + (opt.remove ? ' has-x' : '') });
+pill.setAttribute('data-property-pill-value', String(text));
+pill.createSpan({ cls: 'multi-select-pill-content', text: String(text) });
+if (opt.intext) pill.createSpan({ cls: 'zg-org-intext', text: 'in text' });
+if (opt.remove) {
+const x = pill.createEl('button', { cls: 'multi-select-pill-remove-button zg-org-chipx' });
+try { if (setIcon) setIcon(x, 'x'); } catch (_) { zgCatch('orgTagPill: setIcon(x, x)', _); }
+if (!x.childElementCount) x.setText('\u00d7');
+x.title = 'Remove ' + String(text);
+x.setAttribute('aria-label', x.title);
+x.addEventListener('click', (ev) => { ev.stopPropagation(); opt.remove(); });
+}
+return pill;
+};
 const orgTagsCell = (td, row) => {
 const list = this.tagsWithSource(row.path);
 const canEdit = orgCanHoldProps(row.path);
@@ -15951,10 +16502,9 @@ return;
 td.textContent = '';
 orgFieldEditor(td, row.path, 'tags', false);
 });
+const wrap = orgTagWrap(td, 'tags');
 for (const t of list) {
-const chip = td.createSpan({
-cls: 'zg-org-tagchip' + (t.inText ? ' is-intext' : '') });
-chip.createSpan({ text: t.tag });
+const chip = orgTagPill(wrap, t.tag, { intext: t.inText });
 chip.title = t.inText
 ? '#' + t.tag + ' — written in the note’s text, so it is '
 + 'edited there, not here'
@@ -16319,7 +16869,20 @@ return { mine: mine.length, all: on === mine.length, some: on > 0 && on < mine.l
 toggle: (path, kind) => {
 if (!ticks) return false;
 const mine = zgUnderRow(underIndex(), path, kind);
-if (!mine.length) return false;
+const places = exportScopes();
+const covered = !places || places.some((p) => p === '' || p === path || String(path).indexOf(p + '/') === 0);
+if (!covered) {
+if (!exportPlaceAdd(path)) return false;
+Promise.resolve(loadTicks()).then(() => {
+const mine2 = zgUnderRow(underIndex(), path, kind);
+for (const p of mine2) ticks.add(p);
+rememberTicks();
+draw();
+drawPanel();
+try { this.orgTicksSchedule(); } catch (_) { zgCatch('ticks.toggle / place: this.orgTicksSchedule();', _); }
+}, () => {});
+return true;
+}
 const on = mine.filter((p) => ticks.has(p)).length;
 const next = on !== mine.length;
 for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
@@ -16335,6 +16898,7 @@ this._orgNote = () => orgNote;
 this._orgLens = () => JSON.parse(JSON.stringify(orgLens));
 this._orgLensSet = (patch) => orgLensSet(patch);
 this._orgPropKeys = (at) => orgPropKeys(at);
+this._orgPropRows = () => orgPropPanelRows();
 const orgPropsByUse = () => {
 const seen = new Map();
 for (const p2 of liveFiles()) {
@@ -16386,10 +16950,12 @@ const saved = Array.isArray(s.uniColOrder) ? s.uniColOrder : [];
 const at = new Map();
 saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
 const rank = (x) => (at.has(x.id) ? at.get(x.id) : saved.length + x.n);
-return rows
+const ordered = rows
 .map((r, n) => ({ r: r, n: n, id: orgPropRowId(r) }))
 .sort((a, b) => (rank(a) - rank(b)) || (a.n - b.n))
 .map((x) => x.r);
+const shown = (r) => !!(r.col && !colOff.has(r.col.id));
+return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
 };
 let orgPropDragId = null;
 const orgPropMoveTo = async (moved, target) => {
@@ -16795,21 +17361,16 @@ const now = Array.isArray(v) ? v.filter(x => x !== null && typeof x !== 'object'
 : (v === null || v === '' ? [] : [String(v)]);
 let live = now.slice();
 const commitList = async (list) => {
-await orgPropSet(path, key, list);
+await orgPropListSet(path, key, list, live);
 live = list.slice();
 doneDraft();
 };
+const pillHost = orgTagWrap(wrap2, String(key).toLowerCase() === 'tags' ? 'tags' : 'multitext');
 const mkChip = (val) => {
-const chip = wrap2.createSpan({ cls: 'zg-org-tagchip' });
-chip.createSpan({ text: String(val) });
-const x = chip.createEl('button',
-{ cls: 'zg-org-chipx', text: '×' });
-x.title = 'Remove ' + String(val);
-x.addEventListener('click', async (ev) => {
-ev.stopPropagation();
+const chip = orgTagPill(pillHost, String(val), { remove: async () => {
 await commitList(live.filter(z => z !== val));
 chip.remove();
-});
+} });
 return chip;
 };
 for (const val of now) mkChip(val);
@@ -16826,9 +17387,7 @@ if (tag && !inText.has(tag.toLowerCase())
 }
 } catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);', _); }
 for (const tag of bodyTags) {
-const chip = wrap2.createSpan({ cls: 'zg-org-tagchip is-intext' });
-chip.createSpan({ text: tag });
-chip.createSpan({ cls: 'zg-org-intext', text: 'in text' });
+const chip = orgTagPill(pillHost, tag, { intext: true });
 chip.title = 'Written in the note itself — edit it there';
 }
 }
@@ -16914,6 +17473,7 @@ el2.addEventListener('keydown', (ev) => {
 if (ev.key === 'Enter') {
 if (ev.shiftKey && el2.tagName === 'TEXTAREA') return;
 ev.preventDefault();
+ev.stopPropagation();
 el2.blur();
 }
 });
@@ -16994,6 +17554,8 @@ const colDefs = () => [
 { id: 'read', label: 'Read time', def: 84, min: 56 },
 { id: 'ftype', label: 'Type', def: 62, min: 40 },
 { id: 'backlinks', label: 'Backlinks', def: 170, min: 70 },
+{ id: 'outlinks', label: 'Outgoing links', def: 170, min: 70 },
+{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
 { id: 'chars', label: 'Chars', def: 84, min: 56 },
 { id: 'charsall', label: 'Chars + spaces', def: 104, min: 60 },
 { id: 'sentences', label: 'Sentences', def: 84, min: 56 }
@@ -17012,7 +17574,7 @@ min: 48
 );
 if (!Array.isArray(s.uniColsOff)) {
 s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
-'tags', 'created', 'read', 'ftype', 'backlinks',
+'tags', 'created', 'read', 'ftype', 'backlinks', 'outlinks', 'footnotes',
 'chars', 'charsall', 'sentences'];
 }
 let COLS = colDefs();
@@ -17077,6 +17639,8 @@ const BUILTIN_SORTS = [
 { id: 'read', label: 'Read time', icon: 'timer' },
 { id: 'ftype', label: 'Type', icon: 'file-type' },
 { id: 'backlinks', label: 'Backlinks', icon: 'link' },
+{ id: 'outlinks', label: 'Outgoing links', icon: 'external-link' },
+{ id: 'footnotes', label: 'Footnotes', icon: 'file-signature' },
 { id: 'chars', label: 'Chars', icon: 'case-sensitive' },
 { id: 'charsall', label: 'Chars + spaces', icon: 'case-sensitive' },
 { id: 'sentences', label: 'Sentences', icon: 'pilcrow' },
@@ -17119,14 +17683,47 @@ key: k, label: seen.get(k).label, n: seen.get(k).n,
 spellings: seen.get(k).spellings.size
 }));
 };
+const pruneUserCols = () => {
+const ix = this._orgIndex;
+const list = Array.isArray(s.uniUserCols) ? s.uniUserCols : [];
+if (!ix || !list.length) return false;
+const have = new Set();
+try {
+for (const r of ix.values()) {
+if (r && r.props) for (const k of Object.keys(r.props)) have.add(String(k).toLowerCase());
+}
+for (const p of (this.propStorePaths ? this.propStorePaths() : [])) {
+const props = this.propStoreAllSync(p);
+if (props) for (const k of Object.keys(props)) have.add(String(k).toLowerCase());
+}
+} catch (_) { zgCatch('pruneUserCols: for (const r of ix.values())', _); return false; }
+let changed = false;
+const kept = [], gone = [];
+for (const c of list) {
+if (!c) continue;
+const carried = have.has(String(c.key).toLowerCase());
+if (carried) { if (c.fresh) { delete c.fresh; changed = true; } kept.push(c); continue; }
+if (c.fresh) { kept.push(c); continue; }
+gone.push(c); changed = true;
+}
+if (!changed) return false;
+s.uniUserCols = kept;
+for (const c of gone) { try { colOff.delete(this.propColId(c.key)); } catch (_) { zgCatch('pruneUserCols: colOff.delete', _); } }
+s.uniColsOff = Array.from(colOff);
+this.saveSettings().catch(() => {});
+rebuildCols();
+return true;
+};
+this._orgPruneUserCols = () => pruneUserCols();
+this._orgColOn = (id, on) => { if (on) colOff.delete(id); else colOff.add(id); s.uniColsOff = Array.from(colOff); };
 const addProp = async (info) => {
 const shown = info.label;
 const list = Array.isArray(s.uniUserCols) ? s.uniUserCols.slice() : [];
 if (list.some(c => c && String(c.key).toLowerCase() === info.key)) return;
 const chosen = String((info && info.type) || '');
 list.push(chosen
-? { key: shown, label: shown, sortAs: '', type: chosen }
-: { key: shown, label: shown, sortAs: '' });
+? { key: shown, label: shown, sortAs: '', type: chosen, fresh: true }
+: { key: shown, label: shown, sortAs: '', fresh: true });
 s.uniUserCols = list;
 colOff.delete(this.propColId(shown));
 s.uniColsOff = Array.from(colOff);
@@ -17263,7 +17860,7 @@ let orgDrawnSig = null;
 let orgCellHint = null;
 let underIn = null;
 const underIndex = () => {
-if (!underIn) underIn = zgUnderIndex(exportFiles());
+if (!underIn) underIn = zgUnderIndex(this.exportGather(''));
 return underIn;
 };
 const heatOf = (pct) => {
@@ -17323,6 +17920,9 @@ const orgSelHas = (path) => sel.has(keyOf({ kind: 'file', path }));
 const orgSelCount = () => sel.size;
 this._orgSel = () => selRows().map(it => it.path);
 this._orgPropSet = (p, k, v) => orgPropSet(p, k, v);
+this._orgPropListSet = (p, k, v, before) => orgPropListSet(p, k, v, before);
+this._orgFlagSet = (row, id, cell) => orgFlagSet(row, id, cell || null);
+this._orgFieldEditor = (td, p, k) => orgFieldEditor(td, p, k, false);
 this._orgSelSet = (paths) => {
 sel.clear();
 for (const p of (paths || [])) sel.set(keyOf({ kind: 'file', path: p }), { kind: 'file', path: p });
@@ -17496,6 +18096,8 @@ c.addEventListener('click', () => { orgMany = null; orgSelect(path); });
 }
 return c;
 };
+try { crumbs.createSpan({ cls: 'zg-uni-crumbmark' }).innerHTML = zgObsidianSvg(14); }
+catch (_) { zgCatch('drawSubject: crumbs.createSpan({ cls: zg-uni-crumbmark })', _); }
 crumb(this.vaultName() || 'Vault', '', !parts.length && !many);
 let acc = '';
 parts.forEach((seg, i) => {
@@ -17534,6 +18136,7 @@ get openRow() { return openRow; },
 get orgAddChip() { return orgAddChip; },
 get orgAt() { return orgAt; },
 get orgBackCell() { return orgBackCell; },
+get orgOutCell() { return orgOutCell; },
 get orgCanHoldProps() { return orgCanHoldProps; },
 get orgCellHint() { return orgCellHint; }, set orgCellHint(v) { orgCellHint = v; },
 get orgChevron() { return orgChevron; },
@@ -17589,6 +18192,8 @@ get orgPropPopEl() { return orgPropPopEl; },
 get orgPropPopOpen() { return orgPropPopOpen; },
 get orgPropRefuse() { return orgPropRefuse; },
 get orgPropSet() { return orgPropSet; },
+get orgHist() { return orgHistApi; },
+get orgPruneUserCols() { return pruneUserCols; },
 get orgRedrawPending() { return orgRedrawPending; }, set orgRedrawPending(v) { orgRedrawPending = v; },
 get orgRepaintFlagCell() { return orgRepaintFlagCell; },
 get orgRootShut() { return orgRootShut; },
@@ -17616,7 +18221,7 @@ get typeRows() { return typeRows; },
 const { drawOrg } = this.orgTableMake(tableCtx);
 const colTextish = (col) =>
 col.id === 'mark' || col.id === 'tags' || col.id === 'ftype'
-|| col.id === 'backlinks' || !!col.user
+|| col.id === 'backlinks' || col.id === 'outlinks' || !!col.user
 || String(col.id).indexOf('fm:') === 0;
 let panelGen = 0;
 drawPanel = () => {
@@ -17667,15 +18272,46 @@ none.createDiv({ text: rows.length
 none.createDiv({ cls: 'zg-report-hint',
 text: 'Type one into the Target column beside any row.' });
 }
-plugin.buildReportFigures(panel, stats, target);
+let freq = null;
+try { freq = await plugin.wordFreqFor(plugin.selectionFiles(rows)); } catch (_) { zgCatch('report tab: freq = await plugin.wordFreqFor(plugin.selectionFiles(rows));', _); }
+plugin.buildReportFigures(panel, stats, target, freq);
 if (stats.files !== 1) {
 panel.createDiv({ cls: 'zg-uni-count',
 text: stats.files.toLocaleString() + ' notes counted' });
 }
 };
 let exportOpts = null;
+const exportPlaceAdd = (p) => {
+const path = (p == null || p === '/') ? '' : String(p);
+if (!path) return false;
+const cur = exportScopes();
+if (!cur) { said('The whole vault is in already.'); return false; }
+if (cur.indexOf(path) !== -1) return false;
+orgMany = cur.concat([path]);
+ticksFor = null;
+exportOpts = null;
+draw();
+drawPanel();
+return true;
+};
+const exportPlaceDrop = (p) => {
+const cur = exportScopes();
+if (!cur || cur.indexOf(p) === -1) return false;
+const left = cur.filter((x) => x !== p);
+if (left.length === 1) { orgMany = null; orgSelect(left[0]); return true; }
+if (!left.length) { orgMany = null; orgSelect(''); return true; }
+orgMany = left;
+ticksFor = null;
+exportOpts = null;
+draw();
+drawPanel();
+return true;
+};
+this._orgPlaceAdd = (p) => exportPlaceAdd(p);
+this._orgPlaceDrop = (p) => exportPlaceDrop(p);
 const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => ticks,
-draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, loadTicks,
+draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, exportScopes, loadTicks,
+placeAdd: exportPlaceAdd, placeDrop: exportPlaceDrop,
 setExportOpts: (o) => { exportOpts = o; } });
 const drawHistory = (rows) => this.orgDrawHistory({ panel, tab: () => tab, drawPanel: () => drawPanel(), histState }, rows);
 const say = foot.createDiv({ cls: 'zg-uni-say' });
@@ -17765,11 +18401,7 @@ const it = cursorItem();
 if (!it) return;
 if (it.kind !== 'file') return;
 const next = zgStatusNext(markOf(it.path, it.kind));
-if (next) s[statusStore()][it.path] = next;
-else delete s[statusStore()][it.path];
-await this.saveSettings();
-this.repaintExplorerFlag(it.path);
-draw();
+await orgFlagSet({ kind: 'file', path: it.path }, next, null);
 });
 const escapeLadder = (ev) => {
 if (ev.key !== 'Escape') return false;
@@ -17826,12 +18458,45 @@ return true;
 return false;
 });
 }
+const onHistKey = (ev) => {
+if (tab !== 'organizer') return;
+if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+const k = String(ev.key || '').toLowerCase();
+if (k !== 'z' && k !== 'y') return;
+const t = ev.target;
+const doc = ownerDoc();
+const inPane = t && host.contains(t);
+const onBody = t === doc.body || t === doc.documentElement;
+if (!inPane && !onBody) return;
+if (inPane && t.closest && t.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]')) return;
+if (onBody && !orgHistMine()) return;
+const root = host.rootEl || host.contentEl;
+if (!root || !doc.body || !doc.body.contains(root)) return;
+ev.preventDefault();
+ev.stopPropagation();
+if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+orgHistRun((k === 'y' || ev.shiftKey) ? 'redo' : 'undo');
+};
+const orgHistMine = () => {
+try {
+if (host.kind === 'leaf' && host.view && host.view.leaf && this.app.workspace) {
+return this.app.workspace.activeLeaf === host.view.leaf;
+}
+} catch (_) { zgCatch('orgHistMine: this.app.workspace.activeLeaf === host.view.leaf', _); }
+return this._orgHistActive === onHistKey;
+};
+this._orgHist = orgHistApi;
+this._orgHistKey = (ev) => onHistKey(ev);
+this._orgHistActive = onHistKey;
+try { (host.rootEl || host.contentEl).addEventListener('pointerdown', () => { this._orgHistActive = onHistKey; }, true); } catch (_) { zgCatch('openManuscriptModal: host.rootEl.addEventListener(pointerdown, orgHistActive)', _); }
 let stopEscape = () => {};
 try {
 const ew = ownerWin();
 ew.addEventListener('keydown', onEscape, true);
+ew.addEventListener('keydown', onHistKey, true);
 stopEscape = () => {
 try { ew.removeEventListener('keydown', onEscape, true); } catch (_) { zgCatch('openManuscriptModal: ew.removeEventListener(\'keydown\', onEscape, true);', _); }
+try { ew.removeEventListener('keydown', onHistKey, true); } catch (_) { zgCatch('openManuscriptModal: ew.removeEventListener(\'keydown\', onHistKey, true);', _); }
 };
 } catch (_) { zgCatch('openManuscriptModal: const ew = ownerWin();', _); }
 const stopWatching = this.onTreeOrderChange(() => {
@@ -17844,6 +18509,7 @@ try { this.orgWindowDrop(treeDoor); } catch (_) { zgCatch('openManuscriptModal: 
 try { stopWatching(); } catch (_) { zgCatch('openManuscriptModal: stopWatching();', _); }
 try { stopCounting(); } catch (_) { zgCatch('openManuscriptModal: stopCounting();', _); }
 try { stopEscape(); } catch (_) { zgCatch('openManuscriptModal: stopEscape();', _); }
+try { if (this._orgHistActive === onHistKey) this._orgHistActive = null; } catch (_) { zgCatch('openManuscriptModal: this._orgHistActive = null;', _); }
 try { stopWidth(); } catch (_) { zgCatch('openManuscriptModal: stopWidth();', _); }
 try { stopNav(); } catch (_) { zgCatch('openManuscriptModal: stopNav();', _); }
 try { orgIndexChanged(); } catch (_) { zgCatch('openManuscriptModal: orgIndexChanged();', _); }
@@ -18020,6 +18686,7 @@ if (ctx.orgEditGuard) { ctx.orgRedrawPending = true; return; }
 const orgKeepScroll = ctx.orgScrollTop;
 const orgKeepScrollX = ctx.orgScrollLeft || 0;
 this.orgIndexEnsure();
+try { if (!this._orgIndexBuild && ctx.orgPruneUserCols) ctx.orgPruneUserCols(); } catch (_) { zgCatch('drawOrg: ctx.orgPruneUserCols();', _); }
 const at = ctx.orgAt();
 const cols = ctx.setCols();
 const lensed = ctx.orgLensOn();
@@ -18132,12 +18799,11 @@ menu.addItem((i) => i.setTitle('Custom Order')
 .setIcon('list-ordered')
 .setChecked(!ctx.orgLens.sort)
 .onClick(() => ctx.orgLensSet({ sort: null })));
-for (const dir of ['asc', 'desc']) {
-menu.addItem((i) => i.setTitle('Name, ' + (dir === 'asc' ? 'A to Z' : 'Z to A'))
+menu.addItem((i) => i.setTitle('Name' + (sortByName ? zgSortArrow(ctx.orgLens.sort.dir) : ''))
 .setIcon('case-sensitive')
-.setChecked(sortByName && ctx.orgLens.sort.dir === dir)
-.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir } })));
-}
+.setChecked(!!sortByName)
+.onClick(() => ctx.orgLensSet({ sort: { id: 'name',
+dir: sortByName && ctx.orgLens.sort.dir === 'asc' ? 'desc' : 'asc' } })));
 menu.addSeparator();
 const SORT_RELEVANCE = ['words', 'goal', 'tasks', 'mark',
 'modified', 'created', 'grade', 'paras', 'tags'];
@@ -18360,6 +19026,43 @@ ev.stopPropagation();
 const want = !anyOpen;
 ctx.orgOpenSetMany(foldable(), want);
 });
+if (ctx.orgHist) {
+const histBtn = (kind, names, keySay) => {
+const b = bar.createEl('button', { cls: 'zg-export-mini zg-org-hist zg-org-' + kind });
+lensIcon(b, names);
+const paint = () => {
+const h = ctx.orgHist;
+const has = kind === 'undo' ? h.canUndo() : h.canRedo();
+const lab = kind === 'undo' ? h.undoLabel() : h.redoLabel();
+const say = (has ? (kind === 'undo' ? 'Undo: ' : 'Redo: ') + lab : 'Nothing to ' + kind) + ' (' + keySay + ')';
+b.disabled = !has;
+b.title = say;
+b.setAttribute('aria-label', say);
+};
+paint();
+b.addEventListener('click', (ev) => {
+ev.stopPropagation();
+ctx.orgHist.run(kind);
+});
+return paint;
+};
+const paintUndo = histBtn('undo', ['undo-2', 'undo', 'corner-up-left'], 'Ctrl+Z');
+const paintRedo = histBtn('redo', ['redo-2', 'redo', 'corner-up-right'], 'Ctrl+Shift+Z');
+ctx.orgHistPaint = () => { paintUndo(); paintRedo(); };
+const sayEl = bar.createSpan({ cls: 'zg-org-barsay' });
+let sayTimer = null;
+const paintSay = () => {
+const held = ctx.orgBarSaid;
+const live = held && held.msg && Date.now() < held.until;
+const n = ctx.orgSelCount ? ctx.orgSelCount() : 0;
+sayEl.setText(live ? held.msg : (n >= 2 ? n + ' selected' : ''));
+sayEl.toggleClass('is-sel', !live && n >= 2);
+if (sayTimer) { window.clearTimeout(sayTimer); sayTimer = null; }
+if (live) sayTimer = window.setTimeout(paintSay, Math.max(50, held.until - Date.now()));
+};
+paintSay();
+ctx.orgBarSayPaint = paintSay;
+}
 colsBtn.title = 'Which properties this window shows — a column'
 + ' in the table, a field under every row in Outline';
 colsBtn.addEventListener('click', () => {
@@ -18479,10 +19182,8 @@ const scope = table.closest('.zg-uni-modal')
 if (scope && scope.style) {
 scope.style.setProperty('--zg-dpr', String(dpr));
 }
-const marks = [
-table.querySelector('.zg-org-row.zg-org-active td.zg-org-name'),
-null
-];
+const marks = Array.from(table.querySelectorAll(
+'.zg-org-row.zg-org-active td.zg-org-name, .zg-org-row.is-selected td.zg-org-name'));
 for (const el of marks) {
 if (!el) continue;
 try {
@@ -18680,26 +19381,14 @@ table.addClass('is-melt');
 ctx.orgLastGrouping = lensed;
 const orgLensEmptied = !rows.length && !!list.length && !ctx.orgRootShut();
 if (!orgLensEmptied) {
-const subj = tbody.createEl('tr', { cls: 'zg-org-subrow' });
+const subj = tbody.createEl('tr', { cls: 'zg-org-subrow is-total' });
+subj.remove();
 const std = subj.createEl('td', { cls: 'zg-org-name' });
 const box = std.createDiv({ cls: 'zg-org-subject-in' });
-const rootOpen = !ctx.orgRootShut();
-const rtwist = ctx.orgChevron(box, rootOpen);
 try { std.style.setProperty('--zg-org-depth', '0'); }
-catch (_) { zgCatch('orgTableMake / drawOrg: std.style.setProperty(\'--zg-org-depth\', \'0\');', _); }
-rtwist.title = rootOpen ? 'Fold everything' : 'Unfold everything';
-rtwist.addEventListener('click', (ev) => {
-ev.stopPropagation();
-ctx.orgRootShutSet(rootOpen);
-});
-if (at) {
-ctx.orgFolderIcon(box, at, rootOpen);
-} else {
-this.orgVaultIcon(box);
-}
-box.createSpan({ cls: 'zg-org-subjectname',
-text: at ? ctx.nameOf(at)
-: (this.vaultName() || 'Vault') });
+catch (_) { zgCatch('orgTableMake / drawOrg: std.style.setProperty(--zg-org-depth, 0);', _); }
+box.createSpan({ cls: 'zg-org-subjectname', text: 'Total' });
+std.title = at ? 'Everything under ' + ctx.nameOf(at) : 'Everything in the vault';
 const subUnder = ctx.orgUnder(at);
 const aggInto = (td, agg) => {
 if (!agg) return;
@@ -18726,6 +19415,7 @@ ctx.orgColStamp(td, col.id, wrap);
 aggInto(td, ctx.orgColAgg(col, subUnder));
 }
 subj.createEl('td', { cls: 'zg-org-pickcell' });
+ctx.orgTotalRow = subj;
 }
 ctx.orgSelPaint = (body) => {
 for (const tr0 of Array.from(body.querySelectorAll('tr.zg-org-row'))) {
@@ -18733,11 +19423,15 @@ const p = tr0.getAttribute('data-path') || '';
 tr0.toggleClass('is-selected', !tr0.classList.contains('is-folder') && ctx.orgSelHas(p));
 }
 table.toggleClass('has-sel', ctx.orgSelCount() >= 2);
+try { orgSnapAccent(); } catch (_) { zgCatch('orgSelPaint: orgSnapAccent();', _); }
+try { if (ctx.orgBarSayPaint) ctx.orgBarSayPaint(); } catch (_) { zgCatch('orgSelPaint: ctx.orgBarSayPaint();', _); }
 };
+let prevRuled = true;
 for (const row of rows) {
 const isFolder = row.kind === 'folder';
 const tr = tbody.createEl('tr',
-{ cls: 'zg-org-row' + (isFolder ? ' is-folder' : '') });
+{ cls: 'zg-org-row' + (isFolder ? ' is-folder' : '') + (isFolder && !prevRuled ? ' is-topline' : '') });
+prevRuled = isFolder;
 tr.setAttribute('data-path', row.path);
 if (row.path === ctx.orgNote) tr.addClass('zg-org-active');
 if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass('is-selected');
@@ -18748,7 +19442,7 @@ nameTd.createSpan({ cls: 'zg-org-num', text: nums.get(row.path) });
 const nameIn = nameTd.createDiv({ cls: 'zg-org-namein' });
 try {
 nameTd.style.setProperty('--zg-org-depth',
-String(lensed ? 1 : (row.depth || 0) + 1));
+String(lensed ? 0 : (row.depth || 0)));
 } catch (_) { zgCatch('orgTableMake / drawOrg: nameTd.style.setProperty(\'--zg-org-depth\',', _); }
 if (isFolder) {
 const open = ctx.orgIsOpen(row.path);
@@ -18803,6 +19497,11 @@ if (col.id === 'tags') { ctx.orgTagsCell(td, row); continue; }
 if (col.id === 'backlinks' && !isFolder) {
 td.textContent = '';
 ctx.orgBackCell(td, row);
+continue;
+}
+if (col.id === 'outlinks' && !isFolder) {
+td.textContent = '';
+ctx.orgOutCell(td, row);
 continue;
 }
 if (col.user && !isFolder
@@ -18891,6 +19590,11 @@ if (!lensed) {
 ctx.orgRowDrag(tr, row);
 if (isFolder) ctx.orgGroupDrop(tr, row.path);
 }
+}
+if (ctx.orgTotalRow) {
+if (prevRuled) ctx.orgTotalRow.classList.add('is-ruled');
+tbody.appendChild(ctx.orgTotalRow);
+ctx.orgTotalRow = null;
 }
 if (orgLensEmptied || (!rows.length && !ctx.orgRootShut())) {
 const tr0 = tbody.createEl('tr', { cls: 'zg-org-row is-empty' });
@@ -19022,8 +19726,8 @@ else row.el.insertBefore(box, row.el.firstChild);
 }
 const st = door.ticks.state(row.path, row.kind);
 const dead = !st || !st.mine;
-box.disabled = dead;
-box.title = dead ? 'Outside what is being exported — choose this folder, or a folder above it, to include it' : '';
+box.disabled = false;
+box.title = dead ? 'Nothing here goes into an export' : '';
 box.checked = !dead && st.all;
 box.indeterminate = !dead && st.some;
 box.classList.toggle('is-part', !dead && st.some);
@@ -19082,6 +19786,10 @@ const row = (title, icon, tabId) => {
 menu.addItem((i) => {
 i.setTitle(title);
 try { if (i.setIcon) i.setIcon(icon); } catch (_) { zgCatch('fileMenuOrganizerRows: if (i.setIcon) i.setIcon(icon);', _); }
+try {
+if (this.menuIconMirrored && this.menuIconMirrored(tabId) && i.iconEl
+&& i.iconEl.querySelector('svg')) i.iconEl.addClass('is-mirrored');
+} catch (_) { zgCatch('fileMenuOrganizerRows: i.iconEl.addClass(\'is-mirrored\');', _); }
 i.onClick(() => { this.orgOpenAt(here, tabId, { note }); });
 });
 };
@@ -19397,7 +20105,7 @@ if (now.indexOf(path) === -1) now.push(path);
 await this.treeOrderWrite(parent || '', now);
 } catch (_) { }
 }
-async outlinerAddNote(parent) {
+async outlinerAddNote(parent, opts) {
 const path = this.outlinerFreeName(parent, 'Untitled', '.md');
 try {
 await this.app.vault.create(path, '');
@@ -19406,7 +20114,9 @@ return { ok: false, said: 'Could not make that \u2014 '
 + (e && e.message ? e.message : String(e)) };
 }
 await this.outlinerJoinOrder(parent, path);
+if (!(opts && opts.open === false)) {
 try { this.app.workspace.openLinkText(path, '', false, { active: false }); } catch (_) { zgCatch('outlinerAddNote: this.app.workspace.openLinkText(path, \'\', false, { active: false });', _); }
+}
 this.treeShapeChanged();
 return { ok: true, said: '', path, kind: 'file' };
 }
@@ -19505,7 +20215,7 @@ if (c.rename) c.rename({ path: r.path, kind: r.kind });
 }, 0);
 };
 menu.addItem((i) => i.setTitle('New note').setIcon('file-text')
-.onClick(async () => { made(await this.outlinerAddNote(parent)); }));
+.onClick(async () => { made(await this.outlinerAddNote(parent, { open: c.opens !== false })); }));
 menu.addItem((i) => i.setTitle('New folder').setIcon('folder')
 .onClick(async () => { made(await this.outlinerAddFolder(parent)); }));
 if (!path) return menu;
@@ -21700,7 +22410,7 @@ const subs = {
 '{battery}': this.formatBattery(),
 '{paragraph}': this.getParagraphInfo(view, stats),
 '{ln:col}': this.getLineColumn(view),
-'{backlinks}': this.getBacklinkCount(view),
+'{backlinks}': this.barTokenFormat('backlinks') === 'word' ? this.getBacklinkCount(view) : '\x00BACKL\x00',
 '{#}': hTrail[0],
 '{##}': hTrail[1],
 '{###}': hTrail[2],
@@ -21725,7 +22435,8 @@ const subs = {
 '{outliner}': '\x00OUTLINER\x00',
 '{flag}': '\x00FLAG\x00',
 '{readtime}': this.formatReadTime(totalWC),
-'{tasks}': stats && stats.tasks ? zgTaskSay(stats.tasks.done, stats.tasks.all) : ''
+'{tasks}': stats && stats.tasks ? zgTaskSay(stats.tasks.done, stats.tasks.all) : '',
+'{properties}': '\x00PROPS\x00'
 };
 const rows = this.getStatusRows();
 const dir0 = readBarDirective((rows[0] || {}).left);
@@ -22302,6 +23013,8 @@ HISTORY: () => this.buildHistoryIndicator(),
 EXPORT: () => this.buildExportIndicator(),
 OUTLINER: () => this.buildOutlinerIndicator(),
 FLAG: () => this.buildFlagIndicator(),
+PROPS: () => this.buildPropsIndicator(),
+BACKL: () => this.buildBacklinksIndicator(),
 CAPS: () => this.buildCapsIndicator(),
 NUM: () => this.buildNumIndicator(),
 CLOCK: () => this.buildClockFace(),
@@ -24587,7 +25300,7 @@ if (!this.plugin.settings.pluginEnabled) { restoreScroll(); return; }
 this.renderScopeSection(containerEl);
 containerEl.createEl('hr', { cls: 'ws-settings-hr' });
 const TABS = [
-{ id: 'menu', label: 'Menu', render: this.displayMenuTab },
+{ id: 'menu', label: 'Powermenu', render: this.displayMenuTab },
 { id: 'retrobar', label: 'Powerline', render: this.displayRetroBarTab },
 { id: 'theme', label: 'Theme', render: this.displayThemeTab },
 { id: 'zen', label: 'Zen', render: this.displayZenTab },
@@ -24605,6 +25318,15 @@ const TABS = [
 { id: 'misc', label: 'Misc', render: this.displayMiscTab }
 ];
 if (!this._activeTab || !TABS.some(t => t.id === this._activeTab)) this._activeTab = TABS[0].id;
+const searchRow = containerEl.createEl('div', { cls: 'ws-settings-search' });
+const search = searchRow.createEl('input', { cls: 'ws-settings-search-input',
+attr: { type: 'search', placeholder: 'Search every tab\u2026', spellcheck: 'false' } });
+search.value = this._searchQuery || '';
+search.addEventListener('input', () => {
+this._searchQuery = search.value;
+this._searchCaret = search.selectionStart;
+this.display();
+});
 const navEl = containerEl.createEl('div', { cls: 'ws-tab-nav' });
 TABS.forEach(tab => {
 const btn = navEl.createEl('button', {
@@ -24616,15 +25338,6 @@ if (this._activeTab === tab.id) return;
 this._activeTab = tab.id;
 this.display();
 });
-});
-const searchRow = containerEl.createEl('div', { cls: 'ws-settings-search' });
-const search = searchRow.createEl('input', { cls: 'ws-settings-search-input',
-attr: { type: 'search', placeholder: 'Search every tab\u2026', spellcheck: 'false' } });
-search.value = this._searchQuery || '';
-search.addEventListener('input', () => {
-this._searchQuery = search.value;
-this._searchCaret = search.selectionStart;
-this.display();
 });
 const q = String(this._searchQuery || '').trim();
 const bodyEl = containerEl.createEl('div', { cls: 'ws-tab-body' + (q ? ' is-searching' : '') });
@@ -25006,6 +25719,7 @@ L('{words} {chars}', 'how much is in the note, or in your selection');
 L('{ln:col} {paragraph}', 'which line and column you\u2019re on; which paragraph of how many');
 L('{readtime}', 'how long the note takes to read');
 L('{tasks}', 'tasks ticked over tasks in the note, as the Organizer shows them: [3/7]; nothing when there are none');
+L('{properties}', 'how many properties the note has, as a number \u2014 click it to open the Properties pane');
 L('{backlinks}', 'how many other notes link to this one');
 L('{time} {clock}', 'the time, written out or drawn as a little dial');
 L('{dd} {mm} {yyyy} {yy}', 'the date, a piece at a time \u2014 join them however you like');
@@ -25394,6 +26108,9 @@ redisplay();
 });
 const head = card.createDiv({ cls: 'zg-theme-head' });
 if (isRule) card.setAttribute('title', 'Separator');
+if (!isRule) {
+try { plugin.menuDrawIcon(head, id); } catch (_) { zgCatch('displayMenuTab: the card’s glyph', _); }
+}
 const nameEl = head.createDiv({
 cls: 'zg-theme-name'
 + (isRule ? ' is-rule-' + plugin.menuRuleStyle(id) : ''),
@@ -25614,9 +26331,9 @@ this.plugin.updateRetroStatusBar();
 }));
 new Setting(tf).setName('{flag}').setDesc('')
 .addDropdown(d => d
-.addOption('both', 'Flag and word  \u2691 revise')
-.addOption('icon', 'Flag only  \u2691')
-.addOption('name', 'Word only  revise')
+.addOption('icon', 'Icon  \u2691')
+.addOption('name', 'Name  revise')
+.addOption('both', 'Icon + Name  \u2691 revise')
 .setValue(this.plugin.settings.flagTokenFormat || 'icon')
 .onChange(async v => {
 this.plugin.settings.flagTokenFormat = v;
@@ -25626,27 +26343,29 @@ this.plugin.updateRetroStatusBar();
 const btnFmt = (name, desc, key, glyph, word) =>
 new Setting(tf).setName(name).setDesc(desc)
 .addDropdown(d => d
-.addOption('glyph', glyph)
-.addOption('word', word)
+.addOption('glyph', 'Icon')
+.addOption('word', 'Name  ' + word)
+.addOption('both', 'Icon + Name')
 .setValue(this.plugin.settings[key] || 'glyph')
 .onChange(async v => {
 this.plugin.settings[key] = v;
 await this.plugin.saveSettings();
 this.plugin.updateRetroStatusBar();
 }));
-btnFmt('{font}', 'The menu\u2019s icon, or the word \u2014 the word still renders in the '
+btnFmt('{font}', 'The menu\u2019s icon, the word, or both \u2014 the word still renders in the '
 + 'font you have chosen.', 'fontTokenFormat', 'Icon', 'Fonts');
-btnFmt('{markers}', 'The menu\u2019s pilcrow icon, or the word.',
+btnFmt('{markers}', 'The menu\u2019s pilcrow icon, the word, or both.',
 'markersTokenFormat', 'Icon', 'Markers');
-const iconFmt = (token, id, word) =>
-new Setting(tf).setName(token).setDesc('The menu\u2019s icon, or the word.')
+const iconFmt = (token, id, word, desc) =>
+new Setting(tf).setName(token).setDesc(desc || 'The menu\u2019s icon, the word, or both.')
 .addDropdown(d => d
-.addOption('word', word)
 .addOption('icon', 'Icon')
-.setValue(((this.plugin.settings.barTokenIcons || {})[id]) === 'icon' ? 'icon' : 'word')
+.addOption('word', 'Name  ' + word)
+.addOption('both', 'Icon + Name')
+.setValue(this.plugin.barTokenFormat(id))
 .onChange(async v => {
 const m = Object.assign({}, this.plugin.settings.barTokenIcons || {});
-if (v === 'icon') m[id] = 'icon'; else delete m[id];
+if (v === 'icon' || v === 'both') m[id] = v; else delete m[id];
 this.plugin.settings.barTokenIcons = m;
 await this.plugin.saveSettings();
 this.plugin.updateRetroStatusBar();
@@ -25659,6 +26378,8 @@ iconFmt('{report}', 'report', 'Report');
 iconFmt('{history}', 'history', 'History');
 iconFmt('{export}', 'export', 'Export');
 iconFmt('{organizer}', 'organizer', 'Organizer');
+iconFmt('{properties}', 'properties', '6 properties', 'The number, then the Properties pane\u2019s icon, the word, or both.');
+iconFmt('{backlinks}', 'backlinks', '3 backlinks', 'The number, then the Backlinks pane\u2019s icon, the word, or both.');
 const df = this.sub(tf);
 df.createEl('p', {
 text: 'Format dates like {dd}.{mm}.{yy}',
@@ -26425,6 +27146,11 @@ containerEl.createEl('p', { cls: 'ws-settings-note', text:
 'Every day you have written, and the only copy. Deleting it is in '
 + 'the History tab.' });
 }
+new Setting(containerEl).setName('More fonts')
+.setDesc('The Fonts row in the Powermenu offers the fonts on Obsidian\u2019s own list. '
++ 'To add one: Settings \u2192 Appearance \u2192 Text font, and add it there. '
++ 'Every font on that list appears in the Powermenu\u2019s Fonts row.')
+.setClass('ws-settings-fontsinfo');
 this.label(containerEl, 'Frontmatter overrides');
 const fmEl = this.sub(containerEl);
 fmEl.createEl('p', {
@@ -26560,6 +27286,8 @@ t.onChange(async v => { const n = parseInt(v, 10); if (!isNaN(n) && n >= min && 
 module.exports.zgStatusNext = zgStatusNext;
 module.exports.zgStatusLabel = zgStatusLabel;
 module.exports.zgFlagSvg = zgFlagSvg;
+module.exports.ZG_FLAG_SHAPES = ZG_FLAG_SHAPES;
+module.exports.zgCountFootnotes = zgCountFootnotes;
 module.exports.WsOutlinerView = WsOutlinerView;
 module.exports.zgRepairSettings = zgRepairSettings;
 module.exports.zgLineOfSnippet = zgLineOfSnippet;
@@ -26596,5 +27324,9 @@ module.exports.WsMenuView = WsMenuView;
 module.exports.zgSessionLens = zgSessionLens;
 module.exports.zgTaskSay = zgTaskSay;
 module.exports.DEFAULT_BAR_PRESETS = DEFAULT_BAR_PRESETS;
+module.exports.ZG_INK_RETIRED = ZG_INK_RETIRED;
+module.exports.zgShareText = zgShareText;
+module.exports.barCodeToPreset = barCodeToPreset;
+module.exports.DEFAULT_SETTINGS = DEFAULT_SETTINGS;
 module.exports.zgSessionNew = zgSessionNew;
 module.exports.zgForDisk = zgForDisk;
