@@ -60,6 +60,7 @@ const WS_PANE_VIEWS = { organizer: WS_OUTLINER_VIEW, export: WS_EXPORT_VIEW, his
 const WS_PANE_NAMES = { organizer: 'Organizer', export: 'Export', history: 'History' };
 const WS_PANE_ICONS = { organizer: 'list-tree', export: 'file-output', history: 'history' };
 const WS_ICON = 'word-smith-w';
+const WS_RIBBON_TITLE = 'Open the Word-Smith menu';
 const WS_ICON_SVG =
 '<g fill="none" stroke="currentColor" stroke-width="9" ' +
 'stroke-linecap="square" stroke-linejoin="miter">' +
@@ -1418,6 +1419,20 @@ const n = nav.getBoundingClientRect(), b = el.getBoundingClientRect();
 if (!(n.height > 0) || !(b.height > 0)) return 0;
 return Math.max(0, Math.round(b.bottom - n.top));
 }
+function zgTextSameEol(a, b) {
+const norm = (t) => String(t == null ? '' : t).replace(/\r\n?/g, '\n');
+return norm(a) === norm(b);
+}
+function zgCtxLend(into, mod, names) {
+for (const n of names) {
+const d = Object.getOwnPropertyDescriptor(mod, n);
+if (!d) throw new Error('zgCtxLend: the module has no `' + n + '` to lend');
+const desc = { enumerable: true, configurable: true, get: () => mod[n] };
+if (d.set) desc.set = (v) => { mod[n] = v; };
+Object.defineProperty(into, n, desc);
+}
+return into;
+}
 function zgPathNorm(p) {
 const s = String(p == null ? '' : p);
 let out = '';
@@ -1615,16 +1630,6 @@ function zgHeadSizeEm(o, n) {
 const half = Math.round(((o && o.pt) || 12) * 2);
 if (!(half > 0)) return 1;
 return (half + (n <= 2 ? 4 : 2)) / half;
-}
-function zgTitleDropLines(o) {
-const paper = zgPaperOf(o);
-const textTw = Math.max(0, paper.h - 2 * paper.mar);
-const lineTw = zgLineTwips(o) || 480;
-const lines = Math.floor(textTw / lineTw);
-let block = 1;
-if (o.author) block += 1;
-if (o.wordCount != null && o.wordCountOnTitle !== false) block += 2;
-return Math.max(0, Math.round((lines - block) / 2));
 }
 function zgTitleWords(o) {
 const n = (o && o.wordCount) || 0;
@@ -2166,7 +2171,6 @@ const FIT_CLASS_AMBIENT = 1.5;
 const FIT_CLASS_READING = 2;
 const FIT_CLASS_IDENTITY = 3;
 const PL_BG_COUNT = 7;
-const PL_TEXT_COUNT = PL_BG_COUNT;
 const BAR_THEMES = [
 {
 id: 'modus', name: 'Modus',
@@ -2618,9 +2622,8 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.5.1';
+const ZG_PLUGIN_VERSION = '1.5.2';
 const HISTORY_DEBOUNCE_MS = 2000;
-const HISTORY_SAVE_MS = 30000;
 const HISTORY_IDLE_MS = 8000;
 const HISTORY_MAX_UNSAVED_MS = 120000;
 const ZG_STATE_IDS = ['outline', 'draft', 'revise', 'blocked', 'done'];
@@ -3191,7 +3194,6 @@ treeOrderForcedOn: false,
 fileTreeFolderIcons: false,
 fileTreeKindIcons: false,
 organizerOn: true,
-organizerRootShut: false,
 organizerDateFormat: 'human',
 folderColors: {},
 flagCount: 5,
@@ -3887,6 +3889,2863 @@ if (r.without) out.push('         └ ' + r.without);
 }
 return out.join('\n');
 }
+const zgOrgCellsMake = (d) => {
+const orgCanHoldProps = (path) => {
+const p = String(path || '');
+if (!p) return false;
+try {
+const f = d.plugin.app.vault.getAbstractFileByPath(p);
+return !!f && !f.children;
+} catch (_) { return false; }
+};
+const orgCanHoldGoal = (path) => /\.md$/i.test(String(path || ''));
+const orgPropRefuse = (path) => {
+const ext = String(path || '').split('.').pop();
+try {
+new Notice('A .' + ext + ' cannot hold properties — they live in a note\u2019s frontmatter.');
+} catch (_) { zgCatch('openManuscriptModal / orgPropRefuse: new Notice(\'A .\' + ext + \' cannot hold properties — they live in a …', _); }
+};
+const orgPropCell = (td, row, col, text) => {
+td.setText(text);
+if (text) td.title = text;
+const canEdit = orgCanHoldProps(row.path);
+if (canEdit) td.addClass('is-prop');
+td.addEventListener('click', (ev) => {
+ev.stopPropagation();
+if (!canEdit) { orgPropRefuse(row.path); return; }
+{
+const held = td.querySelector('.zg-org-shown')
+|| td.querySelector('.zg-org-editor');
+if (held) {
+if (ev.target === td) {
+try {
+held.click();
+if (held.focus) held.focus();
+} catch (_) { zgCatch('openManuscriptModal / orgPropCell: held.click();', _); }
+}
+return;
+}
+}
+if (d.orgOtherEditorOpen(td)) {
+d.orgProps.orgOpenAfter = { path: row.path, id: col.id, key: col.key };
+d.drawOrg();
+return;
+}
+td.textContent = '';
+d.orgFieldEditor(td, row.path, col.key, false);
+});
+};
+const orgGoalCell = (td, row, text) => {
+td.setText(text);
+try {
+const tgt = Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0;
+const wds = Number(d.orgColRaw({ id: 'words' }, row.path)) || 0;
+if (tgt > 0) {
+const pct = Math.max(0, Math.min(100, Math.round(wds / tgt * 100)));
+td.style.setProperty('--zg-goal-pct', String(pct));
+td.addClass('has-band');
+const step = pct >= 100 ? 'done' : pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
+for (const k of ['low', 'mid', 'high', 'done']) td.toggleClass('is-band-' + k, k === step);
+} else {
+td.style.removeProperty('--zg-goal-pct');
+td.removeClass('has-band');
+for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
+}
+} catch (_) { zgCatch('openManuscriptModal / orgGoalCell: const tgt = Number(orgColRaw({ id: goal }, row.path)) || 0;', _); }
+const canGoal = orgCanHoldGoal(row.path);
+if (canGoal) td.addClass('is-goal');
+if (canGoal) {
+td.title = text ? 'Click to change the target' : 'Click to set a target';
+}
+td.addEventListener('click', (ev) => {
+ev.stopPropagation();
+if (!canGoal) {
+const ext = String(row.path || '').split('.').pop();
+try {
+new Notice('A .' + ext + ' has no word count, so a target has nothing to measure.');
+} catch (_) { zgCatch('openManuscriptModal / orgGoalCell: new Notice(\'A .\' + ext + \' has no word count, so a target has nothing …', _); }
+return;
+}
+if (td.querySelector('input')) return;
+const was = d.targetOf(row.path);
+td.textContent = '';
+const inp = td.createEl('input', { cls: 'zg-org-editor zg-org-goaledit' });
+inp.type = 'number';
+inp.min = '0';
+inp.value = was > 0 ? String(was) : '';
+let settled = false;
+inp.addEventListener('focus', () => {
+d.orgProps.orgEditGuard = { path: row.path, key: 'goal' };
+d.orgProps.orgFieldEscape = () => { settled = true; inp.blur(); };
+});
+inp.addEventListener('keydown', (ev2) => {
+if (ev2.key === 'Enter') { ev2.preventDefault(); inp.blur(); }
+ev2.stopPropagation();
+});
+inp.addEventListener('blur', async () => {
+const commit = !settled;
+settled = true;
+if (commit) {
+const n = parseFloat(inp.value);
+const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
+if (want !== was) {
+const paths = d.orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
+const before = paths.map((p) => [p, d.s[d.goalStore()][p] || 0]);
+const after = paths.map((p) => [p, want]);
+const apply = async (pairs) => {
+for (const [p, v] of pairs) {
+if (v > 0) d.s[d.goalStore()][p] = v;
+else delete d.s[d.goalStore()][p];
+}
+await d.plugin.saveSettings(true);
+};
+await apply(after);
+d.orgBulkSay(paths.length, want > 0 ? 'Target set' : 'Target cleared');
+d.orgHistPush({
+label: d.orgHistOn(paths, want > 0 ? 'Target ' + want : 'Target cleared'),
+undo: async () => { await apply(before); d.drawPanel(); },
+redo: async () => { await apply(after); d.drawPanel(); }
+});
+}
+}
+d.orgProps.orgRedrawPending = true;
+d.orgEditDone();
+});
+window.setTimeout(() => { try { inp.focus(); inp.select(); } catch (_) { zgCatch('openManuscriptModal / orgGoalCell: inp.focus();', _); } }, 0);
+});
+};
+const orgOutCell = (td, row) => {
+const list = d.orgColRaw({ id: 'outlinks' }, row.path);
+if (!list || !list.length) return;
+td.title = list.map((x) => (x.path ? d.nameOf(x.path) : String(x.text))).join(String.fromCharCode(10));
+for (let i = 0; i < list.length; i++) {
+const x = list[i];
+if (i) td.createSpan({ cls: 'zg-org-backsep', text: ', ' });
+if (!x.path) { td.createSpan({ cls: 'zg-org-outlink is-unresolved', text: String(x.text) }); continue; }
+const a = td.createSpan({ cls: 'zg-org-backlink zg-org-outlink', text: d.nameOf(x.path) });
+a.setAttribute('role', 'link');
+a.title = x.path;
+a.addEventListener('click', (ev) => {
+ev.stopPropagation();
+try { d.plugin.app.workspace.openLinkText(x.path, '', false); } catch (_) { zgCatch('orgOutCell: openLinkText(x.path)', _); }
+});
+}
+};
+const orgBackCell = (td, row) => {
+const list = d.orgColRaw({ id: 'backlinks' }, row.path);
+if (!list || !list.length) return;
+td.title = list.map(d.nameOf).join(String.fromCharCode(10));
+for (let i = 0; i < list.length; i++) {
+const p = list[i];
+if (i) td.createSpan({ cls: 'zg-org-backsep', text: ', ' });
+const a = td.createSpan(
+{ cls: 'zg-org-backlink', text: d.nameOf(p) });
+a.setAttribute('role', 'link');
+a.setAttribute('tabindex', '0');
+a.title = 'Open ' + d.nameOf(p);
+const go = (ev) => {
+ev.stopPropagation();
+ev.preventDefault();
+d.openRow({ kind: 'file', path: p }, ev);
+};
+a.addEventListener('click', go);
+a.addEventListener('keydown', (ev) => {
+if (ev.key === 'Enter' || ev.key === ' ') go(ev);
+});
+}
+};
+const orgTagWrap = (host, type) => {
+let w = host.querySelector(':scope > .zg-org-tagcell');
+if (!w) {
+w = host.createSpan({ cls: 'metadata-property-value zg-org-tagcell' });
+w.setAttribute('data-property-type', type || 'multitext');
+}
+return w;
+};
+const orgTagPill = (host, text, o) => {
+const opt = o || {};
+const pill = host.createSpan({ cls: 'multi-select-pill zg-org-tagchip' + (opt.intext ? ' is-intext' : '') + (opt.remove ? ' has-x' : '') });
+pill.setAttribute('data-property-pill-value', String(text));
+pill.createSpan({ cls: 'multi-select-pill-content', text: String(text) });
+if (opt.intext) pill.createSpan({ cls: 'zg-org-intext', text: 'in text' });
+if (opt.remove) {
+const x = pill.createEl('button', { cls: 'multi-select-pill-remove-button zg-org-chipx' });
+try { if (setIcon) setIcon(x, 'x'); } catch (_) { zgCatch('orgTagPill: setIcon(x, x)', _); }
+if (!x.childElementCount) x.setText('\u00d7');
+x.title = 'Remove ' + String(text);
+x.setAttribute('aria-label', x.title);
+x.addEventListener('click', (ev) => { ev.stopPropagation(); opt.remove(); });
+}
+return pill;
+};
+const orgTagsCell = (td, row) => {
+const list = d.plugin.tagsWithSource(row.path);
+const canEdit = orgCanHoldProps(row.path);
+if (canEdit) td.addClass('is-prop');
+td.addEventListener('click', (ev) => {
+ev.stopPropagation();
+if (!canEdit) { orgPropRefuse(row.path); return; }
+if (td.querySelector('.zg-org-editor')) return;
+if (d.orgOtherEditorOpen(td)) {
+d.orgProps.orgOpenAfter = { path: row.path, id: 'tags', key: 'tags' };
+d.drawOrg();
+return;
+}
+td.textContent = '';
+d.orgFieldEditor(td, row.path, 'tags', false);
+});
+const wrap = orgTagWrap(td, 'tags');
+for (const t of list) {
+const chip = orgTagPill(wrap, t.tag, { intext: t.inText });
+chip.title = t.inText
+? '#' + t.tag + ' — written in the note’s text, so it is '
++ 'edited there, not here'
+: '#' + t.tag + ' — a frontmatter tag';
+}
+};
+return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
+};
+const zgOrgChipsMake = (d) => {
+const orgChipHit = (chip, path) => {
+const want = String(chip.value).trim().toLowerCase();
+if (chip.axis === 'flag') {
+return (d.markOf(path, 'file') || '') === String(chip.id || '');
+}
+if (chip.axis === 'tag') {
+let tags = [];
+try { tags = d.plugin.tagsOf(path) || []; } catch (_) { tags = []; }
+return tags.some(t => String(t).replace(/^#/, '').toLowerCase()
+=== want.replace(/^#/, ''));
+}
+if (chip.axis === 'tasks') {
+const rr = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
+const t = rr && rr.tasks;
+const all = t ? Number(t.all) || 0 : 0;
+const done = t ? Number(t.done) || 0 : 0;
+if (chip.id === 'none') return all === 0;
+if (chip.id === 'any') return all > 0;
+void done;
+return false;
+}
+const rEmpty = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
+const side = d.plugin.propStoreHolds(path) ? d.plugin.propStoreAllSync(path) : null;
+const propsOf = Object.assign({}, side || {}, (rEmpty && rEmpty.props) || {});
+if (chip.op === 'empty' || chip.op === 'filled') {
+const props = propsOf;
+let has = false;
+if (props) {
+for (const k of Object.keys(props)) {
+if (k.toLowerCase() !== String(chip.key).toLowerCase()) continue;
+const v = props[k];
+const flat = Array.isArray(v) ? v : [v];
+has = flat.some(x => x !== null && x !== undefined
+&& typeof x !== 'object' && String(x).trim() !== '');
+break;
+}
+}
+return chip.op === 'empty' ? !has : has;
+}
+for (const k of Object.keys(propsOf)) {
+if (k.toLowerCase() !== String(chip.key).toLowerCase()) continue;
+const v = propsOf[k];
+const flat = Array.isArray(v) ? v : [v];
+return flat.some(x => x != null && typeof x !== 'object'
+&& String(x).trim().toLowerCase() === want);
+}
+return false;
+};
+const orgPropKeys = (at) => {
+const seen = new Map();
+const ix = d.plugin._orgIndex;
+if (!ix) return [];
+for (const row of d.orgRowList(at, true)) {
+const r = ix.get(row.path);
+const props = (r && r.props) || (d.plugin.propStoreHolds(row.path) ? d.plugin.propStoreAllSync(row.path) : null);
+if (!props) continue;
+for (const k of Object.keys(props)) {
+const lc = k.toLowerCase();
+if (!seen.has(lc)) seen.set(lc, k);
+}
+}
+return Array.from(seen.values())
+.sort((a, b) => a.localeCompare(b));
+};
+return { orgChipHit, orgPropKeys };
+};
+const zgOrgColsMake = (d) => {
+const colDefs = () => [
+{ id: 'goal', label: 'Target', def: 116, min: 78 },
+{ id: 'words', label: 'Words', def: 66, min: 44 },
+{ id: 'grade', label: 'Grade', def: 50, min: 34 },
+{ id: 'mark', label: 'Flag', def: 104, min: 30 },
+{ id: 'modified', label: 'Last modified', def: 132, min: 96 },
+{ id: 'created', label: 'Created', def: 132, min: 96 },
+{ id: 'paras', label: 'Paras', def: 60, min: 42 },
+{ id: 'tasks', label: 'Tasks', def: 62, min: 44 },
+{ id: 'tags', label: 'Tags', def: 62, min: 44 },
+{ id: 'read', label: 'Read time', def: 84, min: 56 },
+{ id: 'ftype', label: 'Type', def: 62, min: 40 },
+{ id: 'backlinks', label: 'Backlinks', def: 170, min: 70 },
+{ id: 'outlinks', label: 'Outgoing links', def: 170, min: 70 },
+{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
+{ id: 'chars', label: 'Chars', def: 84, min: 56 },
+{ id: 'charsall', label: 'Chars + spaces', def: 104, min: 60 },
+{ id: 'sentences', label: 'Sentences', def: 84, min: 56 }
+].concat(
+(Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [])
+.filter(c => c && c.key)
+.map(c => ({
+id: d.plugin.propColId(c.key),
+key: String(c.key),
+label: String(c.label || c.key),
+sortAs: String(c.sortAs || ''),
+user: true,
+def: Number(c.w) || 90,
+min: 48
+}))
+);
+if (!Array.isArray(d.s.uniColsOff)) {
+d.s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
+'tags', 'created', 'read', 'ftype', 'backlinks', 'outlinks', 'footnotes',
+'chars', 'charsall', 'sentences'];
+}
+let COLS = colDefs();
+{
+const back = zgSessionLens(d.ses.lens || d.s.uniLens || null, COLS.map(c => c.id),
+COLS.map(c => c.key).filter(k => k));
+if (back) d.orgLens = back;
+{
+const stored = JSON.stringify(d.s.uniLens || null);
+const now = JSON.stringify(back);
+if (stored !== now) {
+if (back) d.s.uniLens = JSON.parse(now);
+else delete d.s.uniLens;
+d.plugin.saveSettings().catch(() => {});
+}
+}
+d.ses.lens = back;
+}
+const colOff = new Set(Array.isArray(d.s.uniColsOff) ? d.s.uniColsOff : []);
+const colRank = () => {
+const saved = Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [];
+const at = new Map();
+saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
+return (c) => (at.has(c.id) ? at.get(c.id) : saved.length + COLS.indexOf(c));
+};
+const colSort = (list) => {
+const rank = colRank();
+return list.slice().sort((a, b) => rank(a) - rank(b));
+};
+const setCols = () => colSort(COLS.filter(c => !colOff.has(c.id)));
+const sortDefs = () => BUILTIN_SORTS.concat(
+COLS.filter(c => c.user).map(c => ({
+id: c.id, label: c.label, icon: 'tag', prop: true
+})));
+const BUILTIN_SORTS = [
+{ id: 'order', label: 'Custom sort', icon: 'list-ordered' },
+{ id: 'name', label: 'Name', icon: 'case-sensitive' },
+{ id: 'words', label: 'Words', icon: 'file-text' },
+{ id: 'mark', label: 'Where it is up to', icon: 'flag' },
+{ id: 'grade', label: 'Reading grade', icon: 'graduation-cap' },
+{ id: 'pct', label: 'How close to target', icon: 'percent' },
+{ id: 'goal', label: 'Target', icon: 'target' },
+{ id: 'modified', label: 'Last modified', icon: 'clock' },
+{ id: 'paras', label: 'Paragraphs', icon: 'pilcrow' },
+{ id: 'read', label: 'Read time', icon: 'timer' },
+{ id: 'ftype', label: 'Type', icon: 'file-type' },
+{ id: 'backlinks', label: 'Backlinks', icon: 'link' },
+{ id: 'outlinks', label: 'Outgoing links', icon: 'external-link' },
+{ id: 'footnotes', label: 'Footnotes', icon: 'file-signature' },
+{ id: 'chars', label: 'Chars', icon: 'case-sensitive' },
+{ id: 'charsall', label: 'Chars + spaces', icon: 'case-sensitive' },
+{ id: 'sentences', label: 'Sentences', icon: 'pilcrow' },
+{ id: 'tasks', label: 'Tasks left', icon: 'check-square' },
+{ id: 'created', label: 'Created', icon: 'calendar-plus' },
+{ id: 'tags', label: 'Tags', icon: 'tags' }
+];
+let SORTS = sortDefs();
+const rebuildCols = () => {
+COLS = colDefs(); SORTS = sortDefs();
+};
+const propKeysInScope = () => {
+const seen = new Map();
+for (const p2 of d.liveFiles()) {
+const f = d.plugin.app.vault.getAbstractFileByPath(p2);
+const cache = f && d.plugin.app.metadataCache
+&& d.plugin.app.metadataCache.getFileCache(f);
+const fm = cache && cache.frontmatter;
+if (!fm) continue;
+for (const k of Object.keys(fm)) {
+if (k === 'position') continue;
+if (k === 'tags' || k === 'tag') continue;
+const low = k.toLowerCase();
+const at = seen.get(low) || { label: k, n: 0, spellings: new Map() };
+at.n += 1;
+at.spellings.set(k, (at.spellings.get(k) || 0) + 1);
+if (at.spellings.get(k) >= (at.spellings.get(at.label) || 0)) {
+at.label = k;
+}
+seen.set(low, at);
+}
+}
+const already = new Set(COLS.filter(c => c.user)
+.map(c => String(c.key).toLowerCase()));
+return Array.from(seen.keys())
+.filter(k => !already.has(k))
+.sort((a, b) => (seen.get(b).n - seen.get(a).n) || a.localeCompare(b))
+.map(k => ({
+key: k, label: seen.get(k).label, n: seen.get(k).n,
+spellings: seen.get(k).spellings.size
+}));
+};
+const pruneUserCols = () => {
+const ix = d.plugin._orgIndex;
+const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [];
+if (!ix || !list.length) return false;
+const have = new Set();
+try {
+for (const r of ix.values()) {
+if (r && r.props) for (const k of Object.keys(r.props)) have.add(String(k).toLowerCase());
+}
+for (const p of (d.plugin.propStorePaths ? d.plugin.propStorePaths() : [])) {
+const props = d.plugin.propStoreAllSync(p);
+if (props) for (const k of Object.keys(props)) have.add(String(k).toLowerCase());
+}
+} catch (_) { zgCatch('pruneUserCols: for (const r of ix.values())', _); return false; }
+let changed = false;
+const kept = [], gone = [];
+for (const c of list) {
+if (!c) continue;
+const carried = have.has(String(c.key).toLowerCase());
+if (carried) { if (c.fresh) { delete c.fresh; changed = true; } kept.push(c); continue; }
+if (c.fresh) { kept.push(c); continue; }
+gone.push(c); changed = true;
+}
+if (!changed) return false;
+d.s.uniUserCols = kept;
+for (const c of gone) { try { colOff.delete(d.plugin.propColId(c.key)); } catch (_) { zgCatch('pruneUserCols: colOff.delete', _); } }
+d.s.uniColsOff = Array.from(colOff);
+d.plugin.saveSettings().catch(() => {});
+rebuildCols();
+return true;
+};
+d.plugin._orgPruneUserCols = () => pruneUserCols();
+d.plugin._orgColOn = (id, on) => { if (on) colOff.delete(id); else colOff.add(id); d.s.uniColsOff = Array.from(colOff); };
+const addProp = async (info) => {
+const shown = info.label;
+const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols.slice() : [];
+if (list.some(c => c && String(c.key).toLowerCase() === info.key)) return;
+const chosen = String((info && info.type) || '');
+list.push(chosen
+? { key: shown, label: shown, sortAs: '', type: chosen, fresh: true }
+: { key: shown, label: shown, sortAs: '', fresh: true });
+d.s.uniUserCols = list;
+colOff.delete(d.plugin.propColId(shown));
+d.s.uniColsOff = Array.from(colOff);
+await d.plugin.saveSettings();
+rebuildCols();
+d.draw(); d.fill(); d.drawPanel();
+};
+const PROP_TYPES = [
+{ id: 'text', label: 'Text' },
+{ id: 'multitext', label: 'List' },
+{ id: 'number', label: 'Number' },
+{ id: 'checkbox', label: 'Checkbox' },
+{ id: 'date', label: 'Date' },
+{ id: 'datetime', label: 'Date & time' }
+];
+const setPropType = async (key, type) => {
+const t = String(type || '');
+if (!t) return;
+const k = String(key || '').toLowerCase();
+const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols.slice() : [];
+let hit = false;
+for (const c of list) {
+if (!c || String(c.key).toLowerCase() !== k) continue;
+c.type = t; hit = true; break;
+}
+if (!hit) return;
+d.s.uniUserCols = list;
+await d.plugin.saveSettings();
+rebuildCols();
+d.draw(); d.fill(); d.drawPanel();
+};
+const askPropType = (ev2, done) => {
+if (!Menu) { done(''); return; }
+try {
+const mm = zgMenu();
+for (const t of PROP_TYPES) {
+mm.addItem((i) => i.setTitle(t.label)
+.onClick(() => done(t.id)));
+}
+if (ev2 && typeof mm.showAtMouseEvent === 'function') {
+mm.showAtMouseEvent(ev2);
+} else if (typeof mm.showAtPosition === 'function') {
+mm.showAtPosition({ x: 200, y: 200 });
+} else { done(''); }
+} catch (_) { done(''); }
+};
+const nameNewProp = (type, ev2) => {
+const taken = propKeysInScope();
+const named = (t2) => {
+if (!WsPropSuggestModal) {
+pickProp(ev2);
+return;
+}
+try {
+new WsPropSuggestModal(d.plugin.app, [], (info) => {
+if (!info || !info.key) return;
+const nk = String(info.key).toLowerCase();
+addProp({ key: nk, label: String(info.key) });
+if (type) setPropType(nk, type);
+}, 'Name the new property', 'Create \u201c%s\u201d',
+taken).open();
+} catch (_) { pickProp(ev2); }
+};
+named(type);
+};
+const addNewProp = (ev2) => {
+askPropType(ev2, (type) => nameNewProp(type, ev2));
+};
+const ORG_PROP_DOORS = [
+{ label: 'Add a new property',
+icons: ['plus', 'plus-circle', 'file-plus'],
+types: PROP_TYPES,
+pick: (type, ev2) => nameNewProp(type, ev2),
+open: (ev2) => addNewProp(ev2) },
+];
+const pickProp = (ev2) => {
+const found = propKeysInScope();
+if (WsPropSuggestModal) {
+try {
+new WsPropSuggestModal(d.plugin.app, found, (info) => {
+if (info.isNew) {
+const nk = String(info.key).toLowerCase();
+addProp({ key: nk, label: String(info.key) });
+askPropType(ev2, (type) => { setPropType(nk, type); });
+} else {
+addProp(info);
+}
+}, null, 'Add “%s” as a new property').open();
+return;
+} catch (_) { zgCatch('openManuscriptModal / pickProp: new WsPropSuggestModal(this.app, found, (info) =>', _); }
+}
+if (!found.length) {
+try { new Notice('No properties in these notes'); } catch (_) { zgCatch('openManuscriptModal / pickProp: new Notice(\'No properties in these notes\');', _); }
+return;
+}
+const pick = zgMenu();
+pick.addItem((i2) => i2.setTitle('Add a property').setIsLabel(true));
+for (const info of found.slice(0, 20)) {
+pick.addItem((i2) => i2
+.setTitle(info.label + '  ·  ' + info.n
++ (info.n === 1 ? ' note' : ' notes')
++ (info.spellings > 1 ? '  ·  ' + info.spellings + ' spellings' : ''))
+.onClick(() => addProp(info)));
+}
+try { pick.showAtMouseEvent(ev2); }
+catch (_) { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / pickProp: pick.showAtPosition( x: 0, y: 0 );', _e); } }
+};
+return { colOff, setCols, pruneUserCols, addProp, ORG_PROP_DOORS, get COLS() { return COLS; }, set COLS(v) { COLS = v; }, get SORTS() { return SORTS; }, set SORTS(v) { SORTS = v; } };
+};
+const zgOrgDragMake = (d) => {
+let orgDragPath = null;
+let orgDragCol = null;
+let orgLastGrouping = null;
+const orgDropMarks = () => {
+for (const el2 of d.panel.querySelectorAll(
+'.zg-drop-above, .zg-drop-below, .zg-drop-into')) {
+el2.removeClass('zg-drop-above');
+el2.removeClass('zg-drop-below');
+el2.removeClass('zg-drop-into');
+}
+};
+const orgDropRun = async (movedPath, ontoPath, below) => {
+if (!movedPath || !ontoPath || movedPath === ontoPath) return;
+if (d.folderOf(movedPath) !== d.folderOf(ontoPath)) return;
+const parent = d.folderOf(movedPath);
+await d.plugin.treeOrderMove(parent, movedPath,
+zgOrgDropBefore(d.plugin.treeOrderCurrent(parent),
+movedPath, ontoPath, below));
+};
+const ORG_EDGE = 0.2;
+const orgAtEdge = (el, ev) => {
+const r = el.getBoundingClientRect();
+if (!r.height) return true;
+const at = (ev.clientY - r.top) / r.height;
+return at <= ORG_EDGE || at >= 1 - ORG_EDGE;
+};
+const orgGroupDrop = (g, parentPath) => {
+g.addEventListener('dragover', (ev) => {
+orgDropMarks();
+if (!orgDragPath) return;
+if (d.folderOf(orgDragPath) === parentPath) return;
+if (orgAtEdge(g, ev)) return;
+ev.preventDefault();
+g.addClass('zg-drop-into');
+try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { zgCatch('openManuscriptModal / orgGroupDrop: ev.dataTransfer.dropEffect = \'move\';', _); }
+});
+g.addEventListener('dragleave', () => g.removeClass('zg-drop-into'));
+g.addEventListener('drop', async (ev) => {
+if (orgAtEdge(g, ev)) return;
+const moved = orgDragPath;
+orgDropMarks();
+g.removeClass('zg-drop-into');
+orgDragPath = null;
+if (!moved || d.folderOf(moved) === parentPath) return;
+ev.preventDefault();
+const done = await d.plugin.treeMoveInto(moved, parentPath);
+if (done && !done.ok && done.said) d.said(done.said, true);
+else if (done && done.ok) {
+d.said('Moved “' + d.nameOf(moved) + '” into '
++ (parentPath ? d.nameOf(parentPath) : 'the vault root')
++ '.', false);
+}
+});
+};
+const orgRowDrag = (tr, row) => {
+if (d.plugin.isStoreFile && d.plugin.isStoreFile(row.path)) return;
+tr.setAttribute('draggable', 'true');
+tr.addClass('is-draggable');
+tr.addEventListener('dragstart', (ev) => {
+orgDragPath = row.path;
+tr.addClass('is-dragging');
+try { ev.dataTransfer.setData('text/plain', row.path); } catch (_) { zgCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
+});
+tr.addEventListener('dragover', (ev) => {
+orgDropMarks();
+if (!orgDragPath || orgDragPath === row.path) return;
+if (d.folderOf(orgDragPath) !== row.parent) return;
+if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;
+ev.preventDefault();
+const r = tr.getBoundingClientRect();
+const below = (ev.clientY - r.top) > r.height / 2;
+tr.addClass(below ? 'zg-drop-below' : 'zg-drop-above');
+try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { zgCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.dropEffect = \'move\';', _); }
+});
+tr.addEventListener('drop', async (ev) => {
+if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;
+const moved = orgDragPath;
+orgDropMarks();
+orgDragPath = null;
+if (!moved || d.folderOf(moved) !== row.parent) return;
+ev.preventDefault();
+const r = tr.getBoundingClientRect();
+await orgDropRun(moved, row.path,
+(ev.clientY - r.top) > r.height / 2);
+});
+tr.addEventListener('dragend', () => {
+orgDragPath = null;
+orgDropMarks();
+tr.removeClass('is-dragging');
+});
+d.plugin.touchDrag(tr, row.path, {
+rows: () => Array.from(d.panel.querySelectorAll(
+'.zg-org-row[data-path]')),
+idOf: (el2) => el2.getAttribute('data-path'),
+drop: (from, to, below) => { orgDropRun(from, to, below); }
+});
+};
+return { orgGroupDrop, orgRowDrag, get orgDragCol() { return orgDragCol; }, set orgDragCol(v) { orgDragCol = v; }, get orgLastGrouping() { return orgLastGrouping; }, set orgLastGrouping(v) { orgLastGrouping = v; } };
+};
+const zgOrgFilesMake = (d) => {
+const allFiles = () => {
+try {
+const v = d.plugin.app.vault;
+const raw = (v.getFiles ? v.getFiles() : v.getMarkdownFiles()) || [];
+return raw
+.filter(f => d.plugin.uniTypeAllows(f));
+} catch (_) { return []; }
+};
+const folderOf = (path) => {
+const cut = String(path).lastIndexOf('/');
+return cut === -1 ? '' : path.slice(0, cut);
+};
+const nameOf = (path) => (path === '' ? 'Vault root'
+: String(path).split('/').pop().replace(/\.md$/, ''));
+{
+const here = d.plugin.activeNoteFile && d.plugin.activeNoteFile();
+if (here && here.path) d.orgSel.cursor = d.keyOf({ path: here.path, kind: 'file' });
+}
+const keptFiles = () => allFiles().map(f => f.path);
+const liveFiles = () => keptFiles();
+let orgDrawnSig = null;
+let orgCellHint = null;
+return { folderOf, nameOf, liveFiles, get orgDrawnSig() { return orgDrawnSig; }, set orgDrawnSig(v) { orgDrawnSig = v; }, get orgCellHint() { return orgCellHint; }, set orgCellHint(v) { orgCellHint = v; } };
+};
+const zgOrgFlagsMake = (d) => {
+const orgFlagApply = async (pairs) => {
+for (const [p, v] of pairs) {
+if (v) d.s[d.statusStore()][p] = v;
+else delete d.s[d.statusStore()][p];
+}
+await d.plugin.saveSettings();
+for (const [p] of pairs) d.plugin.repaintExplorerFlag(p);
+d.drawPanel();
+};
+const orgFlagSet = async (row, id, cell) => {
+const paths = d.orgBulkPaths(row);
+const before = paths.map((p) => [p, d.s[d.statusStore()][p] || '']);
+const after = paths.map((p) => [p, id || '']);
+d.orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
+d.orgCellHint = (cell && paths.length === 1) ? { td: cell, path: row.path } : null;
+d.orgHistPush({
+label: d.orgHistOn(paths, id ? 'Flag ' + zgStatusLabel(id) : 'Flag cleared'),
+undo: () => orgFlagApply(before),
+redo: () => orgFlagApply(after)
+});
+await orgFlagApply(after);
+};
+const orgFlagMenu = (ev, row, td) => {
+const now = d.markOf(row.path, 'file');
+const m = zgMenu();
+try { if (m.dom && m.dom.addClass) m.dom.addClass('zg-flag-menu'); } catch (_) { zgCatch('openManuscriptModal / orgFlagMenu: if (m.dom && m.dom.addClass) m.dom.addClass(\'zg-flag-menu\');', _); }
+const row1 = (title, id) => m.addItem((i) => {
+i.setTitle(title);
+try { if (id && i.iconEl) i.iconEl.innerHTML = zgFlagSvg(id, 12); } catch (_) { zgCatch('openManuscriptModal / row1: if (id && i.iconEl) i.iconEl.innerHTML = zgFlagSvg(id, 12);', _); }
+try { i.setChecked(now === id); } catch (_) { zgCatch('openManuscriptModal / row1: i.setChecked(now === id);', _); }
+i.onClick(() => orgFlagSet(row, id, td));
+});
+row1('No flag', '');
+for (const st of ZG_STATUSES) row1(st.label, st.id);
+let at = null;
+try {
+const r = td && td.getBoundingClientRect && td.getBoundingClientRect();
+if (r && (r.width || r.height)) at = { x: r.left, y: r.bottom };
+} catch (_) { zgCatch('openManuscriptModal / orgFlagMenu: const r = td && td.getBoundingClientRect && …', _); }
+try {
+if (at) m.showAtPosition(at);
+else m.showAtMouseEvent(ev);
+} catch (_) { try { m.showAtPosition(at || { x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / orgFlagMenu: m.showAtPosition(at || x: 0, y: 0 );', _e); } }
+};
+const orgRepaintFlagCell = (td, path) => {
+try {
+if (!td || !td.isConnected) return false;
+const col = (d.COLS || []).filter(c => c.id === 'mark')[0];
+if (!col) return false;
+const text = d.orgColText(col, path);
+const more = td.querySelector('.zg-org-flagmore');
+for (const kid of Array.from(td.childNodes)) {
+if (kid !== more) td.removeChild(kid);
+}
+if (text) {
+const v = d.orgColRaw({ id: 'mark' }, path);
+const ic = td.createSpan({ cls: 'zg-org-flagic' });
+ic.innerHTML = zgFlagSvg(String(v), 10);
+td.createSpan({ text: text });
+if (more) td.appendChild(more);
+}
+try {
+const table = td.closest('table');
+const draw = d.tableCtx && d.tableCtx.orgAggInto;
+if (table && draw) {
+const redo = (cell, under) => {
+if (!cell) return;
+cell.textContent = '';
+cell.removeClass('zg-org-aggflags');
+const agg = d.orgColAgg(col, under);
+if (agg) draw(cell, agg);
+};
+for (const tr of Array.from(table.querySelectorAll('tr.zg-org-row.is-folder'))) {
+const fp = tr.getAttribute('data-path') || '';
+if (fp && String(path).indexOf(fp + '/') === 0) {
+redo(tr.querySelector('td[data-col="mark"]'), d.orgUnder(fp));
+}
+}
+const sub = table.querySelector('tr.zg-org-subrow td[data-col="mark"]');
+if (sub) redo(sub, d.orgUnder(d.orgAt()));
+}
+} catch (_) { zgCatch('orgRepaintFlagCell / folders above: const table = td.closest(\'table\');', _); }
+return true;
+} catch (_) { return false; }
+};
+const orgFlagCell = (td, row, text) => {
+if (text) {
+const v = d.orgColRaw({ id: 'mark' }, row.path);
+const ic = td.createSpan({ cls: 'zg-org-flagic' });
+ic.innerHTML = zgFlagSvg(String(v), 10);
+td.createSpan({ text: text });
+}
+td.addClass('is-flag');
+td.title = 'Choose a flag';
+td.addEventListener('click', (ev) => {
+ev.stopPropagation();
+orgFlagMenu(ev, row, td);
+});
+const more = td.createSpan({ cls: 'zg-org-flagmore' });
+try { if (setIcon) setIcon(more, 'chevron-down'); } catch (_) { zgCatch('orgFlagCell: setIcon(more, chevron-down);', _); }
+if (!more.childElementCount) more.setText('\u25be');
+more.setAttribute('aria-label', 'Choose a flag');
+more.title = 'Choose a flag';
+more.addEventListener('click', (ev) => {
+ev.stopPropagation();
+orgFlagMenu(ev, row, td);
+});
+td.addEventListener('contextmenu', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+orgFlagMenu(ev, row, td);
+});
+};
+return { orgFlagSet, orgRepaintFlagCell, orgFlagCell };
+};
+const ZG_ORG_HIST_MAX = 50;
+const zgOrgJournalMake = ({ paint, say, fail }) => {
+const hist = { undo: [], redo: [], busy: false };
+const repaint = () => { try { paint(); } catch (_) { zgCatch('journal: paint();', _); } };
+const push = (entry) => {
+if (hist.busy || !entry) return;
+hist.undo.push(entry);
+if (hist.undo.length > ZG_ORG_HIST_MAX) hist.undo.shift();
+hist.redo.length = 0;
+repaint();
+};
+const run = async (dir) => {
+if (hist.busy) return false;
+const from = dir === 'redo' ? hist.redo : hist.undo;
+const to = dir === 'redo' ? hist.undo : hist.redo;
+const e = from.pop();
+if (!e) return false;
+hist.busy = true;
+try {
+await (dir === 'redo' ? e.redo() : e.undo());
+to.push(e);
+say((dir === 'redo' ? 'Redone: ' : 'Undone: ') + e.label);
+} catch (err) {
+from.push(e);
+zgCatch('orgHistRun: ' + dir + ' ' + e.label, err);
+fail('Could not ' + dir + ' — ' + (err && err.message ? err.message : String(err)));
+} finally {
+hist.busy = false;
+repaint();
+}
+return true;
+};
+const api = {
+canUndo: () => hist.undo.length > 0,
+canRedo: () => hist.redo.length > 0,
+undoLabel: () => (hist.undo.length ? hist.undo[hist.undo.length - 1].label : ''),
+redoLabel: () => (hist.redo.length ? hist.redo[hist.redo.length - 1].label : ''),
+run: (dir) => run(dir),
+size: () => ({ undo: hist.undo.length, redo: hist.redo.length })
+};
+const nameOf = (p) => String(p || '').split('/').pop().replace(/\.md$/i, '');
+const on = (paths, what) => {
+const n = paths.length;
+return what + (n === 1 ? ' on ' + nameOf(paths[0]) : ' on ' + n + ' notes');
+};
+return { push, run, api, on, repaint };
+};
+const zgOrgKeysMake = (d) => {
+const cursorItem = () => (d.orgSel.cursor ? d.itemOf(d.orgSel.cursor) : null);
+const tableOrder = () => {
+const drawn = Array.from(d.panel.querySelectorAll('tr.zg-org-row:not(.is-folder)[data-path]'))
+.map((r) => r.getAttribute('data-path')).filter(Boolean);
+if (drawn.length) return drawn;
+try { return d.plugin.exportGather(d.exportScope()).map((f) => f.path); }
+catch (e) { zgGuardReport('the Organizer listing the notes the arrows walk', e); return []; }
+};
+const moveCursor = (by) => {
+const order = tableOrder();
+if (!order.length) return;
+const here = d.orgSel.cursor ? (d.itemOf(d.orgSel.cursor) || {}).path : (d.orgNote || null);
+const at = here ? order.indexOf(here) : -1;
+const next = Math.max(0, Math.min(order.length - 1, at + by));
+const it = { kind: 'file', path: order[at === -1 ? 0 : next] };
+d.orgSel.cursor = d.keyOf(it);
+d.orgSel.cursorDrives = true;
+d.orgFollow(it, true, true);
+d.drawPanel();
+const el = d.panel.querySelector('tr.zg-org-row.zg-org-active');
+if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+};
+const key = (combo, fn, fromSearch) => d.host.key(combo[0], combo[1], (ev) => {
+if (d.typing(fromSearch)) return;
+fn();
+ev.preventDefault();
+return false;
+});
+key([[], 'ArrowDown'], () => moveCursor(1), true);
+key([[], 'ArrowUp'], () => moveCursor(-1), true);
+const nudge = async (by) => {
+const it = cursorItem();
+if (!it || !it.path) return;
+const parent = d.folderOf(it.path);
+let sibs = [];
+try { sibs = d.plugin.treeOrderCurrent(parent) || []; } catch (_) { sibs = []; }
+const at = sibs.indexOf(it.path);
+if (at === -1) return;
+const to = at + by;
+if (to < 0 || to >= sibs.length) return;
+const before = by < 0 ? sibs[to] : (sibs[to + 1] != null ? sibs[to + 1] : null);
+await d.plugin.treeOrderMove(parent, it.path, before);
+d.orgSel.cursor = d.keyOf(it);
+d.orgSel.cursorDrives = true;
+d.drawPanel();
+};
+key([['Alt'], 'ArrowUp'], () => { nudge(-1); });
+key([['Alt'], 'ArrowDown'], () => { nudge(1); });
+key([[], 'Enter'], () => { const it = cursorItem(); if (it) d.openRow(it); }, true);
+key([[], ' '], async () => {
+const it = cursorItem();
+if (!it) return;
+if (it.kind !== 'file') return;
+const next = zgStatusNext(d.markOf(it.path, it.kind));
+await d.orgFlagSet({ kind: 'file', path: it.path }, next, null);
+});
+const escapeLadder = (ev) => {
+if (ev.key !== 'Escape') return false;
+if (d.tab === 'organizer') {
+if (d.orgProps.orgFieldEscape) {
+const f2 = d.orgProps.orgFieldEscape;
+d.orgProps.orgFieldEscape = null;
+try { f2(); } catch (_) { zgCatch('openManuscriptModal / escapeLadder: f2();', _); }
+return true;
+}
+if (d.orgPropPopEl()) { d.orgPropPopClose(); return true; }
+if (d.orgLensOn()) { d.orgLensClear(); return true; }
+if (d.host.closes === false) return true;
+return false;
+}
+if (d.sel.size || d.orgSel.cursorDrives) {
+d.sel.clear();
+d.orgSel.lastPicked = null;
+d.orgSel.cursorDrives = false;
+d.draw();
+d.drawPanel();
+return true;
+}
+if (d.host.closes === false) return true;
+return false;
+};
+const onEscape = (ev) => {
+const pop0 = (d.tab === 'organizer') ? d.orgPropPopEl() : null;
+const sub0 = (d.tab === 'organizer') ? d.orgPropSubEl() : null;
+if (!d.host.contains(ev.target)
+&& !(pop0 && pop0.contains(ev.target))
+&& !(sub0 && sub0.contains(ev.target))) return;
+if (!escapeLadder(ev)) return;
+ev.preventDefault();
+ev.stopPropagation();
+if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+};
+if (d.host.blockClose) {
+d.host.blockClose(() => {
+if (d.tab === 'organizer' && d.orgPropSubEl()) {
+d.orgPropSubClose();
+return true;
+}
+if (d.tab === 'organizer' && d.orgPropPopEl()) {
+d.orgPropPopClose();
+return true;
+}
+if (d.tab === 'organizer' && d.orgProps.orgFieldEscape) {
+const f2 = d.orgProps.orgFieldEscape;
+d.orgProps.orgFieldEscape = null;
+try { f2(); } catch (_) { zgCatch('openManuscriptModal / blockClose: f2();', _); }
+return true;
+}
+return false;
+});
+}
+return { onEscape };
+};
+const zgOrgLensMake = (d) => {
+let orgLens = { sort: null, chips: [] };
+const orgLensOn = () => !!(orgLens.sort
+|| orgLens.chips.some(c => !c.off));
+const orgLensSet = (patch) => {
+orgLens = Object.assign({}, orgLens, patch);
+d.ses.lens = orgLensOn() ? orgLens : null;
+if (d.ses.lens) d.s.uniLens = JSON.parse(JSON.stringify(d.ses.lens));
+else delete d.s.uniLens;
+d.plugin.saveSettings().catch(() => {});
+d.drawPanel();
+};
+const orgLensClear = () => {
+orgLensSet({ sort: null, chips: [] });
+};
+const orgAt = () => d.orgFolder;
+const orgSameChip = (a, b) =>
+String(a.axis || '') === String(b.axis || '')
+&& String(a.id || '') === String(b.id || '')
+&& String(a.key || '').toLowerCase() === String(b.key || '').toLowerCase()
+&& String(a.value || '').toLowerCase()
+=== String(b.value || '').toLowerCase();
+const orgAddChip = (chip) => {
+if (orgLens.chips.some(c => orgSameChip(c, chip))) {
+orgLensSet({ chips: orgLens.chips.map(c => (orgSameChip(c, chip)
+? Object.assign({}, c, { off: false }) : c)) });
+return;
+}
+orgLensSet({ chips: orgLens.chips.concat([chip]) });
+};
+const orgFilterByKey = (key, ev) => {
+const at = orgAt();
+let vals = [];
+try { vals = d.plugin.orgDistinctUnder(at, key) || []; }
+catch (_) { vals = []; }
+if (!vals.length) {
+try { new Notice('No values for ' + key); } catch (_) { zgCatch('openManuscriptModal / orgFilterByKey: new Notice(\'No values for \' + key);', _); }
+return;
+}
+let counts = new Map();
+try { counts = d.plugin.orgCountsUnder(at, key) || new Map(); }
+catch (_) { counts = new Map(); }
+const items = vals.map(v => {
+const c = counts.get(String(v).trim());
+return { value: v, label: String(v) + (c ? '   ' + c : '') };
+});
+const take = (it) => orgAddChip({ key: key, value: String(it.value) });
+if (WsPropSuggestModal) {
+try {
+new WsPropSuggestModal(d.plugin.app, items, take,
+'Which value of ' + key + '?').open();
+return;
+} catch (_) { zgCatch('openManuscriptModal / orgFilterByKey: new WsPropSuggestModal(this.app, items, take,', _); }
+}
+const pv = zgMenu();
+for (const it of items.slice(0, 20)) {
+pv.addItem((i3) => i3.setTitle(it.label).onClick(() => take(it)));
+}
+try { pv.showAtMouseEvent(ev); }
+catch (_) { try { pv.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / orgFilterByKey: pv.showAtPosition( x: 0, y: 0 );', _e); } }
+};
+if (!Array.isArray(d.s.organizerOpen)) d.s.organizerOpen = [];
+return { orgLensOn, orgLensSet, orgLensClear, orgAt, orgAddChip, orgFilterByKey, get orgLens() { return orgLens; }, set orgLens(v) { orgLens = v; } };
+};
+const zgOrgModeMake = (d) => {
+let orgMode = 'table';
+const orgChevron = (into, open) => {
+const el = into.createSpan({
+cls: 'zg-org-twist tree-item-icon collapse-icon'
++ ' nav-folder-collapse-indicator'
++ (open ? ' is-open' : ' is-collapsed')
+});
+try { if (setIcon) setIcon(el, 'right-triangle'); } catch (_) { zgCatch('openManuscriptModal / orgChevron: if (setIcon) setIcon(el, \'right-triangle\');', _); }
+if (!el.childElementCount) el.setText(open ? '⌄' : '›');
+return el;
+};
+const orgModeSet = (mode) => {
+const next = mode === 'outline' ? 'outline' : 'table';
+if (next === orgMode) return;
+orgMode = next;
+d.s.organizerMode = orgMode;
+d.plugin.saveSettings().catch(() => {});
+d.drawPanel();
+};
+d.plugin._orgMode = () => orgMode;
+d.plugin._orgModeSet = (m) => orgModeSet(m);
+d.plugin._orgOpenSet = (p, on) => d.orgOpenSet(p, !!on);
+d.plugin._orgOpen = () => Array.from(d.orgOpen);
+return { orgChevron };
+};
+const zgOrgNavMake = (d) => {
+let stopWidth = () => {};
+let stopNav = () => {};
+if (d.host.kind === 'leaf' && typeof Platform !== 'undefined' && Platform && Platform.isMobile) {
+const navStamp = () => {
+try {
+const kbh = parseFloat(getComputedStyle(document.body).getPropertyValue('--keyboard-height')) || 0;
+const px = kbh > 0 ? 0 : zgNavbarOverlap(d.body);
+if (px > 0) d.host.rootEl.style.setProperty('--zg-under-navbar', px + 'px');
+else d.host.rootEl.style.removeProperty('--zg-under-navbar');
+const rootPx = zgNavbarOverlap(d.host.rootEl);
+if (rootPx > 0) d.host.rootEl.style.setProperty('--zg-mobilebar-h', rootPx + 'px');
+else d.host.rootEl.style.removeProperty('--zg-mobilebar-h');
+} catch (_) { zgCatch('openManuscriptModal / navStamp: const px = zgNavbarOverlap(body);', _); }
+};
+zgSoon(navStamp);
+window.addEventListener('resize', navStamp);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', navStamp);
+let kbTimer = 0;
+const onFocusIn = () => {
+window.setTimeout(navStamp, 500);
+window.clearTimeout(kbTimer);
+kbTimer = window.setTimeout(() => zgKeyboardRecord(d.host.rootEl), 700);
+};
+d.host.rootEl.addEventListener('focusin', onFocusIn);
+let kbObs = null;
+try {
+kbObs = new MutationObserver(() => { navStamp(); window.setTimeout(navStamp, 300); });
+kbObs.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+kbObs.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+} catch (_) { kbObs = null; zgCatch('openManuscriptModal / navStamp: kbObs.observe(document.documentElement)', _); }
+stopNav = () => { try { window.removeEventListener('resize', navStamp); if (window.visualViewport) window.visualViewport.removeEventListener('resize', navStamp); d.host.rootEl.removeEventListener('focusin', onFocusIn); window.clearTimeout(kbTimer); if (kbObs) kbObs.disconnect(); } catch (_) { zgCatch('openManuscriptModal / stopNav: window.removeEventListener(resize, navStamp);', _); } };
+}
+if (!d.narrow && d.host.kind === 'modal'
+&& typeof window.matchMedia === 'function') {
+try {
+const mq = window.matchMedia(
+'(max-width: ' + d.orgNarrowLimit() + 'px)');
+const apply = () => {
+d.host.rootEl.toggleClass('is-narrow', !!mq.matches);
+};
+apply();
+if (typeof mq.addEventListener === 'function') {
+mq.addEventListener('change', apply);
+stopWidth = () => {
+try { mq.removeEventListener('change', apply); } catch (_) { zgCatch('openManuscriptModal: mq.removeEventListener(\'change\', apply);', _); }
+};
+} else if (typeof mq.addListener === 'function') {
+mq.addListener(apply);
+stopWidth = () => {
+try { mq.removeListener(apply); } catch (_) { zgCatch('openManuscriptModal: mq.removeListener(apply);', _); }
+};
+}
+} catch (_) { zgCatch('openManuscriptModal: const mq = window.matchMedia(', _); }
+} else if (!d.narrow && typeof ResizeObserver !== 'undefined') {
+try {
+const flips = zgNarrowState();
+const ro = new ResizeObserver((entries) => {
+for (const e of entries) {
+const pick = zgNarrowDecide(flips,
+e.contentRect && e.contentRect.width,
+d.orgNarrowLimit(), Date.now());
+if (pick.act === 'skip') continue;
+if (pick.act === 'stop') {
+try { ro.disconnect(); } catch (_) { zgCatch('openManuscriptModal: ro.disconnect();', _); }
+try {
+console.error('Word-Smith: the narrow-window '
++ 'measurement did not settle (width ' + Math.round(pick.width)
++ ', limit ' + pick.limit + '). The layout is left as it '
++ 'is rather than redrawn again.');
+} catch (_) { zgCatch('openManuscriptModal: console.error(\'Word-Smith: the narrow-window \'', _); }
+return;
+}
+d.host.rootEl.toggleClass('is-narrow', pick.want);
+}
+});
+ro.observe(d.host.rootEl);
+stopWidth = () => { try { ro.disconnect(); } catch (_) { zgCatch('openManuscriptModal: ro.disconnect();', _); } };
+} catch (_) { zgCatch('openManuscriptModal: const flips = zgNarrowState();', _); }
+}
+return { get stopWidth() { return stopWidth; }, set stopWidth(v) { stopWidth = v; }, get stopNav() { return stopNav; }, set stopNav(v) { stopNav = v; } };
+};
+const zgOrgPropsMake = (d) => {
+const orgPropsByUse = () => {
+const seen = new Map();
+for (const p2 of d.liveFiles()) {
+const f = d.plugin.app.vault.getAbstractFileByPath(p2);
+const cache = f && d.plugin.app.metadataCache
+&& d.plugin.app.metadataCache.getFileCache(f);
+const fm = cache && cache.frontmatter;
+if (!fm) continue;
+for (const k of Object.keys(fm)) {
+if (k === 'position') continue;
+const low = k.toLowerCase();
+const at = seen.get(low) || { label: k, n: 0 };
+at.n += 1;
+seen.set(low, at);
+}
+}
+return Array.from(seen.values())
+.sort((a, b) => (b.n - a.n) || a.label.localeCompare(b.label))
+.map((x) => x.label);
+};
+const orgPropPopEl = () => {
+try { return d.ownerDoc().querySelector('.zg-org-proppop'); }
+catch (_) { return null; }
+};
+let orgPropPopQuery = '';
+let orgPropPopOff = null;
+const orgPropRowId = (r) => (r && r.col ? r.col.id
+: (r && r.key ? d.plugin.propColId(r.key) : ''));
+const orgPropPanelRows = () => {
+const rows = [];
+const taken = new Set();
+const addRow = (col, key, name) => {
+const low = String(key || '').toLowerCase();
+if (low && taken.has(low)) return;
+if (low) taken.add(low);
+rows.push({ col: col || null, key: key || '',
+name: name, dead: !key });
+};
+for (const c of d.COLS) {
+if (c.user) continue;
+addRow(c, (c.id === 'tags' ? 'tags' : ''), c.label);
+}
+for (const c of d.COLS) { if (c.user) addRow(c, c.key, c.label); }
+for (const k of orgPropsByUse()) addRow(null, k, String(k));
+for (const k of d.plugin.orgKnownProps()) addRow(null, k, String(k));
+const saved = Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [];
+const at = new Map();
+saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
+const rank = (x) => (at.has(x.id) ? at.get(x.id) : saved.length + x.n);
+const ordered = rows
+.map((r, n) => ({ r: r, n: n, id: orgPropRowId(r) }))
+.sort((a, b) => (rank(a) - rank(b)) || (a.n - b.n))
+.map((x) => x.r);
+const shown = (r) => !!(r.col && !d.colOff.has(r.col.id));
+return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
+};
+let orgPropDragId = null;
+const orgPropMoveTo = async (moved, target) => {
+const here = orgPropPanelRows();
+const ids = here.map(orgPropRowId).filter(Boolean);
+const from = ids.indexOf(moved);
+if (from !== -1) ids.splice(from, 1);
+const to = ids.indexOf(target);
+ids.splice(to === -1 ? ids.length : to, 0, moved);
+const mattersId = new Set();
+for (const r of here) {
+const rid = orgPropRowId(r);
+if (!rid) continue;
+if (r.col) mattersId.add(rid);
+}
+mattersId.add(moved);
+const keep = ids.filter((id) => mattersId.has(id));
+const rest = (Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [])
+.filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
+d.s.uniColOrder = keep.concat(rest);
+await d.plugin.saveSettings();
+d.draw(); d.fill(); d.drawPanel();
+orgPropPopRender();
+};
+const orgPropKindOf = (r) => {
+if (!r.key) return '';
+try { return String(d.plugin.orgPropType(r.key) || ''); }
+catch (_) { return ''; }
+};
+const orgRevealCol = (id) => {
+try {
+const scroller = d.panel.querySelector('.zg-org-panel');
+const th = d.panel.querySelector('thead th[data-col="' + id + '"]');
+if (!scroller || !th) return;
+const hr = scroller.getBoundingClientRect();
+const tr = th.getBoundingClientRect();
+if (tr.right <= hr.right && tr.left >= hr.left) return;
+scroller.scrollLeft += (tr.right - hr.right) + 12;
+} catch (_) { zgCatch('openManuscriptModal / orgRevealCol: const host = panel.querySelector(\'.zg-org-panel\');', _); }
+};
+const orgPropColToggle = async (r) => {
+if (r.col) {
+const turningOn = d.colOff.has(r.col.id);
+if (d.colOff.has(r.col.id)) d.colOff.delete(r.col.id);
+else d.colOff.add(r.col.id);
+d.s.uniColsOff = Array.from(d.colOff);
+await d.plugin.saveSettings();
+d.draw(); d.fill(); d.drawPanel();
+if (turningOn) orgRevealCol(r.col.id);
+} else {
+await d.addProp({ key: String(r.key).toLowerCase(), label: r.key });
+}
+orgPropPopRender();
+};
+const orgPropSubEl = () => {
+try { return d.ownerDoc().querySelector('.zg-org-propsub'); }
+catch (_) { return null; }
+};
+const orgPropSubClose = () => {
+try {
+const d0 = d.ownerDoc();
+for (const n of Array.from(
+d0.querySelectorAll('.zg-org-propsub'))) n.remove();
+} catch (_) { zgCatch('openManuscriptModal / orgPropSubClose: const d0 = ownerDoc();', _); }
+};
+const orgPropPopClose = () => {
+orgPropSubClose();
+if (orgPropPopOff) {
+try { orgPropPopOff(); } catch (_) { zgCatch('openManuscriptModal / orgPropPopClose: orgPropPopOff();', _); }
+orgPropPopOff = null;
+}
+try {
+const d0 = d.ownerDoc();
+const old = Array.from(d0.querySelectorAll('.zg-org-proppop'));
+for (const n of old) n.remove();
+} catch (_) { zgCatch('openManuscriptModal / orgPropPopClose: const d0 = ownerDoc();', _); }
+};
+const orgPropPopRender = () => {
+const pop = orgPropPopEl();
+if (!pop) return;
+const box = pop.querySelector('.zg-org-propbody');
+if (!box) return;
+box.empty();
+const q = orgPropPopQuery.trim().toLowerCase();
+const rows = orgPropPanelRows()
+.filter(r => !q || r.name.toLowerCase().indexOf(q) !== -1);
+const tog = (into, on, dead, title, fn) => {
+const t = into.createSpan({ cls: 'zg-org-ptog is-col'
++ (on ? ' is-on' : '') + (dead ? ' is-dead' : '') });
+t.createSpan({ cls: 'zg-org-pbox' });
+t.title = title;
+if (dead) { t.setAttribute('aria-disabled', 'true'); return t; }
+t.setAttribute('role', 'checkbox');
+t.setAttribute('aria-checked', on ? 'true' : 'false');
+t.addEventListener('click', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+fn();
+});
+return t;
+};
+let drew = 0;
+const clearAim = () => {
+for (const el2 of Array.from(box.querySelectorAll('.zg-drop-above'))) {
+el2.removeClass('zg-drop-above');
+}
+};
+for (const r of rows) {
+const row = box.createDiv({ cls: 'zg-org-prow' });
+const rid = orgPropRowId(r);
+if (rid) row.setAttribute('data-id', rid);
+if (r.col) row.setAttribute('data-col', r.col.id);
+if (r.key) row.setAttribute('data-key', r.key);
+const grip = row.createSpan({ cls: 'zg-org-pgrip' });
+for (const n2 of ['grip-vertical', 'grip', 'more-vertical']) {
+grip.textContent = '';
+try { if (setIcon) setIcon(grip, n2); } catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: if (setIcon) setIcon(grip, n2);', _); }
+if (grip.childElementCount > 0) { grip.dataset.icon = n2; break; }
+}
+if (!q && rid) {
+grip.addClass('is-propdrag');
+grip.title = 'Drag to reorder — this is the column order '
++ 'and the chip order';
+row.setAttribute('draggable', 'true');
+row.addEventListener('dragstart', (ev) => {
+orgPropDragId = rid;
+try { ev.dataTransfer.setData('text/plain', rid); } catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: ev.dataTransfer.setData(\'text/plain\', rid);', _); }
+});
+row.addEventListener('dragover', (ev) => {
+if (!orgPropDragId || orgPropDragId === rid) return;
+ev.preventDefault();
+clearAim();
+row.addClass('zg-drop-above');
+});
+row.addEventListener('drop', async (ev) => {
+ev.preventDefault();
+const moved = orgPropDragId;
+orgPropDragId = null;
+clearAim();
+if (!moved || moved === rid) return;
+await orgPropMoveTo(moved, rid);
+});
+row.addEventListener('dragend', () => {
+orgPropDragId = null;
+clearAim();
+});
+}
+const colOn = !!(r.col && !d.colOff.has(r.col.id));
+tog(row, colOn, false,
+r.col ? 'Show as a column in Table'
+: 'Add “' + r.name + '” as a column',
+() => orgPropColToggle(r));
+const nm = row.createSpan({ cls: 'zg-org-pname' });
+const ic = nm.createSpan({ cls: 'zg-org-piconslot' });
+if (r.key) orgPropIcon(ic, r.key);
+else if (r.col) {
+try {
+const def = d.SORTS.filter((sd) => sd.id === r.col.id)[0];
+if (def && def.icon && setIcon) {
+setIcon(ic, def.icon);
+if (ic.childElementCount > 0) ic.dataset.icon = def.icon;
+}
+} catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: const def = SORTS.filter((sd) => sd.id === r.col.id)[0];', _); }
+}
+nm.createSpan({ cls: 'zg-org-pnametext', text: r.name });
+row.createSpan({ cls: 'zg-org-pkind', text: orgPropKindOf(r) });
+const del = row.createSpan({ cls: 'zg-org-pdel is-dead' });
+void del;
+drew++;
+}
+if (!drew) {
+box.createDiv({ cls: 'zg-org-propnone',
+text: 'No property of that name' });
+}
+};
+const orgPopBase = (el) => {
+try {
+const par = el && el.offsetParent;
+if (!par || !par.getBoundingClientRect) return { left: 0, top: 0 };
+const b = par.getBoundingClientRect();
+return { left: b.left || 0, top: b.top || 0 };
+} catch (_) { zgCatch('openManuscriptModal / orgPopBase: const par = el && el.offsetParent;', _); return { left: 0, top: 0 }; }
+};
+const orgPropSubOpen = (anchor, door) => {
+const was = !!orgPropSubEl();
+orgPropSubClose();
+if (was) return null;
+const d0 = d.ownerDoc();
+const sub = (d.host.rootEl || d0.body)
+.createDiv({ cls: 'menu zg-org-propsub' });
+for (const t of (door.types || [])) {
+const row = sub.createDiv({ cls: 'zg-org-propsubrow' });
+row.createSpan({ text: t.label });
+row.dataset.type = t.id;
+row.addEventListener('click', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+orgPropSubClose();
+try { door.pick(t.id, ev); } catch (_) { zgCatch('openManuscriptModal / orgPropSubOpen: door.pick(t.id, ev);', _); }
+});
+}
+if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) return sub;
+try {
+const r = anchor.getBoundingClientRect();
+const box = (orgPropPopEl() || anchor).getBoundingClientRect();
+const w0 = d.ownerWin();
+const wide = sub.offsetWidth || 0;
+const tall = sub.offsetHeight || 0;
+const vw = w0.innerWidth || 0;
+const vh = w0.innerHeight || 0;
+let x = box.right;
+if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
+let y = r.top;
+if (vh && y + tall > vh) y = Math.max(0, vh - tall);
+const base = orgPopBase(sub);
+sub.style.left = Math.round(x - base.left) + 'px';
+sub.style.top = Math.round(y - base.top) + 'px';
+} catch (_) { zgCatch('openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();', _); }
+return sub;
+};
+const orgPropPopOpen = (anchor) => {
+orgPropPopClose();
+const d0 = d.ownerDoc();
+const pop = (d.host.rootEl || d0.body)
+.createDiv({ cls: 'menu zg-org-proppop' });
+const srch = pop.createEl('input', { cls: 'zg-org-propsearch' });
+srch.type = 'text';
+srch.placeholder = 'Search properties…';
+srch.value = orgPropPopQuery;
+srch.addEventListener('input', () => {
+orgPropPopQuery = srch.value || '';
+orgPropPopRender();
+});
+pop.createDiv({ cls: 'zg-org-propbody' });
+{
+const au = pop.createDiv({ cls: 'zg-org-propauto' });
+const g = au.createSpan({ cls: 'zg-org-propautoicon' });
+for (const n of ['move-horizontal', 'unfold-horizontal', 'maximize-2']) {
+g.textContent = '';
+try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);', _); }
+if (g.childElementCount > 0) { g.dataset.icon = n; break; }
+}
+au.createSpan({ text: 'Resize columns to fit' });
+au.title = 'Set every column to the width of what it holds, '
++ 'up to six tenths of the pane. They stay draggable afterwards.';
+au.addEventListener('click', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+d.orgColFit();
+});
+}
+for (const door of d.ORG_PROP_DOORS) {
+const add = pop.createDiv({ cls: 'zg-org-propadd' });
+{
+const g = add.createSpan({ cls: 'zg-org-propaddicon' });
+for (const n of door.icons) {
+g.textContent = '';
+try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);', _); }
+if (g.childElementCount > 0) { g.dataset.icon = n; break; }
+}
+}
+add.createSpan({ cls: 'zg-org-propaddname', text: door.label });
+if (door.types) {
+add.addClass('has-sub');
+add.createSpan({ cls: 'zg-org-propmore',
+text: '\u203a' });
+}
+add.addEventListener('click', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+if (door.types) { orgPropSubOpen(add, door); return; }
+orgPropSubClose();
+door.open(ev);
+});
+}
+orgPropPopRender();
+const phoneSheet = !!(typeof Platform !== 'undefined' && Platform && Platform.isPhone);
+if (!phoneSheet) try {
+const r = anchor.getBoundingClientRect();
+const w0 = d.ownerWin();
+const wide = pop.offsetWidth || 0;
+const room = (w0.innerWidth || 0) - wide;
+const base = orgPopBase(pop);
+const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
+pop.style.left = Math.round(x - base.left) + 'px';
+pop.style.top = Math.round(r.bottom - base.top) + 2 + 'px';
+} catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();', _); }
+const onDown = (ev) => {
+try {
+if (pop.contains(ev.target)) return;
+const sub0 = orgPropSubEl();
+if (sub0 && sub0.contains(ev.target)) return;
+const t = ev.target;
+if (t && t.closest && t.closest('.zg-org-colsbtn')) return;
+} catch (_) { zgCatch('openManuscriptModal / onDown: if (pop.contains(ev.target)) return;', _); }
+orgPropPopClose();
+};
+try {
+const w0 = d.ownerWin();
+w0.addEventListener('pointerdown', onDown, true);
+orgPropPopOff = () => {
+try { w0.removeEventListener('pointerdown', onDown, true); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: w0.removeEventListener(\'mousedown\', onDown, true);', _); }
+};
+} catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();', _); }
+return pop;
+};
+let orgAddDraft = null;
+let orgEditGuard = null;
+let orgOpenAfter = null;
+const orgOtherEditorOpen = (td) => {
+try {
+return Array.from(d.panel.querySelectorAll('.zg-org-editor'))
+.some((e) => !td.contains(e));
+} catch (_) { return false; }
+};
+let orgRedrawPending = false;
+let orgFieldEscape = null;
+const orgEditDone = () => {
+orgEditGuard = null;
+orgFieldEscape = null;
+if (!orgRedrawPending) return;
+window.setTimeout(() => {
+if (orgEditGuard) return;
+if (!orgRedrawPending) return;
+orgRedrawPending = false;
+d.drawPanel();
+}, 0);
+};
+const orgPropValue = (path, key) => {
+const entry = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
+if (entry && entry.props) {
+for (const k of Object.keys(entry.props)) {
+if (k.toLowerCase() === String(key).toLowerCase()) {
+return entry.props[k];
+}
+}
+return null;
+}
+const sv = d.plugin.propStoreGetSync(String(path || ''), key);
+return sv === undefined ? null : sv;
+};
+const orgFieldEditor = (card, path, key, isDraft) => {
+orgRedrawPending = true;
+try { card.addClass('is-editing'); } catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: card.addClass(\'is-editing\');', _); }
+const v = orgPropValue(path, key);
+const complex = (v !== null && typeof v === 'object' && !Array.isArray(v))
+|| (Array.isArray(v) && v.some(x => x !== null && typeof x === 'object'));
+if (complex) {
+card.createDiv({ cls: 'zg-org-editor is-complex',
+text: 'complex value — edit in note' });
+return null;
+}
+let type = d.plugin.orgPropType(key);
+if (!type && v !== null) {
+if (typeof v === 'number') type = 'number';
+else if (typeof v === 'boolean') type = 'checkbox';
+else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(v))) type = 'datetime';
+else if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) type = 'date';
+}
+const doneDraft = () => { if (isDraft) orgAddDraft = null; };
+const engage = (el2, esc) => {
+el2.addEventListener('focus', () => {
+orgEditGuard = { path, key };
+orgFieldEscape = esc;
+});
+};
+const listKinds = type === 'tags' || type === 'multitext'
+|| type === 'aliases' || Array.isArray(v)
+|| String(key).toLowerCase() === 'tags';
+if (type === 'checkbox') {
+const box = card.createEl('input', { cls: 'zg-org-editor' });
+box.type = 'checkbox';
+box.checked = v === true;
+engage(box, () => { box.checked = v === true; box.blur(); });
+box.addEventListener('change', async () => {
+await d.orgPropSet(path, key, box.checked);
+doneDraft();
+});
+box.addEventListener('blur', () => {
+doneDraft(); orgEditDone();
+});
+return box;
+}
+if (listKinds) {
+const wrap2 = card.createDiv({ cls: 'zg-org-editor is-chips' });
+const now = Array.isArray(v) ? v.filter(x => x !== null && typeof x !== 'object').map(String)
+: (v === null || v === '' ? [] : [String(v)]);
+let live = now.slice();
+const commitList = async (list) => {
+await d.orgPropListSet(path, key, list, live);
+live = list.slice();
+doneDraft();
+};
+const pillHost = d.orgTagWrap(wrap2, String(key).toLowerCase() === 'tags' ? 'tags' : 'multitext');
+const mkChip = (val) => {
+const chip = d.orgTagPill(pillHost, String(val), { remove: async () => {
+await commitList(live.filter(z => z !== val));
+chip.remove();
+} });
+return chip;
+};
+for (const val of now) mkChip(val);
+if (String(key).toLowerCase() === 'tags') {
+const inText = new Set(now.map(t => String(t).replace(/^#/, '').toLowerCase()));
+let bodyTags = [];
+try {
+const f2 = d.plugin.app.vault.getAbstractFileByPath(path);
+const c2 = f2 && d.plugin.app.metadataCache.getFileCache(f2);
+for (const t of ((c2 && c2.tags) || [])) {
+const tag = String(t.tag || '').replace(/^#/, '');
+if (tag && !inText.has(tag.toLowerCase())
+&& bodyTags.indexOf(tag) === -1) bodyTags.push(tag);
+}
+} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);', _); }
+for (const tag of bodyTags) {
+const chip = d.orgTagPill(pillHost, tag, { intext: true });
+chip.title = 'Written in the note itself — edit it there';
+}
+}
+const inp = wrap2.createEl('input', { cls: 'zg-org-chipval' });
+inp.placeholder = '+';
+const dlid = 'zg-org-fdl-' + Math.floor(Math.random() * 1e9);
+const dl = wrap2.createEl('datalist'); dl.id = dlid;
+for (const opt of d.plugin.orgDistinctUnder('', key).slice(0, 60)) {
+dl.createEl('option', { value: String(opt) });
+}
+inp.setAttribute('list', dlid);
+engage(inp, () => { inp.value = ''; inp.blur(); });
+const isTagField = String(key).toLowerCase() === 'tags';
+const tagClean = (raw) => String(raw)
+.replace(/^#+/, '')
+.replace(/\s+/g, '-')
+.replace(/[^\p{L}\p{N}_\-/]/gu, '')
+.replace(/\/{2,}/g, '/').replace(/^[-/]+|[-/]+$/g, '');
+inp.addEventListener('keydown', async (ev) => {
+if (ev.key !== 'Enter') return;
+ev.preventDefault();
+const typed = inp.value.trim();
+if (!typed) { inp.blur(); return; }
+const val = isTagField ? tagClean(typed) : typed;
+if (isTagField && (!val || /^\p{N}/u.test(val))) {
+try {
+new Notice(val ? 'A tag cannot start with a number — Obsidian '
++ 'will not index “' + val + '”.'
+: 'That is not a tag Obsidian can index.');
+} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: new Notice(val ? \'A tag cannot start with a number — Obsidian \'', _); }
+return;
+}
+if (live.indexOf(val) === -1) {
+await commitList(live.concat([val]));
+const at = wrap2.querySelector('.zg-org-tagchip.is-intext') || inp;
+wrap2.insertBefore(mkChip(val), at);
+}
+inp.value = '';
+});
+inp.addEventListener('blur', () => {
+doneDraft(); orgEditDone();
+});
+return inp;
+}
+const was = v === null ? '' : String(v);
+let el2;
+{
+el2 = card.createEl('input', { cls: 'zg-org-editor' });
+if (type === 'number') el2.type = 'number';
+else if (type === 'date') el2.type = 'date';
+else if (type === 'datetime') el2.type = 'datetime-local';
+else el2.type = 'text';
+el2.value = was;
+try {
+const n = String(was == null ? '' : was).length;
+el2.size = Math.max(6, Math.min(60, n + 1));
+} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: const n = String(was == null ? \'\' : was).length;', _); }
+}
+let settled = false;
+const commit = async () => {
+if (settled) return;
+settled = true;
+const raw = el2.value;
+if (raw === was) { doneDraft(); orgEditDone(); return; }
+let out = raw;
+if (type === 'number') {
+const n = parseFloat(raw);
+out = raw.trim() === '' ? '' : (isFinite(n) ? n : raw);
+}
+const stored = d.plugin.propStoreHolds(path);
+doneDraft();
+orgEditDone();
+await d.orgPropSet(path, key, out);
+if (stored) d.drawPanel();
+};
+engage(el2, () => {
+settled = true;
+el2.value = was;
+doneDraft();
+el2.blur();
+});
+el2.addEventListener('keydown', (ev) => {
+if (ev.key === 'Enter') {
+if (ev.shiftKey && el2.tagName === 'TEXTAREA') return;
+ev.preventDefault();
+ev.stopPropagation();
+el2.blur();
+}
+});
+el2.addEventListener('blur', () => {
+if (settled) { settled = false; orgEditDone(); return; }
+commit();
+});
+if ((type === 'date' || type === 'datetime') && !isDraft) {
+const shown = card.createSpan({ cls: 'zg-org-shown' });
+const sayDay = (raw) => {
+const fmt2 = d.plugin.formatValue(key, raw, type, d.plugin.dateStyle());
+shown.setText(fmt2.text || '—');
+shown.toggleClass('is-empty', !fmt2.text);
+shown.toggleClass('zg-org-badval', !fmt2.ok);
+shown.title = fmt2.ok ? ''
+: ('This is not a valid ' + type + ': ' + String(raw));
+};
+sayDay(v);
+el2.addClass('is-editing-off');
+shown.tabIndex = 0;
+const open = () => {
+shown.addClass('is-editing-off');
+el2.removeClass('is-editing-off');
+try { el2.focus(); } catch (_) { zgCatch('openManuscriptModal / open: el2.focus();', _); }
+};
+shown.addEventListener('click', open);
+shown.addEventListener('focus', open);
+shown.addEventListener('keydown', (ev) => {
+if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); }
+});
+el2.addEventListener('blur', () => {
+sayDay(el2.value);
+el2.addClass('is-editing-off');
+shown.removeClass('is-editing-off');
+});
+}
+return el2;
+};
+const ORG_PROP_ICONS = {
+tags: ['tags', 'tag'],
+aliases: ['forward', 'corner-up-right', 'arrow-right'],
+checkbox: ['check-square', 'square-check', 'check'],
+number: ['binary', 'hash'],
+date: ['calendar', 'calendar-days'],
+datetime: ['clock', 'calendar-clock'],
+list: ['list'],
+text: ['text', 'align-left', 'list']
+};
+const orgPropIcon = (into, key) => {
+const k = String(key || '').toLowerCase();
+let names = null;
+if (k === 'tags' || k === 'tag') names = ORG_PROP_ICONS.tags;
+else if (k === 'aliases' || k === 'alias') names = ORG_PROP_ICONS.aliases;
+if (!names) {
+let t = '';
+try { t = String(d.plugin.orgPropType(key) || ''); } catch (_) { t = ''; }
+names = ORG_PROP_ICONS[t]
+|| (t === 'multitext' ? ORG_PROP_ICONS.list : ORG_PROP_ICONS.text);
+}
+const g = into.createSpan({ cls: 'zg-org-propicon' });
+for (const n of names) {
+g.textContent = '';
+try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropIcon: if (setIcon) setIcon(g, n);', _); }
+if (g.childElementCount > 0) { g.dataset.icon = n; break; }
+}
+return g;
+};
+return { orgPropPopEl, orgPropPanelRows, orgPropSubEl, orgPropSubClose, orgPropPopClose, orgPropPopOpen, orgOtherEditorOpen, orgEditDone, orgPropValue, orgFieldEditor, get orgEditGuard() { return orgEditGuard; }, set orgEditGuard(v) { orgEditGuard = v; }, get orgOpenAfter() { return orgOpenAfter; }, set orgOpenAfter(v) { orgOpenAfter = v; }, get orgRedrawPending() { return orgRedrawPending; }, set orgRedrawPending(v) { orgRedrawPending = v; }, get orgFieldEscape() { return orgFieldEscape; }, set orgFieldEscape(v) { orgFieldEscape = v; } };
+};
+const zgOrgReadingsMake = (d) => {
+const orgColRaw = (col, path) => {
+const r = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
+switch (col.id) {
+case 'words': return r ? r.words : null;
+case 'paras': return r ? r.paras : null;
+case 'read': return r ? r.words : null;
+case 'backlinks': {
+const list = d.orgBackMap().get(String(path || ''));
+return (list && list.length) ? list : null;
+}
+case 'outlinks': {
+const list = d.orgOutLinks(String(path || ''));
+return (list && list.length) ? list : null;
+}
+case 'footnotes': return r && typeof r.footnotes === 'number' ? r.footnotes : null;
+case 'ftype': {
+const m = /\.([A-Za-z0-9]+)$/.exec(String(path || ''));
+return m ? m[1].toLowerCase() : null;
+}
+case 'chars': return (r && r.charsNoSpaces) ? r.charsNoSpaces : null;
+case 'charsall': return (r && r.charsWithSpaces) ? r.charsWithSpaces : null;
+case 'sentences': return (r && r.sentences) ? r.sentences : null;
+case 'grade': return (r && r.grade !== null) ? r.grade : null;
+case 'modified': case 'created': {
+const want = col.id === 'modified' ? 'mtime' : 'ctime';
+if (r && r[want]) return r[want];
+try {
+const f2 = d.plugin.app.vault.getAbstractFileByPath(String(path || ''));
+if (f2 && !f2.children && f2.stat && f2.stat[want]) return f2.stat[want];
+} catch (_) { zgCatch('openManuscriptModal / orgColRaw: const f2 = this.app.vault.getAbstractFileByPath(String(path || \'\'));', _); }
+return null;
+}
+case 'tasks': return (r && r.tasks) ? r.tasks : null;
+case 'goal': {
+const t = d.targetOf(path);
+return t > 0 ? t : null;
+}
+case 'mark': return d.markOf(path, 'file') || null;
+case 'tags': {
+const tg = d.plugin.tagsOf(path);
+return (tg && tg.length) ? tg : null;
+}
+default: {
+const key = d.plugin.propColKey(col.id);
+if (!key) return null;
+let real = null;
+let fromIndex = false;
+if (r && r.props) {
+fromIndex = true;
+for (const k of Object.keys(r.props)) {
+if (k.toLowerCase() !== key.toLowerCase()) continue;
+const v = r.props[k];
+real = (v === null || v === undefined || v === '') ? null : v;
+break;
+}
+}
+if (!fromIndex) {
+const sv = d.plugin.propStoreGetSync(path, key);
+real = (sv === null || sv === undefined || sv === '') ? null : sv;
+}
+const pend = d.orgPendGet(path, key);
+if (!pend) return real;
+const want = (pend.v === null || pend.v === undefined
+|| pend.v === '') ? null : pend.v;
+if (d.orgPendSame(real, want)) { d.orgPendDrop(path, key); return real; }
+return want;
+}
+}
+};
+const orgColText = (col, path) => {
+const v = orgColRaw(col, path);
+if (v === null) return '';
+switch (col.id) {
+case 'words': case 'paras':
+case 'chars': case 'charsall': case 'sentences':
+return Number(v).toLocaleString();
+case 'ftype': return String(v);
+case 'backlinks':
+return (Array.isArray(v) ? v : [v]).map(d.nameOf).join(', ');
+case 'outlinks':
+return (Array.isArray(v) ? v : [v]).map((x) => (x && x.path ? d.nameOf(x.path) : String(x && x.text || x))).join(', ');
+case 'footnotes': return Number(v).toLocaleString();
+case 'read': return d.plugin.formatReadTime(v);
+case 'goal':
+return d.plugin.orgTargetSay(orgColRaw({ id: 'words' }, path), v);
+case 'grade': return (Math.round(v * 10) / 10).toFixed(1);
+case 'modified': case 'created':
+return d.plugin.orgStamp(v);
+case 'tasks': return zgTaskSay(v.done, v.all);
+case 'mark': {
+const def = d.plugin.flagDefs().filter(f => f.id === v)[0];
+return def ? def.label : String(v);
+}
+case 'tags': return v.join(', ');
+default:
+const pk = col.key || col.id;
+return d.plugin.formatValue(pk, v, d.plugin.orgPropType(pk),
+d.plugin.dateStyle()).text;
+}
+};
+const orgFolderIcon = (into, path, open) =>
+d.plugin.orgFolderIcon(into, path, open);
+const ORG_AGG = {
+words: 'sum', paras: 'sum', goal: 'sum',
+today: 'sum', grade: 'avg', modified: 'newest',
+created: 'oldest', tasks: 'tasks', mark: 'flags',
+read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
+chars: 'sum', charsall: 'sum', sentences: 'sum'
+};
+const orgAggHow = (col) => {
+if (ORG_AGG[col.id]) return ORG_AGG[col.id];
+try {
+if (col.user && String(d.plugin.orgPropType(col.key || col.id))
+.toLowerCase() === 'checkbox') return 'ticked';
+} catch (_) { zgCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
+return 'count';
+};
+const orgColAgg = (col, paths) => {
+const how = orgAggHow(col);
+if (how === 'none') return null;
+let sum = 0, n = 0, newest = 0, oldest = 0, done = 0, all = 0;
+let wsum = 0, wtot = 0;
+let listy = false;
+const seen = new Map();
+for (const p of (paths || [])) {
+const v = orgColRaw(col, p);
+if (v === null || v === undefined) continue;
+if (how === 'tasks') { done += v.done; all += v.all; n++; continue; }
+if (how === 'ticked') { n++; if (v === true) done++; continue; }
+if (how === 'flags') {
+const k = String(v);
+seen.set(k, (seen.get(k) || 0) + 1); n++; continue;
+}
+if (how === 'count') {
+const take = (x) => {
+if (x === null || x === undefined) return;
+if (Array.isArray(x)) { listy = true; x.forEach(take); return; }
+if (typeof x === 'object') return;
+const s2 = String(x).trim();
+if (s2 && !seen.has(s2)) seen.set(s2, x);
+};
+take(v); n++; continue;
+}
+const num = Number(v);
+if (!isFinite(num)) continue;
+n++;
+if (how === 'newest') { if (num > newest) newest = num; continue; }
+if (how === 'oldest') { if (!oldest || num < oldest) oldest = num; continue; }
+if (how === 'avg') {
+let w = 0;
+try { w = Number(orgColRaw({ id: 'words' }, p)) || 0; } catch (_) { w = 0; }
+if (w > 0) { wsum += w; wtot += num * w; }
+}
+sum += num;
+}
+if (!n) return null;
+if (how === 'flags') {
+const defs = d.plugin.flagDefs();
+const ids = defs.map(f => f.id).filter(id => seen.has(id))
+.concat(Array.from(seen.keys()).filter(id => !defs.some(f => f.id === id)));
+const flags = ids.map(id => {
+const def = defs.filter(f => f.id === id)[0];
+return { id, n: seen.get(id), label: def ? def.label : id };
+});
+return {
+flags,
+text: flags.map(f => f.n + ' ' + f.label).join(', '),
+title: flags.map(f => f.n + (f.n === 1 ? ' file ' : ' files ') + f.label).join(', ')
+};
+}
+if (how === 'ticked') {
+return { text: done + '/' + n,
+title: done + ' of ' + n + ' ticked'
++ ' \u2014 ' + n + (n === 1 ? ' file carries' : ' files carry')
++ ' this property' };
+}
+switch (how) {
+case 'sum':
+if (col.id === 'read') return { text: d.plugin.formatReadTime(sum) };
+return { text: sum.toLocaleString() };
+case 'avg': {
+const a = wsum > 0 ? (wtot / wsum) : (sum / n);
+return { text: (Math.round(a * 10) / 10).toFixed(1),
+title: (wsum > 0 ? 'average of ' + n + ', weighted by length'
+: 'average of ' + n) };
+}
+case 'newest':
+return { text: d.plugin.orgStamp(newest),
+title: 'newest of ' + n };
+case 'oldest':
+return { text: d.plugin.orgStamp(oldest),
+title: 'oldest of ' + n };
+case 'tasks':
+return all ? { text: zgTaskSay(done, all) } : null;
+default: {
+const tot = (paths || []).length;
+const vals2 = Array.from(seen.keys());
+const many = vals2.join(', ');
+const count = listy ? vals2.length : n;
+return { text: String(count),
+title: (listy
+? vals2.length + (vals2.length === 1 ? ' value' : ' values')
++ ' across ' + n + (n === 1 ? ' note' : ' notes')
+: n + ' of ' + tot + (tot === 1 ? ' note' : ' notes'))
++ (vals2.length && many.length <= 120
+? ' \u00b7 ' + many : '') };
+}
+}
+};
+const orgColSortKey = (col, path) => {
+const v = orgColRaw(col, path);
+if (v === null) return null;
+switch (col.id) {
+case 'tasks': return v.all - v.done;
+case 'tags': return v.length;
+case 'outlinks': return v.length;
+case 'goal': {
+const t = Number(v) || 0;
+if (!(t > 0)) return null;
+let w = 0;
+try { w = Number(orgColRaw({ id: 'words' }, path)) || 0; } catch (_) { w = 0; }
+return w / t;
+}
+case 'mark': {
+const ids = d.plugin.flagDefs().map(f => f.id);
+const i = ids.indexOf(v);
+return i === -1 ? ids.length : i;
+}
+default: {
+if (typeof v === 'number') return v;
+if (col.sortAs === 'number') {
+const n = parseFloat(v);
+return isFinite(n) ? n : null;
+}
+if (col.sortAs === 'date') {
+const t = Date.parse(v);
+return isFinite(t) ? t : null;
+}
+const s = Array.isArray(v) ? v.map(String).join(', ') : String(v);
+const n = parseFloat(s);
+return (isFinite(n) && String(n) === s.trim()) ? n : s.toLowerCase();
+}
+}
+};
+return { orgColRaw, orgColText, orgFolderIcon, orgColAgg, orgColSortKey };
+};
+const zgOrgRenameMake = (d) => {
+const orgRenameRow = (item) => {
+if (!item || !item.path) return;
+const rowEl = d.panel.querySelector('tr[data-path="'
++ String(item.path).replace(/"/g, '\\"') + '"]');
+const nameEl = rowEl && rowEl.querySelector('.zg-org-namelabel');
+if (!nameEl) { d.said('That row is no longer on screen.', true); return; }
+const parts = d.plugin.outlinerRenameParts(item.path, false);
+rowEl.addClass('is-being-renamed');
+nameEl.addClass('zg-uni-renaming');
+nameEl.setAttribute('contenteditable', 'plaintext-only');
+nameEl.setAttribute('spellcheck', 'false');
+nameEl.textContent = parts.base;
+d.orgProps.orgEditGuard = { path: item.path, key: 'rename' };
+let settled = false;
+const finish = async (commit) => {
+if (settled) return;
+settled = true;
+const typed = (nameEl.textContent || '');
+try {
+nameEl.removeAttribute('contenteditable');
+nameEl.removeClass('zg-uni-renaming');
+rowEl.removeClass('is-being-renamed');
+} catch (_) { zgCatch('openManuscriptModal / finish: nameEl.removeAttribute(\'contenteditable\');', _); }
+d.orgProps.orgRedrawPending = true;
+d.orgEditDone();
+if (!commit) return;
+const r = await d.plugin.outlinerRenameTo(item.path, false, typed);
+if (r && !r.ok && r.said) d.said(r.said, true);
+if (r && r.ok && r.path) {
+const oldPath = item.path, newPath = r.path, oldBase = parts.base;
+d.orgHistPush({
+label: 'Rename ' + oldBase + ' \u2192 ' + String(typed).trim(),
+undo: async () => { const u = await d.plugin.outlinerRenameTo(newPath, false, oldBase); if (u && !u.ok) throw new Error(u.said || 'the rename could not be undone'); },
+redo: async () => { const u = await d.plugin.outlinerRenameTo(oldPath, false, typed); if (u && !u.ok) throw new Error(u.said || 'the rename could not be redone'); }
+});
+}
+};
+d.orgProps.orgFieldEscape = () => { finish(false); };
+nameEl.addEventListener('keydown', (ev) => {
+if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
+else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
+ev.stopPropagation();
+});
+nameEl.addEventListener('blur', () => { finish(true); });
+nameEl.addEventListener('click', (ev) => ev.stopPropagation());
+nameEl.addEventListener('mousedown', (ev) => ev.stopPropagation());
+try {
+nameEl.focus();
+const range = d.ownerDoc().createRange();
+range.selectNodeContents(nameEl);
+const picksel = d.ownerWin().getSelection();
+picksel.removeAllRanges();
+picksel.addRange(range);
+} catch (_) { zgCatch('openManuscriptModal / orgRenameRow: nameEl.focus();', _); }
+};
+const orgMenuCtx = {
+said: (msg, bad) => { if (msg) d.said(msg, bad); },
+reveal: () => {},
+report: (item) => { try { d.plugin.openReportModal(item && item.path); } catch (_) { zgCatch('openManuscriptModal: this.openReportModal(item && item.path);', _); } },
+opens: false,
+rename: (item) => orgRenameRow(item)
+};
+return { orgMenuCtx };
+};
+const zgOrgRowsMake = (d) => {
+const orgRowList = (at, flat) => {
+const out = [];
+const dive = (dir, depth) => {
+for (const p of d.plugin.treeOrderCurrent(dir)) {
+let node = null;
+try { node = d.plugin.app.vault.getAbstractFileByPath(p); } catch (_) { zgCatch('openManuscriptModal / dive: node = this.app.vault.getAbstractFileByPath(p);', _); }
+if (!node) continue;
+const isFolder = !!node.children;
+if (!(flat && isFolder)) {
+out.push({
+path: p, parent: dir,
+kind: isFolder ? 'folder' : 'file',
+group: isFolder ? 'folder' : d.plugin.uniTypeGroupOf(node),
+depth: depth,
+rel: dir === at ? '' : (at ? dir.slice(at.length + 1) : dir),
+idx: out.length
+});
+}
+if (isFolder && (flat || d.orgIsOpen(p))) dive(p, depth + 1);
+}
+};
+dive(at, 0);
+return out;
+};
+let orgFilePathCache = null;
+const orgAllFilePaths = () => {
+if (orgFilePathCache) return orgFilePathCache;
+try {
+const all = d.plugin.app.vault.getFiles ? d.plugin.app.vault.getFiles() : [];
+orgFilePathCache = all.map((f) => f && f.path).filter(Boolean);
+} catch (_) { orgFilePathCache = []; }
+return orgFilePathCache;
+};
+const orgUnder = (folder) => {
+const pre = String(folder || '') ? String(folder) + '/' : '';
+const out = [];
+const seen = new Set();
+const ix = d.plugin._orgIndex;
+if (ix) {
+for (const p of ix.keys()) {
+if (pre && !p.startsWith(pre)) continue;
+out.push(p); seen.add(p);
+}
+}
+try {
+for (const p of orgAllFilePaths()) {
+if (seen.has(p)) continue;
+if (pre && !p.startsWith(pre)) continue;
+out.push(p);
+}
+} catch (_) { zgCatch('openManuscriptModal / orgUnder: for (const p of orgAllFilePaths())', _); }
+return out;
+};
+const orgOutLinks = (path) => {
+const out = [];
+try {
+const mc = d.plugin.app.metadataCache;
+const res = (mc && mc.resolvedLinks && mc.resolvedLinks[path]) || {};
+for (const dest of Object.keys(res)) { if (dest !== path) out.push({ path: dest }); }
+const un = (mc && mc.unresolvedLinks && mc.unresolvedLinks[path]) || {};
+for (const name of Object.keys(un)) out.push({ text: name });
+} catch (_) { zgCatch('orgOutLinks: this.app.metadataCache.resolvedLinks[path]', _); }
+return out;
+};
+const orgBackMap = () => {
+const gen = d.plugin._linkGen || 0;
+const hit = d.plugin._orgBackMap;
+if (hit && hit.gen === gen) return hit.map;
+const map = new Map();
+try {
+const resolved = (d.plugin.app.metadataCache
+&& d.plugin.app.metadataCache.resolvedLinks) || {};
+for (const src of Object.keys(resolved)) {
+const targets = resolved[src] || {};
+for (const dest of Object.keys(targets)) {
+if (dest === src) continue;
+let arr = map.get(dest);
+if (!arr) { arr = []; map.set(dest, arr); }
+if (arr.indexOf(src) === -1) arr.push(src);
+}
+}
+} catch (_) { zgCatch('openManuscriptModal / orgBackMap: const resolved = (this.app.metadataCache', _); }
+d.plugin._orgBackMap = { gen, map };
+return map;
+};
+return { orgRowList, orgUnder, orgOutLinks, orgBackMap, get orgFilePathCache() { return orgFilePathCache; }, set orgFilePathCache(v) { orgFilePathCache = v; } };
+};
+const zgOrgScopeMake = (d) => {
+const orgSelect = (p) => {
+d.orgMany = null;
+d.orgFolderSet(p);
+if (orgNote && !orgFolderHolds(d.orgFolder, orgNote)) orgNote = '';
+d.s.organizerFolder = d.orgFolder;
+d.plugin.saveSettings().catch(() => {});
+d.draw();
+d.drawPanel();
+};
+let orgNote = '';
+const orgFolderHolds = (folder, path) => !folder
+|| String(path).indexOf(String(folder) + '/') === 0;
+const orgScopeHolds = (path) => !!d.orgFolder
+&& orgFolderHolds(d.orgFolder, path)
+&& d.orgFolderOk(d.orgFolder);
+const orgFollow = (it, keepScope, markOnly) => {
+if (!it || !it.path) return;
+if (it.kind === 'folder') {
+orgNote = '';
+d.orgFolderSet(it.path);
+} else {
+orgNote = it.path;
+if (markOnly) return;
+if (keepScope && orgScopeHolds(it.path)) return;
+const par = d.folderOf(it.path);
+d.orgFolderSet(par);
+}
+};
+const showItem = (it, markOnly) => {
+if (!it || !it.path) return;
+d.orgSel.cursor = d.keyOf(it);
+d.orgSel.cursorDrives = true;
+orgFollow(it, false, markOnly);
+d.draw();
+d.drawPanel();
+};
+let orgDrawTimer = null;
+return { orgSelect, orgFollow, showItem, get orgNote() { return orgNote; }, set orgNote(v) { orgNote = v; }, get orgDrawTimer() { return orgDrawTimer; }, set orgDrawTimer(v) { orgDrawTimer = v; } };
+};
+const zgOrgSelMake = (d) => {
+const sel = new Map();
+const keyOf = (it) => it.kind + '\u0000' + it.path;
+const itemOf = (key) => {
+const cut = key.indexOf('\u0000');
+return { kind: key.slice(0, cut), path: key.slice(cut + 1) };
+};
+const selRows = () => Array.from(sel.values());
+let cursor = null;
+if (d.ses.cursor) {
+try {
+const was = itemOf(d.ses.cursor);
+if (was.path && d.plugin.app.vault.getAbstractFileByPath(was.path)) {
+cursor = d.ses.cursor;
+} else { d.ses.cursor = null; }
+} catch (_) { d.ses.cursor = null; }
+}
+let lastPicked = null;
+let cursorDrives = false;
+const spread = (it) => {
+const k = keyOf(it);
+if (!sel.has(k) || sel.size < 2) return [it];
+return selRows();
+};
+const orgBulkOn = () => {
+try { if (Platform && Platform.isMobile) return false; } catch (_) { zgCatch('orgBulkOn: Platform.isMobile', _); }
+try { return !d.orgNarrowNow(); } catch (_) { return true; }
+};
+const orgBulkPaths = (row) => {
+if (!row || !orgBulkOn()) return [row && row.path].filter(Boolean);
+return spread({ kind: row.kind || 'file', path: row.path })
+.filter(it => it.kind !== 'folder').map(it => it.path);
+};
+const orgBulkSay = (n, what) => {
+if (n < 2) return;
+try { new Notice('Word-Smith: ' + what + ' on ' + n + ' notes.'); } catch (_) { zgCatch('orgBulkSay: new Notice', _); }
+};
+let orgSelAnchor = null;
+const orgSelClick = (ev, row, shownPaths) => {
+if (!orgBulkOn() || !ev || row.kind === 'folder') return false;
+const it = { kind: 'file', path: row.path };
+if (ev.shiftKey && orgSelAnchor) {
+const list = shownPaths || [];
+const a = list.indexOf(orgSelAnchor), b = list.indexOf(row.path);
+if (a !== -1 && b !== -1) {
+if (!(ev.ctrlKey || ev.metaKey)) sel.clear();
+for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
+const p = list[i];
+sel.set(keyOf({ kind: 'file', path: p }), { kind: 'file', path: p });
+}
+return true;
+}
+}
+if (ev.ctrlKey || ev.metaKey) {
+const k = keyOf(it);
+if (sel.has(k)) sel.delete(k); else sel.set(k, it);
+orgSelAnchor = row.path;
+return true;
+}
+if (sel.size) sel.clear();
+orgSelAnchor = row.path;
+return false;
+};
+const orgSelHas = (path) => sel.has(keyOf({ kind: 'file', path }));
+const orgSelCount = () => sel.size;
+return { sel, keyOf, itemOf, selRows, orgBulkPaths, orgBulkSay, orgSelClick, orgSelHas, orgSelCount, get cursor() { return cursor; }, set cursor(v) { cursor = v; }, get lastPicked() { return lastPicked; }, set lastPicked(v) { lastPicked = v; }, get cursorDrives() { return cursorDrives; }, set cursorDrives(v) { cursorDrives = v; } };
+};
+const zgOrgShapeMake = (d) => {
+const showShape = () => {
+const v = String(d.s.uniShow || 'all');
+return (v === 'files' || v === 'folders') ? v : 'all';
+};
+const setShape = async (v) => {
+d.s.uniShow = (v === 'files' || v === 'folders') ? v : 'all';
+await d.plugin.saveSettings(true);
+d.draw(); d.fill();
+try { d.drawPanel(); } catch (_) { zgCatch('openManuscriptModal / setShape: drawPanel();', _); }
+};
+const typeLabel = () => {
+const on = d.plugin.uniTypeSet();
+const all = d.plugin.uniTypeGroups();
+const shape = showShape();
+if (shape === 'folders') return 'Folders only';
+if (shape === 'files' && on.size === 1 && on.has('md')) return 'Notes only';
+if (shape === 'files') return 'Files only';
+if (on.size >= all.length) return 'All files';
+if (on.size === 1 && on.has('md')) return 'Notes';
+return on.size + ' kinds';
+};
+const typeRows = (into) => {
+const groups = d.plugin.uniTypeGroups();
+const setAnd = (list) => {
+d.plugin.settings.uniTypes = list;
+d.plugin.saveSettings(true);
+d.draw(); d.fill();
+try { d.drawPanel(); } catch (_) { zgCatch('openManuscriptModal / setAnd: drawPanel();', _); }
+};
+const on = d.plugin.uniTypeSet();
+const shape = showShape();
+const allOn = on.size >= groups.length;
+const pick = (i, title, icon, isOn, fn) => {
+into.addItem((i2) => {
+i2.setTitle(title).setIcon(icon).onClick(fn);
+try {
+if (typeof i2.setChecked === 'function') i2.setChecked(isOn);
+else if (isOn) i2.setTitle('✓ ' + title);
+} catch (_) { zgCatch('openManuscriptModal / pick: if (typeof i2.setChecked === \'function\') i2.setChecked(isOn);', _); }
+});
+};
+pick(0, 'Everything', 'files', shape === 'all' && allOn, async () => {
+setAnd(groups.map(g => g.id));
+await setShape('all');
+});
+pick(1, 'Notes only', 'file-text',
+shape === 'files' && on.size === 1 && on.has('md'), async () => {
+setAnd(['md']);
+await setShape('files');
+});
+pick(2, 'Files only', 'file', shape === 'files' && allOn, async () => {
+setAnd(groups.map(g => g.id));
+await setShape('files');
+});
+pick(3, 'Folders only', 'folder', shape === 'folders', () => setShape('folders'));
+into.addSeparator();
+for (const g of groups) {
+into.addItem((i) => {
+i.setTitle(g.label).setIcon(g.icons[0])
+.onClick(() => {
+const next = new Set(d.plugin.uniTypeSet());
+if (next.has(g.id)) next.delete(g.id); else next.add(g.id);
+if (!next.size) next.add('md');
+setAnd(Array.from(next));
+});
+try {
+if (typeof i.setChecked === 'function') i.setChecked(on.has(g.id));
+else if (on.has(g.id)) i.setTitle('\u2713 ' + g.label);
+} catch (_) { zgCatch('openManuscriptModal / typeRows: if (typeof i.setChecked === \'function\') i.setChecked(on.has(g.id));', _); }
+});
+}
+const known = new Set();
+for (const g of groups) for (const e of (g.ext || [])) known.add(e);
+const counts = new Map();
+try {
+for (const f of (d.plugin.app.vault.getFiles ? d.plugin.app.vault.getFiles() : [])) {
+const e = String((f && f.extension) || '').toLowerCase();
+if (!e || known.has(e)) continue;
+counts.set(e, (counts.get(e) || 0) + 1);
+}
+} catch (_) { zgCatch('openManuscriptModal / typeRows: for (const f of this.app.vault.getFiles())', _); }
+const exts = Array.from(counts.keys()).sort();
+if (exts.length) into.addSeparator();
+for (const e of exts) {
+const title = e + '  ·  ' + counts.get(e);
+const isOn = on.has('other') || on.has('ext:' + e);
+into.addItem((i) => {
+i.setTitle(title).setIcon('file')
+.onClick(() => {
+const next = new Set(d.plugin.uniTypeSet());
+const id = 'ext:' + e;
+if (next.has(id)) next.delete(id);
+else { next.add(id); next.delete('other'); }
+if (!next.size) next.add('md');
+setAnd(Array.from(next));
+});
+try {
+if (typeof i.setChecked === 'function') i.setChecked(isOn);
+else if (isOn) i.setTitle('\u2713 ' + title);
+} catch (_) { zgCatch('openManuscriptModal / typeRows: i.setChecked(isOn) for an extension', _); }
+});
+}
+};
+return { showShape, setShape, typeLabel, typeRows };
+};
+const zgOrgTicksMake = (d) => {
+const plugin = d.plugin;
+let ticks = null;
+let ticksFor = null;
+let tickTimer = null;
+let underIn = null;
+const index = () => {
+if (!underIn) underIn = zgUnderIndex(plugin.exportGather(''));
+return underIn;
+};
+const dropIndex = () => { underIn = null; };
+const forget = () => { ticksFor = null; };
+const files = () => {
+const many = d.scopes();
+if (!many || many.length < 2) return plugin.exportGather(d.scope());
+const out = [], seen = new Set();
+for (const p of many) {
+for (const f of plugin.exportGather(p)) {
+if (f && f.path && !seen.has(f.path)) { seen.add(f.path); out.push(f); }
+}
+}
+return out;
+};
+const load = async () => {
+const at = d.scope();
+const many = d.scopes();
+const cacheKey = (many && many.length > 1) ? many.join('\n') : at;
+if (ticks && ticksFor === cacheKey) return ticks;
+const list = files();
+let remembered = null;
+try {
+const store = await plugin.structureRead();
+if (many && many.length > 1) {
+const merged = [];
+for (const p of many) {
+const part = store[p];
+if (part && part.length) for (const r of part) merged.push(r);
+}
+remembered = merged.length ? merged : null;
+} else {
+remembered = store[at];
+}
+} catch (_) { zgCatch('openManuscriptModal / loadTicks: const store = await this.structureRead();', _); }
+if (remembered && remembered.length) {
+const applied = plugin.exportApplyRemembered(list, remembered);
+ticks = applied.chosen;
+} else {
+ticks = new Set(list.map(f => f.path));
+}
+ticksFor = cacheKey;
+try { plugin.orgTicksSchedule(); } catch (_) { zgCatch('loadTicks: this.orgTicksSchedule();', _); }
+return ticks;
+};
+const remember = () => {
+try { plugin.orgTicksSchedule(); } catch (_) { zgCatch('rememberTicks: this.orgTicksSchedule();', _); }
+if (tickTimer) window.clearTimeout(tickTimer);
+tickTimer = window.setTimeout(() => {
+const many = d.scopes();
+if (many && many.length > 1) {
+for (const p of many) {
+if (/\.md$/i.test(String(p))) continue;
+const rows = plugin.exportGather(p).map(f => ({
+path: f.path, on: !ticks || ticks.has(f.path)
+}));
+plugin.structureWriteSection(p, rows);
+}
+return;
+}
+const at = d.scope();
+const rows = plugin.exportGather(at).map(f => ({
+path: f.path, on: !ticks || ticks.has(f.path)
+}));
+plugin.structureWriteSection(at, rows);
+}, 400);
+};
+const placeAdd = (p) => {
+const path = (p == null || p === '/') ? '' : String(p);
+if (!path) return false;
+const cur = d.scopes();
+if (!cur) { d.said('The whole vault is in already.'); return false; }
+if (cur.indexOf(path) !== -1) return false;
+d.placesSet(cur.concat([path]));
+ticksFor = null;
+d.redraw();
+return true;
+};
+const placeDrop = (p) => {
+const cur = d.scopes();
+if (!cur || cur.indexOf(p) === -1) return false;
+const left = cur.filter((x) => x !== p);
+if (left.length === 1) { d.select(left[0]); return true; }
+if (!left.length) { d.select(''); return true; }
+d.placesSet(left);
+ticksFor = null;
+d.redraw();
+return true;
+};
+const door = {
+wanted: () => d.wanted(),
+state: (path, kind) => {
+if (!ticks) return null;
+const mine = zgUnderRow(index(), path, kind);
+if (!mine.length) return { mine: 0, all: false, some: false };
+const on = mine.filter((p) => ticks.has(p)).length;
+return { mine: mine.length, all: on === mine.length, some: on > 0 && on < mine.length };
+},
+toggle: (path, kind) => {
+if (!ticks) return false;
+const mine = zgUnderRow(index(), path, kind);
+const places = d.scopes();
+const covered = !places || places.some((p) => p === '' || p === path || String(path).indexOf(p + '/') === 0);
+if (!covered) {
+if (!placeAdd(path)) return false;
+Promise.resolve(load()).then(() => {
+const mine2 = zgUnderRow(index(), path, kind);
+for (const p of mine2) ticks.add(p);
+remember();
+d.redraw();
+try { plugin.orgTicksSchedule(); } catch (_) { zgCatch('ticks.toggle / place: this.orgTicksSchedule();', _); }
+}, () => {});
+return true;
+}
+const on = mine.filter((p) => ticks.has(p)).length;
+const next = on !== mine.length;
+for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
+remember();
+d.redraw();
+return true;
+}
+};
+return { files, load, remember, index, dropIndex, forget, placeAdd, placeDrop, door, current: () => ticks };
+};
+const zgOrgWidthsMake = (d) => {
+const ORG_NAME_MIN = 120;
+const ORG_NAME_MAX = 1200;
+const ORG_COL_MIN = 48;
+const ORG_COL_MAXFRAC = 0.6;
+let orgScrollTop = Math.max(0, Number(d.ses.scroll) || 0);
+let orgScrollLeft = 0;
+let orgCeilHost = null;
+let orgCeilVal = 0;
+const orgColCeilReset = () => { orgCeilHost = null; };
+const orgColCeil = (host) => {
+if (host && orgCeilHost === host) return orgCeilVal;
+const w = host && host.clientWidth;
+const v = !(w > 0) ? ORG_NAME_MAX
+: Math.max(ORG_COL_MIN, Math.round(w * ORG_COL_MAXFRAC));
+if (host) { orgCeilHost = host; orgCeilVal = v; }
+return v;
+};
+const orgColFit = () => {
+if (!orgColFitNow) return;
+orgColFitNow();
+};
+let orgColFitNow = null;
+const orgColPx = () => {
+const m = d.s.uniColPx;
+return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
+};
+const orgColW = (id, host) => {
+const n = Number(orgColPx()[String(id)]);
+if (id !== 'name' && d.orgNarrowNow()) return 0;
+if (!isFinite(n) || n <= 0) return 0;
+const lo = id === 'name' ? ORG_NAME_MIN : ORG_COL_MIN;
+const hi = Math.min(ORG_NAME_MAX, orgColCeil(host));
+return Math.round(Math.max(lo, Math.min(hi, n)));
+};
+const orgColWSet = (id, px) => {
+const m = Object.assign({}, orgColPx());
+if (px === null) delete m[String(id)];
+else m[String(id)] = Math.round(px);
+d.s.uniColPx = m;
+d.plugin.saveSettings().catch(() => {});
+};
+const orgNameW = () => orgColW('name', null);
+let orgNameLineNow = null;
+let orgNameRO = null;
+const orgNameStamp = (table) => {
+const w = orgNameW();
+if (!w) return;
+table.addClass('is-namefixed');
+table.style.setProperty('--zg-org-namew', w + 'px');
+};
+const orgColApply = (cell, w) => {
+cell.style.boxSizing = 'border-box';
+cell.style.width = w + 'px';
+cell.style.minWidth = w + 'px';
+cell.style.maxWidth = w + 'px';
+};
+const orgColUnfix = (cell) => {
+cell.style.removeProperty('width');
+cell.style.removeProperty('min-width');
+cell.style.removeProperty('max-width');
+};
+const orgColLive = (host, id, w) => {
+if (!host) return;
+for (const cell of Array.from(host.querySelectorAll('th, td'))) {
+if (cell.getAttribute('data-col') !== id) continue;
+orgColApply(cell, w);
+}
+};
+const orgColMark = (host, id, on) => {
+if (!host) return;
+for (const cell of Array.from(host.querySelectorAll('th, td'))) {
+if (cell.getAttribute('data-col') !== id) continue;
+cell.toggleClass('is-gripdrag', !!on);
+}
+};
+const orgColStamp = (cell, id, host) => {
+const w = orgColW(id, host);
+if (!w) return;
+orgColApply(cell, w);
+};
+let orgGripReleasedAt = 0;
+const ORG_GRIP_CLICK_MS = 300;
+const ORG_GRIP_NEAR = 4;
+const orgGripAt = (host, x, y) => {
+if (!host) return null;
+const hb = host.getBoundingClientRect();
+if (y < hb.top || y > hb.bottom) return null;
+for (const g of Array.from(host.querySelectorAll('.zg-org-colgrip'))) {
+const r = g.getBoundingClientRect();
+if (y < r.top || y > r.bottom) continue;
+const mid = (r.left + r.right) / 2;
+if (Math.abs(x - mid) <= Math.max(ORG_GRIP_NEAR, r.width / 2)) return g;
+}
+return null;
+};
+const orgGripHover = (host) => {
+if (!host || host.hasAttribute('data-zg-griphover')) return;
+host.setAttribute('data-zg-griphover', '1');
+let lit = null;
+const light = (g) => {
+if (lit === g) return;
+if (lit) { lit.removeClass('is-near'); if (lit.parentElement) lit.parentElement.removeClass('is-gripnear'); }
+lit = g;
+if (lit) { lit.addClass('is-near'); if (lit.parentElement) lit.parentElement.addClass('is-gripnear'); }
+host.toggleClass('is-gripnear', !!lit);
+};
+host.addEventListener('pointermove', (ev) => {
+light(orgGripAt(host, ev.clientX, ev.clientY));
+});
+host.addEventListener('pointerleave', () => light(null));
+host.addEventListener('contextmenu', (ev) => {
+if (!d.orgGripDrag) {
+const inHead = ev.target && ev.target.closest && ev.target.closest('thead');
+const g = inHead ? orgGripAt(host, ev.clientX, ev.clientY) : null;
+if (!g || !(g.getBoundingClientRect().width > 0)) return;
+}
+ev.preventDefault();
+ev.stopPropagation();
+}, true);
+};
+const orgColGripBind = (th, col, host) => {
+const grip = th.createDiv({ cls: 'zg-org-colgrip' });
+orgGripHover(host);
+grip.setAttribute('data-col', col.id);
+grip.title = 'Drag to set how wide “' + col.label + '” is — '
++ 'double-click to hand it back to the table';
+let from = 0, base = 0, live = 0;
+const move = (ev) => {
+live = Math.max(ORG_COL_MIN, Math.min(orgColCeil(host),
+base + (ev.clientX - from)));
+orgColLive(host, col.id, Math.round(live));
+};
+const up = () => {
+try {
+d.ownerWin().removeEventListener('pointermove', move, true);
+d.ownerWin().removeEventListener('pointerup', up, true);
+} catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
+orgGripReleasedAt = Date.now();
+d.orgGripDrag = 0;
+orgColMark(host, col.id, false);
+if (!live) return;
+orgColWSet(col.id, live);
+live = 0;
+};
+host.addEventListener('pointerdown', (ev) => {
+if (orgGripAt(host, ev.clientX, ev.clientY) !== grip) return;
+try { if (grip.setPointerCapture && ev.pointerId != null) grip.setPointerCapture(ev.pointerId); } catch (_) { zgCatch('openManuscriptModal / orgColGripBind: grip.setPointerCapture(ev.pointerId);', _); }
+ev.preventDefault();
+ev.stopPropagation();
+from = ev.clientX;
+base = th.getBoundingClientRect().width || ORG_COL_MIN;
+live = 0;
+d.orgGripDrag = 1;
+orgColMark(host, col.id, true);
+try {
+d.ownerWin().addEventListener('pointermove', move, true);
+d.ownerWin().addEventListener('pointerup', up, true);
+} catch (_) { zgCatch('openManuscriptModal / orgColGripBind: ownerWin().addEventListener(\'pointermove\', move, true);', _); }
+});
+grip.addEventListener('dragstart', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+});
+host.addEventListener('dblclick', (ev) => {
+if (orgGripAt(host, ev.clientX, ev.clientY) !== grip) return;
+ev.preventDefault();
+ev.stopPropagation();
+orgColWSet(col.id, null);
+d.drawPanel();
+});
+};
+const orgNameGripBind = (host, th, table) => {
+const grip = host.createDiv({ cls: 'zg-org-namegrip' });
+grip.title = 'Drag to set how wide the Name column is '
++ '\u2014 double-click to hand it back to the table';
+let from = 0, base = 0, live = 0;
+const move = (ev) => {
+live = Math.max(ORG_NAME_MIN, Math.min(orgColCeil(host),
+base + (ev.clientX - from)));
+table.addClass('is-namefixed');
+table.style.setProperty('--zg-org-namew',
+Math.round(live) + 'px');
+try { if (orgNameLineNow) orgNameLineNow(); } catch (_) { zgCatch('openManuscriptModal / move: if (orgNameLineNow) orgNameLineNow();', _); }
+};
+const up = () => {
+try {
+d.ownerWin().removeEventListener('pointermove', move, true);
+d.ownerWin().removeEventListener('pointerup', up, true);
+} catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
+d.orgGripDrag = 0;
+host.removeClass('is-namedrag');
+if (!live) return;
+orgColWSet('name', live);
+live = 0;
+};
+grip.addEventListener('pointerdown', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+from = ev.clientX;
+base = th.getBoundingClientRect().width || ORG_NAME_MIN;
+live = 0;
+d.orgGripDrag = 1;
+host.addClass('is-namedrag');
+try {
+d.ownerWin().addEventListener('pointermove', move, true);
+d.ownerWin().addEventListener('pointerup', up, true);
+} catch (_) { zgCatch('openManuscriptModal / orgNameGripBind: ownerWin().addEventListener(\'pointermove\', move, true);', _); }
+});
+grip.addEventListener('click', (ev) => ev.stopPropagation());
+grip.addEventListener('dblclick', (ev) => {
+ev.preventDefault();
+ev.stopPropagation();
+orgColWSet('name', null);
+d.drawPanel();
+});
+};
+d.plugin._orgDraw = () => d.drawPanel();
+d.plugin._orgFit = () => { if (orgColFitNow) orgColFitNow(); };
+d.plugin._orgGripAt = (host, x, y) => orgGripAt(host, x, y);
+d.plugin._orgGripDrag = () => d.orgGripDrag;
+return { ORG_COL_MIN, orgColCeilReset, orgColCeil, orgColFit, orgColPx, orgNameStamp, orgColUnfix, orgColStamp, ORG_GRIP_CLICK_MS, orgColGripBind, orgNameGripBind, get orgScrollTop() { return orgScrollTop; }, set orgScrollTop(v) { orgScrollTop = v; }, get orgScrollLeft() { return orgScrollLeft; }, set orgScrollLeft(v) { orgScrollLeft = v; }, get orgColFitNow() { return orgColFitNow; }, set orgColFitNow(v) { orgColFitNow = v; }, get orgNameLineNow() { return orgNameLineNow; }, set orgNameLineNow(v) { orgNameLineNow = v; }, get orgNameRO() { return orgNameRO; }, set orgNameRO(v) { orgNameRO = v; }, get orgGripReleasedAt() { return orgGripReleasedAt; }, set orgGripReleasedAt(v) { orgGripReleasedAt = v; } };
+};
+const zgOrgWritesMake = (d) => {
+const orgPend = new Map();
+const ORG_PEND_MS = 4000;
+const orgPendKey = (path, key) =>
+String(path) + '\u0000' + String(key).toLowerCase();
+const orgPendSet = (path, key, v) => {
+orgPend.set(orgPendKey(path, key), { v: v, at: Date.now() });
+};
+const orgPendDrop = (path, key) => { orgPend.delete(orgPendKey(path, key)); };
+const orgPendGet = (path, key) => {
+const k = orgPendKey(path, key);
+const e = orgPend.get(k);
+if (!e) return null;
+if (Date.now() - e.at > ORG_PEND_MS) { orgPend.delete(k); return null; }
+return e;
+};
+const orgPendSame = (a, b) => {
+if (Array.isArray(a) && Array.isArray(b)) {
+return a.length === b.length
+&& a.every((x, i) => String(x) === String(b[i]));
+}
+if (a === null || a === undefined) return b === null || b === undefined;
+if (b === null || b === undefined) return false;
+return String(a) === String(b);
+};
+const orgPropWriteOne = async (p, key, value, own) => {
+orgPendSet(p, key, value);
+try {
+return await d.plugin.orgPropWrite(p, key, value);
+} catch (e) {
+orgPendDrop(p, key);
+if (own) throw e;
+zgCatch('orgPropSet / bulk: this.orgPropWrite(p, key, value);', e);
+return undefined;
+}
+};
+const orgPropSet = async (path, key, value) => {
+const all = d.orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
+const before = all.map((p) => [p, d.orgPropValue(p, key)]);
+let out;
+for (const p of all) {
+const r = await orgPropWriteOne(p, key, value, p === path);
+if (p === path) out = r;
+}
+if (all.length > 1) d.orgBulkSay(all.length, 'Property set');
+d.orgHistPush({
+label: d.orgHistOn(all, String(key)),
+undo: async () => { for (const [p, v] of before) await orgPropWriteOne(p, key, v, false); },
+redo: async () => { for (const p of all) await orgPropWriteOne(p, key, value, false); }
+});
+return out;
+};
+const orgPropListSet = async (path, key, list, before) => {
+const str = (a) => (Array.isArray(a) ? a : (a === null || a === undefined || a === '' ? [] : [a])).map(String);
+const now = str(list), was = str(before);
+const added = now.filter((x) => was.indexOf(x) === -1);
+const removed = was.filter((x) => now.indexOf(x) === -1);
+const writes = [[path, d.orgPropValue(path, key), list]];
+const out = await orgPropWriteOne(path, key, list, true);
+let n = 1;
+if (added.length || removed.length) {
+const others = d.orgBulkPaths({ kind: 'file', path }).filter(p => p !== path);
+for (const p of others) {
+const own = str(d.orgPropValue(p, key));
+const next = own.filter((x) => removed.indexOf(x) === -1)
+.concat(added.filter((x) => own.indexOf(x) === -1));
+if (next.length === own.length && next.every((x, i) => x === own[i])) continue;
+writes.push([p, own, next]);
+await orgPropWriteOne(p, key, next, false);
+n++;
+}
+}
+if (n > 1) d.orgBulkSay(n, 'Property set');
+d.orgHistPush({
+label: d.orgHistOn(writes.map((w) => w[0]), String(key)),
+undo: async () => { for (const [p, v] of writes) await orgPropWriteOne(p, key, v, false); },
+redo: async () => { for (const [p, , v] of writes) await orgPropWriteOne(p, key, v, false); }
+});
+return out;
+};
+return { orgPendDrop, orgPendGet, orgPendSame, orgPropSet, orgPropListSet };
+};
+const zgOrgZoomMake = (d) => {
+let zoomHost = null;
+const zoomTag = () => {
+if (!zoomHost) return;
+const z = d.ses.zoom || 1;
+let t = zoomHost.querySelector('.zg-uni-zoomtag');
+if (Math.abs(z - 1) < 0.001) { if (t) t.remove(); return; }
+if (!t) {
+t = zoomHost.createEl('button', { cls: 'zg-export-mini zg-uni-zoomtag' });
+t.title = 'Back to 100%';
+t.setAttribute('aria-label', 'Zoom back to 100%');
+t.addEventListener('click', (ev) => { ev.stopPropagation(); d.ses.zoom = 1; zoomApply(); });
+}
+t.setText(Math.round(z * 100) + '%');
+};
+const zoomApply = () => {
+try { d.body.style.setProperty('--zg-uni-zoom', String(d.ses.zoom || 1)); } catch (_) { zgCatch('zoomApply: body.style.setProperty', _); }
+try { zoomTag(); } catch (_) { zgCatch('zoomApply: zoomTag();', _); }
+};
+zoomApply();
+d.body.addEventListener('wheel', (ev) => {
+if (!ev.ctrlKey && !ev.metaKey) return;
+ev.preventDefault();
+const step = ev.deltaY < 0 ? 0.1 : -0.1;
+d.ses.zoom = Math.min(2, Math.max(0.6, Math.round(((d.ses.zoom || 1) + step) * 10) / 10));
+zoomApply();
+}, { passive: false });
+let pinch = null;
+let orgGripDrag = 0;
+const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+d.body.addEventListener('touchstart', (ev) => {
+pinch = ev.touches.length === 2 ? { d0: span(ev.touches) || 1, z0: d.ses.zoom || 1 } : null;
+}, { passive: true });
+d.body.addEventListener('touchmove', (ev) => {
+if (orgGripDrag || !pinch || ev.touches.length !== 2) return;
+ev.preventDefault();
+const z = pinch.z0 * span(ev.touches) / pinch.d0;
+const next = Math.min(2, Math.max(0.6, Math.round(z * 10) / 10));
+if (next === (d.ses.zoom || 1)) return;
+d.ses.zoom = next;
+zoomApply();
+}, { passive: false });
+d.body.addEventListener('touchend', (ev) => { if (ev.touches.length < 2) pinch = null; }, { passive: true });
+d.body.addEventListener('touchcancel', () => { pinch = null; }, { passive: true });
+d.plugin._orgZoom = () => d.ses.zoom || 1;
+return { zoomTag, get zoomHost() { return zoomHost; }, set zoomHost(v) { zoomHost = v; }, get orgGripDrag() { return orgGripDrag; }, set orgGripDrag(v) { orgGripDrag = v; } };
+};
 module.exports = class WordSmith extends Plugin {
 registerDomEvent(el, type, cb, opts) {
 const w = zgGuard(cb, 'a ' + type + ' handler');
@@ -4253,16 +7112,7 @@ return true;
 try { if (addIcon) addIcon(WS_ICON, WS_ICON_SVG); } catch (_) { zgCatch('onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);', _); }
 this.loadMark('commands');
 this.registerWsIcon();
-this.wsRibbonEl = this.addRibbonIcon('type', 'Open the Word-Smith menu', () => this.openBarMenu());
-this.wsRibbonEl.addClass('ws-ribbon-btn');
-this.wsRibbonEl.empty();
-const badge = this.wsRibbonEl.createSpan({ cls: 'ws-ribbon-badge' });
-let iconSet = false;
-try {
-if (setIcon) { setIcon(badge, WS_ICON); iconSet = !!badge.querySelector('svg'); }
-} catch (_) { zgCatch('onload: if (setIcon) setIcon(badge, WS_ICON);', _); }
-if (!iconSet) badge.createSpan({ cls: 'ws-ribbon-w', text: 'W' });
-this.updateWsRibbonState();
+if (this.settings.pluginEnabled !== false) this.wsRibbonMake();
 this.onAppEvent(this.app.workspace, 'file-menu',
 (menu, file, source) => {
 if (source === 'word-smith-outliner') return;
@@ -4902,6 +7752,7 @@ delete this.settings.exportTicksAlways;
 delete this.settings.manuscriptRoots;
 delete this.settings.organizerRoot;
 delete this.settings.uniRootShut;
+delete this.settings.organizerRootShut;
 delete this.settings.uniTreeWidth;
 delete this.settings.uniShut;
 delete this.settings.goalsFile;
@@ -5164,6 +8015,12 @@ L.push('stylesheet v' + (ss || '(absent)') + ', script expects v'
 let notes = '?';
 try { notes = String(this.app.vault.getMarkdownFiles().length); } catch (_) { zgCatch('diagnostics: notes = String(this.app.vault.getMarkdownFiles().length);', _); }
 L.push('vault: ' + notes + ' notes');
+try {
+const sl = this._storeLast;
+L.push('store:      ' + (!sl ? 'no store written this session'
+: sl.path + ' — ' + sl.eol + ' on disk, last compose '
++ (sl.same ? 'the same text, handed back unwritten' : 'a different text, written')));
+} catch (_) { L.push('store:      (could not read the last compare)'); }
 L.push('');
 const s = this.settings || {};
 L.push('file tree:  counts ' + yn(s.enableFileTreeCounts)
@@ -5551,7 +8408,6 @@ refresh() {
 if (this._startBlocked) return;
 this.updateWsRibbonState();
 if (!this.settings.pluginEnabled) { this.disablePlugin(); this.reconfigureEditors(); return; }
-try { if (this.wsRibbonEl) this.wsRibbonEl.style.display = ''; } catch (_) { zgCatch('refresh: if (this.wsRibbonEl) this.wsRibbonEl.style.display = \'\';', _); }
 this.restoreMenuPanelSpot();
 this._scopeGen++;
 this._lastScopeInScope = this.isActiveFileInScope();
@@ -5632,7 +8488,6 @@ this.detachResizeHandler();
 this.applyNativeStatusBarVisibility(false);
 this.rememberMenuPanelSpot();
 this.closeMenuPanel();
-try { if (this.wsRibbonEl) this.wsRibbonEl.style.display = 'none'; } catch (_) { zgCatch('disablePlugin: if (this.wsRibbonEl) this.wsRibbonEl.style.display = \'none\';', _); }
 this._fenceCache = null;
 this._paraCache = null;
 this._docStatsCache = null;
@@ -6449,9 +9304,38 @@ await this.toggleZen();
 this.settings.pluginEnabled = next;
 await this.saveSettings(true);
 }
+wsRibbonMake() {
+if (this.wsRibbonEl) return;
+const el = this.addRibbonIcon('type', WS_RIBBON_TITLE, () => this.openBarMenu());
+if (!el) return;
+this.wsRibbonEl = el;
+el.addClass('ws-ribbon-btn');
+el.empty();
+const badge = el.createSpan({ cls: 'ws-ribbon-badge' });
+let iconSet = false;
+try {
+if (setIcon) { setIcon(badge, WS_ICON); iconSet = !!badge.querySelector('svg'); }
+} catch (_) { zgCatch('wsRibbonMake: if (setIcon) setIcon(badge, WS_ICON);', _); }
+if (!iconSet) badge.createSpan({ cls: 'ws-ribbon-w', text: 'W' });
+}
+wsRibbonDrop() {
+const el = this.wsRibbonEl;
+if (!el) return;
+this.wsRibbonEl = null;
+const id = this.manifest.id + ':' + WS_RIBBON_TITLE;
+try {
+const ribbon = this.app.workspace.leftRibbon;
+if (ribbon && typeof ribbon.removeRibbonAction === 'function') ribbon.removeRibbonAction(id);
+if (ribbon && Array.isArray(ribbon.items)) {
+const at = ribbon.items.findIndex((i) => i && i.id === id);
+if (at !== -1) ribbon.items.splice(at, 1);
+}
+} catch (_) { zgCatch('wsRibbonDrop: ribbon.removeRibbonAction(id)', _); }
+try { el.detach(); } catch (_) { try { el.remove(); } catch (_2) { zgCatch('wsRibbonDrop: el.detach();', _2); } }
+}
 updateWsRibbonState() {
-if (!this.wsRibbonEl) return;
-this.wsRibbonEl.classList.toggle('is-disabled', !this.settings.pluginEnabled);
+if (this.settings && this.settings.pluginEnabled === false) this.wsRibbonDrop();
+else this.wsRibbonMake();
 }
 zenOn() {
 return !!(this.settings.zenEnabled && this.settings.zenMode);
@@ -7730,7 +10614,7 @@ this.settings.settingsMirrorPath, [], this._mirrorFoundAt);
 const f = found
 ? this.app.vault.getAbstractFileByPath(found) : null;
 if (f && !f.children) {
-await this.app.vault.process(f, () => text);
+await this.app.vault.process(f, (was) => this.storeHandBack(found, was, text));
 this._mirrorFoundAt = found;
 } else {
 const path = this.settingsMirrorPathFor();
@@ -8222,6 +11106,7 @@ async storeFind(marker, configured, legacy, remembered) {
 const vault = this.app.vault;
 const marks = [].concat(marker).filter(Boolean);
 const olds = [].concat(legacy).filter(Boolean);
+const conf = zgPathNorm(configured);
 const check = async (file) => {
 if (!file || file.children) return false;
 try {
@@ -8234,14 +11119,14 @@ if (remembered) {
 const f = vault.getAbstractFileByPath(remembered);
 if (await check(f)) return f.path;
 }
-for (const want of [String(configured || '').replace(/^\/+/, '')].concat(olds)) {
+for (const want of [conf].concat(olds)) {
 if (!want) continue;
 const at = vault.getAbstractFileByPath(want);
 if (await check(at)) return at.path;
 }
 let all = [];
 try { all = vault.getMarkdownFiles() || []; } catch (_) { return null; }
-const bases = [String(configured || olds[0] || '')].concat(olds)
+const bases = [String(conf || olds[0] || '')].concat(olds)
 .map(p => String(p).split('/').pop().toLowerCase()).filter(Boolean);
 const named = all.filter(f => bases.some(b =>
 f.path.toLowerCase().endsWith('/' + b) || f.path.toLowerCase() === b));
@@ -8577,6 +11462,15 @@ const q = (this._structWriteQ || Promise.resolve()).then(fn, fn);
 this._structWriteQ = q;
 return q;
 }
+storeHandBack(path, was, text) {
+const same = zgTextSameEol(was, text);
+this._storeLast = {
+path: String(path || ''),
+eol: /\r\n/.test(String(was == null ? '' : was)) ? 'CRLF' : 'LF',
+same, at: Date.now()
+};
+return same ? was : text;
+}
 async structureWriteNow() {
 if (this.settings && this.settings.organizerOn === false) return false;
 const all = this.structureStore();
@@ -8586,7 +11480,7 @@ const path = await this.structureMigrate();
 const f = this.app.vault.getAbstractFileByPath(path);
 this._structText = text;
 if (f && !f.children) {
-await this.app.vault.process(f, () => text);
+await this.app.vault.process(f, (was) => this.storeHandBack(path, was, text));
 } else {
 await this.storeEnsureFolder(path);
 await this.app.vault.create(path, text);
@@ -8849,7 +11743,7 @@ const text = this.structureCompose(this.structureStore());
 const f = this.app.vault.getAbstractFileByPath(path);
 if (!f || f.children) return false;
 this._structText = text;
-await this.app.vault.process(f, () => text);
+await this.app.vault.process(f, (was) => this.storeHandBack(path, was, text));
 return true;
 }
 touchDrag(el, id, opts) {
@@ -9567,17 +12461,6 @@ const HUE_STOPS = [
 [0.87, -180],
 [1.00, -220]
 ];
-const hueRamp = (f0) => {
-const f = Math.max(0, Math.min(1, f0));
-for (let i = 1; i < HUE_STOPS.length; i++) {
-if (f > HUE_STOPS[i][0]) continue;
-const [p1, h1] = HUE_STOPS[i - 1];
-const [p2, h2] = HUE_STOPS[i];
-const k = p2 === p1 ? 0 : (f - p1) / (p2 - p1);
-return h1 + (h2 - h1) * k;
-}
-return HUE_STOPS[HUE_STOPS.length - 1][1];
-};
 const hueNow = () => {
 const f = Math.max(0, Math.min(1, rNow));
 for (let i = 1; i < HUE_STOPS.length; i++) {
@@ -9633,7 +12516,6 @@ const toyHere = () => (r >= 1 ? 'aurora'
 const inks = [];
 const INKS_MAX = 10;
 const INK_LIFE = 3.4;
-const INK_SPREAD = 1900;
 const bubbles = [];
 const BUBBLES_MAX = 9;
 let bubbleAt = 0;
@@ -9754,7 +12636,6 @@ s = s - Math.floor(s);
 const ray1 = 0.5 + 0.5 * Math.sin(u * 3.0 + warp * 6 + T * 0.30 + p2 + ph2);
 const ray2 = 0.5 + 0.5 * Math.sin(u * 7.5 - warp * 4 - T * 0.22 + v * 2.0 + p3
 + ph2 * 1.6);
-const zealNow = zeal;
 const wander = Math.sin(T * 0.081 + p1) * 96
 + Math.sin(T * 0.047 + p2) * 71
 + Math.sin(T * 0.029 + p3) * 54;
@@ -10429,7 +13310,6 @@ const thr = (((gx * 7 + gy * 13) % 16) / 16);
 if (u > 0.72 && (u - 0.72) / 0.28 > 1 - thr) continue;
 const ang = angC;
 const arm = Math.sin(ang * 2 + orb.spin * 2.2 - u * 5.5);
-const lit = arm > 0.15;
 const dith = (((gx * 7 + gy * 13) % 8) / 8 - 0.5);
 const litness = (arm + 1) * 0.5;
 const oh0 = hueNow() + arm * 9 + (0.5 - u) * 10 + dith * 4;
@@ -11535,7 +14415,6 @@ const out = { view, buckets: [], label: '' };
 const rightNow = new Date();
 const nowY = rightNow.getFullYear(), nowM = rightNow.getMonth();
 const daysIn = (y, m) => new Date(y, m + 1, 0).getDate();
-const yearLen = (y) => (((y % 4 === 0 && y % 100 !== 0) || y % 400 === 0) ? 366 : 365);
 const blank = (key, label) => ({ key, label, a: 0, r: 0, n: 0, days: 0 });
 const add = (b, rec) => {
 if (!rec) return;
@@ -14508,7 +17387,6 @@ return out;
 let repFile = openFile;
 let chain = chainOf(openFolder);
 let folderSel = chain[0] || '/';
-let picked = null;
 let query = '';
 const render = async () => { try {
 body.empty();
@@ -14530,10 +17408,6 @@ folderSel = path || '/';
 render();
 }
 });
-};
-const repour = () => {
-const jar = body.querySelector('.zg-goal-liquid');
-if (jar && typeof jar.zgPour === 'function') jar.zgPour();
 };
 let stats = null, target = 0, freq = null;
 if (active === 'note') {
@@ -14999,152 +17873,33 @@ return isFinite(n) && n > 0 ? n : fallback;
 };
 const narrow = !!(Platform && Platform.isMobile);
 if (narrow) host.rootEl.addClass('is-narrow');
-let stopWidth = () => {};
-let stopNav = () => {};
-if (host.kind === 'leaf' && typeof Platform !== 'undefined' && Platform && Platform.isMobile) {
-const navStamp = () => {
-try {
-const kbh = parseFloat(getComputedStyle(document.body).getPropertyValue('--keyboard-height')) || 0;
-const px = kbh > 0 ? 0 : zgNavbarOverlap(body);
-if (px > 0) host.rootEl.style.setProperty('--zg-under-navbar', px + 'px');
-else host.rootEl.style.removeProperty('--zg-under-navbar');
-const rootPx = zgNavbarOverlap(host.rootEl);
-if (rootPx > 0) host.rootEl.style.setProperty('--zg-mobilebar-h', rootPx + 'px');
-else host.rootEl.style.removeProperty('--zg-mobilebar-h');
-} catch (_) { zgCatch('openManuscriptModal / navStamp: const px = zgNavbarOverlap(body);', _); }
-};
-zgSoon(navStamp);
-window.addEventListener('resize', navStamp);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', navStamp);
-let kbTimer = 0;
-const onFocusIn = () => {
-window.setTimeout(navStamp, 500);
-window.clearTimeout(kbTimer);
-kbTimer = window.setTimeout(() => zgKeyboardRecord(host.rootEl), 700);
-};
-host.rootEl.addEventListener('focusin', onFocusIn);
-let kbObs = null;
-try {
-kbObs = new MutationObserver(() => { navStamp(); window.setTimeout(navStamp, 300); });
-kbObs.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
-kbObs.observe(document.body, { attributes: true, attributeFilter: ['style'] });
-} catch (_) { kbObs = null; zgCatch('openManuscriptModal / navStamp: kbObs.observe(document.documentElement)', _); }
-stopNav = () => { try { window.removeEventListener('resize', navStamp); if (window.visualViewport) window.visualViewport.removeEventListener('resize', navStamp); host.rootEl.removeEventListener('focusin', onFocusIn); window.clearTimeout(kbTimer); if (kbObs) kbObs.disconnect(); } catch (_) { zgCatch('openManuscriptModal / stopNav: window.removeEventListener(resize, navStamp);', _); } };
-}
-if (!narrow && host.kind === 'modal'
-&& typeof window.matchMedia === 'function') {
-try {
-const mq = window.matchMedia(
-'(max-width: ' + orgNarrowLimit() + 'px)');
-const apply = () => {
-host.rootEl.toggleClass('is-narrow', !!mq.matches);
-};
-apply();
-if (typeof mq.addEventListener === 'function') {
-mq.addEventListener('change', apply);
-stopWidth = () => {
-try { mq.removeEventListener('change', apply); } catch (_) { zgCatch('openManuscriptModal: mq.removeEventListener(\'change\', apply);', _); }
-};
-} else if (typeof mq.addListener === 'function') {
-mq.addListener(apply);
-stopWidth = () => {
-try { mq.removeListener(apply); } catch (_) { zgCatch('openManuscriptModal: mq.removeListener(apply);', _); }
-};
-}
-} catch (_) { zgCatch('openManuscriptModal: const mq = window.matchMedia(', _); }
-} else if (!narrow && typeof ResizeObserver !== 'undefined') {
-try {
-const narrow = zgNarrowState();
-const ro = new ResizeObserver((entries) => {
-for (const e of entries) {
-const d = zgNarrowDecide(narrow,
-e.contentRect && e.contentRect.width,
-orgNarrowLimit(), Date.now());
-if (d.act === 'skip') continue;
-if (d.act === 'stop') {
-try { ro.disconnect(); } catch (_) { zgCatch('openManuscriptModal: ro.disconnect();', _); }
-try {
-console.error('Word-Smith: the narrow-window '
-+ 'measurement did not settle (width ' + Math.round(d.width)
-+ ', limit ' + d.limit + '). The layout is left as it '
-+ 'is rather than redrawn again.');
-} catch (_) { zgCatch('openManuscriptModal: console.error(\'Word-Smith: the narrow-window \'', _); }
-return;
-}
-host.rootEl.toggleClass('is-narrow', d.want);
-}
+const orgNav = zgOrgNavMake({
+plugin: this,
+get body() { return body; },
+get host() { return host; },
+get narrow() { return narrow; },
+get orgNarrowLimit() { return orgNarrowLimit; },
 });
-ro.observe(host.rootEl);
-stopWidth = () => { try { ro.disconnect(); } catch (_) { zgCatch('openManuscriptModal: ro.disconnect();', _); } };
-} catch (_) { zgCatch('openManuscriptModal: const narrow = zgNarrowState();', _); }
-}
 const ses = this._wsSession || (this._wsSession = zgSessionNew());
-let zoomHost = null;
-const zoomTag = () => {
-if (!zoomHost) return;
-const z = ses.zoom || 1;
-let t = zoomHost.querySelector('.zg-uni-zoomtag');
-if (Math.abs(z - 1) < 0.001) { if (t) t.remove(); return; }
-if (!t) {
-t = zoomHost.createEl('button', { cls: 'zg-export-mini zg-uni-zoomtag' });
-t.title = 'Back to 100%';
-t.setAttribute('aria-label', 'Zoom back to 100%');
-t.addEventListener('click', (ev) => { ev.stopPropagation(); ses.zoom = 1; zoomApply(); });
-}
-t.setText(Math.round(z * 100) + '%');
-};
-const zoomApply = () => {
-try { body.style.setProperty('--zg-uni-zoom', String(ses.zoom || 1)); } catch (_) { zgCatch('zoomApply: body.style.setProperty', _); }
-try { zoomTag(); } catch (_) { zgCatch('zoomApply: zoomTag();', _); }
-};
-zoomApply();
-body.addEventListener('wheel', (ev) => {
-if (!ev.ctrlKey && !ev.metaKey) return;
-ev.preventDefault();
-const step = ev.deltaY < 0 ? 0.1 : -0.1;
-ses.zoom = Math.min(2, Math.max(0.6, Math.round(((ses.zoom || 1) + step) * 10) / 10));
-zoomApply();
-}, { passive: false });
-let pinch = null;
-let orgGripDrag = 0;
-const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-body.addEventListener('touchstart', (ev) => {
-pinch = ev.touches.length === 2 ? { d0: span(ev.touches) || 1, z0: ses.zoom || 1 } : null;
-}, { passive: true });
-body.addEventListener('touchmove', (ev) => {
-if (orgGripDrag || !pinch || ev.touches.length !== 2) return;
-ev.preventDefault();
-const z = pinch.z0 * span(ev.touches) / pinch.d0;
-const next = Math.min(2, Math.max(0.6, Math.round(z * 10) / 10));
-if (next === (ses.zoom || 1)) return;
-ses.zoom = next;
-zoomApply();
-}, { passive: false });
-body.addEventListener('touchend', (ev) => { if (ev.touches.length < 2) pinch = null; }, { passive: true });
-body.addEventListener('touchcancel', () => { pinch = null; }, { passive: true });
-this._orgZoom = () => ses.zoom || 1;
-const sel = new Map();
-const keyOf = (it) => it.kind + '\u0000' + it.path;
-const itemOf = (key) => {
-const cut = key.indexOf('\u0000');
-return { kind: key.slice(0, cut), path: key.slice(cut + 1) };
-};
-const selRows = () => Array.from(sel.values());
-let cursor = null;
-if (ses.cursor) {
-try {
-const was = itemOf(ses.cursor);
-if (was.path && this.app.vault.getAbstractFileByPath(was.path)) {
-cursor = ses.cursor;
-} else { ses.cursor = null; }
-} catch (_) { ses.cursor = null; }
-}
-let lastPicked = null;
-let cursorDrives = false;
+const orgZoom = zgOrgZoomMake({
+plugin: this,
+get body() { return body; },
+get ses() { return ses; },
+});
+const zoomTag = orgZoom.zoomTag;
+const orgSel = zgOrgSelMake({
+plugin: this,
+get orgNarrowNow() { return orgNarrowNow; },
+get ses() { return ses; },
+});
+const sel = orgSel.sel;
+const keyOf = orgSel.keyOf;
+const itemOf = orgSel.itemOf;
+const selRows = orgSel.selRows;
+const orgBulkPaths = orgSel.orgBulkPaths;
+const orgBulkSay = orgSel.orgBulkSay;
 let orgMany = null;
 const subjectRows = () => (orgFolder ? [{ kind: 'folder', path: orgFolder }] : []);
-let ticks = null;
-let ticksFor = null;
 const exportScopes = () => {
 if (orgMany && orgMany.length) return orgMany.slice();
 return orgFolder ? [orgFolder] : null;
@@ -15154,255 +17909,25 @@ const many = exportScopes();
 if (many && many.length === 1) return many[0];
 return '';
 };
-const exportFiles = () => {
-const many = exportScopes();
-if (!many || many.length < 2) return this.exportGather(exportScope());
-const out = [], seen = new Set();
-for (const p of many) {
-for (const f of this.exportGather(p)) {
-if (f && f.path && !seen.has(f.path)) { seen.add(f.path); out.push(f); }
-}
-}
-return out;
-};
-const loadTicks = async () => {
-const at = exportScope();
-const many = exportScopes();
-const cacheKey = (many && many.length > 1) ? many.join('\n') : at;
-if (ticks && ticksFor === cacheKey) return ticks;
-const list = exportFiles();
-let remembered = null;
-try {
-const store = await this.structureRead();
-if (many && many.length > 1) {
-const merged = [];
-for (const p of many) {
-const part = store[p];
-if (part && part.length) for (const r of part) merged.push(r);
-}
-remembered = merged.length ? merged : null;
-} else {
-remembered = store[at];
-}
-} catch (_) { zgCatch('openManuscriptModal / loadTicks: const store = await this.structureRead();', _); }
-if (remembered && remembered.length) {
-const applied = this.exportApplyRemembered(list, remembered);
-ticks = applied.chosen;
-} else {
-ticks = new Set(list.map(f => f.path));
-}
-ticksFor = cacheKey;
-try { this.orgTicksSchedule(); } catch (_) { zgCatch('loadTicks: this.orgTicksSchedule();', _); }
-return ticks;
-};
-let tickTimer = null;
-const rememberTicks = () => {
-try { this.orgTicksSchedule(); } catch (_) { zgCatch('rememberTicks: this.orgTicksSchedule();', _); }
-if (tickTimer) window.clearTimeout(tickTimer);
-tickTimer = window.setTimeout(() => {
-const many = exportScopes();
-if (many && many.length > 1) {
-for (const p of many) {
-if (/\.md$/i.test(String(p))) continue;
-const rows = this.exportGather(p).map(f => ({
-path: f.path, on: !ticks || ticks.has(f.path)
-}));
-this.structureWriteSection(p, rows);
-}
-return;
-}
-const at = exportScope();
-const rows = this.exportGather(at).map(f => ({
-path: f.path, on: !ticks || ticks.has(f.path)
-}));
-this.structureWriteSection(at, rows);
-}, 400);
-};
-const showShape = () => {
-const v = String(s.uniShow || 'all');
-return (v === 'files' || v === 'folders') ? v : 'all';
-};
-const setShape = async (v) => {
-s.uniShow = (v === 'files' || v === 'folders') ? v : 'all';
-await this.saveSettings(true);
-draw(); fill();
-try { drawPanel(); } catch (_) { zgCatch('openManuscriptModal / setShape: drawPanel();', _); }
-};
-const typeLabel = () => {
-const on = this.uniTypeSet();
-const all = this.uniTypeGroups();
-const shape = showShape();
-if (shape === 'folders') return 'Folders only';
-if (shape === 'files' && on.size === 1 && on.has('md')) return 'Notes only';
-if (shape === 'files') return 'Files only';
-if (on.size >= all.length) return 'All files';
-if (on.size === 1 && on.has('md')) return 'Notes';
-return on.size + ' kinds';
-};
-const typeRows = (into) => {
-const groups = this.uniTypeGroups();
-const setAnd = (list) => {
-this.settings.uniTypes = list;
-this.saveSettings(true);
-draw(); fill();
-try { drawPanel(); } catch (_) { zgCatch('openManuscriptModal / setAnd: drawPanel();', _); }
-};
-const on = this.uniTypeSet();
-const shape = showShape();
-const allOn = on.size >= groups.length;
-const pick = (i, title, icon, isOn, fn) => {
-into.addItem((i2) => {
-i2.setTitle(title).setIcon(icon).onClick(fn);
-try {
-if (typeof i2.setChecked === 'function') i2.setChecked(isOn);
-else if (isOn) i2.setTitle('✓ ' + title);
-} catch (_) { zgCatch('openManuscriptModal / pick: if (typeof i2.setChecked === \'function\') i2.setChecked(isOn);', _); }
+const orgTicks = zgOrgTicksMake({
+plugin: this,
+scopes: () => exportScopes(),
+scope: () => exportScope(),
+placesSet: (list) => { orgMany = list; exportOpts = null; },
+select: (p) => { orgMany = null; orgSelect(p); },
+redraw: () => { draw(); drawPanel(); },
+said: (m) => said(m),
+wanted: () => tab === 'export'
 });
-};
-pick(0, 'Everything', 'files', shape === 'all' && allOn, async () => {
-setAnd(groups.map(g => g.id));
-await setShape('all');
+const exportFiles = orgTicks.files;
+const loadTicks = orgTicks.load;
+const orgShape = zgOrgShapeMake({
+plugin: this,
+get draw() { return draw; },
+get drawPanel() { return drawPanel; },
+get fill() { return fill; },
+get s() { return s; },
 });
-pick(1, 'Notes only', 'file-text',
-shape === 'files' && on.size === 1 && on.has('md'), async () => {
-setAnd(['md']);
-await setShape('files');
-});
-pick(2, 'Files only', 'file', shape === 'files' && allOn, async () => {
-setAnd(groups.map(g => g.id));
-await setShape('files');
-});
-pick(3, 'Folders only', 'folder', shape === 'folders', () => setShape('folders'));
-into.addSeparator();
-for (const g of groups) {
-into.addItem((i) => {
-i.setTitle(g.label).setIcon(g.icons[0])
-.onClick(() => {
-const next = new Set(this.uniTypeSet());
-if (next.has(g.id)) next.delete(g.id); else next.add(g.id);
-if (!next.size) next.add('md');
-setAnd(Array.from(next));
-});
-try {
-if (typeof i.setChecked === 'function') i.setChecked(on.has(g.id));
-else if (on.has(g.id)) i.setTitle('\u2713 ' + g.label);
-} catch (_) { zgCatch('openManuscriptModal / typeRows: if (typeof i.setChecked === \'function\') i.setChecked(on.has(g.id));', _); }
-});
-}
-const known = new Set();
-for (const g of groups) for (const e of (g.ext || [])) known.add(e);
-const counts = new Map();
-try {
-for (const f of (this.app.vault.getFiles ? this.app.vault.getFiles() : [])) {
-const e = String((f && f.extension) || '').toLowerCase();
-if (!e || known.has(e)) continue;
-counts.set(e, (counts.get(e) || 0) + 1);
-}
-} catch (_) { zgCatch('openManuscriptModal / typeRows: for (const f of this.app.vault.getFiles())', _); }
-const exts = Array.from(counts.keys()).sort();
-if (exts.length) into.addSeparator();
-for (const e of exts) {
-const title = e + '  ·  ' + counts.get(e);
-const isOn = on.has('other') || on.has('ext:' + e);
-into.addItem((i) => {
-i.setTitle(title).setIcon('file')
-.onClick(() => {
-const next = new Set(this.uniTypeSet());
-const id = 'ext:' + e;
-if (next.has(id)) next.delete(id);
-else { next.add(id); next.delete('other'); }
-if (!next.size) next.add('md');
-setAnd(Array.from(next));
-});
-try {
-if (typeof i.setChecked === 'function') i.setChecked(isOn);
-else if (isOn) i.setTitle('\u2713 ' + title);
-} catch (_) { zgCatch('openManuscriptModal / typeRows: i.setChecked(isOn) for an extension', _); }
-});
-}
-};
-const colsMenu = (into) => {
-into.addItem((i) => i.setTitle('Columns').setIsLabel(true));
-const GROUPS = [
-{ title: 'Size', ids: ['words', 'paras'] },
-{ title: 'Progress', ids: ['goal', 'grade', 'tasks'] },
-{ title: 'Dates', ids: ['modified', 'created'] },
-{ title: 'Labels', ids: ['mark', 'tags'] }
-];
-{
-const named = new Set(GROUPS.reduce((a, g) => a.concat(g.ids), []));
-const rest = COLS.filter(c => !c.user && !named.has(c.id))
-.map(c => c.id);
-if (rest.length) GROUPS.push({ title: '', ids: rest });
-}
-for (const group of GROUPS) {
-const cols = group.ids.map(colById).filter(Boolean);
-if (!cols.length) continue;
-into.addSeparator();
-if (group.title) {
-into.addItem((i) => i.setTitle(group.title).setIsLabel(true));
-}
-for (const c of cols) {
-into.addItem((i) => i.setTitle(c.label).setChecked(!colOff.has(c.id))
-.onClick(async () => {
-if (colOff.has(c.id)) colOff.delete(c.id); else colOff.add(c.id);
-s.uniColsOff = Array.from(colOff);
-await this.saveSettings();
-draw();
-fill();
-drawPanel();
-}));
-}
-}
-const userCols = COLS.filter(c => c.user);
-if (userCols.length) {
-into.addSeparator();
-into.addItem((i) => i.setTitle('Your properties').setIsLabel(true));
-const toggle = async (c) => {
-if (colOff.has(c.id)) colOff.delete(c.id); else colOff.add(c.id);
-s.uniColsOff = Array.from(colOff);
-await this.saveSettings();
-draw(); fill();
-drawPanel();
-};
-let nests2 = false;
-try {
-const scratch = zgMenu();
-scratch.addItem((i2) => { nests2 = typeof i2.setSubmenu === 'function'; });
-} catch (_) { nests2 = false; }
-const propRows = (sub, c) => {
-sub.addItem((i2) => i2
-.setTitle(colOff.has(c.id) ? 'Show this column' : 'Hide this column')
-.setIcon(colOff.has(c.id) ? 'eye' : 'eye-off')
-.onClick(() => toggle(c)));
-};
-for (const c of userCols) {
-if (nests2) {
-into.addItem((i) => {
-if (typeof i.setSubmenu !== 'function') {
-i.setTitle(c.label).setChecked(!colOff.has(c.id))
-.onClick(() => toggle(c));
-return i;
-}
-i.setTitle(c.label);
-try { if (i.setIcon) i.setIcon(colOff.has(c.id) ? 'eye-off' : 'tag'); }
-catch (_) { zgCatch('openManuscriptModal: if (i.setIcon) i.setIcon(colOff.has(c.id) ? \'eye-off\' : \'tag\');', _); }
-try { propRows(i.setSubmenu(), c); }
-catch (e) { console.error('Word-Smith: property menu', e); }
-return i;
-});
-} else {
-into.addItem((i) => i.setTitle(c.label).setChecked(!colOff.has(c.id))
-.onClick(() => toggle(c)));
-}
-}
-}
-into.addSeparator();
-for (const door of ORG_PROP_DOORS) {
-into.addItem((i) => i.setTitle(door.label).setIcon(door.icons[0])
-.onClick((ev2) => door.open(ev2)));
-}
-};
 const TABS = [
 { id: 'organizer', label: 'Organizer', icon: 'list-tree', tree: 'binder' },
 { id: 'export', label: 'Export', icon: 'file-output', tree: 'ticks' },
@@ -15430,127 +17955,45 @@ const orgNarrowNow = () => {
 try { return host.rootEl.classList.contains('is-narrow'); }
 catch (_) { return false; }
 };
-const orgSelect = (p) => {
-orgMany = null;
-orgFolderSet(p);
-orgMark = 'folder';
-if (orgNote && !orgFolderHolds(orgFolder, orgNote)) orgNote = '';
-s.organizerFolder = orgFolder;
-this.saveSettings().catch(() => {});
-draw();
-drawPanel();
-};
-let orgNote = '';
-let orgMark = 'folder';
-const orgFolderHolds = (folder, path) => !folder
-|| String(path).indexOf(String(folder) + '/') === 0;
-const orgScopeHolds = (path) => !!orgFolder
-&& orgFolderHolds(orgFolder, path)
-&& orgFolderOk(orgFolder);
-const orgFollow = (it, keepScope, markOnly) => {
-if (!it || !it.path) return;
-if (it.kind === 'folder') {
-orgNote = '';
-orgFolderSet(it.path);
-orgMark = 'folder';
-} else {
-orgNote = it.path;
-orgMark = 'note';
-if (markOnly) return;
-if (keepScope && orgScopeHolds(it.path)) return;
-const par = folderOf(it.path);
-orgFolderSet(par);
-}
-};
-const showItem = (it, markOnly) => {
-if (!it || !it.path) return;
-cursor = keyOf(it);
-cursorDrives = true;
-orgFollow(it, false, markOnly);
-draw();
-drawPanel();
-};
-let orgDrawTimer = null;
+const orgScope = zgOrgScopeMake({
+plugin: this,
+get draw() { return draw; },
+get drawPanel() { return drawPanel; },
+get folderOf() { return folderOf; },
+get keyOf() { return keyOf; },
+get orgFolder() { return orgFolder; },
+get orgFolderOk() { return orgFolderOk; },
+get orgFolderSet() { return orgFolderSet; },
+get orgMany() { return orgMany; }, set orgMany(v) { orgMany = v; },
+get orgSel() { return orgSel; },
+get s() { return s; },
+});
+const orgSelect = orgScope.orgSelect;
+const orgFollow = orgScope.orgFollow;
 const orgIndexChanged = this.orgIndexOnChange(() => {
 if (tab !== 'organizer') return;
-if (orgDrawTimer) window.clearTimeout(orgDrawTimer);
-orgDrawTimer = window.setTimeout(() => {
-orgDrawTimer = null;
+if (orgScope.orgDrawTimer) window.clearTimeout(orgScope.orgDrawTimer);
+orgScope.orgDrawTimer = window.setTimeout(() => {
+orgScope.orgDrawTimer = null;
 if (tab !== 'organizer') return;
 try { pruneUserCols(); } catch (_) { zgCatch('orgIndexChanged: pruneUserCols();', _); }
 draw();
 drawPanel();
 }, 150);
 });
-let orgLens = { sort: null, chips: [] };
-const orgLensOn = () => !!(orgLens.sort
-|| orgLens.chips.some(c => !c.off));
-const orgLensSet = (patch) => {
-orgLens = Object.assign({}, orgLens, patch);
-ses.lens = orgLensOn() ? orgLens : null;
-if (ses.lens) s.uniLens = JSON.parse(JSON.stringify(ses.lens));
-else delete s.uniLens;
-this.saveSettings().catch(() => {});
-drawPanel();
-};
-const orgLensClear = () => {
-orgLensSet({ sort: null, chips: [] });
-};
-const orgAt = () => orgFolder;
-const orgSameChip = (a, b) =>
-String(a.axis || '') === String(b.axis || '')
-&& String(a.id || '') === String(b.id || '')
-&& String(a.key || '').toLowerCase() === String(b.key || '').toLowerCase()
-&& String(a.value || '').toLowerCase()
-=== String(b.value || '').toLowerCase();
-const orgAddChip = (chip) => {
-if (orgLens.chips.some(c => orgSameChip(c, chip))) {
-orgLensSet({ chips: orgLens.chips.map(c => (orgSameChip(c, chip)
-? Object.assign({}, c, { off: false }) : c)) });
-return;
-}
-orgLensSet({ chips: orgLens.chips.concat([chip]) });
-};
-const orgFilterByKey = (key, ev) => {
-const at = orgAt();
-let vals = [];
-try { vals = this.orgDistinctUnder(at, key) || []; }
-catch (_) { vals = []; }
-if (!vals.length) {
-try { new Notice('No values for ' + key); } catch (_) { zgCatch('openManuscriptModal / orgFilterByKey: new Notice(\'No values for \' + key);', _); }
-return;
-}
-let counts = new Map();
-try { counts = this.orgCountsUnder(at, key) || new Map(); }
-catch (_) { counts = new Map(); }
-const items = vals.map(v => {
-const c = counts.get(String(v).trim());
-return { value: v, label: String(v) + (c ? '   ' + c : '') };
+const orgLensBox = zgOrgLensMake({
+plugin: this,
+get drawPanel() { return drawPanel; },
+get orgFolder() { return orgFolder; },
+get s() { return s; },
+get ses() { return ses; },
 });
-const take = (it) => orgAddChip({ key: key, value: String(it.value) });
-if (WsPropSuggestModal) {
-try {
-new WsPropSuggestModal(this.app, items, take,
-'Which value of ' + key + '?').open();
-return;
-} catch (_) { zgCatch('openManuscriptModal / orgFilterByKey: new WsPropSuggestModal(this.app, items, take,', _); }
-}
-const pv = zgMenu();
-for (const it of items.slice(0, 20)) {
-pv.addItem((i3) => i3.setTitle(it.label).onClick(() => take(it)));
-}
-try { pv.showAtMouseEvent(ev); }
-catch (_) { try { pv.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / orgFilterByKey: pv.showAtPosition( x: 0, y: 0 );', _e); } }
-};
-if (!Array.isArray(s.organizerOpen)) s.organizerOpen = [];
+const orgLensOn = orgLensBox.orgLensOn;
+const orgLensSet = orgLensBox.orgLensSet;
+const orgLensClear = orgLensBox.orgLensClear;
+const orgAt = orgLensBox.orgAt;
 const orgOpen = new Set(s.organizerOpen);
 const orgIsOpen = (p) => orgOpen.has(p);
-const orgRootShut = () => false;
-const orgRootShutSet = (on) => {
-s.organizerRootShut = !!on;
-this.saveSettings().catch(() => {});
-drawPanel();
-};
 const orgOpenSetMany = (paths, on) => {
 let moved = 0;
 for (const p of paths) {
@@ -15564,1274 +18007,138 @@ this.saveSettings().catch(() => {});
 drawPanel();
 };
 const orgOpenSet = (p, on) => orgOpenSetMany([p], on);
-const orgRowList = (at, flat) => {
-const out = [];
-const dive = (dir, depth) => {
-for (const p of this.treeOrderCurrent(dir)) {
-let node = null;
-try { node = this.app.vault.getAbstractFileByPath(p); } catch (_) { zgCatch('openManuscriptModal / dive: node = this.app.vault.getAbstractFileByPath(p);', _); }
-if (!node) continue;
-const isFolder = !!node.children;
-if (!(flat && isFolder)) {
-out.push({
-path: p, parent: dir,
-kind: isFolder ? 'folder' : 'file',
-group: isFolder ? 'folder' : this.uniTypeGroupOf(node),
-depth: depth,
-rel: dir === at ? '' : (at ? dir.slice(at.length + 1) : dir),
-idx: out.length
+const orgRows = zgOrgRowsMake({
+plugin: this,
+get orgIsOpen() { return orgIsOpen; },
 });
-}
-if (isFolder && (flat || orgIsOpen(p))) dive(p, depth + 1);
-}
-};
-if (!orgRootShut()) dive(at, 0);
-return out;
-};
-let orgFilePathCache = null;
-const orgAllFilePaths = () => {
-if (orgFilePathCache) return orgFilePathCache;
-try {
-const all = this.app.vault.getFiles ? this.app.vault.getFiles() : [];
-orgFilePathCache = all.map((f) => f && f.path).filter(Boolean);
-} catch (_) { orgFilePathCache = []; }
-return orgFilePathCache;
-};
-const orgUnder = (folder) => {
-const pre = String(folder || '') ? String(folder) + '/' : '';
-const out = [];
-const seen = new Set();
-const ix = this._orgIndex;
-if (ix) {
-for (const p of ix.keys()) {
-if (pre && !p.startsWith(pre)) continue;
-out.push(p); seen.add(p);
-}
-}
-try {
-for (const p of orgAllFilePaths()) {
-if (seen.has(p)) continue;
-if (pre && !p.startsWith(pre)) continue;
-out.push(p);
-}
-} catch (_) { zgCatch('openManuscriptModal / orgUnder: for (const p of orgAllFilePaths())', _); }
-return out;
-};
-const todayNetOf = (path, kind) => {
-const h = this._history;
-const by = h && h.today && h.today.by;
-if (!by) return null;
-if (kind === 'folder') {
-let sum = 0, hit = false;
-const pre = String(path) + '/';
-for (const k of Object.keys(by)) {
-if (k.indexOf(pre) === 0) { sum += Number(by[k].n) || 0; hit = true; }
-}
-return hit ? sum : null;
-}
-const b = by[path];
-return b ? (Number(b.n) || 0) : null;
-};
-const orgOutLinks = (path) => {
-const out = [];
-try {
-const mc = this.app.metadataCache;
-const res = (mc && mc.resolvedLinks && mc.resolvedLinks[path]) || {};
-for (const dest of Object.keys(res)) { if (dest !== path) out.push({ path: dest }); }
-const un = (mc && mc.unresolvedLinks && mc.unresolvedLinks[path]) || {};
-for (const name of Object.keys(un)) out.push({ text: name });
-} catch (_) { zgCatch('orgOutLinks: this.app.metadataCache.resolvedLinks[path]', _); }
-return out;
-};
-const orgBackMap = () => {
-const gen = this._linkGen || 0;
-const hit = this._orgBackMap;
-if (hit && hit.gen === gen) return hit.map;
-const map = new Map();
-try {
-const resolved = (this.app.metadataCache
-&& this.app.metadataCache.resolvedLinks) || {};
-for (const src of Object.keys(resolved)) {
-const targets = resolved[src] || {};
-for (const dest of Object.keys(targets)) {
-if (dest === src) continue;
-let arr = map.get(dest);
-if (!arr) { arr = []; map.set(dest, arr); }
-if (arr.indexOf(src) === -1) arr.push(src);
-}
-}
-} catch (_) { zgCatch('openManuscriptModal / orgBackMap: const resolved = (this.app.metadataCache', _); }
-this._orgBackMap = { gen, map };
-return map;
-};
-const orgPend = new Map();
-const ORG_PEND_MS = 4000;
-const orgPendKey = (path, key) =>
-String(path) + '\u0000' + String(key).toLowerCase();
-const orgPendSet = (path, key, v) => {
-orgPend.set(orgPendKey(path, key), { v: v, at: Date.now() });
-};
-const orgPendDrop = (path, key) => { orgPend.delete(orgPendKey(path, key)); };
-const orgPendGet = (path, key) => {
-const k = orgPendKey(path, key);
-const e = orgPend.get(k);
-if (!e) return null;
-if (Date.now() - e.at > ORG_PEND_MS) { orgPend.delete(k); return null; }
-return e;
-};
-const orgPendSame = (a, b) => {
-if (Array.isArray(a) && Array.isArray(b)) {
-return a.length === b.length
-&& a.every((x, i) => String(x) === String(b[i]));
-}
-if (a === null || a === undefined) return b === null || b === undefined;
-if (b === null || b === undefined) return false;
-return String(a) === String(b);
-};
-const ORG_HIST_MAX = 50;
-const orgHist = { undo: [], redo: [], busy: false };
-const orgHistSay = () => {
-try { if (tableCtx.orgHistPaint) tableCtx.orgHistPaint(); } catch (_) { zgCatch('orgHistSay: tableCtx.orgHistPaint();', _); }
-};
+const orgRowList = orgRows.orgRowList;
+const orgUnder = orgRows.orgUnder;
+const orgOutLinks = orgRows.orgOutLinks;
+const orgBackMap = orgRows.orgBackMap;
 const ORG_BARSAY_MS = 6000;
 const orgBarSay = (msg) => {
 tableCtx.orgBarSaid = msg ? { msg: String(msg), until: Date.now() + ORG_BARSAY_MS } : null;
 try { if (tableCtx.orgBarSayPaint) tableCtx.orgBarSayPaint(); } catch (_) { zgCatch('orgBarSay: tableCtx.orgBarSayPaint();', _); }
 };
 this._orgBarSay = () => (tableCtx.orgBarSaid && Date.now() < tableCtx.orgBarSaid.until) ? tableCtx.orgBarSaid.msg : '';
-const orgHistPush = (entry) => {
-if (orgHist.busy || !entry) return;
-orgHist.undo.push(entry);
-if (orgHist.undo.length > ORG_HIST_MAX) orgHist.undo.shift();
-orgHist.redo.length = 0;
-orgHistSay();
-};
-const orgHistRun = async (dir) => {
-if (orgHist.busy) return false;
-const from = dir === 'redo' ? orgHist.redo : orgHist.undo;
-const to = dir === 'redo' ? orgHist.undo : orgHist.redo;
-const e = from.pop();
-if (!e) return false;
-orgHist.busy = true;
-try {
-await (dir === 'redo' ? e.redo() : e.undo());
-to.push(e);
-orgBarSay((dir === 'redo' ? 'Redone: ' : 'Undone: ') + e.label);
-} catch (err) {
-from.push(e);
-zgCatch('orgHistRun: ' + dir + ' ' + e.label, err);
-said('Could not ' + dir + ' \u2014 ' + (err && err.message ? err.message : String(err)), true);
-} finally {
-orgHist.busy = false;
-orgHistSay();
-}
-return true;
-};
-const orgHistApi = {
-canUndo: () => orgHist.undo.length > 0,
-canRedo: () => orgHist.redo.length > 0,
-undoLabel: () => (orgHist.undo.length ? orgHist.undo[orgHist.undo.length - 1].label : ''),
-redoLabel: () => (orgHist.redo.length ? orgHist.redo[orgHist.redo.length - 1].label : ''),
-run: (dir) => orgHistRun(dir),
-size: () => ({ undo: orgHist.undo.length, redo: orgHist.redo.length })
-};
-const orgHistName = (p) => String(p || '').split('/').pop().replace(/\.md$/i, '');
-const orgHistOn = (paths, what) => {
-const n = paths.length;
-return what + (n === 1 ? ' on ' + orgHistName(paths[0]) : ' on ' + n + ' notes');
-};
-const orgPropWriteOne = async (p, key, value, own) => {
-orgPendSet(p, key, value);
-try {
-return await this.orgPropWrite(p, key, value);
-} catch (e) {
-orgPendDrop(p, key);
-if (own) throw e;
-zgCatch('orgPropSet / bulk: this.orgPropWrite(p, key, value);', e);
-return undefined;
-}
-};
-const orgPropSet = async (path, key, value) => {
-const all = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
-const before = all.map((p) => [p, orgPropValue(p, key)]);
-let out;
-for (const p of all) {
-const r = await orgPropWriteOne(p, key, value, p === path);
-if (p === path) out = r;
-}
-if (all.length > 1) orgBulkSay(all.length, 'Property set');
-orgHistPush({
-label: orgHistOn(all, String(key)),
-undo: async () => { for (const [p, v] of before) await orgPropWriteOne(p, key, v, false); },
-redo: async () => { for (const p of all) await orgPropWriteOne(p, key, value, false); }
+const orgJournal = zgOrgJournalMake({
+paint: () => { if (tableCtx.orgHistPaint) tableCtx.orgHistPaint(); },
+say: orgBarSay,
+fail: (msg) => said(msg, true)
 });
-return out;
-};
-const orgPropListSet = async (path, key, list, before) => {
-const str = (a) => (Array.isArray(a) ? a : (a === null || a === undefined || a === '' ? [] : [a])).map(String);
-const now = str(list), was = str(before);
-const added = now.filter((x) => was.indexOf(x) === -1);
-const removed = was.filter((x) => now.indexOf(x) === -1);
-const writes = [[path, orgPropValue(path, key), list]];
-const out = await orgPropWriteOne(path, key, list, true);
-let n = 1;
-if (added.length || removed.length) {
-const others = orgBulkPaths({ kind: 'file', path }).filter(p => p !== path);
-for (const p of others) {
-const own = str(orgPropValue(p, key));
-const next = own.filter((x) => removed.indexOf(x) === -1)
-.concat(added.filter((x) => own.indexOf(x) === -1));
-if (next.length === own.length && next.every((x, i) => x === own[i])) continue;
-writes.push([p, own, next]);
-await orgPropWriteOne(p, key, next, false);
-n++;
-}
-}
-if (n > 1) orgBulkSay(n, 'Property set');
-orgHistPush({
-label: orgHistOn(writes.map((w) => w[0]), String(key)),
-undo: async () => { for (const [p, v] of writes) await orgPropWriteOne(p, key, v, false); },
-redo: async () => { for (const [p, , v] of writes) await orgPropWriteOne(p, key, v, false); }
+const orgHistPush = orgJournal.push;
+const orgHistRun = orgJournal.run;
+const orgHistApi = orgJournal.api;
+const orgHistOn = orgJournal.on;
+const orgWrites = zgOrgWritesMake({
+plugin: this,
+get orgBulkPaths() { return orgBulkPaths; },
+get orgBulkSay() { return orgBulkSay; },
+get orgHistOn() { return orgHistOn; },
+get orgHistPush() { return orgHistPush; },
+get orgPropValue() { return orgPropValue; },
 });
-return out;
-};
-const orgColRaw = (col, path) => {
-const r = this._orgIndex && this._orgIndex.get(path);
-switch (col.id) {
-case 'words': return r ? r.words : null;
-case 'paras': return r ? r.paras : null;
-case 'read': return r ? r.words : null;
-case 'backlinks': {
-const list = orgBackMap().get(String(path || ''));
-return (list && list.length) ? list : null;
-}
-case 'outlinks': {
-const list = orgOutLinks(String(path || ''));
-return (list && list.length) ? list : null;
-}
-case 'footnotes': return r && typeof r.footnotes === 'number' ? r.footnotes : null;
-case 'ftype': {
-const m = /\.([A-Za-z0-9]+)$/.exec(String(path || ''));
-return m ? m[1].toLowerCase() : null;
-}
-case 'chars': return (r && r.charsNoSpaces) ? r.charsNoSpaces : null;
-case 'charsall': return (r && r.charsWithSpaces) ? r.charsWithSpaces : null;
-case 'sentences': return (r && r.sentences) ? r.sentences : null;
-case 'grade': return (r && r.grade !== null) ? r.grade : null;
-case 'modified': case 'created': {
-const want = col.id === 'modified' ? 'mtime' : 'ctime';
-if (r && r[want]) return r[want];
-try {
-const f2 = this.app.vault.getAbstractFileByPath(String(path || ''));
-if (f2 && !f2.children && f2.stat && f2.stat[want]) return f2.stat[want];
-} catch (_) { zgCatch('openManuscriptModal / orgColRaw: const f2 = this.app.vault.getAbstractFileByPath(String(path || \'\'));', _); }
-return null;
-}
-case 'tasks': return (r && r.tasks) ? r.tasks : null;
-case 'goal': {
-const t = targetOf(path);
-return t > 0 ? t : null;
-}
-case 'mark': return markOf(path, 'file') || null;
-case 'tags': {
-const tg = this.tagsOf(path);
-return (tg && tg.length) ? tg : null;
-}
-default: {
-const key = this.propColKey(col.id);
-if (!key) return null;
-let real = null;
-let fromIndex = false;
-if (r && r.props) {
-fromIndex = true;
-for (const k of Object.keys(r.props)) {
-if (k.toLowerCase() !== key.toLowerCase()) continue;
-const v = r.props[k];
-real = (v === null || v === undefined || v === '') ? null : v;
-break;
-}
-}
-if (!fromIndex) {
-const sv = this.propStoreGetSync(path, key);
-real = (sv === null || sv === undefined || sv === '') ? null : sv;
-}
-const pend = orgPendGet(path, key);
-if (!pend) return real;
-const want = (pend.v === null || pend.v === undefined
-|| pend.v === '') ? null : pend.v;
-if (orgPendSame(real, want)) { orgPendDrop(path, key); return real; }
-return want;
-}
-}
-};
-const orgColText = (col, path) => {
-const v = orgColRaw(col, path);
-if (v === null) return '';
-switch (col.id) {
-case 'words': case 'paras':
-case 'chars': case 'charsall': case 'sentences':
-return Number(v).toLocaleString();
-case 'ftype': return String(v);
-case 'backlinks':
-return (Array.isArray(v) ? v : [v]).map(nameOf).join(', ');
-case 'outlinks':
-return (Array.isArray(v) ? v : [v]).map((x) => (x && x.path ? nameOf(x.path) : String(x && x.text || x))).join(', ');
-case 'footnotes': return Number(v).toLocaleString();
-case 'read': return this.formatReadTime(v);
-case 'goal':
-return this.orgTargetSay(orgColRaw({ id: 'words' }, path), v);
-case 'grade': return (Math.round(v * 10) / 10).toFixed(1);
-case 'modified': case 'created':
-return this.orgStamp(v);
-case 'tasks': return zgTaskSay(v.done, v.all);
-case 'mark': {
-const d = this.flagDefs().filter(f => f.id === v)[0];
-return d ? d.label : String(v);
-}
-case 'tags': return v.join(', ');
-default:
-const pk = col.key || col.id;
-return this.formatValue(pk, v, this.orgPropType(pk),
-this.dateStyle()).text;
-}
-};
-const orgFolderIcon = (into, path, open) =>
-this.orgFolderIcon(into, path, open);
-const ORG_AGG = {
-words: 'sum', paras: 'sum', goal: 'sum',
-today: 'sum', grade: 'avg', modified: 'newest',
-created: 'oldest', tasks: 'tasks', mark: 'flags',
-read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
-chars: 'sum', charsall: 'sum', sentences: 'sum'
-};
-const orgAggHow = (col) => {
-if (ORG_AGG[col.id]) return ORG_AGG[col.id];
-try {
-if (col.user && String(this.orgPropType(col.key || col.id))
-.toLowerCase() === 'checkbox') return 'ticked';
-} catch (_) { zgCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
-return 'count';
-};
-const orgColAgg = (col, paths) => {
-const how = orgAggHow(col);
-if (how === 'none') return null;
-let sum = 0, n = 0, newest = 0, oldest = 0, done = 0, all = 0;
-let wsum = 0, wtot = 0;
-let listy = false;
-const seen = new Map();
-for (const p of (paths || [])) {
-const v = orgColRaw(col, p);
-if (v === null || v === undefined) continue;
-if (how === 'tasks') { done += v.done; all += v.all; n++; continue; }
-if (how === 'ticked') { n++; if (v === true) done++; continue; }
-if (how === 'flags') {
-const k = String(v);
-seen.set(k, (seen.get(k) || 0) + 1); n++; continue;
-}
-if (how === 'count') {
-const take = (x) => {
-if (x === null || x === undefined) return;
-if (Array.isArray(x)) { listy = true; x.forEach(take); return; }
-if (typeof x === 'object') return;
-const s2 = String(x).trim();
-if (s2 && !seen.has(s2)) seen.set(s2, x);
-};
-take(v); n++; continue;
-}
-const num = Number(v);
-if (!isFinite(num)) continue;
-n++;
-if (how === 'newest') { if (num > newest) newest = num; continue; }
-if (how === 'oldest') { if (!oldest || num < oldest) oldest = num; continue; }
-if (how === 'avg') {
-let w = 0;
-try { w = Number(orgColRaw({ id: 'words' }, p)) || 0; } catch (_) { w = 0; }
-if (w > 0) { wsum += w; wtot += num * w; }
-}
-sum += num;
-}
-if (!n) return null;
-if (how === 'flags') {
-const defs = this.flagDefs();
-const ids = defs.map(f => f.id).filter(id => seen.has(id))
-.concat(Array.from(seen.keys()).filter(id => !defs.some(f => f.id === id)));
-const flags = ids.map(id => {
-const d = defs.filter(f => f.id === id)[0];
-return { id, n: seen.get(id), label: d ? d.label : id };
+const orgPendDrop = orgWrites.orgPendDrop;
+const orgPendGet = orgWrites.orgPendGet;
+const orgPendSame = orgWrites.orgPendSame;
+const orgPropSet = orgWrites.orgPropSet;
+const orgPropListSet = orgWrites.orgPropListSet;
+const orgReadings = zgOrgReadingsMake({
+plugin: this,
+get markOf() { return markOf; },
+get nameOf() { return nameOf; },
+get orgBackMap() { return orgBackMap; },
+get orgOutLinks() { return orgOutLinks; },
+get orgPendDrop() { return orgPendDrop; },
+get orgPendGet() { return orgPendGet; },
+get orgPendSame() { return orgPendSame; },
+get targetOf() { return targetOf; },
 });
-return {
-flags,
-text: flags.map(f => f.n + ' ' + f.label).join(', '),
-title: flags.map(f => f.n + (f.n === 1 ? ' file ' : ' files ') + f.label).join(', ')
-};
-}
-if (how === 'ticked') {
-return { text: done + '/' + n,
-title: done + ' of ' + n + ' ticked'
-+ ' \u2014 ' + n + (n === 1 ? ' file carries' : ' files carry')
-+ ' this property' };
-}
-switch (how) {
-case 'sum':
-if (col.id === 'read') return { text: this.formatReadTime(sum) };
-return { text: sum.toLocaleString() };
-case 'avg': {
-const a = wsum > 0 ? (wtot / wsum) : (sum / n);
-return { text: (Math.round(a * 10) / 10).toFixed(1),
-title: (wsum > 0 ? 'average of ' + n + ', weighted by length'
-: 'average of ' + n) };
-}
-case 'newest':
-return { text: this.orgStamp(newest),
-title: 'newest of ' + n };
-case 'oldest':
-return { text: this.orgStamp(oldest),
-title: 'oldest of ' + n };
-case 'tasks':
-return all ? { text: zgTaskSay(done, all) } : null;
-default: {
-const tot = (paths || []).length;
-const vals2 = Array.from(seen.keys());
-const many = vals2.join(', ');
-const count = listy ? vals2.length : n;
-return { text: String(count),
-title: (listy
-? vals2.length + (vals2.length === 1 ? ' value' : ' values')
-+ ' across ' + n + (n === 1 ? ' note' : ' notes')
-: n + ' of ' + tot + (tot === 1 ? ' note' : ' notes'))
-+ (vals2.length && many.length <= 120
-? ' \u00b7 ' + many : '') };
-}
-}
-};
-const orgColSortKey = (col, path) => {
-const v = orgColRaw(col, path);
-if (v === null) return null;
-switch (col.id) {
-case 'tasks': return v.all - v.done;
-case 'tags': return v.length;
-case 'outlinks': return v.length;
-case 'goal': {
-const t = Number(v) || 0;
-if (!(t > 0)) return null;
-let w = 0;
-try { w = Number(orgColRaw({ id: 'words' }, path)) || 0; } catch (_) { w = 0; }
-return w / t;
-}
-case 'mark': {
-const ids = this.flagDefs().map(f => f.id);
-const i = ids.indexOf(v);
-return i === -1 ? ids.length : i;
-}
-default: {
-if (typeof v === 'number') return v;
-if (col.sortAs === 'number') {
-const n = parseFloat(v);
-return isFinite(n) ? n : null;
-}
-if (col.sortAs === 'date') {
-const t = Date.parse(v);
-return isFinite(t) ? t : null;
-}
-const s = Array.isArray(v) ? v.map(String).join(', ') : String(v);
-const n = parseFloat(s);
-return (isFinite(n) && String(n) === s.trim()) ? n : s.toLowerCase();
-}
-}
-};
-const orgChipHit = (chip, path) => {
-const want = String(chip.value).trim().toLowerCase();
-if (chip.axis === 'flag') {
-return (markOf(path, 'file') || '') === String(chip.id || '');
-}
-if (chip.axis === 'tag') {
-let tags = [];
-try { tags = this.tagsOf(path) || []; } catch (_) { tags = []; }
-return tags.some(t => String(t).replace(/^#/, '').toLowerCase()
-=== want.replace(/^#/, ''));
-}
-if (chip.axis === 'tasks') {
-const rr = this._orgIndex && this._orgIndex.get(path);
-const t = rr && rr.tasks;
-const all = t ? Number(t.all) || 0 : 0;
-const done = t ? Number(t.done) || 0 : 0;
-if (chip.id === 'none') return all === 0;
-if (chip.id === 'any') return all > 0;
-void done;
-return false;
-}
-const rEmpty = this._orgIndex && this._orgIndex.get(path);
-const side = this.propStoreHolds(path) ? this.propStoreAllSync(path) : null;
-const propsOf = Object.assign({}, side || {}, (rEmpty && rEmpty.props) || {});
-if (chip.op === 'empty' || chip.op === 'filled') {
-const props = propsOf;
-let has = false;
-if (props) {
-for (const k of Object.keys(props)) {
-if (k.toLowerCase() !== String(chip.key).toLowerCase()) continue;
-const v = props[k];
-const flat = Array.isArray(v) ? v : [v];
-has = flat.some(x => x !== null && x !== undefined
-&& typeof x !== 'object' && String(x).trim() !== '');
-break;
-}
-}
-return chip.op === 'empty' ? !has : has;
-}
-for (const k of Object.keys(propsOf)) {
-if (k.toLowerCase() !== String(chip.key).toLowerCase()) continue;
-const v = propsOf[k];
-const flat = Array.isArray(v) ? v : [v];
-return flat.some(x => x != null && typeof x !== 'object'
-&& String(x).trim().toLowerCase() === want);
-}
-return false;
-};
-const orgPropKeys = (at) => {
-const seen = new Map();
-const ix = this._orgIndex;
-if (!ix) return [];
-for (const row of orgRowList(at, true)) {
-const r = ix.get(row.path);
-const props = (r && r.props) || (this.propStoreHolds(row.path) ? this.propStoreAllSync(row.path) : null);
-if (!props) continue;
-for (const k of Object.keys(props)) {
-const lc = k.toLowerCase();
-if (!seen.has(lc)) seen.set(lc, k);
-}
-}
-return Array.from(seen.values())
-.sort((a, b) => a.localeCompare(b));
-};
-const orgRenameRow = (item) => {
-if (!item || !item.path) return;
-const rowEl = panel.querySelector('tr[data-path="'
-+ String(item.path).replace(/"/g, '\\"') + '"]');
-const nameEl = rowEl && rowEl.querySelector('.zg-org-namelabel');
-if (!nameEl) { said('That row is no longer on screen.', true); return; }
-const parts = this.outlinerRenameParts(item.path, false);
-rowEl.addClass('is-being-renamed');
-nameEl.addClass('zg-uni-renaming');
-nameEl.setAttribute('contenteditable', 'plaintext-only');
-nameEl.setAttribute('spellcheck', 'false');
-nameEl.textContent = parts.base;
-orgEditGuard = { path: item.path, key: 'rename' };
-let settled = false;
-const finish = async (commit) => {
-if (settled) return;
-settled = true;
-const typed = (nameEl.textContent || '');
-try {
-nameEl.removeAttribute('contenteditable');
-nameEl.removeClass('zg-uni-renaming');
-rowEl.removeClass('is-being-renamed');
-} catch (_) { zgCatch('openManuscriptModal / finish: nameEl.removeAttribute(\'contenteditable\');', _); }
-orgRedrawPending = true;
-orgEditDone();
-if (!commit) return;
-const r = await this.outlinerRenameTo(item.path, false, typed);
-if (r && !r.ok && r.said) said(r.said, true);
-if (r && r.ok && r.path) {
-const oldPath = item.path, newPath = r.path, oldBase = parts.base;
-orgHistPush({
-label: 'Rename ' + oldBase + ' \u2192 ' + String(typed).trim(),
-undo: async () => { const u = await this.outlinerRenameTo(newPath, false, oldBase); if (u && !u.ok) throw new Error(u.said || 'the rename could not be undone'); },
-redo: async () => { const u = await this.outlinerRenameTo(oldPath, false, typed); if (u && !u.ok) throw new Error(u.said || 'the rename could not be redone'); }
+const orgColRaw = orgReadings.orgColRaw;
+const orgColText = orgReadings.orgColText;
+const orgFolderIcon = orgReadings.orgFolderIcon;
+const orgColAgg = orgReadings.orgColAgg;
+const orgChips = zgOrgChipsMake({
+plugin: this,
+get markOf() { return markOf; },
+get orgRowList() { return orgRowList; },
 });
-}
-};
-orgFieldEscape = () => { finish(false); };
-nameEl.addEventListener('keydown', (ev) => {
-if (ev.key === 'Enter') { ev.preventDefault(); finish(true); }
-else if (ev.key === 'Escape') { ev.preventDefault(); finish(false); }
-ev.stopPropagation();
+const orgPropKeys = orgChips.orgPropKeys;
+const orgRename = zgOrgRenameMake({
+plugin: this,
+get orgEditDone() { return orgEditDone; },
+get orgHistPush() { return orgHistPush; },
+get orgProps() { return orgProps; },
+get ownerDoc() { return ownerDoc; },
+get ownerWin() { return ownerWin; },
+get panel() { return panel; },
+get said() { return said; },
 });
-nameEl.addEventListener('blur', () => { finish(true); });
-nameEl.addEventListener('click', (ev) => ev.stopPropagation());
-nameEl.addEventListener('mousedown', (ev) => ev.stopPropagation());
-try {
-nameEl.focus();
-const range = ownerDoc().createRange();
-range.selectNodeContents(nameEl);
-const picksel = ownerWin().getSelection();
-picksel.removeAllRanges();
-picksel.addRange(range);
-} catch (_) { zgCatch('openManuscriptModal / orgRenameRow: nameEl.focus();', _); }
-};
-const orgMenuCtx = {
-said: (msg, bad) => { if (msg) said(msg, bad); },
-reveal: () => {},
-report: (item) => { try { this.openReportModal(item && item.path); } catch (_) { zgCatch('openManuscriptModal: this.openReportModal(item && item.path);', _); } },
-opens: false,
-rename: (item) => orgRenameRow(item)
-};
-const orgFlagApply = async (pairs) => {
-for (const [p, v] of pairs) {
-if (v) s[statusStore()][p] = v;
-else delete s[statusStore()][p];
-}
-await this.saveSettings();
-for (const [p] of pairs) this.repaintExplorerFlag(p);
-drawPanel();
-};
-const orgFlagSet = async (row, id, cell) => {
-const paths = orgBulkPaths(row);
-const before = paths.map((p) => [p, s[statusStore()][p] || '']);
-const after = paths.map((p) => [p, id || '']);
-orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
-orgCellHint = (cell && paths.length === 1) ? { td: cell, path: row.path } : null;
-orgHistPush({
-label: orgHistOn(paths, id ? 'Flag ' + zgStatusLabel(id) : 'Flag cleared'),
-undo: () => orgFlagApply(before),
-redo: () => orgFlagApply(after)
+const orgFlags = zgOrgFlagsMake({
+plugin: this,
+get s() { return s; },
+get statusStore() { return statusStore; },
+get markOf() { return markOf; },
+get drawPanel() { return drawPanel; },
+get orgBulkPaths() { return orgBulkPaths; },
+get orgBulkSay() { return orgBulkSay; },
+get orgCellHint() { return orgFiles.orgCellHint; }, set orgCellHint(v) { orgFiles.orgCellHint = v; },
+get orgHistPush() { return orgHistPush; },
+get orgHistOn() { return orgHistOn; },
+get COLS() { return orgCols.COLS; },
+get orgColText() { return orgColText; },
+get orgColRaw() { return orgColRaw; },
+get orgColAgg() { return orgColAgg; },
+get orgUnder() { return orgUnder; },
+get orgAt() { return orgAt; },
+get tableCtx() { return tableCtx; },
 });
-await orgFlagApply(after);
-};
-const orgFlagMenu = (ev, row, td) => {
-const now = markOf(row.path, 'file');
-const m = zgMenu();
-try { if (m.dom && m.dom.addClass) m.dom.addClass('zg-flag-menu'); } catch (_) { zgCatch('openManuscriptModal / orgFlagMenu: if (m.dom && m.dom.addClass) m.dom.addClass(\'zg-flag-menu\');', _); }
-const row1 = (title, id) => m.addItem((i) => {
-i.setTitle(title);
-try { if (id && i.iconEl) i.iconEl.innerHTML = zgFlagSvg(id, 12); } catch (_) { zgCatch('openManuscriptModal / row1: if (id && i.iconEl) i.iconEl.innerHTML = zgFlagSvg(id, 12);', _); }
-try { i.setChecked(now === id); } catch (_) { zgCatch('openManuscriptModal / row1: i.setChecked(now === id);', _); }
-i.onClick(() => orgFlagSet(row, id, td));
+const orgFlagSet = orgFlags.orgFlagSet;
+const orgCells = zgOrgCellsMake({
+plugin: this,
+get drawPanel() { return drawPanel; },
+get drawOrg() { return drawOrg; },
+get goalStore() { return goalStore; },
+get nameOf() { return nameOf; },
+get openRow() { return openRow; },
+get orgBulkPaths() { return orgBulkPaths; },
+get orgBulkSay() { return orgBulkSay; },
+get orgColRaw() { return orgColRaw; },
+get orgEditDone() { return orgEditDone; },
+get orgFieldEditor() { return orgFieldEditor; },
+get orgHistOn() { return orgHistOn; },
+get orgHistPush() { return orgHistPush; },
+get orgOtherEditorOpen() { return orgOtherEditorOpen; },
+get orgProps() { return orgProps; },
+get s() { return s; },
+get targetOf() { return targetOf; },
 });
-row1('No flag', '');
-for (const st of ZG_STATUSES) row1(st.label, st.id);
-let at = null;
-try {
-const r = td && td.getBoundingClientRect && td.getBoundingClientRect();
-if (r && (r.width || r.height)) at = { x: r.left, y: r.bottom };
-} catch (_) { zgCatch('openManuscriptModal / orgFlagMenu: const r = td && td.getBoundingClientRect && …', _); }
-try {
-if (at) m.showAtPosition(at);
-else m.showAtMouseEvent(ev);
-} catch (_) { try { m.showAtPosition(at || { x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / orgFlagMenu: m.showAtPosition(at || x: 0, y: 0 );', _e); } }
-};
-const orgRepaintFlagCell = (td, path) => {
-try {
-if (!td || !td.isConnected) return false;
-const col = (COLS || []).filter(c => c.id === 'mark')[0];
-if (!col) return false;
-const text = orgColText(col, path);
-const more = td.querySelector('.zg-org-flagmore');
-for (const kid of Array.from(td.childNodes)) {
-if (kid !== more) td.removeChild(kid);
-}
-if (text) {
-const v = orgColRaw({ id: 'mark' }, path);
-const ic = td.createSpan({ cls: 'zg-org-flagic' });
-ic.innerHTML = zgFlagSvg(String(v), 10);
-td.createSpan({ text: text });
-if (more) td.appendChild(more);
-}
-try {
-const table = td.closest('table');
-const draw = tableCtx && tableCtx.orgAggInto;
-if (table && draw) {
-const redo = (cell, under) => {
-if (!cell) return;
-cell.textContent = '';
-cell.removeClass('zg-org-aggflags');
-const agg = orgColAgg(col, under);
-if (agg) draw(cell, agg);
-};
-for (const tr of Array.from(table.querySelectorAll('tr.zg-org-row.is-folder'))) {
-const fp = tr.getAttribute('data-path') || '';
-if (fp && String(path).indexOf(fp + '/') === 0) {
-redo(tr.querySelector('td[data-col="mark"]'), orgUnder(fp));
-}
-}
-const sub = table.querySelector('tr.zg-org-subrow td[data-col="mark"]');
-if (sub) redo(sub, orgUnder(orgAt()));
-}
-} catch (_) { zgCatch('orgRepaintFlagCell / folders above: const table = td.closest(\'table\');', _); }
-return true;
-} catch (_) { return false; }
-};
-const orgFlagCell = (td, row, text) => {
-if (text) {
-const v = orgColRaw({ id: 'mark' }, row.path);
-const ic = td.createSpan({ cls: 'zg-org-flagic' });
-ic.innerHTML = zgFlagSvg(String(v), 10);
-td.createSpan({ text: text });
-}
-td.addClass('is-flag');
-td.title = 'Choose a flag';
-td.addEventListener('click', (ev) => {
-ev.stopPropagation();
-orgFlagMenu(ev, row, td);
+const orgTagWrap = orgCells.orgTagWrap;
+const orgTagPill = orgCells.orgTagPill;
+const orgDrag = zgOrgDragMake({
+plugin: this,
+get folderOf() { return folderOf; },
+get nameOf() { return nameOf; },
+get panel() { return panel; },
+get said() { return said; },
 });
-const more = td.createSpan({ cls: 'zg-org-flagmore' });
-try { if (setIcon) setIcon(more, 'chevron-down'); } catch (_) { zgCatch('orgFlagCell: setIcon(more, chevron-down);', _); }
-if (!more.childElementCount) more.setText('\u25be');
-more.setAttribute('aria-label', 'Choose a flag');
-more.title = 'Choose a flag';
-more.addEventListener('click', (ev) => {
-ev.stopPropagation();
-orgFlagMenu(ev, row, td);
+const orgModeBox = zgOrgModeMake({
+plugin: this,
+get drawPanel() { return drawPanel; },
+get orgOpen() { return orgOpen; },
+get orgOpenSet() { return orgOpenSet; },
+get s() { return s; },
 });
-td.addEventListener('contextmenu', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-orgFlagMenu(ev, row, td);
+const orgWidths = zgOrgWidthsMake({
+plugin: this,
+get drawPanel() { return drawPanel; },
+get orgGripDrag() { return orgZoom.orgGripDrag; }, set orgGripDrag(v) { orgZoom.orgGripDrag = v; },
+get orgNarrowNow() { return orgNarrowNow; },
+get ownerWin() { return ownerWin; },
+get s() { return s; },
+get ses() { return ses; },
 });
-};
-const orgCanHoldProps = (path) => {
-const p = String(path || '');
-if (!p) return false;
-try {
-const f = this.app.vault.getAbstractFileByPath(p);
-return !!f && !f.children;
-} catch (_) { return false; }
-};
-const orgCanHoldGoal = (path) => /\.md$/i.test(String(path || ''));
-const orgPropRefuse = (path) => {
-const ext = String(path || '').split('.').pop();
-try {
-new Notice('A .' + ext + ' cannot hold properties — they live in a note\u2019s frontmatter.');
-} catch (_) { zgCatch('openManuscriptModal / orgPropRefuse: new Notice(\'A .\' + ext + \' cannot hold properties — they live in a …', _); }
-};
-const orgPropCell = (td, row, col, text) => {
-td.setText(text);
-if (text) td.title = text;
-const canEdit = orgCanHoldProps(row.path);
-if (canEdit) td.addClass('is-prop');
-td.addEventListener('click', (ev) => {
-ev.stopPropagation();
-if (!canEdit) { orgPropRefuse(row.path); return; }
-{
-const held = td.querySelector('.zg-org-shown')
-|| td.querySelector('.zg-org-editor');
-if (held) {
-if (ev.target === td) {
-try {
-held.click();
-if (held.focus) held.focus();
-} catch (_) { zgCatch('openManuscriptModal / orgPropCell: held.click();', _); }
-}
-return;
-}
-}
-if (orgOtherEditorOpen(td)) {
-orgOpenAfter = { path: row.path, id: col.id, key: col.key };
-drawOrg();
-return;
-}
-td.textContent = '';
-orgFieldEditor(td, row.path, col.key, false);
-});
-};
-const orgGoalCell = (td, row, text) => {
-td.setText(text);
-try {
-const tgt = Number(orgColRaw({ id: 'goal' }, row.path)) || 0;
-const wds = Number(orgColRaw({ id: 'words' }, row.path)) || 0;
-if (tgt > 0) {
-const pct = Math.max(0, Math.min(100, Math.round(wds / tgt * 100)));
-td.style.setProperty('--zg-goal-pct', String(pct));
-td.addClass('has-band');
-const step = pct >= 100 ? 'done' : pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
-for (const k of ['low', 'mid', 'high', 'done']) td.toggleClass('is-band-' + k, k === step);
-} else {
-td.style.removeProperty('--zg-goal-pct');
-td.removeClass('has-band');
-for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
-}
-} catch (_) { zgCatch('openManuscriptModal / orgGoalCell: const tgt = Number(orgColRaw({ id: goal }, row.path)) || 0;', _); }
-const canGoal = orgCanHoldGoal(row.path);
-if (canGoal) td.addClass('is-goal');
-if (canGoal) {
-td.title = text ? 'Click to change the target' : 'Click to set a target';
-}
-td.addEventListener('click', (ev) => {
-ev.stopPropagation();
-if (!canGoal) {
-const ext = String(row.path || '').split('.').pop();
-try {
-new Notice('A .' + ext + ' has no word count, so a target has nothing to measure.');
-} catch (_) { zgCatch('openManuscriptModal / orgGoalCell: new Notice(\'A .\' + ext + \' has no word count, so a target has nothing …', _); }
-return;
-}
-if (td.querySelector('input')) return;
-const was = targetOf(row.path);
-td.textContent = '';
-const inp = td.createEl('input', { cls: 'zg-org-editor zg-org-goaledit' });
-inp.type = 'number';
-inp.min = '0';
-inp.value = was > 0 ? String(was) : '';
-let settled = false;
-inp.addEventListener('focus', () => {
-orgEditGuard = { path: row.path, key: 'goal' };
-orgFieldEscape = () => { settled = true; inp.blur(); };
-});
-inp.addEventListener('keydown', (ev2) => {
-if (ev2.key === 'Enter') { ev2.preventDefault(); inp.blur(); }
-ev2.stopPropagation();
-});
-inp.addEventListener('blur', async () => {
-const commit = !settled;
-settled = true;
-if (commit) {
-const n = parseFloat(inp.value);
-const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
-if (want !== was) {
-const paths = orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
-const before = paths.map((p) => [p, s[goalStore()][p] || 0]);
-const after = paths.map((p) => [p, want]);
-const apply = async (pairs) => {
-for (const [p, v] of pairs) {
-if (v > 0) s[goalStore()][p] = v;
-else delete s[goalStore()][p];
-}
-await this.saveSettings(true);
-};
-await apply(after);
-orgBulkSay(paths.length, want > 0 ? 'Target set' : 'Target cleared');
-orgHistPush({
-label: orgHistOn(paths, want > 0 ? 'Target ' + want : 'Target cleared'),
-undo: async () => { await apply(before); drawPanel(); },
-redo: async () => { await apply(after); drawPanel(); }
-});
-}
-}
-orgRedrawPending = true;
-orgEditDone();
-});
-window.setTimeout(() => { try { inp.focus(); inp.select(); } catch (_) { zgCatch('openManuscriptModal / orgGoalCell: inp.focus();', _); } }, 0);
-});
-};
-let orgDragPath = null;
-let orgPropDrag = null;
-let orgDragCol = null;
-let orgLastGrouping = null;
-const orgDropMarks = () => {
-for (const el2 of panel.querySelectorAll(
-'.zg-drop-above, .zg-drop-below, .zg-drop-into')) {
-el2.removeClass('zg-drop-above');
-el2.removeClass('zg-drop-below');
-el2.removeClass('zg-drop-into');
-}
-};
-const orgDropRun = async (movedPath, ontoPath, below) => {
-if (!movedPath || !ontoPath || movedPath === ontoPath) return;
-if (folderOf(movedPath) !== folderOf(ontoPath)) return;
-const parent = folderOf(movedPath);
-await this.treeOrderMove(parent, movedPath,
-zgOrgDropBefore(this.treeOrderCurrent(parent),
-movedPath, ontoPath, below));
-};
-const orgOutCell = (td, row) => {
-const list = orgColRaw({ id: 'outlinks' }, row.path);
-if (!list || !list.length) return;
-td.title = list.map((x) => (x.path ? nameOf(x.path) : String(x.text))).join(String.fromCharCode(10));
-for (let i = 0; i < list.length; i++) {
-const x = list[i];
-if (i) td.createSpan({ cls: 'zg-org-backsep', text: ', ' });
-if (!x.path) { td.createSpan({ cls: 'zg-org-outlink is-unresolved', text: String(x.text) }); continue; }
-const a = td.createSpan({ cls: 'zg-org-backlink zg-org-outlink', text: nameOf(x.path) });
-a.setAttribute('role', 'link');
-a.title = x.path;
-a.addEventListener('click', (ev) => {
-ev.stopPropagation();
-try { this.app.workspace.openLinkText(x.path, '', false); } catch (_) { zgCatch('orgOutCell: openLinkText(x.path)', _); }
-});
-}
-};
-const orgBackCell = (td, row) => {
-const list = orgColRaw({ id: 'backlinks' }, row.path);
-if (!list || !list.length) return;
-td.title = list.map(nameOf).join(String.fromCharCode(10));
-for (let i = 0; i < list.length; i++) {
-const p = list[i];
-if (i) td.createSpan({ cls: 'zg-org-backsep', text: ', ' });
-const a = td.createSpan(
-{ cls: 'zg-org-backlink', text: nameOf(p) });
-a.setAttribute('role', 'link');
-a.setAttribute('tabindex', '0');
-a.title = 'Open ' + nameOf(p);
-const go = (ev) => {
-ev.stopPropagation();
-ev.preventDefault();
-openRow({ kind: 'file', path: p }, ev);
-};
-a.addEventListener('click', go);
-a.addEventListener('keydown', (ev) => {
-if (ev.key === 'Enter' || ev.key === ' ') go(ev);
-});
-}
-};
-const orgTagWrap = (host, type) => {
-let w = host.querySelector(':scope > .zg-org-tagcell');
-if (!w) {
-w = host.createSpan({ cls: 'metadata-property-value zg-org-tagcell' });
-w.setAttribute('data-property-type', type || 'multitext');
-}
-return w;
-};
-const orgTagPill = (host, text, o) => {
-const opt = o || {};
-const pill = host.createSpan({ cls: 'multi-select-pill zg-org-tagchip' + (opt.intext ? ' is-intext' : '') + (opt.remove ? ' has-x' : '') });
-pill.setAttribute('data-property-pill-value', String(text));
-pill.createSpan({ cls: 'multi-select-pill-content', text: String(text) });
-if (opt.intext) pill.createSpan({ cls: 'zg-org-intext', text: 'in text' });
-if (opt.remove) {
-const x = pill.createEl('button', { cls: 'multi-select-pill-remove-button zg-org-chipx' });
-try { if (setIcon) setIcon(x, 'x'); } catch (_) { zgCatch('orgTagPill: setIcon(x, x)', _); }
-if (!x.childElementCount) x.setText('\u00d7');
-x.title = 'Remove ' + String(text);
-x.setAttribute('aria-label', x.title);
-x.addEventListener('click', (ev) => { ev.stopPropagation(); opt.remove(); });
-}
-return pill;
-};
-const orgTagsCell = (td, row) => {
-const list = this.tagsWithSource(row.path);
-const canEdit = orgCanHoldProps(row.path);
-if (canEdit) td.addClass('is-prop');
-td.addEventListener('click', (ev) => {
-ev.stopPropagation();
-if (!canEdit) { orgPropRefuse(row.path); return; }
-if (td.querySelector('.zg-org-editor')) return;
-if (orgOtherEditorOpen(td)) {
-orgOpenAfter = { path: row.path, id: 'tags', key: 'tags' };
-drawOrg();
-return;
-}
-td.textContent = '';
-orgFieldEditor(td, row.path, 'tags', false);
-});
-const wrap = orgTagWrap(td, 'tags');
-for (const t of list) {
-const chip = orgTagPill(wrap, t.tag, { intext: t.inText });
-chip.title = t.inText
-? '#' + t.tag + ' — written in the note’s text, so it is '
-+ 'edited there, not here'
-: '#' + t.tag + ' — a frontmatter tag';
-}
-};
-const ORG_EDGE = 0.2;
-const orgAtEdge = (el, ev) => {
-const r = el.getBoundingClientRect();
-if (!r.height) return true;
-const at = (ev.clientY - r.top) / r.height;
-return at <= ORG_EDGE || at >= 1 - ORG_EDGE;
-};
-const orgGroupDrop = (g, parentPath) => {
-g.addEventListener('dragover', (ev) => {
-orgDropMarks();
-if (!orgDragPath) return;
-if (folderOf(orgDragPath) === parentPath) return;
-if (orgAtEdge(g, ev)) return;
-ev.preventDefault();
-g.addClass('zg-drop-into');
-try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { zgCatch('openManuscriptModal / orgGroupDrop: ev.dataTransfer.dropEffect = \'move\';', _); }
-});
-g.addEventListener('dragleave', () => g.removeClass('zg-drop-into'));
-g.addEventListener('drop', async (ev) => {
-if (orgAtEdge(g, ev)) return;
-const moved = orgDragPath;
-orgDropMarks();
-g.removeClass('zg-drop-into');
-orgDragPath = null;
-if (!moved || folderOf(moved) === parentPath) return;
-ev.preventDefault();
-const done = await this.treeMoveInto(moved, parentPath);
-if (done && !done.ok && done.said) said(done.said, true);
-else if (done && done.ok) {
-said('Moved “' + nameOf(moved) + '” into '
-+ (parentPath ? nameOf(parentPath) : 'the vault root')
-+ '.', false);
-}
-});
-};
-const orgRowDrag = (tr, row) => {
-if (this.isStoreFile && this.isStoreFile(row.path)) return;
-tr.setAttribute('draggable', 'true');
-tr.addClass('is-draggable');
-tr.addEventListener('dragstart', (ev) => {
-orgDragPath = row.path;
-tr.addClass('is-dragging');
-try { ev.dataTransfer.setData('text/plain', row.path); } catch (_) { zgCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
-});
-tr.addEventListener('dragover', (ev) => {
-orgDropMarks();
-if (!orgDragPath || orgDragPath === row.path) return;
-if (folderOf(orgDragPath) !== row.parent) return;
-if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;
-ev.preventDefault();
-const r = tr.getBoundingClientRect();
-const below = (ev.clientY - r.top) > r.height / 2;
-tr.addClass(below ? 'zg-drop-below' : 'zg-drop-above');
-try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { zgCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.dropEffect = \'move\';', _); }
-});
-tr.addEventListener('drop', async (ev) => {
-if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;
-const moved = orgDragPath;
-orgDropMarks();
-orgDragPath = null;
-if (!moved || folderOf(moved) !== row.parent) return;
-ev.preventDefault();
-const r = tr.getBoundingClientRect();
-await orgDropRun(moved, row.path,
-(ev.clientY - r.top) > r.height / 2);
-});
-tr.addEventListener('dragend', () => {
-orgDragPath = null;
-orgDropMarks();
-tr.removeClass('is-dragging');
-});
-this.touchDrag(tr, row.path, {
-rows: () => Array.from(panel.querySelectorAll(
-'.zg-org-row[data-path]')),
-idOf: (el2) => el2.getAttribute('data-path'),
-drop: (from, to, below) => { orgDropRun(from, to, below); }
-});
-};
-let orgMode = 'table';
-const orgChevron = (into, open) => {
-const el = into.createSpan({
-cls: 'zg-org-twist tree-item-icon collapse-icon'
-+ ' nav-folder-collapse-indicator'
-+ (open ? ' is-open' : ' is-collapsed')
-});
-try { if (setIcon) setIcon(el, 'right-triangle'); } catch (_) { zgCatch('openManuscriptModal / orgChevron: if (setIcon) setIcon(el, \'right-triangle\');', _); }
-if (!el.childElementCount) el.setText(open ? '⌄' : '›');
-return el;
-};
-const orgModeSet = (mode) => {
-const next = mode === 'outline' ? 'outline' : 'table';
-if (next === orgMode) return;
-orgMode = next;
-s.organizerMode = orgMode;
-this.saveSettings().catch(() => {});
-drawPanel();
-};
-this._orgMode = () => orgMode;
-this._orgModeSet = (m) => orgModeSet(m);
-this._orgOpenSet = (p, on) => orgOpenSet(p, !!on);
-this._orgOpen = () => Array.from(orgOpen);
-const ORG_NAME_MIN = 120;
-const ORG_NAME_MAX = 1200;
-const ORG_COL_MIN = 48;
-const ORG_COL_MAXFRAC = 0.6;
-let orgScrollTop = Math.max(0, Number(ses.scroll) || 0);
-let orgScrollLeft = 0;
-let orgCeilHost = null;
-let orgCeilVal = 0;
-const orgColCeilReset = () => { orgCeilHost = null; };
-const orgColCeil = (host) => {
-if (host && orgCeilHost === host) return orgCeilVal;
-const w = host && host.clientWidth;
-const v = !(w > 0) ? ORG_NAME_MAX
-: Math.max(ORG_COL_MIN, Math.round(w * ORG_COL_MAXFRAC));
-if (host) { orgCeilHost = host; orgCeilVal = v; }
-return v;
-};
-const orgColFit = () => {
-if (!orgColFitNow) return;
-orgColFitNow();
-};
-let orgColFitNow = null;
-const orgColPx = () => {
-const m = s.uniColPx;
-return (m && typeof m === 'object' && !Array.isArray(m)) ? m : {};
-};
-const orgColW = (id, host) => {
-const n = Number(orgColPx()[String(id)]);
-if (id !== 'name' && orgNarrowNow()) return 0;
-if (!isFinite(n) || n <= 0) return 0;
-const lo = id === 'name' ? ORG_NAME_MIN : ORG_COL_MIN;
-const hi = Math.min(ORG_NAME_MAX, orgColCeil(host));
-return Math.round(Math.max(lo, Math.min(hi, n)));
-};
-const orgColWSet = (id, px) => {
-const m = Object.assign({}, orgColPx());
-if (px === null) delete m[String(id)];
-else m[String(id)] = Math.round(px);
-s.uniColPx = m;
-this.saveSettings().catch(() => {});
-};
-const orgNameW = () => orgColW('name', null);
-let orgNameLineNow = null;
-let orgNameRO = null;
-const orgNameStamp = (table) => {
-const w = orgNameW();
-if (!w) return;
-table.addClass('is-namefixed');
-table.style.setProperty('--zg-org-namew', w + 'px');
-};
-const orgColApply = (cell, w) => {
-cell.style.boxSizing = 'border-box';
-cell.style.width = w + 'px';
-cell.style.minWidth = w + 'px';
-cell.style.maxWidth = w + 'px';
-};
-const orgColUnfix = (cell) => {
-cell.style.removeProperty('width');
-cell.style.removeProperty('min-width');
-cell.style.removeProperty('max-width');
-};
-const orgColLive = (host, id, w) => {
-if (!host) return;
-for (const cell of Array.from(host.querySelectorAll('th, td'))) {
-if (cell.getAttribute('data-col') !== id) continue;
-orgColApply(cell, w);
-}
-};
-const orgColMark = (host, id, on) => {
-if (!host) return;
-for (const cell of Array.from(host.querySelectorAll('th, td'))) {
-if (cell.getAttribute('data-col') !== id) continue;
-cell.toggleClass('is-gripdrag', !!on);
-}
-};
-const orgColStamp = (cell, id, host) => {
-const w = orgColW(id, host);
-if (!w) return;
-orgColApply(cell, w);
-};
-let orgGripReleasedAt = 0;
-const ORG_GRIP_CLICK_MS = 300;
-const ORG_GRIP_NEAR = 4;
-const orgGripAt = (host, x, y) => {
-if (!host) return null;
-const hb = host.getBoundingClientRect();
-if (y < hb.top || y > hb.bottom) return null;
-for (const g of Array.from(host.querySelectorAll('.zg-org-colgrip'))) {
-const r = g.getBoundingClientRect();
-if (y < r.top || y > r.bottom) continue;
-const mid = (r.left + r.right) / 2;
-if (Math.abs(x - mid) <= Math.max(ORG_GRIP_NEAR, r.width / 2)) return g;
-}
-return null;
-};
-const orgGripHover = (host) => {
-if (!host || host.hasAttribute('data-zg-griphover')) return;
-host.setAttribute('data-zg-griphover', '1');
-let lit = null;
-const light = (g) => {
-if (lit === g) return;
-if (lit) { lit.removeClass('is-near'); if (lit.parentElement) lit.parentElement.removeClass('is-gripnear'); }
-lit = g;
-if (lit) { lit.addClass('is-near'); if (lit.parentElement) lit.parentElement.addClass('is-gripnear'); }
-host.toggleClass('is-gripnear', !!lit);
-};
-host.addEventListener('pointermove', (ev) => {
-light(orgGripAt(host, ev.clientX, ev.clientY));
-});
-host.addEventListener('pointerleave', () => light(null));
-host.addEventListener('contextmenu', (ev) => {
-if (!orgGripDrag) {
-const inHead = ev.target && ev.target.closest && ev.target.closest('thead');
-const g = inHead ? orgGripAt(host, ev.clientX, ev.clientY) : null;
-if (!g || !(g.getBoundingClientRect().width > 0)) return;
-}
-ev.preventDefault();
-ev.stopPropagation();
-}, true);
-};
-const orgColGripBind = (th, col, host) => {
-const grip = th.createDiv({ cls: 'zg-org-colgrip' });
-orgGripHover(host);
-grip.setAttribute('data-col', col.id);
-grip.title = 'Drag to set how wide “' + col.label + '” is — '
-+ 'double-click to hand it back to the table';
-let from = 0, base = 0, live = 0;
-const move = (ev) => {
-live = Math.max(ORG_COL_MIN, Math.min(orgColCeil(host),
-base + (ev.clientX - from)));
-orgColLive(host, col.id, Math.round(live));
-};
-const up = () => {
-try {
-ownerWin().removeEventListener('pointermove', move, true);
-ownerWin().removeEventListener('pointerup', up, true);
-} catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
-orgGripReleasedAt = Date.now();
-orgGripDrag = 0;
-orgColMark(host, col.id, false);
-if (!live) return;
-orgColWSet(col.id, live);
-live = 0;
-};
-host.addEventListener('pointerdown', (ev) => {
-if (orgGripAt(host, ev.clientX, ev.clientY) !== grip) return;
-try { if (grip.setPointerCapture && ev.pointerId != null) grip.setPointerCapture(ev.pointerId); } catch (_) { zgCatch('openManuscriptModal / orgColGripBind: grip.setPointerCapture(ev.pointerId);', _); }
-ev.preventDefault();
-ev.stopPropagation();
-from = ev.clientX;
-base = th.getBoundingClientRect().width || ORG_COL_MIN;
-live = 0;
-orgGripDrag = 1;
-orgColMark(host, col.id, true);
-try {
-ownerWin().addEventListener('pointermove', move, true);
-ownerWin().addEventListener('pointerup', up, true);
-} catch (_) { zgCatch('openManuscriptModal / orgColGripBind: ownerWin().addEventListener(\'pointermove\', move, true);', _); }
-});
-grip.addEventListener('dragstart', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-});
-host.addEventListener('dblclick', (ev) => {
-if (orgGripAt(host, ev.clientX, ev.clientY) !== grip) return;
-ev.preventDefault();
-ev.stopPropagation();
-orgColWSet(col.id, null);
-drawPanel();
-});
-};
-const orgNameGripBind = (host, th, table) => {
-const grip = host.createDiv({ cls: 'zg-org-namegrip' });
-grip.title = 'Drag to set how wide the Name column is '
-+ '\u2014 double-click to hand it back to the table';
-let from = 0, base = 0, live = 0;
-const move = (ev) => {
-live = Math.max(ORG_NAME_MIN, Math.min(orgColCeil(host),
-base + (ev.clientX - from)));
-table.addClass('is-namefixed');
-table.style.setProperty('--zg-org-namew',
-Math.round(live) + 'px');
-try { if (orgNameLineNow) orgNameLineNow(); } catch (_) { zgCatch('openManuscriptModal / move: if (orgNameLineNow) orgNameLineNow();', _); }
-};
-const up = () => {
-try {
-ownerWin().removeEventListener('pointermove', move, true);
-ownerWin().removeEventListener('pointerup', up, true);
-} catch (_) { zgCatch('openManuscriptModal / up: ownerWin().removeEventListener(\'pointermove\', move, true);', _); }
-orgGripDrag = 0;
-host.removeClass('is-namedrag');
-if (!live) return;
-orgColWSet('name', live);
-live = 0;
-};
-grip.addEventListener('pointerdown', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-from = ev.clientX;
-base = th.getBoundingClientRect().width || ORG_NAME_MIN;
-live = 0;
-orgGripDrag = 1;
-host.addClass('is-namedrag');
-try {
-ownerWin().addEventListener('pointermove', move, true);
-ownerWin().addEventListener('pointerup', up, true);
-} catch (_) { zgCatch('openManuscriptModal / orgNameGripBind: ownerWin().addEventListener(\'pointermove\', move, true);', _); }
-});
-grip.addEventListener('click', (ev) => ev.stopPropagation());
-grip.addEventListener('dblclick', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-orgColWSet('name', null);
-drawPanel();
-});
-};
-this._orgDraw = () => drawPanel();
-this._orgFit = () => { if (orgColFitNow) orgColFitNow(); };
-this._orgGripAt = (host, x, y) => orgGripAt(host, x, y);
-this._orgGripDrag = () => orgGripDrag;
+const orgColFit = orgWidths.orgColFit;
 this._orgAt = () => orgFolder;
 const treeDoor = {
 kind: host.kind,
@@ -16852,1072 +18159,75 @@ many: (list) => {
 const l = Array.isArray(list) ? list.filter((p) => typeof p === 'string' && p) : [];
 if (l.length === 1) { orgMany = null; orgSelect(l[0]); return; }
 orgMany = l.length ? l.slice() : null;
-ticksFor = null;
+orgTicks.forget();
 draw();
 drawPanel();
 },
 host: () => host,
-ticks: {
-wanted: () => tab === 'export',
-state: (path, kind) => {
-if (!ticks) return null;
-const mine = zgUnderRow(underIndex(), path, kind);
-if (!mine.length) return { mine: 0, all: false, some: false };
-const on = mine.filter((p) => ticks.has(p)).length;
-return { mine: mine.length, all: on === mine.length, some: on > 0 && on < mine.length };
-},
-toggle: (path, kind) => {
-if (!ticks) return false;
-const mine = zgUnderRow(underIndex(), path, kind);
-const places = exportScopes();
-const covered = !places || places.some((p) => p === '' || p === path || String(path).indexOf(p + '/') === 0);
-if (!covered) {
-if (!exportPlaceAdd(path)) return false;
-Promise.resolve(loadTicks()).then(() => {
-const mine2 = zgUnderRow(underIndex(), path, kind);
-for (const p of mine2) ticks.add(p);
-rememberTicks();
-draw();
-drawPanel();
-try { this.orgTicksSchedule(); } catch (_) { zgCatch('ticks.toggle / place: this.orgTicksSchedule();', _); }
-}, () => {});
-return true;
-}
-const on = mine.filter((p) => ticks.has(p)).length;
-const next = on !== mine.length;
-for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
-rememberTicks();
-draw();
-drawPanel();
-return true;
-}
-}
+ticks: orgTicks.door
 };
 this.orgWindowAdd(treeDoor);
-this._orgNote = () => orgNote;
-this._orgLens = () => JSON.parse(JSON.stringify(orgLens));
+this._orgNote = () => orgScope.orgNote;
+this._orgLens = () => JSON.parse(JSON.stringify(orgLensBox.orgLens));
 this._orgLensSet = (patch) => orgLensSet(patch);
 this._orgPropKeys = (at) => orgPropKeys(at);
 this._orgPropRows = () => orgPropPanelRows();
-const orgPropsByUse = () => {
-const seen = new Map();
-for (const p2 of liveFiles()) {
-const f = this.app.vault.getAbstractFileByPath(p2);
-const cache = f && this.app.metadataCache
-&& this.app.metadataCache.getFileCache(f);
-const fm = cache && cache.frontmatter;
-if (!fm) continue;
-for (const k of Object.keys(fm)) {
-if (k === 'position') continue;
-const low = k.toLowerCase();
-const at = seen.get(low) || { label: k, n: 0 };
-at.n += 1;
-seen.set(low, at);
-}
-}
-return Array.from(seen.values())
-.sort((a, b) => (b.n - a.n) || a.label.localeCompare(b.label))
-.map((x) => x.label);
-};
-const ORG_PROP_DEAD_TITLE = 'Outline shows frontmatter properties — '
-+ 'this one is a reading the table works out';
-const orgPropPopEl = () => {
-try { return ownerDoc().querySelector('.zg-org-proppop'); }
-catch (_) { return null; }
-};
-let orgPropPopQuery = '';
-let orgPropPopOff = null;
-const orgPropRowId = (r) => (r && r.col ? r.col.id
-: (r && r.key ? this.propColId(r.key) : ''));
-const orgPropPanelRows = () => {
-const rows = [];
-const taken = new Set();
-const addRow = (col, key, name) => {
-const low = String(key || '').toLowerCase();
-if (low && taken.has(low)) return;
-if (low) taken.add(low);
-rows.push({ col: col || null, key: key || '',
-name: name, dead: !key });
-};
-for (const c of COLS) {
-if (c.user) continue;
-addRow(c, (c.id === 'tags' ? 'tags' : ''), c.label);
-}
-for (const c of COLS) { if (c.user) addRow(c, c.key, c.label); }
-for (const k of orgPropsByUse()) addRow(null, k, String(k));
-for (const k of this.orgKnownProps()) addRow(null, k, String(k));
-const saved = Array.isArray(s.uniColOrder) ? s.uniColOrder : [];
-const at = new Map();
-saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
-const rank = (x) => (at.has(x.id) ? at.get(x.id) : saved.length + x.n);
-const ordered = rows
-.map((r, n) => ({ r: r, n: n, id: orgPropRowId(r) }))
-.sort((a, b) => (rank(a) - rank(b)) || (a.n - b.n))
-.map((x) => x.r);
-const shown = (r) => !!(r.col && !colOff.has(r.col.id));
-return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
-};
-let orgPropDragId = null;
-const orgPropMoveTo = async (moved, target) => {
-const here = orgPropPanelRows();
-const ids = here.map(orgPropRowId).filter(Boolean);
-const from = ids.indexOf(moved);
-if (from !== -1) ids.splice(from, 1);
-const to = ids.indexOf(target);
-ids.splice(to === -1 ? ids.length : to, 0, moved);
-const mattersId = new Set();
-for (const r of here) {
-const rid = orgPropRowId(r);
-if (!rid) continue;
-if (r.col) mattersId.add(rid);
-}
-mattersId.add(moved);
-const keep = ids.filter((id) => mattersId.has(id));
-const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : [])
-.filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
-s.uniColOrder = keep.concat(rest);
-await this.saveSettings();
-const idOfKey = new Map();
-for (const r of here) {
-if (r.key) idOfKey.set(String(r.key).toLowerCase(), orgPropRowId(r));
-}
-const rank2 = new Map();
-s.uniColOrder.forEach((id, i) => { if (!rank2.has(id)) rank2.set(id, i); });
-const rk = (k) => {
-const id = idOfKey.get(String(k).toLowerCase());
-return (id && rank2.has(id)) ? rank2.get(id) : s.uniColOrder.length;
-};
-draw(); fill(); drawPanel();
-orgPropPopRender();
-};
-const orgPropKindOf = (r) => {
-if (!r.key) return '';
-try { return String(this.orgPropType(r.key) || ''); }
-catch (_) { return ''; }
-};
-const orgRevealCol = (id) => {
-try {
-const host = panel.querySelector('.zg-org-panel');
-const th = panel.querySelector('thead th[data-col="' + id + '"]');
-if (!host || !th) return;
-const hr = host.getBoundingClientRect();
-const tr = th.getBoundingClientRect();
-if (tr.right <= hr.right && tr.left >= hr.left) return;
-host.scrollLeft += (tr.right - hr.right) + 12;
-} catch (_) { zgCatch('openManuscriptModal / orgRevealCol: const host = panel.querySelector(\'.zg-org-panel\');', _); }
-};
-const orgPropColToggle = async (r) => {
-if (r.col) {
-const turningOn = colOff.has(r.col.id);
-if (colOff.has(r.col.id)) colOff.delete(r.col.id);
-else colOff.add(r.col.id);
-s.uniColsOff = Array.from(colOff);
-await this.saveSettings();
-draw(); fill(); drawPanel();
-if (turningOn) orgRevealCol(r.col.id);
-} else {
-await addProp({ key: String(r.key).toLowerCase(), label: r.key });
-}
-orgPropPopRender();
-};
-const orgPropSubEl = () => {
-try { return ownerDoc().querySelector('.zg-org-propsub'); }
-catch (_) { return null; }
-};
-const orgPropSubClose = () => {
-try {
-const d0 = ownerDoc();
-for (const n of Array.from(
-d0.querySelectorAll('.zg-org-propsub'))) n.remove();
-} catch (_) { zgCatch('openManuscriptModal / orgPropSubClose: const d0 = ownerDoc();', _); }
-};
-const orgPropPopClose = () => {
-orgPropSubClose();
-if (orgPropPopOff) {
-try { orgPropPopOff(); } catch (_) { zgCatch('openManuscriptModal / orgPropPopClose: orgPropPopOff();', _); }
-orgPropPopOff = null;
-}
-try {
-const d0 = ownerDoc();
-const old = Array.from(d0.querySelectorAll('.zg-org-proppop'));
-for (const n of old) n.remove();
-} catch (_) { zgCatch('openManuscriptModal / orgPropPopClose: const d0 = ownerDoc();', _); }
-};
-const orgPropPopRender = () => {
-const pop = orgPropPopEl();
-if (!pop) return;
-const box = pop.querySelector('.zg-org-propbody');
-if (!box) return;
-box.empty();
-const q = orgPropPopQuery.trim().toLowerCase();
-const rows = orgPropPanelRows()
-.filter(r => !q || r.name.toLowerCase().indexOf(q) !== -1);
-const tog = (into, on, dead, title, fn) => {
-const t = into.createSpan({ cls: 'zg-org-ptog is-col'
-+ (on ? ' is-on' : '') + (dead ? ' is-dead' : '') });
-const pbox = t.createSpan({ cls: 'zg-org-pbox' });
-t.title = title;
-if (dead) { t.setAttribute('aria-disabled', 'true'); return t; }
-t.setAttribute('role', 'checkbox');
-t.setAttribute('aria-checked', on ? 'true' : 'false');
-t.addEventListener('click', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-fn();
+const orgProps = zgOrgPropsMake({
+plugin: this,
+get COLS() { return orgCols.COLS; },
+get ORG_PROP_DOORS() { return ORG_PROP_DOORS; },
+get SORTS() { return orgCols.SORTS; },
+get addProp() { return addProp; },
+get colOff() { return colOff; },
+get draw() { return draw; },
+get drawPanel() { return drawPanel; },
+get fill() { return fill; },
+get liveFiles() { return liveFiles; },
+get orgColFit() { return orgColFit; },
+get orgPropListSet() { return orgPropListSet; },
+get orgPropSet() { return orgPropSet; },
+get orgTagPill() { return orgTagPill; },
+get orgTagWrap() { return orgTagWrap; },
+get ownerDoc() { return ownerDoc; },
+get ownerWin() { return ownerWin; },
+get panel() { return panel; },
+get s() { return s; },
+get host() { return host; },
 });
-return t;
-};
-let drew = 0;
-const clearAim = () => {
-for (const el2 of Array.from(box.querySelectorAll('.zg-drop-above'))) {
-el2.removeClass('zg-drop-above');
-}
-};
-for (const r of rows) {
-const row = box.createDiv({ cls: 'zg-org-prow' });
-const rid = orgPropRowId(r);
-if (rid) row.setAttribute('data-id', rid);
-if (r.col) row.setAttribute('data-col', r.col.id);
-if (r.key) row.setAttribute('data-key', r.key);
-const grip = row.createSpan({ cls: 'zg-org-pgrip' });
-for (const n2 of ['grip-vertical', 'grip', 'more-vertical']) {
-grip.textContent = '';
-try { if (setIcon) setIcon(grip, n2); } catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: if (setIcon) setIcon(grip, n2);', _); }
-if (grip.childElementCount > 0) { grip.dataset.icon = n2; break; }
-}
-if (!q && rid) {
-grip.addClass('is-propdrag');
-grip.title = 'Drag to reorder — this is the column order '
-+ 'and the chip order';
-row.setAttribute('draggable', 'true');
-row.addEventListener('dragstart', (ev) => {
-orgPropDragId = rid;
-try { ev.dataTransfer.setData('text/plain', rid); } catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: ev.dataTransfer.setData(\'text/plain\', rid);', _); }
+const orgPropPopEl = orgProps.orgPropPopEl;
+const orgPropPanelRows = orgProps.orgPropPanelRows;
+const orgPropSubEl = orgProps.orgPropSubEl;
+const orgPropSubClose = orgProps.orgPropSubClose;
+const orgPropPopClose = orgProps.orgPropPopClose;
+const orgOtherEditorOpen = orgProps.orgOtherEditorOpen;
+const orgEditDone = orgProps.orgEditDone;
+const orgPropValue = orgProps.orgPropValue;
+const orgFieldEditor = orgProps.orgFieldEditor;
+const orgCols = zgOrgColsMake({
+plugin: this,
+get draw() { return draw; },
+get drawPanel() { return drawPanel; },
+get fill() { return fill; },
+get liveFiles() { return liveFiles; },
+get orgLens() { return orgLensBox.orgLens; }, set orgLens(v) { orgLensBox.orgLens = v; },
+get s() { return s; },
+get ses() { return ses; },
 });
-row.addEventListener('dragover', (ev) => {
-if (!orgPropDragId || orgPropDragId === rid) return;
-ev.preventDefault();
-clearAim();
-row.addClass('zg-drop-above');
+const colOff = orgCols.colOff;
+const pruneUserCols = orgCols.pruneUserCols;
+const addProp = orgCols.addProp;
+const ORG_PROP_DOORS = orgCols.ORG_PROP_DOORS;
+const orgFiles = zgOrgFilesMake({
+plugin: this,
+get keyOf() { return keyOf; },
+get orgSel() { return orgSel; },
 });
-row.addEventListener('drop', async (ev) => {
-ev.preventDefault();
-const moved = orgPropDragId;
-orgPropDragId = null;
-clearAim();
-if (!moved || moved === rid) return;
-await orgPropMoveTo(moved, rid);
-});
-row.addEventListener('dragend', () => {
-orgPropDragId = null;
-clearAim();
-});
-}
-const colOn = !!(r.col && !colOff.has(r.col.id));
-tog(row, colOn, false,
-r.col ? 'Show as a column in Table'
-: 'Add “' + r.name + '” as a column',
-() => orgPropColToggle(r));
-const nm = row.createSpan({ cls: 'zg-org-pname' });
-const ic = nm.createSpan({ cls: 'zg-org-piconslot' });
-if (r.key) orgPropIcon(ic, r.key);
-else if (r.col) {
-try {
-const def = SORTS.filter((sd) => sd.id === r.col.id)[0];
-if (def && def.icon && setIcon) {
-setIcon(ic, def.icon);
-if (ic.childElementCount > 0) ic.dataset.icon = def.icon;
-}
-} catch (_) { zgCatch('openManuscriptModal / orgPropPopRender: const def = SORTS.filter((sd) => sd.id === r.col.id)[0];', _); }
-}
-nm.createSpan({ cls: 'zg-org-pnametext', text: r.name });
-row.createSpan({ cls: 'zg-org-pkind', text: orgPropKindOf(r) });
-const del = row.createSpan({ cls: 'zg-org-pdel is-dead' });
-void del;
-drew++;
-}
-if (!drew) {
-box.createDiv({ cls: 'zg-org-propnone',
-text: 'No property of that name' });
-}
-};
-const orgPopBase = (el) => {
-try {
-const par = el && el.offsetParent;
-if (!par || !par.getBoundingClientRect) return { left: 0, top: 0 };
-const b = par.getBoundingClientRect();
-return { left: b.left || 0, top: b.top || 0 };
-} catch (_) { zgCatch('openManuscriptModal / orgPopBase: const par = el && el.offsetParent;', _); return { left: 0, top: 0 }; }
-};
-const orgPropSubOpen = (anchor, door) => {
-const was = !!orgPropSubEl();
-orgPropSubClose();
-if (was) return null;
-const d0 = ownerDoc();
-const sub = (host.rootEl || d0.body)
-.createDiv({ cls: 'menu zg-org-propsub' });
-for (const t of (door.types || [])) {
-const row = sub.createDiv({ cls: 'zg-org-propsubrow' });
-row.createSpan({ text: t.label });
-row.dataset.type = t.id;
-row.addEventListener('click', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-orgPropSubClose();
-try { door.pick(t.id, ev); } catch (_) { zgCatch('openManuscriptModal / orgPropSubOpen: door.pick(t.id, ev);', _); }
-});
-}
-if (typeof Platform !== 'undefined' && Platform && Platform.isPhone) return sub;
-try {
-const r = anchor.getBoundingClientRect();
-const box = (orgPropPopEl() || anchor).getBoundingClientRect();
-const w0 = ownerWin();
-const wide = sub.offsetWidth || 0;
-const tall = sub.offsetHeight || 0;
-const vw = w0.innerWidth || 0;
-const vh = w0.innerHeight || 0;
-let x = box.right;
-if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
-let y = r.top;
-if (vh && y + tall > vh) y = Math.max(0, vh - tall);
-const base = orgPopBase(sub);
-sub.style.left = Math.round(x - base.left) + 'px';
-sub.style.top = Math.round(y - base.top) + 'px';
-} catch (_) { zgCatch('openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();', _); }
-return sub;
-};
-const orgPropPopOpen = (anchor) => {
-orgPropPopClose();
-const d0 = ownerDoc();
-const pop = (host.rootEl || d0.body)
-.createDiv({ cls: 'menu zg-org-proppop' });
-const srch = pop.createEl('input', { cls: 'zg-org-propsearch' });
-srch.type = 'text';
-srch.placeholder = 'Search properties…';
-srch.value = orgPropPopQuery;
-srch.addEventListener('input', () => {
-orgPropPopQuery = srch.value || '';
-orgPropPopRender();
-});
-pop.createDiv({ cls: 'zg-org-propbody' });
-{
-const au = pop.createDiv({ cls: 'zg-org-propauto' });
-const g = au.createSpan({ cls: 'zg-org-propautoicon' });
-for (const n of ['move-horizontal', 'unfold-horizontal', 'maximize-2']) {
-g.textContent = '';
-try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);', _); }
-if (g.childElementCount > 0) { g.dataset.icon = n; break; }
-}
-au.createSpan({ text: 'Resize columns to fit' });
-au.title = 'Set every column to the width of what it holds, '
-+ 'up to six tenths of the pane. They stay draggable afterwards.';
-au.addEventListener('click', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-orgColFit();
-});
-}
-for (const door of ORG_PROP_DOORS) {
-const add = pop.createDiv({ cls: 'zg-org-propadd' });
-{
-const g = add.createSpan({ cls: 'zg-org-propaddicon' });
-for (const n of door.icons) {
-g.textContent = '';
-try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);', _); }
-if (g.childElementCount > 0) { g.dataset.icon = n; break; }
-}
-}
-add.createSpan({ cls: 'zg-org-propaddname', text: door.label });
-if (door.types) {
-add.addClass('has-sub');
-add.createSpan({ cls: 'zg-org-propmore',
-text: '\u203a' });
-}
-add.addEventListener('click', (ev) => {
-ev.preventDefault();
-ev.stopPropagation();
-if (door.types) { orgPropSubOpen(add, door); return; }
-orgPropSubClose();
-door.open(ev);
-});
-}
-orgPropPopRender();
-const phoneSheet = !!(typeof Platform !== 'undefined' && Platform && Platform.isPhone);
-if (!phoneSheet) try {
-const r = anchor.getBoundingClientRect();
-const w0 = ownerWin();
-const wide = pop.offsetWidth || 0;
-const room = (w0.innerWidth || 0) - wide;
-const base = orgPopBase(pop);
-const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
-pop.style.left = Math.round(x - base.left) + 'px';
-pop.style.top = Math.round(r.bottom - base.top) + 2 + 'px';
-} catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();', _); }
-const onDown = (ev) => {
-try {
-if (pop.contains(ev.target)) return;
-const sub0 = orgPropSubEl();
-if (sub0 && sub0.contains(ev.target)) return;
-const t = ev.target;
-if (t && t.closest && t.closest('.zg-org-colsbtn')) return;
-} catch (_) { zgCatch('openManuscriptModal / onDown: if (pop.contains(ev.target)) return;', _); }
-orgPropPopClose();
-};
-try {
-const w0 = ownerWin();
-w0.addEventListener('pointerdown', onDown, true);
-orgPropPopOff = () => {
-try { w0.removeEventListener('pointerdown', onDown, true); } catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: w0.removeEventListener(\'mousedown\', onDown, true);', _); }
-};
-} catch (_) { zgCatch('openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();', _); }
-return pop;
-};
-let orgAddDraft = null;
-let orgEditGuard = null;
-let orgOpenAfter = null;
-const orgOtherEditorOpen = (td) => {
-try {
-return Array.from(panel.querySelectorAll('.zg-org-editor'))
-.some((e) => !td.contains(e));
-} catch (_) { return false; }
-};
-let orgRedrawPending = false;
-let orgFieldEscape = null;
-const orgEditDone = () => {
-orgEditGuard = null;
-orgFieldEscape = null;
-if (!orgRedrawPending) return;
-window.setTimeout(() => {
-if (orgEditGuard) return;
-if (!orgRedrawPending) return;
-orgRedrawPending = false;
-drawPanel();
-}, 0);
-};
-const orgPropValue = (path, key) => {
-const entry = this._orgIndex && this._orgIndex.get(path);
-if (entry && entry.props) {
-for (const k of Object.keys(entry.props)) {
-if (k.toLowerCase() === String(key).toLowerCase()) {
-return entry.props[k];
-}
-}
-return null;
-}
-const sv = this.propStoreGetSync(String(path || ''), key);
-return sv === undefined ? null : sv;
-};
-const orgNoteKeys = (path) => {
-const entry = this._orgIndex && this._orgIndex.get(path);
-if (!entry || !entry.props) return [];
-try { return Object.keys(entry.props).filter(Boolean); }
-catch (_) { return []; }
-};
-const orgFieldEditor = (card, path, key, isDraft) => {
-orgRedrawPending = true;
-try { card.addClass('is-editing'); } catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: card.addClass(\'is-editing\');', _); }
-const v = orgPropValue(path, key);
-const complex = (v !== null && typeof v === 'object' && !Array.isArray(v))
-|| (Array.isArray(v) && v.some(x => x !== null && typeof x === 'object'));
-if (complex) {
-card.createDiv({ cls: 'zg-org-editor is-complex',
-text: 'complex value — edit in note' });
-return null;
-}
-let type = this.orgPropType(key);
-if (!type && v !== null) {
-if (typeof v === 'number') type = 'number';
-else if (typeof v === 'boolean') type = 'checkbox';
-else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(v))) type = 'datetime';
-else if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) type = 'date';
-}
-const doneDraft = () => { if (isDraft) orgAddDraft = null; };
-const engage = (el2, esc) => {
-el2.addEventListener('focus', () => {
-orgEditGuard = { path, key };
-orgFieldEscape = esc;
-});
-};
-const listKinds = type === 'tags' || type === 'multitext'
-|| type === 'aliases' || Array.isArray(v)
-|| String(key).toLowerCase() === 'tags';
-if (type === 'checkbox') {
-const box = card.createEl('input', { cls: 'zg-org-editor' });
-box.type = 'checkbox';
-box.checked = v === true;
-engage(box, () => { box.checked = v === true; box.blur(); });
-box.addEventListener('change', async () => {
-await orgPropSet(path, key, box.checked);
-doneDraft();
-});
-box.addEventListener('blur', () => {
-doneDraft(); orgEditDone();
-});
-return box;
-}
-if (listKinds) {
-const wrap2 = card.createDiv({ cls: 'zg-org-editor is-chips' });
-const now = Array.isArray(v) ? v.filter(x => x !== null && typeof x !== 'object').map(String)
-: (v === null || v === '' ? [] : [String(v)]);
-let live = now.slice();
-const commitList = async (list) => {
-await orgPropListSet(path, key, list, live);
-live = list.slice();
-doneDraft();
-};
-const pillHost = orgTagWrap(wrap2, String(key).toLowerCase() === 'tags' ? 'tags' : 'multitext');
-const mkChip = (val) => {
-const chip = orgTagPill(pillHost, String(val), { remove: async () => {
-await commitList(live.filter(z => z !== val));
-chip.remove();
-} });
-return chip;
-};
-for (const val of now) mkChip(val);
-if (String(key).toLowerCase() === 'tags') {
-const inText = new Set(now.map(t => String(t).replace(/^#/, '').toLowerCase()));
-let bodyTags = [];
-try {
-const f2 = this.app.vault.getAbstractFileByPath(path);
-const c2 = f2 && this.app.metadataCache.getFileCache(f2);
-for (const t of ((c2 && c2.tags) || [])) {
-const tag = String(t.tag || '').replace(/^#/, '');
-if (tag && !inText.has(tag.toLowerCase())
-&& bodyTags.indexOf(tag) === -1) bodyTags.push(tag);
-}
-} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);', _); }
-for (const tag of bodyTags) {
-const chip = orgTagPill(pillHost, tag, { intext: true });
-chip.title = 'Written in the note itself — edit it there';
-}
-}
-const inp = wrap2.createEl('input', { cls: 'zg-org-chipval' });
-inp.placeholder = '+';
-const dlid = 'zg-org-fdl-' + Math.floor(Math.random() * 1e9);
-const dl = wrap2.createEl('datalist'); dl.id = dlid;
-for (const opt of this.orgDistinctUnder('', key).slice(0, 60)) {
-dl.createEl('option', { value: String(opt) });
-}
-inp.setAttribute('list', dlid);
-engage(inp, () => { inp.value = ''; inp.blur(); });
-const isTagField = String(key).toLowerCase() === 'tags';
-const tagClean = (raw) => String(raw)
-.replace(/^#+/, '')
-.replace(/\s+/g, '-')
-.replace(/[^\p{L}\p{N}_\-/]/gu, '')
-.replace(/\/{2,}/g, '/').replace(/^[-/]+|[-/]+$/g, '');
-inp.addEventListener('keydown', async (ev) => {
-if (ev.key !== 'Enter') return;
-ev.preventDefault();
-const typed = inp.value.trim();
-if (!typed) { inp.blur(); return; }
-const val = isTagField ? tagClean(typed) : typed;
-if (isTagField && (!val || /^\p{N}/u.test(val))) {
-try {
-new Notice(val ? 'A tag cannot start with a number — Obsidian '
-+ 'will not index “' + val + '”.'
-: 'That is not a tag Obsidian can index.');
-} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: new Notice(val ? \'A tag cannot start with a number — Obsidian \'', _); }
-return;
-}
-if (live.indexOf(val) === -1) {
-await commitList(live.concat([val]));
-const at = wrap2.querySelector('.zg-org-tagchip.is-intext') || inp;
-wrap2.insertBefore(mkChip(val), at);
-}
-inp.value = '';
-});
-inp.addEventListener('blur', () => {
-doneDraft(); orgEditDone();
-});
-return inp;
-}
-const was = v === null ? '' : String(v);
-let el2;
-{
-el2 = card.createEl('input', { cls: 'zg-org-editor' });
-if (type === 'number') el2.type = 'number';
-else if (type === 'date') el2.type = 'date';
-else if (type === 'datetime') el2.type = 'datetime-local';
-else el2.type = 'text';
-el2.value = was;
-try {
-const n = String(was == null ? '' : was).length;
-el2.size = Math.max(6, Math.min(60, n + 1));
-} catch (_) { zgCatch('openManuscriptModal / orgFieldEditor: const n = String(was == null ? \'\' : was).length;', _); }
-}
-let settled = false;
-const commit = async () => {
-if (settled) return;
-settled = true;
-const raw = el2.value;
-if (raw === was) { doneDraft(); orgEditDone(); return; }
-let out = raw;
-if (type === 'number') {
-const n = parseFloat(raw);
-out = raw.trim() === '' ? '' : (isFinite(n) ? n : raw);
-}
-const stored = this.propStoreHolds(path);
-doneDraft();
-orgEditDone();
-await orgPropSet(path, key, out);
-if (stored) drawPanel();
-};
-engage(el2, () => {
-settled = true;
-el2.value = was;
-doneDraft();
-el2.blur();
-});
-el2.addEventListener('keydown', (ev) => {
-if (ev.key === 'Enter') {
-if (ev.shiftKey && el2.tagName === 'TEXTAREA') return;
-ev.preventDefault();
-ev.stopPropagation();
-el2.blur();
-}
-});
-el2.addEventListener('blur', () => {
-if (settled) { settled = false; orgEditDone(); return; }
-commit();
-});
-if ((type === 'date' || type === 'datetime') && !isDraft) {
-const shown = card.createSpan({ cls: 'zg-org-shown' });
-const sayDay = (raw) => {
-const fmt2 = this.formatValue(key, raw, type, this.dateStyle());
-shown.setText(fmt2.text || '—');
-shown.toggleClass('is-empty', !fmt2.text);
-shown.toggleClass('zg-org-badval', !fmt2.ok);
-shown.title = fmt2.ok ? ''
-: ('This is not a valid ' + type + ': ' + String(raw));
-};
-sayDay(v);
-el2.addClass('is-editing-off');
-shown.tabIndex = 0;
-const open = () => {
-shown.addClass('is-editing-off');
-el2.removeClass('is-editing-off');
-try { el2.focus(); } catch (_) { zgCatch('openManuscriptModal / open: el2.focus();', _); }
-};
-shown.addEventListener('click', open);
-shown.addEventListener('focus', open);
-shown.addEventListener('keydown', (ev) => {
-if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); }
-});
-el2.addEventListener('blur', () => {
-sayDay(el2.value);
-el2.addClass('is-editing-off');
-shown.removeClass('is-editing-off');
-});
-}
-return el2;
-};
-const ORG_PROP_ICONS = {
-tags: ['tags', 'tag'],
-aliases: ['forward', 'corner-up-right', 'arrow-right'],
-checkbox: ['check-square', 'square-check', 'check'],
-number: ['binary', 'hash'],
-date: ['calendar', 'calendar-days'],
-datetime: ['clock', 'calendar-clock'],
-list: ['list'],
-text: ['text', 'align-left', 'list']
-};
-const orgPropIcon = (into, key) => {
-const k = String(key || '').toLowerCase();
-let names = null;
-if (k === 'tags' || k === 'tag') names = ORG_PROP_ICONS.tags;
-else if (k === 'aliases' || k === 'alias') names = ORG_PROP_ICONS.aliases;
-if (!names) {
-let t = '';
-try { t = String(this.orgPropType(key) || ''); } catch (_) { t = ''; }
-names = ORG_PROP_ICONS[t]
-|| (t === 'multitext' ? ORG_PROP_ICONS.list : ORG_PROP_ICONS.text);
-}
-const g = into.createSpan({ cls: 'zg-org-propicon' });
-for (const n of names) {
-g.textContent = '';
-try { if (setIcon) setIcon(g, n); } catch (_) { zgCatch('openManuscriptModal / orgPropIcon: if (setIcon) setIcon(g, n);', _); }
-if (g.childElementCount > 0) { g.dataset.icon = n; break; }
-}
-return g;
-};
-const colDefs = () => [
-{ id: 'goal', label: 'Target', def: 116, min: 78 },
-{ id: 'words', label: 'Words', def: 66, min: 44 },
-{ id: 'grade', label: 'Grade', def: 50, min: 34 },
-{ id: 'mark', label: 'Flag', def: 104, min: 30 },
-{ id: 'modified', label: 'Last modified', def: 132, min: 96 },
-{ id: 'created', label: 'Created', def: 132, min: 96 },
-{ id: 'paras', label: 'Paras', def: 60, min: 42 },
-{ id: 'tasks', label: 'Tasks', def: 62, min: 44 },
-{ id: 'tags', label: 'Tags', def: 62, min: 44 },
-{ id: 'read', label: 'Read time', def: 84, min: 56 },
-{ id: 'ftype', label: 'Type', def: 62, min: 40 },
-{ id: 'backlinks', label: 'Backlinks', def: 170, min: 70 },
-{ id: 'outlinks', label: 'Outgoing links', def: 170, min: 70 },
-{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
-{ id: 'chars', label: 'Chars', def: 84, min: 56 },
-{ id: 'charsall', label: 'Chars + spaces', def: 104, min: 60 },
-{ id: 'sentences', label: 'Sentences', def: 84, min: 56 }
-].concat(
-(Array.isArray(s.uniUserCols) ? s.uniUserCols : [])
-.filter(c => c && c.key)
-.map(c => ({
-id: this.propColId(c.key),
-key: String(c.key),
-label: String(c.label || c.key),
-sortAs: String(c.sortAs || ''),
-user: true,
-def: Number(c.w) || 90,
-min: 48
-}))
-);
-if (!Array.isArray(s.uniColsOff)) {
-s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
-'tags', 'created', 'read', 'ftype', 'backlinks', 'outlinks', 'footnotes',
-'chars', 'charsall', 'sentences'];
-}
-let COLS = colDefs();
-{
-const back = zgSessionLens(ses.lens || s.uniLens || null, COLS.map(c => c.id),
-COLS.map(c => c.key).filter(k => k));
-if (back) orgLens = back;
-{
-const stored = JSON.stringify(s.uniLens || null);
-const now = JSON.stringify(back);
-if (stored !== now) {
-if (back) s.uniLens = JSON.parse(now);
-else delete s.uniLens;
-this.saveSettings().catch(() => {});
-}
-}
-ses.lens = back;
-}
-const colById = (id) => COLS.filter(c => c.id === id)[0];
-const colOff = new Set(Array.isArray(s.uniColsOff) ? s.uniColsOff : []);
-const colRank = () => {
-const saved = Array.isArray(s.uniColOrder) ? s.uniColOrder : [];
-const at = new Map();
-saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
-return (c) => (at.has(c.id) ? at.get(c.id) : saved.length + COLS.indexOf(c));
-};
-const colSort = (list) => {
-const rank = colRank();
-return list.slice().sort((a, b) => rank(a) - rank(b));
-};
-const setCols = () => colSort(COLS.filter(c => !colOff.has(c.id)));
-const shownCols = () => [];
-const ROW_BASE_PAD = 24;
-const wordsBy = new Map();
-const gradeBy = new Map();
-const moreBy = new Map();
-const paraOf = (p) => (moreBy.get(p) || {}).paras;
-const seenOf = (p) => {
-const m = (moreBy.get(p) || {}).mtime;
-if (m) return m;
-try {
-const f = this.app.vault.getAbstractFileByPath(p);
-return (f && f.stat && f.stat.mtime) || null;
-} catch (_) { return null; }
-};
-const taskOf = (p) => (moreBy.get(p) || {}).tasks;
-let query = '';
-const sortDefs = () => BUILTIN_SORTS.concat(
-COLS.filter(c => c.user).map(c => ({
-id: c.id, label: c.label, icon: 'tag', prop: true
-})));
-const BUILTIN_SORTS = [
-{ id: 'order', label: 'Custom sort', icon: 'list-ordered' },
-{ id: 'name', label: 'Name', icon: 'case-sensitive' },
-{ id: 'words', label: 'Words', icon: 'file-text' },
-{ id: 'mark', label: 'Where it is up to', icon: 'flag' },
-{ id: 'grade', label: 'Reading grade', icon: 'graduation-cap' },
-{ id: 'pct', label: 'How close to target', icon: 'percent' },
-{ id: 'goal', label: 'Target', icon: 'target' },
-{ id: 'modified', label: 'Last modified', icon: 'clock' },
-{ id: 'paras', label: 'Paragraphs', icon: 'pilcrow' },
-{ id: 'read', label: 'Read time', icon: 'timer' },
-{ id: 'ftype', label: 'Type', icon: 'file-type' },
-{ id: 'backlinks', label: 'Backlinks', icon: 'link' },
-{ id: 'outlinks', label: 'Outgoing links', icon: 'external-link' },
-{ id: 'footnotes', label: 'Footnotes', icon: 'file-signature' },
-{ id: 'chars', label: 'Chars', icon: 'case-sensitive' },
-{ id: 'charsall', label: 'Chars + spaces', icon: 'case-sensitive' },
-{ id: 'sentences', label: 'Sentences', icon: 'pilcrow' },
-{ id: 'tasks', label: 'Tasks left', icon: 'check-square' },
-{ id: 'created', label: 'Created', icon: 'calendar-plus' },
-{ id: 'tags', label: 'Tags', icon: 'tags' }
-];
-let SORTS = sortDefs();
-const rebuildCols = () => {
-COLS = colDefs(); SORTS = sortDefs();
-};
-const propKeysInScope = () => {
-const seen = new Map();
-for (const p2 of liveFiles()) {
-const f = this.app.vault.getAbstractFileByPath(p2);
-const cache = f && this.app.metadataCache
-&& this.app.metadataCache.getFileCache(f);
-const fm = cache && cache.frontmatter;
-if (!fm) continue;
-for (const k of Object.keys(fm)) {
-if (k === 'position') continue;
-if (k === 'tags' || k === 'tag') continue;
-const low = k.toLowerCase();
-const at = seen.get(low) || { label: k, n: 0, spellings: new Map() };
-at.n += 1;
-at.spellings.set(k, (at.spellings.get(k) || 0) + 1);
-if (at.spellings.get(k) >= (at.spellings.get(at.label) || 0)) {
-at.label = k;
-}
-seen.set(low, at);
-}
-}
-const already = new Set(COLS.filter(c => c.user)
-.map(c => String(c.key).toLowerCase()));
-return Array.from(seen.keys())
-.filter(k => !already.has(k))
-.sort((a, b) => (seen.get(b).n - seen.get(a).n) || a.localeCompare(b))
-.map(k => ({
-key: k, label: seen.get(k).label, n: seen.get(k).n,
-spellings: seen.get(k).spellings.size
-}));
-};
-const pruneUserCols = () => {
-const ix = this._orgIndex;
-const list = Array.isArray(s.uniUserCols) ? s.uniUserCols : [];
-if (!ix || !list.length) return false;
-const have = new Set();
-try {
-for (const r of ix.values()) {
-if (r && r.props) for (const k of Object.keys(r.props)) have.add(String(k).toLowerCase());
-}
-for (const p of (this.propStorePaths ? this.propStorePaths() : [])) {
-const props = this.propStoreAllSync(p);
-if (props) for (const k of Object.keys(props)) have.add(String(k).toLowerCase());
-}
-} catch (_) { zgCatch('pruneUserCols: for (const r of ix.values())', _); return false; }
-let changed = false;
-const kept = [], gone = [];
-for (const c of list) {
-if (!c) continue;
-const carried = have.has(String(c.key).toLowerCase());
-if (carried) { if (c.fresh) { delete c.fresh; changed = true; } kept.push(c); continue; }
-if (c.fresh) { kept.push(c); continue; }
-gone.push(c); changed = true;
-}
-if (!changed) return false;
-s.uniUserCols = kept;
-for (const c of gone) { try { colOff.delete(this.propColId(c.key)); } catch (_) { zgCatch('pruneUserCols: colOff.delete', _); } }
-s.uniColsOff = Array.from(colOff);
-this.saveSettings().catch(() => {});
-rebuildCols();
-return true;
-};
-this._orgPruneUserCols = () => pruneUserCols();
-this._orgColOn = (id, on) => { if (on) colOff.delete(id); else colOff.add(id); s.uniColsOff = Array.from(colOff); };
-const addProp = async (info) => {
-const shown = info.label;
-const list = Array.isArray(s.uniUserCols) ? s.uniUserCols.slice() : [];
-if (list.some(c => c && String(c.key).toLowerCase() === info.key)) return;
-const chosen = String((info && info.type) || '');
-list.push(chosen
-? { key: shown, label: shown, sortAs: '', type: chosen, fresh: true }
-: { key: shown, label: shown, sortAs: '', fresh: true });
-s.uniUserCols = list;
-colOff.delete(this.propColId(shown));
-s.uniColsOff = Array.from(colOff);
-await this.saveSettings();
-rebuildCols();
-draw(); fill(); drawPanel();
-};
-const PROP_TYPES = [
-{ id: 'text', label: 'Text' },
-{ id: 'multitext', label: 'List' },
-{ id: 'number', label: 'Number' },
-{ id: 'checkbox', label: 'Checkbox' },
-{ id: 'date', label: 'Date' },
-{ id: 'datetime', label: 'Date & time' }
-];
-const setPropType = async (key, type) => {
-const t = String(type || '');
-if (!t) return;
-const k = String(key || '').toLowerCase();
-const list = Array.isArray(s.uniUserCols) ? s.uniUserCols.slice() : [];
-let hit = false;
-for (const c of list) {
-if (!c || String(c.key).toLowerCase() !== k) continue;
-c.type = t; hit = true; break;
-}
-if (!hit) return;
-s.uniUserCols = list;
-await this.saveSettings();
-rebuildCols();
-draw(); fill(); drawPanel();
-};
-const askPropType = (ev2, done) => {
-if (!Menu) { done(''); return; }
-try {
-const mm = zgMenu();
-for (const t of PROP_TYPES) {
-mm.addItem((i) => i.setTitle(t.label)
-.onClick(() => done(t.id)));
-}
-if (ev2 && typeof mm.showAtMouseEvent === 'function') {
-mm.showAtMouseEvent(ev2);
-} else if (typeof mm.showAtPosition === 'function') {
-mm.showAtPosition({ x: 200, y: 200 });
-} else { done(''); }
-} catch (_) { done(''); }
-};
-const nameNewProp = (type, ev2) => {
-const taken = propKeysInScope();
-const named = (t2) => {
-if (!WsPropSuggestModal) {
-pickProp(ev2);
-return;
-}
-try {
-new WsPropSuggestModal(this.app, [], (info) => {
-if (!info || !info.key) return;
-const nk = String(info.key).toLowerCase();
-addProp({ key: nk, label: String(info.key) });
-if (type) setPropType(nk, type);
-}, 'Name the new property', 'Create \u201c%s\u201d',
-taken).open();
-} catch (_) { pickProp(ev2); }
-};
-named(type);
-};
-const addNewProp = (ev2) => {
-askPropType(ev2, (type) => nameNewProp(type, ev2));
-};
-const ORG_PROP_DOORS = [
-{ label: 'Add a new property',
-icons: ['plus', 'plus-circle', 'file-plus'],
-types: PROP_TYPES,
-pick: (type, ev2) => nameNewProp(type, ev2),
-open: (ev2) => addNewProp(ev2) },
-];
-const pickProp = (ev2) => {
-const found = propKeysInScope();
-if (WsPropSuggestModal) {
-try {
-new WsPropSuggestModal(this.app, found, (info) => {
-if (info.isNew) {
-const nk = String(info.key).toLowerCase();
-addProp({ key: nk, label: String(info.key) });
-askPropType(ev2, (type) => { setPropType(nk, type); });
-} else {
-addProp(info);
-}
-}, null, 'Add “%s” as a new property').open();
-return;
-} catch (_) { zgCatch('openManuscriptModal / pickProp: new WsPropSuggestModal(this.app, found, (info) =>', _); }
-}
-if (!found.length) {
-try { new Notice('No properties in these notes'); } catch (_) { zgCatch('openManuscriptModal / pickProp: new Notice(\'No properties in these notes\');', _); }
-return;
-}
-const pick = zgMenu();
-pick.addItem((i2) => i2.setTitle('Add a property').setIsLabel(true));
-for (const info of found.slice(0, 20)) {
-pick.addItem((i2) => i2
-.setTitle(info.label + '  ·  ' + info.n
-+ (info.n === 1 ? ' note' : ' notes')
-+ (info.spellings > 1 ? '  ·  ' + info.spellings + ' spellings' : ''))
-.onClick(() => addProp(info)));
-}
-try { pick.showAtMouseEvent(ev2); }
-catch (_) { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) { zgCatch('openManuscriptModal / pickProp: pick.showAtPosition( x: 0, y: 0 );', _e); } }
-};
-const allFiles = () => {
-try {
-const v = this.app.vault;
-const raw = (v.getFiles ? v.getFiles() : v.getMarkdownFiles()) || [];
-return raw
-.filter(f => this.uniTypeAllows(f));
-} catch (_) { return []; }
-};
-const folderOf = (path) => {
-const cut = String(path).lastIndexOf('/');
-return cut === -1 ? '' : path.slice(0, cut);
-};
-const nameOf = (path) => (path === '' ? 'Vault root'
-: String(path).split('/').pop().replace(/\.md$/, ''));
-{
-const here = this.activeNoteFile && this.activeNoteFile();
-if (here && here.path) cursor = keyOf({ path: here.path, kind: 'file' });
-}
-const NEEDS_READING = { words: 1, grade: 1, paras: 1, tasks: 1 };
-const keptFiles = () => allFiles().map(f => f.path);
-const liveFiles = () => keptFiles();
-const MISSING = Number.POSITIVE_INFINITY;
-const byName = (a, b) => this.exportNatural
-? this.exportNatural(a.split('/').pop(), b.split('/').pop())
-: a.localeCompare(b);
-let orgDrawnSig = null;
-let orgCellHint = null;
-let underIn = null;
-const underIndex = () => {
-if (!underIn) underIn = zgUnderIndex(this.exportGather(''));
-return underIn;
-};
-const heatOf = (pct) => {
-if (pct == null) return 'is-none';
-if (pct >= 1) return 'is-met';
-return 'h' + Math.min(5, Math.floor(pct * 6));
-};
+const folderOf = orgFiles.folderOf;
+const nameOf = orgFiles.nameOf;
+const liveFiles = orgFiles.liveFiles;
 let draw = () => {};
 let fill = async () => {};
 let drawPanel = () => {};
-let dragCol = null;
-const spread = (it) => {
-const k = keyOf(it);
-if (!sel.has(k) || sel.size < 2) return [it];
-return selRows();
-};
-const orgBulkOn = () => {
-try { if (Platform && Platform.isMobile) return false; } catch (_) { zgCatch('orgBulkOn: Platform.isMobile', _); }
-try { return !orgNarrowNow(); } catch (_) { return true; }
-};
-const orgBulkPaths = (row) => {
-if (!row || !orgBulkOn()) return [row && row.path].filter(Boolean);
-return spread({ kind: row.kind || 'file', path: row.path })
-.filter(it => it.kind !== 'folder').map(it => it.path);
-};
-const orgBulkSay = (n, what) => {
-if (n < 2) return;
-try { new Notice('Word-Smith: ' + what + ' on ' + n + ' notes.'); } catch (_) { zgCatch('orgBulkSay: new Notice', _); }
-};
-let orgSelAnchor = null;
-const orgSelClick = (ev, row, shownPaths) => {
-if (!orgBulkOn() || !ev || row.kind === 'folder') return false;
-const it = { kind: 'file', path: row.path };
-if (ev.shiftKey && orgSelAnchor) {
-const list = shownPaths || [];
-const a = list.indexOf(orgSelAnchor), b = list.indexOf(row.path);
-if (a !== -1 && b !== -1) {
-if (!(ev.ctrlKey || ev.metaKey)) sel.clear();
-for (let i = Math.min(a, b); i <= Math.max(a, b); i++) {
-const p = list[i];
-sel.set(keyOf({ kind: 'file', path: p }), { kind: 'file', path: p });
-}
-return true;
-}
-}
-if (ev.ctrlKey || ev.metaKey) {
-const k = keyOf(it);
-if (sel.has(k)) sel.delete(k); else sel.set(k, it);
-orgSelAnchor = row.path;
-return true;
-}
-if (sel.size) sel.clear();
-orgSelAnchor = row.path;
-return false;
-};
-const orgSelHas = (path) => sel.has(keyOf({ kind: 'file', path }));
-const orgSelCount = () => sel.size;
 this._orgSel = () => selRows().map(it => it.path);
 this._orgPropSet = (p, k, v) => orgPropSet(p, k, v);
 this._orgPropListSet = (p, k, v, before) => orgPropListSet(p, k, v, before);
@@ -17933,27 +18243,6 @@ const newTab = !!(ev && (ev.ctrlKey || ev.metaKey));
 try { this.app.workspace.openLinkText(it.path, '', newTab ? 'tab' : false); }
 catch (_) { zgCatch('openRow: this.app.workspace.openLinkText(it.path)', _); }
 };
-const forgetCounts = (paths) => {
-let any = false;
-for (const path of (paths || [])) {
-const chain = [path, ''];
-let cut = path.lastIndexOf('/');
-while (cut > 0) {
-chain.push(path.slice(0, cut));
-cut = path.slice(0, cut).lastIndexOf('/');
-}
-for (const p2 of chain) {
-if (wordsBy.delete(p2)) any = true;
-gradeBy.delete(p2); moreBy.delete(p2);
-}
-}
-return any;
-};
-const stopCounting = this.onTreeCountsChange((paths) => {
-if (!forgetCounts(paths)) return;
-draw();
-fill();
-});
 if (host.kind === 'modal') {
 const frame = host.rootEl || tabsRow;
 const pop = frame.createEl('div',
@@ -18022,7 +18311,7 @@ try { await this.openOutlinerPane(); } catch (_) { zgCatch('openManuscriptModal:
 } else {
 }
 const subject = right.createDiv({ cls: 'zg-uni-subject' });
-zoomHost = subject;
+orgZoom.zoomHost = subject;
 const panel = right.createDiv({ cls: 'zg-uni-panel' });
 panel.addEventListener('click', () => {
 if (panel.querySelector('.zg-org-editor')) drawOrg();
@@ -18069,17 +18358,13 @@ ses.tab = tab;
 body.toggleClass('is-organizer', tab === 'organizer');
 body.removeClass('is-treewide');
 body.removeClass('is-reader');
-if (tab === 'organizer') cursor = null;
+if (tab === 'organizer') orgSel.cursor = null;
 drawTabs();
 try { this.orgTicksSchedule(); } catch (_) { zgCatch('tabSet: this.orgTicksSchedule();', _); }
 said('');
 drawPanel();
 draw();
 return true;
-};
-const subjectText = () => {
-if (orgMany && orgMany.length > 1) return orgMany.length + ' folders';
-return orgFolder ? nameOf(orgFolder) : this.vaultWhole();
 };
 const drawSubject = () => {
 subject.textContent = '';
@@ -18123,102 +18408,45 @@ this._orgScope = () => exportScope();
 this._orgScopes = () => exportScopes();
 this._orgSubjectRows = () => subjectRows();
 const tableCtx = {
-get ORG_COL_MIN() { return ORG_COL_MIN; },
-get ORG_GRIP_CLICK_MS() { return ORG_GRIP_CLICK_MS; },
-get SORTS() { return SORTS; },
-get colOff() { return colOff; },
+orgBarSaid: null,
 get colTextish() { return colTextish; },
 get draw() { return draw; },
 get drawPanel() { return drawPanel; },
 get fill() { return fill; },
-get nameOf() { return nameOf; },
 get openRow() { return openRow; },
-get orgAddChip() { return orgAddChip; },
-get orgAt() { return orgAt; },
-get orgBackCell() { return orgBackCell; },
-get orgOutCell() { return orgOutCell; },
-get orgCanHoldProps() { return orgCanHoldProps; },
-get orgCellHint() { return orgCellHint; }, set orgCellHint(v) { orgCellHint = v; },
-get orgChevron() { return orgChevron; },
-get orgChipHit() { return orgChipHit; },
-get orgColAgg() { return orgColAgg; },
-get orgColCeil() { return orgColCeil; },
-get orgColCeilReset() { return orgColCeilReset; },
-get orgColFitNow() { return orgColFitNow; }, set orgColFitNow(v) { orgColFitNow = v; },
-get orgColGripBind() { return orgColGripBind; },
-get orgColPx() { return orgColPx; },
-get orgColRaw() { return orgColRaw; },
-get orgColSortKey() { return orgColSortKey; },
-get orgColStamp() { return orgColStamp; },
-get orgColText() { return orgColText; },
-get orgColUnfix() { return orgColUnfix; },
-get orgDragCol() { return orgDragCol; }, set orgDragCol(v) { orgDragCol = v; },
-get orgDrawnSig() { return orgDrawnSig; }, set orgDrawnSig(v) { orgDrawnSig = v; },
-get orgEditDone() { return orgEditDone; },
-get orgEditGuard() { return orgEditGuard; },
-get orgFieldEditor() { return orgFieldEditor; },
-get orgFilePathCache() { return orgFilePathCache; }, set orgFilePathCache(v) { orgFilePathCache = v; },
-get orgFilterByKey() { return orgFilterByKey; },
-get orgFlagCell() { return orgFlagCell; },
 get orgFolder() { return orgFolder; },
-get orgFolderIcon() { return orgFolderIcon; },
-get orgGoalCell() { return orgGoalCell; },
-get orgGripReleasedAt() { return orgGripReleasedAt; },
-get orgGroupDrop() { return orgGroupDrop; },
 get orgIsOpen() { return orgIsOpen; },
-get orgLastGrouping() { return orgLastGrouping; }, set orgLastGrouping(v) { orgLastGrouping = v; },
-get orgLens() { return orgLens; },
-get orgLensClear() { return orgLensClear; },
-get orgLensOn() { return orgLensOn; },
-get orgLensSet() { return orgLensSet; },
-get orgMenuCtx() { return orgMenuCtx; },
-get orgNameGripBind() { return orgNameGripBind; },
-get orgNameLineNow() { return orgNameLineNow; }, set orgNameLineNow(v) { orgNameLineNow = v; },
-get orgNameRO() { return orgNameRO; }, set orgNameRO(v) { orgNameRO = v; },
-get orgNameStamp() { return orgNameStamp; },
 get orgNarrowNow() { return orgNarrowNow; },
-get orgNote() { return orgNote; },
-get orgOpenAfter() { return orgOpenAfter; }, set orgOpenAfter(v) { orgOpenAfter = v; },
 get orgOpenSet() { return orgOpenSet; },
-get orgSelClick() { return orgSelClick; },
-get orgSelHas() { return orgSelHas; },
-get orgSelCount() { return orgSelCount; },
-get orgBulkOn() { return orgBulkOn; },
 get orgOpenSetMany() { return orgOpenSetMany; },
-get orgPropCell() { return orgPropCell; },
-get orgPropKeys() { return orgPropKeys; },
-get orgPropPopClose() { return orgPropPopClose; },
-get orgPropPopEl() { return orgPropPopEl; },
-get orgPropPopOpen() { return orgPropPopOpen; },
-get orgPropRefuse() { return orgPropRefuse; },
-get orgPropSet() { return orgPropSet; },
 get orgHist() { return orgHistApi; },
 get orgPruneUserCols() { return pruneUserCols; },
-get orgRedrawPending() { return orgRedrawPending; }, set orgRedrawPending(v) { orgRedrawPending = v; },
-get orgRepaintFlagCell() { return orgRepaintFlagCell; },
-get orgRootShut() { return orgRootShut; },
-get orgRootShutSet() { return orgRootShutSet; },
-get orgRowDrag() { return orgRowDrag; },
-get orgRowList() { return orgRowList; },
-get orgScrollTop() { return orgScrollTop; }, set orgScrollTop(v) { orgScrollTop = v; },
-get orgScrollLeft() { return orgScrollLeft; }, set orgScrollLeft(v) { orgScrollLeft = v; },
-get orgTagsCell() { return orgTagsCell; },
-get orgUnder() { return orgUnder; },
 get ownerWin() { return ownerWin; },
 get panel() { return panel; },
 get s() { return s; },
 get ses() { return ses; },
-get setCols() { return setCols; },
-get setShape() { return setShape; },
-get showItem() { return showItem; },
-get showShape() { return showShape; },
-get subject() { return subject; },
 get drawSubject() { return drawSubject; },
 get tab() { return tab; },
-get typeLabel() { return typeLabel; },
-get typeRows() { return typeRows; },
 };
+zgCtxLend(tableCtx, orgWidths, ['ORG_COL_MIN', 'ORG_GRIP_CLICK_MS', 'orgColCeil', 'orgColCeilReset', 'orgColFitNow', 'orgColGripBind', 'orgColPx', 'orgColStamp', 'orgColUnfix', 'orgGripReleasedAt', 'orgNameGripBind', 'orgNameLineNow', 'orgNameRO', 'orgNameStamp', 'orgScrollTop', 'orgScrollLeft']);
+zgCtxLend(tableCtx, orgCells, ['orgBackCell', 'orgOutCell', 'orgCanHoldProps', 'orgGoalCell', 'orgPropCell', 'orgPropRefuse', 'orgTagsCell']);
+zgCtxLend(tableCtx, orgLensBox, ['orgAddChip', 'orgAt', 'orgFilterByKey', 'orgLens', 'orgLensClear', 'orgLensOn', 'orgLensSet']);
+zgCtxLend(tableCtx, orgReadings, ['orgColAgg', 'orgColRaw', 'orgColSortKey', 'orgColText', 'orgFolderIcon']);
+zgCtxLend(tableCtx, orgProps, ['orgEditDone', 'orgEditGuard', 'orgFieldEditor', 'orgOpenAfter', 'orgPropPopClose', 'orgPropPopEl', 'orgPropPopOpen', 'orgRedrawPending']);
+zgCtxLend(tableCtx, orgShape, ['setShape', 'showShape', 'typeLabel', 'typeRows']);
+zgCtxLend(tableCtx, orgSel, ['orgSelClick', 'orgSelHas', 'orgSelCount']);
+zgCtxLend(tableCtx, orgCols, ['SORTS', 'colOff', 'setCols']);
+zgCtxLend(tableCtx, orgChips, ['orgChipHit', 'orgPropKeys']);
+zgCtxLend(tableCtx, orgFlags, ['orgFlagCell', 'orgRepaintFlagCell']);
+zgCtxLend(tableCtx, orgDrag, ['orgDragCol', 'orgGroupDrop', 'orgLastGrouping', 'orgRowDrag']);
+zgCtxLend(tableCtx, orgRows, ['orgFilePathCache', 'orgRowList', 'orgUnder']);
+zgCtxLend(tableCtx, orgFiles, ['nameOf', 'orgCellHint', 'orgDrawnSig']);
+zgCtxLend(tableCtx, orgModeBox, ['orgChevron']);
+zgCtxLend(tableCtx, orgRename, ['orgMenuCtx']);
+zgCtxLend(tableCtx, orgWrites, ['orgPropSet']);
+zgCtxLend(tableCtx, orgScope, ['orgNote', 'showItem']);
 const { drawOrg } = this.orgTableMake(tableCtx);
+this._orgCtx = () => tableCtx;
 const colTextish = (col) =>
 col.id === 'mark' || col.id === 'tags' || col.id === 'ftype'
 || col.id === 'backlinks' || col.id === 'outlinks' || !!col.user
@@ -18226,7 +18454,7 @@ col.id === 'mark' || col.id === 'tags' || col.id === 'ftype'
 let panelGen = 0;
 drawPanel = () => {
 const gen = ++panelGen;
-underIn = null;
+orgTicks.dropIndex();
 panel.toggleClass('zg-org-host', tab === 'organizer');
 subject.toggleClass('zg-org-strip', tab === 'organizer');
 if (tab === 'organizer') { drawOrg(); return; }
@@ -18246,70 +18474,12 @@ if (tab === 'export') { drawExport(); return; }
 drawHistory(rows);
 void gen;
 };
-const drawReport = async (rows, gen) => {
-panel.createDiv({ cls: 'zg-report-loading', text: 'Reading\u2026' });
-let stats = null;
-try { stats = await plugin.analyzeSelection(rows); } catch (e) {
-panel.textContent = '';
-panel.createDiv({ text: 'Report failed \u2014 '
-+ (e && e.message ? e.message : String(e)) });
-return;
-}
-if (gen !== panelGen) return;
-const target = plugin.selectionTarget(rows);
-panel.textContent = '';
-const ringWrap = panel.createDiv({ cls: 'zg-report-ring' });
-if (target > 0) {
-const ratio = Math.min(stats.words / target, 1);
-const holder = ringWrap.createSpan({
-cls: 'zg-goal' + (stats.words >= target ? ' is-met' : '') });
-holder.style.color = 'hsl(' + Math.round(8 + ratio * 122) + ', 62%, 44%)';
-holder.appendChild(plugin.buildGoalLiquid(ratio));
-} else {
-const none = ringWrap.createDiv({ cls: 'zg-report-ring-label is-muted' });
-none.createDiv({ text: rows.length
-? 'No target set for this yet.' : 'No target set for the vault yet.' });
-none.createDiv({ cls: 'zg-report-hint',
-text: 'Type one into the Target column beside any row.' });
-}
-let freq = null;
-try { freq = await plugin.wordFreqFor(plugin.selectionFiles(rows)); } catch (_) { zgCatch('report tab: freq = await plugin.wordFreqFor(plugin.selectionFiles(rows));', _); }
-plugin.buildReportFigures(panel, stats, target, freq);
-if (stats.files !== 1) {
-panel.createDiv({ cls: 'zg-uni-count',
-text: stats.files.toLocaleString() + ' notes counted' });
-}
-};
 let exportOpts = null;
-const exportPlaceAdd = (p) => {
-const path = (p == null || p === '/') ? '' : String(p);
-if (!path) return false;
-const cur = exportScopes();
-if (!cur) { said('The whole vault is in already.'); return false; }
-if (cur.indexOf(path) !== -1) return false;
-orgMany = cur.concat([path]);
-ticksFor = null;
-exportOpts = null;
-draw();
-drawPanel();
-return true;
-};
-const exportPlaceDrop = (p) => {
-const cur = exportScopes();
-if (!cur || cur.indexOf(p) === -1) return false;
-const left = cur.filter((x) => x !== p);
-if (left.length === 1) { orgMany = null; orgSelect(left[0]); return true; }
-if (!left.length) { orgMany = null; orgSelect(''); return true; }
-orgMany = left;
-ticksFor = null;
-exportOpts = null;
-draw();
-drawPanel();
-return true;
-};
+const exportPlaceAdd = orgTicks.placeAdd;
+const exportPlaceDrop = orgTicks.placeDrop;
 this._orgPlaceAdd = (p) => exportPlaceAdd(p);
 this._orgPlaceDrop = (p) => exportPlaceDrop(p);
-const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => ticks,
+const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => orgTicks.current(),
 draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, exportScopes, loadTicks,
 placeAdd: exportPlaceAdd, placeDrop: exportPlaceDrop,
 setExportOpts: (o) => { exportOpts = o; } });
@@ -18342,122 +18512,34 @@ const el = ownerDoc().activeElement;
 return !!(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'
 || el.isContentEditable));
 };
-const cursorItem = () => (cursor ? itemOf(cursor) : null);
-let panelTimer = null;
-const schedulePanel = () => {
-if (panelTimer) window.clearTimeout(panelTimer);
-panelTimer = window.setTimeout(() => { panelTimer = null; drawPanel(); }, 140);
-};
-const tableOrder = () => {
-const drawn = Array.from(panel.querySelectorAll('tr.zg-org-row:not(.is-folder)[data-path]'))
-.map((r) => r.getAttribute('data-path')).filter(Boolean);
-if (drawn.length) return drawn;
-try { return this.exportGather(exportScope()).map((f) => f.path); }
-catch (e) { zgGuardReport('the Organizer listing the notes the arrows walk', e); return []; }
-};
-const moveCursor = (by) => {
-const order = tableOrder();
-if (!order.length) return;
-const here = cursor ? (itemOf(cursor) || {}).path : (orgNote || null);
-const at = here ? order.indexOf(here) : -1;
-const next = Math.max(0, Math.min(order.length - 1, at + by));
-const it = { kind: 'file', path: order[at === -1 ? 0 : next] };
-cursor = keyOf(it);
-cursorDrives = true;
-orgFollow(it, true, true);
-drawPanel();
-const el = panel.querySelector('tr.zg-org-row.zg-org-active');
-if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
-};
-const key = (combo, fn, fromSearch) => host.key(combo[0], combo[1], (ev) => {
-if (typing(fromSearch)) return;
-fn();
-ev.preventDefault();
-return false;
+const orgKeys = zgOrgKeysMake({
+plugin: this,
+get draw() { return draw; },
+get drawPanel() { return drawPanel; },
+get exportScope() { return exportScope; },
+get folderOf() { return folderOf; },
+get host() { return host; },
+get itemOf() { return itemOf; },
+get keyOf() { return keyOf; },
+get markOf() { return markOf; },
+get openRow() { return openRow; },
+get orgFlagSet() { return orgFlagSet; },
+get orgFollow() { return orgFollow; },
+get orgLensClear() { return orgLensClear; },
+get orgLensOn() { return orgLensOn; },
+get orgNote() { return orgScope.orgNote; },
+get orgPropPopClose() { return orgPropPopClose; },
+get orgPropPopEl() { return orgPropPopEl; },
+get orgPropSubClose() { return orgPropSubClose; },
+get orgPropSubEl() { return orgPropSubEl; },
+get orgProps() { return orgProps; },
+get orgSel() { return orgSel; },
+get panel() { return panel; },
+get sel() { return sel; },
+get tab() { return tab; },
+get typing() { return typing; },
 });
-key([[], 'ArrowDown'], () => moveCursor(1), true);
-key([[], 'ArrowUp'], () => moveCursor(-1), true);
-const nudge = async (by) => {
-const it = cursorItem();
-if (!it || !it.path) return;
-const parent = folderOf(it.path);
-let sibs = [];
-try { sibs = this.treeOrderCurrent(parent) || []; } catch (_) { sibs = []; }
-const at = sibs.indexOf(it.path);
-if (at === -1) return;
-const to = at + by;
-if (to < 0 || to >= sibs.length) return;
-const before = by < 0 ? sibs[to] : (sibs[to + 1] != null ? sibs[to + 1] : null);
-await this.treeOrderMove(parent, it.path, before);
-cursor = keyOf(it);
-cursorDrives = true;
-drawPanel();
-};
-key([['Alt'], 'ArrowUp'], () => { nudge(-1); });
-key([['Alt'], 'ArrowDown'], () => { nudge(1); });
-key([[], 'Enter'], () => { const it = cursorItem(); if (it) openRow(it); }, true);
-key([[], ' '], async () => {
-const it = cursorItem();
-if (!it) return;
-if (it.kind !== 'file') return;
-const next = zgStatusNext(markOf(it.path, it.kind));
-await orgFlagSet({ kind: 'file', path: it.path }, next, null);
-});
-const escapeLadder = (ev) => {
-if (ev.key !== 'Escape') return false;
-if (tab === 'organizer') {
-if (orgFieldEscape) {
-const f2 = orgFieldEscape;
-orgFieldEscape = null;
-try { f2(); } catch (_) { zgCatch('openManuscriptModal / escapeLadder: f2();', _); }
-return true;
-}
-if (orgPropPopEl()) { orgPropPopClose(); return true; }
-if (orgLensOn()) { orgLensClear(); return true; }
-if (host.closes === false) return true;
-return false;
-}
-if (sel.size || cursorDrives) {
-sel.clear();
-lastPicked = null;
-cursorDrives = false;
-draw();
-drawPanel();
-return true;
-}
-if (host.closes === false) return true;
-return false;
-};
-const onEscape = (ev) => {
-const pop0 = (tab === 'organizer') ? orgPropPopEl() : null;
-const sub0 = (tab === 'organizer') ? orgPropSubEl() : null;
-if (!host.contains(ev.target)
-&& !(pop0 && pop0.contains(ev.target))
-&& !(sub0 && sub0.contains(ev.target))) return;
-if (!escapeLadder(ev)) return;
-ev.preventDefault();
-ev.stopPropagation();
-if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-};
-if (host.blockClose) {
-host.blockClose(() => {
-if (tab === 'organizer' && orgPropSubEl()) {
-orgPropSubClose();
-return true;
-}
-if (tab === 'organizer' && orgPropPopEl()) {
-orgPropPopClose();
-return true;
-}
-if (tab === 'organizer' && orgFieldEscape) {
-const f2 = orgFieldEscape;
-orgFieldEscape = null;
-try { f2(); } catch (_) { zgCatch('openManuscriptModal / blockClose: f2();', _); }
-return true;
-}
-return false;
-});
-}
+const onEscape = orgKeys.onEscape;
 const onHistKey = (ev) => {
 if (tab !== 'organizer') return;
 if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
@@ -18507,15 +18589,14 @@ if (tab === 'organizer') drawPanel();
 host.onClose(() => {
 try { this.orgWindowDrop(treeDoor); } catch (_) { zgCatch('openManuscriptModal: this.orgWindowDrop(treeDoor);', _); }
 try { stopWatching(); } catch (_) { zgCatch('openManuscriptModal: stopWatching();', _); }
-try { stopCounting(); } catch (_) { zgCatch('openManuscriptModal: stopCounting();', _); }
 try { stopEscape(); } catch (_) { zgCatch('openManuscriptModal: stopEscape();', _); }
 try { if (this._orgHistActive === onHistKey) this._orgHistActive = null; } catch (_) { zgCatch('openManuscriptModal: this._orgHistActive = null;', _); }
-try { stopWidth(); } catch (_) { zgCatch('openManuscriptModal: stopWidth();', _); }
-try { stopNav(); } catch (_) { zgCatch('openManuscriptModal: stopNav();', _); }
+try { orgNav.stopWidth(); } catch (_) { zgCatch('openManuscriptModal: stopWidth();', _); }
+try { orgNav.stopNav(); } catch (_) { zgCatch('openManuscriptModal: stopNav();', _); }
 try { orgIndexChanged(); } catch (_) { zgCatch('openManuscriptModal: orgIndexChanged();', _); }
-try { if (orgDrawTimer) window.clearTimeout(orgDrawTimer); } catch (_) { zgCatch('openManuscriptModal: if (orgDrawTimer) window.clearTimeout(orgDrawTimer);', _); }
+try { if (orgScope.orgDrawTimer) window.clearTimeout(orgScope.orgDrawTimer); } catch (_) { zgCatch('openManuscriptModal: if (orgDrawTimer) window.clearTimeout(orgDrawTimer);', _); }
 try {
-if (orgNameRO) { orgNameRO.disconnect(); orgNameRO = null; }
+if (orgWidths.orgNameRO) { orgWidths.orgNameRO.disconnect(); orgWidths.orgNameRO = null; }
 } catch (_) { zgCatch('openManuscriptModal: if (orgNameRO) orgNameRO.disconnect();', _); }
 try { orgPropPopClose(); } catch (_) { zgCatch('openManuscriptModal: orgPropPopClose();', _); }
 });
@@ -18543,7 +18624,7 @@ drawTabs();
 draw();
 fill();
 drawPanel();
-if (orgNote) {
+if (orgScope.orgNote) {
 try {
 const el0 = panel.querySelector('tr.zg-org-row.zg-org-active');
 if (el0 && el0.scrollIntoView) el0.scrollIntoView({ block: 'center' });
@@ -18633,10 +18714,6 @@ scope: () => exportScope(),
 compileList: () => exportGoing(),
 onDone: () => { draw(); drawPanel(); }
 });
-const gathered = exportFiles();
-const all = gathered.length;
-const ticked = exportGoing();
-const inList = ticked.length;
 const actRow = panel.querySelector('.zg-export-top');
 const goEl = actRow ? actRow.querySelector('.zg-export-go') : null;
 const countEl = (actRow || panel).createDiv({
@@ -19379,7 +19456,7 @@ if (ctx.orgLastGrouping !== null && lensed !== ctx.orgLastGrouping) {
 table.addClass('is-melt');
 }
 ctx.orgLastGrouping = lensed;
-const orgLensEmptied = !rows.length && !!list.length && !ctx.orgRootShut();
+const orgLensEmptied = !rows.length && !!list.length;
 if (!orgLensEmptied) {
 const subj = tbody.createEl('tr', { cls: 'zg-org-subrow is-total' });
 subj.remove();
@@ -19596,7 +19673,7 @@ if (prevRuled) ctx.orgTotalRow.classList.add('is-ruled');
 tbody.appendChild(ctx.orgTotalRow);
 ctx.orgTotalRow = null;
 }
-if (orgLensEmptied || (!rows.length && !ctx.orgRootShut())) {
+if (orgLensEmptied || !rows.length) {
 const tr0 = tbody.createEl('tr', { cls: 'zg-org-row is-empty' });
 const td0 = tr0.createEl('td');
 td0.setAttribute('colspan', String(colspan));
@@ -21970,8 +22047,6 @@ this.settings.barThemeCursorStash.vim[mode]);
 delete this.settings.barThemeCursorStash.vim;
 }
 const d = theme.dark, l = theme.light;
-const inkD = (c) => this.barThemeInkify(c, d.b1, d.t1);
-const inkL = (c) => this.barThemeInkify(c, l.b1, l.t1);
 const vivD = (c, hue) => this.barThemeVivify(c, d.b1, d.t1, hue);
 const vivL = (c, hue) => this.barThemeVivify(c, l.b1, l.t1, hue);
 const loudD = this.barThemeCursorInk(d);
@@ -24260,7 +24335,6 @@ return [CM.Prec ? CM.Prec.highest(km) : km];
 buildHemingwayExtensions() {
 if (!CM || !CM.keymap || !this.settings.hemingwayEnabled) return [];
 const plugin = this;
-const s = () => plugin.settings;
 const { keymap, EditorView, Prec } = CM;
 const blocked = (view, what) => {
 if (view && !plugin.isEditorInScope(view)) return false;
