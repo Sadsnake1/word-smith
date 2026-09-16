@@ -1,5 +1,5 @@
 :root {
---zg-stylesheet-version: 541;
+--zg-stylesheet-version: 542;
 --zg-bg: #050505;
 --zg-text: #ffb000;
 --zg-tint: rgba(127, 127, 127, 0.09);
@@ -32,6 +32,7 @@ body.zg-masks-active.zg-editor-focused {
 --zg-z-titlebar: 10007;
 --zg-z-vim: 10008;
 }
+body.zg-masks-active .status-bar { z-index: var(--zg-z-status, 22); }
 body.zg-masks-active.zg-editor-focused.zg-overlay-open,
 body.zg-editor-focused.zg-overlay-open {
 --zg-z-mask: 20;
@@ -2706,6 +2707,7 @@ min-height: 0;
 @media (max-width: 900px) {
 .zg-export-split { grid-template-columns: minmax(0, 1fr); }
 .zg-export-split > .zg-export-prevcol { margin-top: 0; }
+.zg-export-split.is-fit > .zg-export-prevcol { align-self: auto; height: auto; }
 }
 .zg-export-optside { min-width: 0; display: flex; flex-direction: column; }
 .zg-export-split.is-flow { grid-template-columns: minmax(0, 1fr); }
@@ -2741,6 +2743,11 @@ flex-direction: column;
 position: sticky;
 top: 0;
 }
+.zg-export-split.is-fit > .zg-export-prevcol {
+align-self: start;
+height: var(--zg-export-prevh);
+}
+.zg-export-split.is-fit.is-flow > .zg-export-prevcol { align-self: auto; height: auto; }
 .zg-export-prevcol .zg-export-paper {
 flex: 1 1 auto;
 width: 100%;
@@ -3579,10 +3586,13 @@ box-sizing: border-box;
 .is-phone .zg-uni-modal.zg-uni-pane .menu.zg-org-propsub { bottom: var(--zg-mobilebar-h, 0px); }
 .is-phone .menu.zg-sheet { bottom: var(--zg-mobilebar-h, 0px); }
 .zg-uni-modal.zg-uni-pane > .view-content { display: flex; flex-direction: column; min-height: 0; }
+.zg-uni-modal.zg-uni-pane > .view-content { padding-bottom: max(var(--safe-area-inset-bottom, 0px), var(--size-4-3, 12px)); }
+.zg-uni-subject.is-gone { display: none; }
 .zg-uni-panel { container-type: inline-size; container-name: zg-panel; }
 @container zg-panel (max-width: 720px) {
 .zg-export-split { grid-template-columns: minmax(0, 1fr); }
 .zg-export-split > .zg-export-prevcol { margin-top: 0; }
+.zg-export-split.is-fit > .zg-export-prevcol { align-self: auto; height: auto; }
 }
 .zg-uni-modal .zg-org-current,
 .zg-uni-modal .zg-org-current:hover {
@@ -4830,21 +4840,12 @@ justify-content: flex-end;
 gap: 8px;
 margin-top: 14px;
 }
-.zg-count + .zg-treemarks .zg-tasks::before,
-.zg-count + .zg-treemarks .zg-treepct::before,
-.zg-treemarks .zg-tasks + .zg-treepct::before {
+.zg-count + .zg-treemarks .zg-tasks::before {
 content: '\00b7';
 margin: 0 0.4em 0 0.2em;
 color: var(--text-faint);
 opacity: 0.7;
 }
-.zg-treepct {
-flex: 0 0 auto;
-font-size: 0.8em;
-color: var(--text-faint);
-font-variant-numeric: tabular-nums;
-}
-.zg-treepct.is-met { color: var(--text-success, var(--text-accent)); }
 .zg-tasks {
 font-size: 0.75em;
 opacity: 0.55;

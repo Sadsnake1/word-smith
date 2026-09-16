@@ -60,6 +60,7 @@ const WS_PANE_VIEWS = { organizer: WS_OUTLINER_VIEW, export: WS_EXPORT_VIEW, his
 const WS_PANE_NAMES = { organizer: 'Organizer', export: 'Export', history: 'History' };
 const WS_PANE_ICONS = { organizer: 'list-tree', export: 'file-output', history: 'history' };
 const WS_ICON = 'word-smith-w';
+const zgElShown = (el) => (!el || typeof el.isShown !== 'function') ? true : !!el.isShown();
 const WS_RIBBON_TITLE = 'Open the Word-Smith menu';
 const WS_ICON_SVG =
 '<g fill="none" stroke="currentColor" stroke-width="9" ' +
@@ -1584,7 +1585,7 @@ markers: ['markBlankLines', 'markEndOfLines', 'markParagraphs', 'markSpaces', 'm
 typography: ['typoApostrophe', 'typoArrows', 'typoCloseDouble', 'typoCloseSingle', 'typoComparisons', 'typoCustomQuotes', 'typoDashes', 'typoEllipsis', 'typoFractions', 'typoGuillemets', 'typoOpenDouble', 'typoOpenSingle', 'typoSmartQuotes', 'typographyEnabled'],
 history: ['countExclude', 'historyPerFile', 'historyTracking'],
 organizer: ['flagCount', 'flags', 'orgFolderIcons', 'orgTargetShow', 'organizerOn'],
-filetree: ['enableFileTreeCounts', 'enableOutlineCounts', 'fileTreeFlags', 'fileTreeFolderIcons', 'fileTreeGoals', 'fileTreeTasks', 'treeOrder'],
+filetree: ['enableFileTreeCounts', 'enableOutlineCounts', 'fileTreeFlags', 'fileTreeFolderIcons', 'fileTreeTasks', 'treeOrder'],
 misc: ['quickCycle', 'quickCycleCloseOnLeave', 'quickExplorer', 'quickOutline', 'settingsMirror', 'vimSoftWrapMotion'],
 };
 function zgSessionNew() {
@@ -2606,7 +2607,7 @@ return '[' + done + '/' + all + ']';
 function zgSortArrow(dir) {
 return dir === 'desc' ? ' ↓' : ' ↑';
 }
-const ZG_STYLESHEET_VERSION = 541;
+const ZG_STYLESHEET_VERSION = 542;
 const ZG_INSTALLER_REFUSE = 1009;
 const ZG_INSTALLER_REFUSE_TEXT = '1.9';
 const ZG_INSTALLER_WARN = 1013;
@@ -2622,7 +2623,7 @@ forget: 'forget a deleted path in the export list',
 move: 'follow the store to its new place',
 settings: 'save your settings',
 });
-const ZG_PLUGIN_VERSION = '1.5.2';
+const ZG_PLUGIN_VERSION = '1.5.3';
 const HISTORY_DEBOUNCE_MS = 2000;
 const HISTORY_IDLE_MS = 8000;
 const HISTORY_MAX_UNSAVED_MS = 120000;
@@ -3204,7 +3205,6 @@ flags: [
 { id: 'blocked', label: 'Blocked', shape: 'alert', light: '#c08a2a', dark: '#d9a441' },
 { id: 'done', label: 'Done', shape: 'banner', light: '#3f8a53', dark: '#5aa96c' }
 ],
-fileTreeGoals: false,
 fileTreeTasks: false,
 enableOutlineCounts: false,
 vimSoftWrapMotion: true,
@@ -6337,27 +6337,27 @@ path: f.path, on: !ticks || ticks.has(f.path)
 plugin.structureWriteSection(at, rows);
 }, 400);
 };
-const placeAdd = (p) => {
-const path = (p == null || p === '/') ? '' : String(p);
-if (!path) return false;
-const cur = d.scopes();
-if (!cur) { d.said('The whole vault is in already.'); return false; }
-if (cur.indexOf(path) !== -1) return false;
-d.placesSet(cur.concat([path]));
-ticksFor = null;
+const setAll = (on) => {
+if (!ticks) return false;
+for (const f of files()) { if (on) ticks.add(f.path); else ticks.delete(f.path); }
+remember();
 d.redraw();
 return true;
 };
-const placeDrop = (p) => {
-const cur = d.scopes();
-if (!cur || cur.indexOf(p) === -1) return false;
-const left = cur.filter((x) => x !== p);
-if (left.length === 1) { d.select(left[0]); return true; }
-if (!left.length) { d.select(''); return true; }
-d.placesSet(left);
-ticksFor = null;
+const setOnly = (paths) => {
+const want = (Array.isArray(paths) ? paths : [paths])
+.map((p) => (p == null || p === '/') ? '' : String(p)).filter((p) => p !== '');
+return Promise.resolve(load()).then(() => {
+if (!ticks) return false;
+ticks.clear();
+for (const f of files()) {
+const p = f.path;
+if (want.some((w) => p === w || p.indexOf(w + '/') === 0)) ticks.add(p);
+}
+remember();
 d.redraw();
 return true;
+}, () => false);
 };
 const door = {
 wanted: () => d.wanted(),
@@ -6371,19 +6371,6 @@ return { mine: mine.length, all: on === mine.length, some: on > 0 && on < mine.l
 toggle: (path, kind) => {
 if (!ticks) return false;
 const mine = zgUnderRow(index(), path, kind);
-const places = d.scopes();
-const covered = !places || places.some((p) => p === '' || p === path || String(path).indexOf(p + '/') === 0);
-if (!covered) {
-if (!placeAdd(path)) return false;
-Promise.resolve(load()).then(() => {
-const mine2 = zgUnderRow(index(), path, kind);
-for (const p of mine2) ticks.add(p);
-remember();
-d.redraw();
-try { plugin.orgTicksSchedule(); } catch (_) { zgCatch('ticks.toggle / place: this.orgTicksSchedule();', _); }
-}, () => {});
-return true;
-}
 const on = mine.filter((p) => ticks.has(p)).length;
 const next = on !== mine.length;
 for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
@@ -6392,7 +6379,7 @@ d.redraw();
 return true;
 }
 };
-return { files, load, remember, index, dropIndex, forget, placeAdd, placeDrop, door, current: () => ticks };
+return { files, load, remember, index, dropIndex, forget, setAll, setOnly, door, current: () => ticks };
 };
 const zgOrgWidthsMake = (d) => {
 const ORG_NAME_MIN = 120;
@@ -7138,6 +7125,7 @@ this.updateWorkspaceAesthetics();
 this.scheduleExplorerPatch();
 if (this.zenActive() && this.settings.focusedFileMode) this.updateFocusedFileMode();
 this.typewriterScroll();
+this.orgTicksSchedule();
 });
 this.onAppEvent(this.app.workspace, 'editor-change', () => {
 this.updateRetroStatusBar();
@@ -7755,6 +7743,7 @@ delete this.settings.uniRootShut;
 delete this.settings.organizerRootShut;
 delete this.settings.uniTreeWidth;
 delete this.settings.uniShut;
+delete this.settings.fileTreeGoals;
 delete this.settings.goalsFile;
 delete this.settings.goalBaseline;
 delete this.settings.goalRingWeight;
@@ -8025,7 +8014,6 @@ L.push('');
 const s = this.settings || {};
 L.push('file tree:  counts ' + yn(s.enableFileTreeCounts)
 + ' · flags ' + yn(s.fileTreeFlags)
-+ ' · goals ' + yn(s.fileTreeGoals)
 + ' · tasks ' + yn(s.fileTreeTasks)
 + ' · folder icons ' + yn(s.fileTreeFolderIcons)
 + ' · order ' + yn(s.treeOrder));
@@ -9950,9 +9938,9 @@ svg.appendChild(l);
 };
 hand(hours * 30, 4);
 hand(mins * 6, 6.5);
-svg.setAttribute('aria-label', this.formatTime(t));
 const box = document.createElement('span');
 box.className = 'zg-clock-box';
+box.setAttribute('aria-label', this.formatTime(t));
 box.appendChild(svg);
 return box;
 }
@@ -11428,7 +11416,23 @@ if (touched) repaired.push(key);
 }
 return { store: out, repaired };
 }
+vaultReady() {
+const ws = this.app && this.app.workspace;
+if (!ws || typeof ws.onLayoutReady !== 'function' || ws.layoutReady === true) {
+return Promise.resolve();
+}
+return new Promise((resolve) => { try { ws.onLayoutReady(resolve); } catch (_) { resolve(); } });
+}
 async structureRead() {
+if (this._structStore) return this._structStore;
+if (!this._structReading) {
+this._structReading = this.vaultReady()
+.then(() => this.structureReadNow())
+.finally(() => { this._structReading = null; });
+}
+return this._structReading;
+}
+async structureReadNow() {
 if (this._structStore) return this._structStore;
 let sources = [];
 try { sources = await this.structureSources(); } catch (_) { zgCatch('structureRead: sources = await this.structureSources();', _); }
@@ -11861,7 +11865,8 @@ return at2 && at2.children ? f : '';
 }
 }
 exportFileName(scopePath, ext) {
-const base = String(scopePath || 'export').split('/').pop().replace(/\.md$/, '') || 'export';
+const base = String(scopePath || 'export').split('/').pop().replace(/\.md$/, '')
+.replace(/[\\:*?"<>|]+/g, '-').trim() || 'export';
 const d = new Date();
 const p2 = (n) => String(n).padStart(2, '0');
 return base.replace(/[\\/:*?"<>|]/g, '-') + ' '
@@ -14579,13 +14584,28 @@ return o;
 openExportModal(scopeHint) {
 return this.orgOpenTab('export');
 }
-exportFiguresText(fileCount, words, totalCount) {
-const haveTotal = typeof totalCount === 'number' && totalCount > 0;
-return (haveTotal
-? fileCount + ' out of ' + totalCount.toLocaleString()
-+ (totalCount === 1 ? ' note' : ' notes')
-: fileCount + (fileCount === 1 ? ' file' : ' files'))
+exportFiguresText(fileCount, words, folderCount) {
+const folders = typeof folderCount === 'number' && folderCount > 0
+? folderCount.toLocaleString() + (folderCount === 1 ? ' folder' : ' folders') + ' \u00b7 '
+: '';
+return folders + fileCount.toLocaleString() + (fileCount === 1 ? ' note' : ' notes')
 + ' \u00b7 ' + words.toLocaleString() + ' words';
+}
+exportFoldersTicked(files, ticks) {
+if (!ticks) return 0;
+const ix = zgUnderIndex(files || []);
+let n = 0;
+for (const [, under] of ix.byFolder) {
+if (under.length && under.every((p) => ticks.has(p))) n++;
+}
+return n;
+}
+exportTickAllSay(row, picked, total) {
+const b = row && row.querySelector && row.querySelector('.zg-export-tickall');
+if (!b) return;
+const all = total > 0 && picked >= total;
+b.textContent = all ? 'Untick all' : 'Tick all';
+b.dataset.all = all ? '1' : '0';
 }
 exportReaderClicks(doc, open, frame) {
 const root = doc && doc.documentElement;
@@ -14717,7 +14737,7 @@ if (ed.scrollIntoView) ed.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch
 return true;
 }
 exportPreviewInto(host, sections, o, fileCount, words, onExport, headHost,
-totalCount, onRefresh) {
+folderCount, onRefresh) {
 if (!host) return null;
 const flowY0 = (this._wsSession && typeof this._wsSession.flowScroll === 'number')
 ? this._wsSession.flowScroll : 0;
@@ -14732,7 +14752,7 @@ const goBtn = headHost.querySelector('.zg-export-go');
 if (goBtn) headHost.insertBefore(head, goBtn);
 }
 head.createSpan({
-text: this.exportFiguresText(fileCount, words, totalCount) });
+text: this.exportFiguresText(fileCount, words, folderCount) });
 const asText = o.format === 'md';
 const frame = body.createEl('iframe',
 { cls: 'zg-export-paper' + (asText ? ' is-plain' : '') });
@@ -15676,6 +15696,7 @@ exportOptsFor(scope, o, words) {
 const typed = String(o.titleText || '').trim();
 const title = typed
 || String(scope || '').split('/').pop().replace(/\.md$/, '')
+|| (this.vaultName && this.vaultName())
 || 'Untitled';
 return Object.assign({}, o, {
 title, wordCount: words,
@@ -15685,11 +15706,43 @@ runningHeader: o.runningHeaderOn
 : ''
 });
 }
+exportPrevColFit(panel, split, prevCol) {
+const win = (panel && panel.ownerDocument && panel.ownerDocument.defaultView) || window;
+if (!win || typeof win.ResizeObserver !== 'function') return;
+const fit = () => {
+if (!split.isConnected) { try { ro.disconnect(); } catch (_) { } return; }
+try {
+const body = split.closest('.zg-uni-body');
+const z = Number(body && win.getComputedStyle(body).zoom) || 1;
+const pr = panel.getBoundingClientRect();
+const sr = split.getBoundingClientRect();
+const rise = parseFloat(win.getComputedStyle(prevCol).marginTop) || 0;
+const padB = parseFloat(win.getComputedStyle(panel).paddingBottom) || 0;
+const top0 = (sr.top - pr.top) / z + panel.scrollTop + rise;
+const h = Math.floor(panel.clientHeight - top0 - padB);
+if (!(h > 0)) { split.classList.remove('is-fit'); return; }
+split.style.setProperty('--zg-export-prevh', h + 'px');
+split.classList.add('is-fit');
+} catch (_) { zgCatch('exportPrevColFit / fit', _); }
+};
+const ro = new win.ResizeObserver(() => fit());
+try { ro.observe(panel); ro.observe(split); } catch (_) { zgCatch('exportPrevColFit: ro.observe(panel);', _); }
+split._zgFit = fit;
+fit();
+}
 buildExportAct(into, ctx) {
 this.exportOptionDefaults();
 const o = this.settings.exportOpts || (this.settings.exportOpts = {});
 let exportProgress = null;
 const fmt = into.createDiv({ cls: 'zg-export-fmt' });
+const tickAll = fmt.createEl('button', { cls: 'zg-export-tickall zg-export-mini', text: 'Tick all' });
+tickAll.addEventListener('click', () => {
+if (!ctx.tickAll) return;
+ctx.tickAll(tickAll.dataset.all !== '1');
+});
+this.exportTickAllSay(into,
+(ctx.compileList ? ctx.compileList() : []).length,
+typeof ctx.total === 'function' ? ctx.total() : 0);
 fmt.createSpan({ cls: 'zg-export-fmtlabel', text: 'Export as' });
 const FORMATS = [
 { id: 'docx', label: 'Word', ext: '.docx', pages: zgFormatHasPages('docx') },
@@ -15797,6 +15850,7 @@ const o = this.settings.exportOpts || (this.settings.exportOpts = {});
 const split = into.createDiv({ cls: 'zg-export-split' });
 const optSide = split.createDiv({ cls: 'zg-export-optside' });
 const prevCol = split.createDiv({ cls: 'zg-export-prevcol' });
+this.exportPrevColFit(into, split, prevCol);
 const rightCol = optSide.createDiv({ cls: 'zg-export-right' });
 let redrawOpts = () => {};
 let prevTimer = null;
@@ -15821,16 +15875,18 @@ if (stale) stale.remove();
 const actRow0 = into.querySelector('.zg-export-top');
 if (actRow0) {
 const head0 = actRow0.createDiv({ cls: 'zg-export-prevhead' });
-head0.createSpan({ text: this.exportFiguresText(
-0, 0,
-typeof ctx.total === 'function' ? ctx.total() : undefined) });
+head0.createSpan({ text: this.exportFiguresText(0, 0, 0) });
 const go0 = actRow0.querySelector('.zg-export-go');
 if (go0) actRow0.insertBefore(head0, go0);
+this.exportTickAllSay(actRow0, 0,
+typeof ctx.total === 'function' ? ctx.total() : 0);
 }
 } catch (_) { zgCatch('buildExportOptions / refreshPreview: const stale = into.querySelector(\'.zg-export-top …', _); }
 prevCol.empty();
 prevCol.createDiv({ cls: 'zg-export-prevnone',
 text: 'Nothing ticked yet \u2014 the preview shows what will print.' });
+prevSig = null;
+prevHandle = null;
 return;
 }
 let secs = [];
@@ -15856,7 +15912,9 @@ if (row0 && had) {
 had.empty();
 had.createSpan({ text: this.exportFiguresText(
 picked.length, words,
-typeof ctx.total === 'function' ? ctx.total() : undefined) });
+typeof ctx.folders === 'function' ? ctx.folders() : 0) });
+this.exportTickAllSay(row0, picked.length,
+typeof ctx.total === 'function' ? ctx.total() : 0);
 }
 } catch (_) { zgCatch('buildExportOptions / refreshPreview: const row0 = into.querySelector(\'.zg-export-top\');', _); }
 return;
@@ -15868,11 +15926,14 @@ if (actRow) {
 const old = actRow.querySelector('.zg-export-prevhead');
 if (old) old.remove();
 }
+this.exportTickAllSay(actRow, picked.length,
+typeof ctx.total === 'function' ? ctx.total() : 0);
 prevHandle = this.exportPreviewInto(prevCol, secs,
 this.exportOptsFor(ctx.scope(), o, words), picked.length, words,
 null, actRow || null,
-typeof ctx.total === 'function' ? ctx.total() : undefined,
+typeof ctx.folders === 'function' ? ctx.folders() : 0,
 () => refreshPreview(null));
+try { if (split._zgFit) split._zgFit(); } catch (_) { zgCatch('buildExportOptions / refreshPreview: split._zgFit();', _); }
 }, 220);
 };
 into.addEventListener('change', refreshPreview);
@@ -17899,11 +17960,12 @@ const selRows = orgSel.selRows;
 const orgBulkPaths = orgSel.orgBulkPaths;
 const orgBulkSay = orgSel.orgBulkSay;
 let orgMany = null;
-const subjectRows = () => (orgFolder ? [{ kind: 'folder', path: orgFolder }] : []);
-const exportScopes = () => {
-if (orgMany && orgMany.length) return orgMany.slice();
-return orgFolder ? [orgFolder] : null;
+const subjectRows = () => {
+const note = tab === 'history' ? orgScope.orgNote : '';
+if (note) return [{ kind: 'file', path: note }];
+return orgFolder ? [{ kind: 'folder', path: orgFolder }] : [];
 };
+const exportScopes = () => null;
 const exportScope = () => {
 const many = exportScopes();
 if (many && many.length === 1) return many[0];
@@ -17913,11 +17975,10 @@ const orgTicks = zgOrgTicksMake({
 plugin: this,
 scopes: () => exportScopes(),
 scope: () => exportScope(),
-placesSet: (list) => { orgMany = list; exportOpts = null; },
 select: (p) => { orgMany = null; orgSelect(p); },
 redraw: () => { draw(); drawPanel(); },
 said: (m) => said(m),
-wanted: () => tab === 'export'
+wanted: () => tab === 'export' && zgElShown(host.rootEl)
 });
 const exportFiles = orgTicks.files;
 const loadTicks = orgTicks.load;
@@ -18142,7 +18203,10 @@ const orgColFit = orgWidths.orgColFit;
 this._orgAt = () => orgFolder;
 const treeDoor = {
 kind: host.kind,
-select: (p) => orgSelect(p == null || p === '/' ? '' : String(p)),
+select: (p) => {
+if (tab === 'history') orgScope.orgNote = '';
+orgSelect(p == null || p === '/' ? '' : String(p));
+},
 follow: (p) => {
 if (!p) return;
 orgFollow({ kind: 'file', path: String(p) }, true);
@@ -18164,7 +18228,8 @@ draw();
 drawPanel();
 },
 host: () => host,
-ticks: orgTicks.door
+ticks: orgTicks.door,
+ticksOnly: (paths) => orgTicks.setOnly(paths)
 };
 this.orgWindowAdd(treeDoor);
 this._orgNote = () => orgScope.orgNote;
@@ -18372,29 +18437,37 @@ const crumbs = subject.createDiv({ cls: 'zg-uni-crumbs' });
 const at = orgFolder;
 const parts = at ? at.split('/') : [];
 const many = orgMany && orgMany.length > 1;
+const note = tab === 'history' ? orgScope.orgNote : '';
 const crumb = (text, path, current) => {
 const c = crumbs.createEl(current ? 'span' : 'button',
 { cls: 'zg-uni-crumb' + (current ? ' is-current' : '') + (path === '' ? ' is-root' : ''), text });
 if (!current) {
 c.title = 'Show ' + text;
-c.addEventListener('click', () => { orgMany = null; orgSelect(path); });
+c.addEventListener('click', () => { orgMany = null; orgScope.orgNote = ''; orgSelect(path); });
 }
 return c;
 };
 try { crumbs.createSpan({ cls: 'zg-uni-crumbmark' }).innerHTML = zgObsidianSvg(14); }
 catch (_) { zgCatch('drawSubject: crumbs.createSpan({ cls: zg-uni-crumbmark })', _); }
-crumb(this.vaultName() || 'Vault', '', !parts.length && !many);
+crumb(this.vaultName() || 'Vault', '', !parts.length && !many && !note);
 let acc = '';
 parts.forEach((seg, i) => {
 crumbs.createSpan({ cls: 'zg-uni-crumbsep', text: '›' });
 acc = acc ? acc + '/' + seg : seg;
-crumb(seg, acc, i === parts.length - 1 && !many);
+crumb(seg, acc, i === parts.length - 1 && !many && !note);
 });
 if (many) {
 crumbs.createSpan({ cls: 'zg-uni-crumbsep', text: '›' });
 crumbs.createSpan({ cls: 'zg-uni-crumb is-current', text: orgMany.length + ' folders' });
 }
-const agg = this.orgAggUnder(at);
+if (note) {
+crumbs.createSpan({ cls: 'zg-uni-crumbsep', text: '›' });
+crumbs.createSpan({ cls: 'zg-uni-crumb is-current is-note',
+text: String(note).split('/').pop().replace(/\.md$/i, '') });
+}
+const agg = note
+? (this._orgIndex ? zgOrgAgg(this._orgIndex, [note]) : null)
+: this.orgAggUnder(at);
 if (agg && agg.files) {
 let said = agg.words.toLocaleString() + ' words · '
 + agg.files.toLocaleString() + ' notes';
@@ -18457,6 +18530,7 @@ const gen = ++panelGen;
 orgTicks.dropIndex();
 panel.toggleClass('zg-org-host', tab === 'organizer');
 subject.toggleClass('zg-org-strip', tab === 'organizer');
+subject.toggleClass('is-gone', tab === 'export');
 if (tab === 'organizer') { drawOrg(); return; }
 const rows = subjectRows();
 drawSubject();
@@ -18475,13 +18549,9 @@ drawHistory(rows);
 void gen;
 };
 let exportOpts = null;
-const exportPlaceAdd = orgTicks.placeAdd;
-const exportPlaceDrop = orgTicks.placeDrop;
-this._orgPlaceAdd = (p) => exportPlaceAdd(p);
-this._orgPlaceDrop = (p) => exportPlaceDrop(p);
 const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => orgTicks.current(),
+tickAll: (on) => orgTicks.setAll(on),
 draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, exportScopes, loadTicks,
-placeAdd: exportPlaceAdd, placeDrop: exportPlaceDrop,
 setExportOpts: (o) => { exportOpts = o; } });
 const drawHistory = (rows) => this.orgDrawHistory({ panel, tab: () => tab, drawPanel: () => drawPanel(), histState }, rows);
 const say = foot.createDiv({ cls: 'zg-uni-say' });
@@ -18712,6 +18782,8 @@ const act = panel.createDiv({ cls: 'zg-export-top zg-uni-act' });
 const actHandle = this.buildExportAct(act, {
 scope: () => exportScope(),
 compileList: () => exportGoing(),
+total: () => exportFiles().length,
+tickAll: (on) => ctx.tickAll(on),
 onDone: () => { draw(); drawPanel(); }
 });
 const actRow = panel.querySelector('.zg-export-top');
@@ -18725,7 +18797,8 @@ countEl.style.display = bits.length ? '' : 'none';
 ctx.setExportOpts(this.buildExportOptions(panel, {
 scope: () => exportScope(),
 compileList: () => exportGoing(),
-total: () => exportFiles().length
+total: () => exportFiles().length,
+folders: () => this.exportFoldersTicked(exportFiles(), ctx.ticks())
 }));
 try { if (actHandle && actHandle.repaint) actHandle.repaint(); } catch (_) { zgCatch('orgDrawExport: if (actHandle && actHandle.repaint) actHandle.repaint();', _); }
 draw();
@@ -19832,18 +19905,14 @@ if (!door) return false;
 try { if (door.tab() !== id && door.tabSet) door.tabSet(id); } catch (e) { zgGuardReport('the tree switching the Organizer’s tab', e); }
 if (o.many && o.many.length > 1) {
 try { if (door.many) door.many(o.many); } catch (e) { zgGuardReport('the tree handing the Organizer several folders', e); }
+} else if (o.only) {
+try { if (door.ticksOnly) door.ticksOnly(o.only); } catch (e) { zgGuardReport('the tree ticking what to export', e); }
 } else {
 this.orgTreeSelect(p);
 if (o.note) this.orgTreeFollow(o.note);
 }
 this.orgReveal(door);
 return true;
-}
-orgOpenMany(folders, tabId) {
-const list = (folders || []).map((f) => (typeof f === 'string' ? f : (f && f.path))).filter(Boolean);
-const inside = (a, b) => a === b || a.indexOf(b + '/') === 0;
-const top = list.filter((p) => !list.some((q) => q !== p && inside(p, q)));
-return this.orgOpenAt(top[0] || '', tabId || 'export', { many: top });
 }
 orgReveal(door) {
 try {
@@ -19867,11 +19936,11 @@ try {
 if (this.menuIconMirrored && this.menuIconMirrored(tabId) && i.iconEl
 && i.iconEl.querySelector('svg')) i.iconEl.addClass('is-mirrored');
 } catch (_) { zgCatch('fileMenuOrganizerRows: i.iconEl.addClass(\'is-mirrored\');', _); }
-i.onClick(() => { this.orgOpenAt(here, tabId, { note }); });
+i.onClick(() => { this.orgOpenAt(here, tabId, tabId === 'export' ? { note, only: [path] } : { note }); });
 });
 };
 row('Organizer here', 'list-tree', 'organizer');
-if (isFolder) row('Export this', 'file-output', 'export');
+row('Export this', 'file-output', 'export');
 row('History here', 'history', 'history');
 }
 orgDoorFor(tabId) {
@@ -19896,12 +19965,12 @@ if (leaf) return leaf;
 return this.openManuscriptModal({ tab: id });
 }
 filesMenuFor(menu, files) {
-const folders = (files || []).filter((f) => f && f.children && f.path && f.path !== '/').map((f) => f.path);
-if (folders.length < 2) return;
+const paths = (files || []).filter((f) => f && f.path && f.path !== '/').map((f) => f.path);
+if (paths.length < 2) return;
 menu.addItem((i) => {
 i.setTitle('Export these');
 try { if (i.setIcon) i.setIcon('file-output'); } catch (_) { zgCatch('filesMenuFor: if (i.setIcon) i.setIcon(file-output);', _); }
-i.onClick(() => { this.orgOpenMany(folders, 'export'); });
+i.onClick(() => { this.orgOpenAt('', 'export', { only: paths }); });
 });
 }
 orgTreeSelect(path) {
@@ -23474,6 +23543,7 @@ return;
 }
 this._maskRetries = 0;
 let statusH = 0;
+let nativeBar = null;
 if (this.barIsHidden()) {
 statusH = 0;
 } else if (this.settings.enableRetroStatus && this.retroStatusBarEl) {
@@ -23482,7 +23552,10 @@ statusH = (this.retroStatusBarEl.getBoundingClientRect().height
 + this.vimGutterHeight();
 } else {
 const nb = document.querySelector('.status-bar');
-if (nb && getComputedStyle(nb).display !== 'none') statusH = nb.getBoundingClientRect().height || 0;
+if (nb && getComputedStyle(nb).display !== 'none') {
+const r = nb.getBoundingClientRect();
+if (r.height > 0 && r.width > 0) nativeBar = r;
+}
 }
 const sTop = Math.max(0, sr.top);
 const sLeft = Math.max(0, sr.left);
@@ -23499,6 +23572,11 @@ if (br.height > 0 && br.top > 0 && br.top < vpH) { sBottom = br.top; barMeasured
 const barTopEdge = sBottom;
 let paneFoot = false;
 if (sr.bottom > sTop && sr.bottom < sBottom) { sBottom = sr.bottom; paneFoot = true; }
+if (nativeBar && nativeBar.top < sBottom
+&& nativeBar.left <= sr.left + 2 && nativeBar.right >= sr.right - 2) {
+sBottom = Math.max(sTop, nativeBar.top);
+nativeBar = null;
+}
 const sHeight = Math.max(0, sBottom - sTop);
 this.stampBarReserve(
 (!this.barIsHidden() && this.settings.enableRetroStatus && this.retroStatusBarEl)
@@ -24883,7 +24961,7 @@ const ours = (n) => {
 const c = n && n.classList;
 if (!c) return false;
 return c.contains('zg-count') || c.contains('zg-treeflag')
-|| c.contains('zg-treepct') || c.contains('zg-tasks')
+|| c.contains('zg-tasks')
 || c.contains('zg-treemarks') || c.contains('zg-foldericon')
 || c.contains('zg-treetick');
 };
@@ -24907,7 +24985,6 @@ const REASONS = [
 () => s.fileTreeFolderIcons,
 () => s.fileTreeKindIcons,
 () => s.fileTreeTasks,
-() => s.fileTreeGoals,
 () => s.folderColors && Object.keys(s.folderColors).length,
 () => s.treeOrder
 ];
@@ -24969,7 +25046,7 @@ if (!this.settings.pluginEnabled) return;
 this.paintExplorerSortIcon();
 this.paintExplorerFolderColours();
 this.paintExplorerRoots();
-if (this.settings.enableFileTreeCounts || this.settings.fileTreeFlags) {
+if (this.settings.enableFileTreeCounts || this.settings.fileTreeFlags || this.settings.fileTreeTasks) {
 const roots = document.querySelectorAll('.workspace-leaf-content[data-type="file-explorer"]');
 for (let ri = 0; ri < roots.length; ri++) {
 const root = roots[ri];
@@ -24993,13 +25070,15 @@ if (this.settings.enableFileTreeCounts) this.applyFolderSums(root);
 else {
 root.querySelectorAll('.zg-count').forEach(el => el.remove());
 }
-this.paintExplorerGoals(root);
 }
 } else {
 document.querySelectorAll('.nav-file-title .zg-count, .nav-folder-title .zg-count').forEach(el => el.remove());
 }
 if (!this.settings.fileTreeFlags) {
 document.querySelectorAll('.zg-treeflag').forEach(el => el.remove());
+}
+if (!this.settings.fileTreeTasks) {
+document.querySelectorAll('.zg-tasks').forEach(el => el.remove());
 }
 if (this.settings.enableOutlineCounts) {
 const oroots = document.querySelectorAll('.workspace-leaf-content[data-type="outline"]');
@@ -25069,28 +25148,47 @@ paintExplorerRoots() {
 this.paintExplorerFolderIcons();
 this.paintExplorerKindIcons();
 }
+async treeTasksOf(f) {
+if (this.isStoreFile && this.isStoreFile(f.path)) return { done: 0, all: 0 };
+const key = 'tasks:' + f.path;
+const hit = this.wordCountCache && this.wordCountCache.get(key);
+if (hit && f.stat && hit.mtime === f.stat.mtime) return hit.tasks;
+const t = this.countTasks(await this.app.vault.cachedRead(f));
+if (this.wordCountCache && f.stat) {
+this.wordCountCache.set(key, { mtime: f.stat.mtime, tasks: t });
+}
+return t;
+}
+async treeTasksUnder(folder) {
+let done = 0, all = 0;
+const walk = async (dir) => {
+for (const c of (dir && dir.children) || []) {
+if (!c) continue;
+if (c.children) { await walk(c); continue; }
+if (!/\.md$/i.test(String(c.path || ''))) continue;
+let t = null;
+try { t = await this.treeTasksOf(c); } catch (_) { continue; }
+if (t) { done += t.done || 0; all += t.all || 0; }
+}
+};
+await walk(folder);
+return { done, all };
+}
 async paintExplorerTasks(root) {
 if (!this.settings.fileTreeTasks) {
 for (const el of Array.from(document.querySelectorAll('.zg-tasks'))) el.remove();
 return;
 }
-const rows = root.querySelectorAll('.nav-file-title');
+const rows = root.querySelectorAll('.nav-file-title, .nav-folder-title');
 for (const row of Array.from(rows)) {
 const path = (row.dataset && row.dataset.path) || '';
-if (!path || !path.endsWith('.md')) continue;
+const isFolder = row.classList.contains('nav-folder-title');
+if (!path || (!isFolder && !path.endsWith('.md'))) continue;
 let t = null;
 try {
 const f = this.app.vault.getAbstractFileByPath(path);
 if (!f) continue;
-const key = 'tasks:' + path;
-const hit = this.wordCountCache && this.wordCountCache.get(key);
-if (hit && f.stat && hit.mtime === f.stat.mtime) t = hit.tasks;
-else {
-t = this.countTasks(await this.app.vault.cachedRead(f));
-if (this.wordCountCache && f.stat) {
-this.wordCountCache.set(key, { mtime: f.stat.mtime, tasks: t });
-}
-}
+t = isFolder ? await this.treeTasksUnder(f) : await this.treeTasksOf(f);
 } catch (_) { continue; }
 const box = this.treeMarksBox(row);
 let badge = row.querySelector('.zg-tasks');
@@ -25106,40 +25204,6 @@ badge.textContent = said;
 badge.title = (t.all - t.done) + ' left of ' + t.all;
 }
 badge.toggleClass('is-done', t.done === t.all);
-}
-}
-paintExplorerGoals(root) {
-if (!this.settings.fileTreeGoals) {
-for (const el of Array.from(document.querySelectorAll('.zg-treepct'))) el.remove();
-return;
-}
-const rows = root.querySelectorAll('.nav-file-title, .nav-folder-title');
-const sums = this.folderTargetSums();
-for (const row of Array.from(rows)) {
-const path = (row.dataset && row.dataset.path) || '';
-if (!path) continue;
-const folder = row.classList.contains('nav-folder-title');
-const target = folder
-? (sums.get(path) || 0)
-: Number((this.settings.fileGoals || {})[path]) || 0;
-let badge = row.querySelector('.zg-treepct');
-if (!target) { if (badge) badge.remove(); continue; }
-const have = row.querySelector('.zg-count');
-const words = have ? (parseInt(have.dataset.wc, 10) || 0) : -1;
-if (words < 0) { if (badge) badge.remove(); continue; }
-const box = this.treeMarksBox(row);
-if (!badge) {
-badge = document.createElement('span');
-badge.className = 'zg-treepct';
-(box || row).appendChild(badge);
-}
-const pct = Math.round((words / target) * 100);
-const said = pct + '%';
-if (badge.textContent !== said) {
-badge.textContent = said;
-badge.title = words.toLocaleString() + ' of ' + target.toLocaleString() + ' words';
-}
-badge.toggleClass('is-met', words >= target);
 }
 }
 paintExplorerFolderColours() {
@@ -25304,7 +25368,7 @@ badge.dataset.wc = String(count);
 if (badge.textContent !== count.toLocaleString()) badge.textContent = count.toLocaleString();
 }
 removeWordCounts() {
-for (const sel of ['.zg-count', '.zg-tasks', '.zg-treepct', '.zg-treeflag',
+for (const sel of ['.zg-count', '.zg-tasks', '.zg-treeflag',
 '.zg-treemarks', '.zg-treefolder', '.zg-treekind']) {
 document.querySelectorAll(sel).forEach(el => el.remove());
 }
@@ -27069,16 +27133,6 @@ this.toggle(containerEl, 'File tree flags',
 this.toggle(containerEl, 'Tasks left',
 'Unticked boxes beside the count. Folders sum their children.',
 'fileTreeTasks', () => this.display());
-this.toggle(containerEl, 'Goal percentage',
-'How close each note is to its target. Turns the counts on too.',
-'fileTreeGoals', (v) => {
-if (v) {
-this.plugin.settings.enableFileTreeCounts = true;
-this.plugin.settings.enableOutlineCounts = true;
-this.plugin.saveSettings();
-}
-this.display();
-});
 this.toggle(containerEl, 'Folder icons',
 'A glyph beside each folder name.',
 'fileTreeFolderIcons', () => this.display());
