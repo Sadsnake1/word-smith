@@ -16,17 +16,17 @@
 
 **A segment vanished.** A segment whose tokens all come to nothing is dropped, dividers and all. `{vim}` outside Vim mode, `{caps}` with caps lock off.
 
-**A theme changed nothing.** Check the master switch at the top of the Theme tab. Off, a scheme is remembered but never painted.
+**A theme changed nothing.** Check the master switch at the top of the Themes page. Off, a scheme is remembered but never painted.
 
 **A community theme still shows through.** Word-Smith writes Obsidian's own variables, so anything a theme paints with a hard-coded colour stays its own. Open an issue with the theme's name.
 
 **The custom file-tree order didn't apply.** Make sure the file explorer is open in the sidebar. Obsidian doesn't build a hidden panel until it's shown. Toggling the switch under **File tree** re-applies it.
 
-**The Organizer feels slow.** Under **Settings → File tree**, switch off word counts, flags, tasks and goal percentage, then reopen it. If that fixes it, open an issue and say so, with your OS and Obsidian version.
+**The Organizer feels slow.** Under **Settings → Word-Smith → Manuscript → File tree**, switch off word counts, flags, tasks and goal percentage, then reopen it. If that fixes it, open an issue and say so, with your OS and Obsidian version.
 
-**Keys that won't work, a red flash.** That's Hemingway mode doing its job. Turn it off from the menu, the bar's Modes button, or the Hemingway tab.
+**Keys that won't work, a red flash.** That's Hemingway mode doing its job. Turn it off from the menu, the bar's Modes button, or the Focus page.
 
-**You want Obsidian's status bar back.** Powerline tab, switch it off. While one of Word-Smith's own panes is the active view, Obsidian's status bar shows there anyway.
+**You want Obsidian's status bar back.** The Powerline page, switch it off. While one of Word-Smith's own panes is the active view, Obsidian's status bar shows there anyway.
 
 **Undo did nothing in the Organizer.** Undo and Redo listen while the Organizer pane has the focus and no text field does. Click a row first, or use the two buttons beside Collapse all.
 

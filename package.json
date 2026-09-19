@@ -1,0 +1,25 @@
+{
+  "name": "word-smith",
+  "version": "1.5.4",
+  "description": "Distraction-free writing suite for Obsidian.",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "check": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "node test/smoke.js"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "6.6.2",
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6",
+    "esbuild": "^0.28.0",
+    "eslint": "^10.0.0",
+    "eslint-plugin-obsidianmd": "^0.4.2",
+    "obsidian": "^1.13.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.70.0",
+    "globals": "^17.0.0"
+  }
+}

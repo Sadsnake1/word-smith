@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "lib": [
+      "es2021",
+      "dom",
+      "dom.iterable"
+    ],
+    "strict": false,
+    "noImplicitAny": true,
+    "useUnknownInCatchVariables": true,
+    "strictBindCallApply": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "types": [],
+    "useDefineForClassFields": false
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

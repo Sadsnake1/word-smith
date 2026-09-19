@@ -7,7 +7,7 @@ A status bar you write yourself. One to three rows, each with a left, centre and
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
 
-Three bars ship with it, **Plain**, **Code** and **Fade**. Save your own as presets, and turn any preset into a share code you can send to someone. The full reference is also in the plugin, under **How to write a row** on the Powerline tab.
+Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top of the Powerline page: tap one to use it, and the card shows a small sample of its colours. **Save** keeps the bar as it is under a name; the copy button on a card puts its share code on the clipboard, and **Import** takes one somebody sent you. The full reference is also in the plugin, under **How to write a row** on the Powerline page.
 
 ## Readouts
 
@@ -31,7 +31,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**. Save your own as pres
 
 ## Buttons
 
-`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes. Buttons are never dropped, however narrow the window gets.
+`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes; `{powermenu}` opens the Powermenu, the menu of everything. Buttons are never dropped, however narrow the window gets.
 
 Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Token formats**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent colour under the pointer.
 
@@ -55,8 +55,8 @@ Seven colours, a dark set and a light set. `:N` paints the background, `;N` pain
 
 | | |
 |---|---|
-| `{words}:3` | Background colour 3 |
-| `{words}:3;1` | And text colour 1 |
+| `{words}:3` | Palette colour nr. 3 behind the segment |
+| `{words}:3;1` | And text colour nr. 1 |
 | `{words};vim` | Text follows your Vim mode |
 | `{file}:b1` to `:b4` | Your theme's own surfaces |
 | `{file}:bs` | The status line's own colour |
@@ -67,12 +67,13 @@ Leave the `;` off and the text picks itself, light or dark, so it stays readable
 
 `{g}` is a fade, one colour stepping into the next. `{g}{g}{g}` is three narrow steps, `{ggg}` one wide one. Fades are the first thing dropped when the window gets narrow.
 
-Put a colour at the very start of row 1 and the whole bar takes it:
+Put a colour at the very start of row 1 and the whole bar takes it: a colon paints the whole bar's background, a semicolon all of its text, and a token with a colour of its own keeps it.
 
 ```
 :vim {vim} > {file} :: {ln:col}
+:3;2 {file} :: {words} words
 ```
 
 ## Sizing
 
-Row height, font size, padding and the top and bottom rules are yours to set, in a dark and a light pair. The bar's text can follow your note's zoom. When the window narrows, the bar drops decoration first and the file name last, and everything comes back when it widens.
+Row height, font size, padding and the top and bottom rules are yours to set, in a dark and a light pair. The bar's text can follow your note's zoom, and **Interface font** keeps the bar in Obsidian's own face whatever font the note is in. When the window narrows, the bar drops decoration first and the file name last, and everything comes back when it widens.

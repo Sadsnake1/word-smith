@@ -11,7 +11,7 @@
   </tr>
 </table>
 
-Off until you switch it on, under **Settings → Word-Smith → History**, or with the **Start counting** button in the History pane.
+Off until you switch it on, under **Settings → Word-Smith → Manuscript → History**, or with the **Start counting** button in the History pane.
 
 Then it counts how much you write each day and draws it at four zooms: day, month, year, and a calendar. Words you added rise from the centre line, words you cut fall below it. A hard day of editing shows as work, not a gap. Above the chart: total, daily average, best day, active days, streak.
 

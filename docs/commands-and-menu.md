@@ -28,7 +28,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Quick cycle: focus left / right / up / down | Also **Misc**. No default keys |
 | Repair the display | If something looks wrong after a theme or plugin change |
 | Copy your settings as text | To keep, or to paste into another vault |
-| Paste settings from the clipboard | Replaces everything. **Undo** on the Misc tab puts them back |
+| Paste settings from the clipboard | Replaces everything. **Undo** on the Vault page puts them back |
 | Copy diagnostics for a bug report | Versions, vault size, load times, and any errors this session. Add your installer version from Settings → General |
 
 ## The menu
@@ -47,31 +47,24 @@ Bind it in Obsidian's Hotkeys. Most people use `Ctrl+M`.
 
 ## Quick panels
 
-Two commands, off until you enable them under **Misc**. Each opens the sidebar on that panel and focuses it, so you can arrow around and press Enter. Run it again to close.
+Two commands, off until you enable them under **Navigation**. Each opens the sidebar on that panel and focuses it, so you can arrow around and press Enter. Run it again to close.
 
 ## Quick cycle
 
-Move focus between panes with a direction key, sidebars included, which Obsidian's own focus commands won't do. Four commands, off until enabled under **Misc**, no default keys. Bind `Alt`+arrows, or `Alt+H/J/K/L` if you think in Vim. It works by geometry, so it does the right thing in any layout, and opens a closed sidebar when there's nothing else that way.
+Move focus between panes with a direction key, sidebars included, which Obsidian's own focus commands won't do. Four commands, off until enabled under **Navigation**, no default keys. Bind `Alt`+arrows, or `Alt+H/J/K/L` if you think in Vim. It works by geometry, so it does the right thing in any layout, and opens a closed sidebar when there's nothing else that way.
 
 ## Settings map
 
-Sixteen tabs, each a feature with its own switch.
+One switch at the top turns everything on or off. Under it, nine pages; each opens on its own, on a phone as on a desktop, and says on its entry what it is set to. The long pages have a row of pills at the top that picks a section, or **All** for the whole page. Every section ends with a small **Reset** link for its own rows. The search box above the pages finds any setting.
 
 | | |
 |---|---|
-| **Powermenu** | What the pop-up and the panel show, each row with its icon |
-| **Powerline** | Rows, presets, share codes, colours, and the format reference |
-| **Theme** | The scheme shelf and its options |
-| **Zen** | What to hide, what Escape does |
-| **Letter Box** | Mask size, arrows, lines, colours |
-| **Typewriter** | Where the line sits, what gets dimmed |
-| **Hemingway** | Which keys are locked, what a blocked key does |
-| **Syntax** | Which word classes are coloured |
-| **Prose Checks** | The eight checks, each on its own switch |
-| **Text Options** | Line width, indents, spacing, justification |
-| **Markers** | Tabs, spaces, line ends, drawn |
-| **Typography** | Which substitutions run as you type |
-| **History** | Tracking and the history file |
-| **Organizer** | The target column, date format, your flags and their shapes |
-| **File tree** | Custom order, counts, flags, icons in Obsidian's explorer |
-| **Misc** | Where it applies, quick panels, quick cycle, copy and paste settings, where to add more fonts, the three notes |
+| **Powermenu** | Floating or docked; what the pop-up and the panel show, each row with its icon |
+| **Powerline** | The switch and the presets (tap a bar to use it, Save, Import), then Rows, Look, Colors, Vim and Tokens, and the format reference |
+| **Themes** | The switch and the scheme shelf, then the options |
+| **Focus** | Zen, Letter box, Typewriter, Hemingway; each with its switch, a warning card under the ones that change the editor, and its hotkeys |
+| **Prose** | Syntax (parts of speech in color) and Checks |
+| **Text** | Markers, Typography, Layout (line width, indents, spacing, justification) |
+| **Manuscript** | Organizer (the target column, date format, your flags and their shapes), File tree (custom order, counts, flags, icons in Obsidian's explorer), History |
+| **Navigation** | Quick panels, quick cycle, Vim motions |
+| **Vault** | Where it applies (every note, some folders, or all but some), your settings as text (copy, paste, undo), a repair, the files the plugin keeps, where to add more fonts |

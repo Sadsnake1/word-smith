@@ -21,9 +21,9 @@ A scheme writes Obsidian's own CSS variables and touches none of your bar colour
 
 ## The shelf
 
-The Theme tab is a list you curate. Drag a card and its position is its priority, in the tab and the menu alike. `✕` moves a scheme to a Removed row below. One click brings it back. Nothing is ever deleted.
+The Themes page is a list you curate: one card per scheme, the one in use ticked. Drag a card and its position is its priority, on the page and in the menu alike. The `✕` sets a scheme aside, into a row of pills below; one tap brings it back. Nothing is ever deleted.
 
-A master switch at the top. Off, nothing is painted and nothing is forgotten. Picking a scheme from the bar switches it on. Picking **Default** switches it off.
+A master switch at the top of the page. Off, nothing is painted and nothing is forgotten. Picking a scheme from the bar switches it on. Picking **Default** switches it off.
 
 ## Options
 
