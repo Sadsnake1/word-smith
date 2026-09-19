@@ -1,4 +1,3 @@
-<img width="1543" height="925" alt="word-smith-hero-2" src="https://github.com/user-attachments/assets/255dcfa7-9bdb-44d7-a1e4-a3ad64fa06e9" /><div align="center">
 
   <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=F5B301" alt="Stars"></a>
   <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=10B981" alt="Downloads"></a>
