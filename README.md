@@ -9,7 +9,7 @@
   <h1>Word-Smith</h1>
   
   <p><strong>Typewriter. Binder. Compiler.</strong><br>
-  *** The ultimate writing suite for Obsidian. Built for desktop & mobile. ***</p>
+  The ultimate writing suite for Obsidian. Built for desktop & mobile.</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
   
@@ -93,9 +93,13 @@ PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your pap
 The tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript; a folder with only some of its notes in shows a half tick. Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox.
 
 <div align="center">
-  <img width="1570" alt="The Export tab with a paged preview" src="https://github.com/user-attachments/assets/99bc31c9-8781-469a-8446-22f89105dec7" />
-  <p><sub>The pages, before anything is written to disk.</sub></p>
+  <img width="1537" height="921" alt="word-smith-export" src="https://github.com/user-attachments/assets/005921ed-12a0-479d-b712-e8c0bee60307" />
 </div>
+
+<div align="center">
+<img width="1537" height="921" alt="word-smith-expanded" src="https://github.com/user-attachments/assets/30caf043-0e73-4b11-9dc2-963db54ef1c3" />
+</div>
+
 
 Read more about [Export](docs/export.md).
 
@@ -105,10 +109,12 @@ Words you added rise from the centre line. Words you cut fall below it. A day sp
 
 <table>
   <tr>
-    <td width="50%"><img alt="History, day view" src="https://github.com/user-attachments/assets/5a751b82-0882-4d7b-95b8-7cf6dc35e8d0" /><br><sub>The whole year, at a glance.</sub></td>
-    <td width="50%"><img alt="History, calendar view" src="https://github.com/user-attachments/assets/a8c415e5-0768-4289-984b-54ab9bf4951c" /><br><sub>Day by day, added above, cut below.</sub></td>
+    <td width="50%"><img width="1537" height="921" alt="word-smith-history-2" src="https://github.com/user-attachments/assets/5a43cc1e-7a06-4cc9-b164-906321c974d5" /><br><sub>The whole year, at a glance.</sub></td>
+    <td width="50%"><img width="1537" height="921" alt="word-smith-history-1" src="https://github.com/user-attachments/assets/560768d8-8a38-4e18-8cb1-cd733e7c8189" />
+<br><sub>Day by day, added above, cut below.</sub></td>
   </tr>
 </table>
+
 
 The Writing Report gives a note, a folder or a selection its numbers: words against target, characters, syllables, sentences, paragraphs, pages, reading time and grade. Under them, every word you used, how often, and its share drawn as a bar. Common words stay out until you tick them in.
 
