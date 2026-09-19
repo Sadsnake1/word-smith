@@ -1,4 +1,4 @@
-<div align="center">
+<img width="1543" height="925" alt="word-smith-hero-2" src="https://github.com/user-attachments/assets/255dcfa7-9bdb-44d7-a1e4-a3ad64fa06e9" /><div align="center">
 
   <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=F5B301" alt="Stars"></a>
   <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=10B981" alt="Downloads"></a>
@@ -62,10 +62,13 @@ Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a
 
 <table>
   <tr>
-    <td width="50%"><img alt="Zen mode with the powerline bar" src="https://github.com/user-attachments/assets/41d1249f-ba39-4389-a19c-dff8893b52e0" /><br><sub>Zen. The interface goes away, a piece at a time.</sub></td>
-    <td width="50%"><img alt="The letter box narrowing the page" src="https://github.com/user-attachments/assets/98f54322-b68e-42e0-9c04-c8e68d0c1d5c" /><br><sub>The letter box. Only the part you're working on.</sub></td>
+    <td width="50%"><img width="1543" height="925" alt="word-zen" src="https://github.com/user-attachments/assets/3a0701c1-ae64-4ce8-959f-bc8d73df2675" />
+<br><sub>Zen. The interface goes away, a piece at a time.</sub></td>
+    <td width="50%"><img width="1543" height="925" alt="Word-Smith Letterbox" src="https://github.com/user-attachments/assets/37a536cf-3dd4-4d9f-88a0-bbb3c52a8409" /><br><sub>The letter box. Only the part you're working on.</sub></td>
   </tr>
 </table>
+
+
 
 Themes repaint the whole workspace, dark and light.
 
