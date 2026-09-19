@@ -36,8 +36,11 @@ The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner
 Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with a shape and a colour of your own. Watch a folder add itself up, and a Total row at the foot add up the lot.
 
 <div align="center">
-  <img width="1573" alt="The Organizer: tree on the left, table of chapters on the right" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
+<img width="1537" height="921" alt="word-smith-organizer" src="https://github.com/user-attachments/assets/3d786856-a032-4f6d-b934-3505b735504a" />
 </div>
+
+
+
 
 Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. Readings the frontmatter can't give you sit beside them: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
 
