@@ -28,7 +28,8 @@ import type { WsLensSort, WsLensChip } from './organizer-lens';
 // switching it on wrote, and so selfcarry_probe can hold styles.css to
 // reading every one of them. A name added to applyStyleProps that is not
 // here is written and never cleared.
-export const STYLE_KINDS = ['text', 'highlight', 'squiggle', 'line'];
+// (no 'squiggle' since A461, 2026-09-20 — the writer: "Remove the squiggle")
+export const STYLE_KINDS = ['text', 'highlight', 'line'];
 export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-dim-active']
 	.concat(STYLE_KINDS.map((k) => 'ws-pos-' + k), STYLE_KINDS.map((k) => 'ws-ck-' + k));
 export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line-hl-color', '--ws-dim-opacity',
@@ -5242,7 +5243,7 @@ export function wsSortArrow(dir: string) {
 	return dir === 'desc' ? ' ↓' : ' ↑';
 }
 
-export const WS_STYLESHEET_VERSION = 560;
+export const WS_STYLESHEET_VERSION = 561;
 // THE INSTALLER GATE (A243 54). Encoded major*1000+minor. Refused below
 // 1.9: installers 1.5.12 and 1.8.3 froze Obsidian on enable (Reddit,
 // August 2026). Warned below 1.13: the installer this build is measured
@@ -5283,7 +5284,7 @@ export const WS_WRITE = Object.freeze({
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-export const WS_PLUGIN_VERSION = '1.5.4';
+export const WS_PLUGIN_VERSION = '1.5.5';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6920,9 +6921,9 @@ export const DEFAULT_SETTINGS = {
 
 	// ── Syntax highlight ──────────────────────────────────────────────────────
 	syntaxSkipCode:           true,
-	syntaxStyle:              'text',     // 'text' | 'highlight' | 'squiggle' | 'line'
+	syntaxStyle:              'text',     // 'text' | 'highlight' | 'line'
 	checksEnabled:            false,      // master switch over the writing checks
-	checkStyle:               'squiggle', // same options, for the writing checks
+	checkStyle:               'line',     // same options, for the writing checks (Squiggle until 1.5.4; a vault on it moves here)
 	checkFiller:              true,
 	checkFillerSoft:          false,     // also flag quantifiers/frequency words
 	checkFillerColor:         "#8a7fd1",

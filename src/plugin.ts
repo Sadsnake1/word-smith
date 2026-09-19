@@ -2945,6 +2945,12 @@ export default class WordSmith extends Plugin {
 			this.settings.statusBarBorderStyle = 'solid';
 			this.settings.statusBarBorderWidth = 0;
 		}
+		// 'squiggle' was a mark STYLE through 1.5.4, and the checks' default
+		// (A461, the writer: "Remove the squiggle"). A vault that chose it, or
+		// never chose, lands on Line — the nearest mark. Keyed on the value,
+		// which nothing can write again.
+		if (this.settings.syntaxStyle === 'squiggle') this.settings.syntaxStyle = 'line';
+		if (this.settings.checkStyle === 'squiggle') this.settings.checkStyle = 'line';
 		if (this.settings.goalBarCells != null) delete this.settings.goalBarCells;
 		// The slim bar was dropped; the ring is the only indicator now.
 		// goalLabel used to place text beside the indicator. The percentage
@@ -5407,14 +5413,14 @@ export default class WordSmith extends Plugin {
 		cls['ws-dim-active'] = !!s.dimUnfocusedEnabled;
 		if (cls['ws-dim-active']) props['--ws-dim-opacity'] = String(s.dimOpacity != null ? s.dimOpacity : 0.35);
 		// ── Syntax highlight + writing checks ─────────────────────────────
-		// One style per group — text, highlight, squiggle or line — as a
+		// One style per group — text, highlight or line — as a
 		// class on body, and per mark a colour and a tint (the highlight's
 		// 22% wash) as properties. Only the marks that are ON get their
 		// colour, as only they got a rule before; the decorations emit a mark
 		// only for a check that is on, so a mark with no colour is a mark
 		// that does not exist.
 		const posStyle = s.syntaxStyle || 'text';
-		const ckStyle = s.checkStyle || 'squiggle';
+		const ckStyle = s.checkStyle || 'line';
 		for (const st of STYLE_KINDS) {
 			cls['ws-pos-' + st] = !!s.posEnabled && posStyle === st;
 			cls['ws-ck-' + st] = !!(s.posEnabled || s.checksEnabled) && ckStyle === st;
@@ -5442,7 +5448,7 @@ export default class WordSmith extends Plugin {
 				['dialogue', s.checkDialogue, s.checkDialogueColor]
 			]) if (on) paint('ws-ck-' + k, color);
 			// Rhythm is a background tint whatever checkStyle says: a
-			// squiggle under a thirty-word sentence is noise, and the point
+			// line under a thirty-word sentence is noise, and the point
 			// of this one is seeing a wall of a single colour at a glance.
 			if (s.checkRhythm) {
 				props['--ws-ck-hard-bg']     = this.hexToRgba(s.checkRhythmHardColor, 0.22);

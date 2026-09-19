@@ -31,7 +31,7 @@ var import_obsidian = require("obsidian");
 var import_view = require("@codemirror/view");
 var import_state = require("@codemirror/state");
 var import_commands = require("@codemirror/commands");
-var STYLE_KINDS = ["text", "highlight", "squiggle", "line"];
+var STYLE_KINDS = ["text", "highlight", "line"];
 var STYLE_CLASSES = ["ws-para-single", "ws-line-spacing", "ws-line-hl", "ws-dim-active"].concat(STYLE_KINDS.map((k) => "ws-pos-" + k), STYLE_KINDS.map((k) => "ws-ck-" + k));
 var STYLE_PROPS = [
   "--ws-line-measure",
@@ -4188,7 +4188,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " \u2193" : " \u2191";
 }
-var WS_STYLESHEET_VERSION = 560;
+var WS_STYLESHEET_VERSION = 561;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4204,7 +4204,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.5.4";
+var WS_PLUGIN_VERSION = "1.5.5";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -5239,11 +5239,11 @@ var DEFAULT_SETTINGS = {
   // ── Syntax highlight ──────────────────────────────────────────────────────
   syntaxSkipCode: true,
   syntaxStyle: "text",
-  // 'text' | 'highlight' | 'squiggle' | 'line'
+  // 'text' | 'highlight' | 'line'
   checksEnabled: false,
   // master switch over the writing checks
-  checkStyle: "squiggle",
-  // same options, for the writing checks
+  checkStyle: "line",
+  // same options, for the writing checks (Squiggle until 1.5.4; a vault on it moves here)
   checkFiller: true,
   checkFillerSoft: false,
   // also flag quantifiers/frequency words
@@ -12616,7 +12616,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
       ], void 0, false),
       this.section("Syntax", [
         { name: "Syntax highlight", desc: "Colors parts of speech as you write. Fully local.", control: { type: "toggle", key: "posEnabled" } },
-        { name: "Display style", desc: "How a part of speech is marked.", control: { type: "dropdown", key: "syntaxStyle", options: { text: "Colored text", highlight: "Highlight", squiggle: "Squiggle", line: "Underline" } }, visible: pos },
+        { name: "Display style", desc: "How a part of speech is marked.", control: { type: "dropdown", key: "syntaxStyle", options: { text: "Colored text", highlight: "Highlight", line: "Underline" } }, visible: pos },
         cat("Nouns", "Nouns and pronouns.", "posNoun", "posNounColor", pos),
         cat("Verbs", "Verbs, auxiliaries and modals.", "posVerb", "posVerbColor", pos),
         cat("Adverbs", "All adverbs, including not and very.", "posAdverb", "posAdverbColor", pos),
@@ -12627,7 +12627,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
       ], this.railed("prose", "syntax")),
       this.section("Checks", [
         { name: "Prose checks", desc: "Things worth a second look, not mistakes. Fully local.", control: { type: "toggle", key: "checksEnabled" } },
-        { name: "Display style", desc: "How a finding is marked.", control: { type: "dropdown", key: "checkStyle", options: { squiggle: "Squiggle", line: "Underline", highlight: "Highlight", text: "Colored text" } }, visible: ck },
+        { name: "Display style", desc: "How a finding is marked.", control: { type: "dropdown", key: "checkStyle", options: { line: "Underline", highlight: "Highlight", text: "Colored text" } }, visible: ck },
         cat("Filler words", "Words like very, really, basically, kind of.", "checkFiller", "checkFillerColor", ck),
         { name: "Also flag vague quantifiers", desc: "Many, most, some, often. Stricter, and it flags more.", control: { type: "toggle", key: "checkFillerSoft" }, visible: all(ck, () => !!s.checkFiller) },
         cat("Passive voice", "Was written, is being considered.", "checkPassive", "checkPassiveColor", ck),
@@ -14655,6 +14655,8 @@ var WordSmith = class extends import_obsidian12.Plugin {
       this.settings.statusBarBorderStyle = "solid";
       this.settings.statusBarBorderWidth = 0;
     }
+    if (this.settings.syntaxStyle === "squiggle") this.settings.syntaxStyle = "line";
+    if (this.settings.checkStyle === "squiggle") this.settings.checkStyle = "line";
     if (this.settings.goalBarCells != null) delete this.settings.goalBarCells;
     if (this.settings.goalLabel != null) {
       if (this.settings.goalLabel === "none") this.settings.goalLabelMode = "none";
@@ -16483,7 +16485,7 @@ var WordSmith = class extends import_obsidian12.Plugin {
     cls["ws-dim-active"] = !!s.dimUnfocusedEnabled;
     if (cls["ws-dim-active"]) props["--ws-dim-opacity"] = String(s.dimOpacity != null ? s.dimOpacity : 0.35);
     const posStyle = s.syntaxStyle || "text";
-    const ckStyle = s.checkStyle || "squiggle";
+    const ckStyle = s.checkStyle || "line";
     for (const st of STYLE_KINDS) {
       cls["ws-pos-" + st] = !!s.posEnabled && posStyle === st;
       cls["ws-ck-" + st] = !!(s.posEnabled || s.checksEnabled) && ckStyle === st;

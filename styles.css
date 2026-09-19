@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 560;
+	--ws-stylesheet-version: 561;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -4081,18 +4081,30 @@ button.ws-card.ws-card-more:hover { color: var(--text-normal); border-color: var
 	   a dark scheme: near black) still reads on a dark card */
 	background-color: color-mix(in srgb, var(--text-muted) 22%, transparent);
 }
+/* A BODY AND A POINT, NO CLIP (A460: the reviewer flags `clip-path` as
+   partly supported). The segment is a 12px body; its 6px point is a border
+   triangle on ::after, hung past the body's right edge, so the next segment
+   starts under the point and the earlier one draws over it — the same 42px
+   the polygon cut, without the polygon. */
 .ws-preset-seg {
 	position: relative;
 	display: inline-block;
-	width: 18px;
+	width: 12px;
 	height: 14px;
-	margin-right: -6px;
 	background-color: var(--ws-seg);
-	clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 50%, calc(100% - 6px) 100%, 0 100%);
+}
+.ws-preset-seg::after {
+	content: '';
+	position: absolute;
+	left: 100%;
+	top: 0;
+	border-top: 7px solid transparent;
+	border-bottom: 7px solid transparent;
+	border-left: 6px solid var(--ws-seg);
 }
 .ws-preset-seg:nth-child(1) { z-index: 3; border-radius: 3px 0 0 3px; }
 .ws-preset-seg:nth-child(2) { z-index: 2; }
-.ws-preset-seg:last-child { margin-right: 0; }
+.ws-preset-seg:last-child { margin-right: 6px; }   /* room for its point inside the ground */
 /* the small prompt Save and Import open: one field, a line under it */
 .ws-prompt-field { width: 100%; box-sizing: border-box; }
 .ws-prompt-note { min-height: 1.4em; margin-top: 6px; font-size: var(--font-ui-small); color: var(--text-error); }
@@ -5455,7 +5467,7 @@ body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer {
 body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum] {
 	position: relative;
 }
-body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::before {
+body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::after {   /* ::after since A460: ::before is the indent's spacer */
 	content: attr(data-ws-pnum);
 	position: absolute;
 	right: 100%;
@@ -5482,8 +5494,8 @@ body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p {
 	counter-increment: ws-para;
 	position: relative;
 }
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > p::before,
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p::before {
+body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > p::after,
+body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p::after {
 	content: counter(ws-para);
 	position: absolute;
 	right: 100%;
@@ -14490,21 +14502,31 @@ body.ws-masks-active .cm-editor .cm-panels.cm-panels-bottom input {
    adds an element to the count, and naming the editor chain outranks the
    theme rules that set text-indent on .cm-line and p — while still letting
    a writer's own snippet win if they want it to. */
-body.ws-para-indent:where(.ws-para-single) .markdown-source-view.mod-cm6 .cm-content .ws-para-line { text-indent: var(--ws-para-indent); }
-body.ws-para-indent:where(:not(.ws-para-single)) .markdown-source-view.mod-cm6 .cm-content .ws-para-first { text-indent: var(--ws-para-indent); }
-body.ws-para-indent:where(.ws-para-single) .markdown-reading-view .markdown-preview-view p { text-indent: var(--ws-para-indent); }
-body.ws-para-indent:where(:not(.ws-para-single)) .markdown-reading-view .markdown-preview-view p + p { text-indent: var(--ws-para-indent); }
+/* A SPACER, NOT text-indent (A460: the reviewer flags the property as
+   partly supported — the `hanging`/`each-line` keywords, which this never
+   used; the lint does not tell them apart). An inline-block ::before of the
+   indent's width at the line's start pushes the first line box exactly as
+   the indent did, wrapped lines start at the margin as before, and the caret
+   at the line's start sits after it (a collapsed range at the first
+   character reads past the spacer — layout_probe holds that). Only prose
+   lines wear the class, so no blank line gains a box. The paragraph numbers
+   sit on ::after for this — they are absolutely positioned and never cared
+   which side they hung from. */
+body.ws-para-indent:where(.ws-para-single) .markdown-source-view.mod-cm6 .cm-content .ws-para-line::before,
+body.ws-para-indent:where(:not(.ws-para-single)) .markdown-source-view.mod-cm6 .cm-content .ws-para-first::before,
+body.ws-para-indent:where(.ws-para-single) .markdown-reading-view .markdown-preview-view p::before,
+body.ws-para-indent:where(:not(.ws-para-single)) .markdown-reading-view .markdown-preview-view p + p::before { content: ''; display: inline-block; width: var(--ws-para-indent); }
 /* Reading view renders list items, quotes, callouts and table cells as <p>
    too, so the rules above catch them. Rather than a fragile :not() chain,
    indent every paragraph and then take it back from the containers where it
    does not belong. These outrank the rules above on element count alone —
    one more descendant each — and on order at a tie. */
-body.ws-para-indent .markdown-reading-view .markdown-preview-view li p,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view blockquote p,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view td p,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view th p,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view .callout p,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view figcaption { text-indent: 0; }
+body.ws-para-indent .markdown-reading-view .markdown-preview-view li p::before,
+body.ws-para-indent .markdown-reading-view .markdown-preview-view blockquote p::before,
+body.ws-para-indent .markdown-reading-view .markdown-preview-view td p::before,
+body.ws-para-indent .markdown-reading-view .markdown-preview-view th p::before,
+body.ws-para-indent .markdown-reading-view .markdown-preview-view .callout p::before,
+body.ws-para-indent .markdown-reading-view .markdown-preview-view figcaption::before { content: none; }
 
 /* ── The editor font ──────────────────────────────────────────────────────
    The full chain plus the leading body class outranks the theme rules that
@@ -14553,10 +14575,10 @@ body:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { opacity: var(--ws-d
    the same four options suit either job. Each mark class carries its own
    colour and its 22% tint as properties (from applyStyleProps, only while
    the mark is on); the group's style is a class on body — ws-pos-text /
-   -highlight / -squiggle / -line for the word classes, ws-ck-* for the
+   -highlight / -line for the word classes, ws-ck-* for the
    checks — and the four rules per group read the mark's two properties.
    Dialogue rides the checks' style choice: the point of it is finding
-   speech at a glance, and a writer who prefers underline to squiggle means
+   speech at a glance, and a writer who prefers highlight to underline means
    it here too. */
 .ws-pos-noun { --ws-mark: var(--ws-pos-noun-color); --ws-mark-bg: var(--ws-pos-noun-bg); }
 .ws-pos-verb { --ws-mark: var(--ws-pos-verb-color); --ws-mark-bg: var(--ws-pos-verb-bg); }
@@ -14572,14 +14594,20 @@ body:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { opacity: var(--ws-d
 .ws-ck-dialogue { --ws-mark: var(--ws-ck-dialogue-color); --ws-mark-bg: var(--ws-ck-dialogue-bg); }
 body:where(.ws-pos-text) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { color: var(--ws-mark); }
 body:where(.ws-pos-highlight) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { background-color: var(--ws-mark-bg); border-radius: 2px; }
-body:where(.ws-pos-squiggle) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--ws-mark); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
-body:where(.ws-pos-line) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: var(--ws-mark); text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+/* THE LINE IS A SHADOW (A460): the reviewer flags the text-decoration
+   longhands as partly supported, and the multi-value shorthand with them, so
+   an underline of a colour of its own cannot be spelled the property's way.
+   A line is a 2px inset shadow along the box's foot; a pixel of inline
+   padding drops it under the descenders, where the underline sat, and costs
+   the line no height. Until A460 the painters were the sheet's one exemption
+   from the lint; the squiggle they also drew went at A461, on the writer's
+   word ("Remove the squiggle"). */
+body:where(.ws-pos-line) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
 body:where(.ws-ck-text) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { color: var(--ws-mark); }
 body:where(.ws-ck-highlight) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { background-color: var(--ws-mark-bg); border-radius: 2px; }
-body:where(.ws-ck-squiggle) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--ws-mark); text-decoration-thickness: 1px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
-body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { text-decoration-line: underline; text-decoration-style: solid; text-decoration-color: var(--ws-mark); text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
+body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
 /* Rhythm is forced to a background tint whatever the checks' style says: a
-   squiggle under a thirty-word sentence is noise; the point of this one is
+   line under a thirty-word sentence is noise; the point of this one is
    seeing a wall of a single colour at a glance. */
 .ws-ck-hard     { background-color: var(--ws-ck-hard-bg);     border-radius: 2px; }
 .ws-ck-veryhard { background-color: var(--ws-ck-veryhard-bg); border-radius: 2px; }
@@ -14592,8 +14620,8 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(
 /* The same for the checks — with one thing the word-class version never
    had to handle. Word classes default to COLOURED TEXT, so their marks
    carry a colour of their own and a declaration on the element always
-   beats a colour inherited from .cm-line. Checks default to SQUIGGLE, and a
-   squiggle sets text-decoration, not colour — so those marks inherit, and
+   beats a colour inherited from .cm-line. Checks default to LINE, and a
+   line paints a shadow, not colour — so those marks inherit, and
    dimming the line would fade the marked words along with everything else.
    So when the style is not text, the ink is handed back to the marks. A
    mark exists only for a check that is on (the decorations see to that),

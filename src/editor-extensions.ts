@@ -310,7 +310,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 					}
 
 					// Sentence rhythm. Always a background tint, whatever
-					// checkStyle says: a squiggle under thirty words is
+					// checkStyle says: a line under thirty words is
 					// noise, and the point is to see a wall of one colour.
 					if (s.checkRhythm) {
 						for (const sent of splitSentences(masked)) {

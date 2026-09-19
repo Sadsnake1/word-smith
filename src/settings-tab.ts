@@ -1764,7 +1764,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			], undefined, false),
 			this.section('Syntax', [
 				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Fully local.', control: { type: 'toggle', key: 'posEnabled' } },
-				{ name: 'Display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', squiggle: 'Squiggle', line: 'Underline' } }, visible: pos },
+				{ name: 'Display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
 				cat('Nouns', 'Nouns and pronouns.', 'posNoun', 'posNounColor', pos),
 				cat('Verbs', 'Verbs, auxiliaries and modals.', 'posVerb', 'posVerbColor', pos),
 				cat('Adverbs', 'All adverbs, including not and very.', 'posAdverb', 'posAdverbColor', pos),
@@ -1775,7 +1775,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			], this.railed('prose', 'syntax')),
 			this.section('Checks', [
 				{ name: 'Prose checks', desc: 'Things worth a second look, not mistakes. Fully local.', control: { type: 'toggle', key: 'checksEnabled' } },
-				{ name: 'Display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { squiggle: 'Squiggle', line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
+				{ name: 'Display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
 				cat('Filler words', 'Words like very, really, basically, kind of.', 'checkFiller', 'checkFillerColor', ck),
 				{ name: 'Also flag vague quantifiers', desc: 'Many, most, some, often. Stricter, and it flags more.', control: { type: 'toggle', key: 'checkFillerSoft' }, visible: all(ck, () => !!s.checkFiller) },
 				cat('Passive voice', 'Was written, is being considered.', 'checkPassive', 'checkPassiveColor', ck),

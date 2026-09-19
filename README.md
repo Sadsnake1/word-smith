@@ -9,7 +9,7 @@
   <h1>Word-Smith</h1>
   
   <p><strong>Typewriter. Binder. Compiler.</strong><br>
-  he ultimate writing suite for Obsidian. Built for desktop & mobile.</p>
+  *** The ultimate writing suite for Obsidian. Built for desktop & mobile. ***</p>
 
   <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
   
@@ -113,7 +113,7 @@ Read more about [history and the report](docs/history-and-report.md).
 
 ### And the rest
 
-[Prose checks and parts-of-speech colouring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in colour, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get a squiggle. No model, no network, no verdicts.
+[Prose checks and parts-of-speech colouring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in colour, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get an underline. No model, no network, no verdicts.
 
 [A status bar you build yourself](docs/powerline.md). You write it as text, and the punctuation you type between tokens becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
 
