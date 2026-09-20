@@ -254,5 +254,6 @@ const showItem = (it: { path: string; kind: string }, markOnly?: boolean) => {
 // is up, that repaints the numbers FROM it — one debounced clock,
 // because a paste into a big note lands as several events.
 let orgDrawTimer: number | null = null;
-	return { orgSelect, orgFollow, showItem, get orgNote() { return orgNote; }, set orgNote(v) { orgNote = v; }, get orgDrawTimer() { return orgDrawTimer; }, set orgDrawTimer(v) { orgDrawTimer = v; } };
+	// (orgScopeHolds is out for the pin, A462: the explorer's door asks it)
+	return { orgSelect, orgFollow, showItem, orgScopeHolds, get orgNote() { return orgNote; }, set orgNote(v) { orgNote = v; }, get orgDrawTimer() { return orgDrawTimer; }, set orgDrawTimer(v) { orgDrawTimer = v; } };
 };

@@ -11,13 +11,9 @@
   <p><strong>Typewriter. Binder. Compiler.</strong><br>
   The ultimate writing suite for Obsidian. Built for desktop &amp; mobile.</p>
 
-  <img width="1918" height="1017" alt="Word-Smith" src="https://github.com/user-attachments/assets/b23eb2bf-b6e2-4f5e-a3f2-222ce46cccc7" />
+  <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
 
 </div>
-
-
-
-
 
 Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there.
 
@@ -45,7 +41,7 @@ Drag and drop to sort, and the order sticks: in your file tree, in the table, an
 
 Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. Readings the frontmatter can't give you sit beside them: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
 
-Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, a search box above the tabs, and your sort and filter come back after a restart.
+Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, a search box above the tabs, and your sort and filter come back after a restart. It follows the note you open; pin it and it stays on your scenes wherever you go.
 
 It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
 

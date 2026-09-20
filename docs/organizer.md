@@ -6,7 +6,7 @@ The big boy. Obsidian's file explorer is the tree, the Organizer is the table. C
 
 <img width="1573" alt="The Organizer: a folder as a table of chapters" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It follows whatever note you open, and the arrow keys walk the table without changing the folder. On a phone, two fingers zoom the table.
+Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
 
 No project file, no special folder. Your folders and files, as they are.
 

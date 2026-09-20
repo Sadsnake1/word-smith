@@ -4188,7 +4188,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " \u2193" : " \u2191";
 }
-var WS_STYLESHEET_VERSION = 561;
+var WS_STYLESHEET_VERSION = 562;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4204,7 +4204,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.5.5";
+var WS_PLUGIN_VERSION = "1.5.6";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -5049,6 +5049,13 @@ var DEFAULT_SETTINGS = {
   // SETTLED list). Empty means the manuscript root itself. Written by ONE
   // function (`orgSelect` in the window) and nothing else.
   organizerFolder: "",
+  // THE PIN (A462, a user: "fixing the folder that is displayed in the
+  // Organizer, so that it always shows the same content no matter where I
+  // navigate in Obsidian's default file explorer"): on, the explorer's door
+  // is shut — a note opened elsewhere and a folder clicked there leave the
+  // pane on `organizerFolder`; the pane's own crumbs still move it. The
+  // button on the path line is the one writer.
+  organizerPinned: false,
   // Which of the two right-pane views is up (spec, RIGHT PANE): 'table'
   // or 'outline'. A view the writer chose is a view the window
   // remembers — the uniBoard precedent.
@@ -10006,7 +10013,7 @@ var wsOrgScopeMake = (d) => {
     d.drawPanel();
   };
   let orgDrawTimer = null;
-  return { orgSelect, orgFollow, showItem, get orgNote() {
+  return { orgSelect, orgFollow, showItem, orgScopeHolds, get orgNote() {
     return orgNote;
   }, set orgNote(v) {
     orgNote = v;
@@ -11499,9 +11506,22 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
     b.addEventListener("click", run);
     return b;
   }
+  // A ROW THAT HOLDS SWATCHES (A463, a phone shot: "the nouns color ball is
+  // bigger than the rest"): Obsidian's phone rule widens every input in a
+  // control area to 100%, a colour input included, so a swatch grew to
+  // whatever room its row had. The class lets the sheet hold the swatch
+  // width there; every colour picker of ours is added through this.
+  swatchRow(st) {
+    try {
+      st.settingEl.addClass("ws-set-swatches");
+    } catch (_) {
+      wsCatch("swatchRow: st.settingEl.addClass(ws-set-swatches)", _);
+    }
+  }
   // A colour swatch bound to one key, saved now (the bar repaints on save).
   swatch(st, key) {
     const s = bag(this.plugin.settings);
+    this.swatchRow(st);
     st.addColorPicker((cp) => cp.setValue(str(s[key] || DEFAULTS[key])).onChange((v) => {
       void (async () => {
         s[key] = v;
@@ -12715,6 +12735,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
   }
   renderCategory(st, onKey, colorKey) {
     const s = bag(this.plugin.settings);
+    this.swatchRow(st);
     st.addColorPicker((cp) => cp.setValue(str(s[colorKey])).onChange((v) => {
       void (async () => {
         s[colorKey] = v;
@@ -12731,6 +12752,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
   }
   renderRhythm(st) {
     const s = this.plugin.settings;
+    this.swatchRow(st);
     st.addColorPicker((cp) => cp.setValue(s.checkRhythmHardColor).onChange((v) => {
       void (async () => {
         s.checkRhythmHardColor = v;
@@ -12889,6 +12911,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian11.P
               })();
             });
           });
+          this.swatchRow(st);
           st.addColorPicker((cp) => cp.setValue(f.light).onChange((v) => {
             void write({ light: v });
           }));
@@ -30223,11 +30246,13 @@ var WordSmith = class extends import_obsidian12.Plugin {
     const treeDoor = {
       kind: host.kind,
       select: (p) => {
+        if (s.organizerPinned) return;
         if (tab === "history") orgScope.orgNote = "";
         orgSelect(p == null || p === "/" ? "" : String(p));
       },
       follow: (p) => {
         if (!p) return;
+        if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
         orgFollow({ kind: "file", path: String(p) }, true);
         draw();
         drawPanel();
@@ -30620,6 +30645,24 @@ var WordSmith = class extends import_obsidian12.Plugin {
           text: String(note).split("/").pop().replace(/\.md$/i, "")
         });
       }
+      if (tab === "organizer") {
+        const on = !!s.organizerPinned;
+        const pin = crumbs.createEl("button", {
+          cls: "clickable-icon ws-org-pin" + (on ? " is-on" : ""),
+          attr: {
+            type: "button",
+            "aria-pressed": on ? "true" : "false",
+            "aria-label": on ? "Pinned: the file explorer no longer moves the Organizer. Click to release." : "Pin this folder: the file explorer will no longer move the Organizer."
+          }
+        });
+        pin.title = pin.getAttribute("aria-label") || "";
+        (0, import_obsidian12.setIcon)(pin, on ? "pin" : "pin-off");
+        pin.addEventListener("click", () => {
+          s.organizerPinned = !s.organizerPinned;
+          void this.saveSettings();
+          drawSubject();
+        });
+      }
       const agg = note ? this._orgIndex ? wsOrgAgg(this._orgIndex, [note]) : null : this.orgAggUnder(at);
       if (agg && agg.files) {
         let said2 = agg.words.toLocaleString() + " words \xB7 " + agg.files.toLocaleString() + " notes";
@@ -30999,7 +31042,7 @@ var WordSmith = class extends import_obsidian12.Plugin {
           } catch (_) {
             wsCatch("openManuscriptModal: been = this._wsSession ? this._wsSession.folder : null;", _);
           }
-          orgFollow({ path: af.path, kind: "file" }, true, been !== null);
+          orgFollow({ path: af.path, kind: "file" }, true, been !== null || !!s.organizerPinned);
           let dir = folderOf(af.path);
           while (dir) {
             orgOpen.add(dir);

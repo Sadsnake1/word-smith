@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 561;
+	--ws-stylesheet-version: 562;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -3944,6 +3944,14 @@ button.ws-card-use:hover {
 .ws-set-alert-icon { display: inline-flex; flex-shrink: 0; color: var(--text-warning); }
 .setting-item.ws-set-alert.is-safe .ws-set-alert-icon { color: var(--text-muted); }
 .ws-set-alert-icon svg { width: 16px; height: 16px; }
+
+/* A SWATCH KEEPS ITS SIZE ON A PHONE (A463, the writer's shot of the Prose
+   page: "the nouns color ball is bigger than the rest"). Obsidian's own
+   `.is-phone .modal .setting-item-control input { width: 100% }` (0,3,1)
+   reaches a colour input, so a swatch grew to the room its row happened to
+   have — one row wide, the rest round. The app's own swatch width, at (0,4,1),
+   on every row of ours that holds one. */
+.is-phone .modal .setting-item.ws-set-swatches .setting-item-control input[type="color"] { width: calc(var(--swatch-width) + 4px); flex: 0 0 auto; }
 
 /* --- A section's last row: the reset link ------------------------------- */
 .setting-item.ws-set-reset-row { padding: 0.5em 0 0.2em; }
@@ -8657,6 +8665,11 @@ svg.ws-obsidian-mark { stroke-width: 46px; }
 	min-width: 0;
 	font-size: var(--font-ui-medium);
 }
+/* THE PIN (A462): the last thing on the crumbs line, pushed to its end; on,
+   it takes the accent. Obsidian's clickable-icon is the box and the hover. */
+.ws-uni-crumbs .ws-org-pin { margin-inline-start: auto; align-self: center; color: var(--text-faint); }
+.ws-uni-crumbs .ws-org-pin.is-on { color: var(--interactive-accent); }
+.ws-uni-crumbs .ws-org-pin svg { width: 14px; height: 14px; }
 .ws-uni-crumb {
 	font-size: inherit;
 	font-weight: var(--font-semibold, 600);

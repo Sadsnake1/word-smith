@@ -5243,7 +5243,7 @@ export function wsSortArrow(dir: string) {
 	return dir === 'desc' ? ' ↓' : ' ↑';
 }
 
-export const WS_STYLESHEET_VERSION = 561;
+export const WS_STYLESHEET_VERSION = 562;
 // THE INSTALLER GATE (A243 54). Encoded major*1000+minor. Refused below
 // 1.9: installers 1.5.12 and 1.8.3 froze Obsidian on enable (Reddit,
 // August 2026). Warned below 1.13: the installer this build is measured
@@ -5284,7 +5284,7 @@ export const WS_WRITE = Object.freeze({
 // Community Plugins, in a bug report — is whatever it was months ago. A
 // mismatch here is not a broken plugin; it is a plugin lying about which
 // one it is, which is worse for anyone trying to help.
-export const WS_PLUGIN_VERSION = '1.5.5';
+export const WS_PLUGIN_VERSION = '1.5.6';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6737,6 +6737,13 @@ export const DEFAULT_SETTINGS = {
 	// SETTLED list). Empty means the manuscript root itself. Written by ONE
 	// function (`orgSelect` in the window) and nothing else.
 	organizerFolder:          '',
+	// THE PIN (A462, a user: "fixing the folder that is displayed in the
+	// Organizer, so that it always shows the same content no matter where I
+	// navigate in Obsidian's default file explorer"): on, the explorer's door
+	// is shut — a note opened elsewhere and a folder clicked there leave the
+	// pane on `organizerFolder`; the pane's own crumbs still move it. The
+	// button on the path line is the one writer.
+	organizerPinned:          false,
 	// Which of the two right-pane views is up (spec, RIGHT PANE): 'table'
 	// or 'outline'. A view the writer chose is a view the window
 	// remembers — the uniBoard precedent.

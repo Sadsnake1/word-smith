@@ -27163,6 +27163,9 @@ export default class WordSmith extends Plugin {
 		const treeDoor: WsOrgDoor = {
 			kind: host.kind,
 			select: (p: string) => {
+				// PINNED, THE DOOR IS SHUT (A462): a folder clicked in the explorer
+				// is the explorer's business; the pane stays where it was pinned.
+				if (s.organizerPinned) return;
 				// A folder chosen while History is up is the folder's history:
 				// the note it was scoped to is let go (A417). `orgSelect` keeps
 				// a note that is under the folder, which is right for the
@@ -27172,6 +27175,9 @@ export default class WordSmith extends Plugin {
 			},
 			follow: (p: string) => {
 				if (!p) return;
+				// PINNED (A462): a note the folder holds is still marked; one it
+				// does not hold changes nothing — no jump, no mark outside the pane.
+				if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
 				orgFollow({ kind: 'file', path: String(p) }, true);
 				draw();
 				drawPanel();
@@ -27889,6 +27895,23 @@ export default class WordSmith extends Plugin {
 				crumbs.createSpan({ cls: 'ws-uni-crumb is-current is-note',
 					text: String(note).split('/').pop().replace(/\.md$/i, '') });
 			}
+			// THE PIN (A462): at the line's end, Obsidian's own icon button; on,
+			// the accent and the pin standing, off, faint and the pin lying down.
+			// The one writer of `organizerPinned`; a press saves and redraws the
+			// line, nothing else — the folder itself is untouched either way.
+			if (tab === 'organizer') {
+				const on = !!s.organizerPinned;
+				const pin = crumbs.createEl('button', { cls: 'clickable-icon ws-org-pin' + (on ? ' is-on' : ''),
+					attr: { type: 'button', 'aria-pressed': on ? 'true' : 'false',
+						'aria-label': on ? 'Pinned: the file explorer no longer moves the Organizer. Click to release.' : 'Pin this folder: the file explorer will no longer move the Organizer.' } });
+				pin.title = pin.getAttribute('aria-label') || '';
+				setIcon(pin, on ? 'pin' : 'pin-off');
+				pin.addEventListener('click', () => {
+					s.organizerPinned = !s.organizerPinned;
+					void this.saveSettings();
+					drawSubject();
+				});
+			}
 			const agg = note
 				? (this._orgIndex ? wsOrgAgg(this._orgIndex, [note]) : null)
 				: this.orgAggUnder(at);
@@ -28424,7 +28447,8 @@ export default class WordSmith extends Plugin {
 					// survives; it is only the JUMP that stops.
 					let been = null;
 					try { been = this._wsSession ? this._wsSession.folder : null; } catch (_) { wsCatch('openManuscriptModal: been = this._wsSession ? this._wsSession.folder : null;', _); }
-					orgFollow({ path: af.path, kind: 'file' }, true, been !== null);
+					// (and never while pinned, A462: the pin outranks the session's first open)
+					orgFollow({ path: af.path, kind: 'file' }, true, been !== null || !!s.organizerPinned);
 					// (The cursor is already standing on the active note —
 					// the open logic above placed it; one writer.)
 					let dir = folderOf(af.path);

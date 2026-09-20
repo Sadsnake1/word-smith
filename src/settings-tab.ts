@@ -762,9 +762,19 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return b;
 	}
 
+	// A ROW THAT HOLDS SWATCHES (A463, a phone shot: "the nouns color ball is
+	// bigger than the rest"): Obsidian's phone rule widens every input in a
+	// control area to 100%, a colour input included, so a swatch grew to
+	// whatever room its row had. The class lets the sheet hold the swatch
+	// width there; every colour picker of ours is added through this.
+	swatchRow(st: Setting) {
+		try { st.settingEl.addClass('ws-set-swatches'); } catch (_) { wsCatch('swatchRow: st.settingEl.addClass(ws-set-swatches)', _); }
+	}
+
 	// A colour swatch bound to one key, saved now (the bar repaints on save).
 	swatch(st: Setting, key: Key) {
 		const s = bag(this.plugin.settings);
+		this.swatchRow(st);
 		st.addColorPicker((cp) => cp.setValue(str(s[key] || DEFAULTS[key]))
 			.onChange((v) => { void (async () => { s[key] = v; await this.plugin.saveSettings(true); })(); }));
 	}
@@ -1856,6 +1866,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	renderCategory(st: Setting, onKey: Key, colorKey: Key) {
 		const s = bag(this.plugin.settings);
+		this.swatchRow(st);
 		st.addColorPicker((cp) => cp.setValue(str(s[colorKey]))
 			.onChange((v) => { void (async () => { s[colorKey] = v; await this.plugin.saveSettings(); })(); }));
 		st.addToggle((t) => t.setValue(!!s[onKey])
@@ -1864,6 +1875,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	renderRhythm(st: Setting) {
 		const s = this.plugin.settings;
+		this.swatchRow(st);
 		st.addColorPicker((cp) => cp.setValue(s.checkRhythmHardColor).onChange((v) => { void (async () => { s.checkRhythmHardColor = v; await this.plugin.saveSettings(); })(); }));
 		st.addColorPicker((cp) => cp.setValue(s.checkRhythmVeryHardColor).onChange((v) => { void (async () => { s.checkRhythmVeryHardColor = v; await this.plugin.saveSettings(); })(); }));
 		st.addToggle((t) => t.setValue(!!s.checkRhythm).onChange((v) => { void (async () => { s.checkRhythm = v; await this.plugin.saveSettings(); this.refreshDomState(); })(); }));
@@ -1984,6 +1996,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						d.setValue(f.shape);
 						d.onChange((v) => { void (async () => { await write({ shape: v }); this.update(); })(); });
 					});
+					this.swatchRow(st);
 					st.addColorPicker((cp) => cp.setValue(f.light).onChange((v) => { void write({ light: v }); }));
 					st.addColorPicker((cp) => cp.setValue(f.dark).onChange((v) => { void write({ dark: v }); }));
 				},
