@@ -9,7 +9,7 @@ import { MarkdownView, TFile, Modal, Platform } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
 import type { Text as CmText } from '@codemirror/state';
 import type { WsTextStats } from './settings';
-import { CJK_CHAR, READ_WPM, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from './preamble';
+import { CJK_CHAR, READ_WPM, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from './preamble';
 import type WordSmith from './plugin';
 import type { WsInkDrop, WsInkBubble, WsInkWave, WsInkOrb } from './plugin';
 
@@ -4654,7 +4654,9 @@ export const reportMethods = {
 	// Each row is word · count · %: the count beside the percentage because
 	// "12 times" is what a writer acts on and "1.4%" is what they compare.
 	// Common words out by default (REPORT_STOPWORDS says which), a tick
-	// brings them back; the tick is the panel's own and is not saved.
+	// brings them back ("Common words" — two words, so the search beside it
+	// keeps its width in a 400px window); the tick is the panel's own and is
+	// not saved.
 	buildReportWords(this: WordSmith, into: HTMLDivElement, stats: { words: number }, freq: Map<string, number>) {
 		into.addClass('ws-report-host');
 		const box = into.createDiv({ cls: 'ws-report-words' });
@@ -4666,10 +4668,20 @@ export const reportMethods = {
 			btn.setAttribute('aria-pressed', open ? 'true' : 'false');
 		};
 		say(false);
+		// A SEARCH BOX BETWEEN THE BUTTON AND THE TICK (A477, writer 2026-09-21:
+		// "add a search bar so i can see a word count"): the rows narrow to the
+		// words that contain what is typed, so "walk" shows walk, walked and
+		// walking with their counts. The wrapper is Obsidian's own
+		// `search-input-container`, so the app draws the magnifier.
+		const srchWrap = bar.createDiv({ cls: 'ws-report-words-search search-input-container' });
+		const srch = srchWrap.createEl('input');
+		srch.type = 'search';
+		srch.placeholder = 'Find a word';
+		srch.setAttribute('aria-label', 'Find a word');
 		const lab = bar.createEl('label', { cls: 'ws-report-words-common' });
 		const chk = lab.createEl('input');
 		chk.type = 'checkbox';
-		lab.createSpan({ text: ' Include common words' });
+		lab.createSpan({ text: ' Common words' });
 		// EVERY WORD, in a box that scrolls: a novel has thousands. TWO TABLES,
 		// ONE SET OF COLUMNS: the heading row in a box of its own above the
 		// scroller, so the bar runs beside the words only and never cuts the
@@ -4690,19 +4702,57 @@ export const reportMethods = {
 		cols(table);
 		const total = stats && stats.words ? stats.words : 0;
 		// THE ORGANIZER'S HEADER: the same heading costume the table wears,
-		// the word column left, the figures centred.
+		// the word column left, the figures centered. THE HEADINGS SORT (A477:
+		// "let me click on the top header to sort by word (a-z, z-a), count,
+		// frequency"): a click on Word puts the words a-z, a second z-a; on
+		// Count or Frequency, most used first, then least - the two share a
+		// key, a share of the total being the count over it. The mark is the
+		// Organizer's arrow, in the accent; `aria-sort` says the same for a
+		// reader that cannot see it.
 		const head = htable.createEl('thead').createEl('tr');
-		head.createEl('th', { cls: 'ws-report-word', text: 'Word' });
-		head.createEl('th', { cls: 'ws-report-wordn', text: 'Count' });
-		head.createEl('th', { cls: 'ws-report-wordpct', text: 'Frequency' });
+		type WsWordsCol = 'word' | 'count' | 'pct';
+		const COLS: { id: WsWordsCol; cls: string; label: string; first: 'asc' | 'desc' }[] = [
+			{ id: 'word', cls: 'ws-report-word', label: 'Word', first: 'asc' },
+			{ id: 'count', cls: 'ws-report-wordn', label: 'Count', first: 'desc' },
+			{ id: 'pct', cls: 'ws-report-wordpct', label: 'Frequency', first: 'desc' },
+		];
+		let sortCol: WsWordsCol = 'count';
+		let sortDir: 'asc' | 'desc' = 'desc';
+		const heads = COLS.map((c) => {
+			const th = head.createEl('th', { cls: c.cls, text: c.label, attr: { title: 'Sort by ' + c.label.toLowerCase() } });
+			th.addEventListener('click', () => {
+				if (sortCol === c.id) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+				else { sortCol = c.id; sortDir = c.first; }
+				draw();
+			});
+			return { c, th };
+		});
+		const markHeads = () => {
+			for (const { c, th } of heads) {
+				th.querySelectorAll('.ws-org-sortmark').forEach((m) => m.remove());
+				const on = sortCol === c.id;
+				if (on) th.createSpan({ cls: 'ws-org-sortmark', text: wsSortArrow(sortDir) });
+				th.setAttribute('aria-sort', on ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
+			}
+		};
 		const tbody = table.createEl('tbody');
+		// THE LIST, ONCE PER TICK: the map is walked and ordered when the tick
+		// changes; the search and the sort only narrow and re-order what it
+		// gave. THE BAND IS THE TARGET CELL'S: the same four steps by the same
+		// thresholds, the top word at 100% and every other word a share of it,
+		// the percentage of all words written on the band - and the top word is
+		// the most used of ALL the rows, whatever the sort or the search shows,
+		// so a narrowed "walk" keeps the share it had.
+		let base: { w: string; n: number }[] = [];
+		let top = 0;
+		const rebase = () => { base = this.topWords(freq, Infinity, chk.checked); top = base.length ? base[0].n : 0; };
 		const draw = () => {
 			tbody.empty();
-			const rows = this.topWords(freq, Infinity, chk.checked);
-			// THE BAND IS THE TARGET CELL'S: the same four steps by the same
-			// thresholds, the top word at 100% and every other word a share of it,
-			// the percentage of all words written on the band.
-			const top = rows.length ? rows[0].n : 0;
+			markHeads();
+			const q = srch.value.trim().toLowerCase();
+			const rows = q ? base.filter((r) => r.w.includes(q)) : base.slice();
+			if (sortCol === 'word') { const dir = sortDir === 'asc' ? 1 : -1; rows.sort((a, b) => dir * a.w.localeCompare(b.w)); }
+			else if (sortDir === 'asc') rows.sort((a, b) => a.n - b.n || a.w.localeCompare(b.w));
 			for (const r of rows) {
 				const tr = tbody.createEl('tr');
 				tr.createEl('td', { cls: 'ws-report-word', text: r.w });
@@ -4716,17 +4766,18 @@ export const reportMethods = {
 				pct.addClass('is-band-' + step);
 			}
 			if (!rows.length) {
-				const only = tbody.createEl('tr').createEl('td', { cls: 'ws-report-word is-muted', text: 'Only common words here.' });
+				const only = tbody.createEl('tr').createEl('td', { cls: 'ws-report-word is-muted', text: q ? 'No word here has "' + q + '" in it.' : 'Only common words here.' });
 				only.setAttribute('colspan', '3');
 			}
 		};
-		chk.addEventListener('change', draw);
+		chk.addEventListener('change', () => { rebase(); draw(); });
+		srch.addEventListener('input', draw);
 		// DRAWN ON THE FIRST OPENING, not at build: a folder's map is thousands
 		// of rows, and most reports are read for their figures.
 		let drawn = false;
 		btn.addEventListener('click', () => {
 			const open = !box.hasClass('is-open');
-			if (open && !drawn) { draw(); drawn = true; }
+			if (open && !drawn) { rebase(); draw(); drawn = true; }
 			box.toggleClass('is-open', open);
 			into.toggleClass('is-words', open);
 			say(open);

@@ -4340,7 +4340,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " \u2193" : " \u2191";
 }
-var WS_STYLESHEET_VERSION = 566;
+var WS_STYLESHEET_VERSION = 569;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4356,7 +4356,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.5.7";
+var WS_PLUGIN_VERSION = "1.5.8";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -24646,7 +24646,9 @@ var reportMethods = {
   // Each row is word · count · %: the count beside the percentage because
   // "12 times" is what a writer acts on and "1.4%" is what they compare.
   // Common words out by default (REPORT_STOPWORDS says which), a tick
-  // brings them back; the tick is the panel's own and is not saved.
+  // brings them back ("Common words" — two words, so the search beside it
+  // keeps its width in a 400px window); the tick is the panel's own and is
+  // not saved.
   buildReportWords(into, stats, freq) {
     into.addClass("ws-report-host");
     const box = into.createDiv({ cls: "ws-report-words" });
@@ -24658,10 +24660,15 @@ var reportMethods = {
       btn.setAttribute("aria-pressed", open ? "true" : "false");
     };
     say(false);
+    const srchWrap = bar.createDiv({ cls: "ws-report-words-search search-input-container" });
+    const srch = srchWrap.createEl("input");
+    srch.type = "search";
+    srch.placeholder = "Find a word";
+    srch.setAttribute("aria-label", "Find a word");
     const lab = bar.createEl("label", { cls: "ws-report-words-common" });
     const chk = lab.createEl("input");
     chk.type = "checkbox";
-    lab.createSpan({ text: " Include common words" });
+    lab.createSpan({ text: " Common words" });
     const cols = (t) => {
       const cg = t.createEl("colgroup");
       cg.createEl("col", { cls: "ws-report-col-word" });
@@ -24676,14 +24683,49 @@ var reportMethods = {
     cols(table);
     const total = stats && stats.words ? stats.words : 0;
     const head = htable.createEl("thead").createEl("tr");
-    head.createEl("th", { cls: "ws-report-word", text: "Word" });
-    head.createEl("th", { cls: "ws-report-wordn", text: "Count" });
-    head.createEl("th", { cls: "ws-report-wordpct", text: "Frequency" });
+    const COLS = [
+      { id: "word", cls: "ws-report-word", label: "Word", first: "asc" },
+      { id: "count", cls: "ws-report-wordn", label: "Count", first: "desc" },
+      { id: "pct", cls: "ws-report-wordpct", label: "Frequency", first: "desc" }
+    ];
+    let sortCol = "count";
+    let sortDir = "desc";
+    const heads = COLS.map((c) => {
+      const th = head.createEl("th", { cls: c.cls, text: c.label, attr: { title: "Sort by " + c.label.toLowerCase() } });
+      th.addEventListener("click", () => {
+        if (sortCol === c.id) sortDir = sortDir === "asc" ? "desc" : "asc";
+        else {
+          sortCol = c.id;
+          sortDir = c.first;
+        }
+        draw();
+      });
+      return { c, th };
+    });
+    const markHeads = () => {
+      for (const { c, th } of heads) {
+        th.querySelectorAll(".ws-org-sortmark").forEach((m) => m.remove());
+        const on = sortCol === c.id;
+        if (on) th.createSpan({ cls: "ws-org-sortmark", text: wsSortArrow(sortDir) });
+        th.setAttribute("aria-sort", on ? sortDir === "asc" ? "ascending" : "descending" : "none");
+      }
+    };
     const tbody = table.createEl("tbody");
+    let base = [];
+    let top = 0;
+    const rebase = () => {
+      base = this.topWords(freq, Infinity, chk.checked);
+      top = base.length ? base[0].n : 0;
+    };
     const draw = () => {
       tbody.empty();
-      const rows = this.topWords(freq, Infinity, chk.checked);
-      const top = rows.length ? rows[0].n : 0;
+      markHeads();
+      const q = srch.value.trim().toLowerCase();
+      const rows = q ? base.filter((r) => r.w.includes(q)) : base.slice();
+      if (sortCol === "word") {
+        const dir = sortDir === "asc" ? 1 : -1;
+        rows.sort((a, b) => dir * a.w.localeCompare(b.w));
+      } else if (sortDir === "asc") rows.sort((a, b) => a.n - b.n || a.w.localeCompare(b.w));
       for (const r of rows) {
         const tr = tbody.createEl("tr");
         tr.createEl("td", { cls: "ws-report-word", text: r.w });
@@ -24695,15 +24737,20 @@ var reportMethods = {
         pct.addClass("is-band-" + step);
       }
       if (!rows.length) {
-        const only = tbody.createEl("tr").createEl("td", { cls: "ws-report-word is-muted", text: "Only common words here." });
+        const only = tbody.createEl("tr").createEl("td", { cls: "ws-report-word is-muted", text: q ? 'No word here has "' + q + '" in it.' : "Only common words here." });
         only.setAttribute("colspan", "3");
       }
     };
-    chk.addEventListener("change", draw);
+    chk.addEventListener("change", () => {
+      rebase();
+      draw();
+    });
+    srch.addEventListener("input", draw);
     let drawn = false;
     btn.addEventListener("click", () => {
       const open = !box.hasClass("is-open");
       if (open && !drawn) {
+        rebase();
         draw();
         drawn = true;
       }

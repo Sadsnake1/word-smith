@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 566;
+	--ws-stylesheet-version: 569;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -2434,6 +2434,7 @@ body.ws-vim-panel-open .ws-status-bar {
 .ws-report-host.is-words > .ws-report-words { flex: 1 1 auto; }
 .ws-report-words:not(.is-open) > .ws-report-words-head,
 .ws-report-words:not(.is-open) > .ws-report-words-scroll,
+.ws-report-words:not(.is-open) .ws-report-words-search,
 .ws-report-words:not(.is-open) .ws-report-words-common { display: none; }
 .ws-report-words.is-open > .ws-report-words-scroll {
 	flex: 1 1 auto;
@@ -2579,13 +2580,25 @@ body.ws-vim-panel-open .ws-status-bar {
 	color: var(--text-muted);
 }
 .ws-report-words:not(.is-open) > .ws-report-words-bar { justify-content: center; margin: 0; }
+/* Shut, no frame: the button stands alone (writer 2026-09-21: "remove the
+   contour of the button, that box surrounding it"). */
+.ws-report-words:not(.is-open) { border: none; padding: 0; }
 .ws-report-words-btn { display: inline-flex; align-items: center; gap: 6px; }
+/* THE SEARCH BETWEEN THEM (A477, writer 2026-09-21: "add a search bar so i
+   can see a word count"): the box takes the room between the button and
+   the tick, up to a sentence's width; the app draws the magnifier. */
+.ws-report-words-search { flex: 1 1 auto; min-width: 6em; max-width: 20em; }
+.ws-report-words-search input { width: 100%; font-size: inherit; font-family: inherit; }
 
 .ws-report-words-common {
 	display: inline-flex;
 	align-items: center;
 	gap: 4px;
 	cursor: pointer;
+	/* One line, whatever the search takes: a tick whose words stack three
+	   high is what a 400px report drew before this (A477). */
+	flex: 0 0 auto;
+	white-space: nowrap;
 }
 
 /* THE ORGANIZER'S TABLE, IN SMALL (A401, writer 2026-09-14: "remove the
@@ -2627,10 +2640,18 @@ body.ws-vim-panel-open .ws-status-bar {
 	border-spacing: 0;
 	margin: 0;
 }
-.ws-report-col-n { width: 7ch; }
-.ws-report-col-pct { width: 11ch; }
+/* THE FIGURES' COLUMNS HOLD THEIR HEADING AND ITS ARROW (A478, writer
+   2026-09-21: "table header wrap weird when sorted, it gets bigger" — at 7ch
+   "Count ↓" broke onto a second line and the heading row grew): ten and
+   fourteen ch, the heading on one line whatever it carries, the words
+   taking the rest. */
+.ws-report-col-n { width: 10ch; }
+.ws-report-col-pct { width: 14ch; }
 .ws-report-words-table th {
-	padding: 3px 10px;
+	padding: 3px 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	background-color: var(--background-secondary);
 	border-top: 0;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -2657,6 +2678,10 @@ body.ws-vim-panel-open .ws-status-bar {
 .ws-report-words-table td.ws-report-word {
 	text-align: left;
 }
+/* THE HEADINGS SORT (A477): a hand over each, the label lit under it, the
+   Organizer's arrow beside the one the rows follow. */
+.ws-report-words-table.is-head th { cursor: pointer; user-select: none; }
+.ws-report-words-table.is-head th:hover { color: var(--text-normal); }
 
 .ws-report-word.is-muted {
 	color: var(--text-muted);
