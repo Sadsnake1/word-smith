@@ -11,9 +11,12 @@
   <p><strong>Typewriter. Binder. Compiler.</strong><br>
   The ultimate writing suite for Obsidian. Built for desktop &amp; mobile.</p>
 
-  <img width="1920" alt="Word-Smith in zen mode with the letter box and a powerline bar" src="https://github.com/user-attachments/assets/6a0f3702-b311-4dce-ac49-12df2fbe6acc" />
+  <img width="1918" height="1017" alt="Word-Smith" src="https://github.com/user-attachments/assets/27f36063-743b-4fff-8150-5bd523b91f07" />
 
 </div>
+
+
+
 
 Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there.
 
