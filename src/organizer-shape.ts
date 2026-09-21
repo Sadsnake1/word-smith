@@ -1,5 +1,5 @@
-// Word-Smith — organizer-shape. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-shape: the shape and the kinds — what a writer is
+// looking at, in two stores.
 
 import type { Menu } from 'obsidian';
 import { wsCatch } from './preamble';
@@ -10,21 +10,17 @@ import type { WordSmithSettings } from './settings';
 // THE SHAPE AND THE KINDS — what a writer is looking at, in two stores
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE THIRTEENTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-15, by
-// `ws-dev/lift.js`): the SHAPE (`showShape`, `setShape` — all files,
-// notes only, folders only, files only) and the KINDS (`typeLabel`,
-// `typeRows` — the one builder of the extension rows every menu that
-// offers them uses). Two hundred and sixty lines, and the prose on them is
-// the argument for their being two questions: `uniTypes` is about
-// EXTENSIONS and a folder has none, so folding the two into one set would
-// make "Notes only" a kind on Tuesdays and a shape on Wednesdays.
+// The SHAPE (`showShape`, `setShape` — all files, notes only, folders
+// only, files only) and the KINDS (`typeLabel`, `typeRows` — the one
+// builder of the extension rows every menu that offers them uses). Two
+// questions, not one set: `uniTypes` is about EXTENSIONS and a folder has
+// none, so folding the two into one would make "Notes only" a kind on
+// Tuesdays and a shape on Wednesdays.
 //
 // WHAT IT READS, through `d`: the settings (`d.s`, both stores), the draw
 // (`d.draw`, `d.fill`, `d.drawPanel`) and `d.plugin` for the kinds present
-// under the selection. The comments on each function came with it, as it
-// stood.
-//
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// under the selection.
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgShapeMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (0 of 5).
@@ -63,30 +59,15 @@ const setShape = async (v: string) => {
 	d.s.uniShow = (v === 'files' || v === 'folders') ? v : 'all';
 	await d.plugin.saveSettings(true);
 	d.draw(); void d.fill();
-	// AND THE PANEL, for the Organizer's own kind chip (2026-08-22).
-	// `draw()` is the tree; the chip that says a narrowing is on
-	// lives in the table's bar, and a sign that only appears on the
-	// next unrelated redraw is a sign a writer cannot trust.
-	// Guarded: `drawPanel` is declared further down the closure.
+	// AND THE PANEL, for the Organizer's own kind chip. `draw()` is the
+	// tree; the chip that says a narrowing is on lives in the table's bar,
+	// and a sign that only appears on the next unrelated redraw is a sign a
+	// writer cannot trust. Guarded: `drawPanel` is declared further down.
 	try { d.drawPanel(); } catch (_) { wsCatch('openManuscriptModal / setShape: drawPanel();', _); }
 };
 // ── WHICH KINDS OF FILE — NO LONGER A BUTTON OF ITS OWN ─────────────
 //
-// TOMBSTONE: "the third question, its own control… folding it into the
-// filter menu would rebuild the one-funnel fault". Asked for from a
-// vault, plainly: "remove the filetype button, we already control that
-// in the filter button", inside a larger request for four buttons that
-// each own one question and share none of it.
-//
-// THE ONE-FUNNEL FAULT WAS A LABEL, NOT A MENU. What it records is a
-// single button reading "Everything · Words" — two answers to two
-// questions in one strip of text, neither readable without opening it.
-// A SUBMENU is not that: "By type" is a named door, the ticks inside it
-// are the state, and the filter's own label still says only what the
-// filter does.
-//
-// AND THE STATE KEEPS A VISIBLE SIGN, which is the half of that
-// tombstone worth keeping. It is a chip beside the scope's, for exactly
+// THE STATE KEEPS A VISIBLE SIGN: a chip beside the scope's, for exactly
 // the reason that one exists: "half my vault vanished" is what an
 // invisible filter files itself under, and a writer who has hidden
 // every kind but Notes must be able to see it without opening a menu.
@@ -114,9 +95,9 @@ const typeLabel = () => {
 // sort menu's submenus already avoid it the same way.
 //
 // THE BUTTON STAYS. Reaching the kinds from the filter menu does not
-// mean the filter menu OWNS them: the tombstone on that control is a
-// single button whose label read "Everything · Words" — two answers to
-// two questions, neither readable without opening it. The button keeps
+// mean the filter menu OWNS them: a single button reading "Everything ·
+// Words" was two answers to two questions, neither readable without
+// opening it. The button keeps
 // its own label ("Notes" / "All files" / "N kinds"), so the state is
 // still legible at a glance; the submenu is a second door, not a move.
 const typeRows = (into: Menu) => {
@@ -189,15 +170,13 @@ const typeRows = (into: Menu) => {
 			} catch (_) { wsCatch('openManuscriptModal / typeRows: if (typeof i.setChecked === \'function\') i.setChecked(on.has(g.id));', _); }
 		});
 	}
-	// ── AND THE EXTENSIONS THE VAULT ACTUALLY HOLDS BEYOND THE KINDS (A304) ──
+	// ── AND THE EXTENSIONS THE VAULT ACTUALLY HOLDS BEYOND THE KINDS ──
 	//
-	// Writer: “I want to filter for other file type than those so maybe add
-	// a search option where I can type docx or xlsx” — and, offered the
-	// list instead, “for filtering do the list”. The vault’s own extensions,
-	// counted, each its own tick, nothing to type or misspell. `ext:<ext>`
-	// in the set narrows Other to those; ticking the first one turns Other
-	// itself off, so the narrowing is what shows. Counted from the vault at
-	// each opening of the menu — a menu is not a draw.
+	// The vault's own extensions, counted, each its own tick, nothing to
+	// type or misspell. `ext:<ext>` in the set narrows Other to those;
+	// ticking the first one turns Other itself off, so the narrowing is what
+	// shows. Counted from the vault at each opening of the menu — a menu is
+	// not a draw.
 	const known = new Set();
 	for (const g of groups) for (const e of (g.ext || [])) known.add(e);
 	const counts = new Map();
@@ -231,70 +210,5 @@ const typeRows = (into: Menu) => {
 	}
 };
 
-// THE TREE ON ITS OWN, and the inspector on its own. Two buttons
-// rather than one three-way control: a writer arranging a manuscript
-// wants the tree wide, a writer reading a report wants it gone, and
-// each of those is one press from where they are standing.
-// TOMBSTONE: a button that gave the tree the whole window. The
-// Organise tab is that, with a name on it and a reason to be there —
-// two controls for one state, one of them unlabelled, was a worse
-// answer to the same question.
-
-// (The BAND — 'ws-uni-head' — stood here. One filetree only:
-// writer, 2026-08-22. The tree has no header row on any tab.)
-// (`head` stood here, and was `null`. Its one reader is gone.)
-// `nav-files-container` and `nav-folder` on the container, because a
-// theme's tree rules are written against the explorer's OUTER element
-// as often as against its rows — indent guides in particular. Without
-// it the rows are dressed and the tree around them is not.
-// TOMBSTONE (A277): `listWrap` (the tree’s own `nav-files-container`),
-// `hint` (the line under it that named the drag) and the sideways-scroll
-// shadow on the column. The rows they held are Obsidian’s now.
-
-// FIVE READINGS, and the same five the board carries: percentage,
-// words, grade, target, flag. They are narrower here than on the
-// board because the tree is a pane rather than a window — the grip
-// between the panes is the answer to a writer who wants more of them
-// than that.
-//
-// The board's own widths (`goalsCols`) are deliberately NOT read:
-// they were dragged against a 980px window and would arrive here as
-// five columns and no room for a file name.
-// FOUR TABS, AND THE TAB DECIDES HOW MUCH TREE YOU GET.
-//
-// The tree does two jobs and they want opposite things. Reading a
-// report, it is a navigator and every column beside a name is in the
-// way. Arranging a book, it IS the work and the panel is in the way.
-// Two pane buttons were the manual answer to that, which asked the
-// writer to state something the tab they had chosen already said.
-//
-// ONE TREE THROUGHOUT. The Organise tab does not draw its own — that
-// would be two trees in one window, which is the fault this whole
-// window exists to remove. It is the same tree, given the room.
-// TOMBSTONE: A REPORT TAB. The figures for one note are a thing a
-// writer opens while WRITING that note — from the bar, mid-sentence —
-// and putting them behind a tab in a window about the whole manuscript
-// made a glance cost a window. `openReportModal` is that glance and it
-// stays its own thing, as it was.
-//
-// What is left here is the three questions this window is for: what
-// shape is the book in, what have I written, and what goes out.
-// ── OUTLINER, not Structure ─────────────────────────────────────────
-//
-// The old name was defended on the grounds that this tab is not an
-// outliner: you can rearrange the filesystem but not compose shape.
-// That stopped being true the moment a folder and a note could be MADE
-// from here — a tree you can add nodes to, order, nest and flag is an
-// outliner, and calling it anything else makes a writer look for the
-// outliner somewhere else.
-//
-// It also closes the gap between the label and the id, which had been
-// `organise` all along: when the internal name and the visible one
-// disagree for a year, the internal one is usually the honest one.
-//
-// THE ID STAYS `organise`. It is written into `data.json` as the last
-// tab a writer was on, and renaming it would drop them onto Report on
-// the first open after the update — a rename on disk for a cosmetic
-// gain, which is the trade the flag ids exist to refuse.
 	return { showShape, setShape, typeLabel, typeRows };
 };

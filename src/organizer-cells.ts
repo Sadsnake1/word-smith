@@ -1,5 +1,5 @@
-// Word-Smith — organizer-cells. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-cells: what a property, a target, a link and a
+// tag draw in a row.
 
 import type { WsOrgRow } from './organizer-rows';
 import { Notice, setIcon } from 'obsidian';
@@ -14,15 +14,13 @@ import type { WordSmithSettings } from './settings';
 // THE CELLS — what a property, a target, a link and a tag draw in a row
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE EIGHTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14, by
-// `ws-dev/lift.js`): `orgCanHoldProps` / `orgCanHoldGoal` / `orgPropRefuse`
-// (which files may carry a property or a target, and what the cell says
-// when one may not), `orgPropCell` (a property cell that edits where it
-// is read), `orgGoalCell` (the target pill that is also the progress and
-// the box), `orgOutCell` and `orgBackCell` (the link names as doors),
-// and the tag cell with its pill helpers (`orgTagWrap`, `orgTagPill`,
-// `orgTagsCell`). Four hundred lines. The flag cell is the flags module's
-// and is not here.
+// `orgCanHoldProps` / `orgCanHoldGoal` / `orgPropRefuse` (which files may
+// carry a property or a target, and what the cell says when one may
+// not), `orgPropCell` (a property cell that edits where it is read),
+// `orgGoalCell` (the target pill that is also the progress and the box),
+// `orgOutCell` and `orgBackCell` (the link names as doors), and the tag
+// cell with its pill helpers (`orgTagWrap`, `orgTagPill`, `orgTagsCell`).
+// The flag cell is the flags module's and is not here.
 //
 // WHAT IT READS, through `d`: the settings (`d.s`) and the target store
 // (`d.goalStore`, `d.targetOf`), the readings (`d.orgColRaw`, `d.nameOf`),
@@ -30,10 +28,10 @@ import type { WordSmithSettings } from './settings';
 // and `d.orgProps` for the live edit guard and the open-after), the
 // journal (`d.orgHistPush`, `d.orgHistOn`), the bulk selection
 // (`d.orgBulkPaths`, `d.orgBulkSay`), `d.openRow`, `d.drawPanel`, the
-// table's own `d.drawOrg` and `d.plugin`. Every `host` in here is a PARAMETER — the cell the pills
-// go into. The comments on each function came with it, as it stood.
+// table's own `d.drawOrg` and `d.plugin`. Every `host` in here is a
+// PARAMETER — the cell the pills go into.
 //
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgCellsMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (11 of 17).
@@ -48,7 +46,7 @@ export interface OrgCellsDeps {
 	readonly orgBulkSay: (n: number, what: string) => void;
 	readonly orgColRaw: (col: { id: string; key?: string; }, path: string) => unknown;
 	readonly orgEditDone: () => void;
-	readonly orgFieldEditor: (card: HTMLElement, path: string, key: string, isDraft: boolean) => HTMLInputElement;
+	readonly orgFieldEditor: (card: HTMLElement, path: string, key: string, isDraft: boolean) => HTMLInputElement | null;
 	readonly orgHistOn: (paths: string[], what: string) => string;
 	readonly orgHistPush: (entry: WsOrgJournalEntry) => void;
 	readonly orgOtherEditorOpen: (td: HTMLElement) => boolean;
@@ -58,62 +56,39 @@ export interface OrgCellsDeps {
 }
 
 export const wsOrgCellsMake = (d: OrgCellsDeps) => {
-// ── A PROPERTY CELL, EDITED WHERE IT IS READ (2026-08-25) ──────────
+// ── A PROPERTY CELL, EDITED WHERE IT IS READ ──────────────────────
 //
-// The same shape as the target cell below it: a click swaps the
-// reading for an editor, the edit-guard engages on focus, blur is
-// the one committer, Escape restores.
+// The same shape as the target cell below it: a click swaps the reading
+// for an editor, the edit-guard engages on focus, blur is the one
+// committer, Escape restores. ONE EDITOR, NOT A SECOND ONE:
+// `orgFieldEditor` already knows what a date is, what a number is, what
+// the registry says and what to do when the value at hand disagrees
+// with it — a table-only copy is how two surfaces start writing
+// different things for the same keystrokes. It takes a container; a
+// `<td>` is a container. A COMPLEX VALUE DRAWS ITS OWN REFUSAL:
+// `orgFieldEditor` returns null after writing "complex value — edit in
+// note" into the container, which is the honest answer in a cell too —
+// so nothing is put back over it, and the next redraw restores the
+// reading.
 //
-// ONE EDITOR, NOT A SECOND ONE. `orgFieldEditor` already knows what
-// a date is, what a number is, what the registry says and what to do
-// when the value at hand disagrees with it — a table-only copy is
-// how the two surfaces would start writing different things for the
-// same keystrokes. It takes a container; a `<td>` is a container.
-//
-// AND THERE IS NO DIFFERENCE LEFT TO PASS. The cell used to hand it
-// `oneLine: true` so the Outline's growing textarea stayed out of a
-// 24px row; with one caller left, the argument and the branch it
-// guarded are both gone (2026-08-31).
-//
-// A COMPLEX VALUE DRAWS ITS OWN REFUSAL. `orgFieldEditor` returns
-// null after writing "complex value — edit in note" into the
-// container, which is the honest answer in a cell too — so nothing
-// is put back over it, and the next redraw restores the reading.
 // ── A FILE THAT CANNOT KEEP A PROPERTY DOES NOT OFFER AN EDITOR ─────
 //
-// Writer, 2026-09-02: "i also want to add proprietes to other files
-// types like pdf docx, the cell lets me add but when i click out the
-// things dissapears from them" — and, given the three readings:
-// "refuse at the door for now (maybe we'll add it later)".
-//
-// WHY IT VANISHED. Every property edit goes through `orgPropWrite` to
-// `app.fileManager.processFrontMatter`, which refused a FOLDER and
-// nothing else — so a PDF reached it and there was no frontmatter to
-// process. The write threw, the catch logged, the redraw read the file
-// back and found nothing. The gate had been printing that TypeError on
-// every run and nobody read it as a symptom.
-//
-// ONE PREDICATE, ASKED AT EVERY DOOR. The editor is born in
-// `orgFieldEditor`, which is where a refusal belongs — except that
-// BOTH callers empty the cell before calling it, so refusing in there
-// would leave a blank cell where a reading had been. The question is
-// asked before the cell is cleared, which is two places; the ANSWER
-// has one writer, so the two cannot drift apart.
-//
-// AND `orgPropWrite` KEEPS ITS OWN GUARD. A door that refuses is not a
-// write that refuses: the drafts, the menus and anything added later
-// all reach the writer without passing a cell.
-// ── WIDENED 2026-09-04 (A80) ─────────────────────────────────────
-//
-// Writer, 2026-09-02: "i also want to add proprieties to any files
-// that i have including docx, pdf, xlsx (so i can organize even my
-// other non-md files like add a description to a pdf, add some tags
-// to xlsx file)". This was `/\.md$/i` and refused all of them.
+// Every property edit goes through `orgPropWrite` to
+// `app.fileManager.processFrontMatter`, and a file with no frontmatter
+// to process throws there: the value would vanish on blur. ONE
+// PREDICATE, ASKED AT EVERY DOOR. The editor is born in `orgFieldEditor`,
+// which is where a refusal belongs — except that BOTH callers empty the
+// cell before calling it, so refusing in there would leave a blank cell
+// where a reading had been. The question is asked before the cell is
+// cleared, which is two places; the ANSWER has one writer, so the two
+// cannot drift apart. AND `orgPropWrite` KEEPS ITS OWN GUARD: a door
+// that refuses is not a write that refuses — the drafts, the menus and
+// anything added later all reach the writer without passing a cell.
 //
 // A FILE, NOT A PATH THAT LOOKS LIKE ONE. `!f.children` is the test
-// `orgPropWrite` already uses to tell a file from a folder, and it
-// asks the vault rather than the spelling — a folder called
-// `Chapter 1.md` would pass a regex and must not get an editor.
+// `orgPropWrite` already uses to tell a file from a folder, and it asks
+// the vault rather than the spelling — a folder called `Chapter 1.md`
+// would pass a regex and must not get an editor.
 const orgCanHoldProps = (path: string) => {
 	const p = String(path || '');
 	if (!p) return false;
@@ -122,18 +97,11 @@ const orgCanHoldProps = (path: string) => {
 		return !!f && !f.children;
 	} catch { return false; }
 };
-// ── BUT THE TARGET DOES NOT RIDE ALONG ───────────────────────────
+// ── BUT THE TARGET DOES NOT RIDE ALONG ─────────────────
 //
-// Writer, 2026-09-04: "no goal cells for non md files", confirming
-// the answer given on 2026-09-03. Until now ONE predicate answered
-// both questions, which was right while they had the same answer and
-// is exactly why they must now be two: a widening meant for
-// properties would otherwise have handed a PDF a word target.
-//
-// AND THE REASON IS NOT TASTE. Nothing counts words in a PDF, so a
-// target set on one could never be measured against anything — it
-// would show a bar at nought for ever. That was the writer's own
-// argument on 2026-09-02 and it survives the widening intact.
+// Two predicates, because the answers differ: nothing counts words in a
+// PDF, so a target set on one could never be measured against anything
+// — it would show a bar at nought for ever.
 const orgCanHoldGoal = (path: string) => /\.md$/i.test(String(path || ''));
 // IT SAYS WHY. A cell that silently does nothing is the same fault in
 // a quieter coat — the writer clicked it because it looked editable,
@@ -147,6 +115,7 @@ const orgPropRefuse = (path: string) => {
 	} catch (_) { wsCatch('openManuscriptModal / orgPropRefuse: new Notice(\'A .\' + ext + \' cannot hold properties — they live in a …', _); }
 };
 const orgPropCell = (td: HTMLElement, row: WsOrgRow, col: { id: string; key?: string }, text: string) => {
+	const key = col.key || '';
 	td.setText(text);
 	if (text) td.title = text;
 	const canEdit = orgCanHoldProps(row.path);
@@ -154,25 +123,17 @@ const orgPropCell = (td: HTMLElement, row: WsOrgRow, col: { id: string; key?: st
 	td.addEventListener('click', (ev: Event) => {
 		ev.stopPropagation();
 		if (!canEdit) { orgPropRefuse(row.path); return; }
-		// ── THE WHOLE CELL IS THE TARGET (A129/A130, 2026-09-04) ────
+		// ── THE WHOLE CELL IS THE TARGET ────────────────────────────
 		//
-		// Writer: "for the date cell i need to click inside a - sign to
-		// add it", and "for the checkbox cells i need to click on left
-		// side of the cells (too small clickable area - same as date)".
-		// One cause for both.
-		//
-		// A DATE AND A CHECKBOX ARE ALREADY BUILT AT REST. Every other
-		// kind draws a reading and becomes an editor on the click this
-		// handler serves — but these two put their control in the cell
-		// when the table is drawn, so the line below found one and
-		// RETURNED. The cell did nothing and the only live target was
-		// the control itself: an em dash for an unwritten day, and a
-		// box at the left edge for a checkbox.
-		//
-		// SO THE CLICK IS HANDED ON RATHER THAN SWALLOWED, and only
-		// when it landed on the CELL: a click on the control itself is
-		// already where it needs to be, and forwarding that one would
-		// toggle a checkbox twice.
+		// A DATE AND A CHECKBOX ARE ALREADY BUILT AT REST. Every other kind
+		// draws a reading and becomes an editor on the click this handler
+		// serves — but these two put their control in the cell when the table
+		// is drawn, and a handler that finds one and returns leaves the only
+		// live target the control itself: an em dash for an unwritten day, a
+		// box at the left edge for a checkbox. SO THE CLICK IS HANDED ON RATHER
+		// THAN SWALLOWED, and only when it landed on the CELL: a click on the
+		// control itself is already where it needs to be, and forwarding that
+		// one would toggle a checkbox twice.
 		{
 			// THE RESTING DISPLAY FIRST, NOT WHICHEVER COMES FIRST IN THE
 				// DOM. A date cell holds BOTH: the input, hidden at 0x0
@@ -194,65 +155,57 @@ const orgPropCell = (td: HTMLElement, row: WsOrgRow, col: { id: string; key?: st
 		}
 		// ANOTHER CELL FIRST — see `orgOtherEditorOpen`.
 		if (d.orgOtherEditorOpen(td)) {
-			d.orgProps.orgOpenAfter = { path: row.path, id: col.id, key: col.key };
+			d.orgProps.orgOpenAfter = { path: row.path, id: col.id, key };
 			d.drawOrg();
 			return;
 		}
 		td.textContent = '';
-		d.orgFieldEditor(td, row.path, col.key, false);
+		d.orgFieldEditor(td, row.path, key, false);
 	});
 };
 
-// ── THE TARGET, EDITED WHERE IT IS READ (writer's pass) ─────────────
-// A click on the goal cell swaps in a number input, the Outline
-// editors' shape: the edit-guard engages on focus, blur is the one
-// committer, Enter blurs, Escape restores. Empty or invalid DELETES
-// the target — a target of nothing is no target, not a zero.
-// ── A TARGET IS A COUNT OF WORDS, SO IT IS A NOTE'S ─────────────────
+// ── THE TARGET, EDITED WHERE IT IS READ ──────────────────────────
 //
-// Writer, 2026-09-02: "remove the option to add a target for pdf,
-// xlsx, docx, and so on for files that are not md".
+// A click on the goal cell swaps in a number input: the edit-guard
+// engages on focus, blur is the one committer, Enter blurs, Escape
+// restores. Empty or invalid DELETES the target — a target of nothing
+// is no target, not a zero.
 //
-// THE SAME SHAPE AS THE PROPERTY REFUSAL an hour earlier, and the
-// same reason: the index is a reading of a note's CONTENTS and holds
-// nothing for a .pdf, so a target set on one could never be measured
-// against anything. It would have shown a bar at nought for ever.
+// ── A TARGET IS A COUNT OF WORDS, SO IT IS A NOTE'S ──────────────
 //
-// REFUSED AT THE DOOR, and the affordance goes with it: no `is-goal`,
-// so no pointer cursor and no title inviting a click that will be
-// turned away. `orgCanHoldProps` is the same predicate the property
-// cells ask — one answer to "can this file carry writing of ours",
-// even though the two features arrived a day apart.
+// The index is a reading of a note's CONTENTS and holds nothing for a
+// .pdf, so a target set on one could never be measured against
+// anything. REFUSED AT THE DOOR, and the affordance goes with it: no
+// `is-goal`, so no pointer cursor and no title inviting a click that
+// will be turned away.
+// ── A BAND AS LONG AS THE PROGRESS ─────────────────────────────
+//
+// The number is stamped here and the sheet draws it: a faint band from
+// the cell's left edge, its length the percentage, so a column of
+// targets reads at a glance without reading a figure. THE ONE WRITER of
+// the band: a note's cell and a folder's aggregate (its notes' words over
+// their targets) both come through here, so the column reads the same
+// on every row. FOUR COLOURS, NOT A RAMP: a hue ramp puts 68% and 94% in
+// the same pale green. A step each: under half, half to four-fifths,
+// four-fifths to done, done. The sheet maps them to the theme's own four.
+const orgGoalBand = (td: HTMLElement, words: number, target: number) => {
+	if (target > 0) {
+		const pct = Math.max(0, Math.min(100, Math.round(words / target * 100)));
+		td.style.setProperty('--ws-goal-pct', String(pct));
+		td.addClass('has-band');
+		const step = pct >= 100 ? 'done' : pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
+		for (const k of ['low', 'mid', 'high', 'done']) td.toggleClass('is-band-' + k, k === step);
+	} else {
+		td.style.removeProperty('--ws-goal-pct');
+		td.removeClass('has-band');
+		for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
+	}
+};
 const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	td.setText(text);
-	// ── A BAND AS LONG AS THE PROGRESS (A286 item 21) ─────────────────
-	//
-	// Writer: “add for target cells a band subtle color ramp over it to
-	// see better”. The number is stamped here and the sheet draws it:
-	// a faint band from the cell’s left edge, its length the percentage
-	// and its hue climbing from red to green with it, so a column of
-	// targets reads at a glance without reading a figure. Folder rows
-	// carry their sums through the same two readings.
 	try {
-		const tgt = Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0;
-		const wds = Number(d.orgColRaw({ id: 'words' }, row.path)) || 0;
-		if (tgt > 0) {
-			const pct = Math.max(0, Math.min(100, Math.round(wds / tgt * 100)));
-			td.style.setProperty('--ws-goal-pct', String(pct));
-			td.addClass('has-band');
-			// FOUR COLOURS, NOT A RAMP (A289; writer 2026-09-11: “more
-			// distinguishable”). The hue ramp put 68% and 94% in the same
-			// pale green — measured in their shot of the light theme. A
-			// step each: under half, half to four-fifths, four-fifths to
-			// done, done. The sheet maps them to the theme’s own four.
-			const step = pct >= 100 ? 'done' : pct >= 80 ? 'high' : pct >= 50 ? 'mid' : 'low';
-			for (const k of ['low', 'mid', 'high', 'done']) td.toggleClass('is-band-' + k, k === step);
-		} else {
-			td.style.removeProperty('--ws-goal-pct');
-			td.removeClass('has-band');
-			for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
-		}
-	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: const tgt = Number(orgColRaw({ id: goal }, row.path)) || 0;', _); }
+		orgGoalBand(td, Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0);
+	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
 	const canGoal = orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
@@ -290,7 +243,7 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 				const n = parseFloat(inp.value);
 				const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
 				if (want !== was) {
-					// ON EVERY NOTE THE SELECTION HOLDS (A320).
+					// ON EVERY NOTE THE SELECTION HOLDS.
 					const paths = d.orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
 					const before: [string, number][] = paths.map((p) => [p, d.s[d.goalStore()][p] || 0]);
 					const after: [string, number][] = paths.map((p) => [p, want]);
@@ -317,25 +270,17 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	});
 };
 
-// ── AND THE NAMES ARE DOORS (writer, 2026-09-01) ────────────────
+// ── AND THE NAMES ARE DOORS ────────────────────────────────────
 //
-// "...where it shows the names of other files linked to that file.
-// and i can click on them like links".
-//
-// TWO HALVES, AND THE SECOND IS THE ASK. A cell of text would have
-// answered "who points here"; what was asked for is a way to GO
-// there, which means one pressable element per name rather than one
-// string with commas in it.
-//
-// `openRow`'S OWN DOOR, not a second call to `openLinkText`: the
-// window has one writer for "open this note" and a link that took a
-// different route would be the row-click and the name-click
-// disagreeing the day either changes.
-//
-// `stopPropagation`, BECAUSE THE ROW IS ALSO A CONTROL. Without it a
-// press opens the linking note AND moves the pane to the row that
-// was clicked — two answers to one gesture, and the wrong one lands
-// second.
+// A cell of text would answer "who points here"; a way to GO there
+// means one pressable element per name rather than one string with
+// commas in it. `openRow`'S OWN DOOR, not a second call to
+// `openLinkText`: the window has one writer for "open this note", and a
+// link that took a different route would be the row-click and the
+// name-click disagreeing the day either changes. `stopPropagation`,
+// BECAUSE THE ROW IS ALSO A CONTROL: without it a press opens the
+// linking note AND moves the pane to the row that was clicked — two
+// answers to one gesture, and the wrong one lands second.
 const orgOutCell = (td: HTMLElement, row: WsOrgRow) => {
 	const raw = d.orgColRaw({ id: 'outlinks' }, row.path);
 	const list = Array.isArray(raw) ? (raw as { path?: string; text?: string }[]) : [];
@@ -345,12 +290,13 @@ const orgOutCell = (td: HTMLElement, row: WsOrgRow) => {
 		const x = list[i];
 		if (i) td.createSpan({ cls: 'ws-org-backsep', text: ', ' });
 		if (!x.path) { td.createSpan({ cls: 'ws-org-outlink is-unresolved', text: String(x.text) }); continue; }
+		const target = x.path;
 		const a = td.createSpan({ cls: 'ws-org-backlink ws-org-outlink', text: d.nameOf(x.path) });
 		a.setAttribute('role', 'link');
 		a.title = x.path;
 		a.addEventListener('click', (ev: Event) => {
 			ev.stopPropagation();
-			try { void d.plugin.app.workspace.openLinkText(x.path, '', false); } catch (_) { wsCatch('orgOutCell: openLinkText(x.path)', _); }
+			try { void d.plugin.app.workspace.openLinkText(target, '', false); } catch (_) { wsCatch('orgOutCell: openLinkText(x.path)', _); }
 		});
 	}
 };
@@ -383,12 +329,12 @@ const orgBackCell = (td: HTMLElement, row: WsOrgRow) => {
 		});
 	}
 };
-// ONE PILL, OBSIDIAN'S (A371): the markup its properties view draws —
+// ONE PILL, OBSIDIAN'S: the markup its properties view draws —
 // `multi-select-pill` with a content span and, where the pill can be
 // removed, its remove button — under a `metadata-property-value`
-// wrapper that names the property's type, so Obsidian's own rule
-// maps the tag colours onto it and a vault's tag-colour snippet
-// reaches it. `orgTagWrap` makes the wrapper once per host.
+// wrapper that names the property's type, so Obsidian's own rule maps
+// the tag colours onto it and a vault's tag-colour snippet reaches it.
+// `orgTagWrap` makes the wrapper once per host.
 const orgTagWrap = (host: HTMLElement, type: string) => {
 	let w = host.querySelector(':scope > .ws-org-tagcell');
 	if (!w) {
@@ -404,58 +350,39 @@ const orgTagPill = (host: HTMLElement, text: string, o: { intext?: boolean; remo
 	pill.createSpan({ cls: 'multi-select-pill-content', text: String(text) });
 	if (opt.intext) pill.createSpan({ cls: 'ws-org-intext', text: 'in text' });
 	if (opt.remove) {
+		const remove = opt.remove;
 		const x = pill.createEl('button', { cls: 'multi-select-pill-remove-button ws-org-chipx' });
 		try { if (setIcon) setIcon(x, 'x'); } catch (_) { wsCatch('orgTagPill: setIcon(x, x)', _); }
 		if (!x.childElementCount) x.setText('\u00d7');
 		x.title = 'Remove ' + String(text);
 		x.setAttribute('aria-label', x.title);
-		x.addEventListener('click', (ev: Event) => { ev.stopPropagation(); opt.remove(); });
+		x.addEventListener('click', (ev: Event) => { ev.stopPropagation(); remove(); });
 	}
 	return pill;
 };
-// ── ONE TAGS CELL, SAYING WHERE EACH TAG LIVES ──────────────────────
+// ── ONE TAGS CELL, SAYING WHERE EACH TAG LIVES ─────────────────────
 //
-// (writer, 2026-08-22: "what about having tags and in properties
-// another tags?") There were two possible columns under one name:
-// this built-in one, which MERGES inline and frontmatter tags, and a
-// property column for `tags`, which reads frontmatter only — a
-// silent subset. The property is refused at its source now
-// (`orgKnownProps`), leaving this as the answer to "show me tags".
+// This built-in column MERGES inline and frontmatter tags; a property
+// column for `tags` would read frontmatter only — a silent subset — and
+// is refused at its source (`orgKnownProps`). THE SOURCE IS DRAWN, not
+// hidden, and it is not decoration: a frontmatter tag can be edited
+// from this plugin and one written mid-sentence cannot, because
+// removing it means editing the sentence. `.ws-org-tagchip.is-intext`
+// is the one class for that, so no two places can come to look
+// different.
 //
-// THE SOURCE IS DRAWN, not hidden, and it is not decoration: a
-// frontmatter tag can be edited from this plugin and one written
-// mid-sentence cannot, because removing it means editing the
-// sentence. The Outline drawer has always said so with
-// `.ws-org-tagchip.is-intext`; this is the same class, so the two
-// places cannot come to look different.
-// ── AND IT IS EDITED WHERE IT IS READ (writer, 2026-09-01) ──────
+// ── AND IT IS EDITED WHERE IT IS READ ─────────────────────────────
 //
-// "cant add, remove, edit tags" — all three, and the cause is not
-// the one the previous batch guessed. MEASURED in the running
-// vault: a click on this cell left `editorOpened: false`, and
-// nothing was covering it — `elementFromPoint` at the cell's
-// middle returned the chip's own span. The cell simply had no
-// listener. It never did.
-//
-// THIS COLUMN TOOK THE NAME AND KEPT THE READING. `tags` is the
-// one reading that is also a real key, so the panel gives it to
-// THIS built-in column and `taken` then refuses the frontmatter
-// `tags` property offered by `orgPropsByUse` — one name, one row.
-// That is right, and it is why the editable route closed: the
-// property column was where a tag was added, and this cell,
-// which replaced it, only drew. The merge was kept and the
-// editing was dropped with the column that used to carry it.
-//
-// SO IT BORROWS `orgPropCell`'S DOOR, not a second editor:
-// `orgFieldEditor`'s chip branch was written for exactly this
-// pair — frontmatter tags removable, body tags drawn dimmed and
-// marked "in text" — and it is the branch this cell was already
-// styled to match.
-//
-// AND THE EMPTY CELL KEEPS ITS DOOR. `if (!list.length) return`
-// left a note with no tags with nothing to click, which is the
-// "cant add" half: the first tag was the one that could never be
-// typed. The listener is bound before the chips are drawn now.
+// `tags` is the one reading that is also a real key, so the panel gives
+// it to THIS built-in column and refuses the frontmatter `tags`
+// property — one name, one row — which means this cell has to carry the
+// editing the property column would have. SO IT BORROWS `orgPropCell`'S
+// DOOR, not a second editor: `orgFieldEditor`'s chip branch was written
+// for exactly this pair — frontmatter tags removable, body tags drawn
+// dimmed and marked "in text". AND THE EMPTY CELL KEEPS ITS DOOR: a note
+// with no tags must have something to click, or the first tag is the
+// one that can never be typed. The listener is bound before the chips
+// are drawn.
 const orgTagsCell = (td: HTMLElement, row: WsOrgRow) => {
 	const list = d.plugin.tagsWithSource(row.path);
 	// TAGS ARE FRONTMATTER TOO, so this door refuses on the same rule.
@@ -484,5 +411,5 @@ const orgTagsCell = (td: HTMLElement, row: WsOrgRow) => {
 			: '#' + t.tag + ' — a frontmatter tag';
 	}
 };
-	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
+	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
 };

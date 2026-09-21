@@ -1,4 +1,4 @@
-// Word-Smith — global declarations. Hand-owned since 2026-09-18 (A418 step 3b).
+// Word-Smith — global declarations.
 // What the code sees at run time that the checker cannot know: the
 // window's require on Obsidian's desktop build, and the DOM lib's answers
 // narrowed to what this plugin queries.

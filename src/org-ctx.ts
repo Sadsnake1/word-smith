@@ -1,4 +1,4 @@
-// THE TABLE'S CONTEXT, DECLARED (A422 step 4, 2026-09-19).
+// THE TABLE'S CONTEXT, DECLARED.
 //
 // `orgTableMake(ctx)` reads the window through one bag: the closure's own
 // state and draws (accessors written by hand in the window) and, lent by
@@ -36,7 +36,7 @@ import type { wsOrgShapeMake } from './organizer-shape';
 import type { wsOrgWidthsMake } from './organizer-widths';
 import type { wsOrgWritesMake } from './organizer-writes';
 
-// What the bar was last told to say (A394), and until when.
+// What the bar was last told to say, and until when.
 export interface WsOrgBarSaid { msg: string; until: number }
 
 // THE CLOSURE'S OWN: its state, its draws, its doors — what no module
@@ -63,7 +63,7 @@ export interface WsOrgCtxOwn {
 	readonly drawSubject: () => void;
 	readonly tab: string;
 	// THE TABLE'S OWN HOOKS, hung on the bag as it draws so the window can
-	// call back into a draw it never sees: the bar's repaint (A394), the
+	// call back into a draw it never sees: the bar's repaint, the
 	// journal's, the subject row's aggregate cell writer, the Total row kept
 	// for the foot, the selection's repaint. Absent until the table is drawn.
 	orgBarSayPaint?: () => void;
@@ -77,7 +77,7 @@ export interface WsOrgCtxOwn {
 // member's type is whatever the module says it is.
 export type WsOrgCtx = WsOrgCtxOwn
 	& Pick<ReturnType<typeof wsOrgWidthsMake>, 'ORG_COL_MIN' | 'ORG_GRIP_CLICK_MS' | 'orgColCeil' | 'orgColCeilReset' | 'orgColFitNow' | 'orgColGripBind' | 'orgColPx' | 'orgColStamp' | 'orgColUnfix' | 'orgGripReleasedAt' | 'orgNameGripBind' | 'orgNameLineNow' | 'orgNameRO' | 'orgNameStamp' | 'orgScrollTop' | 'orgScrollLeft'>
-	& Pick<ReturnType<typeof wsOrgCellsMake>, 'orgBackCell' | 'orgOutCell' | 'orgCanHoldProps' | 'orgGoalCell' | 'orgPropCell' | 'orgPropRefuse' | 'orgTagsCell'>
+	& Pick<ReturnType<typeof wsOrgCellsMake>, 'orgBackCell' | 'orgOutCell' | 'orgCanHoldProps' | 'orgGoalBand' | 'orgGoalCell' | 'orgPropCell' | 'orgPropRefuse' | 'orgTagsCell'>
 	& Pick<ReturnType<typeof wsOrgLensMake>, 'orgAddChip' | 'orgAt' | 'orgFilterByKey' | 'orgLens' | 'orgLensClear' | 'orgLensOn' | 'orgLensSet'>
 	& Pick<ReturnType<typeof wsOrgReadingsMake>, 'orgColAgg' | 'orgColRaw' | 'orgColSortKey' | 'orgColText' | 'orgFolderIcon'>
 	& Pick<ReturnType<typeof wsOrgPropsMake>, 'orgEditDone' | 'orgEditGuard' | 'orgFieldEditor' | 'orgOpenAfter' | 'orgPropPopClose' | 'orgPropPopEl' | 'orgPropPopOpen' | 'orgRedrawPending'>

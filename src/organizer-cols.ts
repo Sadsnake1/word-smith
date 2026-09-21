@@ -1,5 +1,5 @@
-// Word-Smith — organizer-cols. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-cols: the built-in columns, the writer's own, the
+// sorts, adding one.
 
 import { Menu, Notice } from 'obsidian';
 import type { WsSession } from './preamble';
@@ -12,15 +12,13 @@ import type { WordSmithSettings } from './settings';
 // THE COLUMNS — the built-ins, the writer's own, the sorts, adding one
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE SIXTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14, by
-// `ws-dev/lift.js`): `colDefs` (the built-in columns and the property
-// columns the settings name), `COLS` and `setCols` (the list as drawn,
-// rebuilt when a property is added or removed), `colOff` / `colRank` /
-// `colSort`, the sorts (`BUILTIN_SORTS`, `sortDefs`, `SORTS`,
-// `rebuildCols`), `propKeysInScope` and `pruneUserCols`, and the way a
-// property becomes a column: `addProp`, `PROP_TYPES`, `setPropType`,
-// `askPropType`, `nameNewProp`, `addNewProp`, `ORG_PROP_DOORS`,
-// `pickProp`. Nine hundred lines.
+// `colDefs` (the built-in columns and the property columns the settings
+// name), `COLS` and `setCols` (the list as drawn, rebuilt when a
+// property is added or removed), `colOff` / `colRank` / `colSort`, the
+// sorts (`BUILTIN_SORTS`, `sortDefs`, `SORTS`, `rebuildCols`),
+// `propKeysInScope` and `pruneUserCols`, and the way a property becomes
+// a column: `addProp`, `PROP_TYPES`, `setPropType`, `askPropType`,
+// `nameNewProp`, `addNewProp`, `ORG_PROP_DOORS`, `pickProp`.
 //
 // WHAT IT READS, through `d`: the settings (`d.s`), the session
 // (`d.ses`), the lens (`d.orgLens`, which it also sets once, restoring a
@@ -28,12 +26,11 @@ import type { WordSmithSettings } from './settings';
 // `d.liveFiles`) and `d.plugin`.
 //
 // TWO OF ITS `let`s ARE LIVE — `COLS` and `SORTS` — reassigned by
-// `rebuildCols` and read by every draw; they come back as getters, and the
-// closure (and the modules the closure hands them to) read them as
-// `orgCols.COLS` / `orgCols.SORTS`. The comments on each function came
-// with it, as it stood.
+// `rebuildCols` and read by every draw; they come back as getters, and
+// the window (and the modules the window hands them to) read them as
+// `orgCols.COLS` / `orgCols.SORTS`.
 //
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgColsMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (3 of 8).
@@ -81,22 +78,11 @@ export const wsOrgColsMake = (d: OrgColsDeps) => {
 const colDefs = (): WsOrgCol[] => [
 	{ id: 'goal',  label: 'Target', def: 116, min: 78 },
 	{ id: 'words', label: 'Words',  def: 66, min: 44 },
-	// TOMBSTONE: `today` — "Today", the day’s net words for a note,
-	// diffed from the history store. Retired at the writer’s word,
-	// 2026-08-27: "remove the today propriety."
-	//
-	// THE NUMBER IS NOT RETIRED, only this reading of it.
-	// `todayNetOf` stays and has two other customers: the subject
-	// strip’s "+N today", and the Goals view’s own today column.
-	// Both were left alone on purpose — the ask names the property
-	// in the Organizer, and a figure in the strip is not one.
-	//
 	// IT WAS NAMED IN EIGHT PLACES HERE: this definition, the raw
 	// reader, the signed formatter, the signed aggregate, the
 	// Properties menu’s Progress group, the default off-list, the
-	// sort-relevance order and `BUILTIN_SORTS`. The tombstone for
-	// the retired `left` column said it first: a column is named
-	// in more places than it looks.
+	// sort-relevance order and `BUILTIN_SORTS`. A column is named in
+	// more places than it looks.
 	{ id: 'grade', label: 'Grade',  def: 50, min: 34 },
 	// WIDE ENOUGH FOR THE WORD, not just the glyph: "Needs revision"
 	// on a hover is a state you go looking for; beside the flag it is
@@ -108,19 +94,7 @@ const colDefs = (): WsOrgCol[] => [
 	// test for being down here rather than on by default: what have
 	// I touched lately, how many pieces is this in.
 	//
-	// TOMBSTONE: `left` - "Left", which was max(0, target - words).
-	// Retired 2026-08-23 at the writer's ask: "we have the target and
-	// the words column that does this - we dont want redundant
-	// columns". It was two other columns SUBTRACTED, so it could
-	// never disagree with them and never answer anything they did
-	// not; a reading that is arithmetic on two readings already on
-	// screen is a third thing to think about for no third answer.
-	// Deleting the definition is what retires it from BOTH menus,
-	// since the Properties menu and the Sort menu both derive from
-	// COLS - but its aggregate, its formatting case, its comparator
-	// and its dead tree cell all had to go by hand. A column is
-	// named in more places than it looks.
-	// 'Last modified', not 'Modified' (writer, 2026-08-22) — the
+	// 'Last modified', not 'Modified' — the
 	// Sort menu has called it that for months and the column
 	// disagreed; and beside a Created column, "Modified" alone
 	// reads as a state rather than a time. Both are WIDER now:
@@ -140,68 +114,44 @@ const colDefs = (): WsOrgCol[] => [
 	// wide every row is; the count answers "is this tagged, and about
 	// how much" and the hover answers the rest.
 	{ id: 'tags',     label: 'Tags',     def: 62, min: 44 },
-	// ── TWO MORE READINGS (writer, 2026-09-01) ───────────────────
+	// ── TWO MORE READINGS ────────────────────────────────────────
 	//
-	// "also add read time in proprieties in table view, and filetype
-	// too like xlsx, md , docx , etc".
-	//
-	// IN PROPERTIES, which is where they were asked for: both are
-	// down here with the readings that wait to be asked for, and
-	// both are in the fresh-vault off-list. A vault that has already
-	// shaped that list gets them ON, which is the `created`
-	// precedent three screens down and is who asked for them.
+	// IN PROPERTIES: both are down here with the readings that wait to be
+	// asked for, and both are in the fresh-vault off-list. A vault that
+	// has already shaped that list gets them ON (the `created` precedent).
 	{ id: 'read',     label: 'Read time', def: 84, min: 56 },
 	{ id: 'ftype',    label: 'Type',     def: 62, min: 40 },
-	// ── WHO POINTS HERE (writer, 2026-09-01) ────────────────────
+	// ── WHO POINTS HERE ──────────────────────────────────────────
 	//
-	// "i also want another propriety in the table --backlinks where it
-	// shows the names of other files linked to that file. and i can
-	// click on them like links".
-	//
-	// WIDER THAN THE REST, because it holds names and there are
-	// usually several. It still ellipsises at that width and the
-	// hover carries the full list, the way every other cell does.
+	// WIDER THAN THE REST, because it holds names and there are usually
+	// several. It still ellipsises at that width and the hover carries the
+	// full list, the way every other cell does.
 	{ id: 'backlinks', label: 'Backlinks', def: 170, min: 70 },
-	// A375 (writer, 2026-09-13: "add another propriety column outgoing
-	// links (the same as the core plugin from obsidian)"): the notes
-	// this one links to, resolved ones by name and clickable, the
-	// unresolved as written. A376 ("another propriety footnotes that
-	// just displays the number of footnotes in the note"): a count.
+	// Outgoing links: the notes this one links to, resolved ones by name
+	// and clickable, the unresolved as written. Footnotes: a count.
 	{ id: 'outlinks',  label: 'Outgoing links', def: 170, min: 70 },
 	{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
-	// ── FOUR MORE READINGS (writer, 2026-09-02) ──────────────────
+	// ── FOUR MORE READINGS ────────────────────────────────────────
 	//
-	// "also add to proprieties: links, page count, chars, chars with
-	// spaces, sentences". FOUR of the five: asked what a page should
-	// be counted as, the writer said "don't add it", so there is no
-	// pages column and no invented 250-words-a-page convention on a
-	// row.
-	//
-	// LINKS IS A COUNT, NOT A LIST, and that is a reading of the
-	// company it was asked in: every other name on that line is a
-	// number. Backlinks is the list — it answers "who points here",
-	// which is a question about other notes and wants their names.
-	// "How many does this one point at" is a size.
-	//
-	// THE CHARACTER COLUMNS ARE TWO COLUMNS because they are two
-	// numbers, which is what the writer asked for. Wide enough for a
-	// six-figure count with its separators.
+	// No pages column: a page is an invented 250-words-a-page convention on
+	// a row. LINKS IS A COUNT, NOT A LIST: Backlinks is the list — it
+	// answers "who points here", which is a question about other notes and
+	// wants their names; "how many does this one point at" is a size. THE
+	// CHARACTER COLUMNS ARE TWO COLUMNS because they are two numbers. Wide
+	// enough for a six-figure count with its separators.
 	{ id: 'chars',     label: 'Chars',     def: 84, min: 56 },
 	{ id: 'charsall',  label: 'Chars + spaces', def: 104, min: 60 },
 	{ id: 'sentences', label: 'Sentences', def: 84, min: 56 }
 ].concat(
-	// ── AND THE WRITER'S OWN ────────────────────────────────────
+	// ── AND THE WRITER'S OWN ──────────────────────────────────────
 	//
-	// Any frontmatter property, added from the columns menu. They
-	// come LAST because they were added last, and because the
-	// built-ins are the ones every vault has — a column list whose
-	// first entry is somebody's `pov` reads as though the plugin
-	// invented it.
-	//
-	// STORED AS A LIST, not a map, because the order is the order
-	// they were added and a map has none. `sortAs` is empty for
-	// "work it out from the values", or one of number/date/text
-	// where the writer has corrected the guess.
+	// Any frontmatter property, added from the columns menu. They come
+	// LAST because they were added last, and because the built-ins are the
+	// ones every vault has — a column list whose first entry is somebody's
+	// `pov` reads as though the plugin invented it. STORED AS A LIST, not a
+	// map, because the order is the order they were added and a map has
+	// none. `sortAs` is empty for "work it out from the values", or one of
+	// number/date/text where the writer has corrected the guess.
 	(Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [])
 		.filter(c => c && c.key)
 		.map(c => ({
@@ -218,14 +168,9 @@ const colDefs = (): WsOrgCol[] => [
 // should not be paid for four hundred times a day, so it starts off
 // and is one press away in the readings menu.
 if (!Array.isArray(d.s.uniColsOff)) {
-	// 'created' starts OFF on a fresh vault (the design brief's calm
-	// default) — a vault whose writer has already shaped this list
-	// gets it ON, which is who asked for the column.
-	//
-	// (The Today id was named here too, until the column was retired on
-	// 2026-08-27. A default that hides a column nothing declares is
-	// a line nobody can read — and a writer whose stored list still
-	// carries the id is unharmed: it names nothing now.)
+	// 'created' starts OFF on a fresh vault (the calm default) — a vault
+	// whose writer has already shaped this list gets it ON, which is who
+	// asked for the column.
 	d.s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
 		'tags', 'created', 'read', 'ftype', 'backlinks', 'outlinks', 'footnotes',
 		// A COLUMN COSTS EVERY ROW IN THE VAULT, which is the note a few
@@ -235,26 +180,25 @@ if (!Array.isArray(d.s.uniColsOff)) {
 		'chars', 'charsall', 'sentences'];
 }
 let COLS: WsOrgCol[] = colDefs();
-// ── AND THE ARRANGEMENT COMES BACK, ONCE (A211) ─────────────────
+// ── AND THE ARRANGEMENT COMES BACK, ONCE ─────────────────────────
 //
 // HERE AND NOT BESIDE `orgLens`, because a lens is checked against
 // what the table HAS and the columns do not exist until this line.
-//
 // ONCE, AND THIS IS THE PART THAT WOULD BITE: `COLS` is recomputed
 // whenever the column set changes, and re-applying a remembered lens
 // there would undo a clear the writer had just made — the memory
 // reaching back into the window instead of following it.
 {
-	// THE SESSION’S FIRST, THE SETTINGS’ WHEN THE SESSION HAS NONE
-	// (A319): a window closed and reopened keeps what it had; a
-	// restart reads what was saved. Both go through the one validator.
+	// THE SESSION'S FIRST, THE SETTINGS' WHEN THE SESSION HAS NONE: a
+	// window closed and reopened keeps what it had; a restart reads what
+	// was saved. Both go through the one validator.
 	const back = wsSessionLens(d.ses.lens || d.s.uniLens || null, COLS.map(c => c.id),
-		COLS.map(c => c.key).filter(k => k));
+		COLS.map(c => c.key).filter((k): k is string => !!k));
 	if (back) d.orgLens = back;
-	// AND THE SETTINGS’ COPY (A319), by the same rule as the session’s
-	// below: a chip whose column is gone must not come back next time
-	// either. Written only when the validated lens differs from what
-	// is stored — an open with no lens anywhere saves nothing.
+	// AND THE SETTINGS' COPY, by the same rule as the session's below: a
+	// chip whose column is gone must not come back next time either.
+	// Written only when the validated lens differs from what is stored — an
+	// open with no lens anywhere saves nothing.
 	{
 		const stored = JSON.stringify(d.s.uniLens || null);
 		const now = JSON.stringify(back);
@@ -272,20 +216,6 @@ let COLS: WsOrgCol[] = colDefs();
 // against a 980px window; these are a pane's.
 // ── HOW WIDE A COLUMN IS: AS WIDE AS WHAT IS IN IT ──────────────────
 //
-// TOMBSTONE: `uniCols`, a map of dragged pixel widths per column,
-// remembered per window. Removed with the resize handle.
-//
-// MEASURED IN CHARACTERS, NOT PIXELS, and that is the whole reason
-// this can be done at all. The band and every row are SEPARATE grids
-// that line up only because the same explicit track list is stamped
-// on all of them — so `auto` is not available: each row would size
-// itself and no two would agree, which is the misalignment fault
-// arriving by yet another route. A width has to be decided once and
-// given to everybody.
-//
-// TOMBSTONE: `colCh` — the longest value per column, in characters,
-// re-counted by `sizeCols` after every fill. The browser measures the
-// real glyphs now (subgrid tracks, BRIEF-TABLE-SUBGRID Phase 2).
 // WHICH COLUMNS ARE ON. Five readings is right for a writer setting
 // targets and three too many for one reading a manuscript, and the
 // answer changes by the week rather than by the vault — so it is a
@@ -298,19 +228,16 @@ const colOff = new Set<string>(Array.isArray(d.s.uniColsOff) ? d.s.uniColsOff : 
 // Which columns matter and in what order is a per-writer question:
 // somebody watching a deadline wants Left first, somebody revising
 // wants Flag first, and neither wants the order the columns happened
-// to be declared in. The board has had this since it had columns and
-// this window did not, so the same band answered a drag in one place
-// and ignored it in the other.
-//
-// STORED AS A LIST OF IDS, and applied as a SORT rather than as the
-// list itself: a column added in a later version is not in a saved
-// order, and a saved order used directly would silently drop it. Ones
-// it does not name go on the end, in the order they were declared.
+// to be declared in. STORED AS A LIST OF IDS, and applied as a SORT
+// rather than as the list itself: a column added in a later version is
+// not in a saved order, and a saved order used directly would silently
+// drop it. Ones it does not name go on the end, in the order they were
+// declared.
 const colRank = () => {
 	const saved = Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [];
 	const at = new Map<string, number>();
 	saved.forEach((id, i) => { if (!at.has(id)) at.set(id, i); });
-	return (c: WsOrgCol) => (at.has(c.id) ? at.get(c.id) : saved.length + COLS.indexOf(c));
+	return (c: WsOrgCol) => { const r = at.get(c.id); return r !== undefined ? r : saved.length + COLS.indexOf(c); };
 };
 const colSort = (list: WsOrgCol[]) => {
 	const rank = colRank();
@@ -321,79 +248,29 @@ const colSort = (list: WsOrgCol[]) => {
 // the current tab draws; the filter menu wants the wider answer, since
 // a question is worth asking whether or not its column is on screen.
 const setCols = () => colSort(COLS.filter(c => !colOff.has(c.id)));
-// TOMBSTONE (Phase 5): `nameCh` / `saveNameCh` / `uniNameCh` — the
-// name column’s dragged width, in ch, and the handle that wrote it.
-// The last of the name-drag machinery: the brief names it, and the
-// new table needs none of it — its name column is capped by
-// max-width and the browser owns every width. `uniNameCh` is
-// deleted on load (10-settings), the dead-key rule.
 // ── ONE TRACK LIST, AND THE BROWSER OWNS THE WIDTHS ────────────────
 //
-// TOMBSTONE, AND IT IS THE BIG ONE (BRIEF-TABLE-SUBGRID Phase 2).
-// What stood here: `chPxOf` (a measured ch basis), `bandRoomPx` (the
-// pane less the deepest indent and the name's floor), `fitData` (the
-// shave-and-clip pass over per-column preferences), `sizeCols`
-// (`colCh`, re-measured from every drawn row, with the pill weights),
-// and a stamp that wrote three custom properties of RESOLVED PIXEL
-// widths. The whole apparatus was a hand-built model of the browser's
-// font metrics — 1.12, +4ch, +2ch, half-ch shaves — wrong again every
-// time a font changed, re-fired from fifteen call sites.
-//
-// The table is ONE GRID now (`.ws-uni-left`), the band and every row
-// are subgrids of it, and every cell — headings included — sizes its
-// column from real glyphs on every layout pass, for free. The caps
-// and floors live in the TRACK LIST: `minmax(7ch, max-content)` for a
-// column of figures, `fit-content(20ch)` for a column of words. What
-// does not fit scrolls sideways under a frozen name column — which
-// retires clip-and-announce WITH the sizing model, because the old
-// objection to a horizontal scroll (it moves the readings out from
-// under their headings) cannot happen under a band that is itself a
-// row of the same grid: the headings travel with their columns.
-//
-// The pure functions the old pass grew into (`wsFitCols` and friends,
-// 00-preamble) STAY — tested, uncalled, the documented fallback.
-//
-// TWO STAMPED FACTS, both on `left`, the grid itself: the track list,
-// and the name column's width when the writer has dragged one — in
-// `ch`, resolved against the ONE element that carries the tracks, so
-// there is no second basis left for a 13/12 bug to hide in.
-// ONE TRACK SHAPE FOR EVERY READING COLUMN, and the property cap
-// lives on the CELL instead. The brief said `fit-content(20ch)` for
-// a column of words — MEASURED IN THE VAULT (Chrome 150) and it
-// shorts under a nested subgrid: a heading whose natural width was
-// 67px got a 21.5px track while its minmax(…, max-content)
-// neighbours sized correctly. So every column is
-// `minmax(7ch, max-content)` and the property cells carry
-// `max-width: 20ch` (styles.css), which caps the max-content
-// contribution the track actually sees — same cap, same floor, by a
-// door the engine gets right. The heading has no max-width: the cap
-// never squeezes the heading.
-// TOMBSTONE (A277): `stampCols`, which stamped the tree column’s tracks
-// and, latterly, removed one property from a column that is gone. Its
-// dozen call sites go with it: each was a place a column system used to
-// live, and the table has its own.
-
-// (`wordsBy` / `gradeBy` / `moreBy` / `paraOf` — the readings cached
-// out of the DOM — stood here. Nothing had filled them since the
-// readings came from the plugin's own index (`orgColRaw`), so the
-// watcher that emptied them on a count change could never redraw.
-// Cut with it, 2026-09-14.)
+// The name column's width when the writer has dragged one is in `ch`,
+// resolved against the ONE element that carries the tracks, so there
+// is no second basis for a rounding bug to hide in. ONE TRACK SHAPE FOR
+// EVERY READING COLUMN, and the property cap lives on the CELL instead:
+// `fit-content(20ch)` shorts under a nested subgrid (a heading whose
+// natural width is 67px gets a 21.5px track while its minmax(…,
+// max-content) neighbours size correctly). So every column is
+// `minmax(7ch, max-content)` and the property cells carry `max-width:
+// 20ch` (styles.css), which caps the max-content contribution the
+// track actually sees — same cap, same floor, by a door the engine
+// gets right. The heading has no max-width: the cap never squeezes the
+// heading.
 
 // ── AND THE WRITER'S OWN PROPERTIES ARE SORTS TOO ───────────────────
 //
-// Asked for from a vault: "the sort by needs to have a sort by
-// property (frontmatter)".
-//
-// THE MACHINERY WAS ALREADY THERE and only the menu was not.
-// `sortingProp`, `propSortAs`, `sortText` and the `sortAs` override
-// have sorted by a property column since the column existed — the id
-// a property sorts under IS its column id. What was missing was any
-// row offering it, so the feature was reachable only by a code path
-// nothing in the interface led to.
-//
-// REBUILT WITH THE COLUMNS, exactly as `filterDefs` is and for the
-// same reason: a list fixed at opening offers a sort by a column that
-// has just been removed, and not by one just added.
+// The id a property sorts under IS its column id; `sortingProp`,
+// `propSortAs`, `sortText` and the `sortAs` override sort by a property
+// column, and this is the row that offers it. REBUILT WITH THE COLUMNS,
+// exactly as `filterDefs` is and for the same reason: a list fixed at
+// opening offers a sort by a column that has just been removed, and
+// not by one just added.
 const sortDefs = () => BUILTIN_SORTS.concat(
 	COLS.filter(c => c.user).map(c => ({
 		id: c.id, label: c.label, icon: 'tag', prop: true
@@ -426,47 +303,34 @@ const BUILTIN_SORTS = [
 	{ id: 'charsall',  label: 'Chars + spaces', icon: 'case-sensitive' },
 	{ id: 'sentences', label: 'Sentences', icon: 'pilcrow' },
 	{ id: 'tasks',    label: 'Tasks left', icon: 'check-square' },
-	// ── THE THREE THAT WERE DRAWING NOTHING ─────────────────
+	// ── THE COLUMNS THAT ARE NOT SORTS IN THEIR OWN RIGHT ───────
 	//
-	// "some things in sort don’t have their own icons (created, tags)"
-	// — writer, 2026-08-27, with the menu open. Today is the third.
-	//
-	// The menu looks its glyph up HERE by column id, so a column with
-	// no entry draws nothing at all. These three are columns and were
-	// never sorts in their own right, so they never got one — and all
-	// three are OFF by default, which is why it took a writer turning
-	// them on to see it.
-	//
-	// THE LABELS ARE THE COLUMNS’ OWN. Nothing reads them for the menu
-	// row (that takes `col.label`); they are what the bar says after
-	// "Sorted by", so they must not disagree with the header.
+	// The menu looks its glyph up HERE by column id, so a column with no
+	// entry draws nothing at all. THE LABELS ARE THE COLUMNS' OWN: nothing
+	// reads them for the menu row (that takes `col.label`); they are what
+	// the bar says after "Sorted by", so they must not disagree with the
+	// header.
 	{ id: 'created', label: 'Created', icon: 'calendar-plus' },
 	{ id: 'tags',    label: 'Tags',    icon: 'tags' }
 ];
 let SORTS = sortDefs();
-// (`filterDefs`/`FILTERS` stood here — Phase 5.)
 
 
 
-// One call after any change to the writer's own columns. Both lists are
-// derived from the same settings key, so rebuilding one without the
-// other is a filter menu that disagrees with the band about which
-// columns exist.
 // THREE LISTS, ONE SOURCE. The columns, the filters and the sorts are
 // all derived from the same settings key, so rebuilding two of them
 // and not the third is a sort menu that disagrees with the band about
-// which columns exist.
+// which columns exist. One call after any change to the writer's own
+// columns.
 const rebuildCols = () => {
 	COLS = colDefs(); SORTS = sortDefs();
 };
 // ── THE PROPERTY KEYS IN SCOPE, SCANNED ONCE ────────────────────────
 //
-// LIFTED OUT OF THE MENU. This scan used to live inside the "Add a
-// property…" click handler, which meant it was reachable from exactly
-// one place — and a vault asked for a second (a button of its own with
-// a searchable modal). Two copies of a scan is two answers to "what
-// properties are there", and the fold-by-case rule below is subtle
-// enough that they would not have stayed the same for long.
+// OUT OF THE MENU: this scan is reachable from the "Add a
+// property…" click and from the header's own button; two copies of a scan
+// is two answers to "what properties are there", and the fold-by-case
+// rule below is subtle enough that they would not stay the same for long.
 const propKeysInScope = () => {
 	const seen = new Map<string, { label: string; n: number; spellings: Map<string, number> }>();
 	for (const p2 of d.liveFiles()) {
@@ -479,38 +343,15 @@ const propKeysInScope = () => {
 			// `position` is Obsidian's own bookkeeping rather than the
 			// writer's, so it is not a property anybody chose.
 			//
-			// TOMBSTONE (2026-08-27, brief B1): `|| k === this.synopsisKey()`
-			// stood here, on the grounds that “the synopsis already has a row
-			// of its own under every note that has one”.
-			//
-			// That is how it is DRAWN in the Outline. It was never a reason
-			// the key could not ALSO be a column — and it left the writer
-			// unable to sort or filter by the one field they write in every
-			// scene. Writer: “SYNOPSIS IS AN ORDINARY FRONTMATTER PROPERTY.
-			// The plugin owns no synopsis store and special-cases no key.”
-			//
-			// IT ALSO MADE THE TWO DOORS DISAGREE, which is the older half of
-			// the fault: `orgPropsSearch` puts the synopsis key in explicitly
-			// while this scan took it out again, so which properties exist
-			// depended on which button was pressed. CURRENT.md already
-			// carried those two as separate paths.
-			//
-			// WHAT STAYS SPECIAL IS THE DRAWING, not the key: the prose field
-			// is still the one rendered as a paragraph rather than a chip
-			// (`orgChipKeys`) and still edits in a textarea. That is the
-			// ★ the brief describes, and it reads `synopsisKey()` — one
-			// setting naming which property gets prose treatment.
 			if (k === 'position') continue;
-		// ── AND `tags` ALREADY HAS A COLUMN (writer, 2026-08-22) ──
+		// ── AND `tags` ALREADY HAS A COLUMN ─────────────────────────
 		//
-		// "what about having tags and in properties another tags?"
-		// A property column for `tags` reads the FRONTMATTER only,
-		// while the built-in Tags column merges frontmatter AND
-		// inline — so adding it made a second column with the same
-		// label showing a silent subset. Refused here, which is the
-		// one place a COLUMN is born; the drawer still offers `tags`
-		// as a property to EDIT, because editing frontmatter tags is
-		// a real thing to want and a different question.
+		// A property column for `tags` reads the FRONTMATTER only, while the
+		// built-in Tags column merges frontmatter AND inline — so adding it
+		// would make a second column with the same label showing a silent
+		// subset. Refused here, which is the one place a COLUMN is born; the
+		// drawer still offers `tags` as a property to EDIT, because editing
+		// frontmatter tags is a real thing to want and a different question.
 		if (k === 'tags' || k === 'tag') continue;
 			// FOLDED BY CASE, so `date` and `Date` are offered once
 			// rather than twice — the column reads either (see
@@ -534,22 +375,21 @@ const propKeysInScope = () => {
 	// the same values.
 	const already = new Set(COLS.filter(c => c.user)
 		.map(c => String(c.key).toLowerCase()));
-	return Array.from(seen.keys())
-		.filter(k => !already.has(k))
-		.sort((a, b) => (seen.get(b).n - seen.get(a).n) || a.localeCompare(b))
-		.map(k => ({
-			key: k, label: seen.get(k).label, n: seen.get(k).n,
-			spellings: seen.get(k).spellings.size
+	return Array.from(seen.entries())
+		.filter(([k]) => !already.has(k))
+		.sort((a, b) => (b[1].n - a[1].n) || a[0].localeCompare(b[0]))
+		.map(([k, v]) => ({
+			key: k, label: v.label, n: v.n,
+			spellings: v.spellings.size
 		}));
 };
-// ── ADDING ONE, WHEREVER IT WAS ASKED FOR ───────────────────────────
-// THE COLUMN GOES WITH THE PROPERTY (A366, writer 2026-09-13: "if a
-// proprety is removed it keeps the column in the table"). A user
-// column is kept as long as ANY note in the vault carries its key —
-// the index sweeps the whole vault, so the test is not the folder on
-// screen. A key held only in the property store (a note that is not
-// markdown) counts as carried. Run when the index moves and at open;
-// a drop redraws.
+// ── THE COLUMN GOES WITH THE PROPERTY ─────────────────────────
+//
+// A user column is kept as long as ANY note in the vault carries its
+// key — the index sweeps the whole vault, so the test is not the folder
+// on screen. A key held only in the property store (a note that is not
+// markdown) counts as carried. Run when the index moves and at open; a
+// drop redraws.
 const pruneUserCols = () => {
 	const ix = d.plugin._orgIndex;
 	const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [];
@@ -592,10 +432,9 @@ const addProp = async (info: WsPropItem) => {
 	const shown = info.label;
 	const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols.slice() : [];
 	if (list.some(c => c && String(c.key).toLowerCase() === info.key)) return;
-	// THE TYPE TRAVELS WITH THE COLUMN (A135). Written only when the
-	// writer actually chose one — an absent `type` means "ask the
-	// vault", which is what every existing column does and must keep
-	// doing.
+	// THE TYPE TRAVELS WITH THE COLUMN. Written only when the writer
+	// actually chose one — an absent `type` means "ask the vault", which
+	// is what every existing column does and must keep doing.
 	const chosen = String((info && info.type) || '');
 	list.push(chosen
 		? { key: shown, label: shown, sortAs: '', type: chosen, fresh: true }
@@ -619,16 +458,15 @@ const addProp = async (info: WsPropItem) => {
 // Falls back to the menu it replaced on an API without
 // `FuzzySuggestModal`, and says the same thing when there is nothing
 // to add — silence there reads as a broken button.
-// ── WHAT KIND OF PROPERTY IS THIS (A135) ────────────────────────────
+//
+// ── WHAT KIND OF PROPERTY IS THIS ───────────────────────────────
 //
 // Obsidian's own six, by the widget names its registry answers with —
 // so a type chosen here means the same thing to `orgPropType`, to the
 // editor that picks a control, and to the store's decode. A seventh
-// name of our own would be a second vocabulary for one idea.
-//
-// TEXT FIRST AND NAMED, not assumed: it is the commonest answer and
-// it is also what the writer got silently before this existed. Being
-// asked and choosing Text is a different act from not being asked.
+// name of our own would be a second vocabulary for one idea. TEXT FIRST
+// AND NAMED, not assumed: it is the commonest answer, and being asked
+// and choosing Text is a different act from not being asked.
 const PROP_TYPES = [
 	{ id: 'text', label: 'Text' },
 	{ id: 'multitext', label: 'List' },
@@ -678,30 +516,18 @@ const askPropType = (ev2: MouseEvent, done: (type: string) => void) => {
 		} else { done(''); }
 	} catch { done(''); }
 };
-// ── TWO DOORS, NOT ONE (A141, writer 2026-09-04) ────────────────
+// ── TWO DOORS, NOT ONE ────────────────────────────────────────
 //
-// "make add a propriety better. let's add instead of that button -
-// two: add a new propriety that first ask the type and a name, and
-// another button with add an existing propriety".
-//
-// THE ONE BUTTON DID BOTH JOBS AND SAID SO IN ITS SUBTITLE. Search
-// what exists, or type a name nobody has used and take the create
-// row at the bottom of the list. That was the right shape for one
-// button (2026-08-25, "search or add a new proprietey") and it hid
-// the naming door inside a search box — a writer with an empty
-// vault had to type into a list of nothing to discover it.
-//
-// TYPE FIRST, THEN NAME, in the writer's own order — and that order
-// is safe here for the reason A135's was not. A135 had to add the
-// column BEFORE asking the type, because the name was already given
-// and dismissing the type menu would have thrown it away. Here
-// nothing exists until the name is typed, and the name is last: a
-// writer who backs out of either step has created nothing, which is
-// what backing out should do.
-// NAMING IS ITS OWN STEP NOW (A179), because the type can be chosen
-// two ways: the header menu still asks with `askPropType`, and the
-// panel's footer row opens a submenu of its own. Both end here, so
-// there is ONE naming door and neither can drift from the other.
+// Search what exists, or name a new one. A single button that hides
+// the naming door inside a search box makes a writer with an empty
+// vault type into a list of nothing to discover it. TYPE FIRST, THEN
+// NAME, and that order is safe here: nothing exists until the name is
+// typed, and the name is last, so a writer who backs out of either
+// step has created nothing, which is what backing out should do.
+// NAMING IS ITS OWN STEP, because the type can be chosen two ways —
+// the header menu asks with `askPropType`, and the panel's footer row
+// opens a submenu of its own. Both end here, so there is ONE naming
+// door and neither can drift from the other.
 const nameNewProp = (type: string, ev2: MouseEvent) => {
 	const taken = propKeysInScope();
 	const named = (t2: string) => {
@@ -732,15 +558,6 @@ const nameNewProp = (type: string, ev2: MouseEvent) => {
 const addNewProp = (ev2: MouseEvent) => {
 	askPropType(ev2, (type) => nameNewProp(type, ev2));
 };
-// ── TOMBSTONE: `addExistingProp` AND ITS DOOR (A250, 2026-09-08) ──
-//
-// Writer: “the add an existing property - i think it's redundant,
-// because we have all the properties shown now in the modal submenu
-// of properties in the organiser”. Asked back and confirmed. The door
-// opened a picker over `propKeysInScope()` with no create row; the
-// panel it sat in already lists every property there is, so the
-// search searched a list the writer was looking at. `WsPropSuggestModal`
-// and `pickProp` stay: the tags column and the naming door use them.
 // ── AND THE DOOR IS NAMED ONCE ──────────────────────────────────
 //
 // The panel's footer and the header menu both offer these, and a
@@ -752,18 +569,14 @@ const addNewProp = (ev2: MouseEvent) => {
 // name this Obsidian does not have — each door carries its own
 // fallbacks, tried in order, and the first that draws wins.
 const ORG_PROP_DOORS = [
-	// ── NO ELLIPSIS ON EITHER (A181, writer 2026-09-05) ────────────
-	//
-	// “and the elipses for add a new propriety and add an existing
-	// property”. The convention it followed is real — a trailing “…”
-	// means the control opens something rather than doing it — and
-	// the writer has looked at the panel and does not want it here.
-	// THE TYPES HANG OFF THE DOOR, not off the row that draws it: the
-	// header menu and the panel both read this list, and a submenu
-	// declared at one of them is a door added in one place and
-	// forgotten in the other. `open` is what a caller with no submenu
-	// of its own does — the header menu, and any build without our
-	// flyout — and it still asks with `askPropType`.
+	// NO ELLIPSIS ON EITHER: the convention is real — a trailing "…" means
+	// the control opens something rather than doing it — and it is not
+	// wanted here. THE TYPES HANG OFF THE DOOR, not off the row that draws
+	// it: the header menu and the panel both read this list, and a submenu
+	// declared at one of them is a door added in one place and forgotten
+	// in the other. `open` is what a caller with no submenu of its own does
+	// — the header menu, and any build without our flyout — and it still
+	// asks with `askPropType`.
 	{ label: 'Add a new property',
 		icons: ['plus', 'plus-circle', 'file-plus'],
 		types: PROP_TYPES,
@@ -772,54 +585,27 @@ const ORG_PROP_DOORS = [
 ];
 const pickProp = (ev2: MouseEvent) => {
 	const found = propKeysInScope();
-	// ── SEARCH *OR* CREATE (writer, 2026-08-25) ──────────────────
+	// ── SEARCH *OR* CREATE ───────────────────────────────────────
 	//
-	// "the button to add a proprety should be a search or add a new
-	// proprietey."
-	//
-	// TOMBSTONE, and it is the half that mattered:
-	// `if (!found.length) { new Notice('No properties in these
-	// notes'); return; }`. It was written so silence would not read
-	// as a broken button — right about the silence, wrong about the
-	// answer. A vault with no properties yet is exactly the vault
-	// that wants to NAME one, and this refused it a door. The
-	// picker opens on an empty list now, because the create row is
-	// the door.
-	//
-	// `orgPropsSearch` HAS DONE THIS SINCE 2026-08-23, at the same
-	// writer's ask ("i can search for another or add a new
-	// property") — one menu along, answering the same question a
-	// different way. The create row lives in WsPropSuggestModal now
-	// so both doors can share it.
+	// The picker opens on an empty list too: a vault with no properties
+	// yet is exactly the vault that wants to NAME one, and the create row
+	// is the door.
 	if (WsPropSuggestModal) {
 		try {
 			new WsPropSuggestModal(d.plugin.app, found, (info) => {
-				// A CREATED KEY IS A KEY LIKE ANY OTHER from here
-				// on: `addProp` reads `label` for what to show and
-				// `key` for the duplicate check, and the picker has
-				// already refused a name that would duplicate one.
-				// ── AND A NEW ONE IS ASKED WHAT IT IS (A135) ──────
+				// A CREATED KEY IS A KEY LIKE ANY OTHER from here on: `addProp` reads
+				// `label` for what to show and `key` for the duplicate check, and the
+				// picker has already refused a name that would duplicate one.
 				//
-				// Writer, 2026-09-04: "when adding a propriety form
-				// the propriety submenu it does not ask me what type.
-				// so if i add a new one it just adds it as a text".
+				// ── AND A NEW ONE IS ASKED WHAT IT IS ─────────────────────
 				//
-				// ONLY WHEN IT IS NEW, which `isNew` already tells us.
-				// A key the vault already uses has a type Obsidian
-				// knows, and asking again would be a question with a
-				// right answer already on file.
-				// ADDED FIRST, ASKED SECOND. The obvious order is to
-				// ask and then add, and it is wrong: a writer who
-				// dismisses the menu would have named a property and
-				// got nothing. The probe found it — "choosing it draws
-				// the column" went red, because a menu that is never
-				// answered never adds — and the fixture was right
-				// about the behaviour, not just about itself.
-				//
-				// So the column exists the moment it is named, exactly
-				// as before, and the type REFINES it. Dismissing leaves
-				// a text property, which is what they had before being
-				// asked at all.
+				// ONLY WHEN IT IS NEW, which `isNew` already tells us: a key the vault
+				// already uses has a type Obsidian knows, and asking again would be a
+				// question with a right answer already on file. ADDED FIRST, ASKED
+				// SECOND: asked and then added, a writer who dismisses the menu would
+				// have named a property and got nothing. So the column exists the
+				// moment it is named, and the type REFINES it; dismissing leaves a
+				// text property.
 				if (info.isNew) {
 					const nk = String(info.key).toLowerCase();
 					void addProp({ key: nk, label: String(info.key) });
@@ -851,90 +637,5 @@ const pickProp = (ev2: MouseEvent) => {
 	try { pick.showAtMouseEvent(ev2); }
 	catch { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('openManuscriptModal / pickProp: pick.showAtPosition( x: 0, y: 0 );', _e); } }
 };
-// ── AND TAKING ONE AWAY, FROM EITHER MENU ───────────────────────────
-//
-// LIFTED, BECAUSE IT COULD NOT BE FOUND. Removal has existed since the
-// property columns did — behind a RIGHT-CLICK on the column's own
-// heading. A vault reported "there is no way to remove a property
-// added so it can clutter every submenu", which is a discoverability
-// report rather than a missing feature: nothing in the interface
-// pointed at that right-click. It is in the columns menu now, and both
-// call this rather than each carrying a copy — six stores are cleaned
-// up in here and a second copy would forget one.
-// ── TOMBSTONE: `removeProp` (A168, 2026-09-05) ──────────────────
-//
-// It had three doors and the writer closed all of them on
-// 2026-09-04; the last caller left was a fallback arm for builds
-// without submenus, and that went in this batch. A function
-// nothing can reach is not caution, it is a name somebody reuses.
-//
-// ITS STORE HALF IS `propColumnForget(key)` NOW, a plugin method,
-// because the prune the writer asked for lives in the settings
-// tab and a closure over `colOff`, `rebuildCols` and three
-// redraws is not callable from there. The redraws it did are
-// simply not needed: the window rebuilds its columns on open, and
-// a settings change already runs `refresh()`.
-//
-// AND ONE LINE DID NOT GO WITH IT: `uniSlimCol`, which this wiped
-// and which is DELETED ON LOAD forty lines up. A reader keeping a
-// retired key alive is the fault A169 spent a batch removing, so
-// it was not carried into the new home.
-// ── AND RE-FIT WHEN THE PANE CHANGES SIZE ───────────────────────────
-//
-// THE CEILING WAS ONLY EVER APPLIED AT STAMP TIME, and nothing
-// re-stamped when the pane was resized — so it held at the moment a
-// column was dragged and stopped holding the moment the window moved.
-//
-// Measured in a vault after the pane was narrowed to 549px: the tracks
-// still summed to 493px against 415px of room, the name was jammed at
-// its 6ch floor, and the readings box hung 43.6px past the right-hand
-// edge of the row. The band above it has no indent, so it did not
-// overflow — and the two boxes' dividers came apart by 50.8px. That is
-// the "table headers don't match the table columns vertical lines"
-// report, and it is the same overflow as before wearing a new hat.
-//
-// A ceiling that is only checked when the thing it bounds is touched
-// is not a ceiling. This checks it when the ROOM changes too.
-//
-// GUARDED AND OPTIONAL: `ResizeObserver` is not on every build this
-// plugin runs against, and a window that throws while opening is worse
-// than one whose columns need a nudge after a resize.
-// TOMBSTONE (A277): `paneWatch` and `watchPane`, the ResizeObserver on the
-// tree column that re-stamped those tracks. The table watches itself.
-// ── PUSHING THE NAME WIDTH OUT WITHOUT A REDRAW ─────────────────────
-//
-// TOMBSTONE: `nameWPx` and `applyNameW` — the dragged name width,
-// resolved to pixels and written onto the band’s cell and every row.
-// The width is a TRACK now (`--ws-uni-tracks`, one write on `left`),
-// so there is nothing to fan out and no per-row copy to go stale.
-
-// THE WRITING, NOT THE VAULT — when a writer has said which folders
-// those are. With no roots set this is every note, exactly as before.
-//
-// The plugin's own three notes are never rows here regardless: an
-// order file inside a chapter folder would be counted, targeted and
-// flagged like a scene.
-// ── THE OUTLINER IS THE WHOLE VAULT ─────────────────────────────────
-//
-// TOMBSTONE: `.filter(f => this.inManuscript(f.path))`, so this tree
-// showed only what was inside a manuscript root, plus a session-long
-// memory of anything made in here that fell outside one.
-//
-// Removed on request, and the request was right. The roots were doing
-// two jobs: saying which folders are THE WRITING — a real question,
-// which the compile, the counts and the report all need — and saying
-// what this tree is allowed to DRAW, which is not the same question
-// and should never have been the same setting. The consequences were
-// all of a piece: a folder made outside a root vanished when the
-// window reopened; a folder made INSIDE one was not itself a root and
-// so vanished too; a new note appeared in Obsidian's explorer and not
-// in ours. Each was patched separately and the patches were the smell.
-//
-// A tree that shows a subset of the vault is a tree a writer cannot
-// trust, because the thing they are looking for might be absent for a
-// reason no row explains. This shows the vault, as the file explorer
-// does, and every narrowing — search, filter, scope — is a control
-// they can see and undo.
-//
 	return { colOff, setCols, pruneUserCols, addProp, ORG_PROP_DOORS, get COLS() { return COLS; }, set COLS(v) { COLS = v; }, get SORTS() { return SORTS; }, set SORTS(v) { SORTS = v; } };
 };

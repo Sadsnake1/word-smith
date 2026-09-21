@@ -1,5 +1,5 @@
-// Word-Smith — organizer-rename. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-rename: a row's name edited in place, and the menu
+// a row answers to.
 
 import type { TAbstractFile } from 'obsidian';
 import { wsCatch } from './preamble';
@@ -11,19 +11,16 @@ import type { WsOrgJournalEntry } from './organizer-journal';
 // THE RENAME — a row's name edited in place, and the menu a row answers to
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE TWENTIETH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-15, by
-// `ws-dev/lift.js`): `orgRenameRow` (the name cell made editable, Enter
-// to commit through the plugin's one renamer — which rewrites the links —
-// Escape to put the old name back, a name already taken refused with a
-// word in the foot) and `orgMenuCtx` (what a row's right-click menu is
-// handed). Eighty-five lines.
+// `orgRenameRow` (the name cell made editable, Enter to commit through
+// the plugin's one renamer — which rewrites the links — Escape to put the
+// old name back, a name already taken refused with a word in the foot)
+// and `orgMenuCtx` (what a row's right-click menu is handed).
 //
-// WHAT IT READS, through `d`: the edit guard and its escape
-// (`d.orgProps`, `d.orgEditDone`), the journal (`d.orgHistPush`), the
-// panel and its windows (`d.panel`, `d.ownerDoc`, `d.ownerWin`), the foot
-// (`d.said`) and `d.plugin`. The comments came with it, as they stood.
-//
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT IT READS, through `d`: the edit guard and its escape (`d.orgProps`,
+// `d.orgEditDone`), the journal (`d.orgHistPush`), the panel and its
+// windows (`d.panel`, `d.ownerDoc`, `d.ownerWin`), the foot (`d.said`) and
+// `d.plugin`.
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgRenameMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (6 of 8).
@@ -46,8 +43,8 @@ const orgRenameRow = (item: { path: string; kind?: string }) => {
 	const nameEl = rowEl && rowEl.querySelector('.ws-org-namelabel');
 	if (!nameEl) { d.said('That row is no longer on screen.', true); return; }
 	const parts = d.plugin.outlinerRenameParts(item.path, false);
-	// The same contenteditable shape the tree rename wears (see the
-	// tombstone there: an <input> carries a form field's box), and
+	// A contenteditable, not an <input> (which carries a form field's
+	// box), and
 	// the same ONE writer underneath — `outlinerRenameTo` keeps the
 	// folder and the extension, refuses collisions, and renames via
 	// fileManager so links follow.
@@ -66,11 +63,10 @@ const orgRenameRow = (item: { path: string; kind?: string }) => {
 		const typed = (nameEl.textContent || '');
 		try {
 			nameEl.removeAttribute('contenteditable');
-			// AND THE EDITING LOOK COMES OFF WITH IT (A267). The class
-			// was left on and only went when the next redraw rebuilt the
-			// cell — so between a cancel and that redraw the name still
-			// wore the caret's box, and 'is a rename running?' could not
-			// be answered by looking.
+			// AND THE EDITING LOOK COMES OFF WITH IT: left on until the next redraw
+			// rebuilt the cell, the name would still wear the caret's box between a
+			// cancel and that redraw, and "is a rename running?" could not be
+			// answered by looking.
 			nameEl.removeClass('ws-uni-renaming');
 			rowEl.removeClass('is-being-renamed');
 		} catch (_) { wsCatch('openManuscriptModal / finish: nameEl.removeAttribute(\'contenteditable\');', _); }
@@ -103,8 +99,7 @@ const orgRenameRow = (item: { path: string; kind?: string }) => {
 		const range = d.ownerDoc().createRange();
 		range.selectNodeContents(nameEl);
 		const picksel = d.ownerWin().getSelection();
-		picksel.removeAllRanges();
-		picksel.addRange(range);
+		if (picksel) { picksel.removeAllRanges(); picksel.addRange(range); }
 	} catch (_) { wsCatch('openManuscriptModal / orgRenameRow: nameEl.focus();', _); }
 };
 const orgMenuCtx = {
@@ -113,16 +108,13 @@ const orgMenuCtx = {
 	// chosen folder, so a new note is on screen without being revealed.)
 	reveal: () => {},
 	report: (item: TAbstractFile) => { try { d.plugin.openReportModal(item && item.path); } catch (_) { wsCatch('openManuscriptModal: this.openReportModal(item && item.path);', _); } },
-	// A NEW NOTE STAYS HERE (A362): not opened — the order write that
-	// joins it redraws this window on the spot, so the rename that
-	// follows finds its row, and the rename's edit guard holds the
-	// vault's own redraw off while the name is typed.
+	// A NEW NOTE STAYS HERE: not opened — the order write that joins it
+	// redraws this window on the spot, so the rename that follows finds its
+	// row, and the rename's edit guard holds the vault's own redraw off
+	// while the name is typed.
 	opens: false,
 	rename: (item: { path: string; kind: string }) => orgRenameRow(item)
 };
 
-// ── LIFTED INTO 03-organizer-flags.js (2026-09-14) ──
-// The block that stood here reads this closure through the names below
-// and nothing else; the aliases keep the names the closure calls.
 	return { orgMenuCtx };
 };

@@ -1,5 +1,4 @@
-// Word-Smith — organizer-ticks. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-ticks: the export's ticks — what is in.
 
 import { wsUnderIndex, wsUnderRow } from './org-index';
 import type { WsUnderIndex } from './org-index';
@@ -11,13 +10,12 @@ import type { TFile } from 'obsidian';
 // THE EXPORT'S TICKS — what is in, out of the closure
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE SECOND PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14), after
-// the journal. It owns four things the closure used to hold as loose
-// variables — the tick set, the scope it was read for, the write's debounce
-// timer, and the per-draw index of what each row governs — and the six
-// functions that touch them: the gather, the load from ws-structure.md, the
-// debounced write back, the index, the two doors that add a place or drop
-// one, and the door Obsidian's tree paints its boxes through.
+// Four things — the tick set, the scope it was read for, the write's
+// debounce timer, and the per-draw index of what each row governs — and
+// the functions that touch them: the gather, the load from
+// ws-structure.md, the debounced write back, the index, the doors that
+// add a place or drop one, and the door Obsidian's tree paints its
+// boxes through.
 //
 // WHAT IT READS, all through `d`:
 //   plugin       exportGather, exportApplyRemembered, structureRead,
@@ -31,7 +29,7 @@ import type { TFile } from 'obsidian';
 //   redraw()     draw() then drawPanel()
 //   said(m)      the foot's say-line
 //   wanted()     whether the Export tab is up (the tree paints boxes only then)
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgTicksMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (4 of 7).
@@ -49,16 +47,16 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 	const plugin = d.plugin;
 	let ticks: Set<string> | null = null;          // Set of paths, or null until the scope is read
 	let ticksFor: string | null = null;       // which scope `ticks` belongs to
-	let tickTimer: number = null;
+	let tickTimer: number | null = null;
 	// THE PER-DRAW INDEX of what each row governs, built on the first row
 	// that asks and dropped by `dropIndex()`, which the panel draw calls —
 	// the one door every tab's redraw walks through. OVER THE WHOLE VAULT,
-	// NOT THE PLACES (A391, writer 2026-09-14: "bring back the half filled
-	// ticks"): built over the places, a folder above a place counted only
-	// the notes the place held, so a folder with one ticked subfolder read
-	// as all ticked. A folder's box speaks for every note under it in the
-	// vault: full, half, or empty, as a tree's box does. The arithmetic is
-	// `wsUnderIndex`, in src/01-org-index.js, where a suite can reach it.
+	// NOT THE PLACES: built over the places, a folder above a place would
+	// count only the notes the place held, so a folder with one ticked
+	// subfolder would read as all ticked. A folder's box speaks for every
+	// note under it in the vault: full, half, or empty, as a tree's box
+	// does. The arithmetic is
+	// `wsUnderIndex`, in org-index.ts, where a test can reach it.
 	let underIn: WsUnderIndex | null = null;
 	const index = () => {
 		if (!underIn) underIn = wsUnderIndex(plugin.exportGather(''));
@@ -123,8 +121,8 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 		return ticks;
 	};
 	const remember = () => {
-		// Obsidian's tree carries the same ticks (A254-1c): every change
-		// asks for one repaint there, on the next frame.
+		// Obsidian's tree carries the same ticks: every change asks for one
+		// repaint there, on the next frame.
 		try { plugin.orgTicksSchedule(); } catch (_) { wsCatch('rememberTicks: this.orgTicksSchedule();', _); }
 		// Debounced: a writer unticking twelve scenes should cause one
 		// write, not twelve.
@@ -133,7 +131,7 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 			const many = d.scopes();
 			if (many && many.length > 1) {
 				// ONE SECTION PER FOLDER, never a composite key — and never
-				// under a NOTE'S path (A363): a note added as a place is one
+				// under a NOTE'S path: a note added as a place is one
 				// file; its tick is in the store already, under the folder
 				// that holds it, or not at all.
 				for (const p of many) {
@@ -152,15 +150,12 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 			void plugin.structureWriteSection(at, rows);
 		}, 400);
 	};
-	// PLACES FROM ANYWHERE (A363, writer 2026-09-13: "in export i cant add
-	// more files or folders - only from the folder that i've opened exporter
-	// in. remove this behaviour, i want to add files and folder from
-	// different places"). The scope list already takes several folders from
-	// the explorer's multi-select; these two doors let a tick in the tree
-	// add a folder or a note to it (A381), and take one out. The vault root
-	// is everything already, so nothing is added to it.
-	// Every gathered note on, or every one off (A415, the button beside
-	// "Export as"). The same remember and redraw a row's box goes through.
+	// PLACES FROM ANYWHERE: the scope list takes several folders from the
+	// explorer's multi-select, and these two doors let a tick in the tree
+	// add a folder or a note to it, and take one out. The vault root is
+	// everything already, so nothing is added to it. Every gathered note
+	// on, or every one off (the button beside "Export as"): the same
+	// remember and redraw a row's box goes through.
 	const setAll = (on: boolean) => {
 		if (!ticks) return false;
 		for (const f of files()) { if (on) ticks.add(f.path); else ticks.delete(f.path); }
@@ -168,9 +163,9 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 		d.redraw();
 		return true;
 	};
-	// Exactly these go out (A415-b, "Export this" / "Export these" from the
-	// tree): every gathered note under a folder given, a note given, and
-	// nothing else. Read first, so the set lands on the vault's list.
+	// Exactly these go out ("Export this" / "Export these" from the tree):
+	// every gathered note under a folder given, a note given, and nothing
+	// else. Read first, so the set lands on the vault's list.
 	const setOnly = (paths: string[]) => {
 		const want = (Array.isArray(paths) ? paths : [paths])
 			.map((p) => (p == null || p === '/') ? '' : String(p)).filter((p) => p !== '');
@@ -186,27 +181,23 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 			return true;
 		}, () => false);
 	};
-	// TOMBSTONE (A415-b, writer 2026-09-15: "remove the folder behaviour of
-	// the export"): `placeAdd` and `placeDrop` — the export's "places", a
-	// folder or a note from anywhere joining the scope (A363, A381). The
-	// export is the vault; a box is a tick and nothing more.
-	// THE DOOR OBSIDIAN'S TREE PAINTS ITS BOXES THROUGH (A254-1c): what a
-	// row's box shows, and what a click on it does.
+	// THE DOOR OBSIDIAN'S TREE PAINTS ITS BOXES THROUGH: what a row's box
+	// shows, and what a click on it does.
 	const door = {
 		wanted: () => d.wanted(),
 		state: (path: string | null, kind: string) => {
 			if (!ticks) return null;
+			const set = ticks;
 			const mine = wsUnderRow(index(), path, kind);
 			if (!mine.length) return { mine: 0, all: false, some: false };
-			const on = mine.filter((p) => ticks.has(p)).length;
+			const on = mine.filter((p) => set.has(p)).length;
 			return { mine: mine.length, all: on === mine.length, some: on > 0 && on < mine.length };
 		},
 		toggle: (path: string | null, kind: string) => {
 			if (!ticks) return false;
+			const set = ticks;
 			const mine = wsUnderRow(index(), path, kind);
-			// (A row outside the export's places used to JOIN them here; the
-			// places went at A415-b. Every note's box is real.)
-			const on = mine.filter((p) => ticks.has(p)).length;
+			const on = mine.filter((p) => set.has(p)).length;
 			const next = on !== mine.length;
 			for (const p of mine) { if (next) ticks.add(p); else ticks.delete(p); }
 			remember();

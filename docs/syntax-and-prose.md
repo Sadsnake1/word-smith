@@ -1,10 +1,10 @@
-# Syntax colouring and prose checks
+# Syntax coloring and prose checks
 
 [← Back to the README](../README.md)
 
-**Syntax** gives nouns, verbs, adjectives, adverbs and conjunctions each their own colour, the way a code editor shows you structure. It can mute everything else so one class carries the sentence. Too many adverbs reads as a rash.
+**Syntax** gives nouns, verbs, adjectives, adverbs and conjunctions each their own color, the way a code editor shows you structure. It can mute everything else so one class carries the sentence. Too many adverbs reads as a rash.
 
-**Prose checks** mark eight things worth a second look: filler words, passive voice, doubled words, easily confused pairs, vague pronouns, dialogue tags, sentence rhythm, and repeated uncommon words. Each check has its own switch and its own colour. Marks are an underline by default, or a highlight, or coloured text.
+**Prose checks** mark eight things worth a second look: filler words, passive voice, doubled words, easily confused pairs, vague pronouns, dialogue tags, sentence rhythm, and repeated uncommon words. Each check has its own switch and its own color. Marks are an underline by default, or a highlight, or colored text.
 
 Both run on your machine. Both are guesswork. A mark is a nudge, not a verdict. Both are English only, and in another language they mark nothing rather than marking it wrongly.
 

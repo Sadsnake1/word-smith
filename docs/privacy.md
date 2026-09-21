@@ -6,7 +6,7 @@
 
 Word-Smith is local. No network calls of any kind: no `fetch`, no `XMLHttpRequest`, no `WebSocket`, no `requestUrl`. No telemetry. No dependencies.
 
-**What it reads:** your note's text, in memory, while it's open, for counts and colouring. The report reads a folder's notes when you open it. An export reads the notes you ticked.
+**What it reads:** your note's text, in memory, while it's open, for counts and coloring. The report reads a folder's notes when you open it. An export reads the notes you ticked.
 
 **What it stores:**
 
@@ -33,7 +33,7 @@ Plain notes, all in `Word-Smith/` on a new vault, yours to read, edit, move or d
 | | |
 |---|---|
 | `ws-history.md` | One row per day: added, deleted, net |
-| `ws-structure.md` | Your book's order, targets, flags, folder colours, which properties are columns, what's ticked for export, and the properties of files that have no frontmatter of their own (PDFs, spreadsheets, images) |
+| `ws-structure.md` | Your book's order, targets, flags, folder colors, which properties are columns, what's ticked for export, and the properties of files that have no frontmatter of their own (PDFs, spreadsheets, images) |
 | `ws-settings.md` | A readable mirror of your settings, so a new machine can be handed the lot |
 
 Each is found by the markers inside it, not by its name, so moving or renaming is safe. Their locations show under **Misc**. If you already have these in your vault root, they stay put.

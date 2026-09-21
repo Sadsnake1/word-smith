@@ -18,7 +18,7 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 
 ## The table
 
-Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colours your tags colours them here too.
+Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
 - **Filter** is a text search plus chips: pick a property, pick a value. Chips stack. No query language. The same button picks which kinds of file show up. The search box sits above the tabs, so it's there on Export and History too.
@@ -43,7 +43,7 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 Give a note a word count to aim for. A folder's target is the sum of its notes, so a book laid out as folders carries a target at every level for free.
 
-Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a colour for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → File tree flags** and the same flag shows in Obsidian's explorer.
+Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → File tree flags** and the same flag shows in Obsidian's explorer.
 
 Targets and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 

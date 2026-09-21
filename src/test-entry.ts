@@ -1,14 +1,8 @@
-// THE HARNESS'S ENTRY (A418 step 3): the plugin class with the module-level
-// names the probes reach as statics — the shape `module.exports = class …;
-// module.exports.X = X` gave them for a year, plus the sixteen that five
-// probes used to reach by appending a `module.exports.__test = {…}` line to
-// a copy of the build, and the fifteen the test suites reached by rewriting
-// the build's export line (step 3b: a copy of a bundle is not a module scope).
-// Bundled to ws-dev/main.js by `node esbuild.config.mjs test`; never shipped.
-// `export default`, and the test build's footer makes it `module.exports`
-// itself (`export =` is not an ES module; esbuild would refuse it).
-//
-// Hand-owned since 2026-09-18 (step 3b); the generator wrote the first one.
+// THE TESTS' ENTRY: the plugin class with the module-level names the tests
+// reach as statics. Bundled to ws-dev/main.js by `node esbuild.config.mjs
+// test`; never shipped. `export default`, and the test build's footer makes
+// it `module.exports` itself (`export =` is not an ES module; esbuild would
+// refuse it).
 import WordSmith from './plugin';
 import { WordSmithSettingTab } from './settings-tab';
 import { wsCompat, wsCompatText, WS_INTERNALS } from './obsidian-internals';

@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 562;
+	--ws-stylesheet-version: 566;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -95,7 +95,6 @@ body.ws-editor-focused {
 body.ws-masks-active.ws-editor-focused {
 	--ws-z-mask:     10003;
 	--ws-z-arrows:   10004;
-	--ws-z-torch:    10005;
 	--ws-z-titlebar: 10007;
 	--ws-z-vim:      10008;
 }
@@ -148,7 +147,6 @@ body.ws-editor-focused.ws-overlay-open {
 	--ws-z-status:   22;
 	--ws-z-titlebar: 23;
 	--ws-z-vim:      24;
-	--ws-z-torch:    25;
 }
 
 /* =========================================================================
@@ -373,22 +371,63 @@ body.ws-titlebar-match .titlebar-button.mod-close:hover {
 	color: #fff;
 }
 
-/* ── Interop: Cursor-Smith ────────────────────────────────────────────────
-   Its torch overlay is a full-viewport multiply blend at z-index 9990, which
-   the elevated masks (10003) bury — so the darkening stopped dead at the
-   letterbox edge and the masks stayed lit. Raised above the masks and arrows
-   here, and left below the retro bar so the readouts stay legible.
+/* ── Interop: Cursor-Smith's torch, Way B (A465, 2026-09-20) ──────────────
+   THE CONTRACT (FACTS): Cursor-Smith's torch, glow and cursor canvas sit
+   UNDER this plugin's raised chrome — below 10003 — so the caret hides under
+   the letterbox bands and the bar as the editor's own would; and the chrome,
+   which the darkness cannot reach, paints ITSELF dark while the torch is on:
+   `body.cursor-smith-torch-active` is Cursor-Smith's, set on the document
+   whose editor the torch lights. The wash is the torch's own — black at its
+   Darkness setting, `--ws-torch-dark`, stamped on body by applyTorchVars —
+   flat, no spotlight (it cannot reach in). Only the pieces this plugin RAISES
+   are washed, and only while they are raised (`.ws-editor-focused`, and the
+   masks' `.ws-masks-active`): at rest they sit at 20–24, under the torch,
+   and the torch darkens them itself; a wash there would darken them twice.
+   No important flag; the doubled class outranks each piece's own rule.
 
-   Only while the masks are actually elevated. Applied unconditionally this
-   would *lower* the torch to our band in normal stacking, dropping it under
-   Cursor-Smith's own cursor canvas.
-
-   Only z-index is declared. Everything else about that overlay — its size,
-   colours and radius — is written inline from its own settings each frame,
-   and a rule here that touched those would silently win the cascade against
-   the plugin that owns them. */
-body.ws-masks-active.ws-editor-focused .torch-cursor-overlay {
-	z-index: var(--ws-z-torch, 10005);
+   (The rule that stood here raised an older Cursor-Smith's
+   `.torch-cursor-overlay` to 10005, between the arrows and the bar. That
+   class is gone from Cursor-Smith 1.6, the rule matched nothing, and
+   `--ws-z-torch` went with it.) */
+body.cursor-smith-torch-active { --ws-torch-wash: rgba(0, 0, 0, var(--ws-torch-dark, 0.92)); }
+/* the bar: a wash over its rows and their own colours, above them in its own stack */
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar.ws-status-bar::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 9;
+	background: var(--ws-torch-wash);
+	pointer-events: none;
+}
+/* the bands: the wash over their surface; the arrows: faded by the same amount */
+body.cursor-smith-torch-active.ws-masks-active.ws-editor-focused .ws-mask.ws-mask {
+	background-image: linear-gradient(var(--ws-torch-wash), var(--ws-torch-wash));
+}
+/* (the visible arrows only: their hidden state is opacity 0, and a wash that
+   outranked it would show them faintly under the torch) */
+body.cursor-smith-torch-active.ws-masks-active.ws-editor-focused .ws-arrows-wrap.is-visible {
+	opacity: calc(1 - var(--ws-torch-dark, 0.92));
+}
+/* the Vim panel, fixed at the foot while the bar or the masks are up */
+body.cursor-smith-torch-active.ws-editor-focused .cm-editor .cm-panels.cm-panels-bottom::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--ws-torch-wash);
+	pointer-events: none;
+}
+/* the zen titlebar and the docks' headers — the two pieces this plugin
+   positions — only when the torch covers the whole window (`ws-torch-whole`:
+   Cursor-Smith's sidebars not spared); with the sidebars spared its darkness
+   stops under the titlebar, and so does the wash */
+body.cursor-smith-torch-active.ws-torch-whole.zenmode-active .titlebar.ws-main-titlebar::after,
+body.cursor-smith-torch-active.ws-torch-whole.ws-masks-active.ws-editor-focused .workspace-tab-header-container::after,
+body.cursor-smith-torch-active.ws-torch-whole.zenmode-active .workspace-tab-header-container::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: var(--ws-torch-wash);
+	pointer-events: none;
 }
 
 /* Draggable titlebar strip (leaves OS buttons).
@@ -1030,13 +1069,13 @@ body.ws-rtl.ws-justify .markdown-reading-view .markdown-preview-sizer {
 /* Muting the rest of the line is what makes one highlighted class readable
    as structure. The transition is suppressed under reduced-motion, since
    toggling a class then repaints the whole viewport at once. */
-body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
+body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line {
 	transition: color 0.12s ease;
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj,
-	body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line {
+	body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line {
 		transition: none;
 	}
 }
@@ -1949,8 +1988,10 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 
 /* ── Popup ─────────────────────────────────────────────────────────────── */
 
-/* The frontmatter reference in Misc: an honest code block, monospace on
-   a recessed panel, horizontally scrollable if a key runs long. */
+/* The frontmatter reference on the Vault page: an honest code block,
+   monospace on a recessed panel, horizontally scrollable if a key runs
+   long, in the info card's own column under its words. */
+.setting-item.ws-set-note .ws-fm-block { margin-top: 8px; }
 .ws-fm-block {
 	font-family: var(--font-monospace, monospace);
 	font-size: 12px;
@@ -2383,25 +2424,21 @@ body.ws-vim-panel-open .ws-status-bar {
 	display: flex;
 	flex-direction: column;
 }
-.ws-report-words[open] > .ws-report-words-scroll {
+/* THE REPORT'S OTHER FACE (A472, writer 2026-09-21: "make the words frequency
+   a button, when clicking it the whole writing report turns into words
+   frequency … the table is too small down there"). Opened, the box takes
+   the column and every other child of the host steps aside — hidden, not
+   rebuilt, so the jar keeps its water — and the scroller takes what height
+   the window has. Shut, the box is its one button. */
+.ws-report-host.is-words > :not(.ws-report-words) { display: none; }
+.ws-report-host.is-words > .ws-report-words { flex: 1 1 auto; }
+.ws-report-words:not(.is-open) > .ws-report-words-head,
+.ws-report-words:not(.is-open) > .ws-report-words-scroll,
+.ws-report-words:not(.is-open) .ws-report-words-common { display: none; }
+.ws-report-words.is-open > .ws-report-words-scroll {
 	flex: 1 1 auto;
 	min-height: 4em;
 	max-height: none;
-}
-/* CHROMIUM 131+ WRAPS A <details>' CHILDREN IN A ::details-content BOX (A389,
-   writer 2026-09-14: "the words frequency does not have a scroll bar so i
-   cannot see the full list"). The column above stopped at that box — it is
-   `display: block` in the user-agent sheet, and no rule of ours reached it
-   — so the scroll box under it had no height to shrink to and ran 1,500px
-   past the dialog's floor with no scrollbar of its own (measured in
-   layout_probe: box bottom 2056 against a floor at 539). The box joins the
-   column here. An engine without the pseudo drops this one rule and lays
-   the children out directly, where the column already reaches them. */
-.ws-report-words[open]::details-content {
-	display: flex;
-	flex-direction: column;
-	min-height: 0;
-	flex: 1 1 auto;
 }
 
 /* The scope line sits under the tabs, above the rule: the tab says which
@@ -2523,38 +2560,26 @@ body.ws-vim-panel-open .ws-status-bar {
 .ws-report-words {
 	margin: 10px 0 0 0;
 	padding: 6px 10px;
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	font-size: 0.86em;
 }
 
-.ws-report-words summary {
+/* THE BAR: the one button (the chart glyph and the words; the arrow and
+   "Report" once open) and, open, the common-words tick beside it. */
+.ws-report-words-bar {
 	display: flex;
 	align-items: center;
-	gap: 4px;
-	cursor: pointer;
-	font-weight: 600;
+	justify-content: space-between;
+	gap: 8px;
+	margin: 0 0 4px 0;
 	color: var(--text-muted);
-	user-select: none;
-	list-style: none;
 }
-.ws-report-words summary::-webkit-details-marker { display: none; }
-.ws-report-words summary::marker { content: ''; }
-
-.ws-report-words-chev {
-	display: inline-flex;
-	align-items: center;
-	color: var(--interactive-accent);
-	transition: transform 120ms ease-out;
-}
-.ws-report-words-chev svg { width: 14px; height: 14px; }
-.ws-report-words[open] .ws-report-words-chev { transform: rotate(90deg); }
-
-.ws-report-words-bar {
-	margin: 6px 0 4px 0;
-	color: var(--text-muted);
-	text-align: center;
-}
+.ws-report-words:not(.is-open) > .ws-report-words-bar { justify-content: center; margin: 0; }
+.ws-report-words-btn { display: inline-flex; align-items: center; gap: 6px; }
 
 .ws-report-words-common {
 	display: inline-flex;
@@ -8667,7 +8692,12 @@ svg.ws-obsidian-mark { stroke-width: 46px; }
 }
 /* THE PIN (A462): the last thing on the crumbs line, pushed to its end; on,
    it takes the accent. Obsidian's clickable-icon is the box and the hover. */
-.ws-uni-crumbs .ws-org-pin { margin-inline-start: auto; align-self: center; color: var(--text-faint); }
+/* Its 22px box (the app's 4px of clickable-icon padding round a 14px icon) would
+   make the row 22px tall and centre itself in that, a hair under the words
+   (A464); the padding is pulled back out of the row with a negative block
+   margin, so the row is the text's height and the pin centres on the text —
+   the hover box keeps its size, overflowing the line by a pixel each way. */
+.ws-uni-crumbs .ws-org-pin { margin-inline-start: auto; margin-block: -4px; align-self: center; color: var(--text-faint); }
 .ws-uni-crumbs .ws-org-pin.is-on { color: var(--interactive-accent); }
 .ws-uni-crumbs .ws-org-pin svg { width: 14px; height: 14px; }
 .ws-uni-crumb {
@@ -9189,15 +9219,25 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	align-items: baseline;
 	gap: 4px 10px;
 }
-/* THE CRYSTAL BEFORE THE VAULT'S NAME (A396): the accent, centred on the
-   crumbs' line. */
+/* THE CRYSTAL BEFORE THE VAULT'S NAME (A396): the accent, on the text's own
+   centre. It was centred on the flex ROW (A464, the writer: "a hair too low"):
+   the row is taller than the text — the pin's 22px box, the line box's
+   descent — so its centre sat 1.25px under the line box's and 0.8px under
+   the letters' x-height centre (measured live, 15px Roboto Mono). Now the
+   span sits on the crumbs' baseline like the words, and the mark hangs
+   an eighth of an em under it — the icon-in-text convention (Font Awesome's
+   `vertical-align: -0.125em`) — which puts a 14px mark's midpoint between
+   the x-height centre and the cap centre of 15px text (measured: 1.1px over
+   the one, 0.4px under the other; `middle` sat exactly on the x-height,
+   still a hair low for a name with ascenders). An em, not a pixel: it
+   scales with the crumbs' type. */
 .ws-uni-crumbmark {
-	display: inline-flex;
-	align-self: center;
+	display: inline-block;
+	align-self: baseline;
 	color: var(--interactive-accent);
 	margin-inline-end: 2px;
 }
-.ws-uni-crumbmark svg.ws-obsidian-mark { width: 14px; height: 14px; }
+.ws-uni-crumbmark svg.ws-obsidian-mark { width: 14px; height: 14px; vertical-align: -0.125em; }
 .ws-org-agg { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; }
 /* THE WORD BESIDE UNDO AND REDO (A394/A395): what the journal just did, or
    how many rows are selected; muted, one line, never a control. */
@@ -11179,17 +11219,19 @@ td.is-prop { cursor: pointer; }
    Obsidian paints everywhere else, so they hold in both themes. Still a
    tint (0.22), so the figure stays the thing you read. Hover and the row
    highlight set `background-color`; this is `background-image`, so the
-   two compose instead of fighting. */
-.ws-org-table td.is-goal.has-band {
+   two compose instead of fighting. ON `has-band` ALONE, not `is-goal`: a
+   folder's aggregate cell wears the band too (its notes' words over their
+   targets), and it is not a cell you can click to set a target. */
+.ws-org-table td.has-band {
 	--ws-goal-rgb: var(--color-red-rgb);
 	background-image: linear-gradient(to right,
 		rgba(var(--ws-goal-rgb), 0.22) 0 calc(var(--ws-goal-pct, 0) * 1%),
 		transparent calc(var(--ws-goal-pct, 0) * 1%));
 	background-repeat: no-repeat;
 }
-.ws-org-table td.is-goal.has-band.is-band-mid { --ws-goal-rgb: var(--color-orange-rgb); }
-.ws-org-table td.is-goal.has-band.is-band-high { --ws-goal-rgb: var(--color-yellow-rgb); }
-.ws-org-table td.is-goal.has-band.is-band-done { --ws-goal-rgb: var(--color-green-rgb); }
+.ws-org-table td.has-band.is-band-mid { --ws-goal-rgb: var(--color-orange-rgb); }
+.ws-org-table td.has-band.is-band-high { --ws-goal-rgb: var(--color-yellow-rgb); }
+.ws-org-table td.has-band.is-band-done { --ws-goal-rgb: var(--color-green-rgb); }
 .ws-org-goaledit {
 	width: 8ch;
 	text-align: right;
@@ -14628,8 +14670,12 @@ body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-
 /* Muting everything else is what makes one class read as the sentence's
    skeleton. The word-class marks set their own colour and are separate
    elements, so this ancestor rule never outranks them however specific it
-   is. */
-body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(--text-faint); }
+   is. ONLY THE LINES THAT CARRY A MARK (`.ws-marked-line`, stamped by the
+   decorations): the mute is relative to the marks, and a line with none —
+   a heading, or every line of a note in a language the tagger does not
+   know — has nothing to stand out, so it keeps its ink. Without this a
+   Romanian note went faint end to end with not one word coloured. */
+body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
 /* The same for the checks — with one thing the word-class version never
    had to handle. Word classes default to COLOURED TEXT, so their marks
    carry a colour of their own and a declaration on the element always
@@ -14642,5 +14688,5 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(
    writer never asked to see. Rhythm is a mark like any other here: a
    sentence flagged as hard to read is exactly what the writer is looking
    for. */
-body.ws-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line { color: var(--text-faint); }
+body.ws-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
 body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-hard, .ws-ck-veryhard) { color: var(--text-normal); }

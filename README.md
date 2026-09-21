@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with a shape and a colour of your own. Watch a folder add itself up, and a Total row at the foot add up the lot.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with a shape and a color of your own. Watch a folder add itself up, and a Total row at the foot add up the lot.
 
 <div align="center">
 <img width="1537" height="921" alt="word-smith-organizer" src="https://github.com/user-attachments/assets/3d786856-a032-4f6d-b934-3505b735504a" />
@@ -75,7 +75,7 @@ Themes repaint the whole workspace, dark and light. Editor, sidebars and panels 
 
 <table>
   <tr>
-    <td width="50%"><img alt="A colour scheme applied to the whole workspace" src="https://github.com/user-attachments/assets/cbd3aec7-6fdf-4318-8fd8-d9090bbfb815" /></td>
+    <td width="50%"><img alt="A color scheme applied to the whole workspace" src="https://github.com/user-attachments/assets/cbd3aec7-6fdf-4318-8fd8-d9090bbfb815" /></td>
     <td width="50%"><img alt="Another scheme, with the letter box" src="https://github.com/user-attachments/assets/3039b88e-f9fd-498d-8778-0fd207d72c18" /></td>
   </tr>
 </table>
@@ -93,7 +93,7 @@ Read more about [themes](docs/themes.md).
 A status bar you build yourself. You write it as text, and the punctuation you type between tokens becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
-<img width="1393" alt="A short bar with a few colours" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
+<img width="1393" alt="A short bar with a few colors" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
 <img width="1392" alt="Another short bar" src="https://github.com/user-attachments/assets/d147b2d3-b91a-4509-995b-9de184ca819e" />
 <img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
 
@@ -118,7 +118,7 @@ Read more about [Export](docs/export.md).
 
 ### Writing history and the report
 
-Words you added rise from the centre line. Words you cut fall below it. A day spent cutting is still a day's work, and it won't break your streak.
+Words you added rise from the center line. Words you cut fall below it. A day spent cutting is still a day's work, and it won't break your streak.
 
 <table>
   <tr>
@@ -133,7 +133,7 @@ Read more about [history and the report](docs/history-and-report.md).
 
 ### And the rest
 
-[Prose checks and parts-of-speech colouring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in colour, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get an underline. No model, no network, no verdicts.
+[Prose checks and parts-of-speech coloring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in color, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get an underline. No model, no network, no verdicts.
 
 [The menu](docs/commands-and-menu.md). Everything you change while writing, in one keyboard-driven pop-up. Any Obsidian command can go in it, other plugins included.
 

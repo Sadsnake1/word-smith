@@ -18,7 +18,7 @@
 
 **A theme changed nothing.** Check the master switch at the top of the Themes page. Off, a scheme is remembered but never painted.
 
-**A community theme still shows through.** Word-Smith writes Obsidian's own variables, so anything a theme paints with a hard-coded colour stays its own. Open an issue with the theme's name.
+**A community theme still shows through.** Word-Smith writes Obsidian's own variables, so anything a theme paints with a hard-coded color stays its own. Open an issue with the theme's name.
 
 **The custom file-tree order didn't apply.** Make sure the file explorer is open in the sidebar. Obsidian doesn't build a hidden panel until it's shown. Toggling the switch under **File tree** re-applies it.
 

@@ -1,5 +1,4 @@
-// Word-Smith — obsidian-internals. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — obsidian-internals.
 
 import type { App, View } from 'obsidian';
 
@@ -18,7 +17,7 @@ import type { App, View } from 'obsidian';
 // THE RECORD SAYS WHAT THAT COSTS. `.modal-close-button` being renamed took
 // five rounds to find. A DEFERRED VIEW — a leaf Obsidian had not built yet —
 // produced three separate warnings telling two writers their Obsidian "has
-// no getSortedFolderItems", on a build that has it (A199). Neither was a hard
+// no getSortedFolderItems", on a build that has it. Neither was a hard
 // failure; both were a slow one, which is worse.
 //
 // THREE FIELDS, AND THE MIDDLE ONE IS THE POINT:
@@ -100,7 +99,7 @@ export const WS_INTERNALS = [
 	// NOT A CAPABILITY, A FACT ABOUT THE BUILD. Since 1.7.2 a sidebar leaf
 	// that was not visible at startup is DEFERRED and its `view` is a stub.
 	// Asking a stub for a method and reporting the answer as "this Obsidian
-	// build has no …" is exactly what happened to two writers (A199), so
+	// build has no …" is exactly what happened to two writers, so
 	// the state has to be askable before anything else here means anything.
 	{
 		id: 'deferredLeaves',
@@ -144,7 +143,7 @@ export const WS_INTERNALS = [
 		what: '.workspace-leaf-content[data-type="file-explorer"]',
 		where: 'the workspace',
 		without: 'nothing this plugin draws in the file tree is drawn at all: '
-			+ 'no counts, no flags, no folder colours.',
+			+ 'no counts, no flags, no folder colors.',
 		probe: () => wsInternalSeen('.workspace-leaf-content[data-type="file-explorer"]')
 	},
 	{
@@ -187,7 +186,7 @@ export const WS_INTERNALS = [
 ];
 
 // ONE NON-DEFERRED VIEW, asked a question. Every method probe goes through
-// this so that none of them can repeat A199 by asking a stub.
+// this so that none of them reports a method missing by asking a stub.
 export function wsInternalView(app: App, type: string, ask: (v: View) => boolean) {
 	try {
 		const leaves = app.workspace.getLeavesOfType(type) || [];
@@ -197,7 +196,8 @@ export function wsInternalView(app: App, type: string, ask: (v: View) => boolean
 		}
 	} catch { return null; }
 	// NULL IS NOT FALSE. There was no loaded pane to ask, which says nothing
-	// about the build — and reporting it as "missing" is the whole of A199.
+	// about the build — and reporting it as "missing" blames the build for a
+	// pane that was not there to ask.
 	return null;
 }
 
@@ -217,11 +217,11 @@ export function wsInternalSeen(sel: string) {
 // pane into a bug report against Obsidian.
 // one line of the report: a dependence, its state at the running app, and what goes without it
 export interface WsCompatRow { id: string; what: string; state: string; without: string }
-export function wsCompat(app: App): { caps: Record<string, boolean>; rows: WsCompatRow[] } {
-	const caps: Record<string, boolean> = {};
+export function wsCompat(app: App): { caps: Record<string, boolean | null>; rows: WsCompatRow[] } {
+	const caps: Record<string, boolean | null> = {};
 	const rows: WsCompatRow[] = [];
 	for (const item of WS_INTERNALS) {
-		let ok = null;
+		let ok: boolean | null = null;
 		try { ok = item.probe(app); } catch { ok = null; }
 		caps[item.id] = ok;
 		// ── `sometimes` IS HONOURED HERE, AND IT WAS NOT ────────────────
@@ -250,7 +250,7 @@ export function wsCompat(app: App): { caps: Record<string, boolean>; rows: WsCom
 
 // The printable form, for the diagnostics dump and for a console that is
 // being read by somebody who did not write this.
-export function wsCompatText(report: { caps?: Record<string, boolean>; rows: WsCompatRow[] } | null) {
+export function wsCompatText(report: { caps?: Record<string, boolean | null>; rows: WsCompatRow[] } | null) {
 	const out: string[] = [];
 	for (const r of (report && report.rows) || []) {
 		// 10, BECAUSE 'not open' IS EIGHT CHARACTERS and padEnd(8) gave it no

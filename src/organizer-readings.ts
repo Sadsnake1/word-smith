@@ -1,5 +1,5 @@
-// Word-Smith — organizer-readings. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-readings: what a column says for a row, and what
+// a folder adds up.
 
 import { TFile } from 'obsidian';
 
@@ -10,27 +10,25 @@ import type WordSmith from './plugin';
 // THE READINGS — what a column says for a row, and what a folder adds up
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE FIFTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14, by
-// `ws-dev/lift.js`): `orgColRaw` (a column's raw value for a path — the
-// readings by id, then the frontmatter), `orgColText` (the same, as the
-// cell shows it), `orgFolderIcon`, the aggregate table `ORG_AGG` with
-// `orgAggHow` and `orgColAgg` (what a folder row and the Total row say per
-// column), and `orgColSortKey` (what a column sorts by). Seven hundred
-// lines that every draw and every sort read.
+// `orgColRaw` (a column's raw value for a path — the readings by id,
+// then the frontmatter), `orgColText` (the same, as the cell shows it),
+// `orgFolderIcon`, the aggregate table `ORG_AGG` with `orgAggHow` and
+// `orgColAgg` (what a folder row and the Total row say per column), and
+// `orgColSortKey` (what a column sorts by). Every draw and every sort
+// read these.
 //
 // WHAT IT READS, through `d`: `d.markOf` (a row's flag), `d.nameOf`,
 // `d.orgBackMap` / `d.orgOutLinks` (the link readings), the pending-value
 // overlay (`d.orgPendGet`, `d.orgPendSame`, `d.orgPendDrop`), `d.targetOf`,
-// and `d.plugin` for the index and the flag definitions. The comments on
-// each function came with it, as it stood.
+// and `d.plugin` for the index and the flag definitions.
 //
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgReadingsMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (8 of 9).
 // What a column says of a folder: the text, a tooltip, and for the flags
 // column the flags counted under it.
-export interface WsOrgColAgg { text: string; title?: string; flags?: { id: string; n: number; label: string }[] }
+export interface WsOrgColAgg { text: string; title?: string; flags?: { id: string; n: number; label: string }[]; goal?: { words: number; target: number } }
 export interface OrgReadingsDeps {
 	plugin: WordSmith;
 	readonly markOf: (path: string | number, kind: string) => string;
@@ -60,7 +58,7 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 		// which the Powerline bar and the report already use.
 		//
 		// IT IS THE WORDS COLUMN IN ANOTHER UNIT, and that is a fair
-		// objection — the `left` column was retired in 2026-08-23 for
+		// objection — a `left` column was retired once for
 		// being arithmetic on readings already on screen. The
 		// difference is exactly the unit: minutes answer a question
 		// words cannot ("can I read this before the meeting"), and the
@@ -89,8 +87,8 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 			return (list && list.length) ? list : null;
 		}
 		case 'outlinks': {
-			// THE CORE PANE'S TWO LISTS (A375): resolved links by
-			// their paths, unresolved by the text written.
+			// THE CORE PANE'S TWO LISTS: resolved links by their paths, unresolved
+			// by the text written.
 			const list = d.orgOutLinks(String(path || ''));
 			return (list && list.length) ? list : null;
 		}
@@ -99,24 +97,6 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 			const m = /\.([A-Za-z0-9]+)$/.exec(String(path || ''));
 			return m ? m[1].toLowerCase() : null;
 		}
-		// TOMBSTONE: the Links column (writer, 2026-09-02).
-		//
-		// "remove the links column or should we show it? right now it
-		// only shows the count... let's discuss this" — and after the
-		// discussion, "just cut the links for now."
-		//
-		// THEIR OBJECTION WAS THE RIGHT ONE and it is worth keeping
-		// rather than just the verdict: a bare count is the least
-		// useful thing a link can tell you. It read `resolvedLinks`,
-		// counted DISTINCT destinations excluding the note itself, and
-		// returned null rather than 0 so an unlinked note stayed blank.
-		// All of that was right about a number nobody wanted.
-		//
-		// BACKLINKS STAYS EXACTLY AS IT IS. I offered the two as one
-		// decision, calling Backlinks its twin; the writer SPLIT THEM —
-		// "i want the backlinks as is" — and that is the answer that
-		// counts. A column that says who points AT you is a different
-		// question from one that says who you point at.
 		// THE TWO CHARACTER COUNTS AND THE SENTENCE COUNT come
 		// straight off the index, which now carries what
 		// `analyzeText` was already measuring for every note.
@@ -126,19 +106,13 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 		case 'charsall': return (r && r.charsWithSpaces) ? r.charsWithSpaces : null;
 		case 'sentences': return (r && r.sentences) ? r.sentences : null;
 		case 'grade': return (r && r.grade !== null) ? r.grade : null;
-		// ── AND A FILE HAS THESE WHATEVER ITS EXTENSION (A127) ──────
+		// ── AND A FILE HAS THESE WHATEVER ITS EXTENSION ──────
 		//
-		// Writer, 2026-09-04: "last modified and created are not
-		// displayed for non-md files". Both read the ORG INDEX, which
-		// is built from `getMarkdownFiles` — so a PDF has no row and
-		// both answered null.
-		//
-		// THE ANSWER WAS ALREADY IN THE VAULT, which is what makes this
-		// one line rather than a store: a TFile carries `stat.mtime`
-		// and `stat.ctime` for every extension, and the index copies
-		// them from exactly there — `orgIndexRead` reads
-		// `f.stat.mtime` into the row. So this is not a second source
-		// of one fact; it is the SAME source, asked directly when the
+		// Both read the ORG INDEX, which is built from `getMarkdownFiles` — so a
+		// PDF has no row there. THE ANSWER IS ALREADY IN THE VAULT: a TFile
+		// carries `stat.mtime` and `stat.ctime` for every extension, and the
+		// index copies them from exactly there — so this is not a second
+		// source of one fact; it is the SAME source, asked directly when the
 		// copy does not exist.
 		case 'modified': case 'created': {
 			const want = col.id === 'modified' ? 'mtime' : 'ctime';
@@ -194,7 +168,7 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 				const sv = d.plugin.propStoreGetSync(path, key);
 				real = (sv === null || sv === undefined || sv === '') ? null : sv;
 			}
-			// ── AND WHAT WAS JUST TYPED WINS UNTIL THAT CATCHES UP (A212) ─
+			// ── AND WHAT WAS JUST TYPED WINS UNTIL THAT CATCHES UP ─
 			const pend = d.orgPendGet(path, key);
 			if (!pend) return real;
 			const want = (pend.v === null || pend.v === undefined
@@ -207,11 +181,6 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 		}
 	}
 };
-// TOMBSTONE: `orgReadSay`, three shapes for a duration, written and
-// deleted within the hour. `formatReadTime` in 60-bar-rendering has
-// done this since before 1.3.9 and has two callers already; a third
-// wording of the same estimate is how one note ends up taking three
-// minutes on a bar and four in a table.
 const orgColText = (col: { id: string; key?: string }, path: string): string => {
 	const v = orgColRaw(col, path);
 	if (v === null) return '';
@@ -244,24 +213,17 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		case 'goal':
 			return d.plugin.orgTargetSay(Number(orgColRaw({ id: 'words' }, path)) || 0, Number(v) || 0);
 		case 'grade': return (Math.round(Number(v) * 10) / 10).toFixed(1);
-		// ONE FIXED STAMP, dd/mm/yyyy hh:mm (writer, 2026-08-22).
-		// REVERSES pair 268b, which asked for the app locale here;
-		// the tombstone carrying 268b's reasoning is on `orgStamp`
-		// in src/38-org-index.js, which is now the only place this
-		// plugin turns a file time into a column string — the cell
+		// ONE FIXED STAMP, dd/mm/yyyy hh:mm, from `orgStamp` (org-index.ts),
+		// the only place this plugin turns a file time into a column string — the cell
 		// and BOTH group aggregates call it.
 		case 'modified': case 'created':
 			return d.plugin.orgStamp(Number(v) || 0);
-		// SQUARE BRACKETS (writer, 2026-08-22). A bare `2/13` reads
-		// as another measurement of the same kind as Words and
-		// Left, and it is not a quantity of writing at all — it is
-		// a count of boxes. The grammar already existed in two
-		// other places (the goals list and the file-tree badge);
-		// this column was the odd one out.
-		//
-		// THE GROUP AGGREGATE WEARS THEM TOO (orgColAgg, 'tasks').
-		// Change one without the other and a folder's total reads
-		// in a different notation from the rows it totals.
+		// SQUARE BRACKETS. A bare `2/13` reads as another measurement of the
+		// same kind as Words and Left, and it is not a quantity of writing at
+		// all — it is a count of boxes; the goals list and the file-tree badge
+		// use the same notation. THE GROUP AGGREGATE WEARS THEM TOO
+		// (orgColAgg, 'tasks'): change one without the other and a folder's
+		// total reads in a different notation from the rows it totals.
 		case 'tasks': { const t = wsTasksOf(v); return t ? wsTaskSay(t.done, t.all) : ''; }
 		case 'mark': {
 			const def = d.plugin.flagDefs().filter(f => f.id === v)[0];
@@ -269,12 +231,6 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		}
 		case 'tags': return wsListOf(v).map(wsStr).join(', ');
 		// ── A USER PROPERTY GOES THROUGH THE ONE FORMATTER ────────
-		//
-		// TOMBSTONE: this branch did its own `String(v)`, its own
-		// `join(', ')` and its own yes/no. That `String(v)` is writer
-		// number one of the three the 2026-08-27 brief names — it is
-		// why a date read `1999-01-22` here and `22/01/1999` in the
-		// Outline. See `formatValue` in src/38-org-index.js.
 		//
 		// THE TYPE IS LOOKED UP HERE and passed in, so the formatter
 		// stays pure and never becomes a second reader of the registry.
@@ -291,75 +247,25 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		}
 	}
 };
-// ── THE KIND GLYPHS, ONE BUILDER (writer, 2026-08-22) ──────────────
+// ── THE KIND GLYPHS, ONE BUILDER ──────────────────────────────
 //
-// "Icons in the TABLE view rows too — folder / note / file kinds,
-// like the tree (honoring the icon-style dropdown)." LIKE the tree
-// means BY the tree's own code: two copies would drift the day one
-// of them learnt a new kind, which is the fault this file records
-// twice already (the menu that gained a row its twin had not, the
-// flag that stayed grey for a release).
-//
-// `organizerIcons`: 'obsidian' (lucide, default) · 'drawn'
-// (Word-Smith's own folder glyph — folders only, so a note carries
-// none there) · 'none'. A NON-NOTE keeps its kind glyph under both
-// styles, because "this is an image" is information, not
-// decoration.
-//
-// TRIED IN ORDER AND CHECKED, always: `setIcon` on a name this
-// build's Lucide does not know leaves the element empty instead of
-// throwing — how the export icon went missing for a release.
-// TOMBSTONE: `orgIconStyle` AND THE WHOLE STYLE CHOICE (346).
-//
-// `const orgIconStyle = () => String(s.organizerIcons || 'obsidian');`
-// stood here, and three values hung off it: `drawn` (this plugin's
-// own hand-drawn glyphs), `none` (no icons at all) and the default.
-// Writer, 2026-08-26: "remove icons options (we keep only one set of
-// icons those that match obsidian owns, so no solid colored folder
-// icons)."
-//
-// WHAT WENT WITH IT, said out loud because it is a capability and not
-// only a look: `none` was THE ONLY WAY to turn the Manuscript
-// window's icons off. The `fileTree*` switches govern Obsidian's
-// explorer and nothing else. That window always shows icons now.
-//
-// AND `wsFolderSvg` DID NOT GO. It looks like the `drawn` glyph and
-// it was one, but it is also the fallback below when `setIcon` draws
-// nothing — which it does silently, on a name this build's Lucide
-// does not have. Deleting it with the branch would have been the
-// tidy-looking change that takes every folder icon out of the file
-// explorer as well.
-//
-// `orgFolderIcon` IS A CLASS METHOD NOW — see below the closure.
+// The table's kind glyphs are the tree's, BY the tree's own code: two
+// copies would drift the day one of them learnt a new kind.
+// `organizerIcons`: 'obsidian' (lucide, default) · 'drawn' (Word-Smith's
+// own folder glyph — folders only, so a note carries none there) ·
+// 'none'. A NON-NOTE keeps its kind glyph under both styles, because
+// "this is an image" is information, not decoration. TRIED IN ORDER AND
+// CHECKED, always: `setIcon` on a name this build's Lucide does not know
+// leaves the element empty instead of throwing.
 
-// (The folder builder moved to `this.orgFolderIcon`; this alias keeps
-// the ~dozen call sites in this 6,500-line method reading the way
-// they always have.)
+// (The folder builder is `this.orgFolderIcon` on the plugin, so the
+// explorer painter can reach it too without a second writer of the
+// glyph; this alias keeps the call sites reading as they always have.)
 const orgFolderIcon = (into: HTMLElement, path: string, open: boolean) =>
 	d.plugin.orgFolderIcon(into, path, open);
-// TOMBSTONE: `orgKindIcon` WAS A CLOSURE LOCAL HERE (2026-08-25).
-//
-// It is `this.orgKindIcon` now, a class method — unmoved in every
-// other respect, and both call sites in this file go through it.
-//
-// WHY IT MOVED: the writer asked for these same glyphs in
-// Obsidian's own file explorer, which `src/80-sidebar-counts.js`
-// paints. Nothing outside `openManuscriptModal` could reach a
-// 6,500-line closure, so the explorer would have had to carry a
-// COPY of the kind rules - a second writer of the glyph, which is
-// the fault this window keeps deleting. FACTS already says
-// `orgKindIcon` is called from both the tree and the table; it is
-// now callable from a third place without being written twice.
-//
-// IT READS `organizerIcons` ITSELF rather than taking a style, so
-// no caller has to know the setting exists. (The style it read was
-// retired at 346; the sentence is kept because the SHAPE is the
-// point — a drawing helper reads what it needs rather than being
-// handed it.)
-// ── WHAT A GROUP ROW SAYS, PER COLUMN (writer, 2026-08-22) ─────────
-//
-// "group rows grow AGGREGATES per column… make sensible per-column
-// calls and say them." The calls, said out loud:
+// It reads `organizerIcons` itself rather than taking a style, so no
+// caller has to know the setting exists.
+// ── WHAT A GROUP ROW SAYS, PER COLUMN ────────────────────────────
 //
 //   words · paras · left · today   SUM      — quantities of writing
 //   goal (Target)                  SUM      — see the note below
@@ -370,133 +276,63 @@ const orgFolderIcon = (into: HTMLElement, path: string, open: boolean) =>
 //   created                        OLDEST   — when this group was
 //                                  STARTED; newest would just repeat
 //                                  whichever note was added last
-//   flag                           NOTHING  — see below
+//   flag                           COUNT per flag — see orgColAgg
 //   tags & property columns        COUNT of distinct values, the
 //                                  values themselves on hover
 //
-// TARGET IS SUMMED, NOT AVERAGED, and this departs from the ask on
-// purpose: Words sits beside Target, and a summed 12,000 next to an
-// averaged 800 reads as "12,000 of 800". Two adjacent numbers that
-// invite a comparison they cannot survive is the fault this window
-// keeps deleting. Summed, the pair answers the question the columns
-// are for — how much of this group is written. Say the word and it
-// becomes an average in one line.
+// TARGET IS SUMMED, NOT AVERAGED: Words sits beside Target, and a summed
+// 12,000 next to an averaged 800 reads as "12,000 of 800". Two adjacent
+// numbers that invite a comparison they cannot survive is the fault
+// this window keeps deleting. Summed, the pair answers the question the
+// columns are for — how much of this group is written.
 //
-// A FLAG AGGREGATES TO NOTHING. It is a state per scene: summing is
-// meaningless, averaging worse, and "the commonest" would invent a
-// fact the rows do not support. An empty cell says "ask the rows",
-// which is true.
-//
-// OVER THE ROWS AS SHOWN, not over the folder. A lens that hides
-// half the scenes must not leave a header claiming their words: the
-// number a writer can check by adding up what is in front of them
-// is the only one that can be trusted. Same reader as the cells
-// (`orgColRaw`), so a total and its rows can never disagree.
+// OVER THE ROWS AS SHOWN, not over the folder. A lens that hides half
+// the scenes must not leave a header claiming their words: the number a
+// writer can check by adding up what is in front of them is the only
+// one that can be trusted. Same reader as the cells (`orgColRaw`), so a
+// total and its rows can never disagree.
 const ORG_AGG: Record<string, string> = {
 	words: 'sum', paras: 'sum', goal: 'sum',
 	today: 'sum', grade: 'avg', modified: 'newest',
-	// A COUNT PER FLAG (A321, writer 2026-09-12: “for folder aggregates
-	// for flags i want a number and icon, so for more files carrying
-	// multiple flags just display 2flag1icon 3flag2icon and so on”).
-	// `none` stood here: a folder’s Flag cell was empty. Now it says how
-	// many files beneath carry each flag, in the flags’ own order.
+	// A COUNT PER FLAG: a folder's Flag cell says how many files beneath
+	// carry each flag, in the flags' own order.
 	created: 'oldest', tasks: 'tasks', mark: 'flags',
-	// ── THE TWO NEW READINGS, NAMED RATHER THAN LEFT TO FALL ──
+	// ── THE TWO READINGS NAMED RATHER THAN LEFT TO FALL ──
 	//
-	// The default is `count`, which answers "how many notes beneath
-	// this carry a value". Measured with both columns left to fall
-	// through: a folder read `3` in its Read time column — a count
-	// of notes printed under a heading that says minutes.
-	//
-	// `read: sum` IS THE ONLY SELF-CONSISTENT CHOICE. Read time is
-	// the Words column divided by a constant, and Words sums; a
-	// folder saying 12,000 words and 3 minutes disagrees with
-	// itself. Summing agrees with it by construction.
-	//
-	// `ftype: none` BECAUSE A FOLDER IS NOT A FILE. It has no kind,
-	// and the default would have printed the note count in a column
-	// of words like "md" and "xlsx" — a number that reads as a type.
-	// `mark: none` is the same argument about flags.
+	// The default is `count`, which answers "how many notes beneath this
+	// carry a value" — a count of notes printed under a heading that says
+	// minutes. `read: sum` IS THE ONLY SELF-CONSISTENT CHOICE: read time is
+	// the Words column divided by a constant, and Words sums; a folder
+	// saying 12,000 words and 3 minutes disagrees with itself. `ftype: none`
+	// BECAUSE A FOLDER IS NOT A FILE: it has no kind, and the default would
+	// print the note count in a column of words like "md" and "xlsx".
 	read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
-	// ── AND THE FOUR ADDED AT 485fj ───────────────────────────
+	// ── AND THE SIZES ────────────────────────────────────────
 	//
-	// All four SUM, and each for the reason `read` sums rather than
-	// by default: the default is `count`, which answers "how many
-	// notes beneath this carry a value" and would print a note count
-	// under a heading that says Sentences.
-	//
-	// A folder's characters are its notes' characters added up; so
-	// are its sentences; so are the links leaving it. None of the
-	// four is an average or a newest — they are all sizes, and sizes
-	// add.
+	// All SUM, and each for the reason `read` sums rather than by default:
+	// a folder's characters are its notes' characters added up; so are its
+	// sentences. None of them is an average or a newest — they are all
+	// sizes, and sizes add.
 	chars: 'sum', charsall: 'sum', sentences: 'sum'
 };
-// ── A DATE COLUMN COUNTS, IT DOES NOT LIST (writer, 2026-08-28) ──
-//
-// "aggregate better some things like dates should only show a count
-// number, or proprieties that are text (think on it, so it makes
-// sense)."
-//
-// `ORG_AGG` names the BUILT-INS, so a user property fell through to
-// `distinct` whatever it held — and a folder row in the writer's own
-// vault read `1999-01-22, 2222-02-21` in its date column: two notes'
-// values printed side by side as if the FOLDER had two dates. A
-// folder does not have a date. What it has is some notes that do.
-//
-// THE TEXT HALF IS DELIBERATELY NOT CHANGED, and this is where that
-// is written down. Three days ago the same writer asked for exactly
-// the enumeration a text column now shows — brief A2, "a folder's
-// property cell lists every DISTINCT value beneath it — 'the Father,
-// The Mother, Mara'" — and the tombstone below records what it
-// replaced and why. "or proprieties that are text (think on it)" is
-// an invitation to think, not an instruction; reversing a three-day-
-// old ask on half a sentence is how this project has thrown away
-// eight builds. The question is logged in INBOX for one word.
-//
-// BY TYPE, NOT BY NAME. `orgPropType` is the one reader of what a
-// key holds, so a column the writer later declares a date starts
-// counting without anyone remembering to list it here.
 // ── A FOLDER SUMS WHAT IT CAN AND COUNTS EVERYTHING ELSE ────────
 //
-// "aggregate better some things like dates should only show a count
-// number, or proprieties that are text (think on it, so it makes
-// sense)" — and then, asked whether the short text columns should
-// count as well: **"yes count them too"** (2026-08-29).
+// `ORG_AGG` names what a folder can honestly SUM, AVERAGE or take the
+// newest of; everything else is counted. A folder does not have a
+// date, a synopsis, a pov or a tag — what it has is some notes that
+// do, which is a number; a folder row reading `1999-01-22, 2222-02-21`
+// in its date column is two notes' values printed side by side as if
+// the FOLDER had two dates. BY TYPE, NOT BY NAME: `orgPropType` is the
+// one reader of what a key holds, so a column the writer later declares
+// a date starts counting without anyone remembering to list it here.
 //
-// SO THERE IS ONE RULE AND NO EXCEPTIONS. `ORG_AGG` names what a
-// folder can honestly SUM, AVERAGE or take the newest of; everything
-// else is counted. A folder does not have a date, a synopsis, a pov
-// or a tag — what it has is some notes that do, which is a number.
+// ── AND A CHECKBOX COUNTS THE TICKS ────────────────────────
 //
-// TOMBSTONE 1 (386): a `date`/`datetime` branch and an `isLongField`
-// branch, added when only those two counted. They are not reversed,
-// they are SUBSUMED — the fallthrough answers for them now, and two
-// branches that can only agree with the default are a place for the
-// two to drift apart.
-//
-// TOMBSTONE 2 (361, brief A2): `distinct`, which listed every value
-// beneath a folder — "the Father, The Mother, Mara", truncated to two
-// plus "+N" with the rest on the hover. That was this writer's own
-// ask and it is this writer's own reversal, four days apart. THE
-// VALUES ARE NOT LOST: they are still gathered, and they are still on
-// the hover, which is where the enumeration went rather than away.
-//
-// AND IT TAKES THE BUILT-IN Tags COLUMN WITH IT, which was not named
-// in the ask and is named here because it is the visible consequence:
-// `tags` is not in `ORG_AGG`, so a folder's Tags cell read "maka
-// baka, taka +1" and now reads a number. Leaving it enumerating would
-// have put `Pov 3` beside `Tags maka baka, taka +1` in one row — two
-// grammars for one question. One word puts it back.
-// ── AND A CHECKBOX COUNTS THE TICKS (A132) ──────────────────────────
-//
-// Writer, 2026-09-04: "folder agregates of the checkboxes are not
-// updateing or display corectly (no ticks - 3 shown)". MEASURED: the
-// default `count` answers "how many beneath this CARRY a value", and
-// `archived: false` carries one — so three unticked notes read as 3.
-//
-// A TICK IS NOT A VALUE, it is a state, and the number a writer reads
-// off a folder is "how many are done". False is an answer to the
-// question and it is not a tick.
+// The default `count` answers "how many beneath this CARRY a value",
+// and `archived: false` carries one — so three unticked notes would
+// read as 3. A TICK IS NOT A VALUE, it is a state, and the number a
+// writer reads off a folder is "how many are done". False is an answer
+// to the question and it is not a tick.
 const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 	if (ORG_AGG[col.id]) return ORG_AGG[col.id];
 	try {
@@ -505,7 +341,7 @@ const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 	} catch (_) { wsCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
 	return 'count';
 };
-const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: string[]): WsOrgColAgg => {
+const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: string[]): WsOrgColAgg | null => {
 	const how = orgAggHow(col);
 	if (how === 'none') return null;
 	let sum = 0, n = 0, newest = 0, oldest = 0, done = 0, all = 0;
@@ -513,11 +349,10 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 	// total weight and `wtot` the weighted total; both stay 0 for every
 	// other aggregation and cost nothing.
 	let wsum = 0, wtot = 0;
-	// THE TARGET'S OWN NUMERATOR (the writer, 2026-09-20: "the total for
-	// target, including for folder aggregates should show xxx/xxx"): the
-	// words of the notes whose targets are being summed, so a folder's cell
-	// reads its progress the way a note's does — words over target — and a
-	// note with no target is in neither number.
+	// THE TARGET'S OWN NUMERATOR: the words of the notes whose targets are
+	// being summed, so a folder's cell reads its progress the way a note's
+	// does — words over target — and a note with no target is in neither
+	// number.
 	let wg = 0;
 	// WHETHER THIS COLUMN HOLDS LISTS, learnt from the values rather
 	// than from a table of column names. A hand-kept list of 'the
@@ -534,10 +369,9 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 		if (how === 'tasks') { const t = wsTasksOf(v); if (t) { done += t.done; all += t.all; } n++; continue; }
 		// ONLY A REAL TRUE COUNTS. A string "true" out of a hand-edited
 		// store is not a ticked box, and neither is `false`.
-		// x/x: `n` counts what CARRIES the key and `done` what is
-		// TICKED — the writer asked for both numbers, and since A145
-		// the difference is visible in the rows themselves, where an
-		// absent property draws nothing and a false one draws a box.
+		// x/x: `n` counts what CARRIES the key and `done` what is TICKED — the
+		// difference is visible in the rows themselves, where an absent
+		// property draws nothing and a false one draws a box.
 		if (how === 'ticked') { n++; if (v === true) done++; continue; }
 		if (how === 'flags') {
 			const k = wsStr(v);
@@ -604,47 +438,37 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 	}
 	switch (how) {
 		case 'sum':
-			// (The signed `+` stood here, for Today. It went with the
-			// column — writer, 2026-08-27, "remove the today propriety".
-			// No other reading is signed: words, paras and tasks cannot
-			// be negative, so the prefix had exactly one customer.)
-			//
-			// A SUM CARRIES ITS COLUMN'S UNIT. Every other summed column
-			// counts things, so a thousands separator is the whole of the
-			// formatting; minutes are not a count, and 2.803 in a Read
-			// time cell is a number in the wrong language. Named here
-			// rather than given its own `how`, because the ARITHMETIC is
-			// a plain sum — it is only the saying of it that differs.
+			// A SUM CARRIES ITS COLUMN'S UNIT. Every other summed column counts
+			// things, so a thousands separator is the whole of the formatting;
+			// minutes are not a count, and 2.803 in a Read time cell is a number in
+			// the wrong language. Named here rather than given its own `how`,
+			// because the ARITHMETIC is a plain sum — it is only the saying of it
+			// that differs.
 			if (col.id === 'read') return { text: d.plugin.formatReadTime(sum) };
-			// A FOLDER'S TARGET SAYS BOTH NUMBERS, whichever way its notes read
-			// (the writer, 2026-09-20): the words of its targeted notes over
-			// their targets, with the thousands separators the cells use.
-			if (col.id === 'goal') return { text: wg.toLocaleString() + '/' + sum.toLocaleString(),
+			// A FOLDER'S TARGET READS LIKE ITS NOTES': the words of its targeted
+			// notes over their targets, said the way the setting says a note's
+			// (`orgTargetSay`: a percentage, or the two numbers) and wearing the
+			// band the cells wear (`goal` carries the pair for `orgGoalBand`).
+			// Both numbers are on the hover either way.
+			if (col.id === 'goal') return { text: d.plugin.orgTargetSay(wg, sum), goal: { words: wg, target: sum },
 				title: wg.toLocaleString() + ' words over a target of ' + sum.toLocaleString() + ', in ' + n + (n === 1 ? ' note' : ' notes') };
 			return { text: sum.toLocaleString() };
 		case 'avg': {
-			// ── WEIGHTED BY LENGTH (writer, 2026-08-27, brief A2) ─────
+			// ── WEIGHTED BY LENGTH ──────────────────────────────────────
 			//
-			// “Grade → length-weighted average (an unweighted mean lets a
-			// 100-word scene outvote a 3,000-word one)”. A chapter's grade
-			// is a claim about the chapter, and a one-line stub carried
-			// as much of it as the scene it is a note about.
-			//
-			// FALLS BACK TO THE PLAIN MEAN when nothing beneath it has a
-			// length — weights that are all zero would divide by zero and
-			// put NaN in a cell, which is worse than the mean it replaced.
+			// An unweighted mean lets a 100-word scene outvote a 3,000-word one; a
+			// chapter's grade is a claim about the chapter. FALLS BACK TO THE PLAIN
+			// MEAN when nothing beneath it has a length — weights that are all zero
+			// would divide by zero and put NaN in a cell, which is worse than the
+			// mean it replaced.
 			const a = wsum > 0 ? (wtot / wsum) : (sum / n);
 			return { text: (Math.round(a * 10) / 10).toFixed(1),
 				title: (wsum > 0 ? 'average of ' + n + ', weighted by length'
 					: 'average of ' + n) };
 		}
 		// Written the way the CELLS are written, and now literally
-		// BY the same function — `orgStamp`, one fixed dd/mm/yyyy
-		// hh:mm — so a group and its rows read as one column rather
-		// than two formats. Three inline `toLocaleString` calls
-		// stood here and at the cell; that was three chances to
-		// drift (2026-08-22, reversing 268b — tombstone on
-		// `orgStamp` in src/38-org-index.js).
+		// BY the same function — `orgStamp`, one fixed dd/mm/yyyy hh:mm — so a
+		// group and its rows read as one column rather than two formats.
 		case 'newest':
 			return { text: d.plugin.orgStamp(newest),
 				title: 'newest of ' + n };
@@ -659,10 +483,8 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			return all ? { text: wsTaskSay(done, all) } : null;
 		// ── A COUNT, AND THE DAYS ONE HOVER AWAY ────────────────
 		//
-		// "dates should only show a count number" (writer, 2026-08-28).
-		// The number is how many notes beneath this folder carry one —
-		// not how many DIFFERENT days, which is the question the 361
-		// tombstone below calls one nobody asks.
+		// The number is how many notes beneath this folder carry one — not how
+		// many DIFFERENT days, which is a question nobody asks.
 		//
 		// AND IT SAYS OF WHAT. A bare `3` in a date column could be read
 		// as a day; the hover names the whole thing, in the same
@@ -677,25 +499,13 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			const many = vals2.join(', ');
 			// ── A LIST COUNTS ITS VALUES; A SCALAR COUNTS ITS NOTES ──
 			//
-			// Writer, 2026-08-30: "the tag aggregator shows only how many
-			// files have tags, not the tag count." Measured in their own
-			// vault: `Chapter 2 - The Sea` holds `sea`, `keys` and `town`
-			// across two notes, and the cell read 2.
-			//
-			// THE SCALAR RULE IS NOT REVERSED. "dates should only show a
-			// count number" (2026-08-28) asked how many notes carry one,
-			// and that is still what a date, a Pov or a Description
-			// answers — a note has ONE of each, so notes and values are
-			// the same number and the question never arises. A note has
-			// MANY tags, which is the whole of the difference, so the
-			// split is on the SHAPE of the value and not on the column's
-			// name. In the reporting vault that changes exactly one
-			// column, Tags, and leaves Pov, Locations, date and
-			// Description reading as they did.
-			//
-			// AND THE HOVER SAYS WHICH QUESTION WAS ANSWERED, because
-			// two counting rules in one column strip is exactly the kind
-			// of thing that reads as a bug when it is not.
+			// A date, a Pov or a Description answers how many notes carry one — a
+			// note has ONE of each, so notes and values are the same number and
+			// the question never arises. A note has MANY tags, which is the whole
+			// of the difference, so the split is on the SHAPE of the value and not
+			// on the column's name. AND THE HOVER SAYS WHICH QUESTION WAS ANSWERED,
+			// because two counting rules in one column strip is exactly the kind of
+			// thing that reads as a bug when it is not.
 			const count = listy ? vals2.length : n;
 			return { text: String(count),
 				title: (listy
@@ -717,13 +527,11 @@ const orgColSortKey = (col: { id: string; key?: string; sortAs?: string }, path:
 		case 'tasks': { const t = wsTasksOf(v); return t ? t.all - t.done : null; }
 		case 'tags': return wsListOf(v).length;
 		case 'outlinks': return wsListOf(v).length;
-		// BY PROGRESS, NOT BY THE NUMBER TYPED (A286 item 20, writer with a
-		// shot: “look how it sorts the target (bad) -- sort them by
-		// percentage”). The raw value is the target, so Sort: Target put
-		// every 3,000 above every 2,500 while the column read 72%, 87%,
-		// 83%. What the column SHOWS is how far along the note is, and that
-		// is what it sorts by now: words over target. A target of nothing
-		// has no progress and drops out, as it did.
+		// BY PROGRESS, NOT BY THE NUMBER TYPED. The raw value is the target,
+		// so sorting by it would put every 3,000 above every 2,500 while the
+		// column read 72%, 87%, 83%. What the column SHOWS is how far along
+		// the note is, and that is what it sorts by: words over target. A
+		// target of nothing has no progress and drops out.
 		case 'goal': {
 			const t = Number(v) || 0;
 			if (!(t > 0)) return null;

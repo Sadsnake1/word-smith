@@ -1,22 +1,19 @@
-// Word-Smith — organizer-journal. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-journal.
 
 import { wsCatch, wsErrMsg } from './preamble';
 
 // ════════════════════════════════════════════════════════════════════════
-// THE ORGANIZER'S JOURNAL (A350) — undo and redo, out of the closure
+// THE ORGANIZER'S JOURNAL — undo and redo, out of the window
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE FIRST PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14, the
-// writer: "improve the code, its maintainability … including the big
-// ones"). The pattern every later piece follows: a factory at the top
-// level of the bundle, taking ONE object that names everything it reads
-// from the window, returning the functions the window wires in. Nothing
-// in here can reach the closure's three hundred names by accident; what it
-// needs is written on its first line.
+// The pattern every module of the window follows: a factory at the top
+// level, taking ONE object that names everything it reads from the
+// window, returning the functions the window wires in. Nothing in here
+// can reach the window's three hundred names by accident; what it needs
+// is written on its first line.
 //
 // WHAT IT READS: `paint()` — the bar's Undo/Redo buttons, repainted
-// whenever the journal moves; `say(msg)` — the word beside them (A394);
+// whenever the journal moves; `say(msg)` — the word beside them;
 // `fail(msg)` — the foot's say-line, for an undo that threw.
 //
 // A JOURNAL ON THE WINDOW: one entry per act — a flag, a target, a
@@ -52,7 +49,7 @@ export const wsOrgJournalMake = ({ paint, say, fail }: WsOrgJournalDeps) => {
 		try {
 			await (dir === 'redo' ? e.redo() : e.undo());
 			to.push(e);
-			// BESIDE THE BUTTONS, NOT IN THE FOOT (A394).
+			// BESIDE THE BUTTONS, NOT IN THE FOOT.
 			say((dir === 'redo' ? 'Redone: ' : 'Undone: ') + e.label);
 		} catch (err) {
 			// BACK WHERE IT CAME FROM, so a rename whose old name is taken
@@ -74,7 +71,7 @@ export const wsOrgJournalMake = ({ paint, say, fail }: WsOrgJournalDeps) => {
 		run: (dir: 'undo' | 'redo') => run(dir),
 		size: () => ({ undo: hist.undo.length, redo: hist.redo.length })
 	};
-	const nameOf = (p: string) => String(p || '').split('/').pop().replace(/\.md$/i, '');
+	const nameOf = (p: string) => (String(p || '').split('/').pop() || '').replace(/\.md$/i, '');
 	// THE LABEL OF AN ACT: "Flag Draft on Chapter Two", "Target 2000 on 3 notes".
 	const on = (paths: string[], what: string) => {
 		const n = paths.length;

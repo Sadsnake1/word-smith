@@ -1,5 +1,5 @@
-// Word-Smith — organizer-writes. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-writes: a property written, and what the cell
+// says until it lands.
 
 import { wsCatch, wsStr } from './preamble';
 import type WordSmith from './plugin';
@@ -9,22 +9,18 @@ import type { WsOrgJournalEntry } from './organizer-journal';
 // THE WRITES — a property written, and what the cell says until it lands
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE ELEVENTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-15, by
-// `ws-dev/lift.js`): the pending overlay (`orgPend`, `ORG_PEND_MS`,
-// `orgPendKey`, `orgPendSet`, `orgPendDrop`, `orgPendGet`,
-// `orgPendSame` — what was just typed, shown until the reader agrees, A212)
-// and the writers over it (`orgPropWriteOne`, `orgPropSet`,
-// `orgPropListSet`, which set the overlay, write through the plugin, push
-// the undo entry and drop the overlay on a failure). A hundred and fifty
-// lines. The overlay was moved here to stand beside the write it belongs
-// to — it had drifted above the bar and the journal.
+// The pending overlay (`orgPend`, `ORG_PEND_MS`, `orgPendKey`,
+// `orgPendSet`, `orgPendDrop`, `orgPendGet`, `orgPendSame` — what was just
+// typed, shown until the reader agrees) and the writers over it
+// (`orgPropWriteOne`, `orgPropSet`, `orgPropListSet`, which set the
+// overlay, write through the plugin, push the undo entry and drop the
+// overlay on a failure).
 //
 // WHAT IT READS, through `d`: the journal (`d.orgHistPush`, `d.orgHistOn`),
 // the bulk selection (`d.orgBulkPaths`, `d.orgBulkSay`), the editor's
-// reading of a value (`d.orgPropValue`) and `d.plugin`. The comments on
-// each function came with it, as it stood.
+// reading of a value (`d.orgPropValue`) and `d.plugin`.
 //
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgWritesMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (5 of 6).
@@ -38,34 +34,19 @@ export interface OrgWritesDeps {
 }
 
 export const wsOrgWritesMake = (d: OrgWritesDeps) => {
-// ── WHAT WAS JUST TYPED, UNTIL THE READER AGREES (A212) ─────────
+// ── WHAT WAS JUST TYPED, UNTIL THE READER AGREES ─────────────────
 //
-// Writer, 2026-09-06: “if i write in the table and delete let’s say a
-// description, after delete it flashes in the cell what I’ve deleted and
-// then it does not show it anymore. same for writing, i write something
-// i press enter, it flashes a empty cell then shows what i’ve written”.
-//
-// BOTH DIRECTIONS, WHICH NAMES THE CAUSE: the cell is drawn twice, and
-// the first draw reads state that has not caught up. On a delete the
-// stale read still has the text; on a write it does not have it yet. One
-// fault seen from either side.
-//
-// IT IS A158’s SHADOW. That batch moved `orgEditDone()` — which
-// REDRAWS — to BEFORE the disk write, so the pane comes back in 0ms
-// instead of 60. It was right, and the redraw it moved earlier now
-// happens while `orgPropWrite` is still in flight and the index still
-// holds the old frontmatter.
-//
-// MEASURED IN THE VAULT, frame by frame, deleting a Description:
-// **the old value stood in the cell for 162ms** (46–208ms after the
-// blur) before the second draw cleared it.
-//
-// SO THE CELL IS TOLD WHAT WAS COMMITTED, and reads it until the index
-// agrees. NOT A CACHE: it holds only values this window has just
-// written, it drops the moment the reader says the same thing, and it
-// expires regardless — a write that fails must not mask the truth for
-// the rest of the session, and four seconds is far past any local
-// `processFrontMatter` round trip.
+// The pane redraws BEFORE the disk write (so it comes back in 0ms
+// instead of 60), and that redraw runs while `orgPropWrite` is still
+// in flight and the index still holds the old frontmatter — so a
+// deleted value would stand in the cell for a moment and a typed one
+// would flash empty. Both directions, one fault. SO THE CELL IS TOLD
+// WHAT WAS COMMITTED, and reads it until the index agrees. NOT A
+// CACHE: it holds only values this window has just written, it drops
+// the moment the reader says the same thing, and it expires regardless
+// — a write that fails must not mask the truth for the rest of the
+// session, and four seconds is far past any local `processFrontMatter`
+// round trip.
 const orgPend = new Map<string, { v: unknown; at: number }>();
 const ORG_PEND_MS = 4000;
 // KEYED CASE-INSENSITIVELY, because the column reads frontmatter that
@@ -114,23 +95,22 @@ const orgPropWriteOne = async (p: string, key: string, value: unknown, own: bool
 		orgPendDrop(p, key);
 		if (own) throw e;
 		wsCatch('orgPropSet / bulk: this.orgPropWrite(p, key, value);', e);
-		return undefined;
+		return false;
 	}
 };
 const orgPropSet = async (path: string, key: string, value: unknown) => {
-	// ON EVERY NOTE THE SELECTION HOLDS (A320): the one door every cell
-	// editor commits through, so the spread lives here and not in four
-	// editors — and ONE call site, which the probe counts (it is in
-	// `orgPropWriteOne` now, which this and the list setter share). The
-	// edited note is written last, so its return value is the one the
-	// editor reads and its failure is the one that throws, as before; a
+	// ON EVERY NOTE THE SELECTION HOLDS: the one door every cell editor
+	// commits through, so the spread lives here and not in four editors —
+	// and ONE call site, in `orgPropWriteOne`, which this and the list
+	// setter share. The edited note is written last, so its return value is
+	// the one the editor reads and its failure is the one that throws; a
 	// failure on another note is reported and the rest go on.
 	const all = d.orgBulkPaths({ kind: 'file', path }).filter(p => p !== path).concat([path]);
 	const before: [string, unknown][] = all.map((p) => [p, d.orgPropValue(p, key)]);
-	let out;
+	let out = false;
 	for (const p of all) {
 		const r = await orgPropWriteOne(p, key, value, p === path);
-		if (p === path) out = r;
+		if (p === path) out = !!r;
 	}
 	if (all.length > 1) d.orgBulkSay(all.length, 'Property set');
 	d.orgHistPush({
@@ -140,19 +120,15 @@ const orgPropSet = async (path: string, key: string, value: unknown) => {
 	});
 	return out;
 };
-// A LIST IS THE ROW'S OWN (A349, writer 2026-09-13: "when i bulk edit
-// and delete a tag, it makes all the tags the same for that folder …
-// only for deleting a tag that is present in the files be deleted from
-// those files that have it, also adding a tag should not [replace] the
-// rest of the tags from those files"). A scalar set on one selected
-// row is the same scalar on every row — a status is a status. A list
-// is not: what the writer did on the edited row was "take this one
-// off" or "put this one on", and that is what the other rows get —
-// their OWN list with `removed` taken out and `added` put in at the
-// end, once, no duplicates. The edited row gets the list as typed. A
-// row the delta leaves as it was is not written; a reorder of the
-// chips (same set, new order) is a delta of nothing and touches the
-// other rows not at all.
+// A LIST IS THE ROW'S OWN. A scalar set on one selected row is the same
+// scalar on every row — a status is a status. A list is not: what the
+// writer did on the edited row was "take this one off" or "put this one
+// on", and that is what the other rows get — their OWN list with
+// `removed` taken out and `added` put in at the end, once, no
+// duplicates. The edited row gets the list as typed. A row the delta
+// leaves as it was is not written; a reorder of the chips (same set,
+// new order) is a delta of nothing and touches the other rows not at
+// all.
 const orgPropListSet = async (path: string, key: string, list: unknown, before: unknown) => {
 	const str = (a: unknown) => (Array.isArray(a) ? a : (a === null || a === undefined || a === '' ? [] : [a])).map(String);
 	const now = str(list), was = str(before);

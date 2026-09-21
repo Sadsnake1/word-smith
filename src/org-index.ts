@@ -1,5 +1,5 @@
-// Word-Smith — org-index. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — org-index: the Organizer's index of the vault, and the walks
+// over it.
 
 import { FrontMatterCache } from "obsidian";
 
@@ -43,24 +43,16 @@ const wsPlain = (v: unknown): string => {
 };
 export const wsOrgIndex = (): WsOrgIndexMap => new Map();
 
-// TOMBSTONE (writer, 2026-08-22): `wsOrgSnippet` — the note's own first
-// prose line, which stood in for a missing synopsis (LATER-3). Vetoed on
-// sight: "buggy — reads the first line, not frontmatter". It had exactly
-// one consumer, the Outline field's placeholder, and it is deleted rather
-// than left unused: a dead helper is a name the next person reuses,
-// which is the same argument that deletes dead settings keys on load.
-// tests/org_index_test.js asserts its absence against the BUILT source.
-
 // THE ONE WRITER. Every entry passes through here, so the shape above is a
 // fact rather than a hope: numbers are coerced, props are shallow-copied
 // (the caller's cache object must not be shared — Obsidian mutates its
 // metadata cache in place), and nothing else ever writes an entry.
-// FOOTNOTES IN A NOTE (A376): every definition line `[^id]: …` and every
-// inline footnote `^[…]`, each once; a reference `[^id]` in the prose is
-// not a second footnote. Code blocks are left as they are — a footnote
-// written inside one is not a footnote, and the counter that skips code
-// lines (`scanNonProseLines`) is the word counter's; this is a cheap
-// line scan, and the rare fenced `[^x]:` is the price of keeping it so.
+// FOOTNOTES IN A NOTE: every definition line `[^id]: …` and every inline
+// footnote `^[…]`, each once; a reference `[^id]` in the prose is not a
+// second footnote. Code blocks are left as they are — a footnote written
+// inside one is not a footnote, and the counter that skips code lines
+// (`scanNonProseLines`) is the word counter's; this is a cheap line
+// scan, and the rare fenced `[^x]:` is the price of keeping it so.
 export const wsCountFootnotes = (text: string) => {
 	const s = String(text || '');
 	let n = 0;
@@ -83,19 +75,12 @@ export const wsOrgPut = (ix: WsOrgIndexMap, path: string, r: { words?: number; p
 		paras: Number(src.paras) || 0,
 		// ── THREE READINGS THAT WERE ALREADY BEING MEASURED ─────────────
 		//
-		// Writer, 2026-09-02: "add to proprieties: links, page count, chars,
-		// chars with spaces, sentences" — and, asked what a page should be,
-		// "don't add it". So three of the five land here.
-		//
-		// THEY COST NOTHING. `orgIndexRead` already calls `analyzeText` on
-		// every note and already receives all three; it was throwing them
-		// away. Carrying them is a field in this shape, not a second pass
-		// over the vault.
-		//
-		// THE NAMES ARE THE COUNTER'S OWN. `countProse` returns
-		// `charsNoSpaces` and `charsWithSpaces`, and it also returns `chars`
-		// as a synonym for the first — a name that has meant two things in
-		// this codebase before. A store that changes UNIT changes NAME, and
+		// THEY COST NOTHING: `orgIndexRead` already calls `analyzeText` on every
+		// note and already receives all three. Carrying them is a field in this
+		// shape, not a second pass over the vault. THE NAMES ARE THE COUNTER'S
+		// OWN: `countProse` returns `charsNoSpaces` and `charsWithSpaces`, and
+		// it also returns `chars` as a synonym for the first — a name that has
+		// meant two things. A store that changes UNIT changes NAME, and
 		// "characters" is two units; neither is called `chars` here.
 		charsNoSpaces: Number(src.charsNoSpaces) || 0,
 		charsWithSpaces: Number(src.charsWithSpaces) || 0,
@@ -107,17 +92,13 @@ export const wsOrgPut = (ix: WsOrgIndexMap, path: string, r: { words?: number; p
 		grade: (typeof src.grade === 'number' && isFinite(src.grade))
 			? src.grade : null,
 		mtime: Number(src.mtime) || 0,
-		// WHEN IT WAS STARTED (writer, 2026-08-22: a Created column). Kept
-		// beside mtime rather than derived: `ctime` is the vault's own
-		// stat and nothing else can reconstruct it.
+		// WHEN IT WAS STARTED. Kept beside mtime rather than derived: `ctime`
+		// is the vault's own stat and nothing else can reconstruct it.
 		ctime: Number(src.ctime) || 0,
 		props
-		// (`snippet` stood here, and `synopsis` after it — see the tombstone
-		// above and the one in `orgIndexPut`. The writer is the shape: a
-		// field it does not set cannot reach an entry, so a caller still
-		// passing one is dropped rather than carried. That is what makes
-		// removing a field here safe — a stale `synopsis` in a caller's
-		// object stops at this function.)
+		// (The writer is the shape: a field it does not set cannot reach an
+		// entry, so a caller still passing a retired one is dropped rather
+		// than carried.)
 	};
 	ix.set(String(path), entry);
 	return entry;
@@ -157,35 +138,30 @@ export const wsOrgPathsUnder = (ix: WsOrgIndexMap, folder: string) => {
 	return out;
 };
 
-// ── WHICH FILES SIT UNDER EACH FOLDER, IN ONE WALK (A188, 2026-09-05) ─────
+// ── WHICH FILES SIT UNDER EACH FOLDER, IN ONE WALK ────────────────
 //
-// `wsOrgPathsUnder` above answers for ONE folder by walking every key, which
-// is right for one question and wrong in a loop. The Export tree asked it
-// PER ROW — through `exportFiles().map(...).filter(under)`, which also
-// re-gathered and re-allocated each time — so one draw was rows x files and
-// doubling the manuscript quadrupled the work: 439.6ms against 2.33ms at
-// 4,000 files (`ws-dev/scale_probe.js`).
-//
-// LIFTED OUT OF `openManuscriptModal` RATHER THAN WRITTEN INSIDE IT. It was
-// a closure in a 13,000-line method, which meant no suite could reach it and
-// the scale probe had to keep its own COPY of the arithmetic — so a sabotage
-// of the real one went green twice. Out here it is driven directly by
-// `tests/org_index_test.js` and measured directly by the scale probe.
+// `wsOrgPathsUnder` above answers for ONE folder by walking every key,
+// which is right for one question and wrong in a loop: asked PER ROW,
+// one draw is rows × files, and doubling the manuscript quadruples the
+// work (440ms against 2ms at 4,000 files). A module function rather
+// than a closure in the window, so a test drives it directly and the
+// scale test measures the real arithmetic rather than a copy.
 //
 // EVERY ANCESTOR, which is a prefix test walked the other way:
 // `Book/Part 1/Ch 2/Scene.md` counts toward `Book/Part 1/Ch 2`,
-// `Book/Part 1` and `Book`. The `+ '/'` that `wsOrgPathsUnder` is careful
-// about is free here — a path is cut AT its separators, so '01 Work' can
-// never collect '01 Workshop/…' the way a bare prefix test would.
+// `Book/Part 1` and `Book`. The `+ '/'` that `wsOrgPathsUnder` is
+// careful about is free here — a path is cut AT its separators, so
+// '01 Work' can never collect '01 Workshop/…' the way a bare prefix test
+// would.
 //
 // `all` IS THE WHOLE VAULT AND IS NOT A BUCKET. The root folder's path is
-// the EMPTY STRING, and no file's path begins with '/', so a prefix test on
-// it matches nothing — the root's checkbox drew, hovered, and governed zero
-// files until 2026-08-26. It is a separate list here so that answer cannot
-// come back by accident.
+// the EMPTY STRING, and no file's path begins with '/', so a prefix test
+// on it matches nothing; it is a separate list here so the root's box
+// governs every file rather than none.
 //
-// IN THE ORDER GIVEN, deduped: a writer who picks Part Three then Part One
-// has said something about the order, and re-sorting would overrule them.
+// IN THE ORDER GIVEN, deduped: a writer who picks Part Three then Part
+// One has said something about the order, and re-sorting would overrule
+// them.
 // The paths under every folder, from a list of files or of paths: what a tick on a
 // folder ticks, what a folder sums.
 export interface WsUnderIndex { byFolder: Map<string, string[]>; files: Set<string>; all: string[] }
@@ -240,11 +216,11 @@ export const wsOrgAgg = (ix: WsOrgIndexMap, paths: string[]) => {
 	return out;
 };
 
-// EVERY FOLDER'S WORDS IN ONE WALK (A438, GitHub #19): each note's words
-// go to every folder above it, so a shut folder and a parent of shut
-// folders answer the same as an open one — the index cannot see a fold.
-// Keyed by folder path; the root is '/'. A folder with no counted note
-// under it has no entry, which a painter reads as "nothing to say", not 0.
+// EVERY FOLDER'S WORDS IN ONE WALK: each note's words go to every folder
+// above it, so a shut folder and a parent of shut folders answer the
+// same as an open one — the index cannot see a fold. Keyed by folder
+// path; the root is '/'. A folder with no counted note under it has no
+// entry, which a painter reads as "nothing to say", not 0.
 export const wsOrgFolderWords = (ix: WsOrgIndexMap) => {
 	const m = new Map<string, number>();
 	if (!ix) return m;
@@ -289,26 +265,20 @@ export const wsOrgDropBefore = (sibs: string[], movedPath: string, ontoPath: str
 	return (i + 1 < rest.length) ? rest[i + 1] : null;
 };
 
-// ── HOW MANY NOTES CARRY EACH VALUE (brief C2) ────────────────────
+// ── HOW MANY NOTES CARRY EACH VALUE ────────────────────────────
 //
-// “Values are multi-select with checkboxes and per-value counts (‘Draft
-// 4’).” A value with no notes behind it is a filter that returns nothing,
-// and a writer cannot tell which is which by reading a list of names.
-//
-// A SIBLING OF `wsOrgDistinct`, NOT A REPLACEMENT: that one is called from
-// several places that want the values alone, and widening its return would
-// change every caller to gain a number one of them needs. It walks the same
-// paths by the same rules — arrays flatten, complex values are not
-// enumerable, blanks do not count — so the two cannot disagree about what a
-// value IS.
-//
-// COUNTED PER NOTE, NOT PER OCCURRENCE. A note listing `pov: [Anna, Anna]`
-// is one note with that pov, and “Anna 2” against a single scene would be a
-// number the writer cannot check against anything on screen.
-// `extra` (A301): values the index does not hold — the store’s rows for
-// files that keep their properties there, one `{ path, value }` each,
-// counted and enumerated exactly as a note’s frontmatter is.
-// `extra`: rows of the property store beside the index's frontmatter — a path and its value.
+// A value with no notes behind it is a filter that returns nothing, and
+// a writer cannot tell which is which by reading a list of names. A
+// SIBLING OF `wsOrgDistinct`, NOT A REPLACEMENT: that one is called from
+// several places that want the values alone, and widening its return
+// would change every caller to gain a number one of them needs. It
+// walks the same paths by the same rules — arrays flatten, complex
+// values are not enumerable, blanks do not count — so the two cannot
+// disagree about what a value IS. COUNTED PER NOTE, NOT PER OCCURRENCE:
+// a note listing `pov: [Anna, Anna]` is one note with that pov. `extra`:
+// rows of the property store beside the index's frontmatter — a path
+// and its value, counted and enumerated exactly as a note's frontmatter
+// is.
 export const wsOrgCounts = (ix: WsOrgIndexMap, paths: string[], key: string, extra: { path: string; value: unknown }[]) => {
 	const n = new Map<string, number>();
 	if (!ix || !key) return n;

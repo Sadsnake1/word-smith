@@ -1,5 +1,4 @@
-// Word-Smith — editor-extensions. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — editor-extensions.
 
 import {
 	CM,
@@ -29,7 +28,7 @@ import type WordSmith from './plugin';
 // where the rows are and what face they wear
 type TildeMeasure = null | { hide: true } | { hide?: false; top: number; left: number; lineH: number; font: string; size: string; weight: string; count: number };
 
-// ── THE EDITOR EXTENSIONS, AS A FACTORY (A418, 2026-09-17) ─────────────
+// ── THE EDITOR EXTENSIONS, AS A FACTORY ────────────────────────────────
 //
 // This was the body of `buildEditorExtensions()`, which opened with
 // `const plugin = this` because eight CodeMirror ViewPlugin classes inside
@@ -40,8 +39,8 @@ type TildeMeasure = null | { hide: true } | { hide?: false; top: number; left: n
 // modules — and the method is its guard and one call. The body is
 // unchanged but for the three `this.build…()` at its end, which read
 // `plugin.` now. A helper lives below 05, outside the class.
-export function wsEditorExtensions(plugin: WordSmith) {
-	const { ViewPlugin, Decoration, WidgetType, RangeSetBuilder } = CM;
+export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>) {
+	const { ViewPlugin, Decoration, WidgetType, RangeSetBuilder } = cm;
 
 	class InvisibleWidget extends WidgetType {
 		text: string;
@@ -192,6 +191,11 @@ export function wsEditorExtensions(plugin: WordSmith) {
 		pronoun:  Decoration.mark({ class: 'ws-ck-pronoun'  }),
 		dialogue: Decoration.mark({ class: 'ws-ck-dialogue' })
 	};
+	// THE LINE THAT CARRIES A MARK. "Mute everything else" mutes against
+	// the marks: a line with none has nothing to stand out, so it is left
+	// alone — a note in a language the tagger does not know (nothing tagged,
+	// nothing checked) reads at full ink instead of going faint end to end.
+	const markedLine = Decoration.line({ class: 'ws-marked-line' });
 	const posMark = {
 		noun: Decoration.mark({ class: 'ws-pos-noun' }),
 		verb: Decoration.mark({ class: 'ws-pos-verb' }),
@@ -227,6 +231,8 @@ export function wsEditorExtensions(plugin: WordSmith) {
 			// Repetition spans lines, so its tokens are collected across
 			// the whole visible range and scanned once at the end.
 			const seen: WsToken[] | null = s.checkRepetition ? [] : null;
+			// the lines that got a mark, by their start — the repetition pass adds its own at the end
+			const marked = new Set<number>();
 
 			for (const range of view.visibleRanges) {
 				let pos = range.from;
@@ -239,15 +245,16 @@ export function wsEditorExtensions(plugin: WordSmith) {
 					const masked = maskMarkup(line.text);
 					const tokens = tagTokens(tokenizeLine(masked), masked);
 					const base   = line.from;
+					const before = out.length;
 
 					for (const t of tokens) {
-						const bucket = posBucket(t.tag);
+						const bucket = posBucket(t.tag || '');
 						if (bucket && posOn[bucket]) {
 							out.push(posMark[bucket].range(base + t.from, base + t.to));
 						}
 					}
 
-					if (!checksOn) continue;
+					if (!checksOn) { if (out.length > before) marked.add(base); continue; }
 
 					if (s.checkPassive) {
 						for (const r of findPassive(tokens)) {
@@ -267,7 +274,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 					// Phrases first, so word hits inside a phrase can be
 					// skipped rather than double-painted at double
 					// opacity ("a lot of" already covers "lots").
-					let phraseHits = null;
+					let phraseHits: [number, number][] | null = null;
 					if (s.checkFiller) {
 						phraseHits = [];
 						FILLER_PHRASES.lastIndex = 0;
@@ -281,7 +288,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 						const t = tokens[ti];
 						if (s.checkFiller &&
 							(FILLER_STRONG.has(t.lw) || (s.checkFillerSoft && FILLER_SOFT.has(t.lw))) &&
-							!phraseHits.some(pr => t.from >= pr[0] && t.to <= pr[1])) {
+							!(phraseHits || []).some(pr => t.from >= pr[0] && t.to <= pr[1])) {
 							out.push(checkMark.filler.range(base + t.from, base + t.to));
 						}
 						// Only sentence-initial: a pronoun mid-sentence
@@ -333,6 +340,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 							seen.push({ lw: t.lw, w: t.w, from: base + t.from, to: base + t.to, tag: null });
 						}
 					}
+					if (out.length > before) marked.add(base);
 				}
 			}
 
@@ -341,8 +349,10 @@ export function wsEditorExtensions(plugin: WordSmith) {
 				const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
 				for (const r of findRepetitions(seen, win, min)) {
 					out.push(checkMark.repeat.range(r.from, r.to));
+					marked.add(doc.lineAt(r.from).from);
 				}
 			}
+			for (const at of marked) out.push(markedLine.range(at));
 			return Decoration.set(out, true);
 		}
 	}, { decorations: v => v.decorations });
@@ -392,12 +402,12 @@ export function wsEditorExtensions(plugin: WordSmith) {
 	// Panels open through a state effect, so an update fires with them;
 	// reading the DOM rather than guessing at vim internals keeps this
 	// working whatever creates the panel.
-	const panelWatcher = CM.ViewPlugin.fromClass(class {
+	const panelWatcher = cm.ViewPlugin.fromClass(class {
 		constructor(view: EditorView) { this.sync(view); }
 		update(u: ViewUpdate) { this.sync(u.view); }
 		destroy() { document.body.classList.remove('ws-vim-panel-open'); }
 		sync(view: EditorView) {
-			let open = false, panel = null;
+			let open = false, panel: Element | null = null;
 			try { panel = view.dom.querySelector('.cm-panels-bottom'); open = !!panel; } catch (_) { wsCatch('buildEditorExtensions / sync: panel = view.dom.querySelector(\'.cm-panels-bottom\');', _); }
 			document.body.classList.toggle('ws-vim-panel-open', open);
 			// The {vim} COMMAND state is driven from this flag, and it has
@@ -413,14 +423,13 @@ export function wsEditorExtensions(plugin: WordSmith) {
 			// of a scheduling call an assignment falls on is a trap.
 			if (open !== plugin._vimPanelOpen) {
 				plugin._vimPanelOpen = open;
-				// ── AND THE GAP MOVES WITH IT (A174) ────────────────
+				// ── AND THE GAP MOVES WITH IT ──────────────────────
 				//
 				// The reserve is the writer’s gap, lifted to fit the
 				// line while it is open — so BOTH transitions have to
 				// re-stamp, not just the measuring one below. Without
 				// this the bar would rise on the next refresh and come
-				// back down on the one after that, which is the exact
-				// complaint that retired 486fj.
+				// back down on the one after that.
 				//
 				// STAMPED HERE rather than through `refresh()`: the
 				// same reasoning the measure path already carries a
@@ -449,7 +458,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 			// changed value costs a save.
 			window.requestAnimationFrame(() => {
 				try {
-					if (!panel.isConnected) return;
+					if (!panel || !panel.isConnected) return;
 					const h = Math.round(panel.getBoundingClientRect().height);
 					if (!(h > 0) || h > 120) return;
 					if (Math.abs((plugin.settings.vimPanelHeight || 0) - h) < 1) return;
@@ -592,7 +601,7 @@ export function wsEditorExtensions(plugin: WordSmith) {
 	// It also gets splits right for free: the upper pane of a top/bottom
 	// split has its scroller bottom above the bar already, so it asks for
 	// nothing without needing to know about `.ws-bar-overlap`.
-	const caretFloor = CM.EditorView.scrollMargins.of((view) => {
+	const caretFloor = cm.EditorView.scrollMargins.of((view) => {
 		try {
 			if (!plugin.editorViewIsNote(view)) return null;
 			const r = view.scrollDOM.getBoundingClientRect();

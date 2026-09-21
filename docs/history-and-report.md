@@ -13,7 +13,7 @@
 
 Off until you switch it on, under **Settings → Word-Smith → Manuscript → History**, or with the **Start counting** button in the History pane.
 
-Then it counts how much you write each day and draws it at four zooms: day, month, year, and a calendar. Words you added rise from the centre line, words you cut fall below it. A hard day of editing shows as work, not a gap. Above the chart: total, daily average, best day, active days, streak.
+Then it counts how much you write each day and draws it at four zooms: day, month, year, and a calendar. Words you added rise from the center line, words you cut fall below it. A hard day of editing shows as work, not a gap. Above the chart: total, daily average, best day, active days, streak.
 
 Type a note or folder name and the whole pane scopes to it. `ch3scene` finds `My Book/Part One/Ch 03/Scene 2.md`.
 
@@ -49,4 +49,4 @@ Prose only. Frontmatter, `%%` and HTML comments, code blocks, maths, link target
 
 The path under the title is a breadcrumb of every folder above the note. Click one to total that level. How long is this chapter and will the book land are one click apart. A report on an Organizer selection totals just those rows.
 
-Under the figures, **Words frequency**: every word in the note, how often it appears, and its share as a bar in the same colours the Organizer's target cells use. Common words (the, and, of) stay out until you tick **Include common words**. A share too small for two decimals shows as many as it needs, so a word that is there never reads as 0.00%.
+Under the figures, **Words frequency**: every word in the note, how often it appears, and its share as a bar in the same colors the Organizer's target cells use. Common words (the, and, of) stay out until you tick **Include common words**. A share too small for two decimals shows as many as it needs, so a word that is there never reads as 0.00%.

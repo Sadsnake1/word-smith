@@ -1,5 +1,5 @@
-// Word-Smith — organizer-drag. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-drag: a row moved within its parent, a file
+// dropped into a folder.
 
 import { wsOrgDropBefore } from './org-index';
 import { wsCatch } from './preamble';
@@ -9,14 +9,12 @@ import type WordSmith from './plugin';
 // THE DRAG — a row moved within its parent, a file dropped into a folder
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE NINTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-14, by
-// `ws-dev/lift.js`): the drag state (`orgDragPath`, `orgDragCol`,
-// `orgLastGrouping`), `orgDropMarks` and `orgDropRun` (the one drop
-// executor for mouse and finger, aimed by `wsOrgDropBefore` and written by
-// `treeOrderMove`), the edge grammar (`ORG_EDGE`, `orgAtEdge`),
-// `orgGroupDrop` (a file dropped on a folder row goes through
-// `treeMoveInto`) and `orgRowDrag` (the row's own drag handlers, mouse
-// and touch). Two hundred lines.
+// The drag state (`orgDragPath`, `orgDragCol`, `orgLastGrouping`),
+// `orgDropMarks` and `orgDropRun` (the one drop executor for mouse and
+// finger, aimed by `wsOrgDropBefore` and written by `treeOrderMove`), the
+// edge grammar (`ORG_EDGE`, `orgAtEdge`), `orgGroupDrop` (a file dropped
+// on a folder row goes through `treeMoveInto`) and `orgRowDrag` (the
+// row's own drag handlers, mouse and touch).
 //
 // WHAT IT READS, through `d`: the panel (`d.panel`, for the rows and the
 // marks), the bar (`d.said`), the names (`d.nameOf`, `d.folderOf`) and
@@ -24,10 +22,8 @@ import type WordSmith from './plugin';
 //
 // TWO OF ITS `let`s ARE LIVE — `orgDragCol` (the header drag) and
 // `orgLastGrouping` — read and set by the table context; they come back as
-// getters and setters, and the closure reads them as `orgDrag.<name>`.
-// The comments on each function came with it, as it stood.
-//
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// getters and setters, and the window reads them as `orgDrag.<name>`.
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgDragMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (4 of 5).
@@ -60,20 +56,10 @@ let orgDragCol: string | null = null;
 // opening paint never animates (design brief: the melt marks a
 // change, not an arrival).
 let orgLastGrouping: boolean | null = null;
-	// Whether the last draw SHOWED THE PROPERTIES - same shape and same
-// reason as `orgLastGrouping` above: null until a first draw, so a
-// window that OPENS in Outline does not slide its blocks in.
-// It watched the drawer flag until 2026-08-24; the drawer and its
-// toggle are gone, and what makes the property blocks appear now is
-// arriving in Outline. One variable answers for every field row
-// (the mode is view-wide), and the class is stamped on the TABLE,
-// which `drawPanel` rebuilds from scratch - nothing has to clear it.
-// EVERY MARK THIS PANEL CAN PAINT, cleared in one place. The
-// group-drop mark was added without being listed here, and a drag
-// ABANDONED over a header left it lit until the next redraw —
-// found live 2026-08-22, in the batch that added it. A clearer
-// that knows about some of the marks is worse than none: it looks
-// like the marks are handled.
+// EVERY MARK THIS PANEL CAN PAINT, cleared in one place: a drag
+// ABANDONED over a header must not leave a mark lit until the next
+// redraw, and a clearer that knows about some of the marks is worse
+// than none — it looks like the marks are handled.
 const orgDropMarks = () => {
 	for (const el2 of d.panel.querySelectorAll(
 		'.ws-drop-above, .ws-drop-below, .ws-drop-into')) {
@@ -108,12 +94,10 @@ const orgAtEdge = (el: HTMLElement, ev: MouseEvent) => {
 	const at = (ev.clientY - r.top) / r.height;
 	return at <= ORG_EDGE || at >= 1 - ORG_EDGE;
 };
-// ── A FILE MOVES BETWEEN FOLDERS, FROM THE TABLE ────────────────────
+// ── A FILE MOVES BETWEEN FOLDERS, FROM THE TABLE ──────────────────
 //
-// "I want to be able to move a file from one folder to another in
-// the right pane" (writer, 2026-08-22). The target is the GROUP
-// HEADER, which only became a thing to aim at when it stopped being
-// a colspan banner and grew a folder glyph (267/268).
+// The target is the GROUP HEADER, which is a thing to aim at because it
+// carries a folder glyph rather than being a colspan banner.
 //
 // THROUGH `treeMoveInto`, the tree's own mover: it rewrites every
 // link that pointed at the note, writes the order in BOTH folders,
@@ -140,7 +124,7 @@ const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 		if (orgAtEdge(g, ev)) return;
 		ev.preventDefault();
 		g.addClass('ws-drop-into');
-		try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { wsCatch('openManuscriptModal / orgGroupDrop: ev.dataTransfer.dropEffect = \'move\';', _); }
+		try { if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; } catch (_) { wsCatch('openManuscriptModal / orgGroupDrop: ev.dataTransfer.dropEffect = \'move\';', _); }
 	});
 	g.addEventListener('dragleave', () => g.removeClass('ws-drop-into'));
 	g.addEventListener('drop', (ev: DragEvent) => { void (async () => {
@@ -166,11 +150,10 @@ const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 	})(); });
 };
 const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: string }) => {
-	// ── A STORE FILE IS NOT DRAGGED ─────────────────────────────
+	// ── A STORE FILE IS NOT DRAGGED ───────────────────────────
 	//
-	// The plugin's own files are LISTED now (2026-08-25, and
-	// `allFiles` carries the reasoning), but they are not part of
-	// anybody's book and they must not be arranged.
+	// The plugin's own files are LISTED (`allFiles` carries the reasoning),
+	// but they are not part of anybody's book and they must not be arranged.
 	//
 	// Dragging a row writes the new order into `ws-structure.md`.
 	// So a draggable row FOR `ws-structure.md` writes itself into
@@ -190,7 +173,7 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 	tr.addEventListener('dragstart', (ev: DragEvent) => {
 		orgDragPath = row.path;
 		tr.addClass('is-dragging');
-		try { ev.dataTransfer.setData('text/plain', row.path); } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
+		try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', row.path); } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
 	});
 	tr.addEventListener('dragover', (ev: DragEvent) => {
 		orgDropMarks();
@@ -203,7 +186,7 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 		const r = tr.getBoundingClientRect();
 		const below = (ev.clientY - r.top) > r.height / 2;
 		tr.addClass(below ? 'ws-drop-below' : 'ws-drop-above');
-		try { ev.dataTransfer.dropEffect = 'move'; } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.dropEffect = \'move\';', _); }
+		try { if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.dropEffect = \'move\';', _); }
 	});
 	tr.addEventListener('drop', (ev: MouseEvent) => { void (async () => {
 		// WHOSE BAND IS THIS? Asked FIRST, and that ordering is the

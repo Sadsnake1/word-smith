@@ -14,7 +14,7 @@ Hide the bar and it comes back on hover. Move the pointer to the bottom of the w
 
 ## Letter box
 
-Two masks in the note's own background colour, so it reads as a narrowing page, not a black bar. Drag the line to resize, drag the arrows to change the inset. On desktop the top band moves the window like a title bar. The arrows have a few built-in looks, or use your own characters at any size, with separate colours for dark and light. It switches itself off in reading view, where there's no caret to frame.
+Two masks in the note's own background color, so it reads as a narrowing page, not a black bar. Drag the line to resize, drag the arrows to change the inset. On desktop the top band moves the window like a title bar. The arrows have a few built-in looks, or use your own characters at any size, with separate colors for dark and light. It switches itself off in reading view, where there's no caret to frame.
 
 ## Typewriter
 
@@ -46,10 +46,9 @@ wordsmith: off        # ignore this note entirely
 ws-zen: true          # or override one thing at a time
 ws-typewriter: false
 ws-hemingway: true
-ws-syntax: true
-ws-markers: false
+ws-syntax: true       # the word classes
+ws-checks: false      # the prose checks
 ws-typography: false
-ws-font: Literata     # font for this note only
 ---
 ```
 
@@ -59,8 +58,8 @@ Open a canvas, a PDF or an empty tab and everything stands down. It comes back t
 
 If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills a few gaps. `j` and `k` can follow wrapped lines, so a long paragraph is one keystroke instead of twenty. The `:` command line gets its own row under the bar, so opening it doesn't shove things around. `H` `J` `K` `L` work in the sidebars if quick cycle is on.
 
-`{vim}` puts the mode on the bar. `:vim` and `;vim` recolour a segment as the mode changes. See [Themes](themes.md) for colouring the caret by mode.
+`{vim}` puts the mode on the bar. `:vim` and `;vim` recolor a segment as the mode changes. See [Themes](themes.md) for coloring the caret by mode.
 
 ## Right-to-left
 
-If Obsidian or the note is right-to-left, indents, padding and markers mirror. Word counting handles Hebrew, Arabic and Persian. Syntax colouring and prose checks are English only, and in another script they mark nothing rather than marking it wrongly.
+If Obsidian or the note is right-to-left, indents, padding and markers mirror. Word counting handles Hebrew, Arabic and Persian. Syntax coloring and prose checks are English only, and in another script they mark nothing rather than marking it wrongly.

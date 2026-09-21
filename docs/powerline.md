@@ -2,12 +2,12 @@
 
 [← Back to the README](../README.md)
 
-A status bar you write yourself. One to three rows, each with a left, centre and right slot. You type a row as text, and the punctuation between tokens becomes shape and colour.
+A status bar you write yourself. One to three rows, each with a left, center and right slot. You type a row as text, and the punctuation between tokens becomes shape and color.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
 
-Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top of the Powerline page: tap one to use it, and the card shows a small sample of its colours. **Save** keeps the bar as it is under a name; the copy button on a card puts its share code on the clipboard, and **Import** takes one somebody sent you. The full reference is also in the plugin, under **How to write a row** on the Powerline page.
+Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top of the Powerline page: tap one to use it, and the card shows a small sample of its colors. **Save** keeps the bar as it is under a name; the copy button on a card puts its share code on the clipboard, and **Import** takes one somebody sent you. The full reference is also in the plugin, under **How to write a row** on the Powerline page.
 
 ## Readouts
 
@@ -33,7 +33,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 
 `{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes; `{powermenu}` opens the Powermenu, the menu of everything. Buttons are never dropped, however narrow the window gets.
 
-Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Token formats**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent colour under the pointer.
+Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Token formats**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent color under the pointer.
 
 ## Dividers
 
@@ -49,25 +49,25 @@ The character you type is the shape you get.
 
 `{s}` is a quarter-space. `::` is a short thin line, `>>` and `<<` are the same line bent to a point. Dividers are drawn as SVG, so no patched font needed.
 
-## Colour
+## Color
 
-Seven colours, a dark set and a light set. `:N` paints the background, `;N` paints the text. A token with no colour lies flush with the bar.
+Seven colors, a dark set and a light set. `:N` paints the background, `;N` paints the text. A token with no color lies flush with the bar.
 
 | | |
 |---|---|
-| `{words}:3` | Palette colour nr. 3 behind the segment |
-| `{words}:3;1` | And text colour nr. 1 |
+| `{words}:3` | Palette color nr. 3 behind the segment |
+| `{words}:3;1` | And text color nr. 1 |
 | `{words};vim` | Text follows your Vim mode |
 | `{file}:b1` to `:b4` | Your theme's own surfaces |
-| `{file}:bs` | The status line's own colour |
-| `{file}:bc` | The caret's colour, live |
+| `{file}:bs` | The status line's own color |
+| `{file}:bc` | The caret's color, live |
 | `{file};t1` `;t2` `;t3` | Your theme's normal, muted and faint text |
 
 Leave the `;` off and the text picks itself, light or dark, so it stays readable.
 
-`{g}` is a fade, one colour stepping into the next. `{g}{g}{g}` is three narrow steps, `{ggg}` one wide one. Fades are the first thing dropped when the window gets narrow.
+`{g}` is a fade, one color stepping into the next. `{g}{g}{g}` is three narrow steps, `{ggg}` one wide one. Fades are the first thing dropped when the window gets narrow.
 
-Put a colour at the very start of row 1 and the whole bar takes it: a colon paints the whole bar's background, a semicolon all of its text, and a token with a colour of its own keeps it.
+Put a color at the very start of row 1 and the whole bar takes it: a colon paints the whole bar's background, a semicolon all of its text, and a token with a color of its own keeps it.
 
 ```
 :vim {vim} > {file} :: {ln:col}

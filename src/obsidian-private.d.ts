@@ -1,9 +1,8 @@
-// Word-Smith — the private API. Hand-owned since 2026-09-18 (A418 step 3b).
-// What this plugin reads of Obsidian that
+// Word-Smith — the private API. What this plugin reads of Obsidian that
 // obsidian.d.ts does not promise. obsidian-internals.ts (WS_INTERNALS) is the
-// record of each dependence — what a writer loses without it, and the probe
+// record of each dependence — what a writer loses without it, and the test
 // that asks the running app; this file tells the checker the names exist AND
-// THE SHAPE THE PLUGIN READS (step 4, 2026-09-18: `any` until then). A shape
+// THE SHAPE THE PLUGIN READS. A shape
 // here is a claim about a private member, so every member is optional or
 // feature-detected at its site, the way the code already asks before use.
 // A module (an import), so `declare module` AUGMENTS obsidian's own

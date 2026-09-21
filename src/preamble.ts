@@ -1,9 +1,9 @@
-// Word-Smith — preamble. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — preamble: the helpers, the constants, the views and the
+// settings' defaults every other module reads.
 
 import { FuzzySuggestModal, Menu, setIcon, Platform, ItemView, normalizePath, sanitizeHTMLToDom } from 'obsidian';
 import type { App, FileStats, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
-import type { WordSmithSettings, WsMenuRowSpec, WsExportOpts, WsExportRun, WsExportSection, WsHost, WsVimApi } from './settings';
+import type { WordSmithSettings, WsMenuRowSpec, WsMenuPickItem, WsExportOpts, WsExportRun, WsExportSection, WsHost, WsVimApi } from './settings';
 import type WordSmith from './plugin';
 
 // what the property pickers list: a key and its label, how many notes carry
@@ -14,21 +14,18 @@ import { RangeSetBuilder, Prec } from '@codemirror/state';
 import { isolateHistory } from '@codemirror/commands';
 import type { WsLensSort, WsLensChip } from './organizer-lens';
 
-// `Platform` is destructured with the rest and used only through
-// isMobileApp(), which falls back to the body class: the harness stubs
-// `obsidian` with a fixed list of exports, so anything new arrives here as
-// `undefined` rather than as a throw, and must be treated as absent.
-// `apiVersion` IS THE DOCUMENTED ONE. `app.appVersion` is undefined here —
-// measured, on 1.13.7 — and a diagnostics dump that says “Obsidian ?” is a
-// dump that has to be chased up with a question.
+// `Platform` is used only through isMobileApp(), which falls back to the
+// body class: a stub of `obsidian` with a fixed list of exports hands
+// anything new here as `undefined` rather than as a throw, and it must be
+// treated as absent. `apiVersion` IS THE DOCUMENTED ONE: `app.appVersion`
+// is undefined on 1.13.7.
 
-// ── WHAT applyStyleProps MAY WRITE ON <body> (A418) ─────────────────────
+// ── WHAT applyStyleProps MAY WRITE ON <body> ─────────────────────
 //
 // The complete lists, so that switching a feature off removes exactly what
-// switching it on wrote, and so selfcarry_probe can hold styles.css to
-// reading every one of them. A name added to applyStyleProps that is not
-// here is written and never cleared.
-// (no 'squiggle' since A461, 2026-09-20 — the writer: "Remove the squiggle")
+// switching it on wrote, and so a test can hold styles.css to reading every
+// one of them. A name added to applyStyleProps that is not here is written
+// and never cleared.
 export const STYLE_KINDS = ['text', 'highlight', 'line'];
 export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-dim-active']
 	.concat(STYLE_KINDS.map((k) => 'ws-pos-' + k), STYLE_KINDS.map((k) => 'ws-ck-' + k));
@@ -37,16 +34,14 @@ export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line
 	.concat(['noun', 'verb', 'adj', 'adv', 'conj'].flatMap((k) => ['--ws-pos-' + k + '-color', '--ws-pos-' + k + '-bg']),
 		['filler', 'passive', 'illusion', 'misused', 'pronoun', 'dialogue', 'repeat'].flatMap((k) => ['--ws-ck-' + k + '-color', '--ws-ck-' + k + '-bg']));
 
-// THE USER AGENT, READ IN ONE PLACE (A418). Two things need it and neither
-// is OS detection: the INSTALLER version — the `obsidian/x.y.z` token, which
-// is the only place Obsidian reports the installer (the app version is
+// THE USER AGENT, READ IN ONE PLACE. Two things need it and neither is OS
+// detection: the INSTALLER version — the `obsidian/x.y.z` token, which is
+// the only place Obsidian reports the installer (the app version is
 // `apiVersion`; the two differ, and the installer is the part that freezes
-// on enable when it is old) — and the diagnostics' engine line (Chromium and
-// Electron versions, for a bug report). The plugin review's platform rule
-// bans `navigator.userAgent` on sight because plugins sniff it for the OS;
-// the OS is asked of `Platform` everywhere here, and this reads the string
-// through the global object so the one legitimate use does not read as the
-// other.
+// on enable when it is old) — and the diagnostics' engine line (Chromium
+// and Electron versions, for a bug report). The plugin review's platform
+// rule bans `navigator.userAgent` on sight because plugins sniff it for
+// the OS; the OS is asked of `Platform` everywhere here.
 export const wsUserAgent = () => {
 	try { const nav = window.navigator; return nav ? String(nav.userAgent || '') : ''; }
 	catch { return ''; }
@@ -71,69 +66,47 @@ export const WsPathSuggestModal = FuzzySuggestModal ? class extends FuzzySuggest
 
 // ── AND A PICKER FOR THE WRITER'S OWN PROPERTY KEYS ─────────────────────────
 //
-// Asked for from a vault: "the add a property needs its own button and
-// mini-modal menu, because people with many properties will not see that mini
-// menu with what property to pick."
+// A fuzzy modal has a search box, no cap, and is the control Obsidian uses
+// everywhere else a writer picks one thing out of many; a menu capped at
+// twenty rows does not offer the twenty-first at all. SAME CONDITIONAL
+// SHAPE as the path picker above, and for the same reason: `class X
+// extends undefined` throws at DEFINITION time, so on an API without
+// `FuzzySuggestModal` this must be null rather than absent — and the
+// caller falls back to the menu, which still works.
 //
-// The menu it replaces was capped at TWENTY rows, unsearchable, and opened at
-// the pointer inside another menu — so in a vault with forty keys the twenty-
-// first was not merely hard to find, it was not offered at all. A fuzzy modal
-// has a search box, no cap, and is the control Obsidian uses everywhere else
-// a writer picks one thing out of many.
-//
-// SAME CONDITIONAL SHAPE as the path picker above, and for the same reason:
-// `class X extends undefined` throws at DEFINITION time, so on an API without
-// `FuzzySuggestModal` this must be null rather than absent — and the caller
-// falls back to the menu, which still works.
-//
-// The item is the key; everything else in the line is a reason to pick it —
-// how many notes carry it, and whether it is spelled more than one way.
+// The item is the key; everything else in the line is a reason to pick it
+// — how many notes carry it, and whether it is spelled more than one way.
 export const WsPropSuggestModal = FuzzySuggestModal ? class extends FuzzySuggestModal<WsPropItem> {
 	_items: WsPropItem[];
 	_onPick: (item: WsPropItem) => void;
 	_newLabel: string;
 	_taken: WsPropItem[];
-	// TWO CALLERS, TWO QUESTIONS (2026-08-22). The columns picker asks
-	// "which property should become a column?" over `propKeysInScope`,
-	// whose items carry a note count and a spelling count. The DRAWER's
-	// label asks "which property should every row show?" over
-	// `orgKnownProps`, which is NAMES ONLY — the registry's list, with no
-	// scan behind it. So the placeholder is an argument, and a missing
-	// `n` prints the label alone rather than the string "undefined
-	// notes". Do NOT fake a count here to make the line uniform: a number
-	// nobody counted is worse than a line without one.
+	// TWO CALLERS, TWO QUESTIONS. The columns picker asks "which property
+	// should become a column?" over `propKeysInScope`, whose items carry a
+	// note count and a spelling count; another caller asks over
+	// `orgKnownProps`, which is NAMES ONLY. So the placeholder is an
+	// argument, and a missing `n` prints the label alone rather than the
+	// string "undefined notes". Do NOT fake a count here to make the line
+	// uniform: a number nobody counted is worse than a line without one.
 	constructor(app: App, items: WsPropItem[], onPick: (item: WsPropItem) => void, placeholder: string | null, newLabel?: string, taken?: WsPropItem[]) {
 		super(app);
 		this._items = items;
 		this._onPick = onPick;
 		// ── AND A WAY TO NAME ONE THAT DOES NOT EXIST YET ────────────
 		//
-		// Writer, 2026-08-25: "the button to add a proprety should be a
-		// search or add a new proprietey." The columns picker searched
-		// what already existed and nothing else — and REFUSED outright on
-		// a vault with no properties, so the writer most in need of naming
-		// one had no door at all.
-		//
-		// OPTIONAL, because the two callers ask different questions. Pass
-		// a label with `%s` in it and the list grows a create row; pass
-		// nothing and this is the search it always was.
+		// OPTIONAL, because the two callers ask different questions. Pass a
+		// label with `%s` in it and the list grows a create row; pass nothing
+		// and this is the search it always was. A picker that refuses a vault
+		// with no properties is no door for the writer most in need of naming
+		// one.
 		this._newLabel = newLabel || '';
-		// ── AND WHAT IT REFUSES IS NOT ALWAYS WHAT IT OFFERS (A141) ──
+		// ── AND WHAT IT REFUSES IS NOT ALWAYS WHAT IT OFFERS ──
 		//
-		// Writer, 2026-09-04: two doors instead of one — "add a new
-		// propriety that first ask the type and a name, and another
-		// button with add an existing propriety".
-		//
-		// THE NEW-PROPERTY DOOR OFFERS NOTHING TO PICK. Its list is
-		// empty on purpose — picking an existing key is the OTHER
-		// button's job — but it must still refuse a name the vault
-		// already uses, or it would offer to create a key `addProp`
-		// silently drops. With one list doing both jobs that door had to
-		// choose between refusing duplicates and staying empty.
-		//
-		// DEFAULTS TO THE ITEMS, so every existing caller is unchanged:
-		// a picker that offers a key is a picker that refuses to
-		// re-create it, which is what they all meant.
+		// THE NEW-PROPERTY DOOR OFFERS NOTHING TO PICK — picking an existing key
+		// is the other button's job — but it must still refuse a name the vault
+		// already uses, or it would offer to create a key `addProp` silently
+		// drops. DEFAULTS TO THE ITEMS, so every existing caller is unchanged: a
+		// picker that offers a key is a picker that refuses to re-create it.
 		this._taken = taken || items;
 		if (this.setPlaceholder) {
 			this.setPlaceholder(placeholder
@@ -168,9 +141,8 @@ export const WsPropSuggestModal = FuzzySuggestModal ? class extends FuzzySuggest
 			if (String(it && it.label || '').toLowerCase() === lower) return this._items;
 			if (String(it && it.key || '').toLowerCase() === lower) return this._items;
 		}
-		// LAST, so it never displaces a real key while typing narrows
-		// towards one — the same placement `orgPropsSearch` chose for its
-		// own create row in 2026-08-23.
+		// LAST, so it never displaces a real key while typing narrows towards
+		// one.
 		return this._items.concat([{
 			key: q, label: this._newLabel.replace('%s', q), isNew: true
 		}]);
@@ -178,7 +150,7 @@ export const WsPropSuggestModal = FuzzySuggestModal ? class extends FuzzySuggest
 	getItemText(item: WsPropItem) {
 		if (typeof item.n !== 'number') return item.label;
 		return item.label + '  ·  ' + item.n + (item.n === 1 ? ' note' : ' notes')
-			+ (item.spellings > 1 ? '  ·  ' + item.spellings + ' spellings' : '');
+			+ ((item.spellings || 0) > 1 ? '  ·  ' + item.spellings + ' spellings' : '');
 	}
 	onChooseItem(item: WsPropItem) { this._onPick(item); }
 } : null;
@@ -198,42 +170,14 @@ export const MENU_RULE_STYLES = ['solid', 'dashed', 'dotted', 'double', 'none'];
 // menu that quietly becomes unusable.
 export const MENU_MAX_COLS = 5;
 
-// The shortest a letterbox mask may be: about a line of text. It was the
-// ARROW ROW'S height, which made the smallest usable mask three lines deep
-// — and a writer who wants a hairline of shroud should have one.
-//
-// The arrows are what needed the room, so the arrows stand down instead:
-// under WS_ARROWS_MIN_PX there is no band to sit in, and a row of glyphs
-// floating on the page with no mask behind them is what the vault
-// photographed. A mask can be thinner than its ornament; it just cannot
-// carry it.
-// TOMBSTONE: 6px, "about half a line", on the argument that a writer
-// closing the gap all the way should be able to reach a hairline.
-// REVERSED BY THE WRITER (2026-08-22): "letterbox 6px is too low".
-//
-// The argument had missed that the band is ALSO ITS OWN DRAG HANDLE.
-// At six pixels the only control that could undo the six pixels was a
-// six-pixel target — so the setting could be reached and then not left,
-// which is the same fault as the report's other half (drag it too tall
-// and the menu goes, with the handle behind it). 24px is the smallest
-// band that is comfortably grabbable with a pointer and still visibly a
-// band; it stays UNDER `WS_ARROWS_MIN_PX`, so the older rule holds —
-// a mask may be thinner than the ornament it carries, it just cannot
-// carry it. Ask and the hairline comes back.
-//
-// 24 WAS STILL TOO LOW — reported a SECOND time: "i can still lose the
-// drag. change the minimum level to 60". The first fix reasoned about
-// the wrong thing. The handle is not the mask: it is the rule line, and
-// it already carries a 12px invisible hit area (`.ws-arrow-line
-// ::before`, ±6px), so grabbing was never about the mask's height.
-//
-// WHAT 60 ACTUALLY BUYS is CLEARANCE. The top mask's line sits at the
-// mask's own height, and Obsidian's tab strip occupies roughly the first
-// forty pixels of the window — so at 24 the line is BEHIND the app's own
-// chrome, where no pointer can reach it however large its hit area is.
-// 60 puts it clear. That is the writer's number and this is the reason
-// it works; if the chrome ever gets taller, this is the number that has
-// to move.
+// The shortest a letterbox mask may be. The arrows stand down under
+// WS_ARROWS_MIN_PX rather than the mask growing to hold them: a mask can
+// be thinner than its ornament; it just cannot carry it. WHAT 60 BUYS is
+// CLEARANCE: the top mask's line sits at the mask's own height, and
+// Obsidian's tab strip occupies roughly the first forty pixels of the
+// window — lower and the line is BEHIND the app's own chrome, where no
+// pointer can reach it however large its hit area is. If the chrome ever
+// gets taller, this is the number that has to move.
 export const WS_MASK_MIN_PX   = 60;
 // The tallest a mask may be drawn, as a fraction of the window. Named
 // here because TWO places need the same answer — the layout, which
@@ -252,9 +196,9 @@ export const WS_ARROWS_MIN_W  = 180;
 // pressed twice, say — would leave two listeners racing, and the OLDER
 // one would win by being first in the list and stopping the event. The
 // newest menu is the one on screen, so the newest listener is the one
-// that answers; every other returns at once. A HOLDER, not a `let`: it is
-// a module export now (A418) and an importer cannot reassign one — and it
-// is the DOCUMENT's, not the plugin's, because the listener list is.
+// that answers; every other returns at once. A HOLDER, not a `let`: an
+// importer cannot reassign a module export — and it is the DOCUMENT's,
+// not the plugin's, because the listener list is.
 export const WS_MENU_ESC: { owner: ((e: KeyboardEvent) => void) | null } = { owner: null };
 
 // ── The docked menu ─────────────────────────────────────────────────────────
@@ -268,18 +212,16 @@ export const WS_MENU_ESC: { owner: ((e: KeyboardEvent) => void) | null } = { own
 // the pop-up is FOR — summon it, type, gone. A panel you keep open is for
 // reaching things by eye and by arrow, not for querying.
 //
-// Guarded like the other Obsidian classes here: `extends undefined` throws
-// at definition time, and the harness stubs a bare 'obsidian'.
+// Guarded like the other Obsidian classes here: `extends undefined`
+// throws at definition time, and a stub of 'obsidian' may be bare.
 export const WS_MENU_VIEW = 'word-smith-menu';
 // The Outliner as a PANE. A vault asked for this window beside the writing —
 // dragged out, docked to a side, or a tab — and a leaf is all three for free.
 export const WS_OUTLINER_VIEW = 'word-smith-outliner';
-// THREE PANES, NOT ONE WINDOW WITH THREE TABS (A258, writer 2026-09-08:
-// "we need to split organizer, export and history now. also remove those
-// headers thing so we make the view bigger"). Export and History are views
-// of their own; each pane is the same window built on ONE tab with its tab
-// strip away, and Obsidian's tree drives all of them through the doors
-// (A254). `WS_OUTLINER_VIEW` keeps its id — saved workspaces hold it.
+// THREE PANES, NOT ONE WINDOW WITH THREE TABS. Export and History are
+// views of their own; each pane is the same window built on ONE tab with
+// its tab strip away, and Obsidian's tree drives all of them through the
+// doors. `WS_OUTLINER_VIEW` keeps its id — saved workspaces hold it.
 export const WS_EXPORT_VIEW = 'word-smith-export';
 export const WS_HISTORY_VIEW = 'word-smith-history';
 export const WS_PANE_VIEWS: Record<string, string> = { organizer: WS_OUTLINER_VIEW, export: WS_EXPORT_VIEW, history: WS_HISTORY_VIEW };
@@ -297,12 +239,12 @@ export const WS_PANE_ICONS: Record<string, string> = { organizer: 'list-tree', e
 // the contract. Traced as strokes so it keeps its serifs at 16px, where a
 // hairline serif on a filled letterform disappears.
 export const WS_ICON = 'word-smith-w';
-// The ribbon button's title — ONE string, because Obsidian keys the ribbon
-// entry on `<plugin id>:<title>` and the switch has to name the same entry
-// to take it off (A407).
+// The ribbon button's title — ONE string, because Obsidian keys the
+// ribbon entry on `<plugin id>:<title>` and the switch has to name the
+// same entry to take it off.
 // Whether an element is on screen, by Obsidian's own `isShown` where the
-// element has it (a hidden tab, a collapsed sidebar); an element without it
-// is taken as shown — the fixtures' elements, and a modal's.
+// element has it (a hidden tab, a collapsed sidebar); an element without
+// it is taken as shown — a stub's elements, and a modal's.
 export const wsElShown = (el: { isShown?: () => boolean } | null | undefined) => (!el || typeof el.isShown !== 'function') ? true : !!el.isShown();
 
 export const WS_RIBBON_TITLE = 'Open the Word-Smith menu';
@@ -325,33 +267,18 @@ export const WS_ICON_SVG =
 export const WsOutlinerView = ItemView ? class extends ItemView {
 	// THE TYPE IS THE CLASS'S, NOT A FIELD'S. Obsidian stamps `data-type`
 	// from `getViewType()` inside `super()`, before any field set after it
-	// exists — a field-driven type stamped every pane "undefined" (measured
-	// live 2026-09-08). Export and History are subclasses below, each
-	// answering its own type and tab.
+	// exists — a field-driven type stamps every pane "undefined". Export
+	// and History are subclasses below, each answering its own type and tab.
 	plugin: WordSmith;
 	_built: boolean;
 	host: WsHost;
 	constructor(leaf: WorkspaceLeaf, plugin: WordSmith) { super(leaf); this.plugin = plugin; }
 	paneTab()        { return 'organizer'; }
 	getViewType()    { return WS_OUTLINER_VIEW; }
-	// THE LEAF IS THE WHOLE WINDOW, so it is named for the window.
-	//
-	// TOMBSTONE, TWICE. It read 'Outliner' — the name of the FIRST TAB inside
-	// it — and became 'Manuscript' so that clicking Export or History did not
-	// leave the tab title claiming otherwise. A vault has now retired both:
-	// "don't call the outliner Manuscript", then "change the name of Outliner
-	// to Organizer", and separately the whole manuscript-folder CONCEPT is
-	// going.
-	//
-	// SO THE OLD OBJECTION IS ACCEPTED RATHER THAN ANSWERED. The leaf and its
-	// first tab share a name again. That is the lesser of the two problems:
-	// one word for this thing everywhere beats a third word invented to keep a
-	// title honest, especially when the third word names a concept the writer
-	// no longer uses.
-	//
-	// ONLY THE LABEL MOVES. `WS_OUTLINER_VIEW` and every command id stay as
-	// they are — those are written into saved workspaces and into hotkeys the
-	// writer has set, and changing them drops a pane on the next restart.
+	// THE LEAF IS THE WHOLE WINDOW, so it is named for the window. ONLY THE
+	// LABEL says Organizer: `WS_OUTLINER_VIEW` and every command id stay as
+	// they are — those are written into saved workspaces and into hotkeys
+	// the writer has set, and changing them drops a pane on the next restart.
 	getDisplayText() { return WS_PANE_NAMES[this.paneTab()]; }
 	getIcon()        { return WS_PANE_ICONS[this.paneTab()]; }
 
@@ -377,7 +304,7 @@ export const WsOutlinerView = ItemView ? class extends ItemView {
 		// element and a keydown only reaches an element that focus is inside.
 		this.contentEl.setAttribute('tabindex', '-1');
 		this.host = this.plugin.leafHost(this);
-		// ONE TAB, NO STRIP (A258): the pane is that tab and nothing else.
+		// ONE TAB, NO STRIP: the pane is that tab and nothing else.
 		this.plugin.openManuscriptModal({ host: this.host, tab: this.paneTab(), only: true });
 	}
 
@@ -387,12 +314,12 @@ export const WsOutlinerView = ItemView ? class extends ItemView {
 		// ladder is on `window` — a pane that forgot this would go on
 		// swallowing Escape for the rest of the session on behalf of a pane
 		// nobody can see.
-		try { if (this.host) this.host.teardown(); } catch (_) { wsCatch('onClose: if (this.host) this.host.teardown();', _); }
+		try { if (this.host && this.host.teardown) this.host.teardown(); } catch (_) { wsCatch('onClose: if (this.host) this.host.teardown();', _); }
 		this.contentEl.empty();
 	}
 } : null;
-// EXPORT AND HISTORY, EACH ITS OWN TYPE (A258): the same window built on
-// one tab; the class answers the type so Obsidian's `data-type` is right
+// EXPORT AND HISTORY, EACH ITS OWN TYPE: the same window built on one
+// tab; the class answers the type so Obsidian's `data-type` is right
 // from the first paint.
 export const WsExportView = WsOutlinerView ? class extends WsOutlinerView {
 	paneTab()     { return 'export'; }
@@ -510,49 +437,25 @@ export const WsMenuView = ItemView ? class extends ItemView {
 		try { this.plugin._panelPointerDown = false; } catch (_) { wsCatch('onClose: this.plugin._panelPointerDown = false;', _); }
 		// ── AND THE SCHEME GOES BACK ON THE BODY ──────────────────
 		//
-		// FOUND BY MOVING THE SUITE, not by reading. `menu_probe` drove
-		// the POP-UP thirty times and this panel not once; pointed at
-		// the panel, one assertion went red — "closing the menu puts the
-		// scheme back rather than leaving it stripped".
-		//
-		// It was true of the pop-up, whose `onClose` calls exactly these
-		// two, and had never been true here. Nobody had noticed because
-		// the pop-up was the only menu with a test. With the pop-up
-		// deleted — which is what the writer has asked for — the restore
-		// would have left the plugin with it.
-		//
-		// A THEME PICKED FROM THIS MENU writes its variables onto `body`
-		// live, so a menu that closes without handing them back leaves a
-		// half-painted vault behind it.
+		// A THEME PICKED FROM THIS MENU writes its variables onto `body` live,
+		// so a menu that closes without handing them back leaves a half-painted
+		// vault behind it — the pop-up's `onClose` calls exactly these two, and
+		// the panel's has to as well.
 		try {
 			if (this.plugin.barThemeOnCssChange) this.plugin.barThemeOnCssChange();
 			if (this.plugin.barThemeGuard) this.plugin.barThemeGuard();
 		} catch (_) { wsCatch('onClose: if (this.plugin.barThemeOnCssChange) …', _); }
 	}
 
-	// HAND THE EDITOR BACK AFTER ACTING. Every mode this panel toggles is
-	// applied to the ACTIVE editor — the letterbox masks it, the
-	// typewriter scrolls it, Hemingway locks its keys — and clicking a
-	// row in a docked leaf makes the PANEL active, so the toggle flipped
-	// and nothing on screen changed until the writer clicked back into
-	// their note. That reads as a broken switch.
-	//
-	// The pop-up never had this problem: it closes on the way out and
-	// focus returns by itself. A panel does not close, so it has to give
-	// the editor back on purpose.
-	// THE PANEL KEEPS THE FOCUS IT WAS GIVEN.
-	//
-	// It used to hand the editor back after every toggle, so a mode
-	// applied to the active editor would visibly apply. That fixed the
-	// symptom and broke the pane: a writer who quick-cycled INTO the panel
-	// was thrown out of it by their own first keystroke, with no way to
-	// stay and press a second. A pane you cannot remain in is not a pane.
-	//
-	// So the toggle applies the plugin's own state instead of moving the
-	// writer. `applyAll` is the same pass the settings tab runs after a
-	// change; it repaints from the REMEMBERED note (activeMarkdownView),
-	// which is exactly the lookup that made the Report work from here.
-	// Alt+direction is how you leave, the same as any other pane.
+	// THE PANEL KEEPS THE FOCUS IT WAS GIVEN. Every mode this panel toggles
+	// is applied to the ACTIVE editor — the letterbox masks it, the
+	// typewriter scrolls it, Hemingway locks its keys — and handing the
+	// editor back after every toggle would throw a writer who quick-cycled
+	// INTO the panel out of it by their own first keystroke. A pane you
+	// cannot remain in is not a pane. So the toggle applies the plugin's
+	// own state instead of moving the writer: `refresh` repaints from the
+	// REMEMBERED note (activeMarkdownView). Alt+direction is how you leave,
+	// the same as any other pane.
 	returnFocus() {
 		// `refresh()` is the plugin's own full apply pass — the same one
 		// `saveSettings(true)` runs. Every picker item already saves, so
@@ -562,17 +465,12 @@ export const WsMenuView = ItemView ? class extends ItemView {
 		try { if (this.plugin.refresh) this.plugin.refresh(); } catch (_) { wsCatch('returnFocus: if (this.plugin.refresh) this.plugin.refresh();', _); }
 	}
 
-	// WHAT CHANGED, WITHOUT REBUILDING WHAT DID NOT.
-	//
-	// Every state change used to call render(), which empties the panel and
-	// draws it again — so an open drawer was destroyed and recreated, and
-	// its opening animation replayed. On screen that is a folder closing
-	// and opening again under the pointer, which is what the vault filmed.
-	//
-	// A toggle changes what the rows SAY, not what they ARE: the counts on
-	// the right, and which drawer items read as on. Both are rewritten in
-	// place here, leaving every element — and every animation that has
-	// already played — alone.
+	// WHAT CHANGED, WITHOUT REBUILDING WHAT DID NOT. A full render empties
+	// the panel and draws it again, so an open drawer is destroyed and
+	// recreated and its opening animation replays — a folder closing and
+	// opening again under the pointer. A toggle changes what the rows SAY,
+	// not what they ARE: the counts on the right, and which drawer items
+	// read as on. Both are rewritten in place here.
 	refreshStates() {
 		const specs = this.plugin.menuRowSpecs();
 		const label = (row: WsMenuRowSpec) => (typeof row.label === 'function' ? row.label() : row.label);
@@ -586,18 +484,12 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			if (lab) lab.textContent = label(row);
 			// ── AND THE GLYPH, WHICH CAN ALSO BE A FUNCTION ──────────────
 			//
-			// Reported from a vault: the moon and the sun do not change
-			// places when the mode does. They were never redrawn. This
-			// refreshed the LABEL and the state after a toggle and nothing
-			// else, so `lightdark` flipped its word to "Light" while the
-			// moon stayed beside it — the one arrangement the row's own
-			// comment says must not happen, because a glyph arguing with
-			// the word beside it is worse than no glyph at all.
-			//
-			// REDRAWN ONLY WHERE THE ICON IS A FUNCTION. Every other row's
-			// glyph is a constant, and calling `setIcon` on all of them
-			// after every toggle is work with no possible effect — and it
-			// would wipe the hand-drawn flag marks, which are written into
+			// The moon and the sun change places when the mode does; a refresh of
+			// the label alone left the moon beside the word "Light" — a glyph
+			// arguing with the word beside it is worse than no glyph at all.
+			// REDRAWN ONLY WHERE THE ICON IS A FUNCTION: every other row's glyph
+			// is a constant, and calling `setIcon` on all of them after every
+			// toggle would wipe the hand-drawn flag marks, which are written into
 			// the icon element rather than named in Obsidian's set.
 			const icon = el.querySelector('.ws-menu-icon');
 			if (icon && !icon.classList.contains('is-blank')) {
@@ -680,9 +572,9 @@ export const WsMenuView = ItemView ? class extends ItemView {
 	}
 
 	// The rows inside a drawer. Split from drawDrawer so an opening and a
-	// redraw share one body — the two差 only in whether they animate.
+	// redraw share one body — the two differ only in whether they animate.
 	fillDrawer(box: HTMLDivElement, row: WsMenuRowSpec) {
-		for (const item of row.items()) {
+		for (const item of (row.items ? row.items() : [])) {
 			const isOn = (typeof item.on === 'function' ? item.on() : item.on);
 			const kid = box.createDiv({ cls: 'tree-item nav-file' });
 			const sub = kid.createDiv({
@@ -765,13 +657,11 @@ export const WsMenuView = ItemView ? class extends ItemView {
 		// the Search card, still removed when that card is shelved, but
 		// always at the top. The card's position is a pop-up decision, and
 		// this is the one place the two surfaces are allowed to differ.
-		// THE FILE EXPLORER'S OWN CONTAINERS, not just its row classes.
-		// Every remaining difference — row height, text colour, the
-		// scrollbar's position, the guide lines, the search field's width
-		// — came from styling those things myself while the tree got them
-		// from `nav-header` and `nav-files-container`. Wearing the
-		// containers means the app supplies all of it, and every rule of
-		// ours that was imitating one could go.
+		// THE FILE EXPLORER'S OWN CONTAINERS, not just its row classes. Every
+		// remaining difference — row height, text colour, the scrollbar's
+		// position, the guide lines, the search field's width — comes from
+		// `nav-header` and `nav-files-container`. Wearing the containers means
+		// the app supplies all of it.
 		const header = root.createDiv({ cls: 'ws-menu-header nav-header' });
 		const list = root.createDiv({
 			cls: 'ws-menu-list nav-files-container node-insert-event'
@@ -787,14 +677,9 @@ export const WsMenuView = ItemView ? class extends ItemView {
 		const specs = plugin.menuRowSpecs();
 		const label = (row: WsMenuRowSpec) => (typeof row.label === 'function' ? row.label() : row.label);
 
-		// THE FINDER, on trial. It was left out on the reasoning that a
-		// search field is what the pop-up is for — summon, type, gone —
-		// and that a pane you keep open is for reaching things by eye. That
-		// is an argument, not evidence, so here it is to be judged in use.
-		//
-		// It sits WHERE THE LAYOUT PUTS IT, like every other entry, and its
-		// value survives a re-render: the panel redraws on every click and
-		// on every theme change, and a query that vanished when a mode
+		// THE FINDER sits WHERE THE LAYOUT PUTS IT, like every other entry,
+		// and its value survives a re-render: the panel redraws on every click
+		// and on every theme change, and a query that vanished when a mode
 		// flipped would be worse than no finder at all.
 		const q = (this._q || '').trim().toLowerCase();
 
@@ -809,8 +694,8 @@ export const WsMenuView = ItemView ? class extends ItemView {
 				// controls sit in, and it carries the side margins that
 				// make the field start and end where the tree's does.
 				const bar = header.createDiv({ cls: 'nav-buttons-container' });
-				// Built by `wsMenuSearchInto` since 2026-09-02, so the modal
-				// menu gets exactly this box rather than a copy of it.
+				// Built by `wsMenuSearchInto`, so the modal menu gets exactly this box
+				// rather than a copy of it.
 				const inp = wsMenuSearchInto(bar);
 				inp.value = this._q || '';
 				inp.addEventListener('input', () => {
@@ -841,7 +726,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 					full: plugin.menuCommandName(id),
 					wide: true,
 					run: () => {
-						try { plugin.app.commands.executeCommandById(plugin.menuCommandId(id)); }
+						try { const cid = plugin.menuCommandId(id); if (cid) plugin.app.commands.executeCommandById(cid); }
 						catch (_) { wsCatch('render / run: plugin.app.commands.executeCommandById(plugin.menuCommandId(id));', _); }
 					}
 				} : null);
@@ -859,10 +744,8 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			// ONE COLUMN still: `is-wide` is a pop-up idea (centred footer
 			// rows) and would centre half a sidebar.
 			// `node`, not `item`: the drawer loop below binds `item` for each
-			// picker entry, and naming the tree node the same thing meant
-			// the container was built on whichever picker item happened to
-			// be in scope. It cost two probe failures and would have cost a
-			// vault a panel with no children in it.
+			// picker entry, and naming the tree node the same thing would build the
+			// container on whichever picker item happened to be in scope.
 			const node = rows.createDiv({ cls: 'tree-item nav-folder ws-menu-item' });
 			// The row's id on the element, so a keystroke standing on a
 			// drawer item can find the row that owns it.
@@ -913,24 +796,11 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			// pictures and the writer's own rows do not says theirs are second
 			// class, and they are the rows that writer chose.
 			{
-				// A PINNED COMMAND WEARS THE COMMAND-PALETTE GLYPH.
-				//
-				// (writer, 2026-08-22: pinned commands "all wear a CLOCK icon
-				// - illogical".) NOT A CLOCK, and worth recording because the
-				// name misleads: it was `chevron-right-circle`, which at 16px
-				// is an outlined circle with a short angled stroke off-centre
-				// and reads as a clock face. Nothing in this codebase ever
-				// asked for a clock here.
-				//
-				// It is a FALLBACK, fixed in this one place: a pinned command's
-				// id is `cmd:` + the command id, which is never in
-				// `menuFeatureDefs`, so `menuIconFor` returns '' and this
-				// line decides. Do not add a defs entry per command - the ids
-				// are the writer's and unbounded.
-				// MOVED TO `menuDrawIcon` (2026-09-02), which is the one writer
-				// of a menu row's glyph now. Thirty lines stood here and the
-				// modal's builder had none of them, so the modal drew no icons
-				// at all. Every note that explained a line travelled with it.
+				// Through `menuDrawIcon`, the one writer of a menu row's glyph — the
+				// modal's builder and this one draw the same thing. A pinned command
+				// (`cmd:` + its id, never in `menuFeatureDefs`) wears the command-palette
+				// glyph as a fallback there; do not add a defs entry per command — the
+				// ids are the writer's and unbounded.
 				plugin.menuDrawIcon(el, row.id);
 			}
 			el.createDiv({
@@ -966,7 +836,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			el.addEventListener('dragstart', (ev) => {
 				this._dragRow = row.id;
 				el.addClass('is-dragging');
-				try { ev.dataTransfer.setData('text/plain', row.id); } catch (_) { wsCatch('render: ev.dataTransfer.setData(\'text/plain\', row.id);', _); }
+				try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', row.id); } catch (_) { wsCatch('render: ev.dataTransfer.setData(\'text/plain\', row.id);', _); }
 			});
 			el.addEventListener('dragend', () => {
 				this._dragRow = null;
@@ -1057,7 +927,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 		// each naming the row it came from — the same rule the pop-up
 		// keeps, so a writer who learns one has learned the other.
 		if (q) {
-			const hits = [];
+			const hits: ({ sc: number; kind: 'row'; row: WsMenuRowSpec; label: string } | { sc: number; kind: 'item'; item: WsMenuPickItem; from: string })[] = [];
 			for (const id of plugin.menuVisibleLayout()) {
 				const row = specs.find(r => r.id === id);
 				if (!row) continue;
@@ -1112,24 +982,14 @@ export const WsMenuView = ItemView ? class extends ItemView {
 	}
 } : null;
 
-// TOMBSTONE (1.3.0): a WsCommandSuggestModal picked the command to pin for
-// exactly one build. Obsidian's settings window is ITSELF a modal, and
-// opening a second one over it closes the first — so pinning a command
-// threw the writer out of settings and back to the note. The picker is
-// inline in the tab now (see displayMenuTab), which is also where a
-// writer can see the shelf they are adding to.
-
-// Obsidian exposes its bundled CodeMirror 6 packages to plugins via require.
-// Decorations registered through registerEditorExtension render inside CM6's
-// own pipeline, which is the only glitch-free way to do per-line styling —
-// any MutationObserver / direct-DOM approach races the editor's rendering
-// and flickers (this is also how the reference typewriter-mode plugin works).
-// THE PACKAGES ARE IMPORTED (A418): Obsidian resolves `@codemirror/*` for a
-// plugin at run time and esbuild leaves them external, so the try/require
-// dance for "an extremely old build" is gone — 1.13.7 has them all. NULL
-// WHERE THEY DID NOT ANSWER: the harness's Chromium pages answer `{}` to
-// every package but obsidian, and the `if (!CM)` guards below say the same
-// thing they said before — the editor features are off, nothing else is.
+// Obsidian resolves `@codemirror/*` for a plugin at run time and esbuild
+// leaves them external. Decorations registered through
+// registerEditorExtension render inside CM6's own pipeline, which is the
+// only glitch-free way to do per-line styling — any MutationObserver /
+// direct-DOM approach races the editor's rendering and flickers. NULL
+// WHERE THEY DID NOT ANSWER: a page that stubs the packages gets `{}`,
+// and the `if (!CM)` guards below turn the editor features off, nothing
+// else.
 export const CM = typeof ViewPlugin === 'function'
 	? { ViewPlugin, Decoration, WidgetType, RangeSetBuilder, keymap, EditorView, Prec, isolateHistory }
 	: null;
@@ -1782,7 +1642,7 @@ export const COMPARATIVES = new Set(['more', 'less', 'fewer', 'better', 'worse',
 
 export function findMisused(tokens: WsToken[]) {
 	const hits: { from: number; to: number }[] = [];
-	const flag = (a: WsToken, b?: WsToken) => hits.push({ from: a.from, to: (b || a).to });
+	const flag = (a: WsToken, b?: WsToken | null) => hits.push({ from: a.from, to: (b || a).to });
 	for (let i = 0; i < tokens.length; i++) {
 		const t  = tokens[i];
 		const p  = i > 0 ? tokens[i - 1] : null;
@@ -2006,7 +1866,7 @@ export const REPETITION_STOPWORDS = new Set(`the a an and or but if then than th
 	said say says like make made take took see saw know knew think thought`
 	.split(/\s+/).filter(Boolean));
 
-// ── THE COMMON WORDS THE REPORT SETS ASIDE (A347) ────────────────────────
+// ── THE COMMON WORDS THE REPORT SETS ASIDE ────────────────────────
 //
 // The ten most used words of any English book are the, and, to, of, a, I,
 // in, was, he, that — the same ten for every book, telling the writer
@@ -2031,9 +1891,6 @@ export const REPORT_STOPWORDS = new Set(`the a an and or but nor if then than th
 	he's she's we're we've they're they've that's there's what's`
 	.split(/\s+/).filter(Boolean));
 
-// A word is an echo when the same word appeared within `window` words behind
-// it. Both occurrences are marked, because you cannot fix one without seeing
-// the other.
 // ── Dialogue ────────────────────────────────────────────────────────────────
 //
 // Every quoted stretch on a line, as {from,to} offsets INTO THAT LINE.
@@ -2294,50 +2151,37 @@ export function maskMarkup(text: string) {
 // Export — a manuscript out of the vault
 // ─────────────────────────────────────────────────────────────────────────────
 
-// A .docx is a ZIP of small XML files, and Word accepts STORED (uncompressed)
-// entries — so the whole container is a few hundred lines with no dependency
-// and no build step, which is the only way it can also work on a phone.
-// Writing it by hand rather than pulling in a library is a deliberate trade:
-// the library is ~500KB on a main.js that is already 1.3MB, and every byte of
-// that ships to every writer whether they export or not.
+// A .docx is a ZIP of small XML files, and Word accepts STORED
+// (uncompressed) entries — so the whole container is a few hundred lines
+// with no dependency and no build step, which is the only way it can
+// also work on a phone. A library is ~500KB shipped to every writer
+// whether they export or not.
 //
-// The CRC is the only fiddly part, and it is fiddly in a specific way: get it
-// wrong and Word does not say "bad checksum", it says the file is corrupt and
-// offers to recover it. So the table is standard and the probe checks a known
-// value rather than trusting it.
+// The CRC is the only fiddly part, and it is fiddly in a specific way:
+// get it wrong and Word does not say "bad checksum", it says the file is
+// corrupt and offers to recover it. So the table is standard and a test
+// checks a known value rather than trusting it.
 
 // ── THE TABLE'S SIZING MATH, PURE ───────────────────────────────────────────
 //
-// Extracted from `openManuscriptModal` (BRIEF-TABLE-SUBGRID Phase 1) so the
-// §9d floor rule is finally probe-reachable: inside the closure, jsdom's
-// chPx of 0 made `fitData` return before the floors ran, and the rule that
-// keeps a value from being cut was guarded by the live vault alone. Here
-// chPx is an ARGUMENT — there is no early return to hide behind, and the
-// tests in tests/fit_cols_test.js drive every branch.
+// PURE MEANS PURE: no DOM, no closure state, no settings. A caller
+// gathers roomPx/chPx/gapPx from the DOM and passes numbers in. The
+// table sizes its columns from real glyphs now (the grid), and these four
+// survive as the documented fallback, tested but uncalled.
 //
-// PURE MEANS PURE: no DOM, no closure state, no settings. The window
-// gathers roomPx/chPx/gapPx from the DOM (those reads stay in the closure,
-// where the elements are) and passes numbers in. These four survive the
-// subgrid swap (Phase 2) as the documented fallback, tested but uncalled.
-//
-// The constants and the 1.12 label weight are facts about the table, each
-// with one writer here — the closure may not restate them.
-//
-// TIGHTER THAN THE FIRST GUESS: the first floor weighted the label 1.2
-// and added 2ch of air, which on a column of en-dashes is a heading with
-// a third of its own width in padding. Labels ellipse, so a floor a
-// little short costs a letter rather than an overflow — the asymmetry
-// that makes tightening safe. MAX_TEXT is the lower ceiling for a column
-// of WORDS: fourteen characters is a point of view, a status, a place
-// name, or the first two of a list of tags — enough to recognise a value,
-// not enough for one long one to take a quarter of the pane (measured: a
-// 109px Pov column, every visible cell empty, sized by a note scrolled
-// off screen). The cap never squeezes the heading — see wsColPrefCh.
+// The constants and the 1.12 label weight are facts about the table,
+// each with one writer here. Labels ellipse, so a floor a little short
+// costs a letter rather than an overflow — the asymmetry that makes a
+// tight floor safe. MAX_TEXT is the lower ceiling for a column of
+// WORDS: fourteen characters is a point of view, a status, a place
+// name, or the first two of a list of tags — enough to recognise a
+// value, not enough for one long one to take a quarter of the pane. The
+// cap never squeezes the heading — see wsColPrefCh.
 export const WS_COL_MIN_CH = 4, WS_COL_MAX_CH = 20, WS_COL_MAX_TEXT_CH = 14, WS_COL_PAD_CH = 1;
 // THE LABEL COSTS MORE THAN ITS LETTERS: small caps with letter-spacing,
 // weighted rather than measured (a layout pass per label is a price the
-// window cannot pay, and jsdom could never answer).
-export function wsLabelCh(label: string) {
+// window cannot pay).
+export function wsLabelCh(label: string | null | undefined) {
 	return Math.ceil(String(label || '').length * 1.12);
 }
 // A column's PREFERRED width in ch: its widest seen value or its label,
@@ -2429,9 +2273,8 @@ export function wsZip(entries: { name: string; bytes: number[] }[]) {
 		const data = e.bytes;
 		const crc  = wsCrc32(data);
 		// Local header. Version 20, no flags, method 0 (stored). The DOS
-		// date/time is left at zero: Word does not care, and a real clock
-		// here would make two exports of the same manuscript differ byte
-		// for byte, which makes the probe's job harder for no gain.
+		// date/time is left at zero: Word does not care, and a real clock here
+		// would make two exports of the same manuscript differ byte for byte.
 		const local = ([] as number[]).concat(
 			u32(0x04034B50), u16(20), u16(0x0800), u16(0),
 			u16(0), u16(0), u32(crc), u32(data.length), u32(data.length),
@@ -2454,11 +2297,6 @@ export function wsZip(entries: { name: string; bytes: number[] }[]) {
 	return new Uint8Array(out);
 }
 
-// XML text escaping. Ampersand first or the escapes escape each other.
-// One id per section, shared by every target so a link means the same thing
-// in the .docx, the PDF and the markdown. Word bookmark names are the strict
-// case — letters, digits and underscore, no leading digit, 40 characters —
-// so that is what everything uses rather than three near-identical schemes.
 // A MANUSCRIPT'S WORD COUNT IS ROUNDED, and saying "about 52,437 words"
 // is a small tell that a machine wrote the title page: nobody counts a
 // novel to the word, and the figure is there to tell an editor what shape
@@ -2473,76 +2311,25 @@ export function wsRoundWords(n: number) {
 	return Math.round(w / 1000) * 1000;
 }
 
-// THE LINE ON THE TITLE PAGE, in one place because three targets print it
-// and they had three copies of the same sentence.
+// ── SHOULD THE NARROW CLASS FLIP? ─────────────────────────────
 //
-// ROUNDED IS THE CONVENTION and stays the default: a manuscript says "about
-// 90,000 words" because a publisher is costing paper, not auditing a count,
-// and a figure like 89,412 claims a precision that stops being true the
-// moment anybody edits a line. But it IS a claim about someone else's
-// expectations, and vaults have both kinds of reader — a competition entry
-// with a hard ceiling wants the exact number, and so does anyone whose
-// agent asked for one.
-// ── HOW FAR THE TITLE BLOCK DROPS ──────────────────────────────────────
+// The Organizer's width watcher observes the window root and writes a
+// class ON the window root, and `is-narrow` changes that element's own
+// layout — one pane instead of two, the name column capped. **An
+// observer must not write what it watches**: measure → write →
+// re-measure spins whenever the write moves the width back across the
+// threshold, which is a question about scrollbars, fonts and device
+// pixels rather than about this code — it settles on one machine and
+// freezes on another.
 //
-// Writer, 2026-09-03, twice: "the preview still don't center that title and
-// author and number of words on the first page." Asked which they meant,
-// they chose to CENTRE IT IN BOTH — the sheet and the .docx — so the two
-// stay in step.
-//
-// IT WAS A LITERAL EIGHT, matching the eight empty paragraphs Word drops.
-// Eight is about a third of the way down a Letter page, which is where a
-// generated title page usually lands and is not centred.
-//
-// COMPUTED FROM THE PAGE, because "centred" is not a number: it depends on
-// the paper, its margins, the point size and the line spacing, all four of
-// which this window lets a writer change. A fixed drop centres exactly one
-// combination of them.
-//
-// ONE WRITER, TWO READERS. `wsDocxBody` pushes this many empty paragraphs
-// and the preview sets `padding-top` to the same count of line boxes, so
-// the sheet on screen stays the sheet in the file — which is the coupling
-// the old comment existed to protect, kept rather than broken.
-//
-// THE BLOCK IS WHAT IT DRAWS: a title, an author line when there is one,
-// and a blank plus the word count when that is shown.
-// ── WHICH TARGETS HAVE PAGES ───────────────────────────────────────────
-//
-// The Export pane hides typesetting where there are no pages, and the
-// Structure group hides the page CHOICE for the same reason. Both asked
-// the `FORMATS` table, which is a local inside the tab builder — so the
-// second reader threw `FORMATS is not defined` and took the whole options
-// build with it. Measured in the running vault: the pane came back with
-// one select in it, the format picker, and nothing else.
-//
-// SO THE FACT MOVES HERE, where both readers can have it, and `FORMATS`
-// reads it too rather than restating it.
-// ── SHOULD THE NARROW CLASS FLIP? (A186, lifted 2026-09-06) ─────────────────
-//
-// The Organizer's width watcher observes the window root and writes a class
-// ON the window root, and `is-narrow` changes that element's own layout —
-// one pane instead of two, the name column capped. **An observer must not
-// write what it watches**: measure → write → re-measure spins whenever the
-// write moves the width back across the threshold, which is a question about
-// scrollbars, fonts and device pixels rather than about this code. That is
-// why it settles on a Mac Studio and freezes on a MacBook Pro.
-//
-// THE THREE GUARDS LIVED INSIDE `openManuscriptModal`, a closure nothing can
-// reach, so the one loop this plugin has a vault report for was the one part
-// of it no assertion held. A jsdom section was written and WITHDRAWN — it
-// went green against the unguarded build twice, because jsdom has no layout
-// and a shim has to invent the feedback and then proves whatever it
-// invented.
-//
-// SO THE DECISION IS PURE AND THE OBSERVER IS THE PLUMBING. A hostile width
-// sequence can be fed to this directly, in plain node, and the answer is the
-// shipped one rather than a copy of it — which is the lesson `wsUnderIndex`
-// cost earlier today.
-//
-// `state` IS MUTATED, deliberately: the budget has to remember across calls,
-// and threading it back through a return value would let a caller forget to
+// SO THE DECISION IS PURE AND THE OBSERVER IS THE PLUMBING. A hostile
+// width sequence can be fed to this directly, in plain node, and the
+// answer is the shipped one rather than a copy of it. `state` IS
+// MUTATED, deliberately: the budget has to remember across calls, and
+// threading it back through a return value would let a caller forget to
 // store it — which is the one mistake that turns the budget off.
-export function wsNarrowDecide(state: WsNarrowState, w: number, lim: number, now: number) {
+export type WsNarrowPick = { act: 'skip'; want?: boolean } | { act: 'flip'; want: boolean } | { act: 'stop'; want: boolean; width: number; limit: number };
+export function wsNarrowDecide(state: WsNarrowState, w: number, lim: number, now: number): WsNarrowPick {
 	if (!w) return { act: 'skip' };
 	// GUARD 1 — A DEAD BAND. It goes narrow AT the limit and wide again only
 	// well above it, so no single width can be on both sides of the answer.
@@ -2563,43 +2350,36 @@ export function wsNarrowDecide(state: WsNarrowState, w: number, lim: number, now
 	state.isNarrow = want;
 	return { act: 'flip', want: want };
 }
-// ── IS THE EXPLORER PAINTER IN A STORM? (A202) ─────────────────────────────
+// ── IS THE EXPLORER PAINTER IN A STORM? ─────────────────────────────
 //
 // `attachExplorerObserver` watches the file-explorer subtree and
 // `patchExplorerDOM` writes into it. Our own writes are filtered out (see
-// `explorerRecordsMatter`), but the loop Obsidian can close for us is not
-// ours to filter: our badges change a row's height, the explorer's VIRTUAL
-// SCROLLER re-renders rows to suit, that is Obsidian removing and adding
-// nodes, we repaint, heights change again. **That fight only exists when the
-// tree scrolls** — a small screen with a big vault, which is the cleanest
-// account anyone has offered of “a problem on my MacBook Pro, but not at all
-// on Mac Studio”.
+// `explorerRecordsMatter`), but the loop Obsidian can close for us is
+// not ours to filter: our badges change a row's height, the explorer's
+// VIRTUAL SCROLLER re-renders rows to suit, that is Obsidian removing
+// and adding nodes, we repaint, heights change again. That fight only
+// exists when the tree scrolls — a small screen with a big vault.
 //
-// NOT REPRODUCED HERE. This is a guard for a mechanism nobody has watched
-// fire, like the three on `is-narrow` before it, and it makes the same
-// trade: **a freeze becomes a missing decoration and a sentence on screen**,
-// and a writer can report a sentence. A frozen Obsidian cannot even have its
-// console opened — that reporter said so.
-//
-// THE WINDOW IS DELIBERATELY LONG. A writer flicking through a big tree
-// makes bursts, and a burst is not a storm; three seconds of nearly every
-// frame is not something a hand does. The cost of firing early is badges
-// that vanish during a scroll, which would be a bug report of its own.
+// A GUARD, NOT A CURE: a freeze becomes a missing decoration and a
+// sentence on screen, and a writer can report a sentence; a frozen
+// Obsidian cannot even have its console opened. THE WINDOW IS
+// DELIBERATELY LONG: a writer flicking through a big tree makes bursts,
+// and a burst is not a storm; three seconds of nearly every frame is
+// not something a hand does. Firing early would make badges vanish
+// during a scroll.
 export function wsPassStorm(state: { marks: number[] }, now: number) {
 	state.marks.push(now);
 	while (state.marks.length && now - state.marks[0] > WS_STORM_MS) state.marks.shift();
 	return state.marks.length > WS_STORM_PASSES;
 }
 export function wsPassState(): { marks: number[] } { return { marks: [] }; }
-// ── SOON, AND NOT ON A FRAME (A279) ────────────────────────
+// ── SOON, AND NOT ON A FRAME ────────────────────────
 //
-// AN OCCLUDED ELECTRON WINDOW THROTTLES `requestAnimationFrame` TO NOTHING —
-// measured at A258, where a tick painter drew no boxes at all while Obsidian
-// sat behind the terminal. A zero-millisecond timeout still runs. Anything
-// that must paint whether or not the window is on screen asks for this one.
-//
-// NOT A GENERAL REPLACEMENT: an animation SHOULD stop while nobody is
-// looking, and those keep their frames.
+// AN OCCLUDED ELECTRON WINDOW THROTTLES `requestAnimationFrame` TO
+// NOTHING; a zero-millisecond timeout still runs. Anything that must
+// paint whether or not the window is on screen asks for this one. NOT A
+// GENERAL REPLACEMENT: an animation SHOULD stop while nobody is looking,
+// and those keep their frames.
 export function wsSoon(fn: () => void) {
 	// window's timer, never the bare global (a pop-out's work belongs to its
 	// window); a fixture with no window at all runs the work now.
@@ -2613,34 +2393,26 @@ export const WS_STORM_PASSES = 150;
 
 // ── ONE THROW MUST NOT TAKE A FEATURE — OR A NEIGHBOUR — WITH IT ──────
 //
-// Obsidian fires an event by walking a plain list of callbacks. A throw in
-// ours does not stop at us: it stops the WALK, so every handler registered
-// after ours — other plugins’ — never runs for that event. The same shape
-// applies to a DOM listener on `document`: the throw is reported and the
-// listener survives, but everything our own handler meant to do after the
-// failing line is silently skipped, for ever, with no mark on screen.
-//
-// MEASURED FIRST, and it changed the scope. Every state latch in the plugin
-// (`_patchRunning`, `_fitPending`, `_themeGuarding`, `_folderWordBusy`,
-// `_panelRefreshPending`) already clears BEFORE its risky work or inside a
-// catch-all, so the “a throw leaves a latch shut and the feature is dead”
-// story does not apply here — 8 latches checked, 8 already safe. What is
-// left is the boundary, which is what this guards.
+// Obsidian fires an event by walking a plain list of callbacks. A throw
+// in ours does not stop at us: it stops the WALK, so every handler
+// registered after ours — other plugins' — never runs for that event.
+// The same shape applies to a DOM listener on `document`: the throw is
+// reported and the listener survives, but everything our own handler
+// meant to do after the failing line is silently skipped, for ever, with
+// no mark on screen.
 //
 // IT REPORTS. A guard that swallows quietly is worse than the throw it
 // caught, so: one console line per SITE (not per fire — a handler that
-// throws on mousemove would fill the console in a second), and one Notice
-// per session, because the reporter who could not open a console is the
-// reason any of this exists.
+// throws on mousemove would fill the console in a second), and one
+// Notice per session, for the writer who cannot open a console.
 export const WS_GUARD_SEEN = new Set<string>();
 export let WS_GUARD_TOLD = false;
-// SET BY THE PLUGIN, not imported: this file is loaded in plain node by the
-// probes, where `Notice` does not exist and a Notice is not wanted anyway.
+// SET BY THE PLUGIN, not imported: this file also loads in plain node,
+// where `Notice` does not exist.
 export let WS_GUARD_TELL: ((where: string, err: unknown) => void) | null = null;
-export function wsGuardTell(fn: (where: string, err: unknown) => DocumentFragment) { WS_GUARD_TELL = fn; }
-// FOR THE PROBES, and for a second plugin instance in the same process:
-// without this the “once per site” memory carries between cases and the
-// second case asserts on a report the first one already made.
+export function wsGuardTell(fn: (where: string, err: unknown) => void) { WS_GUARD_TELL = fn; }
+// For a test, and for a second plugin instance in the same process:
+// without this the "once per site" memory carries between them.
 export function wsGuardReset() { WS_GUARD_SEEN.clear(); WS_GUARD_TOLD = false; }
 export function wsGuardSeen() { return Array.from(WS_GUARD_SEEN); }
 export function wsGuardReport(where: string, err: unknown) {
@@ -2658,24 +2430,6 @@ export function wsGuardReport(where: string, err: unknown) {
 	}
 	return first;
 }
-// `where` IS A SENTENCE THE WRITER COULD READ, not an internal name. It ends
-// up in a Notice, and “wsOrgTick” tells them nothing about what stopped.
-// ── REPAIR ON READ (A231-1b, stability brief item 4) ────────────────────
-//
-// data.json is a file a writer can edit, a sync can half-write, and an
-// older build can leave a different shape in. `Object.assign` put whatever
-// it held over the defaults, so a string where a number belongs, or null
-// where an object does, reached every reader that trusted the default's
-// shape — and those readers are everywhere, most of them guarded by
-// nothing. THE DEFAULTS ARE THE SCHEMA: one writer of the shape, no second
-// table to keep in step. A key whose default is null or undefined accepts
-// anything; a key not in the defaults is not this function's business.
-//
-// STRICT ON PURPOSE: `"15"` for a font size is reset, not coerced. A coercion
-// is a second opinion about what the writer meant, and the default is the
-// one value every reader already copes with.
-// The settings read as the bag they are on disk: for the walks that visit every
-// key by name, where the shape of one key is exactly what is being checked.
 export const wsBag = (o: object): Record<string, unknown> => o as Record<string, unknown>;
 // A folder by its shape, not its class: a vault folder has `children` where a
 // note has none, and the fixtures build plain objects of the same shape.
@@ -2684,8 +2438,6 @@ export const wsIsFolder = (f: TAbstractFile | null | undefined): f is TFolder =>
 export const wsIsFile = (f: TAbstractFile | null | undefined): f is TFile => !!f && !Array.isArray((f as { children?: unknown }).children);
 // a note's stat, read by shape for the same reason (a folder has none)
 export const wsStatOf = (f: TAbstractFile | null | undefined): FileStats | null => (f && (f as { stat?: FileStats }).stat) || null;
-// A value as text, for a String() over an unknown: an object says its JSON, not
-// [object Object], and nothing says 'undefined'.
 // AN EVENT'S TARGET AS A NODE, or null. Not `instanceof Node`: a popout
 // window's nodes are another realm's, and the test would refuse them — the
 // one assertion here rides a duck test every realm answers.
@@ -2705,8 +2457,8 @@ export function wsListOf(v: unknown): unknown[] {
 	return Array.isArray(v) ? v : [v];
 }
 // …AND AS AN ELEMENT, or null: by `nodeType`, which every realm's element
-// answers 1 to, where `instanceof Element` (and a global that a probe's
-// window may not have) would not.
+// answers 1 to, where `instanceof Element` (and a global a window may not
+// have) would not.
 export function wsElOf(t: EventTarget | null | undefined): Element | null {
 	const n = wsNodeOf(t);
 	return n && n.nodeType === 1 ? (n as Element) : null;
@@ -2732,6 +2484,20 @@ export function wsKindOf(v: unknown) {
 	if (Array.isArray(v)) return 'array';
 	return typeof v;
 }
+// ── REPAIR ON READ ────────────────────────────────────────────────
+//
+// data.json is a file a writer can edit, a sync can half-write, and an
+// older build can leave a different shape in. `Object.assign` would put
+// whatever it held over the defaults, so a string where a number belongs,
+// or null where an object does, would reach every reader that trusts the
+// default's shape. THE DEFAULTS ARE THE SCHEMA: one writer of the shape,
+// no second table to keep in step. A key whose default is null or
+// undefined accepts anything; a key not in the defaults is not this
+// function's business.
+//
+// STRICT ON PURPOSE: `"15"` for a font size is reset, not coerced. A
+// coercion is a second opinion about what the writer meant, and the
+// default is the one value every reader already copes with.
 export function wsRepairSettings(live: WordSmithSettings, base: WordSmithSettings) {
 	const settings = wsBag(live), defaults = wsBag(base);
 	const repaired: string[] = [];
@@ -2751,7 +2517,7 @@ export function wsRepairSettings(live: WordSmithSettings, base: WordSmithSetting
 	return repaired;
 }
 
-// ── A PARAGRAPH AND THE LINE IT CAME FROM (A231-2b) ──────────────────────
+// ── A PARAGRAPH AND THE LINE IT CAME FROM ──────────────────────
 //
 // The reader shows prose the export rendered; the note holds the same prose
 // as markdown. To put the caret where the writer clicked, the paragraph's
@@ -2759,7 +2525,7 @@ export function wsRepairSettings(live: WordSmithSettings, base: WordSmithSetting
 // hashes, emphasis, a link's text without its target, a quote's chevron.
 // The FIRST line that reads the same wins — a repeated line goes to its
 // first appearance, which is where a reader would look too.
-export function wsSnippetOf(text: string) {
+export function wsSnippetOf(text: string | null | undefined) {
 	return String(text || '').replace(/\s+/g, ' ').trim().slice(0, 80);
 }
 export function wsPlainLine(line: string) {
@@ -2783,22 +2549,23 @@ export function wsLineOfSnippet(md: string, snippet: string | null | undefined) 
 	return -1;
 }
 
-// ── THE SWALLOWED CATCH, NAMED (A252-4) ───────────────────────────────────
+// ── THE SWALLOWED CATCH, NAMED ───────────────────────────────────
 //
-// 458 `catch (_) {}` sites (2026-09-08), each a place where a throw died
-// without a mark: the rest of the try did not run, and nobody was told.
-// Every one now reads `catch (_) { wsCatch(where, _); }`, the sentence
-// read from the source by `ws-dev/name-catches.js` — the method, the
-// closure, the first statement of the try — so a console line can say
-// what did not finish.
+// A `catch (_) {}` is a place where a throw dies without a mark: the
+// rest of the try did not run, and nobody was told. Every catch site
+// reads `catch (_) { wsCatch(where, _); }` — the method, the closure,
+// the first statement of the try — so a console line can say what did
+// not finish.
 //
 // NOT THE GUARD'S NOTICE. Most of these sites expect to throw now and
 // then — a file that is not there, an API an older Obsidian lacks, a
 // listener already removed — and a Notice on every start for a battery
-// file that does not exist would be the noise the writer switched the
+// file that does not exist would be the noise a writer switches the
 // plugin off over. So: the console, ONCE per site per session, and the
 // count; the diagnostics carry the list, so a report can quote it.
 export const WS_CATCH_SEEN = new Map<string, { n: number; last: string }>();
+// `where` IS A SENTENCE THE WRITER COULD READ, not an internal name. It ends
+// up in a Notice, and “wsOrgTick” tells them nothing about what stopped.
 export function wsCatch(where: string, err: unknown) {
 	const rec = WS_CATCH_SEEN.get(where);
 	const msg = err instanceof Error ? err.message : (typeof err === 'string' ? err : (err ? JSON.stringify(err) : ''));
@@ -2812,11 +2579,11 @@ export function wsCatchSeen() {
 }
 export function wsCatchReset() { WS_CATCH_SEEN.clear(); }
 
-// WHAT HANGS BELOW THE NAVBAR (A293). On a phone Obsidian draws
-// `.mobile-navbar` over the foot of a leaf that runs the full screen; a
-// raised one is 80px where a plain one is 48 and its own views are padded
-// for the plain one. Measured, not guessed: the element’s bottom against
-// the navbar’s top, in pixels, or 0 where there is no navbar.
+// WHAT HANGS BELOW THE NAVBAR. On a phone Obsidian draws `.mobile-navbar`
+// over the foot of a leaf that runs the full screen; a raised one is
+// 80px where a plain one is 48 and its own views are padded for the
+// plain one. Measured, not guessed: the element's bottom against the
+// navbar's top, in pixels, or 0 where there is no navbar.
 export function wsNavbarOverlap(el: HTMLElement) {
 	const nav = document.querySelector('.mobile-navbar');
 	if (!nav || !el) return 0;
@@ -2825,58 +2592,46 @@ export function wsNavbarOverlap(el: HTMLElement) {
 	return Math.max(0, Math.round(b.bottom - n.top));
 }
 
-// A PATH THE WRITER TYPED, in the vault's own spelling (plugin guidelines,
-// read 2026-09-11: “use normalizePath() for user-defined paths”). Obsidian’s
+// A PATH THE WRITER TYPED, in the vault's own spelling. Obsidian's
 // `normalizePath` trims, turns backslashes round, folds `//`, strips the
 // ends' slashes and NFC-normalises — and answers '/' for nothing, which
-// every caller here wants as '' so its default can apply. A probe's stub
-// may not carry it; the fallback does the first four by hand. The vault
-// knows a file under ONE exact string and answers null for every other
-// spelling, so before this a pasted `Word-Smith\ws-structure.md` was “not
-// found”, the legacy name was tried, and a second store could be made
-// beside the first — the duplicate-store fault (A182) by another door.
-// Normalising can only find MORE, never move a store: a file that exists
-// is already at its normalised path.
-// ── THE SAME TEXT IN OTHER LINE ENDINGS IS THE SAME TEXT (A295, 2026-09-15) ──
+// every caller here wants as '' so its default can apply. A stub may not
+// carry it; the fallback does the first four by hand. The vault knows a
+// file under ONE exact string and answers null for every other spelling,
+// so a pasted `Word-Smith\ws-structure.md` would be "not found" and a
+// second store could be made beside the first. Normalising can only find
+// MORE, never move a store: a file that exists is already at its
+// normalised path.
 //
-// A user: "any little interaction with it (including updating Word-Smith)
-// updates the ws-structure.md file, and it messes up my recent files log".
-// MEASURED: the store's composer is byte-identical from 1.4.3 through 1.5.1,
-// and Obsidian's `vault.process` writes nothing when the callback hands
-// back the very string it was given (the asar: `if ((o = t(r)) === r)
-// return r`). So a store rewritten on an update composed DIFFERENT bytes —
-// and the one difference that is nobody's edit is the line ending: an
-// editor or a sync client that saves CRLF turns every `\n` the plugin wrote
-// into `\r\n`, the plugin composes `\n` again, and the two never agree,
-// so every save rewrites the file and every sync carries it. This is the
-// compare the three store writers make before handing `process` a new
-// text: equal but for `\r`, and the file is left exactly as it is.
+// ── THE SAME TEXT IN OTHER LINE ENDINGS IS THE SAME TEXT ──
+//
+// Obsidian's `vault.process` writes nothing when the callback hands back
+// the very string it was given. An editor or a sync client that saves
+// CRLF turns every `\n` the plugin wrote into `\r\n`, the plugin
+// composes `\n` again, and the two never agree — so every save would
+// rewrite the file and every sync carry it. This is the compare the
+// store writers make before handing `process` a new text: equal but for
+// `\r`, and the file is left exactly as it is.
 export function wsTextSameEol(a: string, b: string) {
 	const norm = (t: string | null | undefined) => String(t == null ? '' : t).replace(/\r\n?/g, '\n');
 	return norm(a) === norm(b);
 }
-// ── A CONTEXT IS LENT A MODULE'S MEMBERS BY NAME (2026-09-15) ────────────
+// ── A CONTEXT IS LENT A MODULE'S MEMBERS BY NAME ────────────
 //
-// The Organizer's table is handed a context of ninety names by the window
-// that opens it (44-organizer-table.js reads `ctx.orgColRaw` and the rest).
-// Fifty-five of those are members of the modules lifted out of the window
-// the day before — a function, or a live `let` the module returns as a
-// getter and a setter — and each was written out by hand as one more
-// accessor: `get orgColRaw() { return orgColRaw; }`. This lends them instead:
-// a getter each, reading the module when asked (so a live let is read
-// when it is read, not when it is lent), and a setter wherever the module
-// has one, so a write through the context lands where the let lives.
+// The Organizer's table is handed a context of ninety names by the
+// window that opens it, most of them members of the modules the window
+// is built from — a function, or a live `let` the module returns as a
+// getter and a setter. This lends them: a getter each, reading the
+// module when asked (so a live let is read when it is read, not when it
+// is lent), and a setter wherever the module has one, so a write through
+// the context lands where the let lives.
 //
 // IT REFUSES A NAME THE MODULE DOES NOT HAVE, at open time, loudly — a
-// misspelt accessor used to hand the table `undefined` and the table read
-// it without complaint.
-//
-// AND THE CHECKER KNOWS WHAT WAS LENT (A422 step 4): `.lend(mod, names)`
-// takes the names as keys OF THE MODULE and answers a bag whose type has
-// them, so `const tableCtx: WsOrgCtx = wsCtxLend(own).lend(…)…bag()` is
-// checked member by member against the declared context (org-ctx.ts) —
-// the bag a probe once held by reading the table's source for `ctx.<name>`.
-// The one assertion is inside, after `defineProperty` has made it true.
+// misspelt accessor would hand the table `undefined`, and the table
+// would read it without complaint. AND THE CHECKER KNOWS WHAT WAS LENT:
+// `.lend(mod, names)` takes the names as keys OF THE MODULE and answers
+// a bag whose type has them, so the bag is checked member by member
+// against the declared context (org-ctx.ts).
 export function wsCtxLend<T extends object>(into: T) {
 	return {
 		lend<M extends object, K extends keyof M & string>(mod: M, names: K[]) {
@@ -2902,28 +2657,27 @@ export function wsPathNorm(p: string) {
 	return out === '/' ? '' : out;
 }
 
-// A MENU ON A PHONE IS A SHEET AT THE BOTTOM OF THE BODY (A294, from the
-// writer’s shot of the property-type chooser showing four rows of six).
-// `.is-phone .menu { position: absolute; bottom: 0 }` puts every Obsidian
-// menu at the screen’s foot, under the raised navbar that covers the last
-// 80px; the pane root’s stamp cannot reach an element on the body. So the
-// sheet is marked once it is shown and the body carries the bar’s height,
-// measured then — the bar is raised or plain, and the keyboard comes and
-// goes — and the sheet sits on it. Every menu the Organizer opens comes
-// from `wsMenu()`, which is `new Menu()` with the lift behind its two
-// show doors.
-// THE LAST SHEET, MEASURED 300ms AFTER IT WAS SHOWN (A294-b: the second
-// shot showed four rows with the lift deployed). A menu is gone by the
-// time the palette runs “Copy diagnostics”, so the record is taken when
-// the menu is drawn and printed later: every row, the rows without a box,
-// the rows with something ELSE under a finger at their middle
+// A MENU ON A PHONE IS A SHEET AT THE BOTTOM OF THE BODY. `.is-phone
+// .menu { position: absolute; bottom: 0 }` puts every Obsidian menu at
+// the screen's foot, under the raised navbar that covers the last 80px;
+// the pane root's stamp cannot reach an element on the body. So the
+// sheet is marked once it is shown and the body carries the bar's
+// height, measured then — the bar is raised or plain, and the keyboard
+// comes and goes — and the sheet sits on it. Every menu the Organizer
+// opens comes from `wsMenu()`, which is `new Menu()` with the lift
+// behind its two show doors.
+//
+// THE LAST SHEET, MEASURED 300ms AFTER IT WAS SHOWN. A menu is gone by
+// the time the palette runs "Copy diagnostics", so the record is taken
+// when the menu is drawn and printed later: every row, the rows without
+// a box, the rows with something ELSE under a finger at their middle
 // (elementFromPoint — a navbar painted over the sheet counts here), the
-// sheet’s rect and computed bottom, the body’s stamp, the navbar.
+// sheet's rect and computed bottom, the body's stamp, the navbar.
 export let WS_LAST_SHEET: string | null = null;
-// STORED TOO (A294-d): three pastes came after a restart each — Android
-// drops the app when the writer switches to the chat and back — so the
-// in-memory record never reached a report. localStorage is per vault per
-// device and survives that; the same door the start guard uses.
+// STORED TOO: Android drops the app when the writer switches to a chat
+// and back, so an in-memory record never reaches a report. localStorage
+// is per vault per device and survives that; the same door the start
+// guard uses.
 export const WS_SHEET_KEY = 'word-smith:last-sheet';
 export function wsLocalStore() {
 	try { return window.localStorage || null; } catch { return null; }
@@ -2954,7 +2708,7 @@ export function wsSheetRecord(dom: Element, phone: boolean, store: boolean) {
 			'rect ' + R(a), 'bottom ' + Math.round(a.bottom),
 			'css bottom ' + cs.bottom + ' z ' + cs.zIndex + ' pos ' + cs.position + ' class "' + dom.className + '"',
 			'body var ' + (document.body.style.getPropertyValue('--ws-mobilebar-h') || 'none'), 'innerH ' + window.innerHeight,
-			'navbar ' + (n ? R(n) + ' z ' + getComputedStyle(nav).zIndex : 'none'),
+			'navbar ' + ((nav && n) ? R(n) + ' z ' + getComputedStyle(nav).zIndex : 'none'),
 			'scroll ' + (sc ? sc.scrollHeight + '/' + sc.clientHeight : '-')].join(' ');
 		if (store !== false) {
 			WS_LAST_SHEET = line;
@@ -2971,16 +2725,16 @@ export function wsLastSheet() {
 	const kept = ls ? ls.getItem(WS_SHEET_KEY) : null;
 	return kept ? 'none this session; kept from an earlier one: ' + kept : 'none this session';
 }
-// THE LAST KEYBOARD (A298): a field focused in a pane on a phone, and 700ms
-// later the geometry that a paste can carry — the leaf, the root, the body
-// and its bar padding, the panel and its scroll, the field, the window and
-// the visual viewport, Obsidian’s --keyboard-height, the bar. Kept like the
-// sheet: the app restarts between the look and the command.
+// THE LAST KEYBOARD: a field focused in a pane on a phone, and 700ms
+// later the geometry that a paste can carry — the leaf, the root, the
+// body and its bar padding, the panel and its scroll, the field, the
+// window and the visual viewport, Obsidian's --keyboard-height, the bar.
+// Kept like the sheet: the app restarts between the look and the command.
 export const WS_KB_KEY = 'word-smith:last-keyboard';
 export let WS_LAST_KEYBOARD: string | null = null;
 export function wsKeyboardRecord(root: HTMLElement) {
 	try {
-		const R = (el: Element) => { if (!el) return 'none'; const r = el.getBoundingClientRect(); return Math.round(r.top) + '..' + Math.round(r.bottom) + ' (' + Math.round(r.height) + ')'; };
+		const R = (el: Element | null) => { if (!el) return 'none'; const r = el.getBoundingClientRect(); return Math.round(r.top) + '..' + Math.round(r.bottom) + ' (' + Math.round(r.height) + ')'; };
 		const q = (sel: string) => root.querySelector(sel);
 		const leaf = root.closest ? root.closest('.workspace-leaf-content') : null;
 		const body = q('.ws-uni-body'), panel = q('.ws-uni-panel');
@@ -3034,11 +2788,10 @@ export function wsMenu() {
 	return m;
 }
 
-// THE SCOPE A CONTEXT HOLDS (A238). The Export tab hands its context
-// `scope: () => exportScope()`; the modal hands a string. A reader that
-// does `String(ctx.scope)` prints the function — "() => exportScope()" in
-// the title box, seen in a screenshot. One reader, which asks a function
-// and takes a string as it is.
+// THE SCOPE A CONTEXT HOLDS. The Export tab hands its context `scope:
+// () => exportScope()`; an older caller hands a string. A reader that
+// does `String(ctx.scope)` prints the function. One reader, which asks a
+// function and takes a string as it is.
 export function wsCtxScope(ctx: { scope?: unknown } | null | undefined) {
 	try {
 		const s = ctx && ctx.scope;
@@ -3078,49 +2831,31 @@ export const WS_NARROW_FLIPS = 8;
 export interface WsNarrowState { isNarrow: boolean | null; flips: number; flipWindow: number }
 export function wsNarrowState(): WsNarrowState { return { isNarrow: null, flips: 0, flipWindow: 0 }; }
 
-// ── WHAT NEVER REACHES THE DISK (A211) ────────────────────────────────────
+// ── WHAT NEVER REACHES THE DISK ────────────────────────────────────
 //
-// Writer, 2026-09-06: “History pane should NOT keep remembering across
-// restarts”, answering the one open question in a larger ask — the window
-// should remember how you were looking FOR THE SESSION, and start fresh
-// after a restart.
+// A choice about the MANUSCRIPT persists — the selected folder, targets,
+// flags, the column set, the tree order, the ticks. A choice about the
+// VIEW lasts the session. These three are view.
 //
-// THE RULE THAT FALLS OUT: a choice about the MANUSCRIPT persists — the
-// selected folder, targets, flags, the column set, the tree order, the
-// ticks. A choice about the VIEW lasts the session. These three are view.
-//
-// NOT MOVED TO ANOTHER OBJECT, which is the design that keeps this small:
-// they go on living on `this.settings`, so the nine places that read them
-// and the forty-three assertions that name them are untouched. What
-// changes is only that the SAVE strips them and the LOAD drops them — the
-// one place where “does this reach the disk” is decided, rather than a
-// rule restated at every writer.
-//
-// AND THE LOAD DROPS THEM TOO, not just the save: a `data.json` written by
-// an older build still carries all three, and honouring those would be the
-// old behaviour surviving the change that removed it. A key that is
-// written by nothing and read by nothing is a trap — this file has said so
-// before, deleting `orgLenses` on load for the same reason.
+// NOT MOVED TO ANOTHER OBJECT, which is the design that keeps this
+// small: they go on living on `this.settings`, so every reader is
+// untouched. What changes is only that the SAVE strips them and the
+// LOAD drops them — the one place where "does this reach the disk" is
+// decided, rather than a rule restated at every writer. AND THE LOAD
+// DROPS THEM TOO, not just the save: a `data.json` written by an older
+// build still carries all three, and honouring those would be the old
+// behaviour surviving the change that removed it.
 export const WS_SESSION_KEYS = ['historyView', 'historySeries', 'historyCalMetric'];
 
-// (WS_TAB_KEYS — which key belonged to which settings tab, for A237 57's
-// Reset this tab — retired 2026-09-18 with the tabs (A421): a group of the
-// declarative panel reads its own keys off its definitions, and
-// `settingsResetKeys` takes the list.)
-// ── AND THE WINDOW’S OWN VIEW, SAME RULE (A211) ───────────────────────────
+// ── AND THE WINDOW'S OWN VIEW, SAME RULE ───────────────────────────
 //
-// Writer, 2026-09-06: “I also want for the organiser to remember its state
-// if I close it. **not if I close obsidian and then restart it**.”
-//
-// HELD ON THE PLUGIN INSTANCE and never written anywhere, so a restart, a
-// `plugin:reload` and a disable/enable cycle each give a fresh window for
-// free. There is nothing to migrate, nothing to validate on read, and no
-// key in `data.json` to go stale.
-//
-// NOT BY HIDING THE MODAL’S DOM, which is the cheaper-looking answer and is
-// the orphaned-window trap this project already has a name for: a hidden
-// table goes on taking index events, holds a focus trap, and answers with a
-// stale build after a deploy.
+// HELD ON THE PLUGIN INSTANCE and never written anywhere, so a restart,
+// a reload and a disable/enable cycle each give a fresh window for
+// free. There is nothing to migrate, nothing to validate on read, and
+// no key in `data.json` to go stale. NOT BY HIDING THE MODAL'S DOM,
+// which is the cheaper-looking answer and an orphan: a hidden table goes
+// on taking index events, holds a focus trap, and answers with a stale
+// build after a deploy.
 export interface WsSession {
 	tab: string | null; cursor: string | null; lens: { sort: WsLensSort | null; chips: WsLensChip[] } | null; panel: boolean | null;
 	scroll: number; folder: string | null; treeShown: boolean; zoom: number;
@@ -3134,28 +2869,26 @@ export function wsSessionNew(): WsSession {
 		lens: null,       // { sort, chips } — the arrangement, not the data
 		panel: null,      // narrow window: was the panel showing?
 		scroll: 0,        // the table's scroll position
-		// THE READER (A218). Expanded is a way of LOOKING at the manuscript,
-		// so it lasts exactly as long as the other five: close the window and
-		// it is still open, restart Obsidian and it is not.
+		// THE READER. Expanded is a way of LOOKING at the manuscript, so it
+		// lasts exactly as long as the other five: close the window and it is
+		// still open, restart Obsidian and it is not.
 		flow: false,
-		// AND HOW THE READER WAS SET (A224). Writer: “remember my last state
-		// in the export pane, even in expanded view”. The paged side already
-		// had its page and its fit as runtime fields; these are the reader's
-		// two, and they live here for the same reason `flow` does.
+		// AND HOW THE READER WAS SET: the paged side has its page and its fit
+		// as runtime fields; these are the reader's two, and they live here for
+		// the same reason `flow` does.
 		flowZoom: 1,
 		flowScroll: 0,
-		// WHICH FOLDER THE PANE WAS ABOUT (A220). `organizerFolder` already
-		// persists this across restarts; what the session adds is the answer
-		// to a different question — has this window been opened AT ALL yet.
-		// `null` means not since Obsidian started, and that is the one time
-		// the active note gets to choose the folder.
+		// WHICH FOLDER THE PANE WAS ABOUT. `organizerFolder` persists this
+		// across restarts; what the session adds is the answer to a different
+		// question — has this window been opened AT ALL yet. `null` means not
+		// since Obsidian started, and that is the one time the active note gets
+		// to choose the folder.
 		folder: null,
-		// THE WINDOW'S OWN TREE (A254-1b): hidden by default now that
-		// Obsidian's tree drives the window; shown again for the session
-		// only when the writer asks, and cut one release later.
+		// (`treeShown` is the one-column layout's flag: Obsidian's tree drives
+		// the window.)
 		treeShown: false,
-		// CTRL + WHEEL ZOOM OF THE PANE (A259): one number for the three
-		// panes, the session's, like the reader's own zoom beside it.
+		// CTRL + WHEEL ZOOM OF THE PANE: one number for the three panes, the
+		// session's, like the reader's own zoom beside it.
 		zoom: 1
 	};
 }
@@ -3189,11 +2922,10 @@ export function wsSessionLens(lens: { chips?: unknown; sort?: WsLensSort | null 
 		return keys.has(String(c.key).toLowerCase());
 	});
 	// A SORT BY A MISSING COLUMN IS NOT A SORT. It cannot be applied and it
-	// cannot be undone — a state with no door out of it, which is exactly the
-	// fault the mode-change tombstone in `orgLensOn` describes.
-	// THE NAME IS A SORT WITHOUT A COLUMN (A312): its heading carries no id
-	// and it is not in `cols`, so a lens sorted by name is validated against
-	// the one id no table lacks.
+	// cannot be undone — a state with no door out of it.
+	// THE NAME IS A SORT WITHOUT A COLUMN: its heading carries no id and it
+	// is not in `cols`, so a lens sorted by name is validated against the
+	// one id no table lacks.
 	const sort = (lens.sort && lens.sort.id !== undefined
 		&& (ids.has(lens.sort.id) || lens.sort.id === 'name'))
 		? lens.sort : null;
@@ -3205,20 +2937,20 @@ export function wsSessionLens(lens: { chips?: unknown; sort?: WsLensSort | null 
 // deleting there would reset the writer’s chart mid-session, on a save
 // caused by something else entirely.
 export function wsForDisk(settings: WordSmithSettings) {
-	const out: Record<string, unknown> = Object.assign({}, settings || {});
+	const out = wsBag(Object.assign({}, settings || {}));
 	for (const k of WS_SESSION_KEYS) delete out[k];
 	return out;
 }
 
-// The reader's frame is born from this (`srcdoc`), so its document is in standards
-// mode before the first page lands: a root swapped into an about:blank frame stays
-// in quirks mode whatever doctype rides with it (measured 2026-09-18).
+// The reader's frame is born from this (`srcdoc`), so its document is in
+// standards mode before the first page lands: a root swapped into an
+// about:blank frame stays in quirks mode whatever doctype rides with it.
 export const WS_FRAME_SHELL = '<!DOCTYPE html><html><head></head><body></body></html>';
-// A LUCIDE GLYPH INTO AN ELEMENT, tried by name and CHECKED: `setIcon` with a
-// name this build does not know leaves the element empty rather than throwing
-// (how the export icon went missing for a release), so the names are tried in
-// order, the one that drew is recorded on the element (`data-icon` — the half a
-// jsdom run can see), and the glyph is the fallback when none did.
+// A LUCIDE GLYPH INTO AN ELEMENT, tried by name and CHECKED: `setIcon`
+// with a name this build does not know leaves the element empty rather
+// than throwing, so the names are tried in order, the one that drew is
+// recorded on the element (`data-icon`), and the glyph is the fallback
+// when none did.
 export function wsIconInto(el: HTMLElement, names: string[], glyph: string): string {
 	for (const nm of names) {
 		el.textContent = '';
@@ -3229,40 +2961,35 @@ export function wsIconInto(el: HTMLElement, names: string[], glyph: string): str
 	el.setText(glyph);
 	return '';
 }
-// A GLYPH AND ITS WORD in a button (A427): the glyph in a span before the word,
-// the word in a span of its own, so a probe reading the button's text reads
-// the word alone (an svg has none) and a stylesheet can size the glyph. The
+// A GLYPH AND ITS WORD in a button: the glyph in a span before the word,
+// the word in a span of its own, so the button's text reads the word
+// alone (an svg has none) and a stylesheet can size the glyph. The
 // glyph's fallback is nothing: a build with no Lucide shows the word.
 export function wsGlyphWord(b: HTMLElement, names: string[], word: string): void {
 	b.empty();
 	const ico = b.createSpan({ cls: 'ws-export-ico-in' });
-	// THE EXPORT ARROW POINTS AWAY FROM THE PAGE here as everywhere else (the
-	// menu, the tab strip, the bar's token; the writer, 2026-09-20: "always the
-	// arrow to point right") — stamped only when `file-output` is the glyph
-	// that drew, never on a fallback shape.
+	// THE EXPORT ARROW POINTS AWAY FROM THE PAGE here as everywhere else
+	// (the menu, the tab strip, the bar's token) — stamped only when
+	// `file-output` is the glyph that drew, never on a fallback shape.
 	if (wsIconInto(ico, names, '') === 'file-output') ico.addClass('is-mirrored');
 	b.createSpan({ cls: 'ws-export-word', text: word });
 }
+// ── WHICH TARGETS HAVE PAGES ───────────────────────────────────────────
+//
+// The Export pane hides typesetting where there are no pages, and the
+// Structure group hides the page CHOICE for the same reason. Both need
+// the fact, and neither can see the other's table — so it lives here,
+// and `FORMATS` reads it too rather than restating it.
 export function wsFormatHasPages(id: string) {
 	return id === 'docx' || id === 'pdf' || id === 'html';
 }
 
-// HOW BIG A HEADING IS, ONCE, FOR BOTH READERS.
-//
-// Writer, 2026-09-03, comparing the file with the screen: "the headings
-// are in another font size in the preview, in word docx they are ok" and
-// "the title is written with another size".
-//
-// THE .docx COMPUTED THEM AND THE PREVIEW GUESSED THEM. The style table
-// sets `w:sz` to `half + 4` for levels 1-2 and `half + 2` below, where
+// HOW BIG A HEADING IS, ONCE, FOR BOTH READERS. The style table sets
+// `w:sz` to `half + 4` for levels 1-2 and `half + 2` below, where
 // `half` is the body size in half-points — so at 12pt the file has 14pt
-// and 13pt headings. The preview's stylesheet said `1.5em`, `1.15em`,
-// `1em`: 18pt, 13.8pt, 12pt. Only the second was ever close.
-//
-// AND THE TITLE PAGE WAS THE WORST OF IT. `WsTitle` carries no `w:sz` at
-// all, so in Word it is the body size in bold — 12pt. The preview drew it
-// with the `h1` rule at 1.5em, half again as large as the file.
-//
+// and 13pt headings — and `WsTitle` carries no `w:sz` at all, so in
+// Word it is the body size in bold. A preview stylesheet that guessed
+// 1.5em / 1.15em / 1em matched the file at one level out of three.
 // Returned as a MULTIPLE of the body size, because that is the one form
 // both can use: the docx multiplies it back into half-points, the
 // stylesheet writes it as `em`.
@@ -3273,41 +3000,38 @@ export function wsHeadSizeEm(o: WsExportOpts | null | undefined, n: number) {
 }
 
 
+// THE LINE ON THE TITLE PAGE, in one place because three targets print it
+// and they had three copies of the same sentence.
+//
+// ROUNDED IS THE CONVENTION and stays the default: a manuscript says "about
+// 90,000 words" because a publisher is costing paper, not auditing a count,
+// and a figure like 89,412 claims a precision that stops being true the
+// moment anybody edits a line. But it IS a claim about someone else's
+// expectations, and vaults have both kinds of reader — a competition entry
+// with a hard ceiling wants the exact number, and so does anyone whose
+// agent asked for one.
 export function wsTitleWords(o: WsExportRun | null | undefined) {
 	const n = (o && o.wordCount) || 0;
 	if (o && o.roundWordCount === false) return n.toLocaleString() + ' words';
 	return 'about ' + wsRoundWords(n).toLocaleString() + ' words';
 }
 
+// One id per section, shared by every target so a link means the same thing
+// in the .docx, the PDF and the markdown. Word bookmark names are the strict
+// case — letters, digits and underscore, no leading digit, 40 characters —
+// so that is what everything uses rather than three near-identical schemes.
 export function wsAnchorId(title: string, i: number) {
 	const base = String(title || 'section').toLowerCase()
 		.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
 	return 'ws_' + (base || 'section') + '_' + (i + 1);
 }
 
+// XML text escaping. Ampersand first or the escapes escape each other.
 export function wsXml(str: string | number | null | undefined) {
 	return String(str == null ? '' : str)
 		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;');
 }
-
-// TOMBSTONE: RICH TEXT (.rtf). A third target, written for what it could
-// not go wrong at — plain text, so no container to malform, no relationship
-// to dangle and no part to leave out, which are the three ways a .docx
-// breaks — and for the submission portal that refuses .docx. It went for
-// what it could not DO: a 1987 container that carries no real links, no
-// styles anyone reads and nothing a browser will open, in a plugin whose
-// other two targets are the one every publisher asks for and the one the
-// writer already keeps. HTML replaced it: everything opens it, it prints
-// to a PDF from any browser, and it is the same document the preview
-// already draws, so it costs one function call rather than four hundred
-// lines of escaping.
-//
-// If it returns: `wsBuildRtf(sections, o)` built the whole file as one
-// string, and `wsRtfText` was the load-bearing half — RTF is 7-bit, so a
-// backslash, a brace or anything above 127 had to be escaped as \uN? with
-// an ASCII stand-in, and an unescaped brace does not make a wrong
-// character, it makes a file that will not open at all.
 
 // ── Paper ───────────────────────────────────────────────────────────────────
 //
@@ -3341,10 +3065,6 @@ export const WS_PAPERS: WsPaper[] = [
 	{ id: 'pocket',    label: 'Mass market \u2014 4.25 \u00d7 6.87 in',   w:  6120, h:  9893, mar:  720 }
 ];
 
-// The paper an options object means. Falls back through the boolean it
-// replaced, so a vault saved before this table opens on the paper it had
-// rather than on whatever happens to be first in the list — and an id from
-// a later version, or a typo, still gets a page rather than a crash.
 // THE SAME TABLE, IN THE UNITS CHROMIUM WANTS. Word measures in twips (1440
 // to the inch) and Electron's `printToPDF` takes its page size in MICRONS and
 // its margins in INCHES — two different units in one options object, which is
@@ -3363,6 +3083,10 @@ export function wsPaperMicrons(paper: WsPaper) {
 	};
 }
 
+// The paper an options object means. Falls back through the boolean it
+// replaced, so a vault saved before this table opens on the paper it had
+// rather than on whatever happens to be first in the list — and an id from
+// a later version, or a typo, still gets a page rather than a crash.
 export function wsPaperOf(o: WsExportOpts | null | undefined) {
 	const oo = o || {};
 	const id = oo.paperId || (oo.a4 ? 'a4' : 'letter');
@@ -3377,15 +3101,6 @@ export function wsTwipIn(tw: number) {
 }
 
 // ── The fonts on the machine ────────────────────────────────────────────────
-//
-// TOMBSTONE: SEVEN FACES from a fixed drop-down, on the reasoning that a font
-// the READER's Word does not have is substituted silently. Right about the
-// reader's machine and wrong about the writer's: a vault with EB Garamond,
-// Alegreya or Iowan Old Style installed was offered seven names, none of them
-// theirs, with no way to say otherwise. The old seven survive as WS_SAFE_FONTS
-// — the floor for a machine that can answer neither question below — and the
-// warning the fixed list existed to give is now a line under the box for a
-// name nothing here can find.
 //
 // TWO SOURCES, in this order:
 //   queryLocalFonts() — the Local Font Access API, which the Electron under
@@ -3450,8 +3165,8 @@ export function wsUniqueFonts(names: (string | null | undefined)[] | null | unde
 	return out;
 }
 
-// A 2D context to measure in, or null where there is none — jsdom without the
-// canvas package is the case that matters, since every probe runs there.
+// A 2D context to measure in, or null where there is none (a DOM
+// without canvas).
 export function wsFontMeasureCtx() {
 	try {
 		const c = createEl('canvas');
@@ -3547,20 +3262,6 @@ export function wsJoinMark(o: WsExportOpts | null | undefined) {
 	const oo = o || {};
 	return oo.divider == null ? '#' : oo.divider;
 }
-
-// TOMBSTONE: CHAPTER NUMBERS lived here — `wsChapterLabel(o, idx, title)`
-// with a forty-name lookup table, turning the ORDER into "Chapter One" or
-// "Chapter 1" and joining it to the title with an em dash. The clever part
-// was the comparison that kept `Ch 01` from printing as "Chapter One — Ch
-// 01": a file padded to sort is the commonest name there is, and matching it
-// meant stripping punctuation AND leading zeros before comparing. If it ever
-// comes back, that is the part to bring with it.
-//
-// It went because it was a third drop-down in a row that already asks where
-// a file starts and what heading it carries, for something a writer settles
-// once in the file names.
-//
-// (removed)
 
 // a run of a paragraph: text and how it is set
 export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; sup?: boolean; mono?: boolean }
@@ -3686,12 +3387,12 @@ export function wsTable(rows: string[][]) {
 export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExportOpts | null | undefined) {
 	const o = opts || {};
 	// LINE ENDINGS FIRST, once, for the whole document. A vault synced from
-	// Windows has CRLF in it, and splitting on \n alone leaves a carriage
+	// Windows has CRLF in it, and splitting on 
+	// alone leaves a carriage
 	// return at the end of every line — invisible in the editor, harmless
 	// in prose (the lines are trimmed), and NOT harmless inside a code
-	// fence, which is kept verbatim: the CR travelled into the .docx and
-	// Word drew it. Found by feeding the converter a Windows file rather
-	// than by reading it.
+	// fence, which is kept verbatim: the CR would travel into the .docx and
+	// Word would draw it.
 	const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
 	const out = [];
 	const notes = [];
@@ -3952,13 +3653,10 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		+ st('WsList1', 'List 2', spacing + '<w:ind w:left="720"/>')
 		+ st('WsList2', 'List 3', spacing + '<w:ind w:left="1080"/>')
 		+ st('WsList3', 'List 4', spacing + '<w:ind w:left="1440"/>')
-		// THE STYLE IS NOT BOLD; THE TITLE RUN IS. Writer, 2026-09-03: "in docx
-		// the title is bold, and the autor and word counts too (unbold those)".
-		// All three paragraphs wear WsTitle, so a <w:b/> in the STYLE bolded the
-		// lot - and the title run sets bold: true as well, which is why removing
-		// it here leaves the title bold and takes the other two back to plain.
-		// That is what the preview has always drawn: an h1 and two ordinary
-		// paragraphs.
+		// THE STYLE IS NOT BOLD; THE TITLE RUN IS. All three paragraphs of the
+		// title page wear WsTitle, so a <w:b/> in the STYLE would bold the
+		// author and the word count too; the title run sets bold: true itself.
+		// That is what the preview draws: an h1 and two ordinary paragraphs.
 		+ st('WsTitle', 'Title', spacing + '<w:jc w:val="center"/>')
 		// OUTLINE LEVELS, or Word's own table of contents cannot see these
 		// headings at all. A TOC field collects by outline level, not by
@@ -3995,43 +3693,29 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	const o = opt || {};
 	const body = [];
 	const allNotes: { id: string; text: string; }[] = [];
-	// A FOLDER HEADING HANDS ITS PAGE TO THE FILE BELOW IT. Writer,
-	// 2026-09-03, with Word and the preview side by side: "in the docx it
-	// puts the folder name on a separate page not as a heading (the preview
-	// does it good how it supposed to work)".
-	//
-	// 486cs gave the folder heading a page break so it would stop trailing
-	// the previous chapter — and the FILE heading after it breaks too, so
-	// the folder name got a sheet of its own with nothing under it. Two
-	// breaks where the writer wanted one.
-	//
-	// The preview never had this: it holds the heading in `pendingFolder`
-	// and flushes it onto the next page WITH the content. This is the same
-	// idea in the only form Word has — the folder opens the page, and the
-	// file that follows is told the page is already open.
+	// A FOLDER HEADING HANDS ITS PAGE TO THE FILE BELOW IT. The folder
+	// heading breaks a page so it stops trailing the previous chapter — and
+	// if the FILE heading after it broke too, the folder name would get a
+	// sheet of its own with nothing under it. The preview holds the heading
+	// in `pendingFolder` and flushes it onto the next page WITH the content;
+	// this is the same idea in the only form Word has — the folder opens
+	// the page, and the file that follows is told the page is already open.
 	let folderOpenedPage = false;
 
 	if (o.titlePage) {
 		const t = o.title || 'Untitled';
-		// NO DROP. Writer, 2026-09-03, side by side: Word sat a line lower
-		// than the preview, because the preview centres in the sheet and this
-		// counted lines down to the block. A count cannot centre it — 27 text
-		// lines less a 4-line block leaves 23, an odd number — so the title
-		// page becomes its own SECTION and Word centres it, which is the same
-		// answer the screen reached at 486ck by different means.
+		// NO DROP: the preview centres the block in the sheet, and a count of
+		// lines down to it cannot centre — 27 text lines less a 4-line block
+		// leaves 23, an odd number — so the title page is its own SECTION and
+		// Word centres it.
 		body.push(wsPara([{ text: t, bold: true }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.author) body.push(wsPara([{ text: 'by ' + o.author }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.wordCount != null && o.wordCountOnTitle !== false) {
-			// NO BLANK LINE BEFORE THE COUNT. Writer, 2026-09-03, comparing the
-			// two: "the docx has the title page different than the preview it
-			// adds a enter below the author name and then writes the number of
-			// words". The preview's markup is three elements with no spacer
-			// between them, so the file grew a line the screen never had.
-			//
-			// It was there to pad the drop when the block was placed by counting
-			// lines — `wsTitleDropLines` counts the word count as TWO, the blank
-			// and the text. The section centres the block now (486cr), so the
-			// padding has nothing left to pad and only made the two disagree.
+			// NO BLANK LINE BEFORE THE COUNT: the preview's markup is three
+			// elements with no spacer between them. (A spacer once padded the drop
+			// when the block was placed by counting lines — `wsTitleDropLines`
+			// counts the word count as TWO, the blank and the text — but the
+			// section centres the block, so there is nothing left to pad.)
 			body.push(wsPara([{ text: wsTitleWords(o) }],
 				'WsTitle', { noIndent: true, align: 'center' }));
 		}
@@ -4085,15 +3769,13 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// links, \z hides the page numbers in web layout, \u uses the
 			// outline levels declared above.
 			//
-			// THE RANGE IS MEASURED, NOT FIXED AT "1-2" (2026-09-02). Two was
-			// right when this writer produced exactly two levels; folder
-			// headings produce as many as the folders nest, and a Part three
-			// deep simply vanished from the contents. It is NOT widened to a
-			// flat "1-6" either: the notes' own headings are demoted BELOW the
-			// structural ones, so a fixed 6 would pull every heading inside
-			// every chapter into the table. The deepest structural level is
-			// exactly the line between the two, and with folder headings off it
-			// computes to 2 — the old value, unchanged.
+			// THE RANGE IS COMPUTED, NOT FIXED. Folder headings produce as many
+			// levels as the folders nest, and a Part three deep would vanish from a
+			// fixed "1-2". It is NOT a flat "1-6" either: the notes' own headings
+			// are demoted BELOW the structural ones, so a fixed 6 would pull every
+			// heading inside every chapter into the table. The deepest structural
+			// level is exactly the line between the two, and with folder headings
+			// off it computes to 2.
 			+ '<w:r><w:instrText xml:space="preserve"> TOC \\o "1-'
 			+ wsDeepestLevel(o, sections) + '" \\h \\z \\u </w:instrText></w:r>'
 			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
@@ -4117,21 +3799,14 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 				body.push('<w:bookmarkStart w:id="' + (idx + 100) + '" w:name="'
 					+ wsAnchorId(sec.title, idx) + '"/>');
 			}
-			// AND IT OPENS A PAGE, like every other section. Writer, 2026-09-03:
-			// "the chapter name(folder heading) is not on a new page". This
-			// branch pushed its paragraph and RETURNED above the page-break
-			// logic below, so a folder heading was the one thing in the file
-			// that never started one — while the preview has broken there all
-			// along.
-			//
-			// THE PREVIEW'S RULE IS `(i > 0 || o.titlePage || o.toc) &&
-			// o.pageBreaks !== false`, and this is it MINUS the title-page term.
-			// A `.page` in the preview is an element, so 'break' there just means
-			// start another one; in Word the title page is now its own SECTION
-			// (486cr) and a section break already ends the page. Adding a page
-			// break on top of it would insert a blank sheet — the same output in
-			// one medium and one page of nothing in the other.
-			const fbrk = (idx > 0 || o.toc) && o.pageBreaks !== false;
+			// AND IT OPENS A PAGE, like every other section — the preview breaks
+			// there too. THE PREVIEW'S RULE IS `(i > 0 || o.titlePage || o.toc) &&
+			// o.pageBreaks !== false`, and this is it MINUS the title-page term: a
+			// `.page` in the preview is an element, so 'break' there just means
+			// start another one; in Word the title page is its own SECTION and a
+			// section break already ends the page. A page break on top of it would
+			// insert a blank sheet.
+			const fbrk = !!(idx > 0 || o.toc) && o.pageBreaks !== false;
 			folderOpenedPage = fbrk;
 			body.push(wsPara([{ text: sec.title, bold: true }], 'WsHeading' + lv,
 				{ noIndent: true, pageBreakBefore: fbrk }));
@@ -4297,32 +3972,17 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 // Default settings
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Powerline separator shapes, chosen per boundary by the character used to
-// divide the row. The divider you type IS the shape:
-//
-//   >   arrow        )   rounded
-//   |   straight     /   angle, cutting up to the right
-//                    \   angle, cutting down to the right
-//
-// A backslash immediately followed by one of these is an escape, so \| is a
-// literal pipe and a lone \ between spaces is still a divider.
 // ── READING SPEED FOR {readtime} ────────────────────────────────────────
 //
 // Fixed, not a setting: it is not a number anyone has a calibrated opinion
 // about, and offering a box for it invites a writer to tune a figure they
 // have no way to measure.
 //
-// 238, ON THE WRITER'S WORD (2026-09-02: "do 238wpm"). It was 200 — the
-// round number that gets copied between blogs. Brysbaert's 2019
-// meta-analysis puts adult silent reading of English prose at 238 wpm,
-// and that is the figure they asked for.
-//
-// IT WAS ALSO ASKED FOR BY ACCIDENT ONCE. A second constant,
-// `WS_READ_WPM = 238`, was added an hour before it was deleted — see the
-// tombstone further down. What was wrong there was not the number: it was
-// having TWO of them, so the plugin would have answered "how long is this
-// to read" differently on two surfaces a writer can see at once. This is
-// the one constant, changed once, and its three customers follow.
+// 238: Brysbaert's 2019 meta-analysis puts adult silent reading of English
+// prose there (200 is the round number that gets copied between blogs).
+// THE ONE CONSTANT: the bar's {readtime}, the report's Read time and the
+// Organizer's column all divide by it, so the plugin never answers "how
+// long is this to read" two ways on two surfaces a writer can see at once.
 export const READ_WPM = 238;
 
 // How many addressable colours each row offers. Backgrounds carry the
@@ -4386,24 +4046,6 @@ export const PL_BG_COUNT = 7;
 //
 // Palette VALUES are used as facts, with the source named per theme. No
 // upstream code is copied.
-// TOMBSTONE (1.2.7). BAR_THEME_GROUPS collapsed the four Modus variants
-// into one shelf slot with a folder in the menu and variant chips on the
-// card. It was removed within the same release by vault feedback, and the
-// deletion is worth more than the feature was:
-//
-//   the group card could be REMOVED AND NEVER RESTORED — the hidden row
-//   looks a hidden id up in the theme table to draw its chip, and a group
-//   id is not in the table, so the chip could not render and the family
-//   was gone for good;
-//   it could not be dragged, because the drag handlers key on a theme id;
-//   and the variant chips made one card twice the height of every other.
-//
-// All three came from the same root: a pseudo-entry that is not a theme,
-// travelling through machinery that is about themes. The lesson kept here
-// is that a collection type added to a list must satisfy EVERY contract
-// the list's members satisfy — order, drag, hide, restore — and the shelf
-// already had four. Four variants, four cards, is the honest shape.
-//
 // The hidden row now also restores ids it cannot name, so nothing a
 // writer removes is ever unreachable again, whatever put it there.
 
@@ -4463,7 +4105,7 @@ export const BAR_THEMES: WsBarTheme[] = [
 		// (#00ffaf). They live in the accent slots; the ramp stays grey,
 		// which is why the Vim modes still come out as shades of grey.
 		id: 'quiet', name: 'Quiet',
-		note: 'vim\u2019s own quiet \u2014 monochrome by design, three colours allowed',
+		note: 'vim\u2019s own quiet \u2014 monochrome by design, three colors allowed',
 		dark:  { b1: '#000000', b2: '#1c1c1c', b3: '#303030', b4: '#585858',
 		         c1: '#a8a8a8', c2: '#1c1c1c', c3: '#000000', c4: '#303030',
 		         c5: '#3a3a3a', c6: '#444444', c7: '#4e4e4e',
@@ -4605,15 +4247,10 @@ export const BAR_THEMES: WsBarTheme[] = [
 		         c5: '#4a4000', c6: '#552f5f', c7: '#620f2a',
 		         t1: '#ffffff', t2: '#0d0e1c', t3: '#989898', t4: '#b6a0ff',
 		         sel: '#555a66', bar: '#484d67', cur: '#ff66ff' },
-		// c1 IS UPSTREAM'S bg-completion AGAIN (A342, writer 2026-09-13 with
-		// the explorer's active note circled: "the modus operandi tinted has
-		// that selection grey too dark - put the original color back (we
-		// changed it some time ago)"). The dark grey #595959 — fg-dim, the
-		// scheme's t3 — had been asked for twice and stood as the family's
-		// one deliberate deviation; a dark grey carries white ink at 4.5:1,
-		// so the selected-file rule took it for the nav surface and every
-		// selected note went charcoal on paper. Reversed on the newer word:
-		// Stavrou's pink, as the rest of the family reads its bg-completion.
+		// c1 IS UPSTREAM'S bg-completion, as the rest of the family reads it.
+		// A dark grey (fg-dim, the scheme's t3) carries white ink at 4.5:1, so
+		// the selected-file rule would take it for the nav surface and every
+		// selected note would go charcoal on paper.
 		light: { b1: '#fbf7f0', b2: '#efe9dd', b3: '#dfd5cf', b4: '#9f9690',
 		         c1: '#f0c1cf', c2: '#efe9dd', c3: '#fbf7f0', c4: '#b3fabf',
 		         c5: '#fff576', c6: '#ffddff', c7: '#ffcfbf',
@@ -4711,9 +4348,9 @@ export const BAR_THEMES: WsBarTheme[] = [
 		         t1: '#352c24', t2: '#f6f2ee', t3: '#766f68', t4: '#2848a9', sel: '#e2d9cd', bar: '#e4dcd4' }
 	},
 	{
-		// Wave for the dark half, Lotus for the light \u2014 the upstream ink
-		// pairing on Lotus paper sits at 6.25:1, past AA and short of AAA;
-		// named in the probe with its measurement, like Ros\u00e9 Pine Dawn.
+		// Wave for the dark half, Lotus for the light — the upstream ink
+		// pairing on Lotus paper sits at 6.25:1, past AA and short of AAA; a
+		// measured exception in the theme test, like Rosé Pine Dawn.
 		id: 'kanagawa', name: 'Kanagawa',
 		names: { dark: 'Kanagawa Wave', light: 'Kanagawa Lotus' },
 		note: 'rebelot \u2014 Wave by night, Lotus by day',
@@ -4772,15 +4409,13 @@ export const BAR_THEMES: WsBarTheme[] = [
 		// shelf would be wrong to do — and this one is right to, because
 		// blue.vim's whole identity is that navy.
 		//
-		// It cost a real bug to make it work rather than merely declare
-		// it. Everything Word-Smith colours for itself picks a dark or a
-		// light variant, and every one of them was choosing by the APP's
-		// mode: in light mode they all took their light variants — dark
-		// inks — and painted them onto navy. See isDarkSurface, which is
-		// the fix and the general rule: the plugin's own colours follow
-		// the PAPER, the pair's half still follows the app.
+		// Everything Word-Smith colours for itself picks a dark or a light
+		// variant, and choosing by the APP's mode would, in light mode, paint
+		// dark inks onto navy. See isDarkSurface, which is the general rule:
+		// the plugin's own colours follow the PAPER, the pair's half still
+		// follows the app.
 		//
-		// theme_probe carries this as the one NAMED exception to "a light
+		// The theme test carries this as the one NAMED exception to "a light
 		// half is light", beside the measured contrast exceptions. An
 		// exception with a reason and a test is a decision; an exception
 		// without one is a bug nobody noticed.
@@ -4791,10 +4426,9 @@ export const BAR_THEMES: WsBarTheme[] = [
 		         c1: '#2a2a9e', c2: '#000058', c3: '#000040', c4: '#0f6b45',
 		         c5: '#6b6b10', c6: '#4b2d9e', c7: '#8b1a3a',
 		         t1: '#c0c0c0', t2: '#000040', t3: '#8080c0', t4: '#ffff60',
-		         // The same cyan as the day face: the reference shows both
-		         // windows wearing it, and the darker cyan this started as
-		         // measured 4.48 against this half's ink — under the floor
-		         // by two hundredths, which is still under it.
+		         // The same cyan as the day face (the reference shows both windows
+		         // wearing it); a darker cyan measures 4.48 against this half's ink,
+		         // under the floor.
 		         sel: '#2e3f9e', bar: '#00afaf' },
 		light: { b1: '#000087', b2: '#1c1c99', b3: '#2e2eab', b4: '#5555c4',
 		         // c1 is blue.vim's CursorLine — the vivid blue band the
@@ -4910,6 +4544,15 @@ export const BAR_THEMES: WsBarTheme[] = [
 	},
 ];
 
+// Powerline separator shapes, chosen per boundary by the character used to
+// divide the row. The divider you type IS the shape:
+//
+//   >   arrow        )   rounded
+//   |   straight     /   angle, cutting up to the right
+//                    \   angle, cutting down to the right
+//
+// A backslash immediately followed by one of these is an escape, so \| is a
+// literal pipe and a lone \ between spaces is still a divider.
 export const PL_DIVIDERS: Record<string, string> = { '>': 'arrow', '<': 'arrow', '|': 'straight',
 	')': 'round', '(': 'round', '~': 'wave', '/': 'angleF', '\\': 'angleB' };
 
@@ -4920,25 +4563,23 @@ export const PL_DIVIDERS: Record<string, string> = { '>': 'arrow', '<': 'arrow',
 // with a left-pointing point, `>{file}` with a right-pointing one.
 export const PL_DIR: Record<string, string> = { '<': 'left', '>': 'right', '(': 'left', ')': 'right' };
 
-// What --ws-stylesheet-version in styles.css must read for this build. See
-// the comment beside that variable: a stale stylesheet in a vault is
-// indistinguishable from a broken feature — the rules are absent, the script
-// works, and the report is "your fix did nothing". Bump both together.
-// ── OBSIDIAN'S OWN MARK (2026-08-24) ────────────────────────────────
+// ── OBSIDIAN'S OWN MARK ────────────────────────────────────────────
 //
-// The writer asked for "the obsidian icon instead of that vault icon".
-// Lucide has no `obsidian`, which is why the icon loop fell through to
-// `vault` - a safe door, which is what they were looking at.
+// Lucide has no `obsidian` glyph. NOT A DRAWING OF THE LOGO (a wrong
+// logo is worse than an honest folder): it is OBSIDIAN'S OWN wireframe
+// path, lifted from the `svg.logo-wireframe` the app renders in its own
+// DOM (viewBox 0 0 512 512, one stroked path). STROKED, NOT FILLED, so
+// it takes `currentColor` and sits beside the Lucide folder glyphs as
+// line art.
 //
-// THE TOMBSTONE HERE SAID NOT TO DRAW ONE: "a wrong logo is worse than
-// an honest folder". That still holds, and this is not a drawing - it
-// is OBSIDIAN'S OWN wireframe path, lifted from the `svg.logo-wireframe`
-// the app already renders in its own DOM (measured 2026-08-24, viewBox
-// 0 0 512 512, one stroked path). So the mark is theirs, not an
-// approximation of theirs.
-//
-// STROKED, NOT FILLED, so it takes `currentColor` and sits beside the
-// Lucide folder glyphs as line art rather than as a blob.
+// NO `stroke-width` ATTRIBUTE. CSS beats a presentation attribute, and
+// Obsidian's own `.svg-icon { stroke-width: 1.75px }` — a rule written
+// for Lucide's 24-unit viewBox — would win over one here; inside an SVG
+// that value resolves in USER UNITS, so on this mark's 512-unit box it
+// draws twenty-six times too thin, a hairline. The weight lives in the
+// stylesheet at a specificity that wins (`svg.ws-obsidian-mark`,
+// (0,1,1)), and ALONE — a copy here would be a second writer of a
+// number this file cannot enforce.
 export const WS_OBSIDIAN_PATH = 'M172.7 461.6c73.6-149.1 2.1-217-43.7-246.9'
 	+ 'm72 96.7c71.6-17.3 141-16.3 189.8 88.5m-114-96.3c-69.6-174 44.6-181'
 	+ ' 16.3-273.6m97.7 370c1.6-3 3.3-5.8 5.1-8.6 20-29.9 34.2-53.2'
@@ -4949,22 +4590,7 @@ export const WS_OBSIDIAN_PATH = 'M172.7 461.6c73.6-149.1 2.1-217-43.7-246.9'
 	+ 'l-82.3-84.8c-9-9.2-11.4-23-6.2-34.8 0 0 51-111.8 52.8-117.7l.7-3'
 	+ 'M293.1 30a31.5 31.5 0 0 0-44.4-2.3l-97.4 87.5c-5.4 5-9 11.5-10'
 	+ ' 18.8-3.7 24.5-9.7 68-12.3 80.7';
-// NO `stroke-width` ATTRIBUTE, AND THAT IS THE FIX (2026-08-25).
-//
-// It carried `stroke-width="46"` and drew at 0.051px on screen. CSS
-// beats a presentation attribute always, and Obsidian's own
-// `.svg-icon { stroke-width: 1.75px }` was winning — a rule written
-// for Lucide's 24-unit viewBox, applied to this mark's 512-unit one.
-// Inside an SVG that value resolves in USER UNITS, so it came out
-// twenty-six times too thin and the mark was a hairline. Reported as
-// "the obsidian icon does not have the accented color": the stroke
-// was the accent the whole time, there was just nothing of it.
-//
-// So the weight lives in the stylesheet, at a specificity that can
-// actually win (`svg.ws-obsidian-mark`, (0,1,1)), and it lives there
-// ALONE — a copy here would be a second writer of a number this file
-// cannot enforce.
-// A SHARE THAT SHOWS ITS FIRST DIGIT (A401): two decimals, and one more for
+// A SHARE THAT SHOWS ITS FIRST DIGIT: two decimals, and one more for
 // every leading zero it would otherwise be all of — 2.55, 0.03, 0.004,
 // 0.0005 — so no word that is there reads as 0.00%. Eight is the ceiling.
 export const wsShareText = (v: number) => {
@@ -4974,14 +4600,13 @@ export const wsShareText = (v: number) => {
 	while (d < 8 && Number(x.toFixed(d)) === 0) d++;
 	return x.toFixed(d);
 };
-// MARKUP INTO AN ELEMENT, WITHOUT innerHTML (A418, 2026-09-17). The glyphs
-// below are STRINGS on purpose — one writer per drawing, and a string can be
-// asked what it drew (unified_probe pins the shapes by their path data). The
-// plugin review forbids writing a string into the DOM through innerHTML, so
-// every glyph lands through this one seam: Obsidian's sanitizeHTMLToDom
-// parses the markup into nodes through DOMPurify (an <svg> and its paths come
-// through whole) and they replace what the element held. Fifteen sites were
-// `el.innerHTML = wsFlagSvg(…)`; they are `wsSvgInto(el, wsFlagSvg(…))`.
+// MARKUP INTO AN ELEMENT, WITHOUT innerHTML. The glyphs below are
+// STRINGS on purpose — one writer per drawing, and a string can be
+// asked what it drew. The plugin review forbids writing a string into
+// the DOM through innerHTML, so every glyph lands through this one
+// seam: Obsidian's sanitizeHTMLToDom parses the markup into nodes
+// through DOMPurify (an <svg> and its paths come through whole) and
+// they replace what the element held.
 export const wsSvgInto = (el: Element, markup: string) => {
 	el.empty();
 	el.appendChild(sanitizeHTMLToDom(String(markup == null ? '' : markup)));
@@ -4992,39 +4617,14 @@ export const wsObsidianSvg = (px: number) => '<svg class="svg-icon ws-obsidian-m
 	+ 'fill="none" stroke="currentColor" '
 	+ 'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
 	+ '<path d="' + WS_OBSIDIAN_PATH + '"/></svg>';
-// TOMBSTONE: `WS_READ_WPM = 238`, added an hour before it was deleted.
-//
-// IT WAS A SECOND RATE. `READ_WPM = 200` has been in this file the whole
-// time, with two customers — `{readtime}` on the Powerline bar and the
-// report's own Read time cell — and the Organizer's new column was
-// dividing by a different number. The plugin would have answered "how
-// long is this to read" twice, differently, about the same note, on two
-// surfaces a writer can see at once.
-//
-// 238 IS THE BETTER FIGURE and that was not the point. Brysbaert's 2019
-// meta-analysis puts adult silent reading of English prose there, and
-// the 200 beside it was the round number that gets copied between blogs.
-//
-// AND IT IS 238 NOW (2026-09-02, on the writer's word) — in `READ_WPM`,
-// the one constant, where changing it moves all three surfaces together.
-// The fault this tombstone records was never the figure; it was having
-// two places to put it.
-// But 200 SHIPPED in 1.3.9, in two places a writer reads every day, and
-// changing what they say is the writer's call and not a side effect of
-// adding a column. It is on the inbox as an ASK.
 // ── FOLDER NAMES AS HEADINGS ─────────────────────────────────────────
 //
-// A user, relayed by the writer 2026-09-01: "Would it be possible to,
-// optionally, use folder names as Chapters/Sections?" — a book kept as
-// `Section 1/Chapter 1/Some topic.md` compiling to `Section 1`,
-// `Chapter 1`, then the prose. Their reason is the good part: "I find it
-// good to be able to separate the chapter/section headings from the body
-// text, so that it is easier to move things around within
-// chapters/sections. The only way to do this, at present, is to create a
-// document that just has a heading."
+// A book kept as `Section 1/Chapter 1/Some topic.md` compiles to
+// `Section 1`, `Chapter 1`, then the prose — the chapter headings live
+// apart from the body text, so pieces move between chapters without
+// dragging a heading with them.
 //
-// OFF, because it changes the shape of every existing export and nobody
-// with a flat folder of scenes asked for it.
+// OFF, because it changes the shape of every existing export.
 export const WS_EXPORT_FOLDER_HEADINGS_DEFAULT = false;
 
 // ── WHERE THE BOOK STARTS, so a folder every file shares is not a
@@ -5034,32 +4634,17 @@ export const WS_EXPORT_FOLDER_HEADINGS_DEFAULT = false;
 // are counted below it.
 //
 // ON PATH SEGMENTS, not characters: a common prefix taken on characters
-// calls "Book 1" and "Book 10" one folder. The retired `exportTickRoot`
-// made the same choice for the same reason.
-// ── AND THE FOLDER THE WRITER CHOSE IS NOT COMMON CONTEXT (A153) ──
+// calls "Book 1" and "Book 10" one folder.
 //
-// Writer, 2026-09-04, with two shots of the same first page: "if i
-// select only chapter 3 folder it does not add the folder heading
-// name". Everything ticked, the page reads CHAPTER 3 - UNKNOWN then
-// Scene 4. Chapter 3 alone, it reads Scene 4.
-//
-// THE ROOT IS STRIPPED FROM EVERY PATH, which is the whole job of this
-// function: it removes the part that is context rather than structure,
-// so a book's own folder does not become a heading above every page.
-// The root is the files' COMMON ANCESTOR, so it moves with the
-// selection — and when the selection is one folder, that folder
-// BECOMES the root and its name is stripped along with it.
-//
-// SO THE SAME CHAPTER HAS A HEADING OR NOT DEPENDING ON WHETHER A
-// SIBLING WAS TICKED BESIDE IT. Two chapters: common ancestor is the
-// book, both get headings. One chapter: the ancestor is the chapter,
-// and it gets none. Nothing about the chapter changed.
-//
-// THE SCOPE TELLS THEM APART. A folder the writer picked is not
-// context — it is the thing they picked — so when the computed root
-// IS that folder, the root steps up one and the folder gets its name
-// back. A root nobody picked (the book, when the selection is its
-// parent) is left exactly where it was, which is why the
+// AND THE FOLDER THE WRITER CHOSE IS NOT COMMON CONTEXT. The root is
+// the files' COMMON ANCESTOR, so it moves with the selection — and when
+// the selection is one folder, that folder would BECOME the root and
+// its name be stripped along with it: two chapters ticked, both get
+// headings; one chapter, none. THE SCOPE TELLS THEM APART. A folder the
+// writer picked is not context — it is the thing they picked — so when
+// the computed root IS that folder, the root steps up one and the
+// folder gets its name back. A root nobody picked (the book, when the
+// selection is its parent) is left where it was, which is why the
 // everything-ticked export is unchanged.
 //
 // OPTIONAL, and absent it behaves as it always did: the preview and
@@ -5121,10 +4706,6 @@ export function wsDemoteHeadings(md: string, by: number) {
 	}).join('\n');
 }
 
-// WHAT LEVEL A FILE'S OWN NAME IS SET AT. Two when folder headings are
-// off, which is what every export has done since the option existed; one
-// below its folder when they are on, so a chapter contains its scenes
-// rather than sitting beside them.
 // ── THE HOST WINDOW'S OWN SECONDARY SURFACE, AS A LITERAL ───────────
 //
 // The export preview is an iframe and inherits no custom properties from
@@ -5143,6 +4724,10 @@ export function wsHostTint() {
 	return '#ececec';
 }
 
+// WHAT LEVEL A FILE'S OWN NAME IS SET AT. Two when folder headings are
+// off, which is what every export has done since the option existed; one
+// below its folder when they are on, so a chapter contains its scenes
+// rather than sitting beside them.
 export function wsFileHeadLevel(o: WsExportOpts | null | undefined, sec: WsExportSection) {
 	if (!o || !o.folderHeadings) return 2;
 	return Math.min(6, ((sec && sec.depth) || 0) + 1);
@@ -5203,21 +4788,12 @@ export function wsTocSteps(o: WsExportRun, sections: WsExportSection[]) {
 
 // ── HOW A TASK COUNT IS WRITTEN ──────────────────────────────────────
 //
-// Writer, 2026-08-22: "tasks should read like [2/13]".
-//
 // BRACKETED, because a bare 4/5 in a row of numbers reads as another
 // measurement of the same kind as Words and Target — and it is not a
-// quantity of writing at all, it is a count of boxes. The brackets are the
-// notation the task is written in in the note itself, so the column says
-// what it is without the header having to be read.
-//
-// ONE WRITER, FOUND BY THE SWEEP. It was written out at THREE sites — the
-// table cell, the folder aggregate and the tree row — and exactly one of
-// them was asserted. The sabotage case that strips the brackets aims at
-// the tree, so it applied cleanly and reported PASSED ANYWAY while the
-// suite stayed green: the assertion was about a different copy. Three
-// copies of a notation is three chances for one of them to drift, and no
-// number of assertions fixes that as well as having one copy.
+// quantity of writing at all, it is a count of boxes. The brackets are
+// the notation the task is written in in the note itself, so the column
+// says what it is without the header having to be read. ONE WRITER for
+// the table cell, the folder aggregate and the tree row.
 export function wsTaskSay(done: string|number, all: string|number) {
 	if (!all) return '';
 	return '[' + done + '/' + all + ']';
@@ -5227,42 +4803,38 @@ export function wsTaskSay(done: string|number, all: string|number) {
 //
 // ARROWS, NOT TRIANGLES. A coloured triangle is a decoration that has to
 // be learnt; an arrow points the way the rows are going, and it is the
-// mark the file explorer and every table on the web already use.
-//
-// ONE WRITER, FOUND BY THE SWEEP. It was written out at FOUR sites — the
-// Sort button's title, the sort menu's row, the lens chip and the column
-// header's mark — and NONE of the four was asserted for direction: the
-// probe checked that a mark exists, never which way it points. Two
-// sabotage cases swapped the arrows at the header, and both reported
-// PASSED ANYWAY.
-//
-// Four copies of a mark is four chances for one of them to point the
-// other way, which is worse than no mark: a reader who trusts it sorts
-// their manuscript backwards.
+// mark the file explorer and every table on the web already use. ONE
+// WRITER for the Sort button's title, the sort menu's row, the lens chip
+// and the column header's mark: four copies of a mark is four chances
+// for one of them to point the other way, which is worse than no mark —
+// a reader who trusts it sorts their manuscript backwards.
 export function wsSortArrow(dir: string) {
 	return dir === 'desc' ? ' ↓' : ' ↑';
 }
 
-export const WS_STYLESHEET_VERSION = 562;
-// THE INSTALLER GATE (A243 54). Encoded major*1000+minor. Refused below
-// 1.9: installers 1.5.12 and 1.8.3 froze Obsidian on enable (Reddit,
-// August 2026). Warned below 1.13: the installer this build is measured
-// in. Move both only on evidence, and move the two texts with them.
+// What --ws-stylesheet-version in styles.css must read for this build. See
+// the comment beside that variable: a stale stylesheet in a vault is
+// indistinguishable from a broken feature — the rules are absent, the script
+// works, and the report is "your fix did nothing". Bump both together.
+export const WS_STYLESHEET_VERSION = 566;
+// THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
+// installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
+// 1.13: the installer this build is measured in. Move both only on
+// evidence, and move the two texts with them.
 export const WS_INSTALLER_REFUSE = 1009;
 export const WS_INSTALLER_REFUSE_TEXT = '1.9';
 export const WS_INSTALLER_WARN = 1013;
 export const WS_INSTALLER_WARN_TEXT = '1.13';
 
-// ── WHAT A FAILED WRITE IS ABOUT (A171, writer 2026-09-05) ─────────────
+// ── WHAT A FAILED WRITE IS ABOUT ─────────────────────────────────────
 //
-// Ten writes carry a writer’s work and every one of them ended in
-// `console.error` and nothing else. `storeWriteFailed` reports them all
+// Ten writes carry a writer's work. `storeWriteFailed` reports them all
 // and latches PER SUBJECT — so the subject is a shared name rather than
 // a string typed twice, once in the failure arm and once in the success
-// arm. Two copies and the latch never clears: the toast is said once and
-// never again, which is the failure mode hardest to notice.
+// arm: two copies and the latch never clears, the toast is said once
+// and never again.
 //
-// THEY READ AS THE SENTENCE THEY LAND IN — “Word-Smith: could not ” plus
+// THEY READ AS THE SENTENCE THEY LAND IN — "Word-Smith: could not " plus
 // this — so they are verbs, and lower case.
 export const WS_WRITE = Object.freeze({
 	goals:     'save the goals and the manuscript order',
@@ -5276,15 +4848,13 @@ export const WS_WRITE = Object.freeze({
 	settings:  'save your settings',
 });
 
-// What manifest.json must say for this build. The stylesheet has had such
-// a check since 1.2.x; the manifest never did, and it turns out to fail
-// the same way and be harder to notice: everyone updating a plugin by hand
-// copies main.js and styles.css and forgets the third file, so the code is
+// What manifest.json must say for this build, checked like the
+// stylesheet's version: everyone updating a plugin by hand copies
+// main.js and styles.css and forgets the third file, so the code is
 // new, the styles are new, and the version the writer READS — in
-// Community Plugins, in a bug report — is whatever it was months ago. A
-// mismatch here is not a broken plugin; it is a plugin lying about which
-// one it is, which is worse for anyone trying to help.
-export const WS_PLUGIN_VERSION = '1.5.6';
+// Community Plugins, in a bug report — is months old. A mismatch here
+// is a plugin lying about which one it is.
+export const WS_PLUGIN_VERSION = '1.5.7';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5295,41 +4865,15 @@ export const HISTORY_DEBOUNCE_MS = 2000;
 export const HISTORY_IDLE_MS     = 8000;
 // And the ceiling, for a session that never pauses.
 export const HISTORY_MAX_UNSAVED_MS = 120000;
-// Everything between these markers in the ledger note belongs to the plugin
-// and is rewritten wholesale. Everything outside them belongs to the user and
-// is never touched.
-// The export list's markers, the same idea as the history's: the file is
-// found by these rather than by its path, so a writer can move or rename it.
-// ── FLAGS: WHERE A CHAPTER IS UP TO ─────────────────────────────────────────
+// ── FLAGS: WHERE A CHAPTER IS UP TO ──────────────────────────────────
 //
-// Called MARKS for one session. "Mark" was already taken twice over in this
-// plugin — the hidden markers a writer toggles in the editor, and the marks
-// between segments on the bar — and a word doing three jobs in one settings
-// pane is a word that has stopped meaning any of them. A flag is a thing you
-// plant on a chapter to say what state it is in, which is exactly this.
-// The stored ids do not change (`fileStatus`, `folderStatus`, and the words
-// draft / revise / done in `ws-goals.md`): renaming a thing on screen must
-// not rewrite a vault's file.
+// Flags on screen; the stored ids do not change (`fileStatus`,
+// `folderStatus`, and the words in `ws-goals.md`): renaming a thing on
+// screen must not rewrite a vault's file.
 //
-// THREE STATES AND UNMARKED, and no more. The failure mode of a status
-// vocabulary is twelve labels nobody can remember: three are comparable
-// across a whole manuscript, colour cleanly, and sort in an order everybody
-// already agrees on. Custom labels sound generous and break the useful part —
-// if one writer's "polish" and another's "beta" are both amber, the colour
-// stops meaning anything and "5 of 7 done" has nothing to count.
-//
-// Stored in `ws-goals.md` beside the targets, because a status is the same
-// kind of fact as a target: the writer's own note about their manuscript,
-// which must survive a reinstall and be editable by hand. Folders take one
-// too — a part can be finished while a stray note inside it is not, and the
-// roll-up beside it is what makes that visible rather than hidden.
-// FIVE STATES, in the order a scene passes through them — which is also the
-// order a click cycles, so pressing a chip walks the scene forward through
-// its own life rather than round an arbitrary ring.
-//
-// Three was thin for a manuscript. The two that were missing are the two ends
-// of the real problem: a scene that EXISTS but is not written yet, and a scene
-// that cannot go forward until something outside it is settled.
+// FIVE STATES, in the order a scene passes through them — which is also
+// the order a click cycles, so pressing a chip walks the scene forward
+// through its own life rather than round an arbitrary ring:
 //
 //   Outline   a placeholder. There are notes here, not prose.
 //   Draft     written once, roughly.
@@ -5337,24 +4881,23 @@ export const HISTORY_MAX_UNSAVED_MS = 120000;
 //   Blocked   cannot proceed — research, continuity, a decision not made.
 //   Done      finished.
 //
-// TOMBSTONE: A SECOND COLUMN OF HAND-SET ICONS, for "needs research",
-// "continuity problem" and the like. It would have been a second answer to
-// "what state is this scene in" beside a column that already answers it —
-// and hand-set markers rot: a writer marks a scene broken, fixes it, and the
-// mark sits there lying for three months. `Blocked` is that idea, folded
-// into the one axis that already exists.
-// THE IDS ARE FIXED FOREVER; everything else about a state is the writer's.
+// Stored in `ws-goals.md` beside the targets, because a status is the
+// same kind of fact as a target: the writer's own note about their
+// manuscript, which must survive a reinstall and be editable by hand.
+// Folders take one too — a part can be finished while a stray note
+// inside it is not, and the roll-up beside it is what makes that visible.
 //
-// A flag is stored against a path as its ID — `revise`, `blocked` — in a note
-// in the vault. So a writer renaming "Blocked" to "Stuck" must not change
-// what is written on disk, or every note carrying that flag loses it, and a
-// vault synced from a machine with different names would disagree about what
-// its own manuscript says. The label, the shape and the two colours are
-// settings; the five ids are not, and the count decides how many are offered.
-// The ORDER is the ring's and the count's (the first N are offered): Draft,
-// Revise, Done first since 2026-09-18 (the writer: "I want Draft Revise
-// Done"), Sketch and Blocked after. A vault's stored flags are read by id,
-// so the order can move; the ids cannot.
+// THE IDS ARE FIXED FOREVER; everything else about a state is the
+// writer's. A flag is stored against a path as its ID — `revise`,
+// `blocked` — so renaming "Blocked" to "Stuck" must not change what is
+// written on disk, or every note carrying that flag loses it, and a
+// vault synced from a machine with different names would disagree about
+// what its own manuscript says. The label, the shape and the two
+// colours are settings; the five ids are not, and the count decides how
+// many are offered. The ORDER is the ring's and the count's (the first N
+// are offered): Draft, Revise, Done first, Sketch and Blocked after. A
+// vault's stored flags are read by id, so the order can move; the ids
+// cannot.
 export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked'];
 
 // The list every reader of a flag consults, kept in step with the settings by
@@ -5362,9 +4905,10 @@ export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked'];
 // `wsFlagSvg` are module functions called from thirty places — including
 // paint paths with no plugin in scope — and threading a plugin through all of
 // them to look up a label would be a worse cure than the disease.
-// REPLACED IN PLACE, never reassigned: it is a module export now (A418), and
-// an importer cannot assign one. Every reader walks it at read time, and the
-// redraw signature in `flagsApply` compares its JSON, not its identity.
+// REPLACED IN PLACE, never reassigned: it is a module export, and an
+// importer cannot assign one. Every reader walks it at read time, and
+// the redraw signature in `flagsApply` compares its JSON, not its
+// identity.
 export const WS_STATUSES: { id: string; label: string; shape?: string }[] = [
 	{ id: 'draft',   label: 'Draft'   },
 	{ id: 'revise',  label: 'Revise'  },
@@ -5372,46 +4916,6 @@ export const WS_STATUSES: { id: string; label: string; shape?: string }[] = [
 	{ id: 'outline', label: 'Sketch' },
 	{ id: 'blocked', label: 'Blocked' }
 ];
-// ── THE FLAG ITSELF ─────────────────────────────────────────────────────────
-//
-// One shape, three fills. Colour alone cannot carry a state: red and green is
-// the commonest colour-blindness pair, these things are drawn at eleven
-// pixels, and half the places a flag appears (a file explorer row, a bar
-// token) have no room for a word beside it. So the three read as a FILL
-// DENSITY — hollow, half, solid — which survives greyscale, a small size and
-// a printout, and the colour is the fast lane for everyone who can use it.
-//
-//   Draft   an outline. Nothing in it yet.
-//   Revise  half filled, along the pole. Work has been done and more is due.
-//   Solid   done, and it stops being a question.
-//
-// Decorative, deliberately: the WORD is still the state, and the flag stands
-// beside it wherever there is room. A vocabulary told only in pictures is one
-// nobody can search, sort by name, or read in `ws-goals.md`.
-// THE SHAPE IS THE STATE, and the colour agrees with it.
-//
-//   Draft   a pennant, pointing on. Nothing finished about it.
-//   Revise  a swallowtail — a bite taken out of the fly end. Work has come
-//           back for more.
-//   Done    a plain rectangle. Squared off, and it stops being a question.
-//
-// Three SHAPES rather than three fills, and all three solid: a filled flag
-// eleven pixels high reads as its silhouette, which is why every signal flag
-// ever flown is a shape first. Colour alone could not carry this — red and
-// green is the commonest colour-blindness pair, and half the places a flag
-// appears (a file explorer row, a bar token) have no room for a word beside
-// it. The silhouette survives greyscale, a small size and a printout.
-//
-// `currentColor` throughout, so the COLOUR IS THE STYLESHEET'S and a scheme
-// can move it: the flags take a theme's own blue, red and green (its c1, c7
-// and c4 slots) whenever a theme is on, and their plain defaults otherwise.
-// See barThemeVars for the three lines that do it.
-// THE SHAPES A FLAG CAN BE. A writer picks one per state, so the reasoning
-// that used to be baked into three ids now has to hold for any of them
-// against any other: each of these is told apart by its SILHOUETTE, not by
-// its colour or its fill. Red and green is the commonest colour-blindness
-// pair, these are drawn at eleven pixels, and half the places a flag appears
-// have no room for a word beside it.
 // ── FOLDER COLOURS ──────────────────────────────────────────────────────────
 //
 // Seven and a default. They are Obsidian's OWN named colours — `--color-red`
@@ -5458,32 +4962,28 @@ export function wsFlagShapeOf(id: string) {
 	return WS_SHAPE_FOR[id] || 'pennant';
 }
 
-// ── THE AXIS BOUND (writer, BRIEF-HISTORY-MODERNISE A1) ─────────────────
+// ── THE AXIS BOUND ───────────────────────────────────────────────────
 //
-// "the axis fits the 95th percentile of the visible days (or 3x the
-// median, whichever is larger), never the maximum."
-//
-// THE PROBLEM IT SOLVES, their words: "every writing day is under 5
-// pixels". One 10k day flattens a month of real work into a line along
-// the axis. Measured in their vault, August 2026: 19 active days, median
-// 216, max 11,300 - an ordinary day was 1.9% of the plot.
+// The axis fits the 95th percentile of the visible days (or 3x the
+// median, whichever is larger), never the maximum: one 10k day would
+// flatten a month of real work into a line along the axis (a vault
+// measured at 19 active days, median 216, max 11,300 — an ordinary day
+// was 1.9% of the plot).
 //
 // PURE, and takes the VALUES rather than the buckets: the caller decides
 // what a value is (added, deleted, net; one direction at a time), and
-// this decides only where the ceiling goes. Signs are ignored - a bound
-// is a magnitude - so the same function answers for the bars that rise
+// this decides only where the ceiling goes. Signs are ignored — a bound
+// is a magnitude — so the same function answers for the bars that rise
 // and the bars that fall.
 //
-// (n-1)*q, NOT n*q. The calendar next door carries the same note and the
-// reason: with a handful of active days the latter rounds to the LAST
-// element - "the maximum wearing a percentile's name" - and the outlier
-// it exists to tame becomes the scale again.
+// (n-1)*q, NOT n*q: with a handful of active days the latter rounds to
+// the LAST element — the maximum wearing a percentile's name — and the
+// outlier it exists to tame becomes the scale again.
 //
 // THE BOUND NEVER EXCEEDS THE LARGEST VALUE. When the spread is tight,
 // 3x the median lands above everything; a chart whose ceiling is three
 // times its tallest bar is a chart of empty air. Clamping there is what
-// makes the rule SELF-LIMITING: measured in the writer's vault, Monthly
-// and Yearly clip nothing at all and are unchanged by this.
+// makes the rule SELF-LIMITING: Monthly and Yearly clip nothing at all.
 //
 // ZEROES ARE NOT DATA POINTS. A day nobody wrote is not a small day; it
 // would drag the median to nothing and make the bound 3x nothing.
@@ -5509,80 +5009,25 @@ export function wsAxisBound(values: unknown[] | null | undefined) {
 	return { bound: bound, clipped: mags.filter(m => m > bound) };
 }
 
-// ── TOMBSTONE: THE ZIGZAG, AND EVERYTHING IT NEEDED ───────────────────
+// ── ONE GAP FOR BOTH OVER-LABELS, IN CELLS ───────────────────────────
 //
-// `WS_HIST_ZIG_AMP`, `WS_HIST_ZIG_PERIOD` and `wsZigDepths` went on
-// 2026-09-02 with the mark they drew. The writer asked for the cut on
-// 2026-08-25 ("a zigzagged line that cut's the top of the column") and
-// against it on 2026-09-02 ("i want the cutted bar to show it diffrently,
-// not those pixelated shit"); offered seven treatments across two rounds,
-// they chose NO MARK. The column runs to the top and the label says how
-// far it really goes.
-//
-// THE ARGUMENT WAS NOT WRONG AND IS WORTH KEEPING: a cut must BE the edge,
-// not a decoration laid on one, because a mark over a straight edge leaves
-// the edge underneath it straight — that is why the zigzag replaced a
-// hatch. What it could not survive was the grid it had to be drawn on:
-// teeth one 2px cell wide on a column 16px wide read as stair-steps. The
-// comment here argued that at length, and it was right that a diagonal in
-// a `preserveAspectRatio="none"` viewBox leans differently at every width.
-// Both things were true; the shape still had to go.
-//
-// PROVED DEAD BY SABOTAGE, NOT BY READING. After the drawing code went,
-// each of these had exactly ONE occurrence in main.js — its own
-// declaration — and `--audit` still reported every anchor matching,
-// because a case anchored on `wsZigDepths` can be APPLIED to a function
-// nobody calls. Only the live sweep said PASSED ANYWAY. The audit asks
-// whether a case can be applied; the sweep asks whether applying it still
-// breaks anything, and dead code is exactly where those two disagree.
-// ── ONE GAP FOR BOTH OVER-LABELS, IN CELLS (writer, 2026-09-02) ────────
-//
-// "increase the space between 11k and the bar, also put it evenly because
-// look 11k on the red bar is too close to it."
-//
-// MEASURED IN THE RUNNING VAULT BEFORE ANYTHING MOVED: the upper label
-// stood 8px clear of its bar and the lower one 1px. Not a near miss — the
-// lower label was touching.
-//
-// AND THE ASYMMETRY WAS DELIBERATE, which is why it survived a first
-// complaint. The comment beside it read: "It sat one cell off the bar
-// going up and three going down; the asymmetry is the descender room a
-// downward label needs, and it is kept." The reasoning was sound and the
-// arithmetic was not: BOTH labels carry `translate(-50%, -100%)`, so the
-// number placed is the label's BOTTOM edge. Going up that is the edge
-// facing the bar and three cells buys three cells of air; going down the
-// bottom is the far edge, so the same three cells are spent on the label's
-// own height and what faces the bar is whatever is left. Descender room
-// was being added to the side with no descenders.
-//
-// SO THE FIX IS THE TRANSFORM, not the number: the downward label is
-// placed by its TOP edge instead, and then one constant is genuinely one
-// gap on both sides.
+// BOTH labels carry `translate(-50%, -100%)`, so the number placed is
+// the label's BOTTOM edge. Going up that is the edge facing the bar and
+// the cells buy air; going down the bottom is the far edge, so the same
+// cells would be spent on the label's own height and what faces the bar
+// is whatever is left. So the downward label is placed by its TOP edge
+// instead, and one constant is genuinely one gap on both sides.
 export const WS_HIST_LAB_GAP    = 6;
 
 
-// ── ONE SEARCH BOX FOR BOTH MENUS (writer, 2026-09-02) ────────────────
+// ── ONE SEARCH BOX FOR BOTH MENUS ────────────────────────────────────
 //
-// "for the modal menu make the search box look more like the obsidian one
-// with the icon and not elipsis, but Search . . ." — and then the sentence
-// that decides how it is built: "we have that search box made for the
-// word-smith docked menu".
-//
-// SO IT IS NOT A SECOND BOX STYLED TO MATCH. The docked panel already had
-// the right one and the modal drew a plainer copy: `type="text"` instead of
-// `search`, no wrapper, and `Search\u2026` where the other says `Search...`.
-// Three small differences, none of them decided — the modal's version was
-// simply written separately and never compared.
-//
-// THE WRAPPER IS WHAT DRAWS THE MAGNIFIER. `search-input-container` is
-// Obsidian's own class; the icon comes from the app rather than from us,
-// which is why the docked box has one and the modal never did.
-//
-// THREE DOTS, NOT AN ELLIPSIS, and there is already an assertion holding
-// that for the Organizer's finder — the file tree above these panels says
-// "Search...", and a box beneath it saying "Search\u2026" is one of those
-// differences you cannot unsee once noticed. That comment was written for
-// one box; it is true of all three.
+// The docked panel and the modal menu draw the same box, not a second
+// one styled to match. THE WRAPPER IS WHAT DRAWS THE MAGNIFIER:
+// `search-input-container` is Obsidian's own class; the icon comes from
+// the app rather than from us. THREE DOTS, NOT AN ELLIPSIS — the file
+// tree above these panels says "Search...", and a box beneath it saying
+// "Search…" is one of those differences you cannot unsee once noticed.
 export function wsMenuSearchInto(parent: HTMLDivElement) {
 	const wrap = parent.createDiv({ cls: 'ws-menu-searchwrap search-input-container' });
 	const inp = wrap.createEl('input', { cls: 'ws-menu-search' });
@@ -5591,12 +5036,33 @@ export function wsMenuSearchInto(parent: HTMLDivElement) {
 	return inp;
 }
 
+// ── THE FLAG ITSELF ──────────────────────────────────────────────────
+//
+// THE SHAPE IS THE STATE, and the colour agrees with it. A writer picks
+// a shape per state, so each has to be told apart from any other by its
+// SILHOUETTE, not by its colour or its fill: red and green is the
+// commonest colour-blindness pair, these are drawn at eleven pixels,
+// and half the places a flag appears (a file explorer row, a bar token)
+// have no room for a word beside it. A filled flag eleven pixels high
+// reads as its silhouette, which is why every signal flag ever flown is
+// a shape first; the silhouette survives greyscale, a small size and a
+// printout.
+//
+// Decorative, deliberately: the WORD is still the state, and the flag
+// stands beside it wherever there is room. A vocabulary told only in
+// pictures is one nobody can search, sort by name, or read in
+// `ws-goals.md`.
+//
+// `currentColor` throughout, so the COLOUR IS THE STYLESHEET'S and a
+// scheme can move it: the flags take a theme's own blue, red and green
+// (its c1, c7 and c4 slots) whenever a theme is on, and their plain
+// defaults otherwise. See barThemeVars for the three lines that do it.
 export function wsFlagSvg(id: string, size: number) {
 	const px = size || 11;
 	const shape = wsFlagShapeOf(id);
-	// A CLASS TOKEN, NOT MARKUP (plugin guidelines, read 2026-09-11): the id
-	// arrives from a note's own property and lands through innerHTML, so it
-	// is cut to the characters a class can hold before it is written.
+	// A CLASS TOKEN, NOT MARKUP: the id arrives from a note's own property
+	// and lands in markup, so it is cut to the characters a class can hold
+	// before it is written.
 	const tok = String(id == null ? '' : id).replace(/[^\w-]/g, '');
 	const open = (body: string) => '<svg class="ws-flag is-' + tok + '" viewBox="0 0 13 14" width="' + px
 		+ '" height="' + Math.round(px * 14 / 13) + '" aria-hidden="true">' + body + '</svg>';
@@ -5616,23 +5082,18 @@ export function wsFlagSvg(id: string, size: number) {
 	}
 	if (shape === 'banner') return open(pole + '<path d="M2.8 2 L11.6 2 L11.6 9 L2.8 9 Z" fill="currentColor"/>');
 	if (shape === 'alert') {
-		// The one shape that is a STOP rather than a stage. It was a road
-		// sign's triangle with a bar and a dot cut into it; the writer asked
-		// for "a thicker exclamation mark" (A355, 2026-09-13) — so it is the
-		// mark itself, heavy: a bar that tapers from 3.8 wide at the top to
-		// 2.6 at its foot, rounded both ends, and a dot under it, all in
-		// currentColor so the flag's colour is the whole of it. The id stays
-		// `alert`: notes carry it.
+		// The one shape that is a STOP rather than a stage: the mark itself,
+		// heavy — a bar that tapers from 3.8 wide at the top to 2.6 at its
+		// foot, rounded both ends, and a dot under it, all in currentColor so
+		// the flag's colour is the whole of it. The id stays `alert`: notes
+		// carry it.
 		return open('<path d="M4.6 2.4 A1.9 1.9 0 0 1 8.4 2.4 L7.8 8.4 A1.3 1.3 0 0 1 5.2 8.4 Z" fill="currentColor"/>'
 			+ '<circle cx="6.5" cy="11.9" r="1.75" fill="currentColor"/>');
 	}
-	// A plain triangle, point up, no pole (A356, writer 2026-09-13: "add
-	// triangle as an option for flag icons", the day the alert's triangle
-	// became an exclamation mark).
+	// A plain triangle, point up, no pole.
 	if (shape === 'triangle') return open('<path d="M6.5 1.8 L12.2 11.6 H0.8 Z" fill="currentColor"/>');
-	// A question mark and a star (A357, writer 2026-09-13: "Add question
-	// mark, star" from the list offered). The mark is a stroked hook — over
-	// the top and down to a stem — with a dot under it, as heavy as the
+	// A question mark and a star. The mark is a stroked hook — over the
+	// top and down to a stem — with a dot under it, as heavy as the
 	// exclamation; the star is five points on a 5.6 / 2.3 radius about the
 	// box's middle, filled.
 	if (shape === 'question') {
@@ -5692,50 +5153,25 @@ export function wsFolderSvg(open: boolean, size: number) {
 		+ 'width="' + px + '" height="' + px + '" aria-hidden="true">' + body + '</svg>';
 }
 
-// A FILE GLYPH WITH ITS FORMAT LETTERED ON IT (writer, 2026-08-23: "the
-// file glyph with the format written on it as a LABEL, the way a document
-// icon usually carries its type"). Asked for pdf, xlsx and docx.
+// A FILE GLYPH WITH ITS FORMAT LETTERED ON IT, the way a document icon
+// usually carries its type.
 //
 // HAND-DRAWN BECAUSE IT HAS TO BE: Lucide ships no format-labelled file
-// icons, so `setIcon` cannot answer this at all — there is no name to try.
-// The shape to copy is `wsFlagSvg` above: a pure function returning a
-// STRING of markup, no `document`, drawn from `currentColor` so a theme
+// icons, so `setIcon` cannot answer this at all — there is no name to
+// try. The shape to copy is `wsFlagSvg` above: a pure function returning
+// a STRING of markup, no `document`, drawn from `currentColor` so a theme
 // keeps working and the plugin's own palettes move it.
 //
-// ONE function rather than three drawings, and that is the point of it —
-// the label is an argument, so this adds a BRANCH to the icon code rather
-// than a second icon system. Any extension can be lettered; the caller
-// decides which ones earn it.
+// ONE function rather than three drawings: the label is an argument, so
+// this adds a BRANCH to the icon code rather than a second icon system.
+// Any extension can be lettered; the caller decides which ones earn it.
 //
 // `textLength` + `lengthAdjust` are load-bearing, not decoration. These
-// draw at 14–15px (styles.css caps `.ws-uni-kindicon svg`), a four-letter
-// label like XLSX has about 10px to live in, and the writer's font is not
-// the font every reader has. Naming the width makes the label FIT by
-// construction instead of overflowing on a machine we cannot measure.
-// TOMBSTONE (2026-08-31): the lettered-glyph drawing and the list of
-// formats that earned one.
-//
-// NEITHER NAME IS SPELT IN THIS COMMENT, and that is deliberate:
-// unified_probe asserts they are absent from the build by searching
-// the text, and a tombstone that names them is a tombstone that keeps
-// them alive. This is the SIXTH time in this project that prose beside
-// an assertion has taken it green.
-//
-// A folded-page mark with a band of letters masked out of it, one
-// mask id per format, clamped by `textLength` so four letters could
-// not overflow. Built 2026-08-23 from the writer’s "the badges are
-// not readeable", and it DID become readable.
-//
-// What it never became was a file icon. At the 14px it draws at, a
-// page with a filled band under it reads as a MACHINE — a scanner,
-// a printer — and that is what the writer circled: "change the file
-// icons for xlsx, pdf, docx, etc, make them look like regular
-// icons".
-//
-// The answer is the one Obsidian already uses and this plugin can
-// simply borrow: a plain sheet, and the format written beside it in
-// a `nav-file-tag`. See `orgKindTag`. A label is READ; a badge has
-// to be decoded, and at this size there is no room to decode it in.
+// draw at 14–15px (styles.css caps `.ws-uni-kindicon svg`), a
+// four-letter label like XLSX has about 10px to live in, and the
+// writer's font is not the font every reader has. Naming the width makes
+// the label FIT by construction instead of overflowing on a machine we
+// cannot measure.
 
 // THE MANUSCRIPT ORDER'S OWN MARK: lines in a chosen order, and an arrow.
 //
@@ -5743,18 +5179,6 @@ export function wsFolderSvg(open: boolean, size: number) {
 // alternative to HIDING that button — the app's own control keeps working and
 // says what it is set to, the way a filtered search shows a marked funnel.
 //
-// TOMBSTONE: A HAND-WRITTEN M. The reasoning was that a written letter says a
-// person put this order here, against five orders the app works out for
-// itself. The reasoning was fine and the glyph was not: at 18px, in a row of
-// clean geometric icons, an uneven letterform reads as a rendering fault
-// rather than as handwriting. A mark in a toolbar has about a fifth of a
-// second to be legible, which is not long enough to be charmed by it.
-//
-// What replaced it says the same thing with the toolbar's own vocabulary:
-// three lines of different lengths — an order somebody chose, not one that
-// falls out of a rule — with a downward arrow beside them. Stroked, on the
-// 24px grid, at the same weight as its neighbours, so it belongs in the row
-// it sits in.
 export function wsManuscriptSvg(size: number) {
 	const px = size || 18;
 	return '<svg class="ws-mssort svg-icon" viewBox="0 0 24 24" '
@@ -5772,13 +5196,6 @@ export function wsManuscriptSvg(size: number) {
 		+ '<path d="M17.6 14.6 L20 17.2 L22.4 14.6"/>'
 		+ '</svg>';
 }
-
-// TOMBSTONE: `wsManuscriptRootSvg`, an open book drawn in place of the folder
-// glyph on a manuscript root. The concept is retired at the vault's request —
-// see the tombstone on the "This is a manuscript folder" row. Nothing draws a
-// book any more, so `.ws-msroot`, `.ws-msroot-ribbon` and `.ws-msroot-mark`
-// are unused from here; their stylesheet rules go with them, and so do the
-// three sabotage cases that pointed at the ribbon.
 
 export function wsStatusLabel(id: string) {
 	for (const st of WS_STATUSES) if (st.id === id) return st.label;
@@ -5846,31 +5263,17 @@ export const HISTORY_MAX_CELLS   = 30000;
 // gives up. A leaf that never gets one — a background tab, a collapsed
 // sidebar — must not spin a repaint loop for the rest of the session.
 export const MASK_MEASURE_RETRIES = 20;
-// THE OVER-LABEL'S OWN ROOM, in viewBox units.
-//
-// A clipped bar prints its real figure OUTSIDE the plot, so the number
-// never sits on the ink it describes. But the only room outside the plot
-// was PAD (`HISTORY_PX * 3`, six units) and the label is taller than
-// that — and an svg root clips to its viewBox. So the top of every
-// over-label was cut off for as long as the feature has existed:
-// measured 2026-08-25 at baseline y=4 against a 9px face, and reported
-// with a screenshot as "the number up there is not displaying properly".
-//
-// IT OWNS THE FONT SIZE IT IS MEASURED AGAINST — the same rule a `ch`
-// store keeps. `.ws-hist-overlab` is `font-size: 9px`, and this axis is
-// 1:1 (the viewBox is HISTORY_CHART_H tall and the svg is that many
-// pixels tall), so twelve units clears a 9px glyph with its descender
-// and a little air. CHANGE ONE AND CHANGE BOTH; history_render_probe
-// reads the stylesheet and asserts the label fits.
-//
-// It is spent ONLY on the side that has something to say: a chart with
-// nothing clipped keeps the whole plot.
-// HEADROOM FOR AN OVER-LABEL, and it must cover the label ITSELF plus the
-// gap beneath it: the span is ~11px of type and WS_HIST_LAB_GAP * HISTORY_PX
-// of air, so 12 covered the gap and nothing else. Raised on 2026-09-02 when
-// the gap grew; history_render_probe already held the guard that caught it
-// ('with its whole height inside the top of the plot'), which is why this is
-// a number changed rather than a fault shipped.
+// HEADROOM FOR AN OVER-LABEL, in viewBox units. A clipped bar prints
+// its real figure OUTSIDE the plot, so the number never sits on the ink
+// it describes — and an svg root clips to its viewBox, so the room has
+// to be reserved. It must cover the label ITSELF plus the gap beneath
+// it: the span is ~11px of type and WS_HIST_LAB_GAP * HISTORY_PX of
+// air. This axis is 1:1 (the viewBox is HISTORY_CHART_H tall and the
+// svg is that many pixels tall), and `.ws-hist-overlab` is `font-size:
+// 9px` — CHANGE ONE AND CHANGE BOTH; the history render test reads the
+// stylesheet and asserts the label fits. It is spent ONLY on the side
+// that has something to say: a chart with nothing clipped keeps the
+// whole plot.
 export const HISTORY_OVERLAB_PAD = 24;
 // Few buckets must not become slabs: two years of data on the Year tab would
 // otherwise draw two bars a third of the panel wide each.
@@ -5884,23 +5287,23 @@ export const HISTORY_DAYNAMES    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'S
 export const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'May', 'June',
 	'July', 'August', 'September', 'October', 'November', 'December'];
 
-// Theme surfaces, addressable as :b1 and :b2 instead of a number.
+// ── THE BAR'S DIRECTIVES ────────────────────────────────────────────
 //
-// The seven :N backgrounds are colours the writer picked; these two are
-// whatever the current theme is already using for the page and the panels
-// beside it. That makes them the only way to write a segment that DISAPPEARS
-// into the bar — a label with no block behind it, between two that have one —
-// and it keeps working when the theme changes or the vault flips dark to
-// light, which a picked colour cannot.
+// Theme surfaces, addressable as :b1 and :b2 instead of a number. The
+// seven :N backgrounds are colours the writer picked; these two are
+// whatever the current theme is already using for the page and the
+// panels beside it — the only way to write a segment that DISAPPEARS
+// into the bar, and it keeps working when the theme changes or the
+// vault flips dark to light, which a picked colour cannot.
 //
-// Values are resolved from the live computed style rather than written as
-// `var(--background-primary)`: a separator's colour ends up in an SVG `fill`
-// ATTRIBUTE, and custom properties do not resolve in presentation attributes.
-// The resolved token works everywhere — background-color, box-shadow and fill
-// all accept whatever syntax the theme declared it in.
-// A directive at the very START of row 1's left slot, setting the BAR's own
+// Values are resolved from the live computed style rather than written
+// as `var(--background-primary)`: a separator's colour ends up in an SVG
+// `fill` ATTRIBUTE, and custom properties do not resolve in presentation
+// attributes.
+//
+// A directive at the very START of row 1's left slot sets the BAR's own
 // colours from the theme, the palette, or the live mode rather than a
-// segment's.
+// segment's (read by `readBarDirective` below):
 //
 //   :b1 :b2 :b3 :b4  the theme's page, panel, alt-panel and tertiary surfaces
 //   :N   palette background N (wrapping, like a segment's :N)
@@ -5911,43 +5314,30 @@ export const HISTORY_MONTHS      = ['January', 'February', 'March', 'April', 'Ma
 //   ;vim the live vim mode colour as text
 //   ;f   the flag on the note in hand, as text
 //
-// Same grammar as the powerline suffixes on purpose — ":" is a background and
-// ";" is text everywhere in a row — but a different position: the suffix form
-// always follows a token (`{file}:b1`), so nothing here can be mistaken for
-// it. Both may appear, in either order, and the pair may be followed by
-// ordinary content.
+// Same grammar as the powerline suffixes on purpose — ":" is a background
+// and ";" is text everywhere in a row — but a different position: the
+// suffix form always follows a token (`{file}:b1`), so nothing here can
+// be mistaken for it. Both may appear, in either order, and the pair may
+// be followed by ordinary content. The palette and vim forms return a
+// SLOT rather than a value: they need the plugin (settings, theme, live
+// mode) to resolve; resolveBarDirective() on the plugin turns a slot
+// into paint. The reader returns the stripped string alongside the
+// values so the caller cannot render one without honouring the other.
 //
-// The palette and vim forms return a SLOT rather than a value: they need the
-// plugin (settings, theme, live mode) to resolve, and this is a module
-// function. resolveBarDirective() on the plugin turns a slot into paint.
-//
-// Returns the stripped string alongside the values so the caller cannot
-// render one without honouring the other.
-// Every one of these ENDS in a variable that always resolves, and that is
-// not tidiness — it is the difference between a slot the theme does not
-// define and a bar that vanishes.
-//
-// These values are stamped straight into `--ws-bg`, and the bar paints with
-// `background-color: var(--ws-bg)`. A var() that does not resolve is invalid
-// AT COMPUTED-VALUE TIME, which does not fall back to the previous
-// declaration — it falls back to the property's INITIAL value, and the
-// initial value of background-color is `transparent`. So one undefined theme
-// variable does not give a slightly wrong colour, it gives no bar at all.
-//
-// And it does not stop there, which is what made this hard to read as one
-// bug. `barColor` is then read back off the element, sees rgba(0,0,0,0), and
-// stays 'transparent' — and barColor is what a group's END CAP is drawn
-// against. For a slanted cut the SHAPE takes that colour and the backing
-// rect takes the segment's, so the cut paints invisibly over a solid
-// rectangle and the group appears to start with a straight edge instead.
-// Reported as two unrelated faults in light mode ("the middle is
-// transparent" and "the right side starts with | instead of \\"), one cause.
-//
-// Core Obsidian defines --background-primary, --background-primary-alt,
-// --background-secondary and --background-secondary-alt. It does NOT define
-// --background-tertiary; community themes often do. But a theme is free to
-// leave any of them out, and one that did took the whole bar with it — so
-// every chain below terminates at --background-primary, which is the one
+// EVERY ONE OF THESE ENDS IN A VARIABLE THAT ALWAYS RESOLVES. They are
+// stamped straight into `--ws-bg`, and the bar paints with
+// `background-color: var(--ws-bg)`. A var() that does not resolve is
+// invalid AT COMPUTED-VALUE TIME, which falls back to the property's
+// INITIAL value — for background-color, `transparent`. So one undefined
+// theme variable gives no bar at all; and `barColor`, read back off the
+// element, sees rgba(0,0,0,0) and stays 'transparent', which is what a
+// group's END CAP is drawn against, so a slanted cut paints invisibly
+// over a solid rectangle and the group appears to start with a straight
+// edge. Core Obsidian defines --background-primary,
+// --background-primary-alt, --background-secondary and
+// --background-secondary-alt; it does NOT define --background-tertiary
+// (community themes often do), and a theme is free to leave any of them
+// out — so every chain terminates at --background-primary, the one
 // surface nothing can render without.
 export const BAR_DIRECTIVE_BG: Record<string, string> = {
 	b1: 'var(--background-primary)',
@@ -5989,23 +5379,18 @@ export function readBarDirective(formatStr: string) {
 	// accepts the pair in the order it was written, and a writer who types
 	// ;t2:b2 has said exactly the same thing.
 	for (;;) {
-		// `bs` and `bc` join b1-b4 as surface names, BEFORE b\d+ in the
-		// alternation so the engine need not backtrack into them. Listed
-		// rather than widened to \w+, because an unknown slot must stay
-		// unmatched and print itself: a typo that silently resolved to
-		// nothing is the failure this grammar was built to avoid. The old
-		// spelling `s` is deliberately absent — see BAR_DIRECTIVE_BG.
+		// `bs` and `bc` join b1-b4 as surface names, BEFORE bd+ in the
+		// alternation so the engine need not backtrack into them. Listed rather
+		// than widened to w+, because an unknown slot must stay unmatched and
+		// print itself: a typo that silently resolved to nothing is the failure
+		// this grammar was built to avoid.
 		//
-		// :bc and ;bc travel the SLOT route with :vim rather than the
-		// theme-surface route with :bs, because the cursor's colour is
-		// LIVE state — Cursor-Smith repaints the caret per vim mode — and
-		// a slot is resolved on every repaint where a surface is stamped
-		// once (see cursorColor).
-		// `:f` and `;f` join `:vim` and `:bc` on the SLOT route rather than
-		// the surface route, and for the same reason: the flag's colour is
-		// LIVE state. It follows the note in front of the writer and changes
-		// the moment they flag it, where a surface is stamped once when the
-		// scheme is applied.
+		// :bc, ;bc, :f and ;f travel the SLOT route with :vim rather than the
+		// theme-surface route with :bs, because the cursor's colour and the
+		// flag's are LIVE state — Cursor-Smith repaints the caret per vim mode,
+		// and the flag follows the note in front of the writer — and a slot is
+		// resolved on every repaint where a surface is stamped once (see
+		// cursorColor).
 		const m = /^\s*(?::(bs|bc|f|b\d+|vim|\d+)|;(t\d+|vim|bc|f|\d+))/i.exec(rest);
 		if (!m) break;
 		if (m[1] && bg === null && bgSlot === null) {
@@ -6144,36 +5529,25 @@ export function hslToHex(h: number, s: number, l: number) {
 	return '#' + hx(r) + hx(g) + hx(b);
 }
 
-// Separator width as a fraction of the row's height, which is the same thing
-// as the arrow's sharpness. The apex sits at (w, h/2) and the base runs
-// (0,0) to (0,h), so the nose measures
+// Separator width as a fraction of the row's height, which is the same
+// thing as the arrow's sharpness. The apex sits at (w, h/2) and the base
+// runs (0,0) to (0,h), so the nose measures
 //
-//     2 · atan((h/2) / w)  =  2 · atan(0.5 / aspect)
+// 2 · atan((h/2) / w)  =  2 · atan(0.5 / aspect)
 //
-//     0.34 -> 112 degrees    0.50 -> 90    0.85 -> 61    1.05 -> 51
+// 0.34 -> 112 degrees    0.50 -> 90    0.85 -> 61    1.05 -> 51
 //
 // WIDER IS POINTIER. A long shallow triangle has a sharp nose; a short
-// stubby one is blunt.
+// stubby one is blunt. (Not 2·atan(2·aspect), which is the COMPLEMENT —
+// the two agree at exactly 0.5, the one value that cannot reveal the
+// mistake.) 1.05 is a 51-degree nose: clearly sharper than 61, and still
+// a triangle with a body rather than a needle.
 //
-// A WHOLE SESSION OF WRONG ANSWERS IS RECORDED HERE, because the mistake
-// underneath them is easy to repeat. Asked to make the arrows pointier
-// from 0.85, this was set to 0.34 and then 0.5 — both BLUNTER, 112 and 90
-// against the 61 it started at — because the angle was being computed as
-// 2·atan(2·aspect), which is the COMPLEMENT of the real one. The two
-// formulas agree at exactly 0.5, which is the one value that could not
-// reveal the error. A stray comment claiming a Powerline glyph "is nearer
-// 65 degrees" is what the first guess was aimed at; the original comment
-// beside this constant had the correct formula and the correct 61 all
-// along, and was read past.
-//
-// 1.05 is a 51-degree nose: clearly sharper than the 61 that prompted the
-// complaint, and still a triangle with a body rather than a needle.
-//
-// A constant, not a setting. It was briefly a slider, and a slider was the
-// wrong shape for it: the writer has no way to judge the number without
-// dragging it, and it put a wire-format key (BAR_KEYS index 56) behind a
-// question nobody wanted asked. That key stays in the table — it cannot be
-// removed, only stopped being read.
+// A constant, not a setting: a slider was the wrong shape for it — the
+// writer has no way to judge the number without dragging it — and it put
+// a wire-format key (BAR_KEYS index 56) behind a question nobody wanted
+// asked. That key stays in the table; it cannot be removed, only stopped
+// being read.
 export const PL_SEP_ASPECT = 1.05;
 
 // The same four surfaces as BAR_DIRECTIVE_BG, as raw variable NAMES: a
@@ -6215,48 +5589,40 @@ export const BAR_THEME_INK_VARS: Record<string, string[]> = {
 	t3: ['--text-faint', '--text-muted', '--text-normal'],
 };
 
-// Doubling turns a character into a SOFT mark: drawn in the row's own
-// foreground, inside one colour block instead of between two — the hairline
-// short and faint, the chevrons the same line bent to a point and drawn as
-// an outline stroke (buildSoftChevron), the way p10k's thin dividers sit
-// inside a block. Only
-// three exist, and the set is deliberately short rather than symmetric —
-// (( )) || ~~ were tried and removed. A soft mark has to stay legible at a
-// few pixels of foreground colour, and the round, twin and wave forms did
-// not: they read as specks. Chevrons keep a clear direction and the hairline
-// is unmistakable at any size, so those are what remain. Backslash is
-// excluded regardless: a doubled backslash already means a literal one.
-//
-// A fourth mark, a 1px rule at the bar's full height, was built and removed.
-// Not for how it DREW — that part worked — but for how it read in the format
-// string. It was spelled `||` first, which put a third meaning on the one
-// character that is already the straight divider and the only one with an
-// escape, and then `;;`, which has none of those problems and a worse one: at
-// the size a row is written and scanned, `;;` and `::` are the same two
-// stacked dots. A grammar the writer has to squint at is not simpler than no
-// mark at all. If it comes back it needs characters that look nothing like
-// the hairline's.
-//
-// Note this means doubling is NOT universal. A doubled character with no
-// entry here falls through to the tokenizer, which splits on each half as a
-// hard divider — the empty segment between them is then dropped by the
-// collapse pass, so `{a} )) {b}` renders as a single round join rather than
-// as an error. That is the intended degradation.
-//
-// All three work in a PLAIN row as well as a powerline one. They were
-// powerline-only for no reason anyone chose: the split lived inside
-// renderPowerlineSection, so a plain row printed `::` as two colons. Nothing
-// about a mark in the row's own foreground needs a coloured block behind it —
-// that is what makes it soft. renderStatusSection now does the same split, and
-// since the powerline renderer hands it pieces that are already split, the
-// two do not collide. Sizing differs and only sizing: a segment gives the
-// marks a definite height to stretch into and a plain section does not, so
-// the stylesheet sizes them from the bar's font there (see .ws-pl-soft).
 // The official Obsidian crystal as one path, its four facets separate
 // subpaths so the facet lines are gaps in the fill. From simple-icons
 // (CC0 path data); see buildObsidianIcon for the trademark note.
 export const OBSIDIAN_ICON_PATH = 'M19.355 18.538a68.967 68.959 0 0 0 1.858-2.954.81.81 0 0 0-.062-.9c-.516-.685-1.504-2.075-2.042-3.362-.553-1.321-.636-3.375-.64-4.377a1.707 1.707 0 0 0-.358-1.05l-3.198-4.064a3.744 3.744 0 0 1-.076.543c-.106.503-.307 1.004-.536 1.5-.134.29-.29.6-.446.914l-.31.626c-.516 1.068-.997 2.227-1.132 3.59-.124 1.26.046 2.73.815 4.481.128.011.257.025.386.044a6.363 6.363 0 0 1 3.326 1.505c.916.79 1.744 1.922 2.415 3.5zM8.199 22.569c.073.012.146.02.22.02.78.024 2.095.092 3.16.29.87.16 2.593.64 4.01 1.055 1.083.316 2.198-.548 2.355-1.664.114-.814.33-1.735.725-2.58l-.01.005c-.67-1.87-1.522-3.078-2.416-3.849a5.295 5.295 0 0 0-2.778-1.257c-1.54-.216-2.952.19-3.84.45.532 2.218.368 4.829-1.425 7.531zM5.533 9.938c-.023.1-.056.197-.098.29L2.82 16.059a1.602 1.602 0 0 0 .313 1.772l4.116 4.24c2.103-3.101 1.796-6.02.836-8.3-.728-1.73-1.832-3.081-2.55-3.831zM9.32 14.01c.615-.183 1.606-.465 2.745-.534-.683-1.725-.848-3.233-.716-4.577.154-1.552.7-2.847 1.235-3.95.113-.235.223-.454.328-.664.149-.297.288-.577.419-.86.217-.47.379-.885.46-1.27.08-.38.08-.72-.014-1.043-.095-.325-.297-.675-.68-1.06a1.6 1.6 0 0 0-1.475.36l-4.95 4.452a1.602 1.602 0 0 0-.513.952l-.427 2.83c.672.59 2.328 2.316 3.335 4.711.09.21.175.43.253.653z';
 
+// Doubling turns a character into a SOFT mark: drawn in the row's own
+// foreground, inside one colour block instead of between two — the
+// hairline short and faint, the chevrons the same line bent to a point
+// and drawn as an outline stroke (buildSoftChevron), the way p10k's thin
+// dividers sit inside a block. Only three exist, and the set is
+// deliberately short rather than symmetric: a soft mark has to stay
+// legible at a few pixels of foreground colour, and round, twin and wave
+// forms read as specks. Chevrons keep a clear direction and the hairline
+// is unmistakable at any size. Backslash is excluded regardless: a
+// doubled backslash already means a literal one. (A 1px rule at the
+// bar's full height is not among them: spelled `||` it puts a third
+// meaning on the one character that is already the straight divider,
+// and spelled `;;` it is the same two stacked dots as `::` at the size a
+// row is written and scanned.)
+//
+// Doubling is NOT universal. A doubled character with no entry here
+// falls through to the tokenizer, which splits on each half as a hard
+// divider — the empty segment between them is then dropped by the
+// collapse pass, so `{a} )) {b}` renders as a single round join rather
+// than as an error. That is the intended degradation.
+//
+// All three work in a PLAIN row as well as a powerline one: nothing
+// about a mark in the row's own foreground needs a coloured block behind
+// it — that is what makes it soft. renderStatusSection does the same
+// split as renderPowerlineSection, and since the powerline renderer
+// hands it pieces that are already split, the two do not collide. Sizing
+// differs and only sizing: a segment gives the marks a definite height
+// to stretch into and a plain section does not, so the stylesheet sizes
+// them from the bar's font there (see .ws-pl-soft).
 export const PL_SOFT: Record<string, string> = {
 	'::': 'ws-pl-soft',
 	'>>': 'ws-pl-soft ws-pl-chev-r',
@@ -6279,12 +5645,9 @@ export const DEFAULT_SETTINGS = {
 	barThemeEnabled: true,
 	barTheme:       'custom',
 	barThemeOrder:  [] as string[],
-	// A FRESH INSTALL SHOWS NINE (the writer, 2026-09-18: "close so themes by
-	// default, leave some of them on, because too many options on at first is
-	// not ok", then "put modus operandi tinted, and modus vivendi tinted on"
-	// — one scheme, Modus Tinted, light and dark): the ones most writers know
-	// by name stay on the shelf, the other sixteen wait as pills below it, one
-	// tap from coming back. A vault that has saved keeps its own.
+	// A FRESH INSTALL SHOWS NINE: the ones most writers know by name stay
+	// on the shelf, the other sixteen wait as pills below it, one tap from
+	// coming back. A vault that has saved keeps its own.
 	barThemeHidden: [
 		'modus', 'quiet', 'habamax', 'modus-deuteranopia', 'modus-tritanopia',
 		'monokai', 'nightfox', 'kanagawa', 'github', 'everforest', 'vimblue', 'flexoki',
@@ -6296,11 +5659,6 @@ export const DEFAULT_SETTINGS = {
 	// quiet shelf nothing is deleted from, and separators are writer-made
 	// `rule-N` ids that live in the order like anything else.
 	//
-	// TOMBSTONE (1.3.0): `menuColumns` and `menuCenterText` lived here
-	// for part of one cycle and never shipped. The menu is one column —
-	// a palette is a list, and a grid made the reading order a puzzle —
-	// and row labels are centred by the stylesheet as the one look, not
-	// a toggle. A saved value for either key is simply unread.
 	menuOrder:      [] as string[],
 	menuHidden:     [] as string[],
 	// Pinned commands are `cmd:<obsidian-command-id>` entries in the order
@@ -6312,13 +5670,12 @@ export const DEFAULT_SETTINGS = {
 	// Which entries CONTINUE the line above rather than starting their own.
 	// The order stays one flat list — reading order, left to right then
 	// down — and this is the only thing that says where a line breaks. An
-	// id that is absent starts a line. THE SHIPPED MENU IS PAIRED (the
-	// writer, 2026-09-20: "make this the default way of the menu"): Syntax |
+	// id that is absent starts a line. THE SHIPPED MENU IS PAIRED: Syntax |
 	// Prose, Font | Markers, Theme | Light / Dark, Report | History,
 	// Organizer | Export, with Search, Modes and the rule on lines of their
 	// own — the second of each pair continues the line (see `menuLayout` for
-	// the order). A vault that saved its own list keeps it, an empty list
-	// being the single column the menu used to ship as.
+	// the order). A vault that saved its own list keeps it; an empty list
+	// is a single column.
 	menuJoined:     ['prose', 'markers', 'lightdark', 'history', 'export'] as string[],
 	// How each separator draws — layout id → solid / dashed / dotted /
 	// double. A rule is the one thing on this shelf with nothing to say,
@@ -6326,52 +5683,28 @@ export const DEFAULT_SETTINGS = {
 	menuRuleStyles: {} as Record<string, string>,
 	// The menu as a DOCKED PANEL as well as a pop-up: a leaf you can drag
 	// under the file tree and jump to with quick cycle, rather than a
-	// window you summon and dismiss.
-	//
-	// ON by default. It shipped off on the reasoning that a plugin adding
-	// a pane uninvited takes a decision belonging to the writer — which
-	// is true of a pane nobody asked for, and this one IS the plugin: a
-	// new install otherwise shows nothing at all until the writer finds a
-	// setting they have no reason to look for. Turning it off is one
-	// click and the pane's position is remembered.
+	// window you summon and dismiss. ON by default: a new install otherwise
+	// shows nothing at all until the writer finds a setting they have no
+	// reason to look for. Turning it off is one click and the pane's
+	// position is remembered.
 	menuDock:       true,
-	// WHAT THE TARGET CELL SAYS (writer, 2026-08-31: "make the target
-	// show percentage or xxx/xxx").
-	//
-	// `ratio` WAS THE DEFAULT because the column is called Target: a
-	// cell reading "43%" no longer says anywhere what the target IS,
-	// and 2,145/5,000 carries the progress AND the number it is
-	// against. The writer reversed it (2026-09-20: "the target column by
-	// default should be percentage"): the column stays narrow, and a
-	// folder's cell says both numbers whichever way the notes read.
+	// WHAT THE TARGET CELL SAYS: 'percent', or 'ratio' (2,145/5,000, which
+	// carries the progress AND the number it is against). Percent keeps the
+	// column narrow, and a folder's cell says both numbers whichever way
+	// the notes read.
 	orgTargetShow: 'percent',
-	// (`exportTicksAlways` stood here for a day — A254-1c's one setting —
-	// and went at A271: the ticks are on only while an Export pane is open.
-	// Deleted on load, like every dead key.)
 	// ── THE ORGANISER'S OWN ICONS, ONE SWITCH EACH ──────────────────────
 	//
-	// Writer, 2026-09-02: "add option in organiser settings to show or not
-	// show folder icons and another option to show or not show file icons
-	// (same as int the file tree tab in the plugins settings)".
-	//
-	// TWO KEYS, NOT ONE, because that is how it was asked for and how the
-	// pair it is modelled on already works: `fileTreeFolderIcons` and
-	// `fileTreeKindIcons` are separate switches on the File tree tab, and
-	// a writer who wants folders marked and files plain has to be able to
-	// say so. A single "icons" switch would be a third grammar.
-	//
-	// `true` IS WHAT THE WINDOW DOES TODAY, so a vault that upgrades sees
-	// no change and no migration is owed: these keys have never existed,
-	// so `raw.orgFolderIcons === undefined` is true for everyone and the
-	// defaults put them in.
+	// TWO KEYS, NOT ONE, like the pair they are modelled on:
+	// `fileTreeFolderIcons` and `fileTreeKindIcons` are separate switches on
+	// the File tree tab, and a writer who wants folders marked and files
+	// plain has to be able to say so.
 	// The marker for the one-time flip in loadSettings; see the note there.
 	fileIconsOffOnce: false,
 	orgFolderIcons: true,
-	// OFF, on the writer's word the day after they asked for the switch:
-	// "remove the file icons from file tree and organiser too (we keep only
-	// folder icons)". A folder glyph tells a folder from a note at a glance;
-	// a glyph on every note tells you what you already know from the row it
-	// is in. The switch stays, because a switch is one click back.
+	// OFF: a folder glyph tells a folder from a note at a glance; a glyph on
+	// every note tells you what you already know from the row it is in. The
+	// switch stays, because a switch is one click back.
 	orgFileIcons: false,
 	// The scheme's reach, each independently togglable in the Theme tab.
 	// SIMPLIFIED collapses every surface to the editor's colour (one wash);
@@ -6384,33 +5717,14 @@ export const DEFAULT_SETTINGS = {
 	barThemeCursor:     false,
 	barThemeVim:        false,
 	barThemeBorderless: false,
-	// TOMBSTONE (1.3.5): barThemeMarginalia and marginaliaGutter. An iA
-	// Writer hanging gutter, built twice and removed twice — the second
-	// build fixed every complaint made about the first (hashes ranged
-	// right instead of counted in `ch`, markers hung out of flow, an
-	// auto-sized margin, the chevron against the hash run) and the look
-	// was still not wanted. Worth recording: every individual defect was
-	// fixable and every one got fixed, and the whole never became good.
-	// Both keys are swept in loadSettings; the Obsidian findings are in
-	// the tombstone at the end of styles.css.
 	// The shape of a task checkbox: '' leaves Obsidian's (or your theme's)
 	// alone, which is why the default is empty rather than 'square'.
 	barThemeCheckbox:   '',
-	// TOMBSTONE (1.2.8). barThemeGlass was a frosted-glass toggle, removed
-	// by vault feedback within the release. barThemeGlassStash OUTLIVES it
-	// on purpose: while Glass was on it borrowed Obsidian's own
-	// `translucency` setting, and a vault that ran it still has that
-	// borrow outstanding. Deleting the feature without repaying it would
-	// leave a writer's window translucent forever, changed by a plugin
-	// that no longer has the code to explain it. The repayment runs once,
-	// on load, and clears itself — see barThemeGlassRepay.
+	// The Glass look is gone, but while it was on it borrowed Obsidian's own
+	// `translucency` setting; a vault that ran it still has that borrow
+	// outstanding. The repayment runs once, on load, and clears itself —
+	// see barThemeGlassRepay.
 	barThemeGlassStash: null as boolean | null,
-	// TOMBSTONE (1.2.7). barThemeSimpleTabs was REMOVED within this same
-	// release by vault feedback: the flattening rules amounted to "only an
-	// underline" under real themes — the look needs Minimal's full tab
-	// rework or nothing, and a toggle that underdelivers its name is worse
-	// than no toggle. The key is simply gone from defaults; a stale value
-	// in data.json is harmlessly ignored.
 	barThemeMarkdown:   false,
 
 	// ── Master switch ─────────────────────────────────────────────────────────
@@ -6459,8 +5773,7 @@ export const DEFAULT_SETTINGS = {
 	// Breathing room between the caret and whatever occupies the edge of the
 	// window: the bar, the vim command line, the letterbox. Enforced through
 	// CodeMirror's scrollMargins (see caretFloorY), which is the one route
-	// that has ever reached the editor — the zen padding sliders that tried
-	// to do this with CSS are a tombstone in ARCHITECTURE.md.
+	// that has ever reached the editor; CSS padding never did.
 	caretMarginPx:            0,
 	// Escape leaves zen. Off-limits in vim's insert/visual/replace modes
 	// whatever this says — see the keydown handler — so it costs a vim user
@@ -6469,21 +5782,17 @@ export const DEFAULT_SETTINGS = {
 	// Measured height of the vim command line, so the gutter can be
 	// reserved at the right size before the first `:` of a session.
 	vimPanelHeight:           23,
-	// ── HOW FAR THE BAR SITS FROM THE BOTTOM (A174, 2026-09-05) ────────
+	// ── HOW FAR THE BAR SITS FROM THE BOTTOM ─────────────────────────────
 	//
-	// Writer: “add a slider that goes from 0 to 23 px so users can pick
-	// how far the status line sits from the bottom … maybe increase the
-	// slider range from 0 - 30px (default for new users 23px)”.
+	// 23 FOR EVERYONE, new vault and old: the vim gutter was reserved
+	// unconditionally at that height before this was a choice, so nobody
+	// sees anything move on the upgrade. No migration writes it: the default
+	// IS the answer.
 	//
-	// 23 FOR EVERYONE, new vault and old. It is what every vault shows
-	// today — the vim gutter was reserved unconditionally — so nobody
-	// sees anything move on the upgrade; the number simply becomes
-	// theirs. No migration writes it: the default IS the answer.
-	//
-	// AND IT IS NOT `vimPanelHeight`, one line up. That is a MEASUREMENT
-	// — how tall this vault’s `:` line actually is — and this is a
-	// CHOICE. They happen to be 23 on this machine and that is a
-	// coincidence of the theme, not a shared fact.
+	// AND IT IS NOT `vimPanelHeight`, one line up. That is a MEASUREMENT —
+	// how tall this vault's `:` line actually is — and this is a CHOICE.
+	// They happen to be 23 on this machine and that is a coincidence of the
+	// theme, not a shared fact.
 	barBottomGap:             23,
 	focusedFileMode:          false,
 
@@ -6540,7 +5849,7 @@ export const DEFAULT_SETTINGS = {
 	dimOpacity:               0.55,
 
 	// ── Retro status bar ──────────────────────────────────────────────────────
-	// A PHONE'S OWN OPT-IN for the bar (A286): the master above syncs across
+	// A PHONE'S OWN OPT-IN for the bar: the master beside it syncs across
 	// devices; this says whether a phone shows it at all. Off, because a
 	// 360px screen has no room for a status line.
 	retroBarOnPhone:          false,
@@ -6584,9 +5893,9 @@ export const DEFAULT_SETTINGS = {
 	// The bar's type follows the editor's own size (--font-text-size),
 	// Ctrl+scroll zoom included, instead of the fixed slider above.
 	statusBarFontFollowNote:  true,
-	// THE INTERFACE FONT FOR THE BAR (A454, the writer: "use interface font for
-	// the powerline, not the text font"): off, the bar follows the font chosen
-	// through the font token; on, Obsidian's own face whatever the note is in.
+	// THE INTERFACE FONT FOR THE BAR: off, the bar follows the font chosen
+	// through the font token; on, Obsidian's own face whatever the note is
+	// in.
 	statusBarUiFont:          false,
 	statusBarHeight:          16,
 	statusBarPadTop:          2,         // breathing room above the rows
@@ -6695,99 +6004,26 @@ export const DEFAULT_SETTINGS = {
 	// column added in a later version must not be dropped by an order saved
 	// before it existed.
 	uniColOrder:              [] as string[],
-	// TOMBSTONE: `uniColCh`, widths the writer dragged, in `ch`, keyed by
-	// column id — and `uniCols` before it, the same store in PIXELS. Both are
-	// deleted on load rather than ignored; see the migration, and see the
-	// header cell in the Organizer for why the handles went. Only the NAME
-	// column's width is stored now, in `uniNameCh`.
-	// Which folders the writer has folded away in the Outliner. Kept because
-	// the alternative is folding them again on every opening; pruned when the
-	// window opens, so a folder deleted while it was shut does not linger as a
-	// path nothing matches.
-	// TOMBSTONE (A277): `uniShut`, the window tree’s folds. Deleted on load.
-	// AND THE TREE ROOT’S OWN FOLD, which is a SECOND key on purpose.
-	//
-	// It shared `organizerRootShut` with the table’s subject row from
-	// 2026-08-26, and the comment beside that sharing argued for it: one
-	// row, one fact, "a second boolean would let a writer fold it in one
-	// pane and find it open in the other". The writer reported the
-	// consequence on 2026-08-31 — "when i close a main folder in the table
-	// the organiser filetree colappses on the rootfolder" — and MEASURED
-	// in their vault it is exactly that: folding the table’s subject took
-	// the tree from 37 rows to 1.
-	//
-	// THEY ARE NOT ONE ROW. The table’s subject is the folder the table is
-	// SHOWING and the tree’s root is the top of the whole vault; they only
-	// coincide when the scope is the vault. Two rows in two panes, so two
-	// facts — and `loadSettings` seeds this one from the old key so a fold
-	// already made does not spring open on upgrade.
-	// TOMBSTONE (A267, 2026-09-09): `uniRootShut`, the window tree's own
-	// root fold. It had exactly one reader and the tree took it out; a key
-	// nothing reads is a name somebody reuses. Deleted on load.
 	// ── THE NEW ORGANIZER (RULES-OF-THE-WINDOW.md) ──────────────────────────
-	// TOMBSTONE: `organizerRoot` (2026-08-30). The manuscript root the
-	// Organizer's tree hung from. Retired on the writer's word — "we
-	// already can click on a folder" — which is exactly the objection
-	// that retired `uniScope` and `manuscriptRoots` before it: a
-	// persisted narrowing is invisible once set. The tree starts at the
-	// vault, always, and `organizerFolder` remembers where you were.
-	// DELETED on load, not merely undefaulted: a key that still parses
-	// is a trap for whoever reuses the name.
-	// The selected folder in the Organizer tab, kept across sessions (spec,
-	// SETTLED list). Empty means the manuscript root itself. Written by ONE
-	// function (`orgSelect` in the window) and nothing else.
+	// The selected folder in the Organizer tab, kept across sessions. Empty
+	// means the whole vault. Written by ONE function (`orgSelect` in the
+	// window) and nothing else.
 	organizerFolder:          '',
-	// THE PIN (A462, a user: "fixing the folder that is displayed in the
-	// Organizer, so that it always shows the same content no matter where I
-	// navigate in Obsidian's default file explorer"): on, the explorer's door
-	// is shut — a note opened elsewhere and a folder clicked there leave the
-	// pane on `organizerFolder`; the pane's own crumbs still move it. The
-	// button on the path line is the one writer.
+	// THE PIN: on, the explorer's door is shut — a note opened elsewhere and
+	// a folder clicked there leave the pane on `organizerFolder`; the pane's
+	// own crumbs still move it. The button on the path line is the one
+	// writer.
 	organizerPinned:          false,
-	// Which of the two right-pane views is up (spec, RIGHT PANE): 'table'
-	// or 'outline'. A view the writer chose is a view the window
-	// remembers — the uniBoard precedent.
-	// TOMBSTONE: `organizerDrawer` (2026-08-24). It held whether the
-	// TABLE view's property drawer was open, and it went with the button
-	// that opened it - the writer's own answer when asked whether two
-	// controls should go on answering one question. Table is the columns
-	// and Outline is the properties; `organizerMode` is now the only
-	// store that says which of the two is up. Deleted on load, because a
-	// dead key that still parses is a trap for whoever reuses the name.
-	// TOMBSTONE: `organizerOutlineProp` — the ONE property the Outline drew
-	// under every row, view-wide, defaulting to the synopsis with a
-	// label-click to switch it.
-	//
-	// THE OUTLINE WENT AT A26 AND THIS DID NOT. Measured 2026-08-31 while
-	// cutting the synopsis chain: the key had NO reader left anywhere in
-	// `src/` — only this line declaring it. It was noted then and not
-	// touched, because that batch was about a different chain; it is a dead
-	// key by the rule three paragraphs of this file spend on the subject, so
-	// it goes now.
-	//
-	// DELETED ON LOAD, not merely undefaulted: 1.3.9 shipped, so a stranger's
-	// data.json carries whichever property they had chosen, and with no
-	// reader left it would sit there unreachable for ever. `uniColCh`,
-	// `organizerRoot` and `synopsisKey` are the precedent.
 	// Which KINDS of file the Outliner's tree draws. Group ids from
 	// `uniTypeGroups` — ALL of them by default, decided by the vault that
 	// asked for this: the request was "all the file types in it", with the
-	// menu's one-click "Notes only" as the way back. 1.3.9 has never
-	// shipped, so there is no older behaviour to keep silent for. NOT what
+	// menu's one-click "Notes only" as the way back. NOT what
 	// the compile consumes: the compile keeps its own extension check at the
 	// point of consumption, and the two rules have one owner each. The list
 	// is written out rather than computed because DEFAULT_SETTINGS is a
 	// plain literal read before the class exists — keep it equal to the ids
 	// in `uniTypeGroups`.
 	uniTypes:                 ['md', 'image', 'canvas', 'base', 'pdf', 'audio', 'video', 'other'],
-	// TOMBSTONE: `uniScope`, the Outliner's FOLDER SCOPE — "these are my
-	// folders", folder paths, empty meaning the whole vault. Retired at the
-	// vault's request: "remove scoping a folder (we use the search bar)".
-	// It had already outlived `manuscriptRoots`, which died of the same
-	// fault it then reproduced: a persisted narrowing with a sign a writer
-	// stops seeing. The key is deleted on load in `10-settings`.
-	// TOMBSTONE (Phase 5): `uniBoard` / `uniBoardTags` — the corkboard.
-	// Dead by the spec's SETTLED list; both keys deleted on load.
 	// Set the first time a history store is written or found. See
 	// `historyWrite`: it is what stops an unready vault index being read as
 	// "there is no history here" and a second, empty file being made beside
@@ -6796,16 +6032,11 @@ export const DEFAULT_SETTINGS = {
 	settingsMirror:           true,
 	settingsMirrorPath:       'Word-Smith/ws-settings.md',
 	fileGoals:                {} as Record<string, number>,   // note path -> word target
-	// TOMBSTONE (A169, 2026-09-05): `folderGoals`. “let’s retire folder
-	// goals — they are only the sum of their files now.” Deleted on
-	// load in `loadSettings`, the `uniCols` precedent: a key that still
-	// parses is a key somebody reuses. `folderTargetRollup` is the one
-	// answer to what a folder is worth, and it adds up the notes.
-	// …and where each one is up to: 'draft' | 'revise' | 'done', absent for
-	// unmarked. Same keys, same file (`ws-goals.md`), because a status is
-	// the same kind of fact as a target — the writer's own note about their
-	// own manuscript, which has to outlive a reinstall and be editable by
-	// hand. See WS_STATUSES for why there are three of them and not twelve.
+	// …and where each one is up to, by flag id, absent for unmarked. Same
+	// keys, same file (`ws-goals.md`), because a status is the same kind of
+	// fact as a target — the writer's own note about their own manuscript,
+	// which has to outlive a reinstall and be editable by hand. See
+	// WS_STATE_IDS.
 	fileStatus:               {} as Record<string, string>,   // note path -> flag id
 	goalLabelMode:            'fraction',  // 'percent' inside | 'fraction' beside | 'none'
 
@@ -6832,11 +6063,11 @@ export const DEFAULT_SETTINGS = {
 	// ("Aa", "\u00b6"); 'word' spells it out. Two settings rather than one,
 	// because the buttons are different widths and a writer trading room
 	// for legibility does it one button at a time.
-	fontTokenFormat:          'glyph',   // 'glyph' (the menu's icon, since A331; was Aa) | 'word' (Fonts) | 'both' (A400)
-	markersTokenFormat:       'glyph',   // 'glyph' (the menu's icon, since A331; was \u00b6) | 'word' (Markers) | 'both' (A400)
-	// THE OTHER EIGHT (A331): { modes | syntax | prose | theme | report |
-	// history | export | organizer: 'icon' }; a token absent from the map
-	// shows its word. One key, so a preset or a share code carries it whole.
+	fontTokenFormat:          'glyph',   // 'glyph' (the menu's icon) | 'word' (Fonts) | 'both'
+	markersTokenFormat:       'glyph',   // 'glyph' (the menu's icon) | 'word' (Markers) | 'both'
+	// THE OTHER EIGHT: { modes | syntax | prose | theme | report | history |
+	// export | organizer: 'icon' }; a token absent from the map shows its
+	// word. One key, so a preset or a share code carries it whole.
 	barTokenIcons:            {} as Record<string, string>,   // token id -> 'icon' | 'both'
 	// Off, the arrows and the separator lines take the theme's text colour —
 	// they are furniture around the writing, not a feature that should be
@@ -6857,12 +6088,11 @@ export const DEFAULT_SETTINGS = {
 	paragraphIndentMode:      'single',   // 'double' | 'single'
 	lineSpacing:              1.5,
 	// '' = whatever the theme sets, and that is the only defensible shipped
-	// value. This held a real font name for eleven releases (issues #4 and
-	// #6): installing the plugin restyled every note in a face the writer had
-	// not chosen and, because the only control for it was the {font} button
-	// on the bar, a preset without that token left no way to find the switch.
-	// A plugin may add things to Obsidian. It may not quietly redecorate what
-	// was already there.
+	// value: a real font name here restyles every note in a face the writer
+	// had not chosen (issues #4 and #6), and with the only control for it
+	// the {font} button on the bar, a preset without that token left no way
+	// to find the switch. A plugin may add things to Obsidian. It may not
+	// quietly redecorate what was already there.
 	editorFont:               '',
 	// One-shot: see the migration in loadSettings.
 	editorFontDefaultCleared: false,
@@ -6877,21 +6107,6 @@ export const DEFAULT_SETTINGS = {
 	// bullets in a shopping list alongside them would make the count mean
 	// nothing.
 	//
-	// TOMBSTONE (1.3.4): `lineNumberMode` ('off'|'absolute'|'relative')
-	// lived beside this for one build and was removed on sight — THE
-	// SECOND TIME this plugin has grown line numbers and had them taken
-	// out. The first attempt is already swept in loadSettings, in a list
-	// that says why: positioning the gutter against the text column was
-	// more trouble than the distance it saved. This attempt drew the
-	// numbers as line decorations instead of as a gutter, met the same
-	// wall from the other side, and went the same way. The key needs no
-	// new sweep — that older list already deletes it.
-	//
-	// If a third attempt is ever made: do not draw numbers at all.
-	// Obsidian has line numbers; the only thing missing is relative mode,
-	// and the way to add that is to reformat Obsidian's own gutter
-	// (Prec.highest + lineNumbers({ formatNumber })) rather than to put a
-	// second set of numbers beside the first.
 	paragraphNumbers:         false,
 	markSpaces:               false,
 	// MARKERS HAVE THEIR OWN MASTER, and this is a bug fix rather than
@@ -7005,12 +6220,6 @@ export const DEFAULT_SETTINGS = {
 	// door — everything the bar's buttons do, reachable from one hotkey — and
 	// a front door that ships locked is a contradiction. The switch exists
 	// for anyone who wants the command out of their palette.
-	// TOMBSTONE (1.3.2): `barMenu` gated whether the Menu command existed
-	// at all. It shipped true, nobody had a reason to turn it off, and the
-	// ribbon button and the docked panel both go through the menu — so the
-	// switch offered to break two other things to remove one palette entry
-	// that Obsidian's Hotkeys pane can hide anyway. A saved value is
-	// unread.
 	quickCycle:               false,
 	// A sub-option of quickCycle, and off by default because it is the more
 	// opinionated half: the sidebar you walked out of shuts behind you.
@@ -7020,153 +6229,79 @@ export const DEFAULT_SETTINGS = {
 	// the board writes. Its own switch, because the counts are a number on
 	// every row and the flags are a mark on the few that carry one.
 	fileTreeFlags:            false,
-	// ON, by the writer's word (2026-08-27): “leave the toggle there, but
-	// default on for anyone”. The switch below stays exactly where it was —
-	// this changes what a vault STARTS at, not what it can be set to.
-	//
-	// FLIPPING THIS ALONE REACHES ALMOST NOBODY, which is why the one-shot
-	// below exists: `loadSettings` merges DEFAULT_SETTINGS under the raw
-	// file, and `saveSettings` persists the whole merged object — so every
-	// vault that has ever saved once already has `treeOrder` written into
-	// data.json and raw wins. Only a vault with NO data.json would see this.
+	// ON. FLIPPING THIS ALONE REACHES ALMOST NOBODY, which is why the
+	// one-shot below exists: `loadSettings` merges DEFAULT_SETTINGS under the
+	// raw file, and `saveSettings` persists the whole merged object — so
+	// every vault that has ever saved once already has `treeOrder` written
+	// into data.json and raw wins. Only a vault with NO data.json would see
+	// this.
 	treeOrder:                true,
 	// One-shot: see the migration in loadSettings. It turns the order ON
 	// once for a vault that predates the default above, and then never
 	// again — so a writer who switches it off keeps it off, from the
 	// settings tab or from the explorer's own sort menu.
 	treeOrderForcedOn:        false,
-	fileTreeFolderIcons:      true,    // on by default since 2026-09-18 (the writer)
-	// THE SAME KIND GLYPH THE MANUSCRIPT WINDOW DRAWS, in Obsidian’s own
-	// tree (writer, 2026-08-25: "icons that match the organizer").
-	// OFF like its neighbour above: this paints into somebody else’s
-	// pane, and a plugin update that rearranges a writer’s file tree
-	// without being asked is the kind of change that gets a plugin
-	// removed. 1.3.8 shipped without it, so on-by-default would be a
-	// surprise for every vault that updates.
+	fileTreeFolderIcons:      true,
+	// THE SAME KIND GLYPH THE MANUSCRIPT WINDOW DRAWS, in Obsidian's own
+	// tree. OFF: this paints into somebody else's pane, and a plugin update
+	// that rearranges a writer's file tree without being asked is the kind
+	// of change that gets a plugin removed.
 	fileTreeKindIcons:        false,
-	// IS THE SUBJECT ROW FOLDED? (writer, 2026-08-25: "put a chevron on the
-	// root folder … with collapse expand".)
-	//
-	// ITS OWN BOOLEAN, and not a member of `organizerOpen`. That set holds
-	// the folders that are OPEN and defaults EMPTY, because "empty is
-	// all-shut" is the state the writer asked the window to open in. The
-	// SUBJECT is the opposite: it must default OPEN or the table opens
-	// blank. A single flag with the default the other way round says that
-	// plainly; folding the subject into the same set would have needed a
-	// sentinel and an exception, for one row.
-	// THE ORGANIZER’S SWITCH (A295, a user via the writer, 2026-09-12: “is
-	// there a way to opt out of Organizer? … I specifically want to opt out
-	// of having the plugin add files into my vault”). Off: the Organizer’s
-	// doors are shut — the menu row, the window’s tab, the command — and
+	// THE ORGANIZER'S SWITCH, for a writer who does not want the plugin
+	// adding files to their vault. Off: the Organizer's doors are shut — the
+	// menu row, the window's tab, the command — and
 	// `Word-Smith/ws-structure.md` is neither made nor written; a file that
 	// exists is read and left alone. The order, goals, ticks and non-note
 	// properties are held for the session and not kept. History has its
 	// own switch (`historyTracking`), the settings copy has its own
-	// (`settingsMirror`); this is the third store’s.
+	// (`settingsMirror`); this is the third store's.
 	organizerOn:              true,
-	// WHICH FOLDERS ARE THE WRITING. Empty means the whole vault, which is
-	// what every reading in this plugin meant before roots existed and is
-	// still the right answer for a vault that is only a manuscript.
+	// ── WHAT A DAY LOOKS LIKE, ONCE ─────────────────────────────────────
 	//
-	// A LIST, not one folder: two books in one vault is ordinary, and a
-	// writer with "Novel" and "Short stories" should not have to choose which
-	// one the plugin is about this week.
-	// TOMBSTONE: `manuscriptRoots: []`. The concept is retired — see the
-	// tombstone on the menu row that set it. The stored key is DELETED on load
-	// rather than ignored, so a vault stops carrying an answer to a question
-	// nothing asks any more.
-	// TOMBSTONE (writer, 2026-08-31: "cut it"): `synopsisKey`, which named
-	// the frontmatter key the synopsis was read from. Its only reader was
-	// `synopsisOfKey()`, whose only reader was `synopsisOf()`, whose only
-	// reader was the index’s `synopsis` record field — and that field was
-	// displayed by nothing. The whole chain went in one cut; see the
-	// paragraph in `src/20-scope.js` where it used to live.
-	//
-	// DELETED ON LOAD, not merely undefaulted. 1.3.9 has shipped, so this
-	// key is certainly in a stranger’s data.json and not only in ours — the
-	// `uniColCh` precedent, and the reason a dead key is removed rather
-	// than left to sit unreachable forever.
-	// ── WHICH PROPERTIES ARE WRITTEN OUT IN FULL (writer, 2026-08-28) ──
-	//
-	// "make so that i can have more than one long fields", and "don't call
-	// the star the prose field (call it Long field)". The unit changed from
-	// one key to a set, so by FACTS' own rule the store changed name:
-	// `organizerLongFields`, written by the ★ column in the Properties
-	// panel.
-	//
-	// AND IT IS NOT DEFAULTED HERE, WHICH IS THE WHOLE POINT OF THIS NOTE.
-	// It was, for about twenty minutes, and MEASURED IN THE WRITER'S VAULT
-	// it threw their choice away: `longFields()` falls back to `synopsisKey`
-	// only when the new array is ABSENT, and a default here is never absent
-	// — the defaults are merged into every vault's settings on load. Their
-	// `synopsisKey: "Description"` was overruled by a shipped `['synopsis']`
-	// they had never chosen.
-	//
-	// (The paragraph that stood here explained why the default had to stay on
-	// `synopsisKey` rather than move to the new array — a default is never
-	// absent, so defaulting the successor would have overruled a writer who
-	// had pointed the old key at their own `Description`. Both keys are gone
-	// now: the array with the long-field set, this one with the chain.)
-	// ── WHAT A DAY LOOKS LIKE, ONCE (writer, 2026-08-27) ──────────────
-	// “I want them unified and the date format should be set in Organizer tab
-	// settings.” Read by `dateText`, which is the ONLY place a date becomes
-	// a string — the Modified column, the Created column and every date
-	// property all go through it, so they cannot disagree.
-	// 'human' · 'iso' · 'dmy' · 'mdy'. Anything else falls back to 'human'
-	// rather than breaking: this is a string in a file a writer may hand-edit.
+	// Read by `dateText`, which is the ONLY place a date becomes a string —
+	// the Modified column, the Created column and every date property all
+	// go through it, so they cannot disagree. 'human' · 'iso' · 'dmy' ·
+	// 'mdy'. Anything else falls back to 'human' rather than breaking: this
+	// is a string in a file a writer may hand-edit.
 	//
 	// NAMED FOR THE ORGANIZER, and not `dateFormat`, because that name is
-	// SPOKEN FOR. `tests/tokens_test.js` asserts `!('dateFormat' in DEF)`
-	// beside `readTimeWpm` and `powerlineCapStyle` — a family of “this is
-	// deliberately not a setting” guards protecting the STATUS BAR's tokens
-	// from format strings. That guard is about the bar's {date}; this is about
-	// the Organizer's readings. Two different surfaces, and the scoped name
-	// keeps the older decision intact instead of quietly overturning it.
+	// SPOKEN FOR: a test asserts `!('dateFormat' in DEF)` beside
+	// `readTimeWpm` and `powerlineCapStyle` — a family of "this is
+	// deliberately not a setting" guards protecting the STATUS BAR's tokens
+	// from format strings. That guard is about the bar's {date}; this is
+	// about the Organizer's readings.
 	organizerDateFormat:      'human',
 	// path -> one of WS_FOLDER_COLOURS' ids. Absent means as it was.
 	folderColors:             {} as Record<string, string>,   // folder path -> colour id
 	// HOW MANY STATES A MANUSCRIPT HAS, and what each one is called, looks
-	// like and is coloured. Three is the default — Draft, Revise, Done (the
-	// writer, 2026-09-18: "put only 3 flags as default", "I want Draft Revise
-	// Done"; five until then); 0 turns flags off entirely
-	// for a writer who does not think in stages, and the column, the chip and
-	// the bar token go with them.
+	// like and is coloured. Three is the default — Draft, Revise, Done; 0
+	// turns flags off entirely for a writer who does not think in stages,
+	// and the column, the chip and the bar token go with them.
 	//
 	// TWO COLOURS EACH, because one is wrong half the time: a flag colour
 	// chosen against a dark theme is invisible on a light one, and a writer
-	// who works in both should not have to choose which half of their day the
-	// flags work in.
+	// who works in both should not have to choose which half of their day
+	// the flags work in.
 	flagCount:                3,
 	flags: [
 		// SKETCH, not "Outline". The id stays `outline` for ever — it is what
 		// is written against a path in the vault, and changing it would drop
 		// the flag off every note carrying it. The LABEL is a setting, and a
 		// setting is free to change: a vault that has never customised its
-		// flags picks up the new word, and one that has keeps its own.
+		// flags picks up the word, and one that has keeps its own. (The tab
+		// beside it is called Outliner, and a window with an Outliner tab whose
+		// rows can be flagged "Outline" is one word meaning two things eight
+		// inches apart.)
 		//
-		// It moved because the tab beside it is called Outliner now, and a
-		// window with an Outliner tab whose rows can be flagged "Outline" is
-		// one word meaning two things eight inches apart. That is the same
-		// fault as a folder called Notes colliding with the goals' old
-		// `### Notes` section, and it was worth a migration to fix there.
-		//
-		// THE ORDER IS THE RING'S, AND THE COUNT OFFERS THE FIRST N (the writer,
-		// 2026-09-18: "put only 3 flags as default" — "I want Draft Revise
-		// Done"): Draft, Revise, Done are a fresh install's three; Sketch and
-		// Blocked join when the count is raised. Same order as WS_STATE_IDS.
+		// THE ORDER IS THE RING'S, AND THE COUNT OFFERS THE FIRST N: Draft,
+		// Revise, Done are a fresh install's three; Sketch and Blocked join when
+		// the count is raised. Same order as WS_STATE_IDS.
 		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9' },
 		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52' },
 		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c' },
 		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98' },
 		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441' }
 	],
-	// TOMBSTONE: `hideStoreFiles` — took the plugin's own three notes out of
-	// the file tree. Removed 2026-08-27, the writer's word: “we should not
-	// hide them, let them be there.” The notes are the writer's, they are in
-	// their vault, and a plugin hiding files it wrote is the plugin deciding
-	// what a writer may see of their own work. A stale `true` left in an old
-	// data.json is inert — nothing reads the key and the rule that acted on
-	// it is gone from the stylesheet.
 	// Unticked boxes in the tree, beside the count: "3/5" on a scene says
 	// there is work left in it that a word count cannot.
 	// How close a target is, on the row that has one. Off by default like
@@ -7200,27 +6335,16 @@ export const DEFAULT_SETTINGS = {
 	// run the seeder holds `true` in its own data.json and is untouched,
 	// so nothing a user deleted comes back.
 	barPresetsSeeded:         false,
-	// AND WHICH NAMES (A330): the shipped presets seeded so far, so a preset
-	// added in a later release reaches a vault seeded before it, and one the
+	// AND WHICH NAMES: the shipped presets seeded so far, so a preset added
+	// in a later release reaches a vault seeded before it, and one the
 	// writer deleted does not come back.
 	barPresetsSeededNames:    [] as string[],
 
 	// ── Writing history ──────────────────────────────────────────────────────
-	// The first behavioural data this plugin has ever stored, so it is OFF
-	// until asked for, and every value here is AUTHORED — none of it came from
-	// the donor vault the rest of the 1.25 defaults were taken from. Shipping
-	// the maintainer's own writing history as everyone's day one would be
-	// absurd, and these keys join zenMode/fullscreen/scopePaths/fileGoals on
-	// the list of things a donor snapshot must never supply.
-	//
-	// None of these are BAR_KEYS. A bar preset must not carry a writing
-	// history any more than it carries someone's word targets.
+	// Behavioural data, so it is OFF until asked for. None of these are
+	// BAR_KEYS: a bar preset must not carry a writing history any more than
+	// it carries someone's word targets.
 	historyTracking:          false,
-	// (The daily-goal setting stood here. The goal line was retired at the
-	// writer's word, 2026-08-28: "remove the goal line", chosen from two
-	// costed readings. A vault carrying the key keeps an inert number —
-	// nothing reads it, and 1.3.9 has never shipped, so no migration is
-	// owed for it.
 	// Which of Day / Month / Year the report opens on, and which series are
 	// drawn. Both are remembered rather than reset per opening: a writer who
 	// looks at months every morning should not have to say so every morning.
@@ -7344,9 +6468,9 @@ export const BAR_KEYS = [
 	// would have decoded to a different bar. Nothing here moves. New keys go
 	// on the end, where an older code simply does not mention them.
 	'flagTokenFormat',
-	// APPENDED (A331): the indices before it are burned into share codes.
+	// APPENDED: the indices before it are burned into share codes.
 	'barTokenIcons',
-	// APPENDED (A454): the bar in the interface font.
+	// APPENDED: the bar in the interface font.
 	'statusBarUiFont'
 ];
 
@@ -7532,11 +6656,11 @@ export function barCodeToPreset(code: string) {
 // the result matches neither.
 export function barPresetWithDefaults(preset: Record<string, unknown> | null | undefined) {
 	const out: Record<string, unknown> = {};
-	const base = wsBag(DEFAULT_SETTINGS);
+	const base = wsBag(DEFAULT_SETTINGS), given = preset || {};
 	for (const k of BAR_KEYS) {
 		out[k] = barCloneValue(
-			Object.prototype.hasOwnProperty.call(preset || {}, k)
-				? preset[k] : base[k]);
+			Object.prototype.hasOwnProperty.call(given, k)
+				? given[k] : base[k]);
 	}
 	return out;
 }
@@ -7544,33 +6668,29 @@ export function barPresetWithDefaults(preset: Record<string, unknown> | null | u
 // ─────────────────────────────────────────────────────────────────────────────
 // Shipped presets
 // ─────────────────────────────────────────────────────────────────────────────
-// FULL snapshots, not sparse. The two here were exported from a working
-// vault's data.json rather than written by hand, so each states all 58
-// BAR_KEYS explicitly. barPresetWithDefaults still fills gaps for anything
-// LOADED from elsewhere (an older saved preset, a share code); these simply
-// have none.
+// FULL snapshots, not sparse. Exported from a working vault's data.json
+// rather than written by hand, so each states every live BAR_KEY
+// explicitly (saveBarPreset writes BAR_KEYS_LIVE, so a preset re-baked
+// from a vault export comes out already stripped of the inert keys).
+// barPresetWithDefaults still fills gaps for anything LOADED from
+// elsewhere (an older saved preset, a share code); these have none.
 //
-// The inert keys are absent, and no longer by hand: saveBarPreset writes
-// BAR_KEYS_LIVE, so a preset re-baked from a vault export comes out already
-// stripped. Strip them if you paste one in from an older export.
+// Plain is what a brand-new vault comes up with (see loadSettings).
+// Renaming it, or removing it, changes the opening bar — the seeding
+// below is keyed by name and so is that lookup. Code opens on :b4 and
+// carries ;6 ink and a three-step fade ({ggg}>{gg}>{g}); Plain (the
+// writer's fourth, 2026-09-21) opens on :b1 with the file, the four
+// buttons that name a question (modes, syntax, prose, report — icon and
+// word) in the centre, the words at the right, at 16px over a hairline
+// rule — so a change that breaks the grammar shows on a fresh install's
+// first run.
 //
-// Plain is what a brand-new vault comes up with (see loadSettings). Renaming
-// it, or removing it, changes the opening bar — the seeding below is keyed by
-// name and so is that lookup.
-//
-// Re-exported from the same vault at 1.2.1, so both now exercise the grammar
-// this release added: Code opens on :b4 and carries ;6 ink and a three-step
-// fade ({ggg}>{gg}>{g}), Plain sets both button labels to the word form and
-// wears the menu's icons on its seven buttons over a hairline rule (A454: the
-// writer's own share code, "make this the default bar"). If a
-// future change breaks one of those, a fresh install shows it on first run.
-//
-// Seeded into the library once (see barPresetsSeeded), never re-seeded, so a
-// deleted one stays deleted.
+// Seeded into the library once (see barPresetsSeeded), never re-seeded,
+// so a deleted one stays deleted.
 export const DEFAULT_BAR_PRESETS = {
 	"Plain": {
 		"statusBarRows": 1,
-		"statusRows": [{"left":":: {file}::{#>}","center":"","right":"{powermenu}::{words} words ::"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"statusRows": [{"left":":b1{ssss}{file}","center":"{mode} {syntax} {prose} {report}","right":"{words} words{ssss}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
 		"fileTokenFormat": "name",
 		"flagTokenFormat": "both",
 		"powerlineModeColors": false,
@@ -7585,7 +6705,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"statusBarBorderWidth": 0,
 		"statusBarBorderTop": true,
 		"statusBarBorderBottom": true,
-		"statusBarFontSize": 14,
+		"statusBarFontSize": 16,
 		"statusBarHeight": 20,
 		"statusBarPadTop": 4,
 		"statusBarPadBottom": 4,
@@ -7613,14 +6733,14 @@ export const DEFAULT_BAR_PRESETS = {
 		"vimColorReplaceLight": "#a03c36",
 		"vimColorCommandLight": "#b96f1e",
 		"powerlineSepWidth": 78,
-		"statusBarFontFollowNote": false,
+		"statusBarFontFollowNote": true,
 		"barRuleDarkTopColor": "#fbfaf9",
 		"barRuleDarkBottomColor": "#fbfaf9",
 		"barRuleLightTopColor": "#16181d",
 		"barRuleLightBottomColor": "#16181d",
 		"fontTokenFormat": "word",
 		"markersTokenFormat": "word",
-		"barTokenIcons": {"modes":"icon","report":"icon","history":"icon","export":"icon","organizer":"icon","syntax":"icon","prose":"icon","powermenu":"icon"},
+		"barTokenIcons": {"history":"icon","export":"icon","organizer":"icon","powermenu":"icon","report":"both","modes":"both","syntax":"both","prose":"both"},
 		"statusBarUiFont": false,
 	},
 	"Code": {
@@ -7678,14 +6798,12 @@ export const DEFAULT_BAR_PRESETS = {
 		"barTokenIcons": {},
 		"statusBarUiFont": false,
 	},
-	// ── TWO MORE, DIFFERENT FROM THE TWO (A330, writer 2026-09-12: “add 2
-	// more presets for the powerline one with gradients, and one with
-	// whatever. make them different with what we have. so we ship 4 default
-	// presets”). FADE is built on the {g} runs — three fades a row, a warm
-	// seven-colour palette, mode colours on, no rules, the glyph tokens. INK
-	// is the opposite: no bands at all, thin marks between readings, one
-	// hairline on top, the note’s own font, lower-case Vim labels, greys.
-	// Both state every live key, as the probe demands of a shipped preset.
+	// ── TWO MORE, DIFFERENT FROM THE TWO. FADE is built on the {g} runs —
+	// three fades a row, a warm seven-colour palette, mode colours on, no
+	// rules, the glyph tokens. INK is the opposite: no bands at all, thin
+	// marks between readings, one hairline on top, the note's own font,
+	// lower-case Vim labels, greys. Both state every live key, as the test
+	// demands of a shipped preset.
 	"Fade": {
 		"statusBarRows": 1,
 		"statusRows": [{"left":":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>","center":"","right":"{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
@@ -7742,11 +6860,6 @@ export const DEFAULT_BAR_PRESETS = {
 		"statusBarUiFont": false,
 	},
 };
-
-// (WS_INK_RETIRED stood here: the shipped Ink's snapshot, kept so loadSettings
-// could take an UNEDITED copy out of a vault. It never matched — the token
-// migrations had rewritten every vault's rows — so the sweep goes by the seeded
-// names now (loadSettings), and the literal went with it, 2026-09-18.)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plugin

@@ -1,36 +1,22 @@
-// Word-Smith — settings-tab. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — settings-tab: the settings, declared.
 //
-// ═══════════════════════════════════════════════════════════════════════════
-// THE SETTINGS, DECLARED (A421, A418 step 5 — 2026-09-18)
-// ═══════════════════════════════════════════════════════════════════════════
+// THE PANEL is Obsidian 1.13's declarative one: `getSettingDefinitions()`
+// hands Obsidian a tree, Obsidian draws it, indexes it for search, and
+// re-renders it IN PLACE on `update()` (rows reconciled by name — the
+// scroll and every untouched row survive). No `display()`.
 //
-// The writer: "an improved ui for the plugin settings. more clean, less tabs,
-// better organized so it's more user friendly. no presets. no onboarding" —
-// and then the spec, the shape Cursor-Smith's panel reached after twelve
-// passes (its HANDOFF §1.16 records every decision and every trap; the rules
-// below are that record applied here):
-//
-//   THE PANEL is Obsidian 1.13's declarative one: `getSettingDefinitions()`
-//   hands Obsidian a tree, Obsidian draws it, indexes it for search, and
-//   re-renders it IN PLACE on `update()` (rows reconciled by name — the
-//   scroll and every untouched row survive). No `display()`.
-//
-//   THE HEADER is a heading-less group: Enable plugin, alone (the two
-//   masters went to their pages and its hotkeys card went, on the writer's
-//   word).
-//   Everything else is a PAGE — Obsidian's own sub-page, one slide in and
-//   one back, on a phone as on a desktop — with a Lucide icon in front of
-//   its name (iconDesc: written into the description, laid out by the
-//   sheet), one plain line of description, and a `displayValue` saying
-//   what the page is set to. Then a muted FOOTER with the version read off
-//   the manifest. No plugin-name heading, no page called General.
+//   THE HEADER is a heading-less group: Enable plugin, alone. Everything
+//   else is a PAGE — Obsidian's own sub-page, one slide in and one back,
+//   on a phone as on a desktop — with a Lucide icon in front of its name
+//   (iconDesc: written into the description, laid out by the sheet), one
+//   plain line of description, and a `displayValue` saying what the page
+//   is set to. Then a muted FOOTER with the version read off the
+//   manifest. No plugin-name heading, no page called General.
 //
 //   A LONG PAGE has a RAIL of pills at its top (Focus, Prose, Powerline):
 //   one pill per section with its icon, a tick at the left while that
 //   section's switch is on, the picked one filled with the accent; the
-//   picked section's rows under it, one section at a time (the All pill
-//   went on the writer's word). The pick is
+//   picked section's rows under it, one section at a time. The pick is
 //   panel state for the session, never a setting. A row of pills is a
 //   keyboard group (rovingRow): the picked pill is the one Tab stop,
 //   Left/Right/Home/End walk it, `aria-pressed` on each.
@@ -44,8 +30,7 @@
 //   A RENDER puts what it builds in `controlEl`, which Obsidian empties on
 //   a re-render; anything it must add to `settingEl` outside it (an
 //   alert's icon) removes last time's copy first — Obsidian keeps a row's
-//   element across `update()` and runs the render again (nine alert icons
-//   in a row, in Cursor-Smith, before that was learned).
+//   element across `update()` and runs the render again.
 //
 //   DELETE IS TWO TAPS, no dialog: the first turns the trash into a red
 //   "Delete?" for three seconds, the second deletes. A card is a `div`
@@ -61,16 +46,13 @@
 //   rows write (a control's `key`, a render row's declared keys — read off
 //   the definitions, the one writer of "what this section sets") back to
 //   their defaults through `settingsResetKeys`, the door a load and a paste
-//   use. `WS_TAB_KEYS` and `ws-dev/tab-keys.js` retired with the tabs.
+//   use.
 //
 //   DESCRIPTIONS are one plain line each, American spelling, no em dashes,
 //   sentence case; the plugin's names are brands (the lint's list).
 //
-// WHAT WENT: the tab bar and its own search, the theme and menu cards' old
-// wardrobe, and `pickGoalPath`, which nothing called. The presets went too
-// (the writer's "no presets") and CAME BACK the same day (A423: "bring the
-// powerline presets back, make them look like cursor-smith presets") as
-// the strip of cards under the Powerline switch — presetsRow, below.
+//   THE PRESETS are the strip of cards under the Powerline switch —
+//   presetsRow, below.
 import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon } from 'obsidian';
 import type { App, SettingDefinition, SettingDefinitionItem, SettingDefinitionGroup, SettingDefinitionPage, SettingDefinitionRender, SettingGroupItem } from 'obsidian';
 import {
@@ -186,8 +168,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		this._rails = [];
 		// a dark/light switch refreshes the page (the theme inks read the half the
 		// workspace wears) — through the plugin's one door for app events, which
-		// guards the handler and registers it for unload; a probe's workspace
-		// may carry no bus, and the door skips one that does not
+		// guards the handler and registers it for unload; a test's workspace may
+		// carry no bus, and the door skips one that does not
 		try {
 			if (this.app.workspace && typeof this.app.workspace.on === 'function') plugin.onAppEvent(this.app.workspace, 'css-change', () => { this.refreshDomState(); });
 		} catch (_) { wsCatch('WordSmithSettingTab: css-change', _); }
@@ -227,7 +209,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		this._rails = [];
 		this.watchEntries();
 		const s = this.plugin.settings;
-		// the pages describe surfaces a blocked start (A243) did not build
+		// the pages describe surfaces a blocked start did not build
 		const on: Pred = () => !!s.pluginEnabled && !this.plugin._startBlocked;
 		return [
 			this.headerGroup(),
@@ -238,7 +220,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.pageText(on),
 			this.pageManuscript(on),
 			this.pageNavigation(on),
-			// under Navigation (A429, the writer: "move the themes category under navigation")
+			// under Navigation
 			this.pageThemes(on),
 			this.pageVault(on),
 			this.footerRow(),
@@ -246,8 +228,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// The header: the switch, and the blocked-start card while a start is
-	// blocked (A243). No heading (the version is the footer). The two master
-	// switches sat here for one build; the writer put them on their pages.
+	// blocked. No heading (the version is the footer).
 	headerGroup(): Group {
 		return {
 			type: 'group',
@@ -255,8 +236,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			items: [
 				{ name: 'Enable plugin', control: { type: 'toggle', key: 'pluginEnabled' }, visible: () => !this.plugin._startBlocked },
 				this.blockedStartRow(),
-				// (the switch's hotkeys card sat here; the writer: "remove that info
-				// card there" — the pages keep theirs)
 			],
 		};
 	}
@@ -321,12 +300,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		run();
 	}
 
-	// THE OBSERVER OUTLIVES hide() AND DIES IN onunload (A453, Cursor-Smith's
-	// lesson from its 1.5.8: Obsidian 1.13 does not ask for the definitions
-	// again on reopen, it re-renders the ones it has — an observer
-	// disconnected on hide() never came back, and the icons sat in the
-	// descriptions from the second opening on). The plugin's onunload calls
-	// this; nothing else does.
+	// THE OBSERVER OUTLIVES hide() AND DIES IN onunload: Obsidian 1.13 does
+	// not ask for the definitions again on reopen, it re-renders the ones it
+	// has — an observer disconnected on hide() would never come back, and the
+	// icons would sit in the descriptions from the second opening on. The
+	// plugin's onunload calls this; nothing else does.
 	teardown() {
 		if (this._entryWatch) { try { this._entryWatch.disconnect(); } catch (_) { wsCatch('teardown: disconnect', _); } }
 		this._entryWatch = null;
@@ -391,8 +369,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// entry — the name, then the description — and the description is the
 	// one slot that takes markup, so the icon is written here and moved in
 	// front of the NAME once the entry is drawn (dressEntries): this sheet
-	// bans `:has()` and `display: contents` (A292, the review's CSS lint), so
-	// the move is DOM, watched by an observer on the tab's own container.
+	// bans `:has()` and `display: contents` (the review's CSS lint), so the
+	// move is DOM, watched by an observer on the tab's own container.
 	iconDesc(icon: string, text: string): DocumentFragment {
 		return createFragment((f) => {
 			setIcon(f.createSpan({ cls: 'ws-page-icon' }), icon);
@@ -462,23 +440,17 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return { name: title, searchable: false, render: (st) => { st.settingEl.addClass('ws-set-subhead'); } };
 	}
 
-	// THE HOTKEYS, WHERE THEY MATTER (the writer): a card under a feature that
-	// has commands, each command with the hotkey it has now, read off
-	// Obsidian's hotkey manager (empty when none is set). Set under Settings
-	// → Hotkeys; this card only says.
-	// THE KEYS, UNDER WHAT THEY DRIVE AND BEFORE THE RESET (A432, the writer:
-	// "put hotkeys below info cards as bottoms, where it makes sense"; A441:
-	// "show only zen hotkey for zen … etc."; A446: "all resets button must stay
-	// at the end"): the card is the last row of its own section, so a pill's
-	// section ends card, then reset link. (`hotkeysFoot`, a section of its own
-	// after the page's sections, stood here from A432 to A446 — it put the card
-	// after the reset.)
-
-	// WHAT IS ON, ONLY (A443, the writer, 2026-09-20: "show only what is ticked,
-	// not all the hotkeys that are not on"): an entry may carry the switch its
-	// command answers to; off, its line is not drawn, and the card goes when
-	// none is left. The lines are drawn again when that set changes (a switch
-	// flips, the tab refreshes), the keys re-read on every refresh as before.
+	// THE HOTKEYS, WHERE THEY MATTER: a card under a feature that has
+	// commands, each command with the hotkey it has now, read off Obsidian's
+	// hotkey manager (empty when none is set). Set under Settings → Hotkeys;
+	// this card only says. THE KEYS, UNDER WHAT THEY DRIVE AND BEFORE THE
+	// RESET: the card is the last row of its own section, so a pill's section
+	// ends card, then reset link.
+	//
+	// WHAT IS ON, ONLY: an entry may carry the switch its command answers to;
+	// off, its line is not drawn, and the card goes when none is left. The
+	// lines are drawn again when that set changes (a switch flips, the tab
+	// refreshes), the keys re-read on every refresh.
 	hotkeysRow(entries: WsKeyEntry[], visible?: Pred): Render {
 		const norm: { id: string; on: Pred | null }[] = entries.map((e) => typeof e === 'string' ? { id: e, on: null } : { id: e.id, on: e.on });
 		const shown = () => norm.filter((e) => !e.on || e.on()).map((e) => e.id);
@@ -496,7 +468,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				setIcon(icon, 'keyboard');
 				st.settingEl.prepend(icon);
 				// private API, both halves: a build without them draws the names alone
-				const cmds: Record<string, { name?: string }> = (this.app.commands && this.app.commands.commands) || {};
+				const cmds: Record<string, { name?: string } | undefined> = (this.app.commands && this.app.commands.commands) || {};
 				const keyOf = (full: string) => { try { return String(this.app.hotkeyManager.printHotkeyForCommand(full) || ''); } catch (_) { wsCatch('hotkeysRow: printHotkeyForCommand', _); return ''; } };
 				let keyEls: [string, HTMLElement][] = [];
 				let drawn = '';
@@ -512,16 +484,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						const line = st.descEl.createDiv({ cls: 'ws-set-keys-line' });
 						line.createSpan({ cls: 'ws-set-keys-name', text: String(cmd.name || id).replace(/^Word-Smith: /, '') });
 						const keys = keyOf(full);
-						// OBSIDIAN'S OWN CHIP AND PLUS (A447, A448; the writer: "Add that +
-						// button to the hotkey, that obsidian has", then its screenshot):
-						// the Hotkeys page's `setting-hotkey` chip, `mod-empty` and "Blank"
-						// with no key, and its `setting-add-hotkey-button` with the circled
-						// plus — measured live on 1.13.7. The plus opens Settings →
-						// Hotkeys with this command searched, where the key is set.
-						// in one control beside the name (A450, A453; the writer: "arrange the blank
-						// pill with the + better, are misaligned horizontally", then "misaligned
-						// stuff" at the far edge): our own class, not Obsidian's
-						// setting-command-hotkeys, whose rules sat the chip at the bottom
+						// OBSIDIAN'S OWN CHIP AND PLUS: the Hotkeys page's `setting-hotkey` chip,
+						// `mod-empty` and "Blank" with no key, and its `setting-add-hotkey-button`
+						// with the circled plus (as 1.13.7 draws them). The plus opens Settings →
+						// Hotkeys with this command searched, where the key is set. In one control
+						// beside the name, under our own class rather than Obsidian's
+						// setting-command-hotkeys, whose rules sit the chip at the bottom.
 						const ctl = line.createSpan({ cls: 'ws-set-keys-ctl' });
 						keyEls.push([full, ctl.createSpan({ cls: 'setting-hotkey ws-set-keys-key' + (keys ? '' : ' mod-empty is-blank'), text: keys || 'Blank' })]);
 						const name = String(cmd.name || id);
@@ -555,8 +523,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// Settings → Hotkeys with one command searched, through the tab's own
-	// `setQuery` (1.13.7, measured live: the box set, focused, the list drawn).
-	// A build without it still lands on the Hotkeys tab.
+	// `setQuery` (1.13.7: the box set, focused, the list drawn). A build
+	// without it still lands on the Hotkeys tab.
 	openHotkeysFor(name: string) {
 		try {
 			this.app.setting.open();
@@ -565,9 +533,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		} catch (_) { wsCatch('openHotkeysFor', _); }
 	}
 
-	// A note among the rows: a description and nothing else, as an INFO CARD
-	// (A442, the writer: "add info icons on info cards") — the hotkeys card's box
-	// with an info glyph in front of the text.
+	// A note among the rows: a description and nothing else, as an INFO CARD —
+	// the hotkeys card's box with an info glyph in front of the text.
 	noteRow(text: string, visible?: Pred): Render {
 		const def: Render = { name: '', desc: text, searchable: false, render: (st) => { this.infoInto(st); } };
 		if (visible) def.visible = visible;
@@ -576,11 +543,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// The info card's dress: the class and the glyph, the glyph on `settingEl`
 	// outside the area Obsidian empties (as the alert's), so last time's goes
-	// first.
-	// A ROW WITH A BLOCK OF ITS OWN (the frontmatter help, the format reference)
-	// wears the glyph INLINE before its name and no box: the box hides the
-	// control area, and the block lives there (the writer's screenshot: the
-	// glyph above the name, the help gone).
+	// first. A ROW WITH A BLOCK OF ITS OWN (the frontmatter help, the format
+	// reference) wears the glyph INLINE before its name and no box: the box
+	// hides the control area, and the block lives there.
 	infoInto(st: Setting, inline = false) {
 		st.settingEl.querySelectorAll('.ws-set-note-icon').forEach((old) => { old.remove(); });
 		const el = st.settingEl.createSpan({ cls: 'ws-set-note-icon' });
@@ -606,11 +571,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		st.settingEl.prepend(el);
 	}
 
-	// A row with Obsidian's own button at the right, where the panel used to
-	// offer an `action` row (the whole row clickable, its name in the accent,
-	// which reads as a link). The writer, on the flags' restore and the
-	// display repair: "make the circled thing like buttons ... so no buttons
-	// like that".
+	// A row with Obsidian's own button at the right — not an `action` row
+	// (the whole row clickable, its name in the accent), which reads as a
+	// link.
 	buttonRow(name: string, desc: string, text: string, run: () => void, visible?: Pred): Render {
 		const def: Render = { name, desc, render: (st) => { st.addButton((b) => b.setButtonText(text).onClick(run)); } };
 		if (visible) def.visible = visible;
@@ -619,8 +582,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// A destructive button that is two taps: the first turns it red and asks
 	// ("Delete?") for three seconds, the second runs `del`. Left alone, it
-	// turns back. The row's size of button, not a card's icon (the writer:
-	// "make delete button bigger").
+	// turns back. The row's size of button, not a card's icon.
 	twoTapButton(st: Setting, text: string, del: () => void) {
 		st.addButton((b) => {
 			b.setButtonText(text);
@@ -647,8 +609,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const el = parent.createEl('button', { cls: 'ws-pill' + (opts.cls ? ' ' + opts.cls : ''), attr: { type: 'button' } });
 		if (opts.label) el.setAttribute('aria-label', opts.label);
 		if (opts.tick) setIcon(el.createSpan({ cls: 'ws-tick' }), 'check');
-		// the plugin's own glyph where it has one (the writer: "put our icons in
-		// the pills"), a Lucide name otherwise
+		// the plugin's own glyph where it has one, a Lucide name otherwise
 		if (opts.draw) opts.draw(el.createSpan({ cls: 'ws-pill-icon' }));
 		else if (icon) setIcon(el.createSpan({ cls: 'ws-pill-icon' }), icon);
 		el.createSpan({ cls: 'ws-pill-name', text: name });
@@ -695,8 +656,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					el.addEventListener('click', () => { this._picks[pageKey] = e.key; this.refreshDomState(); });
 					pills.push({ key: e.key, el });
 				}
-				// (an All pill closed every rail until the writer's "remove the all
-				// button from those types of tabs-pills"; one section at a time now)
 				const roving = this.rovingRow(rail, pills.map((p) => p.el));
 				const paint = () => {
 					const p = pick();
@@ -762,10 +721,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return b;
 	}
 
-	// A ROW THAT HOLDS SWATCHES (A463, a phone shot: "the nouns color ball is
-	// bigger than the rest"): Obsidian's phone rule widens every input in a
-	// control area to 100%, a colour input included, so a swatch grew to
-	// whatever room its row had. The class lets the sheet hold the swatch
+	// A ROW THAT HOLDS SWATCHES: Obsidian's phone rule widens every input in a
+	// control area to 100%, a colour input included, so a swatch grows to
+	// whatever room its row has. The class lets the sheet hold the swatch
 	// width there; every colour picker of ours is added through this.
 	swatchRow(st: Setting) {
 		try { st.settingEl.addClass('ws-set-swatches'); } catch (_) { wsCatch('swatchRow: st.settingEl.addClass(ws-set-swatches)', _); }
@@ -781,9 +739,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// ── WHERE IT APPLIES ────────────────────────────────────────────────────
 
-	// The scope was a page of its own until the writer's "take out the where it
-	// applies from that submenu": its two rows open the Vault page now, the
-	// section Misc held before A421.
+	// The scope's two rows open the Vault page.
 	scopeSection(): Group {
 		const s = this.plugin.settings;
 		const count = () => Array.isArray(s.scopePaths) ? s.scopePaths.length : 0;
@@ -895,7 +851,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			gap.addEventListener('dragleave', () => gap.removeClass('is-dropzone'));
 			gap.addEventListener('drop', (e) => { void (async () => {
 				e.preventDefault();
-				const dragged = e.dataTransfer.getData('text/plain');
+				const dragged = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
 				if (!dragged) return;
 				plugin.menuBreakAt(dragged, toIdx);
 				await plugin.saveSettings();
@@ -917,13 +873,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				const card = bandEl.createDiv({ cls: 'ws-card ws-menu-card' + (isRule ? ' is-rule' : '') + (isCmd ? ' is-cmd' : '') + (isDead ? ' is-dead' : '') });
 				card.setAttribute('title', isRule ? 'Separator' : isCmd ? plugin.menuCommandName(id) : nameOf(id));
 				card.setAttribute('draggable', 'true');
-				card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', id); card.addClass('is-dragging'); });
+				card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', id); card.addClass('is-dragging'); });
 				card.addEventListener('dragend', () => card.removeClass('is-dragging'));
 				card.addEventListener('dragover', (e) => { e.preventDefault(); card.addClass('is-dropzone'); });
 				card.addEventListener('dragleave', () => card.removeClass('is-dropzone'));
 				card.addEventListener('drop', (e) => { void (async () => {
 					e.preventDefault();
-					const dragged = e.dataTransfer.getData('text/plain');
+					const dragged = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
 					if (!dragged || dragged === id) return;
 					plugin.menuJoinAfter(dragged, id);
 					await plugin.saveSettings();
@@ -946,9 +902,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				if (!isRule) { try { plugin.menuDrawIcon(handle, id); } catch (_) { wsCatch('renderMenuShelf: the card’s glyph', _); } }
 				const nameEl = handle.createSpan({ cls: 'ws-card-name' + (isRule ? ' is-rule-' + plugin.menuRuleStyle(id) : ''), text: isRule ? '' : nameOf(id) });
 				if (isRule) {
-					// Obsidian's own `dropdown`, as every other select on the tab (the
-					// writer, 2026-09-20: "make this a normal drop down button"); the
-					// sheet only keeps it from taking the card's width
+					// Obsidian's own `dropdown`, as every other select on the tab; the sheet
+					// only keeps it from taking the card's width
 					const sel = card.createEl('select', { cls: 'dropdown ws-rule-style' });
 					sel.setAttribute('aria-label', 'How this separator draws');
 					for (const style of MENU_RULE_STYLES) { const o = sel.createEl('option', { text: style.charAt(0).toUpperCase() + style.slice(1) }); o.value = style; }
@@ -1004,13 +959,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		})(); });
 
 		const finder = box.createDiv({ cls: 'ws-cmd-finder' });
-		// OBSIDIAN'S OWN SEARCH BOX (A433, the writer: "put an icon in the Search
-		// commands to pin, also no elipsis but . . . to match search boxes obsidian
-		// more"): the container draws the magnifier and the clear button, as
-		// "Search settings..." above it does, and the placeholder ends as that one does.
+		// OBSIDIAN'S OWN SEARCH BOX: the container draws the magnifier and the
+		// clear button, as "Search settings..." above it does, and the placeholder
+		// ends as that one does.
 		const cmdSearch = finder.createDiv({ cls: 'search-input-container' }).createEl('input', { cls: 'ws-cmd-search' });
 		cmdSearch.type = 'search';
-		cmdSearch.placeholder = 'Search any command to pin…';   // (the writer, 2026-09-20: "say search any commands to pin")
+		cmdSearch.placeholder = 'Search any command to pin…';
 		cmdSearch.setAttribute('aria-label', 'Search any command to pin');
 		const cmdHits = finder.createDiv({ cls: 'ws-cmd-hits' });
 		const pinnedNow = new Set(plugin.menuLayout());
@@ -1067,12 +1021,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 		const bar: Pred = () => !!s.enableRetroStatus;
 		const rules: Pred = () => (s.statusBarBorderStyle || 'solid') !== 'none';
-		// weight 0 is the hairline (A437); as `barRuleIsHair` reads it
+		// weight 0 is the hairline; as `barRuleIsHair` reads it
 		const hair: Pred = () => rules() && s.statusBarBorderWidth != null && Number(s.statusBarBorderWidth) === 0;
 		const RAIL: RailEntry[] = [
 			{ key: 'rows', name: 'Rows', icon: 'rows-3' },
 			{ key: 'look', name: 'Look', icon: 'ruler' },
-			// Tokens before Colors, Vim last (A436, the writer: "so the tabs make more sense this way")
+			// Tokens before Colors, Vim last
 			{ key: 'tokens', name: 'Tokens', icon: 'braces' },
 			{ key: 'colors', name: 'Colors', icon: 'palette' },
 			{ key: 'vim', name: 'Vim', icon: 'terminal' },
@@ -1104,21 +1058,19 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Look', [
 				{ name: 'Match the note’s text size', desc: 'The bar follows the editor’s font size.', control: { type: 'toggle', key: 'statusBarFontFollowNote' } },
 				{ name: 'Font size', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarFontSize', min: 8, max: 24, step: 1 }, visible: () => !s.statusBarFontFollowNote },
-				// A454 (the writer: "use interface font for the powerline, not the text font")
 				{ name: 'Interface font', desc: 'Obsidian’s own face for the bar, whatever font the note is in.', control: { type: 'toggle', key: 'statusBarUiFont' } },
 				{ name: 'Row height', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarHeight', min: 12, max: 30, step: 1 } },
 				{ name: 'Space above', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarPadTop', min: 0, max: 24, step: 1 } },
 				{ name: 'Space below', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarPadBottom', min: 0, max: 24, step: 1 } },
 				{ name: 'Gap under the bar', desc: 'Pixels between the bar and the window’s edge.', control: { type: 'slider', key: 'barBottomGap', min: 0, max: 30, step: 1 } },
 				{ name: 'Top rule', desc: 'A line above the bar.', control: { type: 'toggle', key: 'statusBarBorderTop' } },
-				// hidden at weight 0 (the writer, 2026-09-20): the window frame's own
-				// hairline is the hairline bar's bottom rule, and one drawn under it
-				// moved the tokens up a pixel
-				{ name: 'Bottom rule', desc: 'A line under the bar.', control: { type: 'toggle', key: 'statusBarBorderBottom' }, visible: () => !hair() },
+				// hidden for a hairline bar on the window's edge: the frame's own
+				// hairline is its bottom rule, and one drawn under it moves the tokens
+				// up a pixel; lifted off the edge (a gap), the bar gets its own again
+				{ name: 'Bottom rule', desc: 'A line under the bar.', control: { type: 'toggle', key: 'statusBarBorderBottom' }, visible: () => !hair() || this.plugin.barBottomGapPx() > 0 },
 				{ name: 'Rule style', desc: 'None hides both rules.', control: { type: 'dropdown', key: 'statusBarBorderStyle',
 					options: { none: 'None', solid: 'Solid', dashed: 'Dashed', dotted: 'Dotted', double: 'Double' } } },
-				// 0 is the hairline (A437, the writer: "put it in the slider under 1"), so
-				// the edges and the colours still apply to it
+				// 0 is the hairline, so the edges and the colours still apply to it
 				{ name: 'Rule weight', desc: 'In pixels; 0 is a hairline, the thinnest line the screen can draw.', control: { type: 'slider', key: 'statusBarBorderWidth', min: 0, max: 8, step: 1 }, visible: rules },
 				rendered({ name: 'Rule colors, dark theme', desc: 'Top, then bottom.', render: (st) => this.renderColorPair(st, 'barRuleDarkTopColor', 'barRuleDarkBottomColor'), visible: rules }, ['barRuleDarkTopColor', 'barRuleDarkBottomColor']),
 				rendered({ name: 'Rule colors, light theme', desc: 'Top, then bottom.', render: (st) => this.renderColorPair(st, 'barRuleLightTopColor', 'barRuleLightBottomColor'), visible: rules }, ['barRuleLightTopColor', 'barRuleLightBottomColor']),
@@ -1151,8 +1103,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				tokenFormat('{backlinks}', 'backlinks', '3 backlinks', 'The number, then the pane’s icon, the word, or both.'),
 				this.noteRow('Dates are written a piece at a time, like {dd}.{mm}.{yy}.'),
 			], this.railed('powerline', 'tokens', bar)),
-			// the bar's own key at the page's foot (A450, the writer: "put the hotkey
-			// below"): it is no pill's, and the top section has no reset to be last
+			// the bar's own key at the page's foot: it is no pill's, and the top
+			// section has no reset to be last
 			this.section('Hotkeys', [this.hotkeysRow(['toggle-retro-bar'])], undefined, false),
 		], value, on);
 	}
@@ -1182,9 +1134,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		for (const key of keys) this.swatch(st, key);
 	}
 
-	// two colors on one row (a "Reset both" button stood beside them until A446,
-	// the writer: "make all reset buttons the same throughout the whole plugin";
-	// the section's reset link puts them back)
+	// two colors on one row (the section's reset link puts them back)
 	renderColorPair(st: Setting, bgKey: Key, textKey: Key) {
 		st.settingEl.addClass('ws-color-row', 'ws-color-pair');
 		this.swatch(st, bgKey);
@@ -1231,19 +1181,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// the reference is a page of material, closed by default so it does not
-	// bury the fields it documents (A332: the chevron in the accent)
+	// bury the fields it documents
 	renderFormatReference(st: Setting) {
-		// AN INFO GLYPH ON THE ROW (the writer, 2026-09-20: "put a info icon on how to
-		// write a row"), inline before its name: the row keeps its block
+		// AN INFO GLYPH ON THE ROW, inline before its name: the row keeps its
+		// block
 		this.infoInto(st, true);
 		const box = this.block(st, 'ws-token-help-box').createDiv({ cls: 'ws-token-help' });
-		// A TABLE UNDER A RAIL (A445, the writer: "organize it better, some things are
-		// displayed in the wrong pill", "remove the drop down", "put headings like
-		// Soft Dividers, Hard Dividers", "make it like a table even (with rounded
-		// corners as we have)", "use the words i use in the readme"): seven pills,
-		// one group shown; a group is a rounded table, its sub-headings rows of
-		// their own, each line its tokens as chips and one gloss in the words
-		// docs/powerline.md uses. No disclosure: the pills are the way in.
+		// A TABLE UNDER A RAIL: pills, one group shown; a group is a rounded
+		// table, its sub-headings rows of their own, each line its tokens as
+		// chips and one gloss in the words docs/powerline.md uses. No
+		// disclosure: the pills are the way in.
 		const rail = box.createDiv({ cls: 'ws-rail ws-help-rail' });
 		const groups: { el: HTMLElement; pill: HTMLElement }[] = [];
 		let table: HTMLElement | null = null, body: HTMLElement | null = null;
@@ -1266,10 +1213,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			return el;
 		};
 		const SUB = (title: string) => {
+			if (!table) return;
 			body = table.createEl('tbody');
 			body.createEl('tr', { cls: 'ws-help-sub' }).createEl('th', { text: title, attr: { colspan: '2' } });
 		};
 		const L = (tokens: string[], gloss: string) => {
+			if (!table) return;
 			if (!body) body = table.createEl('tbody');
 			const tr = body.createEl('tr', { cls: 'ws-help-line' });
 			const toks = tr.createEl('td', { cls: 'ws-help-toks' });
@@ -1277,11 +1226,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			tr.createEl('td', { cls: 'ws-help-gloss', text: gloss });
 		};
 		const N = (el: HTMLElement, text: string) => { el.createDiv({ cls: 'ws-help-note', text }); };
-		// FIVE PILLS (A449, the writer: "I want only 5 pills. combine dividers with
-		// fades", "this is not status is misc, call it misc, add another icon,
-		// leave it as the last pill", "what colorize a tag, what colorize the
-		// text"): Readouts, Buttons, Dividers (the fades under them), Colors (a
-		// colon paints the background, a semicolon the text), Misc last.
+		// FIVE PILLS: Readouts, Buttons, Dividers (the fades under them), Colors
+		// (a colon paints the background, a semicolon the text), Misc last.
 		let g = G('Readouts', 'book-open');
 		SUB('The note');
 		L(['{file}'], 'The note\u2019s name. Click it to reveal the note in the explorer.');
@@ -1352,20 +1298,17 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{obsidian}'], 'A small Obsidian crystal.');
 		const roving = this.rovingRow(rail, groups.map((x) => x.pill));
 		pick(0);
-		// (a closing line naming docs/powerline.md stood here; the writer, 2026-09-20:
-		// "remove that description line")
 	}
 
 	// ── The presets ─────────────────────────────────────────────────────────
-	// One thin card per saved bar, the way Cursor-Smith's strip is (A423, the
-	// writer: "bring the powerline presets back, make them look like
-	// cursor-smith presets"): a "use" button holding a tick while that bar
-	// is the one in use, a small demo of its look and its name; beside it Copy
-	// its share code and a two-tap Delete. Then Save and Import, two more
-	// cards, each through a prompt: Save under a taken name warns once and
-	// replaces on the second OK; a code that is not one of ours says so under
-	// the field. The card is a div — one button inside another is invalid
-	// HTML — and the use buttons are one keyboard group.
+	// One thin card per saved bar, the way Cursor-Smith's strip is: a "use"
+	// button holding a tick while that bar is the one in use, a small demo of
+	// its look and its name; beside it Copy its share code and a two-tap
+	// Delete. Then Save and Import, two more cards, each through a prompt:
+	// Save under a taken name warns once and replaces on the second OK; a
+	// code that is not one of ours says so under the field. The card is a div
+	// — one button inside another is invalid HTML — and the use buttons are
+	// one keyboard group.
 	presetsRow(visible: Pred): Render {
 		return rendered({
 			name: 'Presets',
@@ -1406,10 +1349,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.twoTapDelete(card, 'Delete the ' + name + ' bar', () => { void (async () => { await plugin.deleteBarPreset(name); redisplay(); })(); });
 		}
 		this.rovingRow(strip, uses).picked(Math.max(0, names.indexOf(active)));
-		// Save the bar as it is, import a code: a card that is one plain button, on
-		// a line of their own under the bars (the writer, 2026-09-20: "save and
-		// import pills should stay on another line, not wrapped with the whole
-		// presets")
+		// Save the bar as it is, import a code: a card that is one plain button,
+		// on a line of their own under the bars
 		const acts = box.createDiv({ cls: 'ws-cards ws-preset-acts' });
 		const more = (icon: string, label: string, run: () => void) => {
 			const b = acts.createEl('button', { cls: 'ws-card ws-card-more', attr: { type: 'button' } });
@@ -1508,10 +1449,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			if (s.barThemeBorderless) parts.push('borderless');
 			return parts.join(' · ');
 		};
-		// ONE SHELF, ONE RESET (A455, the writer: "revert themes on how it was. no
-		// light/dark categories" — A451's two shelves reverted; its other ask,
-		// "only one reset button for the whole themes at the bottom", kept): the
-		// scheme worn in both modes, the set-aside pills under it, the options.
+		// ONE SHELF, ONE RESET: the scheme worn in both modes, the set-aside
+		// pills under it, the options.
 		return this.page('Themes', 'palette', 'A workspace color scheme, dark and light.', [
 			this.section('Themes', [
 				{ name: 'Themes', desc: 'A color scheme for the whole workspace, dark and light.', control: { type: 'toggle', key: 'barThemeEnabled', defaultValue: true } },
@@ -1550,14 +1489,14 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			const idx = sIdx - 1;
 			const card = grid.createDiv({ cls: 'ws-card ws-theme-card' + (item.on ? ' is-active' : '') + (isDefault ? ' is-custom is-alone' : '') });
 			if (!isDefault) card.setAttribute('draggable', 'true');
-			card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', item.id); card.addClass('is-dragging'); });
+			card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', item.id); card.addClass('is-dragging'); });
 			card.addEventListener('dragend', () => card.removeClass('is-dragging'));
 			card.addEventListener('dragover', (e) => { e.preventDefault(); card.addClass('is-dropzone'); });
 			card.addEventListener('dragleave', () => card.removeClass('is-dropzone'));
 			card.addEventListener('drop', (e) => { void (async () => {
 				e.preventDefault();
 				if (isDefault) return;
-				const dragged = e.dataTransfer.getData('text/plain');
+				const dragged = e.dataTransfer ? e.dataTransfer.getData('text/plain') : '';
 				if (!dragged || dragged === item.id || dragged === 'custom') return;
 				plugin.barThemeMove(dragged, idx);
 				await plugin.saveSettings();
@@ -1587,18 +1526,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		}
 	}
 
-	// THREE INKS AFTER A SCHEME'S NAME (the writer, 2026-09-20: "add 3 colored
-	// squares to the theme pills: the background, the other background (that
-	// shown on the side panels) and the accent color"): the page, the side
-	// panels and the accent of the half the workspace wears now, read off the
-	// same half `barThemeVars` paints from. Colors go in as a custom property
-	// (the sheet draws the square), never as a static style.
+	// THREE INKS AFTER A SCHEME'S NAME: the page, the side panels and the
+	// accent of the half the workspace wears now, read off the same half
+	// `barThemeVars` paints from. Colors go in as a custom property (the
+	// sheet draws the square), never as a static style.
 	themeInks(into: HTMLElement, id: string) {
 		const t = this.plugin.barThemeById(id);
 		if (!t || !this.plugin.barThemeHalf(t)) return;
 		const inks = into.createSpan({ cls: 'ws-theme-inks', attr: { 'aria-hidden': 'true' } });
 		const sq = [0, 1, 2].map(() => inks.createSpan({ cls: 'ws-theme-ink' }));
-		// THE HALF THE WORKSPACE WEARS NOW, on every refresh (A447): a dark/light
+		// THE HALF THE WORKSPACE WEARS NOW, on every refresh: a dark/light
 		// switch with the page open reaches the squares through `css-change`
 		const paint = () => {
 			const h = this.plugin.barThemeHalf(t);
@@ -1761,13 +1698,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			name, desc, visible, render: (st) => this.renderCategory(st, onKey, colorKey),
 		}, [onKey, colorKey]);
 		return this.page('Prose', 'pen-tool', 'Parts of speech, and the checks.', [
-			// ABOVE THE TABS (the writer, 2026-09-20: "the skip code and math should
-			// be above the tabs, right?"): the one switch both sections obey sits
-			// over the rail, not inside Syntax; no reset link for a lone switch
+			// ABOVE THE TABS: the one switch both sections obey sits over the rail,
+			// not inside Syntax; no reset link for a lone switch
 			this.section('Sections', [
-				// one card, first, for both sections (the writer, 2026-09-20: "saying it
-				// does not use ai, it's based on regex", "say regex rules", "put that info
-				// card first. only one info card")
+				// one card, first, for both sections
 				this.noteRow('No AI, no API, nothing leaves your vault: word lists and regex rules. A mark is a nudge, not a verdict.'),
 				{ name: 'Skip code and math', desc: 'Leaves code, frontmatter and math alone, for the syntax and the checks.', control: { type: 'toggle', key: 'syntaxSkipCode' } },
 				this.railRow('prose', RAIL),
@@ -1806,8 +1740,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// ── TEXT ────────────────────────────────────────────────────────────────
-	// Markers, Typography and Layout were sections of Prose until the writer's
-	// "markers typography and text i want them in another big category".
+	// Markers, Typography and Layout.
 	pageText(on: Pred): Page {
 		const s = this.plugin.settings;
 		const marks: Pred = () => !!s.markersEnabled;
@@ -1911,23 +1844,17 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Sections', [this.railRow('manuscript', RAIL)]),
 			this.section('Organizer', [
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
-				// (its hotkeys card sat here; the writer: "remove that info card")
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
 				{ name: 'Folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
 				{ name: 'Date format', desc: 'For every date the Organizer shows. A file time reads: ' + plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)),
 					control: { type: 'dropdown', key: 'organizerDateFormat', defaultValue: 'human', options: dateOptions() }, visible: org },
-				// (A430, the writer: "remove those descriptions. instead of Flags write Number of Flags")
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
 				...this.flagRows(flags),
-				// (a "Restore the flags Word-Smith ships with" row stood here until A446:
-				// one reset shape everywhere — Reset Organizer to defaults puts the
-				// shipped flags back, with the rest of the section)
-				// two cards at the foot (the writer, 2026-09-20: "add these at the bottom as
-				// info cards"): what the window can do that no control on this page says
-				// — the bulk edit (A320, desktop only) and the zoom (A290, Ctrl and the
+				// two cards at the foot: what the window can do that no control on this
+				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
 				// wheel; two fingers on a phone)
 				this.noteRow('Ctrl-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
 				this.noteRow('Ctrl + scroll zooms the window (Cmd on a Mac); on a phone, pinch with two fingers.', org),
@@ -1977,9 +1904,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			rows.push(rendered({
 				name: 'Flag ' + (i + 1), desc: '', visible, searchable: false,
 				// an ordinary row: the name and its line at the left, the controls at
-				// the right like every other row's (the writer: "arrange better the
-				// flags customisation to be aligned more with the rest of the
-				// settings"); the glyph leads the controls as their preview
+				// the right like every other row's; the glyph leads the controls as
+				// their preview
 				render: (st) => {
 					st.settingEl.addClass('ws-flagrow');
 					const icon = st.controlEl.createSpan({ cls: 'ws-flagrow-icon' });
@@ -2032,8 +1958,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Quick outline', desc: 'And one for the outline.', control: { type: 'toggle', key: 'quickOutline' } },
 				{ name: 'Quick cycle', desc: 'Four commands for directional jumps; bind them to Alt and the arrows.', control: { type: 'toggle', key: 'quickCycle' } },
 				{ name: 'Close a sidebar when you leave it', desc: 'Only when you move out with a direction key, never when you pick something.', control: { type: 'toggle', key: 'quickCycleCloseOnLeave' }, visible: () => !!s.quickCycle },
-				// under Quick panels, not under Vim (the writer, 2026-09-20), and only
-				// what is ticked (A443): each line behind its switch
+				// under Quick panels, not under Vim, and only what is ticked: each line
+				// behind its switch
 				this.hotkeysRow([
 					{ id: 'quick-file-explorer', on: () => !!s.quickExplorer },
 					{ id: 'quick-outline', on: () => !!s.quickOutline },
@@ -2056,10 +1982,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	pageVault(on: Pred): Page {
 		const plugin = this.plugin;
 		const s = plugin.settings;
-		// READ WHEN DRAWN, AND AGAIN ON EVERY REFRESH (A442; the writer's screenshot:
-		// all three "Not made yet" over a vault that had them): the definitions are
-		// asked before the vault has listed its files and before the history has
-		// located its store, and a path decided then was wrong for the session.
+		// READ WHEN DRAWN, AND AGAIN ON EVERY REFRESH: the definitions are asked
+		// before the vault has listed its files and before the history has
+		// located its store, and a path decided then is wrong for the session.
 		const fileRow = (name: string, at: () => string | null, note: string): Render => ({
 			name, desc: note,
 			render: (st) => {
@@ -2081,24 +2006,19 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.buttonRow('Repair the display', 'Draws every surface again from the settings as they are.', 'Repair', () => { plugin.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }),
 				{ name: 'Keep a copy of my settings in the vault', desc: 'A readable copy, read back only after a reinstall. Editing it changes nothing.',
 					control: { type: 'toggle', key: 'settingsMirror', defaultValue: true } },
-				// no hotkeys card here (A458, the writer: "dont display hotkeys for these
-				// debugging stuff"): the four commands stay under Settings → Hotkeys
+				// no hotkeys card here: the four commands stay under Settings → Hotkeys
 			], undefined, false),
 			this.section('Files', [
 				this.subheadRow('The files Word-Smith keeps'),
-				// (the writer, 2026-09-20: "custom order file + metadata of the other
-				// non-md files + flags. write something like that")
 				fileRow('Custom order file', () => plugin.structurePathNow(), 'Custom order, flags, targets, ticks, colors, columns, and the details of files that are not notes.'),
 				fileRow('Settings copy file', () => s.settingsMirror !== false ? plugin.settingsMirrorPathFor() : null, 'Machine settings and other vaults’ paths are skipped on restore.'),
 				fileRow('History file', () => plugin.historyStorePath(), 'Every day you have written; the only copy.'),
 			]),
 			this.section('Notes', [
 				this.subheadRow('Good to know'),
-				// (the writer, 2026-09-18: "add a info card in vault good to know that you
-				// can click in the expanded view in export to jump to a paragraph")
 				{ name: 'Read your book back', desc: 'In the Export pane, press Expand and click a paragraph: its note opens beside the reader, caret on it.', render: (st) => this.infoInto(st) },
 				{ name: 'More fonts', desc: 'Obsidian’s own font list; add one under Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
-				{ name: 'Frontmatter overrides', desc: 'A note’s frontmatter overrides these settings, just for that note.', render: (st) => { this.infoInto(st, true); this.renderFrontmatterHelp(st); } },
+				{ name: 'Frontmatter overrides', desc: 'A note’s frontmatter overrides these settings, just for that note.', render: (st) => { this.infoInto(st); this.renderFrontmatterHelp(st); } },
 			]),
 		], () => {
 			// the scope first, since it is the page's first section
@@ -2119,7 +2039,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			try { text = await navigator.clipboard.readText(); }
 			catch { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
 			const r = await plugin.settingsPasteText(text);
-			if (r.error) { new Notice('Word-Smith: ' + r.error, 8000); return; }
+			if (r.error !== undefined) { new Notice('Word-Smith: ' + r.error, 8000); return; }
 			new Notice('Word-Smith: ' + r.applied + ' setting' + (r.applied === 1 ? '' : 's') + ' pasted'
 				+ (r.repaired.length ? ', ' + r.repaired.length + ' reset to the default (' + r.repaired.join(', ') + ')' : '')
 				+ '. Undo is beside this button.', 8000);
@@ -2132,17 +2052,20 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		})(); }));
 	}
 
+	// IN THE CARD'S OWN COLUMN, under the description: the row is the info
+	// card the two above it are (the glyph at the left, the words beside it),
+	// and the block sits with the words rather than in the control area the
+	// card hides.
 	renderFrontmatterHelp(st: Setting) {
-		this.block(st, 'ws-fm-help').createEl('pre', {
+		st.infoEl.createEl('pre', {
 			cls: 'ws-fm-block',
 			text: 'wordsmith: off       the plugin does nothing in this note\n'
 				+ 'ws-zen: true         override a mode for this note only\n'
 				+ 'ws-typewriter: false\n'
 				+ 'ws-hemingway: true\n'
-				+ 'ws-syntax: true\n'
-				+ 'ws-markers: false\n'
-				+ 'ws-typography: false\n'
-				+ 'ws-font: Courier Prime',
+				+ 'ws-syntax: true      the word classes, the prose checks\n'
+				+ 'ws-checks: false\n'
+				+ 'ws-typography: false',
 		});
 	}
 }
@@ -2178,8 +2101,8 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	hemingwayEnabled: (tab) => { tab.plugin._hemSaid = false; },   // a lock should land now, not in 120 ms
 	paragraphNumbers: (tab) => { tab.plugin.reconfigureEditors(); },
 	organizerOn: (tab) => { try { tab.plugin.refreshMenuPanelsNow(); } catch (_) { wsCatch('AFTER organizerOn: refreshMenuPanelsNow();', _); } },
-	// THROUGH THE ONE WRITER (A175): the three steps that turning it on means,
-	// flag, find or make the file, write it once, live in `historyTrackingOn`
+	// THROUGH THE ONE WRITER: the three steps that turning it on means —
+	// flag, find or make the file, write it once — live in `historyTrackingOn`
 	historyTracking: async (tab, v) => { if (v) await tab.plugin.historyTrackingOn(); },
 	organizerDateFormat: (tab) => { tab.update(); },   // the sample time in the description follows
 	settingsMirror: (tab) => { tab.update(); },   // the file row's text follows

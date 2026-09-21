@@ -1,4 +1,4 @@
-// Word-Smith — the settings schema (A422, A418 step 4b, 2026-09-18).
+// Word-Smith — the settings schema.
 //
 // THE DEFAULTS ARE THE SCHEMA. `DEFAULT_SETTINGS` (preamble.ts) holds every
 // key with its default, and every writer's data.json is that object with the
@@ -43,7 +43,9 @@ export interface WsExportOpts {
 	/** the last export, remembered so the panel can offer it again */
 	lastRun?: { scope: string; format: string; into: string; files: number; name: string; at: number };
 }
-type KeysOf<T, V> = { [K in keyof T]-?: [T[K]] extends [never] ? never : (T[K] extends V | undefined ? K : never) }[keyof T];
+// the keys of T whose value is a V: an optional key counts, a retired one
+// (`?: never`, which reads as `undefined` alone) does not
+type KeysOf<T, V> = { [K in keyof T]-?: [Exclude<T[K], undefined>] extends [never] ? never : (Exclude<T[K], undefined> extends V ? K : never) }[keyof T];
 // What the file menu is built for: a vault file or folder, or a row's own shape when
 // its note is gone from the vault (`outlinerRowMenu`).
 export type WsFileLike = { path: string; children?: TAbstractFile[] };
@@ -132,7 +134,7 @@ export interface WsCursorSmithLook { colorDark?: string; colorLight?: string; [e
 export interface WsCursorSmithSettings extends WsCursorSmithLook { vimModeEnabled?: boolean; vimModes?: Record<string, WsCursorSmithLook | undefined>; [extra: string]: unknown }
 // Cursor-Smith as the plugin registry holds it: its settings, its save, and the
 // flag its own settings tab sets while it swaps them
-export interface WsCursorSmithPlugin { settings?: WsCursorSmithSettings; saveSettings?: () => Promise<void>; _settingsSwapped?: boolean; [extra: string]: unknown }
+export interface WsCursorSmithPlugin { settings?: WsCursorSmithSettings; look?: WsCursorSmithLook; saveSettings?: () => Promise<void>; _settingsSwapped?: boolean; [extra: string]: unknown }
 // One item of a drawer: its label, whether it is on, what a tap does, and
 // (some) an icon, a key or id, a note for the tooltip.
 export interface WsMenuPickItem {
@@ -166,9 +168,8 @@ export interface WsLazySettings {
 	// the row numbers, on from the table's menu (found by the typed context:
 	// read and written for a year with no row here)
 	uniRowNumbers?: boolean;
-	// `organizerMode` (which of two views was up; Outline went at A26) was
-	// written and never read until the writer's "delete it" (2026-09-18):
-	// a dead key now, deleted on load, typed with the others below.
+	// `organizerMode` (which of two views was up, before the outline went)
+	// is a dead key, deleted on load, typed with the others below.
 }
 
 export interface WsLegacySettings {
@@ -189,7 +190,7 @@ export interface WsLegacySettings {
 	// the one legacy key read from the merged object, by the history store's own move
 	historyData?: WsLegacyHistory;
 	orgLenses?: never; uniSlimCol?: never; organizerView?: never; organizerDrawer?: never; organizerMode?: never;
-	// A451's light pick, one day old and never released; deleted on load (A455)
+	// one unreleased day's light pick; deleted on load
 	barThemeLight?: never;
 }
 

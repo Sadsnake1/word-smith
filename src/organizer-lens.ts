@@ -1,5 +1,5 @@
-// Word-Smith — organizer-lens. Hand-owned since 2026-09-18 (A418 step 3b); first
-// cut from the JavaScript slices by ws-dev/gen-ts.js, which is retired.
+// Word-Smith — organizer-lens: the sort and the chips the table is read
+// through.
 
 import { Notice } from 'obsidian';
 import { WsPropSuggestModal, wsCatch, wsMenu, wsStr } from './preamble';
@@ -16,26 +16,21 @@ import type { WordSmithSettings } from './settings';
 // THE LENS — the sort and the chips the table is read through
 // ════════════════════════════════════════════════════════════════════════
 //
-// THE TWELFTH PIECE LIFTED OUT OF `openManuscriptModal` (2026-09-15, by
-// `ws-dev/lift.js`): the lens itself (`orgLens` — a sort and a list of
-// chips, a SESSION's reading of the manuscript and never a setting),
-// `orgLensOn`, `orgLensSet` (which remembers it on the session and
-// redraws), `orgLensClear`, the scope reader `orgAt`, and the chips
-// (`orgSameChip`, `orgAddChip`, `orgFilterByKey` — the menu that offers a
-// key's values and adds the chip a writer picks). A hundred and seventy
-// lines.
+// The lens itself (`orgLens` — a sort and a list of chips, a SESSION's
+// reading of the manuscript and never a setting), `orgLensOn`,
+// `orgLensSet` (which remembers it on the session and redraws),
+// `orgLensClear`, the scope reader `orgAt`, and the chips (`orgSameChip`,
+// `orgAddChip`, `orgFilterByKey` — the menu that offers a key's values
+// and adds the chip a writer picks).
 //
-// WHAT IT READS, through `d`: the settings (`d.s`), the session
-// (`d.ses`, where the lens is remembered), the folder (`d.orgFolder`, which
-// `orgAt` returns), `d.drawPanel` and `d.plugin` for the values under a
-// key.
+// WHAT IT READS, through `d`: the settings (`d.s`), the session (`d.ses`,
+// where the lens is remembered), the folder (`d.orgFolder`, which `orgAt`
+// returns), `d.drawPanel` and `d.plugin` for the values under a key.
 //
 // THE LENS ITSELF IS LIVE — reassigned in here and read by the table, the
-// panel and the probes' door — so it comes back as a getter and a setter
-// and the closure reads it as `orgLensBox.orgLens`. The comments on each
-// function came with it, as it stood.
-//
-// WHAT THE WINDOW LENDS THIS MODULE (A422, 2026-09-18): the type of the object
+// panel and the tests' door — so it comes back as a getter and a setter
+// and the window reads it as `orgLensBox.orgLens`.
+// WHAT THE WINDOW LENDS THIS MODULE: the type of the object
 // `openManuscriptModal` hands `wsOrgLensMake`, as the checker sees it at the call —
 // a getter without a setter is readonly; a member that reads `any` is a
 // closure local the window has not typed yet (1 of 5).
@@ -56,46 +51,18 @@ export const wsOrgLensMake = (d: OrgLensDeps) => {
 // `orgLensOn()` is the one question everything else asks — the
 // grouped/flat rule, the hide-empties rule and (Phase 3) whether
 // drag affordances render at all.
-// TOMBSTONE (writer, 2026-08-22, second pass): the lens's `q` — the
-// right pane's own search box, its name+content sweep (`orgHits`,
-// `orgSearchRun`) and the persistent `orgFindEl` input. "remove the
-// search from the organizer right pane (we already have the search
-// from the filetree)" — the sidebar's tree search is THE search now.
-// Content search goes with it; Obsidian's own search owns prose.
-// TOMBSTONE, same message: SAVED LENSES ("remove lenses — we don't
-// need that feature", one day old). The Lenses button, the name
-// draft (`orgLensNameDraft`) and the `orgLenses` store are gone; the
-// store key is deleted on load, dead keys being traps.
 // RESTORED BELOW, once the columns exist to check it against — a lens
 // is validated against what the table HAS, and `colDefs()` has not run
 // yet at this line. See `sesLensRestore`.
 let orgLens: { sort: WsLensSort | null; chips: WsLensChip[] } = { sort: null, chips: [] };
-// An UNTICKED chip (inbox: "checkboxes for filters") is set aside,
-// not gone: it narrows nothing, so a lens of only-unticked chips is
-// NO lens — groups and drag come back while the chip waits.
-// ── A SORT THAT CANNOT APPLY IS NOT A LENS ──────────────────────
-//
-// FOUND WHILE REMOVING THE SORT BUTTON FROM OUTLINE (writer,
-// 2026-08-25), not from a report — which is why it is worth the
-// paragraph. This read `orgLens.sort || chips`, in every mode.
-//
-// In OUTLINE `cols` is `[]`, so `sortCol` is always null: nothing
-// is arranged, and the sort chip — drawn `if (sortCol)` — is not
-// drawn either. But a lens FLATTENS the binder. So a sort chosen
-// in Table and carried across dissolved the Outline's folders
-// while sorting nothing, with no chip naming the cause and,
-// once the button was gone, no control to undo it. A state with
-// no door out of it.
-//
-// KEPT AND UNREAD, NOT CLEARED. Dropping the sort on the mode
-// change would be the easy fix and the wrong one: it throws away
-// the writer's Table arrangement every time they glance at the
-// Outline. What changes here is only which modes COUNT it.
-//
-// AND IT IS ASKED IN ONE PLACE, still. This is the question the
-// grouped/flat rule, the hide-empties rule and the drag
-// affordances all ask; teaching each of them about the mode
-// separately would be four writers of one fact.
+// An UNTICKED chip is set aside, not gone: it narrows nothing, so a lens
+// of only-unticked chips is NO lens — groups and drag come back while
+// the chip waits. A SORT THAT CANNOT APPLY IS NOT A LENS: a sort chosen
+// against columns the view does not have is kept and unread, not
+// cleared — dropping it would throw away the writer's arrangement every
+// time they glance elsewhere. AND IT IS ASKED IN ONE PLACE: this is the
+// question the grouped/flat rule, the hide-empties rule and the drag
+// affordances all ask.
 const orgLensOn = () => !!(orgLens.sort
 	|| orgLens.chips.some(c => !c.off));
 const orgLensSet = (patch: { sort?: WsLensSort | null; chips?: WsLensChip[] }) => {
@@ -103,14 +70,11 @@ const orgLensSet = (patch: { sort?: WsLensSort | null; chips?: WsLensChip[] }) =
 	// THE ONE WRITER OF THE LENS is the one writer of the memory of it.
 	// Every chip, every sort and every clear passes through here.
 	d.ses.lens = orgLensOn() ? orgLens : null;
-	// AND TO THE SETTINGS (A319, writer 2026-09-12: “do lens
-	// persistence”). This reverses A211’s “not if I close obsidian and
-	// restart it” on the writer’s newer word: the arrangement comes
-	// back after a restart, validated on read against the columns the
-	// table then has, as the session’s copy is. One writer still —
-	// every chip, sort and clear passes through here — and the key
-	// is absent rather than null when there is no lens, like the
-	// table’s other choices.
+	// AND TO THE SETTINGS: the arrangement comes back after a restart,
+	// validated on read against the columns the table then has, as the
+	// session's copy is. One writer still — every chip, sort and clear
+	// passes through here — and the key is absent rather than null when
+	// there is no lens, like the table's other choices.
 	if (d.ses.lens) d.s.uniLens = JSON.parse(JSON.stringify(d.ses.lens)) as Record<string, unknown>;
 	else delete d.s.uniLens;
 	d.plugin.saveSettings().catch(() => {});
@@ -121,46 +85,30 @@ const orgLensClear = () => {
 };
 
 // ── WHAT THE TABLE IS OVER ──────────────────────────────────────────
-// The vault root when nothing is selected: there is no manuscript
-// root to fall back to any more (2026-08-30).
+// The vault root when nothing is selected.
 const orgAt = () => d.orgFolder;
 // ── ONE WRITER FOR A FILTER CHIP, AND ONE VALUE PICKER ──────────
 //
-// LIFTED OUT OF THE FILTER BUTTON'S CLICK (brief C4). Both were
-// closures inside `addBtn`'s handler, which was fine while that
-// button was the only way to build a filter — and C4 gives the table
-// header a "Filter by this…" of its own. Copying them would be two
-// builders of one chip, and this file's own note about `colsMenu`
-// says what happens next: one of them gains a row the other has not.
+// The filter button and the table header's "Filter by this…" both build
+// a chip; two builders of one chip is how one gains a row the other has
+// not. THE SUBJECT IS ASKED FOR, NOT PASSED IN: `orgAt()` is the folder
+// the pane is about, and reading it here means a picker opened from the
+// header enumerates the same values as one opened from the bar.
 //
-// THE SUBJECT IS ASKED FOR, NOT PASSED IN. `orgAt()` is the folder
-// the pane is about, and reading it here means a picker opened from
-// the header enumerates the same values as one opened from the bar.
 // ── …AND ONE CHIP FOR ONE NARROWING ─────────────────────
 //
-// The writer, 2026-08-30, with the shot: the strip carried
-// `Tasks: Has tasks` TWICE, once unticked and once ticked, beside
-// `Flag: Draft`. This concatenated whatever it was handed, so
-// choosing a filter, setting it aside with its tick, and reaching
-// for the same filter again built a SECOND chip rather than
-// turning the first back on.
-//
-// TWO CHIPS FOR ONE NARROWING IS UNANSWERABLE. They AND together,
-// so a live twin and a dimmed one narrow exactly as the live one
-// alone does — the strip shows a filter that is doing nothing,
-// beside an identical one that is, and nothing on either says
-// which. Removing the wrong one changes nothing, which is the
-// worst version of it.
-//
-// HERE AND NOT IN `orgLensSet`, which is the lens’s one writer but
-// is also how the probe door sets a whole list at once: a chip is
-// BORN in this function and nowhere else, and a rule about what
-// may be born belongs where the birth happens.
-//
-// MATCHED THE WAY THE MATCHER MATCHES. `orgChipHit` lowercases the
-// value before comparing, so two chips that narrow identically
-// must count as the same chip here even when their values differ
-// in case — otherwise this refuses one twin and admits another.
+// TWO CHIPS FOR ONE NARROWING IS UNANSWERABLE. They AND together, so a
+// live twin and a dimmed one narrow exactly as the live one alone does —
+// the strip shows a filter that is doing nothing, beside an identical
+// one that is, and nothing on either says which. Reaching for a filter
+// that is set aside turns it back on rather than making a second. HERE
+// AND NOT IN `orgLensSet`, which is the lens's one writer but is also
+// how the tests' door sets a whole list at once: a chip is BORN in this
+// function and nowhere else, and a rule about what may be born belongs
+// where the birth happens. MATCHED THE WAY THE MATCHER MATCHES:
+// `orgChipHit` lowercases the value before comparing, so two chips that
+// narrow identically must count as the same chip here even when their
+// values differ in case.
 const orgSameChip = (a: WsLensChip, b: WsLensChip) =>
 	String(a.axis || '') === String(b.axis || '')
 	&& String(a.id || '') === String(b.id || '')
@@ -215,9 +163,9 @@ const orgFilterByKey = (key: string, ev: MouseEvent) => {
 	try { pv.showAtMouseEvent(ev); }
 	catch { try { pv.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('openManuscriptModal / orgFilterByKey: pv.showAtPosition( x: 0, y: 0 );', _e); } }
 };
-// WHICH FOLDERS ARE OPEN, remembered (writer, 2026-08-23). Empty is
-// all-shut, which is the state the writer asked the window to open
-// in: "show only the folders and files on the same level".
+// WHICH FOLDERS ARE OPEN, remembered. Empty is all-shut, which is the
+// state the window opens in: only the folders and files on the same
+// level.
 if (!Array.isArray(d.s.organizerOpen)) d.s.organizerOpen = [];
 	return { orgLensOn, orgLensSet, orgLensClear, orgAt, orgAddChip, orgFilterByKey, get orgLens() { return orgLens; }, set orgLens(v) { orgLens = v; } };
 };
