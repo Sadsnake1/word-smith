@@ -4356,7 +4356,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.5.8";
+var WS_PLUGIN_VERSION = "1.5.9";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -9385,10 +9385,26 @@ function wsEditorExtensions(plugin, cm) {
   };
   const syntaxPlugin = ViewPlugin2.fromClass(class {
     constructor(view) {
+      // The span the caret's marks would have covered, left bare (A479); null
+      // when nothing touched the head at the last build.
+      this.bare = null;
       this.decorations = this.build(view);
     }
     update(u) {
       if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view);
+      else if (u.selectionSet && this.caretCrossed(u.view)) this.decorations = this.build(u.view);
+    }
+    caretCrossed(view) {
+      const head = view.state.selection.main.head;
+      if (this.bare) return head < this.bare.from || head > this.bare.to;
+      let hit = false;
+      this.decorations.between(head, head, (from, to, d) => {
+        if (d !== markedLine && from <= head && head <= to) {
+          hit = true;
+          return false;
+        }
+      });
+      return hit;
     }
     build(view) {
       const s = plugin.settings;
@@ -9406,6 +9422,16 @@ function wsEditorExtensions(plugin, cm) {
       const doc = view.state.doc;
       const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
       const out = [];
+      const head = view.state.selection.main.head;
+      let bareFrom = Infinity, bareTo = -Infinity;
+      const keep = (r) => {
+        if (r.from <= head && head <= r.to) {
+          bareFrom = Math.min(bareFrom, r.from);
+          bareTo = Math.max(bareTo, r.to);
+          return;
+        }
+        out.push(r);
+      };
       const seen = s.checkRepetition ? [] : null;
       const marked = /* @__PURE__ */ new Set();
       for (const range of view.visibleRanges) {
@@ -9422,7 +9448,7 @@ function wsEditorExtensions(plugin, cm) {
           for (const t of tokens) {
             const bucket = posBucket(t.tag || "");
             if (bucket && posOn[bucket]) {
-              out.push(posMark[bucket].range(base + t.from, base + t.to));
+              keep(posMark[bucket].range(base + t.from, base + t.to));
             }
           }
           if (!checksOn) {
@@ -9431,17 +9457,17 @@ function wsEditorExtensions(plugin, cm) {
           }
           if (s.checkPassive) {
             for (const r of findPassive(tokens)) {
-              out.push(checkMark.passive.range(base + r.from, base + r.to));
+              keep(checkMark.passive.range(base + r.from, base + r.to));
             }
           }
           if (s.checkIllusion) {
             for (const r of findIllusions(tokens)) {
-              out.push(checkMark.illusion.range(base + r.from, base + r.to));
+              keep(checkMark.illusion.range(base + r.from, base + r.to));
             }
           }
           if (s.checkMisused) {
             for (const r of findMisused(tokens)) {
-              out.push(checkMark.misused.range(base + r.from, base + r.to));
+              keep(checkMark.misused.range(base + r.from, base + r.to));
             }
           }
           let phraseHits = null;
@@ -9451,16 +9477,16 @@ function wsEditorExtensions(plugin, cm) {
             let m;
             while (m = FILLER_PHRASES.exec(masked)) {
               phraseHits.push([m.index, m.index + m[0].length]);
-              out.push(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
+              keep(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
             }
           }
           for (let ti = 0; ti < tokens.length; ti++) {
             const t = tokens[ti];
             if (s.checkFiller && (FILLER_STRONG.has(t.lw) || s.checkFillerSoft && FILLER_SOFT.has(t.lw)) && !(phraseHits || []).some((pr) => t.from >= pr[0] && t.to <= pr[1])) {
-              out.push(checkMark.filler.range(base + t.from, base + t.to));
+              keep(checkMark.filler.range(base + t.from, base + t.to));
             }
             if (s.checkPronoun && isVaguePronoun(t, ti + 1 < tokens.length ? tokens[ti + 1] : null)) {
-              out.push(checkMark.pronoun.range(base + t.from, base + t.to));
+              keep(checkMark.pronoun.range(base + t.from, base + t.to));
             }
           }
           if (s.checkDialogue) {
@@ -9491,11 +9517,17 @@ function wsEditorExtensions(plugin, cm) {
         const win = s.repetitionWindow != null ? s.repetitionWindow : 50;
         const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
         for (const r of findRepetitions(seen, win, min)) {
+          if (r.from <= head && head <= r.to) {
+            bareFrom = Math.min(bareFrom, r.from);
+            bareTo = Math.max(bareTo, r.to);
+            continue;
+          }
           out.push(checkMark.repeat.range(r.from, r.to));
           marked.add(doc.lineAt(r.from).from);
         }
       }
       for (const at of marked) out.push(markedLine.range(at));
+      this.bare = bareFrom <= bareTo ? { from: bareFrom, to: bareTo } : null;
       return Decoration2.set(out, true);
     }
   }, { decorations: (v) => v.decorations });

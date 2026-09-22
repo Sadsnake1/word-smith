@@ -22,6 +22,7 @@ import {
 } from './preamble';
 import type { WsToken } from './preamble';
 import type { Decoration, DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
+import type { Range } from '@codemirror/state';
 import type WordSmith from './plugin';
 
 // what the tildes' measure phase hands its write phase: nothing, a hide, or
@@ -206,9 +207,25 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 
 	const syntaxPlugin = ViewPlugin.fromClass(class {
 		decorations: DecorationSet;
+		// The span the caret's marks would have covered, left bare (A479); null
+		// when nothing touched the head at the last build.
+		bare: { from: number; to: number } | null = null;
 		constructor(view: EditorView) { this.decorations = this.build(view); }
 		update(u: ViewUpdate) {
 			if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view);
+			// The caret alone moved: rebuild only when it left the bare span or
+			// landed on a mark — read at the head, not rebuilt, so an arrow key
+			// through plain text costs nothing.
+			else if (u.selectionSet && this.caretCrossed(u.view)) this.decorations = this.build(u.view);
+		}
+		caretCrossed(view: EditorView) {
+			const head = view.state.selection.main.head;
+			if (this.bare) return head < this.bare.from || head > this.bare.to;
+			let hit = false;
+			this.decorations.between(head, head, (from, to, d) => {
+				if (d !== markedLine && from <= head && head <= to) { hit = true; return false; }
+			});
+			return hit;
 		}
 		build(view: EditorView) {
 			const s = plugin.settings;
@@ -227,7 +244,22 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 
 			const doc  = view.state.doc;
 			const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
-			const out  = [];
+			const out: Range<Decoration>[] = [];
+			// THE WORD UNDER THE CARET IS BARE (A479; a reader on Mac and iPad:
+			// "backspacing + typing seems to force an uppercase letter in the
+			// middle of a word like thIs"). A word's class changes with every
+			// letter typed into it, and each change replaced the text node under
+			// the caret — the node Apple's autocapitalization reads its context
+			// from; a fresh node reads as a fresh sentence. So no word-level mark
+			// touches the head: the class, the check, the repeat. The marks
+			// arrive when the caret leaves the word. The sentence tint and the
+			// dialogue mark grow in place under one class and stay.
+			const head = view.state.selection.main.head;
+			let bareFrom = Infinity, bareTo = -Infinity;
+			const keep = (r: Range<Decoration>) => {
+				if (r.from <= head && head <= r.to) { bareFrom = Math.min(bareFrom, r.from); bareTo = Math.max(bareTo, r.to); return; }
+				out.push(r);
+			};
 			// Repetition spans lines, so its tokens are collected across
 			// the whole visible range and scanned once at the end.
 			const seen: WsToken[] | null = s.checkRepetition ? [] : null;
@@ -250,7 +282,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					for (const t of tokens) {
 						const bucket = posBucket(t.tag || '');
 						if (bucket && posOn[bucket]) {
-							out.push(posMark[bucket].range(base + t.from, base + t.to));
+							keep(posMark[bucket].range(base + t.from, base + t.to));
 						}
 					}
 
@@ -258,17 +290,17 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 
 					if (s.checkPassive) {
 						for (const r of findPassive(tokens)) {
-							out.push(checkMark.passive.range(base + r.from, base + r.to));
+							keep(checkMark.passive.range(base + r.from, base + r.to));
 						}
 					}
 					if (s.checkIllusion) {
 						for (const r of findIllusions(tokens)) {
-							out.push(checkMark.illusion.range(base + r.from, base + r.to));
+							keep(checkMark.illusion.range(base + r.from, base + r.to));
 						}
 					}
 					if (s.checkMisused) {
 						for (const r of findMisused(tokens)) {
-							out.push(checkMark.misused.range(base + r.from, base + r.to));
+							keep(checkMark.misused.range(base + r.from, base + r.to));
 						}
 					}
 					// Phrases first, so word hits inside a phrase can be
@@ -281,7 +313,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 						let m;
 						while ((m = FILLER_PHRASES.exec(masked))) {
 							phraseHits.push([m.index, m.index + m[0].length]);
-							out.push(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
+							keep(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
 						}
 					}
 					for (let ti = 0; ti < tokens.length; ti++) {
@@ -289,12 +321,12 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 						if (s.checkFiller &&
 							(FILLER_STRONG.has(t.lw) || (s.checkFillerSoft && FILLER_SOFT.has(t.lw))) &&
 							!(phraseHits || []).some(pr => t.from >= pr[0] && t.to <= pr[1])) {
-							out.push(checkMark.filler.range(base + t.from, base + t.to));
+							keep(checkMark.filler.range(base + t.from, base + t.to));
 						}
 						// Only sentence-initial: a pronoun mid-sentence
 						// almost always has its referent right there.
 						if (s.checkPronoun && isVaguePronoun(t, ti + 1 < tokens.length ? tokens[ti + 1] : null)) {
-							out.push(checkMark.pronoun.range(base + t.from, base + t.to));
+							keep(checkMark.pronoun.range(base + t.from, base + t.to));
 						}
 					}
 
@@ -348,11 +380,13 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				const win = s.repetitionWindow    != null ? s.repetitionWindow    : 50;
 				const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
 				for (const r of findRepetitions(seen, win, min)) {
+					if (r.from <= head && head <= r.to) { bareFrom = Math.min(bareFrom, r.from); bareTo = Math.max(bareTo, r.to); continue; }
 					out.push(checkMark.repeat.range(r.from, r.to));
 					marked.add(doc.lineAt(r.from).from);
 				}
 			}
 			for (const at of marked) out.push(markedLine.range(at));
+			this.bare = bareFrom <= bareTo ? { from: bareFrom, to: bareTo } : null;
 			return Decoration.set(out, true);
 		}
 	}, { decorations: v => v.decorations });

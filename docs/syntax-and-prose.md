@@ -18,7 +18,7 @@ A hand-written part-of-speech tagger. No API, no model, no bundled NLP library. 
 
 **Context.** The pass that fixes what the first two got wrong, using the words either side. After a determiner, a verb becomes a noun (*the work*). An unknown word between a determiner and a noun is an adjective (*her difficult book*). After *to*, it's an infinitive.
 
-Results are drawn as editor decorations, so they never flicker while you type. Only the lines on screen are tagged, and code, frontmatter and maths are skipped.
+Results are drawn as editor decorations, so they never flicker while you type. The word under the caret is left bare — its class, its check marks — and gets them when the caret leaves it: a half-typed word would change class with every letter, and on a Mac or an iPad each change made the system autocapitalize mid-word (*thIs*). Only the lines on screen are tagged, and code, frontmatter and maths are skipped.
 
 ## What it gets wrong
 
