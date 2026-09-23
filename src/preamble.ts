@@ -4816,7 +4816,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 569;
+export const WS_STYLESHEET_VERSION = 570;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -4854,7 +4854,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.5.9';
+export const WS_PLUGIN_VERSION = '1.6.0';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5765,7 +5765,10 @@ export const DEFAULT_SETTINGS = {
 	// Obsidian's. Kept beside the rest of the hide group so the tab reads as
 	// one list, but note they are NOT bar presets: a preset describes how the
 	// bar looks, and whether zen hides it is a property of zen.
-	zenHideBar:               false,
+	// ON BY DEFAULT (A480, the writer: "for zen, add hide powerline by
+	// default"): zen is the empty page, and the bar still peeks from the
+	// bottom edge. A vault that saved `false` keeps it — this is a default.
+	zenHideBar:               true,
 	// How long the bar lingers after the pointer leaves the strip it hides
 	// in. 0 turns peeking off entirely, which is the off switch — a separate
 	// toggle for it would be a second control for one decision.
@@ -6081,6 +6084,11 @@ export const DEFAULT_SETTINGS = {
 
 	// ── Misc options ──────────────────────────────────────────────────────────
 	miscEnabled:              false,
+	// The Layout rows apply only while Zen is on (A481, the writer: "add a
+	// option to enable to toggle layout options when zen is enabled"): the
+	// book page in Zen, Obsidian's own page out of it. Read through
+	// `layoutOn`, never directly.
+	layoutZenOnly:            false,
 
 	// ── Text options ──────────────────────────────────────────────────────────
 	enableParagraphIndent:    false,

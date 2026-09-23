@@ -3498,10 +3498,19 @@ export default class WordSmith extends Plugin {
 	// Everything the tab owns is read through this one accessor, so a new
 	// setting added to that tab cannot forget to be gated — it is gated by the
 	// only route there is to its value.
+	//
+	// WHETHER THE LAYOUT IS ON AT ALL: the master, and — when "Only in Zen" is
+	// ticked (A481) — Zen. zenActive(), the question the rest of the plugin
+	// asks, so a canvas in Zen is not laid out as a page. Entering and leaving
+	// Zen runs saveSettings → refresh, which re-reads every site below.
+	layoutOn(): boolean {
+		if (!this.settings.miscEnabled) return false;
+		return !this.settings.layoutZenOnly || this.zenActive();
+	}
 	textOpt(key: WsBoolKey, whenOff: boolean): boolean;
 	textOpt(key: WsNumberKey, whenOff: number): number;
 	textOpt(key: WsBoolKey | WsNumberKey, whenOff: boolean | number): boolean | number {
-		if (!this.settings.miscEnabled) return whenOff;
+		if (!this.layoutOn()) return whenOff;
 		const v = this.settings[key];
 		return v === undefined ? whenOff : v;
 	}

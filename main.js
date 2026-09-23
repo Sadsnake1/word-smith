@@ -4340,7 +4340,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " \u2193" : " \u2191";
 }
-var WS_STYLESHEET_VERSION = 569;
+var WS_STYLESHEET_VERSION = 570;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4356,7 +4356,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.5.9";
+var WS_PLUGIN_VERSION = "1.6.0";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -4850,7 +4850,10 @@ var DEFAULT_SETTINGS = {
   // Obsidian's. Kept beside the rest of the hide group so the tab reads as
   // one list, but note they are NOT bar presets: a preset describes how the
   // bar looks, and whether zen hides it is a property of zen.
-  zenHideBar: false,
+  // ON BY DEFAULT (A480, the writer: "for zen, add hide powerline by
+  // default"): zen is the empty page, and the bar still peeks from the
+  // bottom edge. A vault that saved `false` keeps it — this is a default.
+  zenHideBar: true,
   // How long the bar lingers after the pointer leaves the strip it hides
   // in. 0 turns peeking off entirely, which is the off switch — a separate
   // toggle for it would be a second control for one decision.
@@ -5183,6 +5186,11 @@ var DEFAULT_SETTINGS = {
   lineLightColor: "#030303",
   // ── Misc options ──────────────────────────────────────────────────────────
   miscEnabled: false,
+  // The Layout rows apply only while Zen is on (A481, the writer: "add a
+  // option to enable to toggle layout options when zen is enabled"): the
+  // book page in Zen, Obsidian's own page out of it. Read through
+  // `layoutOn`, never directly.
+  layoutZenOnly: false,
   // ── Text options ──────────────────────────────────────────────────────────
   enableParagraphIndent: false,
   paragraphIndentEm: 4,
@@ -7735,6 +7743,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       ], this.railed("text", "typography")),
       this.section("Layout", [
         { name: "Text options", desc: "Margins, indents, line length and spacing, justification.", control: { type: "toggle", key: "miscEnabled" } },
+        { name: "Only in Zen", desc: "The layout turns on with Zen and off when you leave it.", control: { type: "toggle", key: "layoutZenOnly" }, visible: text },
         { name: "Horizontal padding", desc: "Pixels between the text and the pane\u2019s edges, in and out of Zen.", control: { type: "slider", key: "editorPaddingH", min: 0, max: 400, step: 10 }, visible: text },
         { name: "Paragraph indent", desc: "The first line of each paragraph set in, as a book does. Reading view only.", control: { type: "toggle", key: "enableParagraphIndent" }, visible: text },
         {
@@ -8167,6 +8176,10 @@ var AFTER = {
   paragraphNumbers: (tab) => {
     tab.plugin.reconfigureEditors();
   },
+  layoutZenOnly: (tab) => {
+    tab.plugin.reconfigureEditors();
+  },
+  // the numbers' decoration reads it when built
   organizerOn: (tab) => {
     try {
       tab.plugin.refreshMenuPanelsNow();
@@ -8206,7 +8219,8 @@ var SAVE_NOW = /* @__PURE__ */ new Set([
   "hemingwayEnabled",
   "typographyEnabled",
   "orgTargetShow",
-  "orgFolderIcons"
+  "orgFolderIcons",
+  "layoutZenOnly"
 ]);
 
 // src/diagnostics.ts
@@ -8908,9 +8922,9 @@ var paintMethods = {
     body.classList.toggle("zenmode-hide-scroll-bar", this.shouldHideScrollBar());
     body.classList.toggle("zenmode-hide-linked-mentions", zen && this.settings.hideLinkedMentions);
     body.classList.toggle("zenmode-hide-ribbon", zen && this.settings.hideRibbon);
-    body.classList.toggle("ws-text-pad", scoped && !!this.settings.miscEnabled);
+    body.classList.toggle("ws-text-pad", scoped && this.layoutOn());
     body.classList.toggle("ws-para-indent", scoped && this.textOpt("enableParagraphIndent", false));
-    body.classList.toggle("ws-margin-nums", scoped && !!this.settings.paragraphNumbers);
+    body.classList.toggle("ws-margin-nums", scoped && this.textOpt("paragraphNumbers", false));
     body.classList.toggle("ws-bar-ui-font", !!this.settings.statusBarUiFont);
     body.classList.toggle("ws-justify", scoped && this.textOpt("justifyText", false));
     const twOn = scoped && !!this.opt("enableTypewriter");
@@ -9711,7 +9725,7 @@ function wsEditorExtensions(plugin, cm) {
     }
     build(view) {
       const b = new RangeSetBuilder2();
-      if (!plugin.settings.paragraphNumbers || !plugin.isActiveFileInScope()) {
+      if (!plugin.textOpt("paragraphNumbers", false) || !plugin.isActiveFileInScope()) {
         return b.finish();
       }
       const doc = view.state.doc;
@@ -38920,8 +38934,33 @@ var WordSmith = class extends import_obsidian23.Plugin {
   optForView(cmView, key) {
     return this.optFor(this.getFileForEditorView(cmView), key);
   }
+  // Obsidian keeps its right-to-left preference in appearance config, and
+  // also sets it per note. Either is enough to mirror the text options.
+  // The Text Options master switch, honoured at RUNTIME rather than only in
+  // the settings pane.
+  //
+  // It used to hide the controls and nothing else: `miscEnabled` appeared
+  // exactly once outside the settings tab, in its own default. So switching
+  // the tab off left the horizontal padding, the paragraph indent, the line
+  // limit, the justification, the line spacing and the hidden markers all
+  // still applied, with no visible control left to turn any of them off
+  // again. A master switch that only hides its own controls is worse than no
+  // master switch, because it lies about what it did.
+  //
+  // Everything the tab owns is read through this one accessor, so a new
+  // setting added to that tab cannot forget to be gated — it is gated by the
+  // only route there is to its value.
+  //
+  // WHETHER THE LAYOUT IS ON AT ALL: the master, and — when "Only in Zen" is
+  // ticked (A481) — Zen. zenActive(), the question the rest of the plugin
+  // asks, so a canvas in Zen is not laid out as a page. Entering and leaving
+  // Zen runs saveSettings → refresh, which re-reads every site below.
+  layoutOn() {
+    if (!this.settings.miscEnabled) return false;
+    return !this.settings.layoutZenOnly || this.zenActive();
+  }
   textOpt(key, whenOff) {
-    if (!this.settings.miscEnabled) return whenOff;
+    if (!this.layoutOn()) return whenOff;
     const v = this.settings[key];
     return v === void 0 ? whenOff : v;
   }

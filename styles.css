@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 569;
+	--ws-stylesheet-version: 570;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -4542,6 +4542,19 @@ button.ws-card.ws-card-more:hover { color: var(--text-normal); border-color: var
    in main.js: without this rule the plinth goes straight back over the
    command line, which looks like a code bug and has been chased as one. */
 body.ws-vim-panel-open .ws-bar-plinth {
+	display: none;
+}
+
+/* …AND WHILE THE BAR IS AWAY (A480: "the text is cut here by the plinth in
+   zenmode"; "when powerline is off the plinth is not there, but if i put
+   autohide the plinth remains"). A hidden bar slides out and the scroller's
+   bottom reserve is released (`:not(.ws-bar-hidden)` above), so the note runs
+   to the window edge — and this strip stayed, page-coloured and opaque, over
+   its last 23px: a line cut through its glyphs. Turned off, the bar removes
+   the element; hidden, it only slides, so the stand-down is the sheet's.
+   A PEEK brings it back: the bar returns to its place above the gap, and the
+   plinth is what it sits on. */
+body.ws-bar-hidden:not(.ws-bar-peek) .ws-bar-plinth {
 	display: none;
 }
 

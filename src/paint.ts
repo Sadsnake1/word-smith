@@ -207,12 +207,14 @@ export const paintMethods = {
 		body.classList.toggle('zenmode-hide-ribbon',        zen && this.settings.hideRibbon);
 		// The horizontal padding is applied by an otherwise unscoped rule, so
 		// this class is what makes both kill switches able to reach it — the
-		// plugin's own, and Text Options'.
-		body.classList.toggle('ws-text-pad',                scoped && !!this.settings.miscEnabled);
+		// plugin's own, and Text Options' (with its "Only in Zen", A481).
+		body.classList.toggle('ws-text-pad',                scoped && this.layoutOn());
 		body.classList.toggle('ws-para-indent',             scoped && this.textOpt('enableParagraphIndent', false));
 		// One class for either kind of margin number: the CSS reserves the
 		// room once, so turning both on does not indent the text twice.
-		body.classList.toggle('ws-margin-nums', scoped && !!this.settings.paragraphNumbers);
+		// THROUGH THE GATE (A481): a Layout row, and it had been read raw —
+		// the master off hid its switch and left the numbers on.
+		body.classList.toggle('ws-margin-nums', scoped && this.textOpt('paragraphNumbers', false));
 		// THE BAR IN THE INTERFACE FONT: the sheet's rule on this class beats
 		// the font the token chose. Not scoped: the bar is one bar in every note.
 		body.classList.toggle('ws-bar-ui-font', !!this.settings.statusBarUiFont);

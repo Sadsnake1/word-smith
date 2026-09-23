@@ -10,7 +10,7 @@ Zen is a list of things to hide, not one big switch. Properties, the inline titl
 
 `Escape` leaves it. In Vim's insert, visual and replace modes, escape means back to normal first, so it costs one extra press.
 
-Hide the bar and it comes back on hover. Move the pointer to the bottom of the window and it slides up for a moment. Set the linger to 0 and it stays gone.
+Zen hides the powerline bar by default, and it comes back on hover. Move the pointer to the bottom of the window and it slides up for a moment. Set the linger to 0 and it stays gone.
 
 ## Letter box
 
@@ -30,7 +30,7 @@ Turns what you type into the proper characters as you go: curly quotes, ellipses
 
 ## Text options and markers
 
-Text options cap the line length, indent paragraphs, set spacing, justify. Markers draw the spaces, tabs and line breaks you normally can't see.
+Text options cap the line length, indent paragraphs, set spacing, justify. Tick **Only in Zen** and they apply only while Zen is on: a book page in Zen, Obsidian's own page out of it. Markers draw the spaces, tabs and line breaks you normally can't see.
 
 ## Fonts
 

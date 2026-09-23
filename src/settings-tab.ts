@@ -1783,6 +1783,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			], this.railed('text', 'typography')),
 			this.section('Layout', [
 				{ name: 'Text options', desc: 'Margins, indents, line length and spacing, justification.', control: { type: 'toggle', key: 'miscEnabled' } },
+				{ name: 'Only in Zen', desc: 'The layout turns on with Zen and off when you leave it.', control: { type: 'toggle', key: 'layoutZenOnly' }, visible: text },
 				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
 				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does. Reading view only.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
 				{ name: 'Indent trigger', desc: 'What starts a paragraph in your writing: a blank line, or every new line.',
@@ -2100,6 +2101,7 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	},
 	hemingwayEnabled: (tab) => { tab.plugin._hemSaid = false; },   // a lock should land now, not in 120 ms
 	paragraphNumbers: (tab) => { tab.plugin.reconfigureEditors(); },
+	layoutZenOnly: (tab) => { tab.plugin.reconfigureEditors(); },   // the numbers' decoration reads it when built
 	organizerOn: (tab) => { try { tab.plugin.refreshMenuPanelsNow(); } catch (_) { wsCatch('AFTER organizerOn: refreshMenuPanelsNow();', _); } },
 	// THROUGH THE ONE WRITER: the three steps that turning it on means —
 	// flag, find or make the file, write it once — live in `historyTrackingOn`
@@ -2113,4 +2115,5 @@ const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
 	'checkFillerSoft', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgFolderIcons',
+	'layoutZenOnly',
 ]);
