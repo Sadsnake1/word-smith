@@ -8,11 +8,14 @@
 // `obsidian` package, which is how the file behaves in the app: the packages
 // are asked of Obsidian at run time, never bundled.
 //
-// TWO PAIRS (A487): `main.js` and `styles.css` beside the manifest are the
-// source build, comments and all; `build/main.js` and `build/styles.css` are
-// what the release attaches — the same code without its comments. Every
-// check below runs on both, and the last section proves the second pair is
-// the first minus comments: esbuild minifies each to the same bytes.
+// ONE main.js (A494): `npm run build` writes the bundle once, without its
+// comments, as `main.js` — the file a build from source produces and the
+// release attaches, so the two are one file (Obsidian's review compares
+// them byte for byte). `build/main.js` is the same bytes; `build/styles.css`
+// is `styles.css` without its comments. Every check below runs on both
+// pairs, and the last section proves that stripping removed comments and
+// nothing else: esbuild minifies the commented bundle (built in memory) and
+// `main.js` to the same bytes, and the two sheets likewise.
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
@@ -99,15 +102,21 @@ for (const [js, css] of [['main.js', 'styles.css'], ['build/main.js', 'build/sty
 (async () => {
 	const esbuild = require('esbuild');
 	const min = async (code, loader) => (await esbuild.transform(code, { loader, minifyWhitespace: true, minifySyntax: true, minifyIdentifiers: false, legalComments: 'none', charset: 'utf8' })).code;
-	for (const [a, b, loader] of [['main.js', 'build/main.js', 'js'], ['styles.css', 'build/styles.css', 'css']]) {
-		const [ma, mb] = await Promise.all([min(read(a), loader), min(read(b), loader)]);
+	// the ONE file: what the release attaches is what the build wrote
+	is('build/main.js is main.js, byte for byte', fs.readFileSync(path.join(ROOT, 'build/main.js')).equals(fs.readFileSync(path.join(ROOT, 'main.js'))), true);
+	const config = await import(require('url').pathToFileURL(path.join(ROOT, 'esbuild.config.mjs')).href);
+	const full = await config.bundleText();
+	// …and it is the build of THIS source: stripping it again changes nothing
+	is('main.js is the build of this source, as npm run build writes it', await config.stripJs(full) === read('main.js'), true);
+	for (const [label, a, b, loader] of [['the commented bundle', full, 'main.js', 'js'], ['styles.css', read('styles.css'), 'build/styles.css', 'css']]) {
+		const [ma, mb] = await Promise.all([min(a, loader), min(read(b), loader)]);
 		let at = -1; if (ma !== mb) { at = 0; while (ma[at] === mb[at]) at++; }
-		is(b + ' is ' + a + ' without its comments' + (at >= 0 ? ' (first difference at ' + at + ')' : ''), at, -1);
+		is(b + ' is ' + label + ' without its comments' + (at >= 0 ? ' (first difference at ' + at + ')' : ''), at, -1);
 		const blocks = (read(b).match(/\/\*(?!\s*@__PURE__\s*\*\/)[\s\S]*?\*\//g) || []).length;
 		const lines = loader === 'js' ? (read(b).match(/^\s*\/\/[^\n]*$/gm) || []).length : 0;
 		is(b + ' carries no comment of the source\'s', blocks + lines, 0);
 	}
 	const kb = (f) => Math.round(fs.statSync(path.join(ROOT, f)).size / 1024);
-	console.log(pass + ' passed, ' + fail + ' failed  (shipped: main.js ' + kb('build/main.js') + ' KB of ' + kb('main.js') + ', styles.css ' + kb('build/styles.css') + ' KB of ' + kb('styles.css') + ')');
+	console.log(pass + ' passed, ' + fail + ' failed  (shipped: main.js ' + kb('main.js') + ' KB of ' + Math.round(Buffer.byteLength(full) / 1024) + ', styles.css ' + kb('build/styles.css') + ' KB of ' + kb('styles.css') + ')');
 	process.exit(fail ? 1 : 0);
 })().catch((e) => { console.log('  FAIL the comparison threw: ' + (e && e.message)); process.exit(1); });

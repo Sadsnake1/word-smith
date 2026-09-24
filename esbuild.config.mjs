@@ -75,15 +75,27 @@ function stripJsTs(ts, js) {
 		},
 	}).outputText;
 }
-export async function writeShipped() {
+// ONE main.js. The bundle is built in memory and written once, already
+// without its comments, as main.js — the file a build from source produces,
+// which Obsidian's review builds and compares with the release asset byte for
+// byte. (1.6.1 wrote the commented bundle as main.js and shipped the stripped
+// copy from build/, and the review flagged the two as different builds.)
+// build/ holds the same main.js beside the stripped sheet.
+export async function writeShipped(js) {
+	fs.writeFileSync(path.join(HERE, 'main.js'), js);
 	const dir = path.join(HERE, 'build');
 	fs.mkdirSync(dir, { recursive: true });
-	fs.writeFileSync(path.join(dir, 'main.js'), await stripJs(fs.readFileSync(path.join(HERE, 'main.js'), 'utf8')));
+	fs.writeFileSync(path.join(dir, 'main.js'), js);
 	fs.writeFileSync(path.join(dir, 'styles.css'), stripCss(fs.readFileSync(path.join(HERE, 'styles.css'), 'utf8')));
+}
+// the commented bundle, never written: the smoke test compares it with main.js
+export async function bundleText() {
+	const out = await esbuild.build(Object.assign(options(false), { write: false, logLevel: 'silent' }));
+	return out.outputFiles[0].text;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 	const test = process.argv.includes('test');
-	await esbuild.build(options(test));
-	if (!test) await writeShipped();
+	if (test) await esbuild.build(options(test));
+	else await writeShipped(await stripJs(await bundleText()));
 }

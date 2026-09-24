@@ -30,25 +30,27 @@ test/smoke.js             the smoke test over the built file (`npm test`)
 npm install
 npm run check     # tsc
 npm run lint      # the plugin review's rules (eslint-plugin-obsidianmd)
-npm run build     # main.js, and build/main.js + build/styles.css
-npm test          # the smoke test, against both
+npm run build     # main.js, and build/styles.css
+npm test          # the smoke test
 ```
 
 `src/` and `styles.css` are the source, edited by hand and commented at
 length. `main.js` is the build output: `npm run build` writes it beside
-`manifest.json` and `styles.css`, and it also writes `build/main.js` and
-`build/styles.css`, the same code without the comments — what a release
-ships, at about half the size. To install from the tree, copy
-`build/main.js`, `build/styles.css` and `manifest.json` into
-`<vault>/.obsidian/plugins/word-smith/` (the files beside the manifest work
-too; they are only larger).
+`manifest.json`, without the source's comments — the same file a release
+ships, byte for byte, so a build from source can be checked against the
+release asset. It also writes `build/styles.css`, the sheet without its
+comments, and `build/main.js`, a copy of `main.js`. To install from the
+tree, copy `main.js`, `build/styles.css` and `manifest.json` into
+`<vault>/.obsidian/plugins/word-smith/` (`styles.css` beside the manifest
+works too; it is only larger).
 
 A release is built by GitHub: publishing a release runs
 `.github/workflows/release.yml`, which builds from the tag with the
-committed lockfile, runs the smoke test (which also proves the `build/` pair
-is the source minus its comments: esbuild minifies each pair to the same
-bytes), attests the assets and attaches `build/main.js`, `build/styles.css`
-and `manifest.json` to the release as `main.js`, `styles.css` and
+committed lockfile, runs the smoke test (which also proves the stripped
+files are the source minus its comments: esbuild minifies the commented
+bundle and `main.js` to the same bytes, and the two sheets likewise),
+attests the assets and attaches `main.js`, `build/styles.css` and
+`manifest.json` to the release as `main.js`, `styles.css` and
 `manifest.json`. Nothing is uploaded by hand.
 
 The development harness, the probes and the sabotage sweeps that hold the
