@@ -13,6 +13,602 @@ import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_PAPERS, wsAnchorI
 import type WordSmith from './plugin';
 import type { WsModEvent } from './plugin';
 
+// the reader's page pool, measured: its document and window, the stack and the
+// first sheet, the gap, the pitch across and down, and how many pages there are
+type WsPoolMetrics = { doc: Document; win: Window; stack: HTMLElement; first: HTMLElement; gap: number; across: number; down: number; pages: number };
+
+// The preview's page metrics, read from the sheet (lifted out of exportPreviewInto, A488).
+function wsPreviewMetrics(a: { docOf: () => Document | null }) {
+	const { docOf } = a;
+	const doc = docOf();
+	const stack = doc && doc.querySelector('.stack');
+	// ── NOT A HIDDEN ONE ───────────────────────────────────────
+	//
+	// AT THE END OF THE BOOK THE POOL RUNS OUT OF PAGES TO SHOW: two of
+	// four sheets are wanted, the other two are hidden — and the FIRST
+	// sheet in the document is one of them. `querySelector('.sheet')` then
+	// hands back a `display: none` element, whose flow measures ZERO wide,
+	// so the book measures ONE PAGE, the stack is resized to one page
+	// tall, and the frame has nowhere left to be scrolled to.
+	//
+	// A HIDDEN ELEMENT DOES NOT ANSWER, IT DECLINES — and a zero read off
+	// it is not the number zero, it is the absence of a reading. Both
+	// halves are fixed here: ask a sheet that is showing, and refuse to
+	// answer at all if the width comes back zero.
+	const sheet = doc && (doc.querySelector('.sheet:not([hidden])')
+		|| doc.querySelector('.sheet'));
+	const flow = sheet && sheet.querySelector('.flow');
+	if (!doc || !stack || !sheet || !flow) return null;
+	const win = doc.defaultView;
+	if (!win) return null;
+	let gap = 18;
+	try {
+		const g = parseFloat(win.getComputedStyle(doc.documentElement)
+			.getPropertyValue('--sheet-gap'));
+		if (isFinite(g)) gap = g;
+	} catch (_) { wsCatch('exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(doc.documentElement)', _); }
+	let colGap = 0;
+	try {
+		const g = parseFloat(win.getComputedStyle(flow).columnGap);
+		if (isFinite(g)) colGap = g;
+	} catch (_) { wsCatch('exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(flow).columnGap);', _); }
+	const sheetH = sheet.offsetHeight || 0;
+	const across = (flow.clientWidth || 0) + colGap;
+	// NOTHING TO MEASURE IS NOT A MEASUREMENT OF NOTHING. A sheet with
+	// no height or no width has been hidden, or detached, or has not
+	// been laid out yet — and every caller of this reads `pages` and
+	// RESIZES THE STACK from it, so one bad answer collapses the book
+	// and throws the reader to the top.
+	if (!sheetH || (flow.clientWidth || 0) <= 0) return null;
+	// THE LAST PAGE CARRIES NO TRAILING GUTTER, so one is added back
+	// before dividing. Without it a two-page manuscript measures 1.9
+	// pages and reads as two only because `round` was kind.
+	const pages = across > 0
+		? Math.max(1, Math.round((flow.scrollWidth + colGap) / across)) : 1;
+	return { doc: doc, win: win, stack: stack, first: sheet,
+		gap: gap, across: across, down: sheetH + gap, pages: pages };
+}
+
+// The sheets laid out in the preview's frame (lifted out of exportPreviewInto, A488).
+function wsPreviewPlaceSheets(a: { o: WsExportRun; pool: HTMLElement[]; topOf: (m: WsPoolMetrics, n: number) => number }, m: WsPoolMetrics, from: number) {
+	const { o, pool, topOf } = a;
+	const need = [];
+	for (let i = 0; i < pool.length; i++) {
+		const n = from + i;
+		if (n >= 0 && n < m.pages) need.push(n);
+	}
+	const held = new Map<number, HTMLElement>();
+	for (const el of pool) {
+		const at = el.dataset.page === undefined ? null : Number(el.dataset.page);
+		if (at != null && need.indexOf(at) !== -1 && !held.has(at)) held.set(at, el);
+	}
+	const spare = pool.filter(el => {
+		const at = el.dataset.page === undefined ? null : Number(el.dataset.page);
+		return !(at != null && held.get(at) === el);
+	});
+	for (const n of need) {
+		if (held.has(n)) continue;
+		const el = spare.shift();
+		if (!el) break;
+		el.dataset.page = String(n);
+		held.set(n, el);
+	}
+	for (const [n, el] of held) {
+		el.style.top = topOf(m, n) + 'px';
+		el.hidden = false;
+		const flow = el.querySelector('.flow');
+		if (flow) flow.scrollLeft = n * m.across;
+		const hdr = el.querySelector('.hdr');
+		// NOT ON THE TITLE PAGE, because the .docx does not put it
+		// there: `w:titlePg` writes a separate empty first-page
+		// header, and the preview is meant to be the sheet in the
+		// file. The number is the PAGE — it was `counter(sheet)`,
+		// which counted FILES, so a forty-page chapter said the same
+		// number on all forty of its pages.
+		if (hdr) {
+			const bare = !!o.titlePage && n === 0;
+			hdr.textContent = (!o.runningHeader || bare) ? ''
+				: (o.runningHeader + ' ' + (n + 1));
+		}
+	}
+	// A SHEET WITH NO PAGE IS HIDDEN rather than left showing page one
+	// somewhere down the stack — at the end of a short book the pool is
+	// bigger than the book. Built once, not once per sheet.
+	const placed = new Set(held.values());
+	for (const el of pool) if (!placed.has(el)) el.hidden = true;
+}
+
+// Where the reader is, as a page (lifted out of exportPreviewInto, A488).
+function wsPreviewTopNow(a: { metrics: () => WsPoolMetrics | null; pool: HTMLElement[]; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; } }) {
+	const { metrics, pool, pv } = a;
+	try {
+		const sheet = pool[0];
+		const fl = sheet && sheet.querySelector('.flow');
+		if (!fl) return null;
+		const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+		if (!kids.length) return null;
+		if (pv.flow) {
+			// ── ASKED OF THE VIEWPORT, NOT OF AN ANCESTOR ───────────
+			//
+			// `getBoundingClientRect` answers in the same units the scroll does,
+			// so nothing here has to know the zoom — and nothing depends on WHICH
+			// ancestor happens to be positioned. `offsetTop` would: `.sheet` is
+			// `position: absolute` in pages and `static` in flow, so the offset
+			// parent CHANGES with the very class this function exists to survive.
+			for (const k of kids) {
+				if (k.getBoundingClientRect().bottom > 0) return k;
+			}
+			return kids[kids.length - 1];
+		}
+		// PAGED: the first thing in the column the reader is on.
+		// `offsetLeft` inside a multicol is the column's own offset, so
+		// dividing by `across` names the page without measuring anything
+		// this file does not already measure.
+		const m = metrics();
+		if (!m || !(m.across > 0)) return null;
+		for (const k of kids) {
+			if (Math.floor((k.offsetLeft + 1) / m.across) >= pv.pageAt) return k;
+		}
+		return kids[kids.length - 1];
+	} catch { return null; }
+}
+
+// The reader moved to a page (lifted out of exportPreviewInto, A488).
+function wsPreviewTopTo(a: { metrics: () => WsPoolMetrics | null; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; showPage: (n: number) => void }, el: HTMLElement | null) {
+	const { metrics, pv, showPage } = a;
+	if (!el) return;
+	const doc = el.ownerDocument;
+	const win = doc && doc.defaultView;
+	if (!win) return;
+	// CALLED WITH THE LAYOUT ALREADY SETTLED — `flowSet` owns the frame,
+	// because the page arithmetic has to be redone in the SAME frame as
+	// the scroll and doing it here would be one rAF too late.
+	try {
+		if (pv.flow) {
+			// THE VIEWPORT'S OWN UNITS, both of them: a rect and a scroll
+			// offset are in the same space `scrollTo` takes, so nothing
+			// here has to know the zoom. A LINE OF AIR ABOVE IT, so the
+			// paragraph is not welded to the top edge of the frame.
+			const y = el.getBoundingClientRect().top + (win.scrollY || 0);
+			win.scrollTo(0, Math.max(0, y - 12));
+			return;
+		}
+		// ── AND COLLAPSING LANDS WHERE IT LEFT ──
+		//
+		// The second frame in `flowSet` is what makes this exact: the
+		// scrollbar leaves with the flow class and `clientWidth` is half the
+		// divisor. THE ONE CASE THAT MISSES IS ON THE OTHER SIDE OF THE TRIP:
+		// flip back before the EXPAND has restored and this reads a position
+		// the writer never saw. Nothing here waits that out — a settle loop
+		// was tried for it and taken back out, because it missed too.
+		const m = metrics();
+		if (!m || !(m.across > 0)) return;
+		showPage(Math.floor((el.offsetLeft + 1) / m.across));
+	} catch (_) { wsCatch('exportPreviewInto / topTo: if (flow)', _); }
+}
+
+// The flow (one long page) switched on or off (lifted out of exportPreviewInto, A488).
+function wsPreviewFlowApply(a: { apply: () => void; docOf: () => Document | null; host: HTMLElement; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; readFileSay: () => void }) {
+	const { apply, docOf, host, pv, readFileSay } = a;
+	try {
+		const doc = docOf();
+		if (doc && doc.documentElement) {
+			doc.documentElement.classList.toggle('is-flow', pv.flow);
+		}
+	} catch (_) { wsCatch('exportPreviewInto / flowApply: const doc = docOf();', _); }
+	// THE PANE IS NOT OURS TO EMPTY, so the class goes on the split and
+	// the stylesheet decides what that means — the same arrangement the
+	// narrow layout already uses, rather than this function reaching in
+	// and hiding somebody else's column.
+	try {
+		const split = host && host.closest && host.closest('.ws-export-split');
+		if (split) split.classList.toggle('is-flow', pv.flow);
+		// THE READER TAKES THE WINDOW: the split's own flip folds the options
+		// away, and one class on the body has the stylesheet give the reader
+		// every column — the same shape the narrow layout draws with the
+		// panel up.
+		const body = split && split.closest && split.closest('.ws-uni-body');
+		if (body) body.classList.toggle('is-reader', pv.flow);
+	} catch (_) { wsCatch('exportPreviewInto / flowApply: const split = host && host.closest && …', _); }
+	// THE PAGE CONTROLS DESCRIBE A THING THAT IS NOT THERE. Hidden
+	// rather than removed: they come back on collapse, and they are the
+	// elements `syncPages` writes into.
+	try { if (pv.pageBox) pv.pageBox.toggleClass('is-gone', pv.flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: if (pageBox) pageBox.toggleClass(\'is-gone\', flow);', _); }
+	// THE ZOOM CHANGES MEANING WITH THE MODE, so it is re-written here:
+	// a fit of 0.51 is right for a page and half-size for a reader.
+	try { apply(); } catch (_) { wsCatch('exportPreviewInto / flowApply: apply();', _); }
+	// THE RAIL IS THE READER'S, so it is raised with it and taken down
+	// with it. BUILT ON FIRST USE rather than with the pane: a writer
+	// who never expands never pays for it.
+	// THE POSITION READ-OUT IS THE READER'S, and leaves with it. It is
+	// in the footer beside the zoom, not on a rail of its own.
+	try { if (pv.readPage) pv.readPage.toggleClass('is-gone', !pv.flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: if (readPage) readPage.toggleClass(\'is-gone\', !flow);', _); }
+	try { if (pv.readFile) { pv.readFile.toggleClass('is-gone', !pv.flow); if (pv.flow) readFileSay(); } } catch (_) { wsCatch('exportPreviewInto / flowApply: readFile.toggleClass(is-gone)', _); }
+	if (pv.flowSay) { try { pv.flowSay(); } catch (_) { wsCatch('exportPreviewInto / flowApply: flowSay();', _); } }
+}
+
+// The reader's read-out: which file, which page (lifted out of exportPreviewInto, A488).
+function wsPreviewReadSay(plugin: WordSmith, a: { docOf: () => Document | null; pageOf: WeakMap<HTMLElement, number> | null; pagesTotal: number; pool: HTMLElement[]; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; readFileSay: () => void; restoring: boolean; topNow: () => HTMLElement | null }) {
+	const { docOf, pageOf, pagesTotal, pool, pv, readFileSay, restoring, topNow } = a;
+	readFileSay();
+	if (!pv.flow || !pv.readPage) return;
+	try {
+		// THE SHEET AS `metrics` FINDS IT: the pool is filled by the page
+		// sync, and the read-out has a place to record before that.
+		const doc0 = docOf();
+		const sheet = pool[0] || (doc0 && (doc0.querySelector('.sheet:not([hidden])') || doc0.querySelector('.sheet')));
+		const fl = sheet && sheet.querySelector('.flow');
+		const doc = fl && fl.ownerDocument;
+		const win = doc && doc.defaultView;
+		if (!win) return;
+		// WHERE YOU HAD READ TO, recorded on the same event that moves it —
+		// written on every change rather than on close: a deploy orphans this
+		// window.
+		const top = topNow();
+		if (!restoring) {
+			try {
+				if (plugin._wsSession) {
+					plugin._wsSession.flowScroll = win.scrollY || 0;
+					if (top) {
+						const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
+						plugin._wsSession.flowTop = { idx: Array.prototype.indexOf.call(kids, top), off: top.getBoundingClientRect().top };
+					}
+				}
+			} catch (_) { wsCatch('exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;', _); }
+		}
+		const n = (top && pageOf && pageOf.has(top)) ? pageOf.get(top) : null;
+		// NOTHING RATHER THAN A GUESS. A paragraph the map does not know
+		// — one drawn after the map was taken — has no page, and saying a
+		// wrong one is worse than saying none.
+		pv.readPage.setText(n == null || !pagesTotal
+			? '' : ('p. ' + (n + 1) + ' of ' + pagesTotal));
+	} catch (_) { wsCatch('exportPreviewInto / readSay: const sheet = pool[0];', _); }
+}
+
+// THE FLOW, SET: sheets or one long page (lifted out of exportPreviewInto, A488).
+function wsPreviewFlowSet(plugin: WordSmith, a: { docOf: () => Document | null; flowApply: () => void; flowY0: number; pageMap: () => void; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; readSay: () => void; syncPages: () => void; topNow: () => HTMLElement | null; topTo: (el: HTMLElement | null) => void }, on: boolean) {
+	const { docOf, flowApply, flowY0, pageMap, pv, readSay, syncPages, topNow, topTo } = a;
+	const was = !!pv.flow;
+	if (was === !!on) return;
+	// TAKEN ON THE WAY IN, while the columns are still there to divide
+	// by. Going the other way there is nothing to capture and nothing
+	// that needs it — the pager answers for itself in pages.
+	if (!was) pageMap();
+	// TAKEN BEFORE THE FLIP, read after it: `topNow` answers in the
+	// units of the side it is on, and `topTo` in the units of the side
+	// it has arrived at.
+	const keep = topNow();
+	pv.flow = !!on;
+	// SESSION STATE, written on the change rather than on close: a deploy
+	// orphans this window and Obsidian can close it under us.
+	try { if (plugin._wsSession) plugin._wsSession.flow = pv.flow; } catch (_) { wsCatch('exportPreviewInto / flowSet: if (this._wsSession) this._wsSession.flow = flow;', _); }
+	flowApply();
+	// ── ONE FRAME LATER, AND BOTH THINGS IN IT ──────────────────────
+	//
+	// The class was flipped a moment ago and the engine has not re-laid
+	// the document out; measuring now reads the shape that is going away.
+	// And the two have to be in the SAME frame, in this order: `syncPages`
+	// run while the document is still one column sets the stack to the
+	// FLOW-shaped height, and a `showPage` after it scrolls past the end
+	// of that height and is CLAMPED — half a page short. So: settle,
+	// restore the height, THEN scroll into it.
+	const after = () => {
+		if (!pv.flow) { try { syncPages(); } catch (_) { wsCatch('exportPreviewInto / after: syncPages();', _); } }
+		// THE KEYS REACH THE FRAME ONLY IF IT HAS FOCUS: Expand hands it over,
+		// so Space pages down at once rather than after a click on the paper.
+		if (pv.flow) {
+			try {
+				const d = docOf();
+				if (d && d.body) { d.body.setAttribute('tabindex', '-1'); d.body.focus(); }
+			} catch (_) { wsCatch('exportPreviewInto / after: const d = docOf();', _); }
+		}
+		// THE TICKS ARE PLACED FROM THE FLOWED LAYOUT, so they cannot be
+		// worked out until it exists — the same frame the scroll waits
+		// for, and for the same reason. And the read-out is said once on
+		// arrival: riding the scroll alone leaves it empty until the
+		// reader happens to move.
+		if (pv.flow) {
+			// AND BACK WHERE YOU HAD READ TO — but only when this is a fresh
+			// reader. `keep` is the paragraph the writer was looking at a moment
+			// ago, and it beats a remembered offset from an earlier session every
+			// time: one is where they ARE, the other is where they were.
+			if (!keep) {
+				try {
+					// THE NUMBER TAKEN AT ENTRY, not the session's now — the new frame's
+					// first scroll event has zeroed that.
+					const y0 = flowY0;
+					const d0 = docOf();
+					const w0 = d0 && d0.defaultView;
+					if (w0 && typeof y0 === 'number' && y0 > 0) {
+						w0.scrollTo(0, y0);
+						try { if (plugin._wsSession) plugin._wsSession.flowScroll = y0; } catch (_) { wsCatch('exportPreviewInto / after: this._wsSession.flowScroll = y0;', _); }
+					}
+				} catch (_) { wsCatch('exportPreviewInto / after: const y0 = flowY0;', _); }
+			}
+			try { readSay(); } catch (_) { wsCatch('exportPreviewInto / after: readSay();', _); }
+		}
+		// ── AND A SECOND FRAME BEFORE THE SCROLL ────────────────────
+		//
+		// COLLAPSING SETTLES IN TWO STEPS, not one. The class comes off and
+		// the document goes back to columns; that removes the vertical
+		// SCROLLBAR, which changes `clientWidth`, which is half of the `across`
+		// the column arithmetic divides by — fifteen pixels of scrollbar on
+		// the divisor turns 39.1 pages into 38. Expanding needs none of this —
+		// it measures a RECT, which is not divided by anything. The second
+		// frame is the price of the one direction that has to count columns.
+		// (A settle loop that waited for `across` to answer the same twice was
+		// tried here and taken back out: it fixed nothing measurable, and a
+		// correction pass that does not correct is machinery somebody later
+		// trusts.)
+		const scroll = () => topTo(keep);
+		if (!pv.flow && win0 && win0.requestAnimationFrame) {
+			win0.requestAnimationFrame(scroll);
+		} else { scroll(); }
+	};
+	let win0: Window | null = null;
+	try { const d = docOf(); win0 = d && d.defaultView; } catch (_) { wsCatch('exportPreviewInto / flowSet: const d = docOf();', _); }
+	if (win0 && win0.requestAnimationFrame) win0.requestAnimationFrame(after);
+	else after();
+}
+
+// The page count and the flipper kept in step (lifted out of exportPreviewInto, A488).
+function wsPreviewSyncPages(plugin: WordSmith, a: { fillPool: (m: WsPoolMetrics) => void; metrics: () => WsPoolMetrics | null; placeSheets: (m: WsPoolMetrics, from: number) => void; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; windowStart: (m: WsPoolMetrics, n: number) => number }) {
+	const { fillPool, metrics, placeSheets, pv, windowStart } = a;
+	if (pv.flow) return;
+	const m = metrics();
+	if (!m) return;
+	fillPool(m);
+	m.stack.style.height = (m.pages * m.down - m.gap) + 'px';
+	const z = parseFloat(m.doc.documentElement.style.zoom) || 1;
+	const y = (m.win.scrollY || 0) / (z || 1);
+	// ROUNDED, so the page named is the one MOST on screen: halfway
+	// between two, the number turns over, which is the moment a
+	// reader would say they had reached the next one.
+	const at = m.down > 0 ? Math.round(y / m.down) : 0;
+	pv.pageAt = Math.max(0, Math.min(m.pages - 1, at));
+	plugin._exportPage = pv.pageAt;
+	// ONE EITHER SIDE, so the page above and below are already drawn —
+	// and SHIFTED BACK at the end of the book rather than left half
+	// empty, so the last screen is as fully drawn as any other and no
+	// sheet is hidden merely for being near the end.
+	placeSheets(m, windowStart(m, pv.pageAt));
+	// `~` ON THE TOTAL, NOT ON THE PAGE YOU ARE ON. Which page is on
+	// screen is exact — it is the sheet in front of them. How many there
+	// are is this engine's answer for this paper and this type, and the
+	// file may be laid out by another. One character, in the one place
+	// that is actually uncertain.
+	// WRITTEN TO THE TWO HALVES, never to the container: `setText` on the
+	// parent would replace the estimate span — mark, title, focus and
+	// all — with a text node on the first page turn.
+	if (pv.pageNow) pv.pageNow.setText(String(pv.pageAt + 1));
+	if (pv.pageEst) pv.pageEst.setText('~' + m.pages);
+	// A DOOR THAT LEADS NOWHERE IS SHUT. At the ends of the book the
+	// arrow that cannot move says so, rather than clicking and
+	// leaving a reader wondering whether the preview is stuck.
+	if (pv.prevBtn) pv.prevBtn.disabled = pv.pageAt <= 0;
+	if (pv.nextBtn) pv.nextBtn.disabled = pv.pageAt >= m.pages - 1;
+}
+
+// The preview painted at the current zoom (lifted out of exportPreviewInto, A488).
+function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; armScroll: () => void; asText: boolean; docOf: () => Document | null; fileStep: (by: number) => boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; frame: HTMLIFrameElement; html: string; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; restoreArm: () => void; syncPages: () => void }) {
+	const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages } = a;
+	try {
+		const doc = frame.contentDocument
+			|| (frame.contentWindow && frame.contentWindow.document);
+		if (!doc) return;
+		// THE ROOT IS SWAPPED, NOT THE DOCUMENT WRITTEN. The page is parsed
+		// apart and its root adopted in place of the frame's: one step, no
+		// blank beat, and the document — with its listeners — stays what it
+		// was. (`document.write` is deprecated, and the review refuses it.)
+		const fresh = new (doc.defaultView || window).DOMParser().parseFromString(html, 'text/html');
+		const root = doc.adoptNode(fresh.documentElement);
+		if (doc.documentElement) doc.replaceChild(root, doc.documentElement); else doc.appendChild(root);
+	} catch (_) { wsCatch('exportPreviewInto / paint: const doc = frame.contentDocument', _); }
+	// After every paint, because the swap replaces the root the zoom
+	// and the colour were set on.
+	if (!pv.zoom) pv.zoom = asText ? 1 : (plugin._exportZoom || fitZoom());
+	apply();
+	applyDark();
+	try { plugin.exportReaderClicks(docOf(), null, frame); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);', _); }
+	try { plugin.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p: string, sn: string | null) => plugin.openNoteAt(p, sn), step: (by: number) => fileStep(by), vim: () => !!(plugin.app.vault.getConfig && plugin.app.vault.getConfig('vimMode')) }); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
+	// ── AND THE READER, RE-APPLIED ──────────────────────────
+	//
+	// `is-flow` LIVES ON THE DOCUMENT'S ROOT, and the swap replaces the
+	// root: without this every recompile dropped an expanded pane back
+	// into PAGE layout — inside a pane still sized for the reader, which
+	// shows sheet one and sheet one alone.
+	if (pv.flow) { try { flowApply(); } catch (_) { wsCatch('exportPreviewInto / paint: flowApply();', _); } }
+	armScroll();
+	try { restoreArm(); } catch (_) { wsCatch('exportPreviewInto / paint: restoreArm();', _); }
+	// A COUNT NEEDS A LAYOUT. `doc.close()` above has parsed the
+	// document but the engine has not necessarily flowed it, and
+	// `scrollWidth` on an unflowed multicol is one page. `apply` asks
+	// once for the common case; this asks again on the next frame, for
+	// the manuscript long enough that it did not.
+	try { window.requestAnimationFrame(() => syncPages()); } catch (_) { wsCatch('exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());', _); }
+}
+
+// THE FLIPPER, first in the preview's foot: previous, the page, next, the
+// zoom and the flow (lifted out of exportPreviewInto, A488).
+function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; asText: boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; foot: HTMLDivElement; iconBtn: (into: HTMLElement, cls: string, names: string[], glyph: string, aria: string, fn: (ev: MouseEvent) => void) => HTMLButtonElement; jumpTo: (path: string) => boolean; o: WsExportRun; onRefresh: () => void; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; setZoom: (z: number, keep?: boolean) => void; showPage: (n: number) => void }) {
+	const { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage } = a;
+	if (!asText) {
+		// ── THE FLIPPER, FIRST IN THE ROW ────────────────────
+		//
+		// Reading the footer left to right is the order the controls are used
+		// in, and which page you are on is the question a paginated preview
+		// is answered by. The zoom follows it; the Export button ends the
+		// looking. NOT `ws-export-pages`, WHICH IS TAKEN: that class means
+		// "this control only applies to a format that has pages" and is swept
+		// with `is-gone` by the format table.
+		pv.pageBox = foot.createDiv({ cls: 'ws-export-flip' });
+		pv.prevBtn = iconBtn(pv.pageBox, 'ws-export-prev', ['chevron-left'], '\u2039', 'Previous page', () => showPage(pv.pageAt - 1));
+		// TWO PARTS, BECAUSE ONLY ONE OF THEM IS UNCERTAIN. The page you are
+		// on is a fact; the total is an estimate, and the `~` is attached to
+		// that half alone. Splitting them is what lets the mark below sit on
+		// the estimate rather than on the whole read-out.
+		pv.pageNum = pv.pageBox.createSpan({ cls: 'ws-export-pagenum' });
+		pv.pageNow = pv.pageNum.createSpan({ cls: 'ws-export-pagenow', text: '1' });
+		pv.pageNum.createSpan({ cls: 'ws-export-pagesep', text: ' / ' });
+		// ── A VISIBLE DOOR ON THE ESTIMATE ───────────────────
+		//
+		// A gesture is not a door. The `~` signals "estimate" to somebody who
+		// already knows; nobody hovers a number they have no reason to
+		// suspect. A dotted underline and a help cursor are the web's oldest
+		// word for "there is more here", which beats inventing a second
+		// vocabulary for one number.
+		pv.pageEst = pv.pageNum.createSpan({ cls: 'ws-export-pageest', text: '~1' });
+		pv.pageEst.setAttribute('tabindex', '0');
+		pv.pageEst.setAttribute('role', 'note');
+		// WHAT THE `~` MEANS, on the thing wearing it: a hover costs no room
+		// and is where a reader who wonders about the tilde would put the
+		// pointer. ONE CLAUSE: the count is approximate; how the preview
+		// relates to the file is the mark's own business.
+		pv.pageEst.title = (o.format === 'html' || o.format === 'pdf')
+			? 'Roughly this many pages — the file breaks in near enough the '
+				+ 'same places.'
+			: 'Roughly this many pages — Word will break the .docx its own way.';
+		pv.nextBtn = iconBtn(pv.pageBox, 'ws-export-next', ['chevron-right'], '\u203a', 'Next page', () => showPage(pv.pageAt + 1));
+		const zoomBox = foot.createDiv({ cls: 'ws-export-zoom' });
+		// ── THE BUTTONS READ THE ACTIVE ZOOM ─────────────────
+		//
+		// In the reader `zoom` is the page fit — a constant — so `+` computed
+		// the same number from it every press and the text jumped once and
+		// then never moved again. `setZoom` writes to the right number; it has
+		// to be handed the right one to start from.
+		const zoomNow = () => (pv.flow ? pv.flowZoom : pv.zoom);
+		iconBtn(zoomBox, 'ws-export-zoomout', ['zoom-out'], '\u2212', 'Zoom out', () => setZoom(zoomNow() - 0.1));
+		pv.pct = zoomBox.createSpan({ cls: 'ws-export-zoompct', text: '100%' });
+		iconBtn(zoomBox, 'ws-export-zoomin', ['zoom-in'], '+', 'Zoom in', () => setZoom(zoomNow() + 0.1));
+		// ONE CONTROL FOR THE TWO SIZES THAT MATTER: at any other size it
+		// offers Fit; fitted, it offers the printed size (100%). Two buttons
+		// said both at once, and one of them was always the size you were
+		// already at.
+		const fitBtn = zoomBox.createEl('button', { cls: 'ws-export-mini ws-export-fit' });
+		const fitted = () => !pv.flow && plugin._exportZoom == null;
+		const sayFit = () => {
+			const atFit = fitted();
+			fitBtn.setText(atFit ? '100%' : 'Fit');
+			fitBtn.title = atFit ? 'Show the page at its printed size' : 'Fit the page to the window';
+			fitBtn.setAttribute('aria-label', fitBtn.title);
+		};
+		pv.fitSay = sayFit;
+		fitBtn.addEventListener('click', () => {
+			if (fitted()) { setZoom(1); return; }
+			plugin._exportZoom = null;
+			// FIT HAS NO PAGE TO FIT IN THE READER, so it means life size —
+			// the writer's own point size at the size they chose it, which is
+			// what the reader opens at.
+			setZoom(pv.flow ? 1 : fitZoom(), false);
+		});
+		sayFit();
+		// LIGHT OR DARK, and it is a property of the READING rather than of
+		// the document: the sheet is white because paper is, which is right
+		// for proofing and is a lamp in the face for the hour before that
+		// spent reading the thing. Print resets to ink on paper regardless, so
+		// this cannot reach a file.
+		const viewBox = foot.createDiv({ cls: 'ws-export-view' });
+		const dk = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-ico ws-export-prevdark' });
+		const sayDark = () => {
+			wsIconInto(dk, pv.dark ? ['sun'] : ['moon'], pv.dark ? 'Light' : 'Dark');
+			dk.title = pv.dark ? 'Show the page as paper' : 'Dim the page for reading';
+			dk.setAttribute('aria-label', dk.title);
+			dk.setAttribute('aria-pressed', pv.dark ? 'true' : 'false');
+			dk.toggleClass('is-on', pv.dark);
+		};
+		dk.addEventListener('click', () => {
+			pv.dark = !pv.dark;
+			// Remembered on the WINDOW's options rather than on this
+			// compiled copy, which is thrown away when the preview
+			// closes — a reader who wants a dark page wants it next
+			// time too.
+			try {
+				if (plugin.settings && plugin.settings.exportOpts) {
+					plugin.settings.exportOpts.previewDark = pv.dark;
+					void plugin.saveSettings();
+				}
+			} catch (_) { wsCatch('exportPreviewInto: if (this.settings && this.settings.exportOpts)', _); }
+			applyDark();
+			sayDark();
+		});
+		sayDark();
+
+		// ── EXPAND ─────────────────────────────────────────────────
+		//
+		// Not another window — the options column folds away and the preview
+		// takes the tab. A second window is an orphan, and a hidden pane that
+		// goes on recompiling is waste. LAST IN THE ROW, after Light, because
+		// it is the only control here that changes the SHAPE of the pane
+		// rather than what is drawn in it.
+		//
+		// IT DOES NOT RECOMPILE. The refresh is hung on delegated listeners
+		// over the whole options container, and this button is inside the
+		// preview foot — which `refreshPreview` returns early for. So the flip
+		// is a class and nothing else.
+		//
+		// WHERE YOU ARE, IN THE ROW THAT SAYS IT: the paged read-out is three
+		// controls to the left of here; this is its opposite number. Before
+		// the Expand button, so the button that changes the mode stays at the
+		// end of the row. THE FILE LIST: a drop-down of the compiled files in
+		// their order, the one at the top ticked, following the scroll as the
+		// page read-out does; picking one jumps there. Only in the reader.
+		const rfile = viewBox.createEl('select', { cls: 'ws-export-readfile dropdown is-gone' });
+		pv.readFile = rfile;
+		rfile.title = 'Go to a file \u2014 [ and ] step through them';
+		rfile.setAttribute('aria-label', 'Go to a file');
+		rfile.addEventListener('change', () => {
+			try { jumpTo(rfile.value); } catch (_) { wsCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
+		});
+		pv.readPage = viewBox.createSpan({ cls: 'ws-export-readpage is-gone' });
+		const xb = viewBox.createEl('button',
+			{ cls: 'ws-export-mini ws-export-expand' });
+		const expandIcon = xb.createSpan({ cls: 'ws-export-ico-in' });
+		const expandWord = xb.createSpan({ cls: 'ws-export-word' });
+		const sayFlow = () => {
+			wsIconInto(expandIcon, pv.flow ? ['book-open'] : ['scroll-text', 'align-justify'], '');
+			// PAIRED WITH ITS OWN OTHER HALF: "Pages" named the DESTINATION while
+			// "Expand" named the ACTION, so one control said two different kinds
+			// of thing depending on which way round it was. Both are actions now.
+			expandWord.setText(pv.flow ? 'Collapse' : 'Expand');
+			xb.title = pv.flow
+				? 'Back to the page preview'
+				: 'Read the whole thing as one text';
+			xb.setAttribute('aria-label', xb.title);
+			// A TOGGLE SAYS WHICH WAY IT IS, to anything that cannot see it.
+			xb.setAttribute('aria-pressed', pv.flow ? 'true' : 'false');
+			xb.toggleClass('is-on', pv.flow);
+		};
+		xb.addEventListener('click', () => flowSet(!pv.flow));
+		sayFlow();
+		pv.flowSay = sayFlow;
+		// ── REFRESH. The preview follows every change made IN THE PANE (a
+		// tick, an option) 220ms behind; a change made in the NOTE reaches it
+		// only on the next of those. This is the door for that: it runs the
+		// same recompile, through the same `refreshPreview`, which the foot's
+		// own clicks are otherwise excused from. Beside Expand, in both views
+		// — a stale page is stale whichever way it is read.
+		if (typeof onRefresh === 'function') {
+			// ITS WORD BESIDE ITS GLYPH, as Expand has: the two acts in the row
+			// are read, the adjustments beside them are glyphs.
+			const rf = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-refresh' });
+			wsGlyphWord(rf, ['refresh-cw'], 'Refresh');
+			rf.title = 'Compile again, with what the notes say now';
+			rf.setAttribute('aria-label', rf.title);
+			rf.addEventListener('click', (ev: MouseEvent) => {
+				ev.preventDefault();
+				ev.stopPropagation();
+				rf.disabled = true;
+				try { onRefresh(); } finally { window.setTimeout(() => { rf.disabled = false; }, 400); }
+			});
+		}
+		// AND IF THE SESSION SAYS EXPANDED, IT OPENS EXPANDED. The class
+		// goes on after the foot exists, because `flowApply` speaks to the
+		// button as well as to the document.
+		if (pv.flow) flowApply();
+		apply();   // the read-outs exist now, so they can be told
+	}
+}
+
 export const exportMethods = {
 
 	// ── Export ──────────────────────────────────────────────────────────────
@@ -901,7 +1497,44 @@ export const exportMethods = {
 		// Storing the fitted number would freeze the page at whatever size the
 		// pane happened to be when Fit was pressed, and it would stop
 		// following the pane on the next resize.
-		let zoom = 0;                      // 0 = not measured yet
+		// THE FACTORY'S SHARED STATE, one object (A488): its inner functions write
+		// these, and a function lifted out of the factory writes them through it.
+		const pv: {
+			zoom: number;
+			flowZoom: number;
+			pct: HTMLElement | null;
+			fitSay: (() => void) | null;
+			dark: boolean;
+			pageAt: number;
+			pageNum: HTMLElement | null;
+			prevBtn: { disabled: boolean; } | null;
+			nextBtn: { disabled: boolean; } | null;
+			pageNow: HTMLElement | null;
+			pageEst: HTMLElement | null;
+			flow: boolean;
+			pageBox: HTMLElement | null;
+			readPage: HTMLElement | null;
+			flowSay: (() => void) | null;
+			readFile: HTMLSelectElement | null;
+		} = {
+			zoom: 0,   // 0 = not measured yet
+			flowZoom: 1,
+			pct: null,   // the read-out, once the foot exists
+			fitSay: null,   // the Fit/100% toggle's word, once it exists
+			dark: !!((this.settings && this.settings.exportOpts
+			&& this.settings.exportOpts.previewDark) || false),
+			pageAt: Math.max(0, Number(this._exportPage) || 0),
+			pageNum: null,
+			prevBtn: null,
+			nextBtn: null,
+			pageNow: null,
+			pageEst: null,
+			flow: false,
+			pageBox: null,
+			readPage: null,
+			flowSay: null,
+			readFile: null,
+		};
 		// ── AND THE READER HAS ITS OWN ───────────────────────────
 		//
 		// THE PAGE ZOOM IS A PAGE-FITTING DEVICE. It exists to get 8.5 inches
@@ -920,21 +1553,16 @@ export const exportMethods = {
 		// REMEMBERED FOR THE SESSION, on the session rather than on `this`,
 		// because it is a way of LOOKING: back when you reopen the window,
 		// gone when Obsidian restarts.
-		let flowZoom = 1;
 		try {
 			const z0 = this._wsSession && this._wsSession.flowZoom;
-			if (typeof z0 === 'number' && z0 > 0) flowZoom = z0;
+			if (typeof z0 === 'number' && z0 > 0) pv.flowZoom = z0;
 		} catch (_) { wsCatch('exportPreviewInto: const z0 = this._wsSession && this._wsSession.flowZoom;', _); }
-		let pct: HTMLElement | null = null;                  // the read-out, once the foot exists
-		let fitSay: (() => void) | null = null;          // the Fit/100% toggle's word, once it exists
-		let dark = !!((this.settings && this.settings.exportOpts
-			&& this.settings.exportOpts.previewDark) || false);
 		const applyDark = () => {
 			try {
 				const doc = frame.contentDocument
 					|| (frame.contentWindow && frame.contentWindow.document);
 				if (!doc || !doc.documentElement) return;
-				doc.documentElement.classList.toggle('is-dark', dark);
+				doc.documentElement.classList.toggle('is-dark', pv.dark);
 			} catch (_) { wsCatch('exportPreviewInto / applyDark: const doc = frame.contentDocument', _); }
 		};
 		const apply = () => {
@@ -946,10 +1574,10 @@ export const exportMethods = {
 				// painted result and leaves the scrollable area the size it
 				// was, so the bottom of a long manuscript becomes
 				// unreachable. Zoom relays out, which is what a page wants.
-				doc.documentElement.style.zoom = String(flow ? flowZoom : zoom);
+				doc.documentElement.style.zoom = String(pv.flow ? pv.flowZoom : pv.zoom);
 			} catch (_) { wsCatch('exportPreviewInto / apply: const doc = frame.contentDocument', _); }
-			if (pct) pct.setText(Math.round((flow ? flowZoom : zoom) * 100) + '%');
-			if (fitSay) fitSay();
+			if (pv.pct) pv.pct.setText(Math.round((pv.flow ? pv.flowZoom : pv.zoom) * 100) + '%');
+			if (pv.fitSay) pv.fitSay();
 			// A ZOOM RELAYS OUT, so the page the writer was on is at a different
 			// `scrollLeft` than it was a moment ago. The PAGE does not change —
 			// every length on the sheet scales by the same factor, so the same
@@ -964,14 +1592,14 @@ export const exportMethods = {
 			// PLUGIN: `_exportZoom` is the FIT the writer chose for a page; a
 			// reading size is about the text, and storing it there would have one
 			// of them overwrite the other every time the reader was opened.
-			if (flow) {
-				flowZoom = Math.max(0.5, Math.min(2.5, z));
-				try { if (this._wsSession) this._wsSession.flowZoom = flowZoom; } catch (_) { wsCatch('exportPreviewInto / setZoom: if (this._wsSession) this._wsSession.flowZoom = flowZoom;', _); }
+			if (pv.flow) {
+				pv.flowZoom = Math.max(0.5, Math.min(2.5, z));
+				try { if (this._wsSession) this._wsSession.flowZoom = pv.flowZoom; } catch (_) { wsCatch('exportPreviewInto / setZoom: if (this._wsSession) this._wsSession.flowZoom = flowZoom;', _); }
 				apply();
 				return;
 			}
-			zoom = Math.max(0.25, Math.min(2, z));
-			if (keep !== false) this._exportZoom = zoom;
+			pv.zoom = Math.max(0.25, Math.min(2, z));
+			if (keep !== false) this._exportZoom = pv.zoom;
 			apply();
 		};
 
@@ -994,18 +1622,13 @@ export const exportMethods = {
 		// book, the frame scrolls it, and nothing here listens for a wheel —
 		// better than any handler: keyboard, scrollbar, trackpad momentum and
 		// all.
-		let pageAt = Math.max(0, Number(this._exportPage) || 0);
-		let pageNum = null, prevBtn: { disabled: boolean; } | null = null, nextBtn: { disabled: boolean; } | null = null;
-		let pageNow: HTMLElement | null = null, pageEst: HTMLElement | null = null;
 		// ── THE READER ─────────────────────────────────────────────
 		//
 		// Expanded is SESSION STATE: the reader you left open is open when you
 		// come back to the window, and is not after a restart. Read here
 		// rather than defaulted, so a pane rebuilt by a redraw comes back the
 		// way the writer left it.
-		let flow = false;
-		try { flow = !!(this._wsSession && this._wsSession.flow); } catch (_) { wsCatch('exportPreviewInto: flow = !!(this._wsSession && this._wsSession.flow);', _); }
-		let pageBox: HTMLElement | null = null;
+		try { pv.flow = !!(this._wsSession && this._wsSession.flow); } catch (_) { wsCatch('exportPreviewInto: flow = !!(this._wsSession && this._wsSession.flow);', _); }
 		// ── THE RAIL ───────────────────────────────────────────────
 		//
 		// IN THE PANE, NOT THE FRAME. Three reasons, in order of weight:
@@ -1018,12 +1641,12 @@ export const exportMethods = {
 		// exported file, and the frame's document is what gets written.
 		//
 		// It reads across the boundary the way the pager already does.
-		let readPage: HTMLElement | null = null;
 		// WHICH PAGE EACH PARAGRAPH IS ON, captured WHILE THE PAGES EXIST.
 		// In flow there are no columns to measure, so the mapping cannot be
 		// worked out there — it is taken on the way in, in one pass, and it is
 		// EXACT rather than a fraction of the scroll.
-		let pageOf: WeakMap<HTMLElement, number> | null = null, pagesTotal = 0;
+		let pageOf: WeakMap<HTMLElement, number> | null = null;
+		let pagesTotal = 0;
 		let pool: HTMLElement[] = [];
 		const docOf = () => {
 			try {
@@ -1035,58 +1658,7 @@ export const exportMethods = {
 		// are read off the document rather than carried from the stylesheet
 		// that wrote them: `--sheet-gap` has one writer, and a second copy of
 		// it here would drift the day it changes.
-		// the reader's page pool, measured: its document and window, the stack and the
-		// first sheet, the gap, the pitch across and down, and how many pages there are
-		type WsPoolMetrics = { doc: Document; win: Window; stack: HTMLElement; first: HTMLElement; gap: number; across: number; down: number; pages: number };
-		const metrics = (): WsPoolMetrics | null => {
-			const doc = docOf();
-			const stack = doc && doc.querySelector('.stack');
-			// ── NOT A HIDDEN ONE ───────────────────────────────────────
-			//
-			// AT THE END OF THE BOOK THE POOL RUNS OUT OF PAGES TO SHOW: two of
-			// four sheets are wanted, the other two are hidden — and the FIRST
-			// sheet in the document is one of them. `querySelector('.sheet')` then
-			// hands back a `display: none` element, whose flow measures ZERO wide,
-			// so the book measures ONE PAGE, the stack is resized to one page
-			// tall, and the frame has nowhere left to be scrolled to.
-			//
-			// A HIDDEN ELEMENT DOES NOT ANSWER, IT DECLINES — and a zero read off
-			// it is not the number zero, it is the absence of a reading. Both
-			// halves are fixed here: ask a sheet that is showing, and refuse to
-			// answer at all if the width comes back zero.
-			const sheet = doc && (doc.querySelector('.sheet:not([hidden])')
-				|| doc.querySelector('.sheet'));
-			const flow = sheet && sheet.querySelector('.flow');
-			if (!doc || !stack || !sheet || !flow) return null;
-			const win = doc.defaultView;
-			if (!win) return null;
-			let gap = 18;
-			try {
-				const g = parseFloat(win.getComputedStyle(doc.documentElement)
-					.getPropertyValue('--sheet-gap'));
-				if (isFinite(g)) gap = g;
-			} catch (_) { wsCatch('exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(doc.documentElement)', _); }
-			let colGap = 0;
-			try {
-				const g = parseFloat(win.getComputedStyle(flow).columnGap);
-				if (isFinite(g)) colGap = g;
-			} catch (_) { wsCatch('exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(flow).columnGap);', _); }
-			const sheetH = sheet.offsetHeight || 0;
-			const across = (flow.clientWidth || 0) + colGap;
-			// NOTHING TO MEASURE IS NOT A MEASUREMENT OF NOTHING. A sheet with
-			// no height or no width has been hidden, or detached, or has not
-			// been laid out yet — and every caller of this reads `pages` and
-			// RESIZES THE STACK from it, so one bad answer collapses the book
-			// and throws the reader to the top.
-			if (!sheetH || (flow.clientWidth || 0) <= 0) return null;
-			// THE LAST PAGE CARRIES NO TRAILING GUTTER, so one is added back
-			// before dividing. Without it a two-page manuscript measures 1.9
-			// pages and reads as two only because `round` was kind.
-			const pages = across > 0
-				? Math.max(1, Math.round((flow.scrollWidth + colGap) / across)) : 1;
-			return { doc: doc, win: win, stack: stack, first: sheet,
-				gap: gap, across: across, down: sheetH + gap, pages: pages };
-		};
+		const metrics = (): WsPoolMetrics | null => wsPreviewMetrics({ docOf });
 		// WHERE A SHEET SITS IN THE STACK — in the document's own CSS pixels,
 		// which is what `top` takes. The zoom scales the result and leaves
 		// these numbers alone, so nothing here has to know about it.
@@ -1143,52 +1715,7 @@ export const exportMethods = {
 		// Recycled by index: a sheet already showing the page it is wanted
 		// for is left alone, which is what keeps a scroll from re-laying
 		// anything out. Only the sheets that have to move are touched.
-		const placeSheets = (m: WsPoolMetrics, from: number) => {
-			const need = [];
-			for (let i = 0; i < pool.length; i++) {
-				const n = from + i;
-				if (n >= 0 && n < m.pages) need.push(n);
-			}
-			const held = new Map<number, HTMLElement>();
-			for (const el of pool) {
-				const at = el.dataset.page === undefined ? null : Number(el.dataset.page);
-				if (at != null && need.indexOf(at) !== -1 && !held.has(at)) held.set(at, el);
-			}
-			const spare = pool.filter(el => {
-				const at = el.dataset.page === undefined ? null : Number(el.dataset.page);
-				return !(at != null && held.get(at) === el);
-			});
-			for (const n of need) {
-				if (held.has(n)) continue;
-				const el = spare.shift();
-				if (!el) break;
-				el.dataset.page = String(n);
-				held.set(n, el);
-			}
-			for (const [n, el] of held) {
-				el.style.top = topOf(m, n) + 'px';
-				el.hidden = false;
-				const flow = el.querySelector('.flow');
-				if (flow) flow.scrollLeft = n * m.across;
-				const hdr = el.querySelector('.hdr');
-				// NOT ON THE TITLE PAGE, because the .docx does not put it
-				// there: `w:titlePg` writes a separate empty first-page
-				// header, and the preview is meant to be the sheet in the
-				// file. The number is the PAGE — it was `counter(sheet)`,
-				// which counted FILES, so a forty-page chapter said the same
-				// number on all forty of its pages.
-				if (hdr) {
-					const bare = !!o.titlePage && n === 0;
-					hdr.textContent = (!o.runningHeader || bare) ? ''
-						: (o.runningHeader + ' ' + (n + 1));
-				}
-			}
-			// A SHEET WITH NO PAGE IS HIDDEN rather than left showing page one
-			// somewhere down the stack — at the end of a short book the pool is
-			// bigger than the book. Built once, not once per sheet.
-			const placed = new Set(held.values());
-			for (const el of pool) if (!placed.has(el)) el.hidden = true;
-		};
+		const placeSheets = (m: WsPoolMetrics, from: number) => wsPreviewPlaceSheets({ o, pool, topOf }, m, from);
 		// ── THE READ-OUT FOLLOWS THE SCROLL ─────────────────────────────
 		//
 		// The scroll is the truth: it is the reader's hand, and a read-out
@@ -1205,115 +1732,17 @@ export const exportMethods = {
 		// FROM `pool[0]` AND NOWHERE ELSE. The pooled copies are clones with
 		// the same content at different scroll offsets, so asking one of them
 		// would answer about a page the reader may not be on.
-		const topNow = () => {
-			try {
-				const sheet = pool[0];
-				const fl = sheet && sheet.querySelector('.flow');
-				if (!fl) return null;
-				const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
-				if (!kids.length) return null;
-				if (flow) {
-					// ── ASKED OF THE VIEWPORT, NOT OF AN ANCESTOR ───────────
-					//
-					// `getBoundingClientRect` answers in the same units the scroll does,
-					// so nothing here has to know the zoom — and nothing depends on WHICH
-					// ancestor happens to be positioned. `offsetTop` would: `.sheet` is
-					// `position: absolute` in pages and `static` in flow, so the offset
-					// parent CHANGES with the very class this function exists to survive.
-					for (const k of kids) {
-						if (k.getBoundingClientRect().bottom > 0) return k;
-					}
-					return kids[kids.length - 1];
-				}
-				// PAGED: the first thing in the column the reader is on.
-				// `offsetLeft` inside a multicol is the column's own offset, so
-				// dividing by `across` names the page without measuring anything
-				// this file does not already measure.
-				const m = metrics();
-				if (!m || !(m.across > 0)) return null;
-				for (const k of kids) {
-					if (Math.floor((k.offsetLeft + 1) / m.across) >= pageAt) return k;
-				}
-				return kids[kids.length - 1];
-			} catch { return null; }
-		};
+		const topNow = () => wsPreviewTopNow({ metrics, pool, pv });
 		// AND PUT THEM BACK ON IT, on the other side of the flip. Read after
 		// `flow` has already changed, so each branch is the destination's.
-		const topTo = (el: HTMLElement | null) => {
-			if (!el) return;
-			const doc = el.ownerDocument;
-			const win = doc && doc.defaultView;
-			if (!win) return;
-			// CALLED WITH THE LAYOUT ALREADY SETTLED — `flowSet` owns the frame,
-			// because the page arithmetic has to be redone in the SAME frame as
-			// the scroll and doing it here would be one rAF too late.
-			try {
-				if (flow) {
-					// THE VIEWPORT'S OWN UNITS, both of them: a rect and a scroll
-					// offset are in the same space `scrollTo` takes, so nothing
-					// here has to know the zoom. A LINE OF AIR ABOVE IT, so the
-					// paragraph is not welded to the top edge of the frame.
-					const y = el.getBoundingClientRect().top + (win.scrollY || 0);
-					win.scrollTo(0, Math.max(0, y - 12));
-					return;
-				}
-				// ── AND COLLAPSING LANDS WHERE IT LEFT ──
-				//
-				// The second frame in `flowSet` is what makes this exact: the
-				// scrollbar leaves with the flow class and `clientWidth` is half the
-				// divisor. THE ONE CASE THAT MISSES IS ON THE OTHER SIDE OF THE TRIP:
-				// flip back before the EXPAND has restored and this reads a position
-				// the writer never saw. Nothing here waits that out — a settle loop
-				// was tried for it and taken back out, because it missed too.
-				const m = metrics();
-				if (!m || !(m.across > 0)) return;
-				showPage(Math.floor((el.offsetLeft + 1) / m.across));
-			} catch (_) { wsCatch('exportPreviewInto / topTo: if (flow)', _); }
-		};
+		const topTo = (el: HTMLElement | null) => wsPreviewTopTo({ metrics, pv, showPage }, el);
 		// ── THE FLIP. Two classes and nothing else ───────────────
 		//
 		// One on the iframe's root, which takes away the column rules and the
 		// page frame; one on the pane's split, which folds the options column
 		// away. NO RENDER, no rewrite of the frame, no second document — the
 		// nodes on screen after the flip are the nodes that were there before.
-		let flowSay: (() => void) | null = null;
-		const flowApply = () => {
-			try {
-				const doc = docOf();
-				if (doc && doc.documentElement) {
-					doc.documentElement.classList.toggle('is-flow', flow);
-				}
-			} catch (_) { wsCatch('exportPreviewInto / flowApply: const doc = docOf();', _); }
-			// THE PANE IS NOT OURS TO EMPTY, so the class goes on the split and
-			// the stylesheet decides what that means — the same arrangement the
-			// narrow layout already uses, rather than this function reaching in
-			// and hiding somebody else's column.
-			try {
-				const split = host && host.closest && host.closest('.ws-export-split');
-				if (split) split.classList.toggle('is-flow', flow);
-				// THE READER TAKES THE WINDOW: the split's own flip folds the options
-				// away, and one class on the body has the stylesheet give the reader
-				// every column — the same shape the narrow layout draws with the
-				// panel up.
-				const body = split && split.closest && split.closest('.ws-uni-body');
-				if (body) body.classList.toggle('is-reader', flow);
-			} catch (_) { wsCatch('exportPreviewInto / flowApply: const split = host && host.closest && …', _); }
-			// THE PAGE CONTROLS DESCRIBE A THING THAT IS NOT THERE. Hidden
-			// rather than removed: they come back on collapse, and they are the
-			// elements `syncPages` writes into.
-			try { if (pageBox) pageBox.toggleClass('is-gone', flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: if (pageBox) pageBox.toggleClass(\'is-gone\', flow);', _); }
-			// THE ZOOM CHANGES MEANING WITH THE MODE, so it is re-written here:
-			// a fit of 0.51 is right for a page and half-size for a reader.
-			try { apply(); } catch (_) { wsCatch('exportPreviewInto / flowApply: apply();', _); }
-			// THE RAIL IS THE READER'S, so it is raised with it and taken down
-			// with it. BUILT ON FIRST USE rather than with the pane: a writer
-			// who never expands never pays for it.
-			// THE POSITION READ-OUT IS THE READER'S, and leaves with it. It is
-			// in the footer beside the zoom, not on a rail of its own.
-			try { if (readPage) readPage.toggleClass('is-gone', !flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: if (readPage) readPage.toggleClass(\'is-gone\', !flow);', _); }
-			try { if (readFile) { readFile.toggleClass('is-gone', !flow); if (flow) readFileSay(); } } catch (_) { wsCatch('exportPreviewInto / flowApply: readFile.toggleClass(is-gone)', _); }
-			if (flowSay) { try { flowSay(); } catch (_) { wsCatch('exportPreviewInto / flowApply: flowSay();', _); } }
-		};
+		const flowApply = () => wsPreviewFlowApply({ apply, docOf, host, pv, readFileSay });
 		// ── THE PAGE OF EVERY PARAGRAPH, TAKEN ONCE ──────────────
 		//
 		// `offsetLeft` inside a multicol is the column's own offset, so one
@@ -1355,7 +1784,7 @@ export const exportMethods = {
 		// the scope and the tick list, and a number captured when the tree was
 		// drawn would point at the wrong chapter the moment any of those moved.
 		const jumpTo = (path: string) => {
-			if (!flow || !path) return false;
+			if (!pv.flow || !path) return false;
 			try {
 				const doc = docOf();
 				const sheet = pool[0];
@@ -1382,7 +1811,7 @@ export const exportMethods = {
 		// for the document to be tall enough to hold the target, then scrolls
 		// once and lets the read-out write the session again.
 		const restorePlace = (tries: number) => {
-			if (!restoring || !flow) { restoring = false; return; }
+			if (!restoring || !pv.flow) { restoring = false; return; }
 			try {
 				const doc = docOf();
 				const win = doc && doc.defaultView;
@@ -1407,7 +1836,7 @@ export const exportMethods = {
 			} catch (_) { restoring = false; wsCatch('exportPreviewInto / restorePlace: const doc = docOf();', _); }
 		};
 		const restoreArm = () => {
-			if (!flow || !(flowY0 > 0 || (flowTop0 && flowTop0.idx >= 0))) return;
+			if (!pv.flow || !(flowY0 > 0 || (flowTop0 && flowTop0.idx >= 0))) return;
 			restoring = true;
 			let w = null;
 			try { const d0 = docOf(); w = d0 && d0.defaultView; } catch { w = null; }
@@ -1447,184 +1876,28 @@ export const exportMethods = {
 			const to = Math.max(0, Math.min(secs.length - 1, (at === -1 ? 0 : at) + by));
 			return jumpTo(secs[to] || '');
 		};
-		let readFile: HTMLSelectElement | null = null;
 		const readFileSay = () => {
-			if (!flow || !readFile) return;
+			if (!pv.flow || !pv.readFile) return;
 			try {
 				const secs = fileSecs();
 				const want = secs.map((s) => s.getAttribute('data-ws-note')).join('\n');
-				if (readFile.getAttribute('data-ws-list') !== want) {
-					readFile.empty();
+				if (pv.readFile.getAttribute('data-ws-list') !== want) {
+					pv.readFile.empty();
 					for (const s of secs) {
 						const p = s.getAttribute('data-ws-note');
-						const o = readFile.createEl('option', { text: (String(p).split('/').pop() || '').replace(/\.md$/i, '') });
+						const o = pv.readFile.createEl('option', { text: (String(p).split('/').pop() || '').replace(/\.md$/i, '') });
 						o.value = p || '';
 					}
-					readFile.setAttribute('data-ws-list', want);
+					pv.readFile.setAttribute('data-ws-list', want);
 				}
 				const top = fileAtTop();
-				if (top !== null && readFile.value !== top) readFile.value = top;
-				readFile.toggleClass('is-gone', !secs.length);
+				if (top !== null && pv.readFile.value !== top) pv.readFile.value = top;
+				pv.readFile.toggleClass('is-gone', !secs.length);
 			} catch (_) { wsCatch('exportPreviewInto / readFileSay: const secs = fileSecs();', _); }
 		};
-		const readSay = () => {
-			readFileSay();
-			if (!flow || !readPage) return;
-			try {
-				// THE SHEET AS `metrics` FINDS IT: the pool is filled by the page
-				// sync, and the read-out has a place to record before that.
-				const doc0 = docOf();
-				const sheet = pool[0] || (doc0 && (doc0.querySelector('.sheet:not([hidden])') || doc0.querySelector('.sheet')));
-				const fl = sheet && sheet.querySelector('.flow');
-				const doc = fl && fl.ownerDocument;
-				const win = doc && doc.defaultView;
-				if (!win) return;
-				// WHERE YOU HAD READ TO, recorded on the same event that moves it —
-				// written on every change rather than on close: a deploy orphans this
-				// window.
-				const top = topNow();
-				if (!restoring) {
-					try {
-						if (this._wsSession) {
-							this._wsSession.flowScroll = win.scrollY || 0;
-							if (top) {
-								const kids = fl.querySelectorAll('p, h1, h2, h3, h4, h5, h6');
-								this._wsSession.flowTop = { idx: Array.prototype.indexOf.call(kids, top), off: top.getBoundingClientRect().top };
-							}
-						}
-					} catch (_) { wsCatch('exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;', _); }
-				}
-				const n = (top && pageOf && pageOf.has(top)) ? pageOf.get(top) : null;
-				// NOTHING RATHER THAN A GUESS. A paragraph the map does not know
-				// — one drawn after the map was taken — has no page, and saying a
-				// wrong one is worse than saying none.
-				readPage.setText(n == null || !pagesTotal
-					? '' : ('p. ' + (n + 1) + ' of ' + pagesTotal));
-			} catch (_) { wsCatch('exportPreviewInto / readSay: const sheet = pool[0];', _); }
-		};
-		const flowSet = (on: boolean) => {
-			const was = !!flow;
-			if (was === !!on) return;
-			// TAKEN ON THE WAY IN, while the columns are still there to divide
-			// by. Going the other way there is nothing to capture and nothing
-			// that needs it — the pager answers for itself in pages.
-			if (!was) pageMap();
-			// TAKEN BEFORE THE FLIP, read after it: `topNow` answers in the
-			// units of the side it is on, and `topTo` in the units of the side
-			// it has arrived at.
-			const keep = topNow();
-			flow = !!on;
-			// SESSION STATE, written on the change rather than on close: a deploy
-			// orphans this window and Obsidian can close it under us.
-			try { if (this._wsSession) this._wsSession.flow = flow; } catch (_) { wsCatch('exportPreviewInto / flowSet: if (this._wsSession) this._wsSession.flow = flow;', _); }
-			flowApply();
-			// ── ONE FRAME LATER, AND BOTH THINGS IN IT ──────────────────────
-			//
-			// The class was flipped a moment ago and the engine has not re-laid
-			// the document out; measuring now reads the shape that is going away.
-			// And the two have to be in the SAME frame, in this order: `syncPages`
-			// run while the document is still one column sets the stack to the
-			// FLOW-shaped height, and a `showPage` after it scrolls past the end
-			// of that height and is CLAMPED — half a page short. So: settle,
-			// restore the height, THEN scroll into it.
-			const after = () => {
-				if (!flow) { try { syncPages(); } catch (_) { wsCatch('exportPreviewInto / after: syncPages();', _); } }
-				// THE KEYS REACH THE FRAME ONLY IF IT HAS FOCUS: Expand hands it over,
-				// so Space pages down at once rather than after a click on the paper.
-				if (flow) {
-					try {
-						const d = docOf();
-						if (d && d.body) { d.body.setAttribute('tabindex', '-1'); d.body.focus(); }
-					} catch (_) { wsCatch('exportPreviewInto / after: const d = docOf();', _); }
-				}
-				// THE TICKS ARE PLACED FROM THE FLOWED LAYOUT, so they cannot be
-				// worked out until it exists — the same frame the scroll waits
-				// for, and for the same reason. And the read-out is said once on
-				// arrival: riding the scroll alone leaves it empty until the
-				// reader happens to move.
-				if (flow) {
-					// AND BACK WHERE YOU HAD READ TO — but only when this is a fresh
-					// reader. `keep` is the paragraph the writer was looking at a moment
-					// ago, and it beats a remembered offset from an earlier session every
-					// time: one is where they ARE, the other is where they were.
-					if (!keep) {
-						try {
-							// THE NUMBER TAKEN AT ENTRY, not the session's now — the new frame's
-							// first scroll event has zeroed that.
-							const y0 = flowY0;
-							const d0 = docOf();
-							const w0 = d0 && d0.defaultView;
-							if (w0 && typeof y0 === 'number' && y0 > 0) {
-								w0.scrollTo(0, y0);
-								try { if (this._wsSession) this._wsSession.flowScroll = y0; } catch (_) { wsCatch('exportPreviewInto / after: this._wsSession.flowScroll = y0;', _); }
-							}
-						} catch (_) { wsCatch('exportPreviewInto / after: const y0 = flowY0;', _); }
-					}
-					try { readSay(); } catch (_) { wsCatch('exportPreviewInto / after: readSay();', _); }
-				}
-				// ── AND A SECOND FRAME BEFORE THE SCROLL ────────────────────
-				//
-				// COLLAPSING SETTLES IN TWO STEPS, not one. The class comes off and
-				// the document goes back to columns; that removes the vertical
-				// SCROLLBAR, which changes `clientWidth`, which is half of the `across`
-				// the column arithmetic divides by — fifteen pixels of scrollbar on
-				// the divisor turns 39.1 pages into 38. Expanding needs none of this —
-				// it measures a RECT, which is not divided by anything. The second
-				// frame is the price of the one direction that has to count columns.
-				// (A settle loop that waited for `across` to answer the same twice was
-				// tried here and taken back out: it fixed nothing measurable, and a
-				// correction pass that does not correct is machinery somebody later
-				// trusts.)
-				const scroll = () => topTo(keep);
-				if (!flow && win0 && win0.requestAnimationFrame) {
-					win0.requestAnimationFrame(scroll);
-				} else { scroll(); }
-			};
-			let win0: Window | null = null;
-			try { const d = docOf(); win0 = d && d.defaultView; } catch (_) { wsCatch('exportPreviewInto / flowSet: const d = docOf();', _); }
-			if (win0 && win0.requestAnimationFrame) win0.requestAnimationFrame(after);
-			else after();
-		};
-		const syncPages = () => {
-			// NOT IN FLOW. `metrics()` measures a sheet one page tall and divides
-			// by it; in flow the sheet is as tall as the manuscript, so every
-			// number it returns is arithmetic about a shape that is not there —
-			// and `stack.style.height` would then be set from it, which is how a
-			// reader gets thrown to the top of the book.
-			if (flow) return;
-			const m = metrics();
-			if (!m) return;
-			fillPool(m);
-			m.stack.style.height = (m.pages * m.down - m.gap) + 'px';
-			const z = parseFloat(m.doc.documentElement.style.zoom) || 1;
-			const y = (m.win.scrollY || 0) / (z || 1);
-			// ROUNDED, so the page named is the one MOST on screen: halfway
-			// between two, the number turns over, which is the moment a
-			// reader would say they had reached the next one.
-			const at = m.down > 0 ? Math.round(y / m.down) : 0;
-			pageAt = Math.max(0, Math.min(m.pages - 1, at));
-			this._exportPage = pageAt;
-			// ONE EITHER SIDE, so the page above and below are already drawn —
-			// and SHIFTED BACK at the end of the book rather than left half
-			// empty, so the last screen is as fully drawn as any other and no
-			// sheet is hidden merely for being near the end.
-			placeSheets(m, windowStart(m, pageAt));
-			// `~` ON THE TOTAL, NOT ON THE PAGE YOU ARE ON. Which page is on
-			// screen is exact — it is the sheet in front of them. How many there
-			// are is this engine's answer for this paper and this type, and the
-			// file may be laid out by another. One character, in the one place
-			// that is actually uncertain.
-			// WRITTEN TO THE TWO HALVES, never to the container: `setText` on the
-			// parent would replace the estimate span — mark, title, focus and
-			// all — with a text node on the first page turn.
-			if (pageNow) pageNow.setText(String(pageAt + 1));
-			if (pageEst) pageEst.setText('~' + m.pages);
-			// A DOOR THAT LEADS NOWHERE IS SHUT. At the ends of the book the
-			// arrow that cannot move says so, rather than clicking and
-			// leaving a reader wondering whether the preview is stuck.
-			if (prevBtn) prevBtn.disabled = pageAt <= 0;
-			if (nextBtn) nextBtn.disabled = pageAt >= m.pages - 1;
-		};
+		const readSay = () => wsPreviewReadSay(this, { docOf, pageOf, pagesTotal, pool, pv, readFileSay, restoring, topNow });
+		const flowSet = (on: boolean) => wsPreviewFlowSet(this, { docOf, flowApply, flowY0, pageMap, pv, readSay, syncPages, topNow, topTo }, on);
+		const syncPages = () => wsPreviewSyncPages(this, { fillPool, metrics, placeSheets, pv, windowStart });
 		const showPage = (n: number) => {
 			const m = metrics();
 			if (!m) return;
@@ -1677,10 +1950,10 @@ export const exportMethods = {
 		// 0.1 is a fifth of the way at the bottom of the range and a twentieth
 		// at the top.
 		const onWheel = (ev: WheelEvent) => {
-			if (!flow || !ev || !ev.ctrlKey) return;
+			if (!pv.flow || !ev || !ev.ctrlKey) return;
 			try { ev.preventDefault(); } catch (_) { wsCatch('exportPreviewInto / onWheel: ev.preventDefault();', _); }
 			const dir = (ev.deltaY || 0) > 0 ? -1 : 1;
-			setZoom(flowZoom * (1 + dir * 0.1));
+			setZoom(pv.flowZoom * (1 + dir * 0.1));
 		};
 		const armScroll = () => {
 			if (asText) return;
@@ -1709,42 +1982,7 @@ export const exportMethods = {
 		// markup on screen. The click wiring goes on the frame's document,
 		// once — the document persists across paints (the swap below keeps
 		// it), so the wiring's latch lives on it.
-		const paint = () => {
-			try {
-				const doc = frame.contentDocument
-					|| (frame.contentWindow && frame.contentWindow.document);
-				if (!doc) return;
-				// THE ROOT IS SWAPPED, NOT THE DOCUMENT WRITTEN. The page is parsed
-				// apart and its root adopted in place of the frame's: one step, no
-				// blank beat, and the document — with its listeners — stays what it
-				// was. (`document.write` is deprecated, and the review refuses it.)
-				const fresh = new (doc.defaultView || window).DOMParser().parseFromString(html, 'text/html');
-				const root = doc.adoptNode(fresh.documentElement);
-				if (doc.documentElement) doc.replaceChild(root, doc.documentElement); else doc.appendChild(root);
-			} catch (_) { wsCatch('exportPreviewInto / paint: const doc = frame.contentDocument', _); }
-			// After every paint, because the swap replaces the root the zoom
-			// and the colour were set on.
-			if (!zoom) zoom = asText ? 1 : (this._exportZoom || fitZoom());
-			apply();
-			applyDark();
-			try { this.exportReaderClicks(docOf(), null, frame); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);', _); }
-			try { this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p: string, sn: string | null) => this.openNoteAt(p, sn), step: (by: number) => fileStep(by), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig('vimMode')) }); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
-			// ── AND THE READER, RE-APPLIED ──────────────────────────
-			//
-			// `is-flow` LIVES ON THE DOCUMENT'S ROOT, and the swap replaces the
-			// root: without this every recompile dropped an expanded pane back
-			// into PAGE layout — inside a pane still sized for the reader, which
-			// shows sheet one and sheet one alone.
-			if (flow) { try { flowApply(); } catch (_) { wsCatch('exportPreviewInto / paint: flowApply();', _); } }
-			armScroll();
-			try { restoreArm(); } catch (_) { wsCatch('exportPreviewInto / paint: restoreArm();', _); }
-			// A COUNT NEEDS A LAYOUT. `doc.close()` above has parsed the
-			// document but the engine has not necessarily flowed it, and
-			// `scrollWidth` on an unflowed multicol is one page. `apply` asks
-			// once for the common case; this asks again on the next frame, for
-			// the manuscript long enough that it did not.
-			try { window.requestAnimationFrame(() => syncPages()); } catch (_) { wsCatch('exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());', _); }
-		};
+		const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages });
 		// ── WRITTEN BEFORE THE EMPTY FRAME CAN BE PAINTED ───────────────
 		//
 		// An option change rebuilds the pane, so a NEW iframe is created, and
@@ -1783,181 +2021,7 @@ export const exportMethods = {
 		// A MARKDOWN PREVIEW HAS NO PAGE TO FIT, so it has no zoom: the
 		// controls would be there to shrink a column of plain text, which
 		// is a thing a reader can do to no purpose.
-		if (!asText) {
-			// ── THE FLIPPER, FIRST IN THE ROW ────────────────────
-			//
-			// Reading the footer left to right is the order the controls are used
-			// in, and which page you are on is the question a paginated preview
-			// is answered by. The zoom follows it; the Export button ends the
-			// looking. NOT `ws-export-pages`, WHICH IS TAKEN: that class means
-			// "this control only applies to a format that has pages" and is swept
-			// with `is-gone` by the format table.
-			pageBox = foot.createDiv({ cls: 'ws-export-flip' });
-			prevBtn = iconBtn(pageBox, 'ws-export-prev', ['chevron-left'], '\u2039', 'Previous page', () => showPage(pageAt - 1));
-			// TWO PARTS, BECAUSE ONLY ONE OF THEM IS UNCERTAIN. The page you are
-			// on is a fact; the total is an estimate, and the `~` is attached to
-			// that half alone. Splitting them is what lets the mark below sit on
-			// the estimate rather than on the whole read-out.
-			pageNum = pageBox.createSpan({ cls: 'ws-export-pagenum' });
-			pageNow = pageNum.createSpan({ cls: 'ws-export-pagenow', text: '1' });
-			pageNum.createSpan({ cls: 'ws-export-pagesep', text: ' / ' });
-			// ── A VISIBLE DOOR ON THE ESTIMATE ───────────────────
-			//
-			// A gesture is not a door. The `~` signals "estimate" to somebody who
-			// already knows; nobody hovers a number they have no reason to
-			// suspect. A dotted underline and a help cursor are the web's oldest
-			// word for "there is more here", which beats inventing a second
-			// vocabulary for one number.
-			pageEst = pageNum.createSpan({ cls: 'ws-export-pageest', text: '~1' });
-			pageEst.setAttribute('tabindex', '0');
-			pageEst.setAttribute('role', 'note');
-			// WHAT THE `~` MEANS, on the thing wearing it: a hover costs no room
-			// and is where a reader who wonders about the tilde would put the
-			// pointer. ONE CLAUSE: the count is approximate; how the preview
-			// relates to the file is the mark's own business.
-			pageEst.title = (o.format === 'html' || o.format === 'pdf')
-				? 'Roughly this many pages — the file breaks in near enough the '
-					+ 'same places.'
-				: 'Roughly this many pages — Word will break the .docx its own way.';
-			nextBtn = iconBtn(pageBox, 'ws-export-next', ['chevron-right'], '\u203a', 'Next page', () => showPage(pageAt + 1));
-			const zoomBox = foot.createDiv({ cls: 'ws-export-zoom' });
-			// ── THE BUTTONS READ THE ACTIVE ZOOM ─────────────────
-			//
-			// In the reader `zoom` is the page fit — a constant — so `+` computed
-			// the same number from it every press and the text jumped once and
-			// then never moved again. `setZoom` writes to the right number; it has
-			// to be handed the right one to start from.
-			const zoomNow = () => (flow ? flowZoom : zoom);
-			iconBtn(zoomBox, 'ws-export-zoomout', ['zoom-out'], '\u2212', 'Zoom out', () => setZoom(zoomNow() - 0.1));
-			pct = zoomBox.createSpan({ cls: 'ws-export-zoompct', text: '100%' });
-			iconBtn(zoomBox, 'ws-export-zoomin', ['zoom-in'], '+', 'Zoom in', () => setZoom(zoomNow() + 0.1));
-			// ONE CONTROL FOR THE TWO SIZES THAT MATTER: at any other size it
-			// offers Fit; fitted, it offers the printed size (100%). Two buttons
-			// said both at once, and one of them was always the size you were
-			// already at.
-			const fitBtn = zoomBox.createEl('button', { cls: 'ws-export-mini ws-export-fit' });
-			const fitted = () => !flow && this._exportZoom == null;
-			const sayFit = () => {
-				const atFit = fitted();
-				fitBtn.setText(atFit ? '100%' : 'Fit');
-				fitBtn.title = atFit ? 'Show the page at its printed size' : 'Fit the page to the window';
-				fitBtn.setAttribute('aria-label', fitBtn.title);
-			};
-			fitSay = sayFit;
-			fitBtn.addEventListener('click', () => {
-				if (fitted()) { setZoom(1); return; }
-				this._exportZoom = null;
-				// FIT HAS NO PAGE TO FIT IN THE READER, so it means life size —
-				// the writer's own point size at the size they chose it, which is
-				// what the reader opens at.
-				setZoom(flow ? 1 : fitZoom(), false);
-			});
-			sayFit();
-			// LIGHT OR DARK, and it is a property of the READING rather than of
-			// the document: the sheet is white because paper is, which is right
-			// for proofing and is a lamp in the face for the hour before that
-			// spent reading the thing. Print resets to ink on paper regardless, so
-			// this cannot reach a file.
-			const viewBox = foot.createDiv({ cls: 'ws-export-view' });
-			const dk = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-ico ws-export-prevdark' });
-			const sayDark = () => {
-				wsIconInto(dk, dark ? ['sun'] : ['moon'], dark ? 'Light' : 'Dark');
-				dk.title = dark ? 'Show the page as paper' : 'Dim the page for reading';
-				dk.setAttribute('aria-label', dk.title);
-				dk.setAttribute('aria-pressed', dark ? 'true' : 'false');
-				dk.toggleClass('is-on', dark);
-			};
-			dk.addEventListener('click', () => {
-				dark = !dark;
-				// Remembered on the WINDOW's options rather than on this
-				// compiled copy, which is thrown away when the preview
-				// closes — a reader who wants a dark page wants it next
-				// time too.
-				try {
-					if (this.settings && this.settings.exportOpts) {
-						this.settings.exportOpts.previewDark = dark;
-						void this.saveSettings();
-					}
-				} catch (_) { wsCatch('exportPreviewInto: if (this.settings && this.settings.exportOpts)', _); }
-				applyDark();
-				sayDark();
-			});
-			sayDark();
-
-			// ── EXPAND ─────────────────────────────────────────────────
-			//
-			// Not another window — the options column folds away and the preview
-			// takes the tab. A second window is an orphan, and a hidden pane that
-			// goes on recompiling is waste. LAST IN THE ROW, after Light, because
-			// it is the only control here that changes the SHAPE of the pane
-			// rather than what is drawn in it.
-			//
-			// IT DOES NOT RECOMPILE. The refresh is hung on delegated listeners
-			// over the whole options container, and this button is inside the
-			// preview foot — which `refreshPreview` returns early for. So the flip
-			// is a class and nothing else.
-			//
-			// WHERE YOU ARE, IN THE ROW THAT SAYS IT: the paged read-out is three
-			// controls to the left of here; this is its opposite number. Before
-			// the Expand button, so the button that changes the mode stays at the
-			// end of the row. THE FILE LIST: a drop-down of the compiled files in
-			// their order, the one at the top ticked, following the scroll as the
-			// page read-out does; picking one jumps there. Only in the reader.
-			const rfile = viewBox.createEl('select', { cls: 'ws-export-readfile dropdown is-gone' });
-			readFile = rfile;
-			rfile.title = 'Go to a file \u2014 [ and ] step through them';
-			rfile.setAttribute('aria-label', 'Go to a file');
-			rfile.addEventListener('change', () => {
-				try { jumpTo(rfile.value); } catch (_) { wsCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
-			});
-			readPage = viewBox.createSpan({ cls: 'ws-export-readpage is-gone' });
-			const xb = viewBox.createEl('button',
-				{ cls: 'ws-export-mini ws-export-expand' });
-			const expandIcon = xb.createSpan({ cls: 'ws-export-ico-in' });
-			const expandWord = xb.createSpan({ cls: 'ws-export-word' });
-			const sayFlow = () => {
-				wsIconInto(expandIcon, flow ? ['book-open'] : ['scroll-text', 'align-justify'], '');
-				// PAIRED WITH ITS OWN OTHER HALF: "Pages" named the DESTINATION while
-				// "Expand" named the ACTION, so one control said two different kinds
-				// of thing depending on which way round it was. Both are actions now.
-				expandWord.setText(flow ? 'Collapse' : 'Expand');
-				xb.title = flow
-					? 'Back to the page preview'
-					: 'Read the whole thing as one text';
-				xb.setAttribute('aria-label', xb.title);
-				// A TOGGLE SAYS WHICH WAY IT IS, to anything that cannot see it.
-				xb.setAttribute('aria-pressed', flow ? 'true' : 'false');
-				xb.toggleClass('is-on', flow);
-			};
-			xb.addEventListener('click', () => flowSet(!flow));
-			sayFlow();
-			flowSay = sayFlow;
-			// ── REFRESH. The preview follows every change made IN THE PANE (a
-			// tick, an option) 220ms behind; a change made in the NOTE reaches it
-			// only on the next of those. This is the door for that: it runs the
-			// same recompile, through the same `refreshPreview`, which the foot's
-			// own clicks are otherwise excused from. Beside Expand, in both views
-			// — a stale page is stale whichever way it is read.
-			if (typeof onRefresh === 'function') {
-				// ITS WORD BESIDE ITS GLYPH, as Expand has: the two acts in the row
-				// are read, the adjustments beside them are glyphs.
-				const rf = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-refresh' });
-				wsGlyphWord(rf, ['refresh-cw'], 'Refresh');
-				rf.title = 'Compile again, with what the notes say now';
-				rf.setAttribute('aria-label', rf.title);
-				rf.addEventListener('click', (ev: MouseEvent) => {
-					ev.preventDefault();
-					ev.stopPropagation();
-					rf.disabled = true;
-					try { onRefresh(); } finally { window.setTimeout(() => { rf.disabled = false; }, 400); }
-				});
-			}
-			// AND IF THE SESSION SAYS EXPANDED, IT OPENS EXPANDED. The class
-			// goes on after the foot exists, because `flowApply` speaks to the
-			// button as well as to the document.
-			if (flow) flowApply();
-			apply();   // the read-outs exist now, so they can be told
-		}
+		wsPreviewFlipper(this, { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage });
 		// The button runs the export the pane is already set up for, in the
 		// format its own drop-down is showing.
 		//

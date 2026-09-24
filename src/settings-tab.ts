@@ -1250,7 +1250,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{powermenu}'], 'Opens the Powermenu, the menu of everything.');
 		SUB('Modes');
 		L(['{mode}'], 'A Modes button: letter box, typewriter, Hemingway, right on the bar.');
-		N(g, 'Buttons are never dropped, however narrow the window gets. Under Token formats, each can be the icon, the word, or both.');
+		N(g, 'Buttons are never dropped, however narrow the window gets. Under Tokens, each can be the icon, the word, or both.');
 		g = G('Dividers', 'separator-vertical');
 		SUB('Hard dividers: the cut between two segments');
 		L(['>', '<'], 'Arrows.');
@@ -1342,7 +1342,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			// silently) a notice says that instead of a check over nothing
 			const copy = this.action(card, 'copy', 'Copy its share code', () => { void (async () => {
 				try { await navigator.clipboard.writeText(barPresetToCode(name, snap)); }
-				catch (_) { wsCatch('presets: the clipboard', _); new Notice('The clipboard is out of reach here.'); return; }
+				catch (_) { wsCatch('presets: the clipboard', _); new Notice('Word-Smith: the clipboard is out of reach here.'); return; }
 				setIcon(copy, 'check');
 				window.setTimeout(() => { setIcon(copy, 'copy'); }, 1500);
 			})(); });
@@ -1593,7 +1593,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Match the text width', desc: 'The band is as wide as the text.', control: { type: 'toggle', key: 'maskMatchText' }, visible: box },
 				{ name: 'Include the editor’s padding', desc: 'Off hugs the words; on takes the page.', control: { type: 'toggle', key: 'maskMatchTextPadded' }, visible: all(box, () => !!s.maskMatchText) },
 				{ name: 'Horizontal inset', desc: 'In pixels.', control: { type: 'slider', key: 'maskPaddingH', min: 0, max: 400, step: 10 }, visible: all(box, () => !s.maskMatchText) },
-				rendered({ name: 'Arrows', desc: 'Arrows along the band’s edges, and how many.', render: (st) => this.renderArrows(st), visible: box }, ['arrowCount']),
+				rendered({ name: 'Letter box arrows', desc: 'Arrows along the band’s edges, and how many.', render: (st) => this.renderArrows(st), visible: box }, ['arrowCount']),
 				{ name: 'Arrow style', desc: 'The shape of the arrows.', control: { type: 'dropdown', key: 'arrowStyle', options: {
 					'solid-triangle': 'Solid triangles', 'outline-triangle': 'Outline triangles', 'standard-arrow': 'Standard arrows',
 					chevron: 'Chevrons', 'double-chevron': 'Double chevrons', custom: 'Custom characters' } }, visible: all(box, arrows) },
@@ -1690,36 +1690,36 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const menuIcon = (id: string) => (el: HTMLElement) => { this.plugin.menuDrawIcon(el, id); };
 		const RAIL: RailEntry[] = [
 			{ key: 'syntax', name: 'Syntax', icon: 'code', on: pos, draw: menuIcon('syntax') },
-			{ key: 'checks', name: 'Checks', icon: 'pen-tool', on: ck, draw: menuIcon('prose') },
+			{ key: 'checks', name: 'Prose checks', icon: 'pen-tool', on: ck, draw: menuIcon('prose') },
 		];
 		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name); return names.length ? names.join(' · ') : 'Off'; };
 		// a category is a color and a switch on one row
 		const cat = (name: string, desc: string, onKey: Key, colorKey: Key, visible: Pred): Def => rendered({
 			name, desc, visible, render: (st) => this.renderCategory(st, onKey, colorKey),
 		}, [onKey, colorKey]);
-		return this.page('Prose', 'pen-tool', 'Parts of speech, and the checks.', [
+		return this.page('Prose', 'pen-tool', 'Parts of speech, and the prose checks.', [
 			// ABOVE THE TABS: the one switch both sections obey sits over the rail,
 			// not inside Syntax; no reset link for a lone switch
 			this.section('Sections', [
 				// one card, first, for both sections
 				this.noteRow('No AI, no API, nothing leaves your vault: word lists and regex rules. A mark is a nudge, not a verdict.'),
-				{ name: 'Skip code and math', desc: 'Leaves code, frontmatter and math alone, for the syntax and the checks.', control: { type: 'toggle', key: 'syntaxSkipCode' } },
+				{ name: 'Skip code and math', desc: 'Leaves code, frontmatter and math alone, for Syntax and the prose checks.', control: { type: 'toggle', key: 'syntaxSkipCode' } },
 				this.railRow('prose', RAIL),
 			], undefined, false),
 			this.section('Syntax', [
 				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Fully local.', control: { type: 'toggle', key: 'posEnabled' } },
-				{ name: 'Display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
+				{ name: 'Syntax display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
 				cat('Nouns', 'Nouns and pronouns.', 'posNoun', 'posNounColor', pos),
 				cat('Verbs', 'Verbs, auxiliaries and modals.', 'posVerb', 'posVerbColor', pos),
 				cat('Adverbs', 'All adverbs, including not and very.', 'posAdverb', 'posAdverbColor', pos),
 				cat('Adjectives', 'Adjectives; articles are left out.', 'posAdjective', 'posAdjectiveColor', pos),
 				cat('Conjunctions', 'Conjunctions and prepositions.', 'posConjunction', 'posConjunctionColor', pos),
-				{ name: 'Mute everything else', desc: 'Fades what you didn’t tick.', control: { type: 'toggle', key: 'posDimOthers' }, visible: pos },
+				{ name: 'Mute the other words', desc: 'Fades what you didn’t tick.', control: { type: 'toggle', key: 'posDimOthers' }, visible: pos },
 				this.hotkeysRow(['toggle-syntax']),
 			], this.railed('prose', 'syntax')),
-			this.section('Checks', [
+			this.section('Prose checks', [
 				{ name: 'Prose checks', desc: 'Things worth a second look, not mistakes. Fully local.', control: { type: 'toggle', key: 'checksEnabled' } },
-				{ name: 'Display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
+				{ name: 'Prose checks display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
 				cat('Filler words', 'Words like very, really, basically, kind of.', 'checkFiller', 'checkFillerColor', ck),
 				{ name: 'Also flag vague quantifiers', desc: 'Many, most, some, often. Stricter, and it flags more.', control: { type: 'toggle', key: 'checkFillerSoft' }, visible: all(ck, () => !!s.checkFiller) },
 				cat('Passive voice', 'Was written, is being considered.', 'checkPassive', 'checkPassiveColor', ck),
@@ -1733,7 +1733,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				rendered({ name: 'Sentence rhythm', desc: 'Shades each sentence by how hard it reads: two tints, and the switch.', render: (st) => this.renderRhythm(st), visible: ck }, ['checkRhythm', 'checkRhythmHardColor', 'checkRhythmVeryHardColor']),
 				{ name: 'Hard above grade', desc: 'Flesch-Kincaid grade for the first tint.', control: { type: 'slider', key: 'checkRhythmHardGrade', min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
 				{ name: 'Very hard above', desc: 'And for the second.', control: { type: 'slider', key: 'checkRhythmVeryHardGrade', min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
-				{ name: 'Mute everything else', desc: 'Fades what you didn’t tick, so the marks stand out.', control: { type: 'toggle', key: 'checkDimOthers' }, visible: ck },
+				{ name: 'Mute unmarked text', desc: 'Fades what you didn’t tick, so the marks stand out.', control: { type: 'toggle', key: 'checkDimOthers' }, visible: ck },
 				this.hotkeysRow(['toggle-prose-checks']),
 			], this.railed('prose', 'checks')),
 		], value, on);
@@ -1846,7 +1846,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Organizer', [
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
-				{ name: 'Folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
+				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
 				{ name: 'Date format', desc: 'For every date the Organizer shows. A file time reads: ' + plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)),
@@ -1864,7 +1864,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Word counts', desc: 'Next to each note, added up for folders.', control: { type: 'toggle', key: 'enableFileTreeCounts' } },
 				{ name: 'Flags', desc: 'A tiny flag on anything flagged in the Organizer.', control: { type: 'toggle', key: 'fileTreeFlags' } },
 				{ name: 'Tasks left', desc: 'Unticked boxes beside the count; folders sum their children.', control: { type: 'toggle', key: 'fileTreeTasks' } },
-				{ name: 'Folder icons', desc: 'A glyph beside each folder name.', control: { type: 'toggle', key: 'fileTreeFolderIcons' } },
+				{ name: 'File tree folder icons', desc: 'A glyph beside each folder name.', control: { type: 'toggle', key: 'fileTreeFolderIcons' } },
 				this.noteRow('Right-click a folder in the file tree to give it a color.', () => !!s.fileTreeFolderIcons),
 				{ name: 'Custom order', desc: 'The Organizer’s order in the file tree; off, Obsidian’s sort.', control: { type: 'toggle', key: 'treeOrder' } },
 				{ name: 'Outline counts', desc: 'Next to each heading in the outline.', control: { type: 'toggle', key: 'enableOutlineCounts' } },

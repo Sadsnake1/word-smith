@@ -1016,7 +1016,7 @@ var LY_NOT_ADVERB = new Set(`only family reply apply supply imply comply
 	crumbly curly dolly gully hilly jelly kindly lolly manly measly oily
 	prickly rally scaly smelly steely surly wobbly wooly worldly italy sicily
 	assembly panoply monopoly`.split(/\s+/).filter(Boolean));
-var WORD_RE = /[A-Za-z][A-Za-z'\u2019-]*|\d+(?:[.,:]\d+)*%?/g;
+var WORD_RE = /\p{Script=Latin}[\p{Script=Latin}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*%?/gu;
 function tokenizeLine(text) {
   const out = [];
   WORD_RE.lastIndex = 0;
@@ -1028,7 +1028,7 @@ function tokenizeLine(text) {
   }
   return out;
 }
-function suffixTag(lw, raw, isFirstInSentence) {
+function suffixTag(lw) {
   if (/^\d/.test(lw)) return "NUM";
   if (lw.length > 3 && /ly$/.test(lw) && !LY_NOT_ADVERB.has(lw)) return "ADV";
   if (lw.length > 4 && /(ing)$/.test(lw)) return "VERB";
@@ -1043,7 +1043,6 @@ function suffixTag(lw, raw, isFirstInSentence) {
     if (POS_LEX[base] === "VERB") return "VERB";
     return "NOUN";
   }
-  if (!isFirstInSentence && /^[A-Z]/.test(raw)) return "NOUN";
   return "NOUN";
 }
 var SENT_END = /[.!?\u2026]$/;
@@ -1115,7 +1114,7 @@ function tagTokens(tokens, text) {
       const cm = /'(ll|d|re|ve|m)$/.exec(t.lw);
       if (cm) dyn = cm[1] === "ll" || cm[1] === "d" ? "MOD" : "AUX";
     }
-    t.tag = lex || dyn || suffixTag(t.lw, t.w, firstInSentence);
+    t.tag = lex || dyn || suffixTag(t.lw);
     const after = text.slice(t.to, t.to + 2);
     const ch = after.trim().charAt(0) || "";
     if (!SENT_END.test(ch)) {
@@ -1127,7 +1126,7 @@ function tagTokens(tokens, text) {
       continue;
     }
     const nx = tokens[i + 1];
-    firstInSentence = !(ABBREVIATIONS.has(t.lw) || t.lw.length === 1) && (!nx || /^[A-Z]/.test(nx.w));
+    firstInSentence = !(ABBREVIATIONS.has(t.lw) || t.lw.length === 1) && (!nx || /^\p{Lu}/u.test(nx.w));
   }
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
@@ -1569,7 +1568,7 @@ function isVaguePronoun(t, next) {
   return true;
 }
 function countSyllables(word) {
-  let w = String(word).toLowerCase().replace(/[^a-z]/g, "");
+  let w = String(word).toLowerCase().replace(/[éë]$/, "ey").replace(/([aeiouy])([äëïöü])/g, "$1h$2").normalize("NFD").replace(/\p{M}/gu, "").replace(/[^a-z]/g, "");
   if (!w) {
     const d = String(word).replace(/[^0-9]/g, "").length;
     return d ? Math.min(6, d + 1) : 0;
@@ -1594,8 +1593,8 @@ function splitSentences(text) {
     const prev = out.length ? out[out.length - 1] : null;
     if (prev) {
       const tail = text.slice(prev.from, prev.to);
-      const am = /([A-Za-z]+)\.$/.exec(tail);
-      const falseEnd = am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase())) || /\d\.$/.test(tail) || /^[a-z0-9]/.test(raw.trim());
+      const am = /(\p{L}+)\.$/u.exec(tail);
+      const falseEnd = am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase())) || /\d\.$/.test(tail) || /^[\p{Ll}0-9]/u.test(raw.trim());
       if (falseEnd) {
         prev.to = to;
         prev.text = text.slice(prev.from, to).trim();
@@ -4356,7 +4355,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.0";
+var WS_PLUGIN_VERSION = "1.6.1";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -7130,7 +7129,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     L(["{powermenu}"], "Opens the Powermenu, the menu of everything.");
     SUB("Modes");
     L(["{mode}"], "A Modes button: letter box, typewriter, Hemingway, right on the bar.");
-    N(g, "Buttons are never dropped, however narrow the window gets. Under Token formats, each can be the icon, the word, or both.");
+    N(g, "Buttons are never dropped, however narrow the window gets. Under Tokens, each can be the icon, the word, or both.");
     g = G("Dividers", "separator-vertical");
     SUB("Hard dividers: the cut between two segments");
     L([">", "<"], "Arrows.");
@@ -7226,7 +7225,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
             await navigator.clipboard.writeText(barPresetToCode(name, snap));
           } catch (_) {
             wsCatch("presets: the clipboard", _);
-            new import_obsidian2.Notice("The clipboard is out of reach here.");
+            new import_obsidian2.Notice("Word-Smith: the clipboard is out of reach here.");
             return;
           }
           (0, import_obsidian2.setIcon)(copy, "check");
@@ -7532,7 +7531,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Match the text width", desc: "The band is as wide as the text.", control: { type: "toggle", key: "maskMatchText" }, visible: box },
         { name: "Include the editor\u2019s padding", desc: "Off hugs the words; on takes the page.", control: { type: "toggle", key: "maskMatchTextPadded" }, visible: all(box, () => !!s.maskMatchText) },
         { name: "Horizontal inset", desc: "In pixels.", control: { type: "slider", key: "maskPaddingH", min: 0, max: 400, step: 10 }, visible: all(box, () => !s.maskMatchText) },
-        rendered({ name: "Arrows", desc: "Arrows along the band\u2019s edges, and how many.", render: (st) => this.renderArrows(st), visible: box }, ["arrowCount"]),
+        rendered({ name: "Letter box arrows", desc: "Arrows along the band\u2019s edges, and how many.", render: (st) => this.renderArrows(st), visible: box }, ["arrowCount"]),
         { name: "Arrow style", desc: "The shape of the arrows.", control: { type: "dropdown", key: "arrowStyle", options: {
           "solid-triangle": "Solid triangles",
           "outline-triangle": "Outline triangles",
@@ -7641,7 +7640,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     };
     const RAIL = [
       { key: "syntax", name: "Syntax", icon: "code", on: pos, draw: menuIcon("syntax") },
-      { key: "checks", name: "Checks", icon: "pen-tool", on: ck, draw: menuIcon("prose") }
+      { key: "checks", name: "Prose checks", icon: "pen-tool", on: ck, draw: menuIcon("prose") }
     ];
     const value = () => {
       const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name);
@@ -7653,29 +7652,29 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       visible,
       render: (st) => this.renderCategory(st, onKey, colorKey)
     }, [onKey, colorKey]);
-    return this.page("Prose", "pen-tool", "Parts of speech, and the checks.", [
+    return this.page("Prose", "pen-tool", "Parts of speech, and the prose checks.", [
       // ABOVE THE TABS: the one switch both sections obey sits over the rail,
       // not inside Syntax; no reset link for a lone switch
       this.section("Sections", [
         // one card, first, for both sections
         this.noteRow("No AI, no API, nothing leaves your vault: word lists and regex rules. A mark is a nudge, not a verdict."),
-        { name: "Skip code and math", desc: "Leaves code, frontmatter and math alone, for the syntax and the checks.", control: { type: "toggle", key: "syntaxSkipCode" } },
+        { name: "Skip code and math", desc: "Leaves code, frontmatter and math alone, for Syntax and the prose checks.", control: { type: "toggle", key: "syntaxSkipCode" } },
         this.railRow("prose", RAIL)
       ], void 0, false),
       this.section("Syntax", [
         { name: "Syntax highlight", desc: "Colors parts of speech as you write. Fully local.", control: { type: "toggle", key: "posEnabled" } },
-        { name: "Display style", desc: "How a part of speech is marked.", control: { type: "dropdown", key: "syntaxStyle", options: { text: "Colored text", highlight: "Highlight", line: "Underline" } }, visible: pos },
+        { name: "Syntax display style", desc: "How a part of speech is marked.", control: { type: "dropdown", key: "syntaxStyle", options: { text: "Colored text", highlight: "Highlight", line: "Underline" } }, visible: pos },
         cat("Nouns", "Nouns and pronouns.", "posNoun", "posNounColor", pos),
         cat("Verbs", "Verbs, auxiliaries and modals.", "posVerb", "posVerbColor", pos),
         cat("Adverbs", "All adverbs, including not and very.", "posAdverb", "posAdverbColor", pos),
         cat("Adjectives", "Adjectives; articles are left out.", "posAdjective", "posAdjectiveColor", pos),
         cat("Conjunctions", "Conjunctions and prepositions.", "posConjunction", "posConjunctionColor", pos),
-        { name: "Mute everything else", desc: "Fades what you didn\u2019t tick.", control: { type: "toggle", key: "posDimOthers" }, visible: pos },
+        { name: "Mute the other words", desc: "Fades what you didn\u2019t tick.", control: { type: "toggle", key: "posDimOthers" }, visible: pos },
         this.hotkeysRow(["toggle-syntax"])
       ], this.railed("prose", "syntax")),
-      this.section("Checks", [
+      this.section("Prose checks", [
         { name: "Prose checks", desc: "Things worth a second look, not mistakes. Fully local.", control: { type: "toggle", key: "checksEnabled" } },
-        { name: "Display style", desc: "How a finding is marked.", control: { type: "dropdown", key: "checkStyle", options: { line: "Underline", highlight: "Highlight", text: "Colored text" } }, visible: ck },
+        { name: "Prose checks display style", desc: "How a finding is marked.", control: { type: "dropdown", key: "checkStyle", options: { line: "Underline", highlight: "Highlight", text: "Colored text" } }, visible: ck },
         cat("Filler words", "Words like very, really, basically, kind of.", "checkFiller", "checkFillerColor", ck),
         { name: "Also flag vague quantifiers", desc: "Many, most, some, often. Stricter, and it flags more.", control: { type: "toggle", key: "checkFillerSoft" }, visible: all(ck, () => !!s.checkFiller) },
         cat("Passive voice", "Was written, is being considered.", "checkPassive", "checkPassiveColor", ck),
@@ -7689,7 +7688,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         rendered({ name: "Sentence rhythm", desc: "Shades each sentence by how hard it reads: two tints, and the switch.", render: (st) => this.renderRhythm(st), visible: ck }, ["checkRhythm", "checkRhythmHardColor", "checkRhythmVeryHardColor"]),
         { name: "Hard above grade", desc: "Flesch-Kincaid grade for the first tint.", control: { type: "slider", key: "checkRhythmHardGrade", min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
         { name: "Very hard above", desc: "And for the second.", control: { type: "slider", key: "checkRhythmVeryHardGrade", min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
-        { name: "Mute everything else", desc: "Fades what you didn\u2019t tick, so the marks stand out.", control: { type: "toggle", key: "checkDimOthers" }, visible: ck },
+        { name: "Mute unmarked text", desc: "Fades what you didn\u2019t tick, so the marks stand out.", control: { type: "toggle", key: "checkDimOthers" }, visible: ck },
         this.hotkeysRow(["toggle-prose-checks"])
       ], this.railed("prose", "checks"))
     ], value, on);
@@ -7835,7 +7834,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.section("Organizer", [
         { name: "Organizer", desc: "Off, the window is hidden and its file is never written.", control: { type: "toggle", key: "organizerOn", defaultValue: true } },
         { name: "Target column shows", desc: "Words and target, or a percentage.", control: { type: "dropdown", key: "orgTargetShow", options: { ratio: "Words and target (2,145/5,000)", percent: "Percentage (43%)" } }, visible: org },
-        { name: "Folder icons", desc: "A glyph beside each folder name in the window.", control: { type: "toggle", key: "orgFolderIcons" }, visible: org },
+        { name: "Organizer folder icons", desc: "A glyph beside each folder name in the window.", control: { type: "toggle", key: "orgFolderIcons" }, visible: org },
         // the sample is a real render, not a hand-typed example: a second
         // writer of the format would drift from `dateText` and lie quietly
         {
@@ -7861,7 +7860,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Word counts", desc: "Next to each note, added up for folders.", control: { type: "toggle", key: "enableFileTreeCounts" } },
         { name: "Flags", desc: "A tiny flag on anything flagged in the Organizer.", control: { type: "toggle", key: "fileTreeFlags" } },
         { name: "Tasks left", desc: "Unticked boxes beside the count; folders sum their children.", control: { type: "toggle", key: "fileTreeTasks" } },
-        { name: "Folder icons", desc: "A glyph beside each folder name.", control: { type: "toggle", key: "fileTreeFolderIcons" } },
+        { name: "File tree folder icons", desc: "A glyph beside each folder name.", control: { type: "toggle", key: "fileTreeFolderIcons" } },
         this.noteRow("Right-click a folder in the file tree to give it a color.", () => !!s.fileTreeFolderIcons),
         { name: "Custom order", desc: "The Organizer\u2019s order in the file tree; off, Obsidian\u2019s sort.", control: { type: "toggle", key: "treeOrder" } },
         { name: "Outline counts", desc: "Next to each heading in the outline.", control: { type: "toggle", key: "enableOutlineCounts" } }
@@ -14068,9 +14067,9 @@ var wsOrgCellsMake = (d) => {
   const orgPropRefuse = (path) => {
     const ext = String(path || "").split(".").pop();
     try {
-      new import_obsidian6.Notice("A ." + ext + " cannot hold properties \u2014 they live in a note\u2019s frontmatter.");
+      new import_obsidian6.Notice("Word-Smith: a ." + ext + " cannot hold properties \u2014 they live in a note\u2019s frontmatter.");
     } catch (_) {
-      wsCatch("openManuscriptModal / orgPropRefuse: new Notice('A .' + ext + ' cannot hold properties \u2014 they live in a \u2026", _);
+      wsCatch("openManuscriptModal / orgPropRefuse: new Notice('Word-Smith: a .' + ext + ' cannot hold properties \u2014 they live in a \u2026", _);
     }
   };
   const orgPropCell = (td, row, col, text) => {
@@ -14138,9 +14137,9 @@ var wsOrgCellsMake = (d) => {
       if (!canGoal) {
         const ext = String(row.path || "").split(".").pop();
         try {
-          new import_obsidian6.Notice("A ." + ext + " has no word count, so a target has nothing to measure.");
+          new import_obsidian6.Notice("Word-Smith: a ." + ext + " has no word count, so a target has nothing to measure.");
         } catch (_) {
-          wsCatch("openManuscriptModal / orgGoalCell: new Notice('A .' + ext + ' has no word count, so a target has nothing \u2026", _);
+          wsCatch("openManuscriptModal / orgGoalCell: new Notice('Word-Smith: a .' + ext + ' has no word count, so a target has nothing \u2026", _);
         }
         return;
       }
@@ -15036,9 +15035,9 @@ var wsOrgColsMake = (d) => {
     }
     if (!found.length) {
       try {
-        new import_obsidian8.Notice("No properties in these notes");
+        new import_obsidian8.Notice("Word-Smith: no properties in these notes.");
       } catch (_) {
-        wsCatch("openManuscriptModal / pickProp: new Notice('No properties in these notes');", _);
+        wsCatch("openManuscriptModal / pickProp: new Notice('Word-Smith: no properties in these notes.');", _);
       }
       return;
     }
@@ -15623,9 +15622,9 @@ var wsOrgLensMake = (d) => {
     }
     if (!vals.length) {
       try {
-        new import_obsidian10.Notice("No values for " + key);
+        new import_obsidian10.Notice("Word-Smith: no values for " + key + ".");
       } catch (_) {
-        wsCatch("openManuscriptModal / orgFilterByKey: new Notice('No values for ' + key);", _);
+        wsCatch("openManuscriptModal / orgFilterByKey: new Notice('Word-Smith: no values for ' + key);", _);
       }
       return;
     }
@@ -15826,6 +15825,565 @@ var wsOrgNavMake = (d) => {
 
 // src/organizer-props.ts
 var import_obsidian13 = require("obsidian");
+function wsOrgPropPanelRows(a) {
+  const { d, orgPropRowId, orgPropsByUse } = a;
+  const rows = [];
+  const taken = /* @__PURE__ */ new Set();
+  const addRow = (col, key, name) => {
+    const low = String(key || "").toLowerCase();
+    if (low && taken.has(low)) return;
+    if (low) taken.add(low);
+    rows.push({
+      col: col || null,
+      key: key || "",
+      name,
+      dead: !key
+    });
+  };
+  for (const c of d.COLS) {
+    if (c.user) continue;
+    addRow(c, c.id === "tags" ? "tags" : "", c.label);
+  }
+  for (const c of d.COLS) {
+    if (c.user) addRow(c, c.key || "", c.label);
+  }
+  for (const k of orgPropsByUse()) addRow(null, k, String(k));
+  for (const k of d.plugin.orgKnownProps()) addRow(null, k, String(k));
+  const saved = Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [];
+  const at = /* @__PURE__ */ new Map();
+  saved.forEach((id, i) => {
+    if (!at.has(id)) at.set(id, i);
+  });
+  const rank = (x) => {
+    const r = at.get(x.id);
+    return r !== void 0 ? r : saved.length + x.n;
+  };
+  const ordered = rows.map((r, n) => ({ r, n, id: orgPropRowId(r) })).sort((a2, b) => rank(a2) - rank(b) || a2.n - b.n).map((x) => x.r);
+  const shown = (r) => !!(r.col && !d.colOff.has(r.col.id));
+  return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
+}
+async function wsOrgPropMoveTo(a, moved, target) {
+  const { d, orgPropPanelRows, orgPropPopRender, orgPropRowId } = a;
+  const here = orgPropPanelRows();
+  const ids = here.map(orgPropRowId).filter(Boolean);
+  const from = ids.indexOf(moved);
+  if (from !== -1) ids.splice(from, 1);
+  const to = ids.indexOf(target);
+  ids.splice(to === -1 ? ids.length : to, 0, moved);
+  const mattersId = /* @__PURE__ */ new Set();
+  for (const r of here) {
+    const rid = orgPropRowId(r);
+    if (!rid) continue;
+    if (r.col) mattersId.add(rid);
+  }
+  mattersId.add(moved);
+  const keep = ids.filter((id) => mattersId.has(id));
+  const rest = (Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : []).filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
+  d.s.uniColOrder = keep.concat(rest);
+  await d.plugin.saveSettings();
+  d.draw();
+  void d.fill();
+  d.drawPanel();
+  orgPropPopRender();
+}
+function wsOrgPropPopRender(a) {
+  const { d, orgPropColToggle, orgPropIcon, orgPropKindOf, orgPropMoveTo, orgPropPanelRows, orgPropPopEl, orgPropRowId, st } = a;
+  const pop = orgPropPopEl();
+  if (!pop) return;
+  const box = pop.querySelector(".ws-org-propbody");
+  if (!box) return;
+  box.empty();
+  const q = st.orgPropPopQuery.trim().toLowerCase();
+  const rows = orgPropPanelRows().filter((r) => !q || r.name.toLowerCase().indexOf(q) !== -1);
+  const tog = (into, on, dead, title, fn) => {
+    const t = into.createSpan({ cls: "ws-org-ptog is-col" + (on ? " is-on" : "") + (dead ? " is-dead" : "") });
+    t.createSpan({ cls: "ws-org-pbox" });
+    t.title = title;
+    if (dead) {
+      t.setAttribute("aria-disabled", "true");
+      return t;
+    }
+    t.setAttribute("role", "checkbox");
+    t.setAttribute("aria-checked", on ? "true" : "false");
+    t.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      void fn();
+    });
+    return t;
+  };
+  let drew = 0;
+  const clearAim = () => {
+    for (const el2 of Array.from(box.querySelectorAll(".ws-drop-above"))) {
+      el2.removeClass("ws-drop-above");
+    }
+  };
+  for (const r of rows) {
+    const row = box.createDiv({ cls: "ws-org-prow" });
+    const rid = orgPropRowId(r);
+    if (rid) row.setAttribute("data-id", rid);
+    if (r.col) row.setAttribute("data-col", r.col.id);
+    if (r.key) row.setAttribute("data-key", r.key);
+    const grip = row.createSpan({ cls: "ws-org-pgrip" });
+    for (const n2 of ["grip-vertical", "grip", "more-vertical"]) {
+      grip.textContent = "";
+      try {
+        if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(grip, n2);
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgPropPopRender: if (setIcon) setIcon(grip, n2);", _);
+      }
+      if (grip.childElementCount > 0) {
+        grip.dataset.icon = n2;
+        break;
+      }
+    }
+    if (!q && rid) {
+      grip.addClass("is-propdrag");
+      grip.title = "Drag to reorder \u2014 this is the column order and the chip order";
+      row.setAttribute("draggable", "true");
+      row.addEventListener("dragstart", (ev) => {
+        st.orgPropDragId = rid;
+        try {
+          if (ev.dataTransfer) ev.dataTransfer.setData("text/plain", rid);
+        } catch (_) {
+          wsCatch("openManuscriptModal / orgPropPopRender: ev.dataTransfer.setData('text/plain', rid);", _);
+        }
+      });
+      row.addEventListener("dragover", (ev) => {
+        if (!st.orgPropDragId || st.orgPropDragId === rid) return;
+        ev.preventDefault();
+        clearAim();
+        row.addClass("ws-drop-above");
+      });
+      row.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        const moved = st.orgPropDragId;
+        st.orgPropDragId = null;
+        clearAim();
+        if (!moved || moved === rid) return;
+        void orgPropMoveTo(moved, rid);
+      });
+      row.addEventListener("dragend", () => {
+        st.orgPropDragId = null;
+        clearAim();
+      });
+    }
+    const colOn = !!(r.col && !d.colOff.has(r.col.id));
+    tog(
+      row,
+      colOn,
+      false,
+      r.col ? "Show as a column in Table" : "Add \u201C" + r.name + "\u201D as a column",
+      () => orgPropColToggle(r)
+    );
+    const nm = row.createSpan({ cls: "ws-org-pname" });
+    const ic = nm.createSpan({ cls: "ws-org-piconslot" });
+    if (r.key) orgPropIcon(ic, r.key);
+    else if (r.col) {
+      try {
+        const cid = r.col.id;
+        const def = d.SORTS.filter((sd) => sd.id === cid)[0];
+        if (def && def.icon && import_obsidian13.setIcon) {
+          (0, import_obsidian13.setIcon)(ic, def.icon);
+          if (ic.childElementCount > 0) ic.dataset.icon = def.icon;
+        }
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgPropPopRender: const def = SORTS.filter((sd) => sd.id === r.col.id)[0];", _);
+      }
+    }
+    nm.createSpan({ cls: "ws-org-pnametext", text: r.name });
+    row.createSpan({ cls: "ws-org-pkind", text: orgPropKindOf(r) });
+    const del = row.createSpan({ cls: "ws-org-pdel is-dead" });
+    void del;
+    drew++;
+  }
+  if (!drew) {
+    box.createDiv({
+      cls: "ws-org-propnone",
+      text: "No property of that name"
+    });
+  }
+}
+function wsOrgPropSubOpen(a, anchor, door) {
+  const { d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
+  const was = !!orgPropSubEl();
+  orgPropSubClose();
+  if (was) return null;
+  const d0 = d.ownerDoc();
+  const sub = (d.host.rootEl || d0.body).createDiv({ cls: "menu ws-org-propsub" });
+  for (const t of door.types || []) {
+    const row = sub.createDiv({ cls: "ws-org-propsubrow" });
+    row.createSpan({ text: t.label });
+    row.dataset.type = t.id;
+    row.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      orgPropSubClose();
+      try {
+        door.pick(t.id, ev);
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgPropSubOpen: door.pick(t.id, ev);", _);
+      }
+    });
+  }
+  if (typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone) return sub;
+  try {
+    const r = anchor.getBoundingClientRect();
+    const box = (orgPropPopEl() || anchor).getBoundingClientRect();
+    const w0 = d.ownerWin();
+    const wide = sub.offsetWidth || 0;
+    const tall = sub.offsetHeight || 0;
+    const vw = w0.innerWidth || 0;
+    const vh = w0.innerHeight || 0;
+    let x = box.right;
+    if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
+    let y = r.top;
+    if (vh && y + tall > vh) y = Math.max(0, vh - tall);
+    const base = orgPopBase(sub);
+    sub.style.left = Math.round(x - base.left) + "px";
+    sub.style.top = Math.round(y - base.top) + "px";
+  } catch (_) {
+    wsCatch("openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();", _);
+  }
+  return sub;
+}
+function wsOrgPropPopOpen(a, anchor) {
+  const { d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
+  orgPropPopClose();
+  const d0 = d.ownerDoc();
+  const pop = (d.host.rootEl || d0.body).createDiv({ cls: "menu ws-org-proppop" });
+  const srch = pop.createEl("input", { cls: "ws-org-propsearch" });
+  srch.type = "text";
+  srch.placeholder = "Search properties\u2026";
+  srch.value = st.orgPropPopQuery;
+  srch.addEventListener("input", () => {
+    st.orgPropPopQuery = srch.value || "";
+    orgPropPopRender();
+  });
+  pop.createDiv({ cls: "ws-org-propbody" });
+  {
+    const au = pop.createDiv({ cls: "ws-org-propauto" });
+    const g = au.createSpan({ cls: "ws-org-propautoicon" });
+    for (const n of ["move-horizontal", "unfold-horizontal", "maximize-2"]) {
+      g.textContent = "";
+      try {
+        if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(g, n);
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
+      }
+      if (g.childElementCount > 0) {
+        g.dataset.icon = n;
+        break;
+      }
+    }
+    au.createSpan({ text: "Resize columns to fit" });
+    au.title = "Set every column to the width of what it holds, up to six tenths of the pane. They stay draggable afterwards.";
+    au.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      d.orgColFit();
+    });
+  }
+  for (const door of d.ORG_PROP_DOORS) {
+    const add = pop.createDiv({ cls: "ws-org-propadd" });
+    {
+      const g = add.createSpan({ cls: "ws-org-propaddicon" });
+      for (const n of door.icons) {
+        g.textContent = "";
+        try {
+          if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(g, n);
+        } catch (_) {
+          wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
+        }
+        if (g.childElementCount > 0) {
+          g.dataset.icon = n;
+          break;
+        }
+      }
+    }
+    add.createSpan({ cls: "ws-org-propaddname", text: door.label });
+    if (door.types) {
+      add.addClass("has-sub");
+      add.createSpan({
+        cls: "ws-org-propmore",
+        text: "\u203A"
+      });
+    }
+    add.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (door.types) {
+        orgPropSubOpen(add, door);
+        return;
+      }
+      orgPropSubClose();
+      door.open(ev);
+    });
+  }
+  orgPropPopRender();
+  const phoneSheet = !!(typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone);
+  if (!phoneSheet) try {
+    const r = anchor.getBoundingClientRect();
+    const w0 = d.ownerWin();
+    const wide = pop.offsetWidth || 0;
+    const room = (w0.innerWidth || 0) - wide;
+    const base = orgPopBase(pop);
+    const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
+    pop.style.left = Math.round(x - base.left) + "px";
+    pop.style.top = Math.round(r.bottom - base.top) + 2 + "px";
+  } catch (_) {
+    wsCatch("openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();", _);
+  }
+  const onDown = (ev) => {
+    const hit = wsNodeOf(ev.target);
+    try {
+      if (pop.contains(hit)) return;
+      const sub0 = orgPropSubEl();
+      if (sub0 && sub0.contains(hit)) return;
+      const t = wsElOf(ev.target) || hit && hit.parentElement;
+      if (t && t.closest(".ws-org-colsbtn")) return;
+    } catch (_) {
+      wsCatch("openManuscriptModal / onDown: if (pop.contains(ev.target)) return;", _);
+    }
+    orgPropPopClose();
+  };
+  try {
+    const w0 = d.ownerWin();
+    w0.addEventListener("pointerdown", onDown, true);
+    st.orgPropPopOff = () => {
+      try {
+        w0.removeEventListener("pointerdown", onDown, true);
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgPropPopOpen: w0.removeEventListener('mousedown', onDown, true);", _);
+      }
+    };
+  } catch (_) {
+    wsCatch("openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();", _);
+  }
+  return pop;
+}
+function wsOrgFieldEditor(a, card, path, key, isDraft) {
+  const { d, orgEditDone, orgPropValue, st } = a;
+  st.orgRedrawPending = true;
+  try {
+    card.addClass("is-editing");
+  } catch (_) {
+    wsCatch("openManuscriptModal / orgFieldEditor: card.addClass('is-editing');", _);
+  }
+  const v = orgPropValue(path, key);
+  const complex = v !== null && typeof v === "object" && !Array.isArray(v) || Array.isArray(v) && v.some((x) => x !== null && typeof x === "object");
+  if (complex) {
+    card.createDiv({
+      cls: "ws-org-editor is-complex",
+      text: "complex value \u2014 edit in note"
+    });
+    return null;
+  }
+  let type = d.plugin.orgPropType(key);
+  if (!type && v !== null) {
+    if (typeof v === "number") type = "number";
+    else if (typeof v === "boolean") type = "checkbox";
+    else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(wsStr(v))) type = "datetime";
+    else if (/^\d{4}-\d{2}-\d{2}$/.test(wsStr(v))) type = "date";
+  }
+  const engage = (el22, esc) => {
+    el22.addEventListener("focus", () => {
+      st.orgEditGuard = { path, key };
+      st.orgFieldEscape = esc;
+    });
+  };
+  const listKinds = type === "tags" || type === "multitext" || type === "aliases" || Array.isArray(v) || String(key).toLowerCase() === "tags";
+  if (type === "checkbox") {
+    const box = card.createEl("input", { cls: "ws-org-editor" });
+    box.type = "checkbox";
+    box.checked = v === true;
+    engage(box, () => {
+      box.checked = v === true;
+      box.blur();
+    });
+    box.addEventListener("change", () => {
+      void (async () => {
+        await d.orgPropSet(path, key, box.checked);
+      })();
+    });
+    box.addEventListener("blur", () => {
+      orgEditDone();
+    });
+    return box;
+  }
+  if (listKinds) {
+    const wrap2 = card.createDiv({ cls: "ws-org-editor is-chips" });
+    const now = Array.isArray(v) ? v.filter((x) => x !== null && typeof x !== "object").map(String) : v === null || v === "" ? [] : [wsStr(v)];
+    let live = now.slice();
+    const commitList = async (list) => {
+      await d.orgPropListSet(path, key, list, live);
+      live = list.slice();
+    };
+    const pillHost = d.orgTagWrap(wrap2, String(key).toLowerCase() === "tags" ? "tags" : "multitext");
+    const mkChip = (val) => {
+      const chip = d.orgTagPill(pillHost, String(val), { remove: () => {
+        void commitList(live.filter((z) => z !== val)).then(() => chip.remove());
+      } });
+      return chip;
+    };
+    for (const val of now) mkChip(val);
+    if (String(key).toLowerCase() === "tags") {
+      const inText = new Set(now.map((t) => String(t).replace(/^#/, "").toLowerCase()));
+      let bodyTags = [];
+      try {
+        const f2 = d.plugin.app.vault.getAbstractFileByPath(path);
+        const c2 = f2 && d.plugin.app.metadataCache.getFileCache(f2);
+        for (const t of c2 && c2.tags || []) {
+          const tag = String(t.tag || "").replace(/^#/, "");
+          if (tag && !inText.has(tag.toLowerCase()) && bodyTags.indexOf(tag) === -1) bodyTags.push(tag);
+        }
+      } catch (_) {
+        wsCatch("openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);", _);
+      }
+      for (const tag of bodyTags) {
+        const chip = d.orgTagPill(pillHost, tag, { intext: true });
+        chip.title = "Written in the note itself \u2014 edit it there";
+      }
+    }
+    const inp = wrap2.createEl("input", { cls: "ws-org-chipval" });
+    inp.placeholder = "+";
+    const dlid = "ws-org-fdl-" + Math.floor(Math.random() * 1e9);
+    const dl = wrap2.createEl("datalist");
+    dl.id = dlid;
+    for (const opt of d.plugin.orgDistinctUnder("", key).slice(0, 60)) {
+      dl.createEl("option", { value: wsStr(opt) });
+    }
+    inp.setAttribute("list", dlid);
+    engage(inp, () => {
+      inp.value = "";
+      inp.blur();
+    });
+    const isTagField = String(key).toLowerCase() === "tags";
+    const tagClean = (raw) => String(raw).replace(/^#+/, "").replace(/\s+/g, "-").replace(/[^\p{L}\p{N}_\-/]/gu, "").replace(/\/{2,}/g, "/").replace(/^[-/]+|[-/]+$/g, "");
+    inp.addEventListener("keydown", (ev) => {
+      void (async () => {
+        if (ev.key !== "Enter") return;
+        ev.preventDefault();
+        const typed = inp.value.trim();
+        if (!typed) {
+          inp.blur();
+          return;
+        }
+        const val = isTagField ? tagClean(typed) : typed;
+        if (isTagField && (!val || /^\p{N}/u.test(val))) {
+          try {
+            new import_obsidian13.Notice(val ? "Word-Smith: a tag cannot start with a number \u2014 Obsidian will not index \u201C" + val + "\u201D." : "Word-Smith: that is not a tag Obsidian can index.");
+          } catch (_) {
+            wsCatch("openManuscriptModal / orgFieldEditor: new Notice(val ? 'Word-Smith: a tag cannot start with a number \u2014 Obsidian '", _);
+          }
+          return;
+        }
+        if (live.indexOf(val) === -1) {
+          await commitList(live.concat([val]));
+          const at = wrap2.querySelector(".ws-org-tagchip.is-intext") || inp;
+          wrap2.insertBefore(mkChip(val), at);
+        }
+        inp.value = "";
+      })();
+    });
+    inp.addEventListener("blur", () => {
+      orgEditDone();
+    });
+    return inp;
+  }
+  const was = v === null ? "" : wsStr(v);
+  let el2;
+  {
+    el2 = card.createEl("input", { cls: "ws-org-editor" });
+    if (type === "number") el2.type = "number";
+    else if (type === "date") el2.type = "date";
+    else if (type === "datetime") el2.type = "datetime-local";
+    else el2.type = "text";
+    el2.value = was;
+    try {
+      const n = String(was == null ? "" : was).length;
+      el2.size = Math.max(6, Math.min(60, n + 1));
+    } catch (_) {
+      wsCatch("openManuscriptModal / orgFieldEditor: const n = String(was == null ? '' : was).length;", _);
+    }
+  }
+  let settled = false;
+  const commit = async () => {
+    if (settled) return;
+    settled = true;
+    const raw = el2.value;
+    if (raw === was) {
+      orgEditDone();
+      return;
+    }
+    let out = raw;
+    if (type === "number") {
+      const n = parseFloat(raw);
+      out = raw.trim() === "" ? "" : isFinite(n) ? n : raw;
+    }
+    const stored = d.plugin.propStoreHolds(path);
+    orgEditDone();
+    await d.orgPropSet(path, key, out);
+    if (stored) d.drawPanel();
+  };
+  engage(el2, () => {
+    settled = true;
+    el2.value = was;
+    el2.blur();
+  });
+  el2.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      if (ev.shiftKey && el2.tagName === "TEXTAREA") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      el2.blur();
+    }
+  });
+  el2.addEventListener("blur", () => {
+    if (settled) {
+      settled = false;
+      orgEditDone();
+      return;
+    }
+    void commit();
+  });
+  if ((type === "date" || type === "datetime") && !isDraft) {
+    const shown = card.createSpan({ cls: "ws-org-shown" });
+    const sayDay = (raw) => {
+      const fmt2 = d.plugin.formatValue(key, raw, type, d.plugin.dateStyle());
+      shown.setText(fmt2.text || "\u2014");
+      shown.toggleClass("is-empty", !fmt2.text);
+      shown.toggleClass("ws-org-badval", !fmt2.ok);
+      shown.title = fmt2.ok ? "" : "This is not a valid " + type + ": " + wsStr(raw);
+    };
+    sayDay(v);
+    el2.addClass("is-editing-off");
+    shown.tabIndex = 0;
+    const open = () => {
+      shown.addClass("is-editing-off");
+      el2.removeClass("is-editing-off");
+      try {
+        el2.focus();
+      } catch (_) {
+        wsCatch("openManuscriptModal / open: el2.focus();", _);
+      }
+    };
+    shown.addEventListener("click", open);
+    shown.addEventListener("focus", open);
+    shown.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        open();
+      }
+    });
+    el2.addEventListener("blur", () => {
+      sayDay(el2.value);
+      el2.addClass("is-editing-off");
+      shown.removeClass("is-editing-off");
+    });
+  }
+  return el2;
+}
 var wsOrgPropsMake = (d) => {
   const orgPropsByUse = () => {
     const seen = /* @__PURE__ */ new Map();
@@ -15851,69 +16409,21 @@ var wsOrgPropsMake = (d) => {
       return null;
     }
   };
-  let orgPropPopQuery = "";
-  let orgPropPopOff = null;
+  const st = {
+    orgPropPopQuery: "",
+    orgPropPopOff: null,
+    orgPropDragId: null,
+    orgEditGuard: null,
+    // truthy while an editor holds focus
+    orgOpenAfter: null,
+    // to re-open after a redraw
+    orgRedrawPending: false,
+    orgFieldEscape: null
+    // the focused editor's own Escape, for the ladder
+  };
   const orgPropRowId = (r) => r && r.col ? r.col.id : r && r.key ? d.plugin.propColId(r.key) : "";
-  const orgPropPanelRows = () => {
-    const rows = [];
-    const taken = /* @__PURE__ */ new Set();
-    const addRow = (col, key, name) => {
-      const low = String(key || "").toLowerCase();
-      if (low && taken.has(low)) return;
-      if (low) taken.add(low);
-      rows.push({
-        col: col || null,
-        key: key || "",
-        name,
-        dead: !key
-      });
-    };
-    for (const c of d.COLS) {
-      if (c.user) continue;
-      addRow(c, c.id === "tags" ? "tags" : "", c.label);
-    }
-    for (const c of d.COLS) {
-      if (c.user) addRow(c, c.key || "", c.label);
-    }
-    for (const k of orgPropsByUse()) addRow(null, k, String(k));
-    for (const k of d.plugin.orgKnownProps()) addRow(null, k, String(k));
-    const saved = Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : [];
-    const at = /* @__PURE__ */ new Map();
-    saved.forEach((id, i) => {
-      if (!at.has(id)) at.set(id, i);
-    });
-    const rank = (x) => {
-      const r = at.get(x.id);
-      return r !== void 0 ? r : saved.length + x.n;
-    };
-    const ordered = rows.map((r, n) => ({ r, n, id: orgPropRowId(r) })).sort((a, b) => rank(a) - rank(b) || a.n - b.n).map((x) => x.r);
-    const shown = (r) => !!(r.col && !d.colOff.has(r.col.id));
-    return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
-  };
-  let orgPropDragId = null;
-  const orgPropMoveTo = async (moved, target) => {
-    const here = orgPropPanelRows();
-    const ids = here.map(orgPropRowId).filter(Boolean);
-    const from = ids.indexOf(moved);
-    if (from !== -1) ids.splice(from, 1);
-    const to = ids.indexOf(target);
-    ids.splice(to === -1 ? ids.length : to, 0, moved);
-    const mattersId = /* @__PURE__ */ new Set();
-    for (const r of here) {
-      const rid = orgPropRowId(r);
-      if (!rid) continue;
-      if (r.col) mattersId.add(rid);
-    }
-    mattersId.add(moved);
-    const keep = ids.filter((id) => mattersId.has(id));
-    const rest = (Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : []).filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
-    d.s.uniColOrder = keep.concat(rest);
-    await d.plugin.saveSettings();
-    d.draw();
-    void d.fill();
-    d.drawPanel();
-    orgPropPopRender();
-  };
+  const orgPropPanelRows = () => wsOrgPropPanelRows({ d, orgPropRowId, orgPropsByUse });
+  const orgPropMoveTo = async (moved, target) => wsOrgPropMoveTo({ d, orgPropPanelRows, orgPropPopRender, orgPropRowId }, moved, target);
   const orgPropKindOf = (r) => {
     if (!r.key) return "";
     try {
@@ -15970,13 +16480,13 @@ var wsOrgPropsMake = (d) => {
   };
   const orgPropPopClose = () => {
     orgPropSubClose();
-    if (orgPropPopOff) {
+    if (st.orgPropPopOff) {
       try {
-        orgPropPopOff();
+        st.orgPropPopOff();
       } catch (_) {
         wsCatch("openManuscriptModal / orgPropPopClose: orgPropPopOff();", _);
       }
-      orgPropPopOff = null;
+      st.orgPropPopOff = null;
     }
     try {
       const d0 = d.ownerDoc();
@@ -15986,123 +16496,7 @@ var wsOrgPropsMake = (d) => {
       wsCatch("openManuscriptModal / orgPropPopClose: const d0 = ownerDoc();", _);
     }
   };
-  const orgPropPopRender = () => {
-    const pop = orgPropPopEl();
-    if (!pop) return;
-    const box = pop.querySelector(".ws-org-propbody");
-    if (!box) return;
-    box.empty();
-    const q = orgPropPopQuery.trim().toLowerCase();
-    const rows = orgPropPanelRows().filter((r) => !q || r.name.toLowerCase().indexOf(q) !== -1);
-    const tog = (into, on, dead, title, fn) => {
-      const t = into.createSpan({ cls: "ws-org-ptog is-col" + (on ? " is-on" : "") + (dead ? " is-dead" : "") });
-      t.createSpan({ cls: "ws-org-pbox" });
-      t.title = title;
-      if (dead) {
-        t.setAttribute("aria-disabled", "true");
-        return t;
-      }
-      t.setAttribute("role", "checkbox");
-      t.setAttribute("aria-checked", on ? "true" : "false");
-      t.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        void fn();
-      });
-      return t;
-    };
-    let drew = 0;
-    const clearAim = () => {
-      for (const el2 of Array.from(box.querySelectorAll(".ws-drop-above"))) {
-        el2.removeClass("ws-drop-above");
-      }
-    };
-    for (const r of rows) {
-      const row = box.createDiv({ cls: "ws-org-prow" });
-      const rid = orgPropRowId(r);
-      if (rid) row.setAttribute("data-id", rid);
-      if (r.col) row.setAttribute("data-col", r.col.id);
-      if (r.key) row.setAttribute("data-key", r.key);
-      const grip = row.createSpan({ cls: "ws-org-pgrip" });
-      for (const n2 of ["grip-vertical", "grip", "more-vertical"]) {
-        grip.textContent = "";
-        try {
-          if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(grip, n2);
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgPropPopRender: if (setIcon) setIcon(grip, n2);", _);
-        }
-        if (grip.childElementCount > 0) {
-          grip.dataset.icon = n2;
-          break;
-        }
-      }
-      if (!q && rid) {
-        grip.addClass("is-propdrag");
-        grip.title = "Drag to reorder \u2014 this is the column order and the chip order";
-        row.setAttribute("draggable", "true");
-        row.addEventListener("dragstart", (ev) => {
-          orgPropDragId = rid;
-          try {
-            if (ev.dataTransfer) ev.dataTransfer.setData("text/plain", rid);
-          } catch (_) {
-            wsCatch("openManuscriptModal / orgPropPopRender: ev.dataTransfer.setData('text/plain', rid);", _);
-          }
-        });
-        row.addEventListener("dragover", (ev) => {
-          if (!orgPropDragId || orgPropDragId === rid) return;
-          ev.preventDefault();
-          clearAim();
-          row.addClass("ws-drop-above");
-        });
-        row.addEventListener("drop", (ev) => {
-          ev.preventDefault();
-          const moved = orgPropDragId;
-          orgPropDragId = null;
-          clearAim();
-          if (!moved || moved === rid) return;
-          void orgPropMoveTo(moved, rid);
-        });
-        row.addEventListener("dragend", () => {
-          orgPropDragId = null;
-          clearAim();
-        });
-      }
-      const colOn = !!(r.col && !d.colOff.has(r.col.id));
-      tog(
-        row,
-        colOn,
-        false,
-        r.col ? "Show as a column in Table" : "Add \u201C" + r.name + "\u201D as a column",
-        () => orgPropColToggle(r)
-      );
-      const nm = row.createSpan({ cls: "ws-org-pname" });
-      const ic = nm.createSpan({ cls: "ws-org-piconslot" });
-      if (r.key) orgPropIcon(ic, r.key);
-      else if (r.col) {
-        try {
-          const cid = r.col.id;
-          const def = d.SORTS.filter((sd) => sd.id === cid)[0];
-          if (def && def.icon && import_obsidian13.setIcon) {
-            (0, import_obsidian13.setIcon)(ic, def.icon);
-            if (ic.childElementCount > 0) ic.dataset.icon = def.icon;
-          }
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgPropPopRender: const def = SORTS.filter((sd) => sd.id === r.col.id)[0];", _);
-        }
-      }
-      nm.createSpan({ cls: "ws-org-pnametext", text: r.name });
-      row.createSpan({ cls: "ws-org-pkind", text: orgPropKindOf(r) });
-      const del = row.createSpan({ cls: "ws-org-pdel is-dead" });
-      void del;
-      drew++;
-    }
-    if (!drew) {
-      box.createDiv({
-        cls: "ws-org-propnone",
-        text: "No property of that name"
-      });
-    }
-  };
+  const orgPropPopRender = () => wsOrgPropPopRender({ d, orgPropColToggle, orgPropIcon, orgPropKindOf, orgPropMoveTo, orgPropPanelRows, orgPropPopEl, orgPropRowId, st });
   const orgPopBase = (el) => {
     try {
       const par = el && el.offsetParent;
@@ -16114,164 +16508,8 @@ var wsOrgPropsMake = (d) => {
       return { left: 0, top: 0 };
     }
   };
-  const orgPropSubOpen = (anchor, door) => {
-    const was = !!orgPropSubEl();
-    orgPropSubClose();
-    if (was) return null;
-    const d0 = d.ownerDoc();
-    const sub = (d.host.rootEl || d0.body).createDiv({ cls: "menu ws-org-propsub" });
-    for (const t of door.types || []) {
-      const row = sub.createDiv({ cls: "ws-org-propsubrow" });
-      row.createSpan({ text: t.label });
-      row.dataset.type = t.id;
-      row.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        orgPropSubClose();
-        try {
-          door.pick(t.id, ev);
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgPropSubOpen: door.pick(t.id, ev);", _);
-        }
-      });
-    }
-    if (typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone) return sub;
-    try {
-      const r = anchor.getBoundingClientRect();
-      const box = (orgPropPopEl() || anchor).getBoundingClientRect();
-      const w0 = d.ownerWin();
-      const wide = sub.offsetWidth || 0;
-      const tall = sub.offsetHeight || 0;
-      const vw = w0.innerWidth || 0;
-      const vh = w0.innerHeight || 0;
-      let x = box.right;
-      if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
-      let y = r.top;
-      if (vh && y + tall > vh) y = Math.max(0, vh - tall);
-      const base = orgPopBase(sub);
-      sub.style.left = Math.round(x - base.left) + "px";
-      sub.style.top = Math.round(y - base.top) + "px";
-    } catch (_) {
-      wsCatch("openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();", _);
-    }
-    return sub;
-  };
-  const orgPropPopOpen = (anchor) => {
-    orgPropPopClose();
-    const d0 = d.ownerDoc();
-    const pop = (d.host.rootEl || d0.body).createDiv({ cls: "menu ws-org-proppop" });
-    const srch = pop.createEl("input", { cls: "ws-org-propsearch" });
-    srch.type = "text";
-    srch.placeholder = "Search properties\u2026";
-    srch.value = orgPropPopQuery;
-    srch.addEventListener("input", () => {
-      orgPropPopQuery = srch.value || "";
-      orgPropPopRender();
-    });
-    pop.createDiv({ cls: "ws-org-propbody" });
-    {
-      const au = pop.createDiv({ cls: "ws-org-propauto" });
-      const g = au.createSpan({ cls: "ws-org-propautoicon" });
-      for (const n of ["move-horizontal", "unfold-horizontal", "maximize-2"]) {
-        g.textContent = "";
-        try {
-          if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(g, n);
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
-        }
-        if (g.childElementCount > 0) {
-          g.dataset.icon = n;
-          break;
-        }
-      }
-      au.createSpan({ text: "Resize columns to fit" });
-      au.title = "Set every column to the width of what it holds, up to six tenths of the pane. They stay draggable afterwards.";
-      au.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        d.orgColFit();
-      });
-    }
-    for (const door of d.ORG_PROP_DOORS) {
-      const add = pop.createDiv({ cls: "ws-org-propadd" });
-      {
-        const g = add.createSpan({ cls: "ws-org-propaddicon" });
-        for (const n of door.icons) {
-          g.textContent = "";
-          try {
-            if (import_obsidian13.setIcon) (0, import_obsidian13.setIcon)(g, n);
-          } catch (_) {
-            wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
-          }
-          if (g.childElementCount > 0) {
-            g.dataset.icon = n;
-            break;
-          }
-        }
-      }
-      add.createSpan({ cls: "ws-org-propaddname", text: door.label });
-      if (door.types) {
-        add.addClass("has-sub");
-        add.createSpan({
-          cls: "ws-org-propmore",
-          text: "\u203A"
-        });
-      }
-      add.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        if (door.types) {
-          orgPropSubOpen(add, door);
-          return;
-        }
-        orgPropSubClose();
-        door.open(ev);
-      });
-    }
-    orgPropPopRender();
-    const phoneSheet = !!(typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone);
-    if (!phoneSheet) try {
-      const r = anchor.getBoundingClientRect();
-      const w0 = d.ownerWin();
-      const wide = pop.offsetWidth || 0;
-      const room = (w0.innerWidth || 0) - wide;
-      const base = orgPopBase(pop);
-      const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
-      pop.style.left = Math.round(x - base.left) + "px";
-      pop.style.top = Math.round(r.bottom - base.top) + 2 + "px";
-    } catch (_) {
-      wsCatch("openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();", _);
-    }
-    const onDown = (ev) => {
-      const hit = wsNodeOf(ev.target);
-      try {
-        if (pop.contains(hit)) return;
-        const sub0 = orgPropSubEl();
-        if (sub0 && sub0.contains(hit)) return;
-        const t = wsElOf(ev.target) || hit && hit.parentElement;
-        if (t && t.closest(".ws-org-colsbtn")) return;
-      } catch (_) {
-        wsCatch("openManuscriptModal / onDown: if (pop.contains(ev.target)) return;", _);
-      }
-      orgPropPopClose();
-    };
-    try {
-      const w0 = d.ownerWin();
-      w0.addEventListener("pointerdown", onDown, true);
-      orgPropPopOff = () => {
-        try {
-          w0.removeEventListener("pointerdown", onDown, true);
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgPropPopOpen: w0.removeEventListener('mousedown', onDown, true);", _);
-        }
-      };
-    } catch (_) {
-      wsCatch("openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();", _);
-    }
-    return pop;
-  };
-  let orgEditGuard = null;
-  let orgOpenAfter = null;
+  const orgPropSubOpen = (anchor, door) => wsOrgPropSubOpen({ d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
+  const orgPropPopOpen = (anchor) => wsOrgPropPopOpen({ d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
   const orgOtherEditorOpen = (td) => {
     try {
       return Array.from(d.panel.querySelectorAll(".ws-org-editor")).some((e) => !td.contains(e));
@@ -16279,16 +16517,14 @@ var wsOrgPropsMake = (d) => {
       return false;
     }
   };
-  let orgRedrawPending = false;
-  let orgFieldEscape = null;
   const orgEditDone = () => {
-    orgEditGuard = null;
-    orgFieldEscape = null;
-    if (!orgRedrawPending) return;
+    st.orgEditGuard = null;
+    st.orgFieldEscape = null;
+    if (!st.orgRedrawPending) return;
     window.setTimeout(() => {
-      if (orgEditGuard) return;
-      if (!orgRedrawPending) return;
-      orgRedrawPending = false;
+      if (st.orgEditGuard) return;
+      if (!st.orgRedrawPending) return;
+      st.orgRedrawPending = false;
       d.drawPanel();
     }, 0);
   };
@@ -16305,227 +16541,7 @@ var wsOrgPropsMake = (d) => {
     const sv = d.plugin.propStoreGetSync(String(path || ""), key);
     return sv === void 0 ? null : sv;
   };
-  const orgFieldEditor = (card, path, key, isDraft) => {
-    orgRedrawPending = true;
-    try {
-      card.addClass("is-editing");
-    } catch (_) {
-      wsCatch("openManuscriptModal / orgFieldEditor: card.addClass('is-editing');", _);
-    }
-    const v = orgPropValue(path, key);
-    const complex = v !== null && typeof v === "object" && !Array.isArray(v) || Array.isArray(v) && v.some((x) => x !== null && typeof x === "object");
-    if (complex) {
-      card.createDiv({
-        cls: "ws-org-editor is-complex",
-        text: "complex value \u2014 edit in note"
-      });
-      return null;
-    }
-    let type = d.plugin.orgPropType(key);
-    if (!type && v !== null) {
-      if (typeof v === "number") type = "number";
-      else if (typeof v === "boolean") type = "checkbox";
-      else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(wsStr(v))) type = "datetime";
-      else if (/^\d{4}-\d{2}-\d{2}$/.test(wsStr(v))) type = "date";
-    }
-    const engage = (el22, esc) => {
-      el22.addEventListener("focus", () => {
-        orgEditGuard = { path, key };
-        orgFieldEscape = esc;
-      });
-    };
-    const listKinds = type === "tags" || type === "multitext" || type === "aliases" || Array.isArray(v) || String(key).toLowerCase() === "tags";
-    if (type === "checkbox") {
-      const box = card.createEl("input", { cls: "ws-org-editor" });
-      box.type = "checkbox";
-      box.checked = v === true;
-      engage(box, () => {
-        box.checked = v === true;
-        box.blur();
-      });
-      box.addEventListener("change", () => {
-        void (async () => {
-          await d.orgPropSet(path, key, box.checked);
-        })();
-      });
-      box.addEventListener("blur", () => {
-        orgEditDone();
-      });
-      return box;
-    }
-    if (listKinds) {
-      const wrap2 = card.createDiv({ cls: "ws-org-editor is-chips" });
-      const now = Array.isArray(v) ? v.filter((x) => x !== null && typeof x !== "object").map(String) : v === null || v === "" ? [] : [wsStr(v)];
-      let live = now.slice();
-      const commitList = async (list) => {
-        await d.orgPropListSet(path, key, list, live);
-        live = list.slice();
-      };
-      const pillHost = d.orgTagWrap(wrap2, String(key).toLowerCase() === "tags" ? "tags" : "multitext");
-      const mkChip = (val) => {
-        const chip = d.orgTagPill(pillHost, String(val), { remove: () => {
-          void commitList(live.filter((z) => z !== val)).then(() => chip.remove());
-        } });
-        return chip;
-      };
-      for (const val of now) mkChip(val);
-      if (String(key).toLowerCase() === "tags") {
-        const inText = new Set(now.map((t) => String(t).replace(/^#/, "").toLowerCase()));
-        let bodyTags = [];
-        try {
-          const f2 = d.plugin.app.vault.getAbstractFileByPath(path);
-          const c2 = f2 && d.plugin.app.metadataCache.getFileCache(f2);
-          for (const t of c2 && c2.tags || []) {
-            const tag = String(t.tag || "").replace(/^#/, "");
-            if (tag && !inText.has(tag.toLowerCase()) && bodyTags.indexOf(tag) === -1) bodyTags.push(tag);
-          }
-        } catch (_) {
-          wsCatch("openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);", _);
-        }
-        for (const tag of bodyTags) {
-          const chip = d.orgTagPill(pillHost, tag, { intext: true });
-          chip.title = "Written in the note itself \u2014 edit it there";
-        }
-      }
-      const inp = wrap2.createEl("input", { cls: "ws-org-chipval" });
-      inp.placeholder = "+";
-      const dlid = "ws-org-fdl-" + Math.floor(Math.random() * 1e9);
-      const dl = wrap2.createEl("datalist");
-      dl.id = dlid;
-      for (const opt of d.plugin.orgDistinctUnder("", key).slice(0, 60)) {
-        dl.createEl("option", { value: wsStr(opt) });
-      }
-      inp.setAttribute("list", dlid);
-      engage(inp, () => {
-        inp.value = "";
-        inp.blur();
-      });
-      const isTagField = String(key).toLowerCase() === "tags";
-      const tagClean = (raw) => String(raw).replace(/^#+/, "").replace(/\s+/g, "-").replace(/[^\p{L}\p{N}_\-/]/gu, "").replace(/\/{2,}/g, "/").replace(/^[-/]+|[-/]+$/g, "");
-      inp.addEventListener("keydown", (ev) => {
-        void (async () => {
-          if (ev.key !== "Enter") return;
-          ev.preventDefault();
-          const typed = inp.value.trim();
-          if (!typed) {
-            inp.blur();
-            return;
-          }
-          const val = isTagField ? tagClean(typed) : typed;
-          if (isTagField && (!val || /^\p{N}/u.test(val))) {
-            try {
-              new import_obsidian13.Notice(val ? "A tag cannot start with a number \u2014 Obsidian will not index \u201C" + val + "\u201D." : "That is not a tag Obsidian can index.");
-            } catch (_) {
-              wsCatch("openManuscriptModal / orgFieldEditor: new Notice(val ? 'A tag cannot start with a number \u2014 Obsidian '", _);
-            }
-            return;
-          }
-          if (live.indexOf(val) === -1) {
-            await commitList(live.concat([val]));
-            const at = wrap2.querySelector(".ws-org-tagchip.is-intext") || inp;
-            wrap2.insertBefore(mkChip(val), at);
-          }
-          inp.value = "";
-        })();
-      });
-      inp.addEventListener("blur", () => {
-        orgEditDone();
-      });
-      return inp;
-    }
-    const was = v === null ? "" : wsStr(v);
-    let el2;
-    {
-      el2 = card.createEl("input", { cls: "ws-org-editor" });
-      if (type === "number") el2.type = "number";
-      else if (type === "date") el2.type = "date";
-      else if (type === "datetime") el2.type = "datetime-local";
-      else el2.type = "text";
-      el2.value = was;
-      try {
-        const n = String(was == null ? "" : was).length;
-        el2.size = Math.max(6, Math.min(60, n + 1));
-      } catch (_) {
-        wsCatch("openManuscriptModal / orgFieldEditor: const n = String(was == null ? '' : was).length;", _);
-      }
-    }
-    let settled = false;
-    const commit = async () => {
-      if (settled) return;
-      settled = true;
-      const raw = el2.value;
-      if (raw === was) {
-        orgEditDone();
-        return;
-      }
-      let out = raw;
-      if (type === "number") {
-        const n = parseFloat(raw);
-        out = raw.trim() === "" ? "" : isFinite(n) ? n : raw;
-      }
-      const stored = d.plugin.propStoreHolds(path);
-      orgEditDone();
-      await d.orgPropSet(path, key, out);
-      if (stored) d.drawPanel();
-    };
-    engage(el2, () => {
-      settled = true;
-      el2.value = was;
-      el2.blur();
-    });
-    el2.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") {
-        if (ev.shiftKey && el2.tagName === "TEXTAREA") return;
-        ev.preventDefault();
-        ev.stopPropagation();
-        el2.blur();
-      }
-    });
-    el2.addEventListener("blur", () => {
-      if (settled) {
-        settled = false;
-        orgEditDone();
-        return;
-      }
-      void commit();
-    });
-    if ((type === "date" || type === "datetime") && !isDraft) {
-      const shown = card.createSpan({ cls: "ws-org-shown" });
-      const sayDay = (raw) => {
-        const fmt2 = d.plugin.formatValue(key, raw, type, d.plugin.dateStyle());
-        shown.setText(fmt2.text || "\u2014");
-        shown.toggleClass("is-empty", !fmt2.text);
-        shown.toggleClass("ws-org-badval", !fmt2.ok);
-        shown.title = fmt2.ok ? "" : "This is not a valid " + type + ": " + wsStr(raw);
-      };
-      sayDay(v);
-      el2.addClass("is-editing-off");
-      shown.tabIndex = 0;
-      const open = () => {
-        shown.addClass("is-editing-off");
-        el2.removeClass("is-editing-off");
-        try {
-          el2.focus();
-        } catch (_) {
-          wsCatch("openManuscriptModal / open: el2.focus();", _);
-        }
-      };
-      shown.addEventListener("click", open);
-      shown.addEventListener("focus", open);
-      shown.addEventListener("keydown", (ev) => {
-        if (ev.key === "Enter" || ev.key === " ") {
-          ev.preventDefault();
-          open();
-        }
-      });
-      el2.addEventListener("blur", () => {
-        sayDay(el2.value);
-        el2.addClass("is-editing-off");
-        shown.removeClass("is-editing-off");
-      });
-    }
-    return el2;
-  };
+  const orgFieldEditor = (card, path, key, isDraft) => wsOrgFieldEditor({ d, orgEditDone, orgPropValue, st }, card, path, key, isDraft);
   const ORG_PROP_ICONS = {
     tags: ["tags", "tag"],
     aliases: ["forward", "corner-up-right", "arrow-right"],
@@ -16566,21 +16582,21 @@ var wsOrgPropsMake = (d) => {
     return g;
   };
   return { orgPropPopEl, orgPropPanelRows, orgPropSubEl, orgPropSubClose, orgPropPopClose, orgPropPopOpen, orgOtherEditorOpen, orgEditDone, orgPropValue, orgFieldEditor, get orgEditGuard() {
-    return orgEditGuard;
+    return st.orgEditGuard;
   }, set orgEditGuard(v) {
-    orgEditGuard = v;
+    st.orgEditGuard = v;
   }, get orgOpenAfter() {
-    return orgOpenAfter;
+    return st.orgOpenAfter;
   }, set orgOpenAfter(v) {
-    orgOpenAfter = v;
+    st.orgOpenAfter = v;
   }, get orgRedrawPending() {
-    return orgRedrawPending;
+    return st.orgRedrawPending;
   }, set orgRedrawPending(v) {
-    orgRedrawPending = v;
+    st.orgRedrawPending = v;
   }, get orgFieldEscape() {
-    return orgFieldEscape;
+    return st.orgFieldEscape;
   }, set orgFieldEscape(v) {
-    orgFieldEscape = v;
+    st.orgFieldEscape = v;
   } };
 };
 
@@ -18146,6 +18162,707 @@ var wsOrgZoomMake = (d) => {
 };
 
 // src/organizer-window.ts
+function wsOrgSortMenu(plugin, a, ev) {
+  const { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir } = a;
+  const menu = wsMenu();
+  menu.addItem((i) => i.setTitle("Custom order").setIcon("list-ordered").setChecked(!ctx.orgLens.sort).onClick(() => ctx.orgLensSet({ sort: null })));
+  menu.addItem((i) => i.setTitle("Name" + (sortByName ? wsSortArrow(sortDir) : "")).setIcon("case-sensitive").setChecked(!!sortByName).onClick(() => ctx.orgLensSet({ sort: {
+    id: "name",
+    dir: sortByName && sortDir === "asc" ? "desc" : "asc"
+  } })));
+  menu.addSeparator();
+  const SORT_RELEVANCE = [
+    "words",
+    "goal",
+    "tasks",
+    "mark",
+    "modified",
+    "created",
+    "grade",
+    "paras",
+    "tags"
+  ];
+  const sortRank = (c) => {
+    const at = SORT_RELEVANCE.indexOf(c.id);
+    return at === -1 ? SORT_RELEVANCE.length : at;
+  };
+  const sortMenuCols = cols.slice().sort((a2, b) => sortRank(a2) - sortRank(b));
+  for (const col of sortMenuCols) {
+    menu.addItem((i) => {
+      const here = sortCol && sortCol.id === col.id;
+      i.setTitle(col.label + (here ? wsSortArrow(sortDir) : ""));
+      try {
+        const def = ctx.SORTS.filter((s2) => s2.id === col.id)[0];
+        if (def && def.icon && i.setIcon) i.setIcon(def.icon);
+      } catch (_) {
+        wsCatch("orgTableMake / drawOrg: const def = ctx.SORTS.filter((s) => s.id === col.id)[0];", _);
+      }
+      i.setChecked(!!here);
+      i.onClick(() => ctx.orgLensSet({ sort: {
+        id: col.id,
+        dir: here && sortDir === "desc" ? "asc" : "desc"
+      } }));
+    });
+  }
+  menu.addSeparator();
+  menu.addItem((i) => i.setTitle("Row numbers").setIcon("hash").setChecked(!!s.uniRowNumbers).onClick(() => {
+    s.uniRowNumbers = !s.uniRowNumbers;
+    plugin.saveSettings().catch(() => {
+    });
+    ctx.drawPanel();
+  }));
+  menuUnder(menu, sortBtn, ev);
+}
+function wsOrgFilterMenu(plugin, a, ev) {
+  const { addBtn, at, ctx, menuUnder } = a;
+  let nests = false;
+  try {
+    wsMenu().addItem((i) => {
+      nests = typeof i.setSubmenu === "function";
+    });
+  } catch {
+    nests = false;
+  }
+  const menu = wsMenu();
+  const group = (title, icon, fill) => {
+    if (nests) {
+      menu.addItem((i) => {
+        i.setTitle(title);
+        try {
+          if (icon) i.setIcon(icon);
+        } catch (_) {
+          wsCatch("orgTableMake / group: if (icon) i.setIcon(icon);", _);
+        }
+        try {
+          fill(i.setSubmenu());
+        } catch (e) {
+          console.error("Word-Smith: filter menu", e);
+        }
+      });
+      return;
+    }
+    menu.addSeparator();
+    menu.addItem((i) => i.setTitle(title).setIsLabel(true));
+    fill(menu);
+  };
+  const addChip = ctx.orgAddChip;
+  group("Kind", "shapes", (into) => ctx.typeRows(into));
+  group("Tasks", "check-square", (into) => {
+    for (const t of [
+      { id: "any", label: "Has tasks" },
+      { id: "none", label: "No tasks" }
+    ]) {
+      into.addItem((i) => i.setTitle(t.label).onClick(() => addChip({
+        axis: "tasks",
+        id: t.id,
+        key: "Tasks",
+        value: t.label
+      })));
+    }
+  });
+  group("Flag", "flag", (into) => {
+    let defs = [];
+    try {
+      defs = plugin.flagDefs() || [];
+    } catch {
+      defs = [];
+    }
+    const titled = (id, label) => {
+      const frag = createFragment();
+      const mark = createSpan();
+      mark.className = "ws-menuflag is-" + id;
+      wsSvgInto(mark, wsFlagSvg(id, 12));
+      frag.appendChild(mark);
+      frag.appendChild(document.createTextNode(label));
+      return frag;
+    };
+    for (const d of defs) {
+      into.addItem((i) => i.setTitle(titled(d.id, d.label)).onClick(() => addChip({
+        axis: "flag",
+        id: d.id,
+        key: "Flag",
+        value: d.label
+      })));
+    }
+    into.addItem((i) => i.setTitle(titled("", "No flag")).onClick(() => addChip({
+      axis: "flag",
+      id: "",
+      key: "Flag",
+      value: "none"
+    })));
+  });
+  group("Tag", "tag", (into) => {
+    into.addItem((i) => i.setTitle("Search tags\u2026").onClick(() => {
+      let tags = [];
+      try {
+        tags = plugin.uniTagsInScope(
+          ctx.orgRowList(at, true).map((r) => r.path)
+        ) || [];
+      } catch {
+        tags = [];
+      }
+      if (!tags.length) {
+        try {
+          new import_obsidian16.Notice("Word-Smith: no tags in these notes.");
+        } catch (_) {
+          wsCatch("orgTableMake / drawOrg: new Notice('Word-Smith: no tags in these notes.');", _);
+        }
+        return;
+      }
+      const items = tags.map((t) => ({
+        tag: t.tag,
+        label: "#" + t.tag,
+        n: t.n
+      }));
+      const take = (it) => addChip({
+        axis: "tag",
+        key: "Tag",
+        value: it.tag
+      });
+      if (WsPropSuggestModal) {
+        try {
+          new WsPropSuggestModal(
+            plugin.app,
+            items,
+            take,
+            "Which tag?"
+          ).open();
+          return;
+        } catch (_) {
+          wsCatch("orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items, take,", _);
+        }
+      }
+      const pick = wsMenu();
+      for (const it of items.slice(0, 20)) {
+        pick.addItem((i2) => i2.setTitle(it.label).onClick(() => take(it)));
+      }
+      try {
+        pick.showAtMouseEvent(ev);
+      } catch {
+        try {
+          pick.showAtPosition({ x: 0, y: 0 });
+        } catch (_e) {
+          wsCatch("orgTableMake / drawOrg: pick.showAtPosition( x: 0, y: 0 );", _e);
+        }
+      }
+    }));
+  });
+  group("Property", "table-properties", (into) => {
+    const askEmpty = (op) => {
+      const keys = ctx.orgPropKeys(at);
+      if (!keys.length) {
+        try {
+          new import_obsidian16.Notice("Word-Smith: no properties in these notes.");
+        } catch (_) {
+          wsCatch("orgTableMake / askEmpty: new Notice('Word-Smith: no properties in these notes.');", _);
+        }
+        return;
+      }
+      const items = keys.map((k) => ({ key: k, label: k }));
+      const take = (it) => addChip({ key: it.key, op, value: "" });
+      if (WsPropSuggestModal) {
+        try {
+          new WsPropSuggestModal(
+            plugin.app,
+            items,
+            take,
+            op === "empty" ? "Which property is empty?" : "Which property is filled in?"
+          ).open();
+          return;
+        } catch (_) {
+          wsCatch("orgTableMake / askEmpty: new WsPropSuggestModal(this.app, items, take,", _);
+        }
+      }
+      const pk2 = wsMenu();
+      for (const it of items.slice(0, 20)) {
+        pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
+      }
+      try {
+        pk2.showAtMouseEvent(ev);
+      } catch {
+        try {
+          pk2.showAtPosition({ x: 0, y: 0 });
+        } catch (_e) {
+          wsCatch("orgTableMake / askEmpty: pk2.showAtPosition( x: 0, y: 0 );", _e);
+        }
+      }
+    };
+    into.addItem((i) => i.setTitle("Is empty\u2026").onClick(() => askEmpty("empty")));
+    into.addItem((i) => i.setTitle("Is not empty\u2026").onClick(() => askEmpty("filled")));
+    into.addItem((i) => i.setTitle("Search properties\u2026").onClick(() => {
+      const keys = ctx.orgPropKeys(at);
+      if (!keys.length) {
+        try {
+          new import_obsidian16.Notice("Word-Smith: no properties in these notes.");
+        } catch (_) {
+          wsCatch("orgTableMake / drawOrg: new Notice('Word-Smith: no properties in these notes.');", _);
+        }
+        return;
+      }
+      const pickValue = (key) => ctx.orgFilterByKey(key, ev);
+      const items = keys.map((k) => ({ key: k, label: k }));
+      if (WsPropSuggestModal) {
+        try {
+          new WsPropSuggestModal(
+            plugin.app,
+            items,
+            (it) => pickValue(it.key || ""),
+            "Which property?"
+          ).open();
+          return;
+        } catch (_) {
+          wsCatch("orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items,", _);
+        }
+      }
+      const pk = wsMenu();
+      for (const it of items.slice(0, 20)) {
+        pk.addItem((i2) => i2.setTitle(it.label).onClick(() => pickValue(it.key)));
+      }
+      try {
+        pk.showAtMouseEvent(ev);
+      } catch {
+        try {
+          pk.showAtPosition({ x: 0, y: 0 });
+        } catch (_e) {
+          wsCatch("orgTableMake / drawOrg: pk.showAtPosition( x: 0, y: 0 );", _e);
+        }
+      }
+    }));
+  });
+  menuUnder(menu, addBtn, ev);
+}
+function wsOrgSnapAccent(a) {
+  const { ctx, orgZoomOf, table } = a;
+  const w0 = ctx.ownerWin();
+  const dpr = w0 && w0.devicePixelRatio || 1;
+  const scope = table.closest(".ws-uni-modal") || table.closest(".modal") || table.ownerDocument.documentElement;
+  if (scope && scope.style) {
+    scope.style.setProperty("--ws-dpr", String(dpr));
+  }
+  const marks = Array.from(table.querySelectorAll(
+    ".ws-org-row.ws-org-active td.ws-org-name, .ws-org-row.is-selected td.ws-org-name"
+  ));
+  for (const el of marks) {
+    if (!el) continue;
+    try {
+      el.setCssProps({ "--ws-dpr": String(dpr), "--ws-org-snap": "0px" });
+      const off = parseFloat(
+        w0.getComputedStyle(el, "::before").insetInlineStart
+      );
+      if (!isFinite(off)) continue;
+      const zoom = orgZoomOf(el);
+      const x = el.getBoundingClientRect().left / zoom + off;
+      const box = typeof el.closest === "function" ? el.closest(".tree-item-children") : null;
+      let want = null;
+      if (box) {
+        const bx = box.getBoundingClientRect().left / zoom;
+        if (isFinite(bx)) want = bx;
+      }
+      if (want === null) want = Math.round(x * dpr) / dpr;
+      el.style.setProperty("--ws-org-snap", (want - x).toFixed(3) + "px");
+    } catch (_) {
+      wsCatch("orgTableMake / orgSnapAccent: el.style.setProperty('--ws-dpr', String(dpr));", _);
+    }
+  }
+}
+function wsOrgNameLine(a) {
+  const { ctx, nameTh, orgSnapAccent, orgZoomOf, table, wrap } = a;
+  try {
+    const host = wrap.parentElement;
+    if (!host) return;
+    host.style.removeProperty("--ws-org-outw");
+    const zoom = orgZoomOf(nameTh);
+    let w = nameTh.getBoundingClientRect().width / zoom;
+    if (!(w > 0)) return;
+    try {
+      const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
+      if (narrow) {
+        const tableW = table.getBoundingClientRect().width / zoom;
+        const room = Math.floor(wrap.clientWidth - Math.max(0, tableW - w));
+        const was = table.style.getPropertyValue("--ws-org-nameroom");
+        const now = room > 0 ? room + "px" : "";
+        const ceil = ctx.orgColCeil(wrap);
+        const ceilNow = ceil > 0 ? ceil + "px" : "";
+        const ceilWas = table.style.getPropertyValue("--ws-org-nameceil");
+        if (was !== now || ceilWas !== ceilNow) {
+          if (now) table.style.setProperty("--ws-org-nameroom", now);
+          else table.style.removeProperty("--ws-org-nameroom");
+          if (ceilNow) table.style.setProperty("--ws-org-nameceil", ceilNow);
+          else table.style.removeProperty("--ws-org-nameceil");
+          w = nameTh.getBoundingClientRect().width / zoom;
+        }
+      } else if (table.style.getPropertyValue("--ws-org-nameroom") || table.style.getPropertyValue("--ws-org-nameceil")) {
+        table.style.removeProperty("--ws-org-nameroom");
+        table.style.removeProperty("--ws-org-nameceil");
+        w = nameTh.getBoundingClientRect().width / zoom;
+      }
+    } catch (_) {
+      wsCatch("orgNameLine / nameroom: const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());", _);
+    }
+    host.style.setProperty(
+      "--ws-org-nameline",
+      Math.round(wrap.offsetLeft + w) + "px"
+    );
+    host.style.setProperty(
+      "--ws-org-nametop",
+      Math.round(wrap.offsetTop) + "px"
+    );
+    host.style.setProperty(
+      "--ws-org-headh",
+      (nameTh.getBoundingClientRect().height / zoom).toFixed(2) + "px"
+    );
+    const tall = Math.min(
+      table.getBoundingClientRect().height / zoom,
+      wrap.clientHeight
+    );
+    host.style.setProperty(
+      "--ws-org-nameend",
+      Math.max(0, tall).toFixed(2) + "px"
+    );
+  } catch (_) {
+    wsCatch("orgTableMake / orgNameLine: const host = wrap.parentElement;", _);
+  }
+  try {
+    orgSnapAccent();
+  } catch (_) {
+    wsCatch("orgTableMake / orgNameLine: orgSnapAccent();", _);
+  }
+}
+function wsOrgDrawHeads(plugin, a) {
+  const { cols, ctx, fill, hr, s, sortCol, sortDir, wrap } = a;
+  for (const col of cols) {
+    const th = hr.createEl("th", { cls: ctx.colTextish(col) ? "is-text" : "" });
+    th.setAttribute("data-col", col.id);
+    th.createSpan({ cls: "ws-org-headlabel", text: col.label });
+    ctx.orgColStamp(th, col.id, wrap);
+    ctx.orgColGripBind(th, col, wrap);
+    if (sortCol && sortCol.id === col.id) {
+      th.createSpan({
+        cls: "ws-org-sortmark",
+        text: wsSortArrow(sortDir)
+      });
+    }
+    th.title = "Sort: newest-biggest first, then smallest, then the book\u2019s order";
+    th.addEventListener("click", () => {
+      if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
+      const cur = ctx.orgLens.sort;
+      if (!cur || cur.id !== col.id) {
+        ctx.orgLensSet({ sort: { id: col.id, dir: "desc" } });
+      } else if (cur.dir === "desc") {
+        ctx.orgLensSet({ sort: { id: col.id, dir: "asc" } });
+      } else {
+        ctx.orgLensSet({ sort: null });
+      }
+    });
+    th.setAttribute("draggable", "true");
+    th.addEventListener("dragstart", (ev) => {
+      ctx.orgDragCol = col.id;
+      try {
+        if (ev.dataTransfer) ev.dataTransfer.setData("text/plain", col.id);
+      } catch (_) {
+        wsCatch("orgTableMake / drawOrg: ev.dataTransfer.setData('text/plain', col.id);", _);
+      }
+    });
+    th.addEventListener("dragover", (ev) => {
+      if (ctx.orgDragCol && ctx.orgDragCol !== col.id) ev.preventDefault();
+    });
+    const dropCol = async (moved) => {
+      const now = cols.map((x) => x.id);
+      const from = now.indexOf(moved);
+      if (from !== -1) now.splice(from, 1);
+      const at = now.indexOf(col.id);
+      now.splice(at === -1 ? now.length : at, 0, moved);
+      const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : []).filter((id) => now.indexOf(id) === -1);
+      s.uniColOrder = now.concat(rest);
+      await plugin.saveSettings();
+      ctx.drawPanel();
+    };
+    th.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      const moved = ctx.orgDragCol;
+      ctx.orgDragCol = null;
+      if (!moved || moved === col.id) return;
+      void dropCol(moved);
+    });
+    th.addEventListener("dragend", () => {
+      ctx.orgDragCol = null;
+    });
+    th.addEventListener("contextmenu", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const menu = wsMenu();
+      menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
+      menu.addItem((i) => i.setTitle("Sort \u2191").setIcon("arrow-up").onClick(() => ctx.orgLensSet({
+        sort: { id: col.id, dir: "asc" }
+      })));
+      menu.addItem((i) => i.setTitle("Sort \u2193").setIcon("arrow-down").onClick(() => ctx.orgLensSet({
+        sort: { id: col.id, dir: "desc" }
+      })));
+      const fkey = col.user ? String(col.key) : col.id === "tags" ? "tags" : "";
+      if (fkey) {
+        menu.addItem((i) => i.setTitle("Filter by this\u2026").setIcon("list-filter").onClick(() => ctx.orgFilterByKey(fkey, ev)));
+      }
+      menu.addSeparator();
+      menu.addItem((i) => i.setTitle("Hide this column").setIcon("eye-off").onClick(async () => {
+        ctx.colOff.add(col.id);
+        s.uniColsOff = Array.from(ctx.colOff);
+        await plugin.saveSettings();
+        ctx.draw();
+        void fill();
+        ctx.drawPanel();
+      }));
+      menu.addItem((i) => i.setTitle("Resize columns to fit").setIcon("move-horizontal").onClick(() => {
+        if (ctx.orgColFitNow) ctx.orgColFitNow();
+      }));
+      try {
+        menu.showAtMouseEvent(ev);
+      } catch {
+        try {
+          menu.showAtPosition({ x: 0, y: 0 });
+        } catch (_e) {
+          wsCatch("orgTableMake / drawOrg: menu.showAtPosition( x: 0, y: 0 );", _e);
+        }
+      }
+    });
+  }
+}
+function wsOrgDrawTotal(a) {
+  const { at, cols, ctx, orgLensEmptied, tbody, wrap } = a;
+  if (!orgLensEmptied) {
+    const subj = tbody.createEl("tr", { cls: "ws-org-subrow is-total" });
+    subj.remove();
+    const std = subj.createEl("td", { cls: "ws-org-name" });
+    const box = std.createDiv({ cls: "ws-org-subject-in" });
+    try {
+      std.setCssProps({ "--ws-org-depth": "0" });
+    } catch (_) {
+      wsCatch("orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });", _);
+    }
+    box.createSpan({ cls: "ws-org-subjectname", text: "Total" });
+    std.title = at ? "Everything under " + ctx.nameOf(at) : "Everything in the vault";
+    const subUnder = ctx.orgUnder(at);
+    const aggInto = (td, agg) => {
+      if (!agg) return;
+      if (agg.flags) {
+        td.addClass("ws-org-aggflags");
+        for (const f of agg.flags) {
+          const pair = td.createSpan({ cls: "ws-org-aggflag" });
+          pair.createSpan({ cls: "ws-org-aggflagn", text: String(f.n) });
+          const ic = pair.createSpan({ cls: "ws-org-flagic" });
+          wsSvgInto(ic, wsFlagSvg(String(f.id), 10));
+          pair.title = f.n + (f.n === 1 ? " file " : " files ") + f.label;
+        }
+      } else {
+        td.setText(agg.text);
+      }
+      if (agg.goal) ctx.orgGoalBand(td, agg.goal.words, agg.goal.target);
+      if (agg.title) td.title = agg.title;
+    };
+    ctx.orgAggInto = aggInto;
+    for (const col of cols) {
+      const td = subj.createEl(
+        "td",
+        { cls: ctx.colTextish(col) ? "is-text" : "" }
+      );
+      td.setAttribute("data-col", col.id);
+      ctx.orgColStamp(td, col.id, wrap);
+      const agg = ctx.orgColAgg(col, subUnder);
+      if (agg) aggInto(td, agg);
+    }
+    subj.createEl("td", { cls: "ws-org-pickcell" });
+    ctx.orgTotalRow = subj;
+  }
+}
+function wsOrgDrawRows(plugin, a) {
+  const { cols, ctx, lensed, nums, rows, tbody, wrap } = a;
+  let prevRuled = true;
+  for (const row of rows) {
+    const isFolder = row.kind === "folder";
+    const tr = tbody.createEl(
+      "tr",
+      { cls: "ws-org-row" + (isFolder ? " is-folder" : "") + (isFolder && !prevRuled ? " is-topline" : "") }
+    );
+    prevRuled = isFolder;
+    tr.setAttribute("data-path", row.path);
+    if (row.path === ctx.orgNote) tr.addClass("ws-org-active");
+    if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass("is-selected");
+    const nameTd = tr.createEl("td", { cls: "ws-org-name" });
+    if (nums && nums.has(row.path)) {
+      nameTd.createSpan({ cls: "ws-org-num", text: nums.get(row.path) });
+    }
+    const nameIn = nameTd.createDiv({ cls: "ws-org-namein" });
+    try {
+      nameTd.style.setProperty(
+        "--ws-org-depth",
+        String(lensed ? 0 : row.depth || 0)
+      );
+    } catch (_) {
+      wsCatch("orgTableMake / drawOrg: nameTd.style.setProperty('--ws-org-depth',", _);
+    }
+    if (isFolder) {
+      const open = ctx.orgIsOpen(row.path);
+      const twist = ctx.orgChevron(nameIn, open);
+      twist.title = open ? "Fold this folder" : "Unfold this folder";
+      twist.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+      });
+    } else {
+      nameIn.createSpan({ cls: "ws-org-twistgap tree-item-icon collapse-icon nav-folder-collapse-indicator" });
+    }
+    if (isFolder) ctx.orgFolderIcon(nameIn, row.path, ctx.orgIsOpen(row.path));
+    else plugin.orgKindIcon(nameIn, row.path);
+    if (lensed && row.rel) {
+      nameIn.createDiv({ cls: "ws-org-path", text: row.rel });
+    }
+    nameIn.createSpan({ cls: "ws-org-namelabel", text: ctx.nameOf(row.path) });
+    if (!isFolder) plugin.orgKindTag(nameIn, row.path);
+    nameTd.title = lensed && row.rel ? row.rel + " / " + ctx.nameOf(row.path) : ctx.nameOf(row.path);
+    for (const col of cols) {
+      const td = tr.createEl("td", { cls: ctx.colTextish(col) ? "is-text" : "" });
+      td.setAttribute("data-col", col.id);
+      ctx.orgColStamp(td, col.id, wrap);
+      if (isFolder) {
+        const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path));
+        if (agg) {
+          td.addClass("ws-org-aggcell");
+          if (ctx.orgAggInto) ctx.orgAggInto(td, agg);
+          else {
+            td.setText(agg.text);
+            if (agg.title) td.title = agg.title;
+          }
+        }
+        continue;
+      }
+      const text = ctx.orgColText(col, row.path);
+      if (col.user) {
+        const raw = ctx.orgColRaw(col, row.path);
+        const pk = col.key || col.id;
+        const fmt = plugin.formatValue(
+          pk,
+          raw,
+          plugin.orgPropType(pk),
+          plugin.dateStyle()
+        );
+        if (!fmt.ok) {
+          td.addClass("ws-org-badval");
+          td.title = "This is not a valid " + (plugin.orgPropType(pk) || "value") + ": " + wsStr(raw);
+        }
+      }
+      if (col.id === "mark") {
+        ctx.orgFlagCell(td, row, text);
+        continue;
+      }
+      if (col.id === "goal") {
+        ctx.orgGoalCell(td, row, text);
+        continue;
+      }
+      if (col.id === "tags") {
+        ctx.orgTagsCell(td, row);
+        continue;
+      }
+      if (col.id === "backlinks" && !isFolder) {
+        td.textContent = "";
+        ctx.orgBackCell(td, row);
+        continue;
+      }
+      if (col.id === "outlinks" && !isFolder) {
+        td.textContent = "";
+        ctx.orgOutCell(td, row);
+        continue;
+      }
+      if (col.user && !isFolder && String(plugin.orgPropType(col.key || col.id)).toLowerCase() === "checkbox") {
+        const raw0 = ctx.orgColRaw(col, row.path);
+        const rawv = typeof raw0 === "boolean" || typeof raw0 === "string" ? raw0 : raw0 == null ? "" : wsStr(raw0);
+        const has = rawv !== null && rawv !== void 0 && rawv !== "";
+        td.textContent = "";
+        const canEdit = ctx.orgCanHoldProps(row.path);
+        if (canEdit) td.addClass("is-prop");
+        const bx = has ? td.createEl("input", { cls: "ws-org-cellcheck" }) : null;
+        if (bx) {
+          bx.type = "checkbox";
+          bx.checked = rawv === true;
+          bx.disabled = !canEdit;
+        }
+        td.title = !canEdit ? "This kind of file cannot hold properties" : !has ? "Not set \u2014 press to add it, ticked" : rawv === true ? "Ticked \u2014 press to untick" : "Unticked \u2014 press to remove it from this file";
+        const nextOf = (v) => {
+          if (v === null || v === void 0 || v === "") return true;
+          if (v === true) return false;
+          return "";
+        };
+        const step = async () => {
+          if (!canEdit) {
+            ctx.orgPropRefuse(row.path);
+            return;
+          }
+          const stored = plugin.propStoreHolds(row.path);
+          ctx.orgRedrawPending = true;
+          await ctx.orgPropSet(
+            row.path,
+            col.key || col.id,
+            nextOf(rawv)
+          );
+          if (stored) ctx.orgEditDone();
+        };
+        td.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          void step();
+        });
+        if (bx) {
+          bx.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            ev.preventDefault();
+            void step();
+          });
+        }
+        continue;
+      }
+      if (col.user) {
+        ctx.orgPropCell(td, row, col, text);
+        continue;
+      }
+      td.setText(text);
+      if (text) td.title = text;
+    }
+    tr.createEl("td", { cls: "ws-org-pickcell" });
+    const inCtl = (ev) => !!(ev.target && ev.target !== tr && ev.target.closest && ev.target.closest(
+      "input, select, button, textarea, .ws-goals-chip, .ws-goals-chev, .ws-org-twist"
+    ));
+    tr.addEventListener("click", (ev) => {
+      if (inCtl(ev)) return;
+      if (isFolder) {
+        if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+        return;
+      }
+      if (ctx.orgSelClick(ev, row, rows.map((r0) => r0.path))) {
+        if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
+        return;
+      }
+      if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
+      ctx.showItem({ path: row.path, kind: row.kind }, true);
+    });
+    tr.addEventListener("dblclick", (ev) => {
+      if (inCtl(ev) || isFolder) return;
+      ctx.openRow({ path: row.path, kind: row.kind });
+    });
+    tr.addEventListener("contextmenu", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const menu = wsMenu();
+      plugin.outlinerRowMenu(
+        menu,
+        { path: row.path, kind: row.kind },
+        ctx.orgMenuCtx
+      );
+      menu.showAtMouseEvent(ev);
+    });
+    if (!lensed) {
+      ctx.orgRowDrag(tr, row);
+      if (isFolder) ctx.orgGroupDrop(tr, row.path);
+    }
+  }
+  return prevRuled;
+}
 var organizerWindowMethods = {
   // ── A FOLDER'S OWN MENU ──────────────────────────────────────────────────
   //
@@ -20681,56 +21398,7 @@ var organizerWindowMethods = {
       ]);
       sortBtn.createSpan({ text: sortLabel ? "Sort: " + sortLabel : "Sort" });
       sortBtn.title = "Arrange the rows by a reading \u2014 custom order is a click away";
-      sortBtn.addEventListener("click", (ev) => {
-        const menu = wsMenu();
-        menu.addItem((i) => i.setTitle("Custom order").setIcon("list-ordered").setChecked(!ctx.orgLens.sort).onClick(() => ctx.orgLensSet({ sort: null })));
-        menu.addItem((i) => i.setTitle("Name" + (sortByName ? wsSortArrow(sortDir) : "")).setIcon("case-sensitive").setChecked(!!sortByName).onClick(() => ctx.orgLensSet({ sort: {
-          id: "name",
-          dir: sortByName && sortDir === "asc" ? "desc" : "asc"
-        } })));
-        menu.addSeparator();
-        const SORT_RELEVANCE = [
-          "words",
-          "goal",
-          "tasks",
-          "mark",
-          "modified",
-          "created",
-          "grade",
-          "paras",
-          "tags"
-        ];
-        const sortRank = (c) => {
-          const at2 = SORT_RELEVANCE.indexOf(c.id);
-          return at2 === -1 ? SORT_RELEVANCE.length : at2;
-        };
-        const sortMenuCols = cols.slice().sort((a, b) => sortRank(a) - sortRank(b));
-        for (const col of sortMenuCols) {
-          menu.addItem((i) => {
-            const here = sortCol && sortCol.id === col.id;
-            i.setTitle(col.label + (here ? wsSortArrow(sortDir) : ""));
-            try {
-              const def = ctx.SORTS.filter((s2) => s2.id === col.id)[0];
-              if (def && def.icon && i.setIcon) i.setIcon(def.icon);
-            } catch (_) {
-              wsCatch("orgTableMake / drawOrg: const def = ctx.SORTS.filter((s) => s.id === col.id)[0];", _);
-            }
-            i.setChecked(!!here);
-            i.onClick(() => ctx.orgLensSet({ sort: {
-              id: col.id,
-              dir: here && sortDir === "desc" ? "asc" : "desc"
-            } }));
-          });
-        }
-        menu.addSeparator();
-        menu.addItem((i) => i.setTitle("Row numbers").setIcon("hash").setChecked(!!s.uniRowNumbers).onClick(() => {
-          s.uniRowNumbers = !s.uniRowNumbers;
-          this.saveSettings().catch(() => {
-          });
-          ctx.drawPanel();
-        }));
-        menuUnder(menu, sortBtn, ev);
-      });
+      sortBtn.addEventListener("click", (ev) => wsOrgSortMenu(this, { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir }, ev));
       const addBtn = bar.createEl(
         "button",
         { cls: "ws-export-mini ws-org-addfilter" }
@@ -20742,223 +21410,7 @@ var organizerWindowMethods = {
         if (on) addBtn.createSpan({ cls: "ws-org-filtercount", text: String(on) });
       }
       addBtn.title = "Narrow by a property \u2014 type to search the folder\u2019s own keys";
-      addBtn.addEventListener("click", (ev) => {
-        let nests = false;
-        try {
-          wsMenu().addItem((i) => {
-            nests = typeof i.setSubmenu === "function";
-          });
-        } catch {
-          nests = false;
-        }
-        const menu = wsMenu();
-        const group = (title, icon, fill2) => {
-          if (nests) {
-            menu.addItem((i) => {
-              i.setTitle(title);
-              try {
-                if (icon) i.setIcon(icon);
-              } catch (_) {
-                wsCatch("orgTableMake / group: if (icon) i.setIcon(icon);", _);
-              }
-              try {
-                fill2(i.setSubmenu());
-              } catch (e) {
-                console.error("Word-Smith: filter menu", e);
-              }
-            });
-            return;
-          }
-          menu.addSeparator();
-          menu.addItem((i) => i.setTitle(title).setIsLabel(true));
-          fill2(menu);
-        };
-        const addChip = ctx.orgAddChip;
-        group("Kind", "shapes", (into) => ctx.typeRows(into));
-        group("Tasks", "check-square", (into) => {
-          for (const t of [
-            { id: "any", label: "Has tasks" },
-            { id: "none", label: "No tasks" }
-          ]) {
-            into.addItem((i) => i.setTitle(t.label).onClick(() => addChip({
-              axis: "tasks",
-              id: t.id,
-              key: "Tasks",
-              value: t.label
-            })));
-          }
-        });
-        group("Flag", "flag", (into) => {
-          let defs = [];
-          try {
-            defs = this.flagDefs() || [];
-          } catch {
-            defs = [];
-          }
-          const titled = (id, label) => {
-            const frag = createFragment();
-            const mark = createSpan();
-            mark.className = "ws-menuflag is-" + id;
-            wsSvgInto(mark, wsFlagSvg(id, 12));
-            frag.appendChild(mark);
-            frag.appendChild(document.createTextNode(label));
-            return frag;
-          };
-          for (const d of defs) {
-            into.addItem((i) => i.setTitle(titled(d.id, d.label)).onClick(() => addChip({
-              axis: "flag",
-              id: d.id,
-              key: "Flag",
-              value: d.label
-            })));
-          }
-          into.addItem((i) => i.setTitle(titled("", "No flag")).onClick(() => addChip({
-            axis: "flag",
-            id: "",
-            key: "Flag",
-            value: "none"
-          })));
-        });
-        group("Tag", "tag", (into) => {
-          into.addItem((i) => i.setTitle("Search tags\u2026").onClick(() => {
-            let tags = [];
-            try {
-              tags = this.uniTagsInScope(
-                ctx.orgRowList(at, true).map((r) => r.path)
-              ) || [];
-            } catch {
-              tags = [];
-            }
-            if (!tags.length) {
-              try {
-                new import_obsidian16.Notice("No tags in these notes");
-              } catch (_) {
-                wsCatch("orgTableMake / drawOrg: new Notice('No tags in these notes');", _);
-              }
-              return;
-            }
-            const items = tags.map((t) => ({
-              tag: t.tag,
-              label: "#" + t.tag,
-              n: t.n
-            }));
-            const take = (it) => addChip({
-              axis: "tag",
-              key: "Tag",
-              value: it.tag
-            });
-            if (WsPropSuggestModal) {
-              try {
-                new WsPropSuggestModal(
-                  this.app,
-                  items,
-                  take,
-                  "Which tag?"
-                ).open();
-                return;
-              } catch (_) {
-                wsCatch("orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items, take,", _);
-              }
-            }
-            const pick = wsMenu();
-            for (const it of items.slice(0, 20)) {
-              pick.addItem((i2) => i2.setTitle(it.label).onClick(() => take(it)));
-            }
-            try {
-              pick.showAtMouseEvent(ev);
-            } catch {
-              try {
-                pick.showAtPosition({ x: 0, y: 0 });
-              } catch (_e) {
-                wsCatch("orgTableMake / drawOrg: pick.showAtPosition( x: 0, y: 0 );", _e);
-              }
-            }
-          }));
-        });
-        group("Property", "table-properties", (into) => {
-          const askEmpty = (op) => {
-            const keys = ctx.orgPropKeys(at);
-            if (!keys.length) {
-              try {
-                new import_obsidian16.Notice("No properties in these notes");
-              } catch (_) {
-                wsCatch("orgTableMake / askEmpty: new Notice('No properties in these notes');", _);
-              }
-              return;
-            }
-            const items = keys.map((k) => ({ key: k, label: k }));
-            const take = (it) => addChip({ key: it.key, op, value: "" });
-            if (WsPropSuggestModal) {
-              try {
-                new WsPropSuggestModal(
-                  this.app,
-                  items,
-                  take,
-                  op === "empty" ? "Which property is empty?" : "Which property is filled in?"
-                ).open();
-                return;
-              } catch (_) {
-                wsCatch("orgTableMake / askEmpty: new WsPropSuggestModal(this.app, items, take,", _);
-              }
-            }
-            const pk2 = wsMenu();
-            for (const it of items.slice(0, 20)) {
-              pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
-            }
-            try {
-              pk2.showAtMouseEvent(ev);
-            } catch {
-              try {
-                pk2.showAtPosition({ x: 0, y: 0 });
-              } catch (_e) {
-                wsCatch("orgTableMake / askEmpty: pk2.showAtPosition( x: 0, y: 0 );", _e);
-              }
-            }
-          };
-          into.addItem((i) => i.setTitle("Is empty\u2026").onClick(() => askEmpty("empty")));
-          into.addItem((i) => i.setTitle("Is not empty\u2026").onClick(() => askEmpty("filled")));
-          into.addItem((i) => i.setTitle("Search properties\u2026").onClick(() => {
-            const keys = ctx.orgPropKeys(at);
-            if (!keys.length) {
-              try {
-                new import_obsidian16.Notice("No properties in these notes");
-              } catch (_) {
-                wsCatch("orgTableMake / drawOrg: new Notice('No properties in these notes');", _);
-              }
-              return;
-            }
-            const pickValue = (key) => ctx.orgFilterByKey(key, ev);
-            const items = keys.map((k) => ({ key: k, label: k }));
-            if (WsPropSuggestModal) {
-              try {
-                new WsPropSuggestModal(
-                  this.app,
-                  items,
-                  (it) => pickValue(it.key || ""),
-                  "Which property?"
-                ).open();
-                return;
-              } catch (_) {
-                wsCatch("orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items,", _);
-              }
-            }
-            const pk = wsMenu();
-            for (const it of items.slice(0, 20)) {
-              pk.addItem((i2) => i2.setTitle(it.label).onClick(() => pickValue(it.key)));
-            }
-            try {
-              pk.showAtMouseEvent(ev);
-            } catch {
-              try {
-                pk.showAtPosition({ x: 0, y: 0 });
-              } catch (_e) {
-                wsCatch("orgTableMake / drawOrg: pk.showAtPosition( x: 0, y: 0 );", _e);
-              }
-            }
-          }));
-        });
-        menuUnder(menu, addBtn, ev);
-      });
+      addBtn.addEventListener("click", (ev) => wsOrgFilterMenu(this, { addBtn, at, ctx, menuUnder }, ev));
       const colsBtn = bar.createEl(
         "button",
         { cls: "ws-export-mini ws-org-colsbtn" }
@@ -21165,101 +21617,8 @@ var organizerWindowMethods = {
         }
         return isFinite(z) && z > 0 ? z : 1;
       };
-      const orgSnapAccent = () => {
-        const w0 = ctx.ownerWin();
-        const dpr = w0 && w0.devicePixelRatio || 1;
-        const scope = table.closest(".ws-uni-modal") || table.closest(".modal") || table.ownerDocument.documentElement;
-        if (scope && scope.style) {
-          scope.style.setProperty("--ws-dpr", String(dpr));
-        }
-        const marks = Array.from(table.querySelectorAll(
-          ".ws-org-row.ws-org-active td.ws-org-name, .ws-org-row.is-selected td.ws-org-name"
-        ));
-        for (const el of marks) {
-          if (!el) continue;
-          try {
-            el.setCssProps({ "--ws-dpr": String(dpr), "--ws-org-snap": "0px" });
-            const off = parseFloat(
-              w0.getComputedStyle(el, "::before").insetInlineStart
-            );
-            if (!isFinite(off)) continue;
-            const zoom = orgZoomOf(el);
-            const x = el.getBoundingClientRect().left / zoom + off;
-            const box = typeof el.closest === "function" ? el.closest(".tree-item-children") : null;
-            let want = null;
-            if (box) {
-              const bx = box.getBoundingClientRect().left / zoom;
-              if (isFinite(bx)) want = bx;
-            }
-            if (want === null) want = Math.round(x * dpr) / dpr;
-            el.style.setProperty("--ws-org-snap", (want - x).toFixed(3) + "px");
-          } catch (_) {
-            wsCatch("orgTableMake / orgSnapAccent: el.style.setProperty('--ws-dpr', String(dpr));", _);
-          }
-        }
-      };
-      const orgNameLine = () => {
-        try {
-          const host = wrap.parentElement;
-          if (!host) return;
-          host.style.removeProperty("--ws-org-outw");
-          const zoom = orgZoomOf(nameTh);
-          let w = nameTh.getBoundingClientRect().width / zoom;
-          if (!(w > 0)) return;
-          try {
-            const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
-            if (narrow) {
-              const tableW = table.getBoundingClientRect().width / zoom;
-              const room = Math.floor(wrap.clientWidth - Math.max(0, tableW - w));
-              const was = table.style.getPropertyValue("--ws-org-nameroom");
-              const now = room > 0 ? room + "px" : "";
-              const ceil = ctx.orgColCeil(wrap);
-              const ceilNow = ceil > 0 ? ceil + "px" : "";
-              const ceilWas = table.style.getPropertyValue("--ws-org-nameceil");
-              if (was !== now || ceilWas !== ceilNow) {
-                if (now) table.style.setProperty("--ws-org-nameroom", now);
-                else table.style.removeProperty("--ws-org-nameroom");
-                if (ceilNow) table.style.setProperty("--ws-org-nameceil", ceilNow);
-                else table.style.removeProperty("--ws-org-nameceil");
-                w = nameTh.getBoundingClientRect().width / zoom;
-              }
-            } else if (table.style.getPropertyValue("--ws-org-nameroom") || table.style.getPropertyValue("--ws-org-nameceil")) {
-              table.style.removeProperty("--ws-org-nameroom");
-              table.style.removeProperty("--ws-org-nameceil");
-              w = nameTh.getBoundingClientRect().width / zoom;
-            }
-          } catch (_) {
-            wsCatch("orgNameLine / nameroom: const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());", _);
-          }
-          host.style.setProperty(
-            "--ws-org-nameline",
-            Math.round(wrap.offsetLeft + w) + "px"
-          );
-          host.style.setProperty(
-            "--ws-org-nametop",
-            Math.round(wrap.offsetTop) + "px"
-          );
-          host.style.setProperty(
-            "--ws-org-headh",
-            (nameTh.getBoundingClientRect().height / zoom).toFixed(2) + "px"
-          );
-          const tall = Math.min(
-            table.getBoundingClientRect().height / zoom,
-            wrap.clientHeight
-          );
-          host.style.setProperty(
-            "--ws-org-nameend",
-            Math.max(0, tall).toFixed(2) + "px"
-          );
-        } catch (_) {
-          wsCatch("orgTableMake / orgNameLine: const host = wrap.parentElement;", _);
-        }
-        try {
-          orgSnapAccent();
-        } catch (_) {
-          wsCatch("orgTableMake / orgNameLine: orgSnapAccent();", _);
-        }
-      };
+      const orgSnapAccent = () => wsOrgSnapAccent({ ctx, orgZoomOf, table });
+      const orgNameLine = () => wsOrgNameLine({ ctx, nameTh, orgSnapAccent, orgZoomOf, table, wrap });
       ctx.orgColFitNow = () => {
         const ths = Array.from(table.querySelectorAll("thead th[data-col]"));
         const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
@@ -21305,101 +21664,7 @@ var organizerWindowMethods = {
       } catch (_) {
         wsCatch("orgTableMake / drawOrg: if (ctx.orgNameRO) ctx.orgNameRO.disconnect();", _);
       }
-      for (const col of cols) {
-        const th = hr.createEl("th", { cls: ctx.colTextish(col) ? "is-text" : "" });
-        th.setAttribute("data-col", col.id);
-        th.createSpan({ cls: "ws-org-headlabel", text: col.label });
-        ctx.orgColStamp(th, col.id, wrap);
-        ctx.orgColGripBind(th, col, wrap);
-        if (sortCol && sortCol.id === col.id) {
-          th.createSpan({
-            cls: "ws-org-sortmark",
-            text: wsSortArrow(sortDir)
-          });
-        }
-        th.title = "Sort: newest-biggest first, then smallest, then the book\u2019s order";
-        th.addEventListener("click", () => {
-          if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
-          const cur = ctx.orgLens.sort;
-          if (!cur || cur.id !== col.id) {
-            ctx.orgLensSet({ sort: { id: col.id, dir: "desc" } });
-          } else if (cur.dir === "desc") {
-            ctx.orgLensSet({ sort: { id: col.id, dir: "asc" } });
-          } else {
-            ctx.orgLensSet({ sort: null });
-          }
-        });
-        th.setAttribute("draggable", "true");
-        th.addEventListener("dragstart", (ev) => {
-          ctx.orgDragCol = col.id;
-          try {
-            if (ev.dataTransfer) ev.dataTransfer.setData("text/plain", col.id);
-          } catch (_) {
-            wsCatch("orgTableMake / drawOrg: ev.dataTransfer.setData('text/plain', col.id);", _);
-          }
-        });
-        th.addEventListener("dragover", (ev) => {
-          if (ctx.orgDragCol && ctx.orgDragCol !== col.id) ev.preventDefault();
-        });
-        const dropCol = async (moved) => {
-          const now = cols.map((x) => x.id);
-          const from = now.indexOf(moved);
-          if (from !== -1) now.splice(from, 1);
-          const at2 = now.indexOf(col.id);
-          now.splice(at2 === -1 ? now.length : at2, 0, moved);
-          const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : []).filter((id) => now.indexOf(id) === -1);
-          s.uniColOrder = now.concat(rest);
-          await this.saveSettings();
-          ctx.drawPanel();
-        };
-        th.addEventListener("drop", (ev) => {
-          ev.preventDefault();
-          const moved = ctx.orgDragCol;
-          ctx.orgDragCol = null;
-          if (!moved || moved === col.id) return;
-          void dropCol(moved);
-        });
-        th.addEventListener("dragend", () => {
-          ctx.orgDragCol = null;
-        });
-        th.addEventListener("contextmenu", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const menu = wsMenu();
-          menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-          menu.addItem((i) => i.setTitle("Sort \u2191").setIcon("arrow-up").onClick(() => ctx.orgLensSet({
-            sort: { id: col.id, dir: "asc" }
-          })));
-          menu.addItem((i) => i.setTitle("Sort \u2193").setIcon("arrow-down").onClick(() => ctx.orgLensSet({
-            sort: { id: col.id, dir: "desc" }
-          })));
-          const fkey = col.user ? String(col.key) : col.id === "tags" ? "tags" : "";
-          if (fkey) {
-            menu.addItem((i) => i.setTitle("Filter by this\u2026").setIcon("list-filter").onClick(() => ctx.orgFilterByKey(fkey, ev)));
-          }
-          menu.addSeparator();
-          menu.addItem((i) => i.setTitle("Hide this column").setIcon("eye-off").onClick(async () => {
-            ctx.colOff.add(col.id);
-            s.uniColsOff = Array.from(ctx.colOff);
-            await this.saveSettings();
-            ctx.draw();
-            void fill();
-            ctx.drawPanel();
-          }));
-          menu.addItem((i) => i.setTitle("Resize columns to fit").setIcon("move-horizontal").onClick(() => {
-            if (ctx.orgColFitNow) ctx.orgColFitNow();
-          }));
-          try {
-            menu.showAtMouseEvent(ev);
-          } catch {
-            try {
-              menu.showAtPosition({ x: 0, y: 0 });
-            } catch (_e) {
-              wsCatch("orgTableMake / drawOrg: menu.showAtPosition( x: 0, y: 0 );", _e);
-            }
-          }
-        });
-      }
+      wsOrgDrawHeads(this, { cols, ctx, fill, hr, s, sortCol, sortDir, wrap });
       hr.createEl("th", { cls: "ws-org-headpick" });
       const tbody = table.createEl("tbody");
       const colspan = cols.length + 2;
@@ -21408,50 +21673,7 @@ var organizerWindowMethods = {
       }
       ctx.orgLastGrouping = lensed;
       const orgLensEmptied = !rows.length && !!list.length;
-      if (!orgLensEmptied) {
-        const subj = tbody.createEl("tr", { cls: "ws-org-subrow is-total" });
-        subj.remove();
-        const std = subj.createEl("td", { cls: "ws-org-name" });
-        const box = std.createDiv({ cls: "ws-org-subject-in" });
-        try {
-          std.setCssProps({ "--ws-org-depth": "0" });
-        } catch (_) {
-          wsCatch("orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });", _);
-        }
-        box.createSpan({ cls: "ws-org-subjectname", text: "Total" });
-        std.title = at ? "Everything under " + ctx.nameOf(at) : "Everything in the vault";
-        const subUnder = ctx.orgUnder(at);
-        const aggInto = (td, agg) => {
-          if (!agg) return;
-          if (agg.flags) {
-            td.addClass("ws-org-aggflags");
-            for (const f of agg.flags) {
-              const pair = td.createSpan({ cls: "ws-org-aggflag" });
-              pair.createSpan({ cls: "ws-org-aggflagn", text: String(f.n) });
-              const ic = pair.createSpan({ cls: "ws-org-flagic" });
-              wsSvgInto(ic, wsFlagSvg(String(f.id), 10));
-              pair.title = f.n + (f.n === 1 ? " file " : " files ") + f.label;
-            }
-          } else {
-            td.setText(agg.text);
-          }
-          if (agg.goal) ctx.orgGoalBand(td, agg.goal.words, agg.goal.target);
-          if (agg.title) td.title = agg.title;
-        };
-        ctx.orgAggInto = aggInto;
-        for (const col of cols) {
-          const td = subj.createEl(
-            "td",
-            { cls: ctx.colTextish(col) ? "is-text" : "" }
-          );
-          td.setAttribute("data-col", col.id);
-          ctx.orgColStamp(td, col.id, wrap);
-          const agg = ctx.orgColAgg(col, subUnder);
-          if (agg) aggInto(td, agg);
-        }
-        subj.createEl("td", { cls: "ws-org-pickcell" });
-        ctx.orgTotalRow = subj;
-      }
+      wsOrgDrawTotal({ at, cols, ctx, orgLensEmptied, tbody, wrap });
       ctx.orgSelPaint = (body) => {
         for (const tr0 of Array.from(body.querySelectorAll("tr.ws-org-row"))) {
           const p = tr0.getAttribute("data-path") || "";
@@ -21469,192 +21691,7 @@ var organizerWindowMethods = {
           wsCatch("orgSelPaint: ctx.orgBarSayPaint();", _);
         }
       };
-      let prevRuled = true;
-      for (const row of rows) {
-        const isFolder = row.kind === "folder";
-        const tr = tbody.createEl(
-          "tr",
-          { cls: "ws-org-row" + (isFolder ? " is-folder" : "") + (isFolder && !prevRuled ? " is-topline" : "") }
-        );
-        prevRuled = isFolder;
-        tr.setAttribute("data-path", row.path);
-        if (row.path === ctx.orgNote) tr.addClass("ws-org-active");
-        if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass("is-selected");
-        const nameTd = tr.createEl("td", { cls: "ws-org-name" });
-        if (nums && nums.has(row.path)) {
-          nameTd.createSpan({ cls: "ws-org-num", text: nums.get(row.path) });
-        }
-        const nameIn = nameTd.createDiv({ cls: "ws-org-namein" });
-        try {
-          nameTd.style.setProperty(
-            "--ws-org-depth",
-            String(lensed ? 0 : row.depth || 0)
-          );
-        } catch (_) {
-          wsCatch("orgTableMake / drawOrg: nameTd.style.setProperty('--ws-org-depth',", _);
-        }
-        if (isFolder) {
-          const open = ctx.orgIsOpen(row.path);
-          const twist = ctx.orgChevron(nameIn, open);
-          twist.title = open ? "Fold this folder" : "Unfold this folder";
-          twist.addEventListener("click", (ev) => {
-            ev.stopPropagation();
-            ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
-          });
-        } else {
-          nameIn.createSpan({ cls: "ws-org-twistgap tree-item-icon collapse-icon nav-folder-collapse-indicator" });
-        }
-        if (isFolder) ctx.orgFolderIcon(nameIn, row.path, ctx.orgIsOpen(row.path));
-        else this.orgKindIcon(nameIn, row.path);
-        if (lensed && row.rel) {
-          nameIn.createDiv({ cls: "ws-org-path", text: row.rel });
-        }
-        nameIn.createSpan({ cls: "ws-org-namelabel", text: ctx.nameOf(row.path) });
-        if (!isFolder) this.orgKindTag(nameIn, row.path);
-        nameTd.title = lensed && row.rel ? row.rel + " / " + ctx.nameOf(row.path) : ctx.nameOf(row.path);
-        for (const col of cols) {
-          const td = tr.createEl("td", { cls: ctx.colTextish(col) ? "is-text" : "" });
-          td.setAttribute("data-col", col.id);
-          ctx.orgColStamp(td, col.id, wrap);
-          if (isFolder) {
-            const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path));
-            if (agg) {
-              td.addClass("ws-org-aggcell");
-              if (ctx.orgAggInto) ctx.orgAggInto(td, agg);
-              else {
-                td.setText(agg.text);
-                if (agg.title) td.title = agg.title;
-              }
-            }
-            continue;
-          }
-          const text = ctx.orgColText(col, row.path);
-          if (col.user) {
-            const raw = ctx.orgColRaw(col, row.path);
-            const pk = col.key || col.id;
-            const fmt = this.formatValue(
-              pk,
-              raw,
-              this.orgPropType(pk),
-              this.dateStyle()
-            );
-            if (!fmt.ok) {
-              td.addClass("ws-org-badval");
-              td.title = "This is not a valid " + (this.orgPropType(pk) || "value") + ": " + wsStr(raw);
-            }
-          }
-          if (col.id === "mark") {
-            ctx.orgFlagCell(td, row, text);
-            continue;
-          }
-          if (col.id === "goal") {
-            ctx.orgGoalCell(td, row, text);
-            continue;
-          }
-          if (col.id === "tags") {
-            ctx.orgTagsCell(td, row);
-            continue;
-          }
-          if (col.id === "backlinks" && !isFolder) {
-            td.textContent = "";
-            ctx.orgBackCell(td, row);
-            continue;
-          }
-          if (col.id === "outlinks" && !isFolder) {
-            td.textContent = "";
-            ctx.orgOutCell(td, row);
-            continue;
-          }
-          if (col.user && !isFolder && String(this.orgPropType(col.key || col.id)).toLowerCase() === "checkbox") {
-            const raw0 = ctx.orgColRaw(col, row.path);
-            const rawv = typeof raw0 === "boolean" || typeof raw0 === "string" ? raw0 : raw0 == null ? "" : wsStr(raw0);
-            const has = rawv !== null && rawv !== void 0 && rawv !== "";
-            td.textContent = "";
-            const canEdit = ctx.orgCanHoldProps(row.path);
-            if (canEdit) td.addClass("is-prop");
-            const bx = has ? td.createEl("input", { cls: "ws-org-cellcheck" }) : null;
-            if (bx) {
-              bx.type = "checkbox";
-              bx.checked = rawv === true;
-              bx.disabled = !canEdit;
-            }
-            td.title = !canEdit ? "This kind of file cannot hold properties" : !has ? "Not set \u2014 press to add it, ticked" : rawv === true ? "Ticked \u2014 press to untick" : "Unticked \u2014 press to remove it from this file";
-            const nextOf = (v) => {
-              if (v === null || v === void 0 || v === "") return true;
-              if (v === true) return false;
-              return "";
-            };
-            const step = async () => {
-              if (!canEdit) {
-                ctx.orgPropRefuse(row.path);
-                return;
-              }
-              const stored = this.propStoreHolds(row.path);
-              ctx.orgRedrawPending = true;
-              await ctx.orgPropSet(
-                row.path,
-                col.key || col.id,
-                nextOf(rawv)
-              );
-              if (stored) ctx.orgEditDone();
-            };
-            td.addEventListener("click", (ev) => {
-              ev.stopPropagation();
-              void step();
-            });
-            if (bx) {
-              bx.addEventListener("click", (ev) => {
-                ev.stopPropagation();
-                ev.preventDefault();
-                void step();
-              });
-            }
-            continue;
-          }
-          if (col.user) {
-            ctx.orgPropCell(td, row, col, text);
-            continue;
-          }
-          td.setText(text);
-          if (text) td.title = text;
-        }
-        tr.createEl("td", { cls: "ws-org-pickcell" });
-        const inCtl = (ev) => !!(ev.target && ev.target !== tr && ev.target.closest && ev.target.closest(
-          "input, select, button, textarea, .ws-goals-chip, .ws-goals-chev, .ws-org-twist"
-        ));
-        tr.addEventListener("click", (ev) => {
-          if (inCtl(ev)) return;
-          if (isFolder) {
-            if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
-            return;
-          }
-          if (ctx.orgSelClick(ev, row, rows.map((r0) => r0.path))) {
-            if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
-            return;
-          }
-          if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
-          ctx.showItem({ path: row.path, kind: row.kind }, true);
-        });
-        tr.addEventListener("dblclick", (ev) => {
-          if (inCtl(ev) || isFolder) return;
-          ctx.openRow({ path: row.path, kind: row.kind });
-        });
-        tr.addEventListener("contextmenu", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          const menu = wsMenu();
-          this.outlinerRowMenu(
-            menu,
-            { path: row.path, kind: row.kind },
-            ctx.orgMenuCtx
-          );
-          menu.showAtMouseEvent(ev);
-        });
-        if (!lensed) {
-          ctx.orgRowDrag(tr, row);
-          if (isFolder) ctx.orgGroupDrop(tr, row.path);
-        }
-      }
+      const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rows, tbody, wrap });
       if (ctx.orgTotalRow) {
         if (prevRuled) ctx.orgTotalRow.classList.add("is-ruled");
         tbody.appendChild(ctx.orgTotalRow);
@@ -22280,6 +22317,1074 @@ var organizerWindowMethods = {
 
 // src/report.ts
 var import_obsidian17 = require("obsidian");
+function wsJarAuroraCell(a, u, v, t, ph, fire) {
+  const { dir, p1, p2, p3, quant, quantA, rot, spread } = a;
+  const T = t * 0.42;
+  const ph2 = ph || 0;
+  const warp = Math.sin(v * 4.1 + T * 0.55 + u * 2.3 + p1) * 0.22 + Math.sin(v * 7.3 - T * 0.38 + u * 3.7 + p2) * 0.12 + Math.sin(u * 5.2 + T * 0.62 - v * 1.9 + p3) * 0.16 + Math.sin((u + v) * 3.3 - T * 0.27 + p1) * 0.09;
+  let s = v * 0.6 - T * 0.14 + warp;
+  s = s - Math.floor(s);
+  const ray1 = 0.5 + 0.5 * Math.sin(u * 3 + warp * 6 + T * 0.3 + p2 + ph2);
+  const ray2 = 0.5 + 0.5 * Math.sin(u * 7.5 - warp * 4 - T * 0.22 + v * 2 + p3 + ph2 * 1.6);
+  const wander = Math.sin(T * 0.081 + p1) * 96 + Math.sin(T * 0.047 + p2) * 71 + Math.sin(T * 0.029 + p3) * 54;
+  const hue = rot + Math.sin(s * Math.PI * 2) * 70 * spread + Math.sin((s + 0.33) * Math.PI * 4) * 50 * spread + Math.sin((s + 0.66) * Math.PI * 6) * 28 * spread + wander * dir + T * 9 * dir;
+  const curtain = quant(ray1 * 0.65 + ray2 * 0.35);
+  const f2 = fire || 0;
+  const cur2 = f2 > 0 ? Math.min(1, curtain * (1 + f2 * 0.55)) : curtain;
+  const lig = 30 + cur2 * 34 + (1 - v) * 10 + f2 * 16;
+  const sat = 58 + cur2 * 30 + f2 * 8;
+  const alpha = quantA(0.62 + cur2 * 0.38 + f2 * 0.1);
+  return "hsla(" + Math.round((hue % 360 + 360) % 360) + "," + Math.round(Math.max(0, Math.min(100, sat))) + "%," + Math.round(Math.max(0, Math.min(100, lig))) + "%," + alpha.toFixed(2) + ")";
+}
+function wsJarDrawSurface(a, f) {
+  const { CELL, INK_LIFE, POUR_MS, WAVE_LIFE, agitNow, band, baseLig, baseSat, cols, ctx, flowPhase, h, hueNow, inks, lightPaper, liq, orb, orbEcc, orbR, paperLig, pokeEnergy, pokes, pourStart, quant, quantA, r, rows, sloshPhase, tilt, w, waveAmp, waves } = a;
+  const pokeE = pokeEnergy(f.now);
+  const brimCalm = 1 - 0.8 * Math.max(0, Math.min(1, (r - 0.72) / 0.2));
+  const stirWant = Math.min(
+    3.6,
+    Math.max(f.stage.wave * brimCalm, pokeE) + agitNow(f.now)
+  );
+  const stirRate = stirWant > liq.stirNow ? 7.5 : 2.6;
+  liq.stirNow += (stirWant - liq.stirNow) * Math.min(1, stirRate * f.dt);
+  const stir = liq.stirNow;
+  if (liq.inkCharge > 0 && f.now - liq.inkChargeAt > 400) {
+    liq.inkCharge = Math.max(0, liq.inkCharge - f.dt * 1.2);
+  }
+  {
+    const humpRate = liq.inkCharge > liq.inkHump ? 6 : f.now - liq.inkVent < 700 ? 7 : 4.6;
+    liq.inkHump += (liq.inkCharge - liq.inkHump) * Math.min(1, humpRate * f.dt);
+    if (liq.inkHump < 1e-3 && liq.inkCharge <= 0) liq.inkHump = 0;
+  }
+  const calm = 1 - Math.min(1, stir);
+  const climb = f.t * 0.34 * (1 + 0.55 * calm) + Math.sin(f.t * 0.19 + flowPhase) * 0.9 + Math.sin(f.t * 0.07 + flowPhase * 1.7) * 1.6;
+  const ampWant = Math.min(8, h * 0.06 * (1 + liq.rNow * 0.8));
+  const skyShare = 0.3 + 8 * Math.max(0, (0.67 - liq.rNow) / 0.67);
+  const depthSeen = Math.max(1, h - liq.restSeen);
+  const amp = Math.min(
+    ampWant * stir,
+    liq.restSeen > 0 ? liq.restSeen * skyShare : ampWant * stir,
+    depthSeen * 0.35
+  );
+  const brimEase = Math.max(0, Math.min(1, (r - 0.72) / 0.2));
+  const calmRise = 1 - brimEase;
+  const shown = Math.min(1, liq.rNow + f.stage.over * liq.rNow * calmRise);
+  const sinceSplash = liq.splashAt ? f.now - liq.splashAt : 1e9;
+  const bounce = sinceSplash < 900 ? Math.exp(-sinceSplash / 320) * Math.sin(sinceSplash / 62) * liq.splashAmp * calmRise : 0;
+  if (liq.splashAt && sinceSplash >= 900) {
+    liq.splashAt = 0;
+    liq.splashAmp = 0;
+  }
+  const held = Math.min(1, orb.amount + liq.airborne);
+  const inJar = Math.max(0, Math.min(1, shown * (1 - held) + bounce));
+  const SKY = 8;
+  const maxH = h - SKY;
+  const knee = maxH * 0.75;
+  const aimAt = Math.max(1e-4, Math.min(1, r));
+  const aimRaw = aimAt * (h + amp);
+  const aimSoft = aimRaw <= knee ? aimRaw : knee + (maxH - knee) * (1 - Math.exp(-(aimRaw - knee) / (maxH - knee)));
+  const brim = Math.max(0, Math.min(1, (aimAt - 0.85) / 0.15));
+  const aimH = aimSoft + (aimRaw - aimSoft) * Math.pow(brim, 16);
+  const bodyH = aimH * (inJar / aimAt);
+  const restY = h - bodyH;
+  f.restNow = restY;
+  liq.restSeen = restY;
+  const tank = Math.max(1, h - restY);
+  f.surfaceY = new Array(cols);
+  const jetNow = (f.stage.jet || 0) * calmRise;
+  const pourU = Math.max(0, Math.min(
+    1,
+    (f.now - pourStart) / POUR_MS
+  ));
+  const spring = brimEase * Math.sin(Math.PI * Math.min(1, pourU * 1.06)) * (liq.rNow > 0.02 ? 1 : 0);
+  liq.springNow = spring;
+  const jetProfile = (x) => {
+    if (!jetNow) return 0;
+    const d = Math.abs(x + CELL / 2 - w / 2);
+    const gone = 1 - jetNow;
+    const half = CELL * 2 + Math.pow(gone, 1.7) * (w / 2);
+    if (d > half) return 0;
+    return Math.pow(
+      Math.cos(d / Math.max(1, half) * Math.PI / 2),
+      2.6
+    );
+  };
+  for (let gx = 0; gx < cols; gx++) {
+    const x = gx * CELL;
+    const jetK = jetProfile(x);
+    const rise = (h - 12) * 0.85 * (1 - Math.pow(1 - jetNow, 2));
+    const jetLift = jetK * rise;
+    let surf = restY + Math.sin(x * 0.055 + f.t * 1.15) * amp + Math.sin(x * 0.021 - f.t * 0.7) * amp * 0.7 + Math.sin(x * 0.13 + f.t * 1.9) * amp * 0.22 + Math.sin(x / Math.max(1, w) * Math.PI + f.t * 2.6 + sloshPhase) * amp * 1.4 * Math.max(0, f.stage.wave - 0.6) - jetLift + (() => {
+      let ring = 0;
+      for (const pk of pokes) {
+        const d = Math.abs(x - pk.x);
+        const age = (f.now - pk.t) / 1e3;
+        if (age > 1.6) continue;
+        ring += Math.sin(d * 0.09 - age * 9.5) * Math.exp(-d / 42) * Math.exp(-age * 2.6);
+      }
+      return Math.max(-1.3, Math.min(1.3, ring)) * amp * 2.4;
+    })() - (tilt !== 0 ? (() => {
+      const u = (x - w / 2) / (w / 2);
+      const bent = 0.55 * u + 0.45 * u * u * u;
+      return bent * tilt * Math.min(h * 0.34, tank * 0.5);
+    })() : 0) - (spring > 0.01 ? (() => {
+      const dS = Math.abs(x - w / 2);
+      return Math.exp(-(dS * dS) / 2600) * spring * Math.min(waveAmp() * 1.6, f.restNow * 0.42);
+    })() : 0) - (liq.inkHump > 0.01 ? (() => {
+      const d = Math.abs(x - liq.inkChargeX);
+      const heap = Math.exp(-(d * d) / 1300);
+      const ring = d - 42;
+      const moat = Math.exp(-(ring * ring) / 1100) * 0.34;
+      const reach = Math.min(waveAmp() * 5.5, f.restNow * 0.62);
+      const sink = Math.min(
+        waveAmp() * 4.6,
+        (h - f.restNow) * 0.34
+      );
+      return heap * liq.inkHump * reach - moat * liq.inkHump * sink;
+    })() : 0) - (() => {
+      const ceil = waveAmp() * 3.4;
+      const raw = waves.reduce((sum, wv) => {
+        const d = x - wv.x;
+        const ad = Math.abs(d);
+        if (ad > 150) return sum;
+        const age = wv.born ? (f.now - wv.born) / 1e3 : 0;
+        if (age > WAVE_LIFE) return sum;
+        const spend = Math.exp(-age / (WAVE_LIFE * 0.55));
+        const crest = Math.exp(-(ad * ad) / (wv.wid || 900));
+        const back = d * wv.dir;
+        const hollow = back < 0 ? Math.exp(-(back * back) / ((wv.wid || 900) * 5.8)) * (wv.hollow || 0.42) : 0;
+        return sum + (crest - hollow) * wv.amp * spend;
+      }, 0);
+      if (raw <= ceil && raw >= -ceil) return raw;
+      const over = Math.abs(raw) - ceil;
+      const sign = raw < 0 ? -1 : 1;
+      return sign * (ceil + ceil * 0.45 * (1 - Math.exp(-over / (ceil * 0.9))));
+    })() - (liq.hold ? (() => {
+      const held2 = Math.min(1, (f.now - liq.hold.t) / 1e3);
+      const eased = Math.pow(held2, 0.55);
+      const d = Math.abs(x - liq.hold.x);
+      const heap = Math.exp(-(d * d) / 2600);
+      const moat = Math.exp(-(d * d) / 26e3) * 0.3;
+      const reach = Math.min(
+        waveAmp() * 7.5,
+        f.restNow * 0.62,
+        (h - f.restNow) * 0.8
+      );
+      return (heap - moat) * eased * reach;
+    })() : 0) - (orb.amount > 0.01 ? (() => {
+      const d = Math.abs(x - orb.x);
+      const lift = Math.exp(-(d * d) / 3e3) - Math.exp(-(d * d) / 3e4) * 0.32;
+      const draw = lift * orb.amount * amp * 3;
+      const R = orbR() * (1 + orbEcc());
+      if (d >= R) return draw;
+      const chord = 2 * Math.sqrt(R * R - d * d);
+      const under = Math.max(0, Math.min(
+        1,
+        (orb.y + R - f.restNow) / (2 * R)
+      ));
+      return draw - chord * under * 0.22;
+    })() : 0);
+    {
+      const wallD = Math.min(gx, cols - 1 - gx);
+      if (wallD < 2 && f.restNow > 0) {
+        const kW = wallD === 0 ? 1 : 0.45;
+        const dev = f.restNow - surf;
+        surf -= dev * (dev > 0 ? 0.6 : 0.25) * kW;
+      }
+    }
+    const floorY = Math.max(
+      f.restNow * 0.25,
+      f.restNow - (h - f.restNow) * 0.75,
+      Math.min(6, f.restNow)
+    );
+    if (f.restNow > 0) surf = Math.max(floorY, surf);
+    surf = Math.max(1, Math.min(h, surf));
+    f.surfaceY[gx] = surf;
+    const lane = Math.sin(x * 0.031) * 2.1 + Math.sin(x * 0.013 + 1.7) * 1.3;
+    const lane2 = Math.sin(x * 0.021 + 0.6) * 1.8;
+    for (let gy = 0; gy < rows; gy++) {
+      const y = gy * CELL;
+      if (y + CELL <= surf) continue;
+      const shaft = 0.5 + 0.35 * Math.sin(y * 0.07 + lane2 * 0.7 + climb * 0.55) + 0.15 * Math.sin(x * 0.017);
+      const below = y - surf;
+      const tankCol = Math.min(h, Math.max(tank, h - surf));
+      const depth = quant(Math.max(0, Math.min(1, below / tankCol)) * (1 - 0.65 * jetK * jetNow));
+      const caus = quantA(0.5 + 0.26 * Math.sin(y * 0.15 + lane + climb * 1.6) + 0.15 * Math.sin(y * 0.062 + lane2 + climb * 0.72) + 0.11 * Math.sin(y * 0.23 + lane * 1.6 + climb * 2.3) + 0.1 * Math.sin(x * 0.045));
+      const causS = quantA(0.5 + (caus - 0.5) * (1 + 1.15 * calm));
+      const causDepth = causS * (1 - depth * 0.65);
+      let inkH = 0, inkW = 0;
+      for (let ii = 0; ii < inks.length; ii++) {
+        const ik = inks[ii];
+        const iAge = (f.now - ik.t) / 1e3;
+        if (iAge > INK_LIFE) continue;
+        let dx3 = x - ik.x, dy3 = y - ik.y;
+        const dist = Math.sqrt(dx3 * dx3 + dy3 * dy3);
+        if (dist > 0.5 && dist < 90) {
+          const curl = (ik.spin || 1) * 0.22 * Math.exp(-dist / 34) * Math.exp(-iAge / 1.6);
+          if (curl > 4e-3) {
+            const ca3 = Math.cos(curl), sa3 = Math.sin(curl);
+            const rx = dx3 * ca3 - dy3 * sa3;
+            dy3 = dx3 * sa3 + dy3 * ca3;
+            dx3 = rx;
+          }
+        }
+        const grow = 1 - Math.pow(1 - Math.min(1, iAge / INK_LIFE), 2.2);
+        const edge = grow * (56 + 74 * (ik.push || 1));
+        const band2 = 90 + 340 * grow;
+        const ring = Math.exp(-((dist - edge) * (dist - edge)) / band2);
+        const inside = dist < edge ? 0.34 : 0;
+        const near = Math.min(1, ring + inside);
+        if (near < 0.02) continue;
+        const life = Math.min(1, iAge / 0.2) * Math.max(0, 1 - iAge / INK_LIFE);
+        const wgt = near * life;
+        inkH += ik.hue * wgt;
+        inkW += wgt;
+      }
+      const hue = (inkW > 1e-3 ? hueNow() + (inkH / inkW - hueNow()) * Math.min(0.85, inkW) : hueNow()) + Math.sin(f.t * 0.28 + depth * 2.4) * 7 + Math.sin(y * 0.045 + climb * 0.3) * 4 + causDepth * 4;
+      const wall = Math.min(gx, cols - 1 - gx);
+      const cling = 1 + (wall < 2 ? (2 - wall) * 0.9 * (1 - 0.72 * calm) : 0);
+      const skin = 1 - 0.82 * calm;
+      const chop = ((gx * 5 + gy * 11) % 8 / 8 - 0.5) * CELL * 1.2 * Math.min(1.35, stir);
+      const crest = below < CELL * cling * skin + chop;
+      const foam = below < CELL * (2.5 - 1.15 * calm);
+      let lig, sat, alpha;
+      if (crest) {
+        lig = baseLig + (lightPaper ? 34 : 22) + causDepth * 6;
+        sat = baseSat - (lightPaper ? 6 : 12);
+        alpha = 0.96;
+      } else if (foam) {
+        lig = baseLig + 14 + causDepth * 8;
+        sat = baseSat - 6;
+        alpha = quantA(0.8 + caus * 0.12);
+      } else {
+        const deepLig = lightPaper ? Math.max(22, paperLig - 60) : Math.min(62, paperLig + 30);
+        lig = baseLig + 12 + (deepLig - (baseLig + 12)) * depth + causDepth * (9 + 6 * calm) + shaft * 5;
+        sat = baseSat + depth * 16 - causDepth * 6;
+        alpha = quantA((lightPaper ? 0.7 : 0.48) + depth * (lightPaper ? 0.28 : 0.5) + caus * 0.06);
+        if (lightPaper) sat += 12;
+      }
+      if (depth > 0.62) {
+        const s2 = (depth - 0.62) / 0.38;
+        lig += (paperLig - lig) * s2 * 0.72;
+        sat -= s2 * (lightPaper ? 22 : -14);
+        const grit = (gx * 3 + gy * 7) % 9 / 9;
+        if (grit < s2 * 0.55) {
+          lig += (paperLig > lig ? 1 : -1) * (4 + s2 * 5);
+        }
+      }
+      ctx.fillStyle = "hsla(" + Math.round(hue) + "," + Math.round(Math.max(0, Math.min(100, sat))) + "%," + band(Math.max(0, Math.min(100, lig))) + "%," + alpha.toFixed(2) + ")";
+      ctx.fillRect(x, y, CELL, CELL);
+    }
+  }
+}
+function wsJarDrawGlow(a, f) {
+  const { BUBBLES_MAX, CELL, DROPS_MAX, POKES_MAX, band, baseLig, baseSat, bubbles, cols, ctx, drops, h, hueNow, inks, liq, pokes, w } = a;
+  if (liq.surfaceNow && liq.rNow > 0.04) {
+    const busy = inks.length > 0 ? 1 : 0.18;
+    const body = 0.35 + Math.min(1, liq.rNow) * 0.65;
+    if (f.now - liq.bubbleAt > 620 / ((0.4 + busy) * body) && bubbles.length < BUBBLES_MAX) {
+      liq.bubbleAt = f.now;
+      const bx = Math.random() * w;
+      const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx / CELL)));
+      const from = liq.surfaceNow[gxb] || h;
+      const depthStart = from + (h - from) * (0.25 + Math.random() * 0.7);
+      bubbles.push({
+        x: bx,
+        y: Math.min(h - CELL, depthStart),
+        // Small ones dawdle, big ones climb — which is what
+        // bubbles do, and it stops them moving as a set.
+        size: Math.random() < 0.3 ? 2 : 1,
+        rise: 16 + Math.random() * 26,
+        phase: Math.random() * 6.283,
+        wob: 0.6 + Math.random() * 1.4,
+        hue: hueNow() + (Math.random() - 0.5) * 40
+      });
+    }
+    for (let bi = bubbles.length - 1; bi >= 0; bi--) {
+      const bb = bubbles[bi];
+      bb.y -= bb.rise * (bb.size === 2 ? 1.5 : 1) * f.dt;
+      bb.phase += f.dt * 2.2;
+      const bx2 = bb.x + Math.sin(bb.phase) * bb.wob * 2.4;
+      const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx2 / CELL)));
+      const line = liq.surfaceNow[gxb] || h;
+      if (bb.y <= line + CELL * 0.5) {
+        if (pokes.length < POKES_MAX) {
+          pokes.push({ x: bx2, y: null, t: f.now, still: true, hue: bb.hue });
+        }
+        if (bb.size === 2 && drops.length < DROPS_MAX && Math.random() < 0.6) {
+          drops.push({
+            x: bx2,
+            y: line - CELL,
+            vx: (Math.random() - 0.5) * 26,
+            vy: -(26 + Math.random() * 34),
+            life: 0,
+            shed: true,
+            pull: true,
+            hue: bb.hue,
+            size: 1,
+            shape: Math.floor(Math.random() * 4)
+          });
+        }
+        bubbles.splice(bi, 1);
+        continue;
+      }
+      const px3 = Math.round(bx2 / CELL) * CELL;
+      const py3 = Math.round(bb.y / CELL) * CELL;
+      ctx.fillStyle = "hsla(" + Math.round(bb.hue) + "," + Math.round(Math.max(0, baseSat - 18)) + "%," + band(Math.min(96, baseLig + 30)) + "%,0.66)";
+      ctx.fillRect(px3, py3, CELL, CELL);
+      if (bb.size === 2) {
+        ctx.fillRect(px3 + CELL, py3, CELL, CELL);
+        ctx.fillRect(px3, py3 + CELL, CELL, CELL);
+        ctx.fillRect(px3 + CELL, py3 + CELL, CELL, CELL);
+      }
+    }
+  } else if (bubbles.length) {
+    bubbles.length = 0;
+  }
+}
+function wsJarDrawWaves(a, f) {
+  const { CELL, DROPS_MAX, POKES_MAX, WAVE_LIFE, WAVE_SPEED, agitNow, cols, drops, h, liq, pokes, w, waves } = a;
+  if (waves.length) {
+    const spray = (px2, many, upward, hue) => {
+      const gxs = Math.max(0, Math.min(cols - 1, Math.round(px2 / CELL)));
+      const from = (liq.surfaceNow ? liq.surfaceNow[gxs] || h : h) - CELL;
+      const room = Math.max(0, Math.min(DROPS_MAX - drops.length, many));
+      for (let k = 0; k < room; k++) {
+        drops.push({
+          x: px2 + (Math.random() - 0.5) * CELL * 3,
+          y: from,
+          vx: (Math.random() - 0.5) * 90 + upward * 0,
+          vy: -(70 + Math.random() * 130),
+          life: 0,
+          shed: true,
+          hue: hue + (Math.random() - 0.5) * 60,
+          size: Math.random() < 0.34 ? 2 : 1,
+          shape: Math.floor(Math.random() * 4)
+        });
+      }
+    };
+    for (let i = waves.length - 1; i >= 0; i--) {
+      const wv = waves[i];
+      if (!wv.born) wv.born = f.now;
+      const age = (f.now - wv.born) / 1e3;
+      wv.x += wv.dir * (wv.spd || WAVE_SPEED) * f.dt;
+      if (!wv.broke && (wv.x <= 1 || wv.x >= w - 1)) {
+        wv.broke = true;
+        wv.x = wv.x <= 1 ? 0 : w;
+        const left = Math.exp(-age / (WAVE_LIFE * 0.55));
+        const sp = wv.spray == null ? 1 : wv.spray;
+        spray(wv.x, Math.round((1 + left * 4) * sp), 0, wv.hue);
+        if (pokes.length >= POKES_MAX) pokes.shift();
+        const room2 = Math.min(1, liq.restSeen / (h * 0.22));
+        const bite2 = Math.min(1, sp / 3) * room2;
+        pokes.push({
+          x: wv.x,
+          y: null,
+          t: f.now,
+          still: bite2 < 0.5,
+          hue: wv.hue
+        });
+        liq.agitLevel = Math.min(
+          0.75,
+          agitNow(f.now) + (0.04 + left * 0.1) * bite2
+        );
+        liq.agitAt = f.now;
+      }
+      if (age > WAVE_LIFE || wv.broke && age > WAVE_LIFE * 0.4) {
+        waves.splice(i, 1);
+      }
+    }
+    for (let i = waves.length - 1; i >= 0; i--) {
+      for (let j = i - 1; j >= 0; j--) {
+        const a2 = waves[i], b = waves[j];
+        if (!a2 || !b || a2.broke || b.broke) continue;
+        if (a2.dir === b.dir) continue;
+        if (Math.abs(a2.x - b.x) > CELL * 2.2) continue;
+        if ((b.x - a2.x) * a2.dir < 0) continue;
+        const mid = (a2.x + b.x) / 2;
+        const ageA = a2.born ? (f.now - a2.born) / 1e3 : 0;
+        const ageB = b.born ? (f.now - b.born) / 1e3 : 0;
+        const force = Math.exp(-ageA / (WAVE_LIFE * 0.55)) + Math.exp(-ageB / (WAVE_LIFE * 0.55));
+        spray(mid, 6 + Math.round(force * 11), 0, (a2.hue + b.hue) / 2);
+        if (pokes.length >= POKES_MAX) pokes.shift();
+        pokes.push({
+          x: mid,
+          y: null,
+          t: f.now,
+          still: false,
+          hue: (a2.hue + b.hue) / 2
+        });
+        liq.agitLevel = Math.min(0.95, agitNow(f.now) + 0.08 + force * 0.16);
+        liq.agitAt = f.now;
+        waves.splice(i, 1);
+        waves.splice(j, 1);
+        i = Math.min(i, waves.length);
+        break;
+      }
+    }
+  }
+}
+function wsJarDrawOrb(a, f) {
+  const { CELL, DROPS_MAX, ORB_IDLE, ORB_LEAK, ORB_RATE, ORB_SHED, ORB_SPIN_CAP, POKES_MAX, WAVES_MAX, agitNow, auroraCell, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, orb, orbEcc, orbR, orbRAt, pokes, rows, w, waveAmp, waves } = a;
+  if (orb.amount > 1e-3 || orb.want > 1e-3) {
+    orb.vel *= Math.pow(0.36, f.dt);
+    orb.spin += orb.vel * f.dt;
+    if (!orb.falling) {
+      const spinN = Math.min(1, Math.abs(orb.vel) / ORB_SPIN_CAP);
+      const spinLoss = spinN * spinN * 1.6;
+      orb.want = Math.max(0, orb.want - ORB_LEAK * spinLoss * f.dt * (0.35 + orb.want * 0.65));
+      orb.amount += (orb.want - orb.amount) * Math.min(1, ORB_RATE * f.dt);
+      if (orb.want > 0.02 && orb.vel > 0.8 && drops.length < DROPS_MAX && Math.random() < 0.5) {
+        const a2 = Math.random() * Math.PI * 2;
+        const R2 = orbR();
+        drops.push({
+          x: orb.x + Math.cos(a2) * R2,
+          y: orb.y + Math.sin(a2) * R2,
+          vx: Math.cos(a2) * 26 + (Math.random() - 0.5) * 30,
+          vy: Math.sin(a2) * 20 + 25,
+          life: 0,
+          shed: true,
+          hue: hueNow() + (Math.random() - 0.5) * 70,
+          size: 1,
+          shape: Math.floor(Math.random() * 4)
+        });
+      }
+    }
+    if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
+      orb.dropping = true;
+      orb.vy = 0;
+    }
+    if (!orb.dropping && !orb.falling) {
+      const rr2 = orbR() * (1 + orbEcc());
+      if (orb.y - rr2 < 0) orb.y = rr2;
+    }
+    if (orb.dropping) {
+      orb.vy += 780 * f.dt;
+      orb.y += orb.vy * f.dt;
+      const col = Math.max(0, Math.min(cols - 1, Math.round(orb.x / CELL)));
+      const surf = liq.surfaceNow ? liq.surfaceNow[col] || h : h;
+      if (orb.y + orbR() >= surf || orb.y >= h) {
+        orb.dropping = false;
+        orb.last = 0;
+      }
+    }
+    if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
+      orb.falling = true;
+      orb.dropping = false;
+      orb.vy = 0;
+      orb.want = 0;
+      const held = Math.pow(orb.amount, 1.6) * (0.55 + liq.rNow * 0.9);
+      liq.agitLevel = Math.min(2.4, agitNow(f.now) + 0.03 + held * 2.6);
+      liq.agitAt = f.now;
+      liq.splashAmp = held * 0.17;
+      liq.splashAt = 0;
+      liq.airborne = Math.min(1, liq.airborne + orb.amount);
+      const heavy = Math.min(
+        DROPS_MAX - drops.length,
+        1 + Math.round(held * 44)
+      );
+      for (let k = 0; k < heavy; k++) {
+        const a2 = Math.random() * Math.PI * 2;
+        const r = orbR() * (0.25 + Math.random() * 0.75);
+        drops.push({
+          x: orb.x + Math.cos(a2) * r,
+          y: orb.y + Math.sin(a2) * r,
+          // OUTWARD IN EVERY DIRECTION, and hard. It threw at
+          // 40–160 with a slight upward lean, which
+          // gravity flattened almost at once — so a burst
+          // read as the ball FALLING rather than as it
+          // coming apart. Doubled outward, and the
+          // vertical component is biased up rather than
+          // centred, so the crown opens before it drops.
+          vx: Math.cos(a2) * (90 + Math.random() * 210) + orb.vel * 12,
+          vy: Math.sin(a2) * 130 - 120 - Math.random() * 90,
+          life: 0,
+          shed: true,
+          hue: hueNow() + (Math.random() - 0.5) * 90,
+          size: 1 + (Math.random() < 0.6 ? 1 : 0),
+          shape: Math.floor(Math.random() * 4)
+        });
+      }
+      for (const dir of [-1, 1]) {
+        if (waves.length >= WAVES_MAX) waves.shift();
+        waves.push({
+          x: orb.x,
+          dir,
+          born: 0,
+          amp: waveAmp() * (0.9 + held * 1.7),
+          wid: 1500,
+          spd: 250 + held * 90,
+          hollow: 0.5,
+          spray: 2,
+          hue: hueNow() + (Math.random() - 0.5) * 60,
+          broke: false
+        });
+      }
+      const hits = 1 + Math.round(held * 4);
+      const reach = w * (0.08 + held * 0.42);
+      for (let k = 0; k < hits; k++) {
+        if (pokes.length >= POKES_MAX) pokes.shift();
+        const off = hits === 1 ? 0 : (k / (hits - 1) - 0.5) * 2 * reach;
+        pokes.push({
+          x: Math.max(0, Math.min(w, orb.x + off)),
+          y: null,
+          // Spread in TIME as well as space: the middle
+          // lands first and the edges follow, which is
+          // what a mass hitting water does and what a
+          // simultaneous row of ripples never looks like.
+          t: f.now + Math.abs(off) / (w * 0.9) * 260,
+          still: false,
+          hue: hueNow() + (Math.random() - 0.5) * 120
+        });
+      }
+    }
+    if (orb.falling) {
+      orb.amount = Math.max(0, orb.amount - f.dt * (3 + 2.5 * (1 - orb.amount)));
+      orb.vel *= Math.pow(0.05, f.dt);
+      if (orb.amount <= 1e-3) {
+        orb.amount = 0;
+        orb.vel = 0;
+        orb.falling = false;
+      }
+    }
+    if (!orb.falling && orb.vel > 1.2 && f.now - liq.orbShedAt > ORB_SHED * 1e3 && drops.length < DROPS_MAX) {
+      liq.orbShedAt = f.now;
+      const R2 = orbR();
+      const a2 = orb.spin + Math.random() * 0.9;
+      drops.push({
+        x: orb.x + Math.cos(a2) * R2,
+        y: orb.y + Math.sin(a2) * R2,
+        // TANGENTIAL, not radial: thrown along the turn, the
+        // way anything leaving a spinning body goes.
+        vx: -Math.sin(a2) * orb.vel * R2 * 0.55,
+        vy: Math.cos(a2) * orb.vel * R2 * 0.55 - 20,
+        life: 0,
+        shed: true,
+        hue: hueNow() + (Math.random() - 0.5) * 80,
+        size: Math.random() < 0.4 ? 2 : 1,
+        shape: Math.floor(Math.random() * 4)
+      });
+    }
+    const R = orbR() * (1 + orbEcc());
+    if (R > CELL) {
+      const cx = orb.x, cy = orb.y;
+      const g0 = Math.max(0, Math.floor((cx - R) / CELL));
+      const g1 = Math.min(cols - 1, Math.ceil((cx + R) / CELL));
+      const r0 = Math.max(0, Math.floor((cy - R) / CELL));
+      const r1 = Math.min(rows - 1, Math.ceil((cy + R) / CELL));
+      for (let gy = r0; gy <= r1; gy++) {
+        for (let gx = g0; gx <= g1; gx++) {
+          const px2 = gx * CELL + CELL / 2;
+          const py2 = gy * CELL + CELL / 2;
+          const dx2 = px2 - cx, dy2 = py2 - cy;
+          const rr = Math.hypot(dx2, dy2);
+          const angC = Math.atan2(dy2, dx2);
+          const Rh = orbRAt(angC);
+          if (rr > Rh) continue;
+          const u = rr / Rh;
+          const thr = (gx * 7 + gy * 13) % 16 / 16;
+          if (u > 0.72 && (u - 0.72) / 0.28 > 1 - thr) continue;
+          const ang = angC;
+          const arm = Math.sin(ang * 2 + orb.spin * 2.2 - u * 5.5);
+          const dith = (gx * 7 + gy * 13) % 8 / 8 - 0.5;
+          const litness = (arm + 1) * 0.5;
+          const oh0 = hueNow() + arm * 9 + (0.5 - u) * 10 + dith * 4;
+          let oh = oh0;
+          if (f.auroraMix > 0.01) {
+            const ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
+            const ru = (dx2 * ca - dy2 * sa) / w;
+            const rv = (dx2 * sa + dy2 * ca) / h;
+            const cellCol = auroraCell(0.5 + ru, 0.5 + rv, f.t);
+            const cellM = /^hsla?\((-?[\d.]+)/.exec(String(cellCol || ""));
+            const cellHue = cellM ? parseFloat(cellM[1]) : NaN;
+            if (isFinite(cellHue)) {
+              oh = oh0 + (cellHue - oh0) * f.auroraMix;
+            }
+          }
+          ctx.fillStyle = "hsla(" + Math.round(oh) + "," + Math.round(Math.max(0, baseSat - 4 - litness * 16)) + "%," + band(Math.min(96, baseLig + 6 + litness * 30 + (0.5 - u) * 10)) + "%," + (0.86 + (1 - u) * 0.13).toFixed(2) + ")";
+          ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+        }
+      }
+    }
+  }
+}
+function wsJarDrawDrops(a, f) {
+  const { BLOB_SHAPES, CELL, POKES_MAX, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, pokes, w } = a;
+  if (drops.length) {
+    const sprayFill = "hsla(" + Math.round(hueNow()) + "," + Math.round(Math.max(0, baseSat - 24)) + "%," + band(Math.min(100, baseLig + 44)) + "%,0.95)";
+    ctx.fillStyle = sprayFill;
+    for (let i = drops.length - 1; i >= 0; i--) {
+      const d = drops[i];
+      if (d.hue != null) {
+        const j = (d.shape || 0) * 7 % 5 / 5 - 0.4;
+        ctx.fillStyle = "hsla(" + Math.round(d.hue) + "," + Math.round(Math.max(0, baseSat - 6 + j * 18)) + "%," + band(Math.min(100, baseLig + 30 + j * 14)) + "%,0.95)";
+      } else {
+        ctx.fillStyle = sprayFill;
+      }
+      d.vy += 900 * f.dt;
+      d.x += d.vx * f.dt;
+      d.y += d.vy * f.dt;
+      d.life += f.dt;
+      const col = Math.max(0, Math.min(cols - 1, Math.round(d.x / CELL)));
+      const floorY = f.surfaceY ? f.surfaceY[col] : h;
+      const graced = d.shed && d.life < 0.15;
+      const landed = !graced && d.vy > 0 && d.y >= floorY;
+      if (d.life > 1.4 || d.x < -CELL || d.x > w || landed) {
+        if (landed && d.shed && !d.pull && d.vy > 90 && f.now - liq.lastRingAt > 55 && pokes.length < POKES_MAX) {
+          liq.lastRingAt = f.now;
+          pokes.push({
+            x: d.x,
+            y: null,
+            t: f.now,
+            // A RING IS LOCAL, NOT ENERGY. This is the
+            // tremor, and throttling could never have
+            // fixed it: pokeEnergy is a MAXIMUM over the
+            // pokes decaying on a 620ms clock, so a ring
+            // arriving every 70ms held it at 0.89 and one
+            // every 300ms still held it at 0.62 — the
+            // whole surface pinned at full agitation for
+            // as long as any spray was falling. Worst at
+            // a high level, where the water above the
+            // rest line is shallow and a maxed amplitude
+            // has nowhere to go but sideways, fast.
+            //
+            // `still` is what a poke uses to say "the
+            // aurora's, not the water's" — pokeEnergy
+            // skips it while the ripple sum still draws
+            // it. A landing ring wants exactly that
+            // bargain: a visible ring where it fell, and
+            // no claim on how lively the whole tank is.
+            still: true,
+            // The ring carries the blob's own colour, so
+            // a coloured splash lands coloured.
+            hue: d.hue != null ? d.hue : hueNow()
+          });
+        }
+        drops.splice(i, 1);
+        continue;
+      }
+      const dx = Math.round(d.x / CELL) * CELL;
+      const dy = Math.round(d.y / CELL) * CELL;
+      const dthr = ((dx / CELL | 0) * 7 + (dy / CELL | 0) * 13) % 16 / 16;
+      if (1 - d.life / 1.4 <= dthr) continue;
+      const sz = d.size || 1;
+      ctx.fillRect(dx, dy, CELL, CELL);
+      if (sz > 1) {
+        const keep = 1 - d.life / 1.4;
+        const arms = BLOB_SHAPES[(d.shape || 0) % BLOB_SHAPES.length];
+        const take = sz === 3 ? arms.length : Math.min(2, arms.length);
+        for (let a2 = 0; a2 < take; a2++) {
+          if (keep < (a2 + 1) / (take + 1) * 0.85) continue;
+          ctx.fillRect(
+            dx + arms[a2][0] * CELL,
+            dy + arms[a2][1] * CELL,
+            CELL,
+            CELL
+          );
+        }
+      }
+    }
+  }
+}
+function wsJarDrawAurora(a, f) {
+  const { CELL, auroraCell, cols, ctx, h, hueNow, liq, orb, p1, p2, p3, pokes, quantA, rows, swirlPhase, w } = a;
+  if (f.auroraMix > 0 && f.surfaceY) {
+    for (let gx = 0; gx < cols; gx++) {
+      const top = f.surfaceY[gx] != null ? f.surfaceY[gx] : 0;
+      if (!liq.auroraFront || liq.auroraFront.length !== cols) {
+        liq.auroraFront = new Array(cols).fill(-Infinity);
+      }
+      const from = Math.min(top, f.restNow);
+      const reach = from + (h + CELL * 12 - from) * (f.auroraMix * f.auroraMix);
+      if (reach > liq.auroraFront[gx]) liq.auroraFront[gx] = reach;
+      const front = liq.auroraFront[gx];
+      for (let gy = 0; gy < rows; gy++) {
+        const y = gy * CELL;
+        if (y + CELL <= top) continue;
+        const seedX = gx * CELL / w, seedY = gy * CELL / h;
+        const lobes = Math.sin(seedX * 5.1 + p1) * 0.16 + Math.sin(seedY * 3.7 - p2 + seedX * 2.2) * 0.12 + Math.sin((seedX + seedY) * 4.3 + p3) * 0.09;
+        const thr = Math.max(0, Math.min(
+          1,
+          ((gx * 7 + gy * 13) % 16 + 0.5) / 16 + lobes
+        ));
+        const into = (front - y) / Math.max(CELL * 6, 1);
+        if (into <= thr) continue;
+        const depthA = quantA(Math.min(1, 0.35 + into * 0.9));
+        const u = gx / cols - 0.5, v2 = gy / rows - 0.5;
+        const rad = Math.sqrt(u * u + v2 * v2);
+        const turn = Math.sin(f.t * 0.42 + swirlPhase);
+        const pull = (1 - Math.min(1, rad * 2)) * 0.3 * f.auroraMix;
+        const ang = Math.atan2(v2, u) + turn * 1.1 * pull;
+        const draw = pull * (0.55 + 0.45 * Math.abs(turn));
+        let su = 0.5 + Math.cos(ang) * rad * (1 - draw);
+        let sv = 0.5 + Math.sin(ang) * rad * (1 - draw);
+        const fade = quantA(Math.min(1, (into - thr) * 2.2));
+        if (fade <= 0) continue;
+        ctx.globalAlpha = Math.min(1, depthA * fade);
+        let rot = 0;
+        let phase = 0, fire = 0;
+        if (f.auroraJitter > 0.01) {
+          const j = (gx * 11 + gy * 17) % 32 / 32 - 0.5;
+          rot += j * 220 * f.auroraJitter;
+        }
+        if (orb.amount > 0.01) {
+          const cu = orb.x / w, cv = orb.y / h;
+          const du = su - cu, dv = sv - cv;
+          const dd = Math.hypot(du, dv);
+          const sw = Math.exp(-dd * 6) * orb.amount * 3.2 + orb.spin * Math.exp(-dd * 9) * 0.35;
+          if (Math.abs(sw) > 0.03) {
+            const ca = Math.cos(sw), sa = Math.sin(sw);
+            su = cu + du * ca - dv * sa;
+            sv = cv + du * sa + dv * ca;
+          }
+        }
+        let newest = 1e9;
+        for (const pk of pokes) {
+          if (pk.hue == null) continue;
+          const a2 = (f.now - pk.t) / 1e3;
+          if (a2 < newest) newest = a2;
+        }
+        for (const pk of pokes) {
+          if (pk.hue == null) continue;
+          const age = (f.now - pk.t) / 1e3;
+          if (age > 2.4) continue;
+          const yield2 = 1 / (1 + Math.max(0, age - newest) * 2.2);
+          const d = pk.y != null ? Math.hypot(gx * CELL - pk.x, y - pk.y) : Math.abs(gx * CELL - pk.x);
+          const reach2 = Math.exp(-d / 46) * Math.exp(-age / 1.5);
+          if (reach2 < 0.02) continue;
+          rot += (pk.hue - hueNow()) * reach2 * yield2;
+          if (pk.y != null) {
+            const cu = pk.x / w, cv = pk.y / h;
+            const du = su - cu, dv = sv - cv;
+            const dd = Math.hypot(du, dv);
+            const trav = dd * 7.5 - age * 2.4;
+            const grip = Math.min(1, age / 0.3) * Math.exp(-age / 1.7);
+            phase += Math.sin(trav) * Math.exp(-dd * 3.6) * grip * yield2 * 0.5;
+            fire += 0.6 * yield2 * Math.exp(-dd * 5.5) * Math.min(1, age / 0.12) * Math.exp(-age / 1.1);
+          }
+        }
+        rot = Math.max(-95, Math.min(95, rot));
+        if (rot !== 0) ctx.filter = "hue-rotate(" + Math.round(rot) + "deg)";
+        ctx.fillStyle = auroraCell(
+          su,
+          sv,
+          f.t,
+          Math.max(-1.6, Math.min(1.6, phase)),
+          Math.min(1.15, fire)
+        );
+        ctx.fillRect(gx * CELL, y, CELL, CELL);
+        if (rot !== 0) ctx.filter = "none";
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+}
+function wsJarDraw(a, now) {
+  const { CELL, DROPS_MAX, INK_LIFE, POUR_MS, S_CALM, S_SPLASH, canvas, cols, ctx, drawAurora, drawDrops, drawGlow, drawOrb, drawSplash, drawSurface, drawTilt, drawWaves, drops, ease, full, h, hueNow, inks, liq, pourFrom, pourStart, quantA, r, reduce, resize, stageAt, stageStart, step, t0, w } = a;
+  liq.raf = null;
+  if (!canvas.isConnected) return;
+  resize();
+  const t = (now - t0) / 1e3;
+  const dt = Math.min(0.05, liq.prevT ? (now - liq.prevT) / 1e3 : 0.016);
+  liq.prevT = now;
+  const stageMs = now - stageStart;
+  const stage = stageAt(stageMs);
+  if (!reduce && liq.rNow !== r) {
+    const u = Math.min(1, Math.max(0, (now - pourStart) / POUR_MS));
+    liq.rNow = pourFrom + (r - pourFrom) * ease(u);
+    if (u >= 1) liq.rNow = r;
+  }
+  ctx.clearRect(0, 0, w, h);
+  const auroraMix = full ? Math.max(0, Math.min(1, (stageMs - S_SPLASH) / (S_CALM - S_SPLASH))) : 0;
+  const auroraJitter = full ? quantA(1 - auroraMix) : 0;
+  const f = { now, t, dt, stage, stageMs, auroraMix, auroraJitter, surfaceY: null, restNow: 0 };
+  drawSurface(f);
+  liq.surfaceNow = f.surfaceY;
+  if (liq.springNow > 0.15 && !reduce && f.surfaceY && drops.length < DROPS_MAX && Math.random() < 0.28) {
+    const gxm = Math.round(cols / 2);
+    const topY = f.surfaceY[gxm] != null ? f.surfaceY[gxm] : h;
+    const many = 1 + Math.floor(Math.random() * 2);
+    for (let k = 0; k < many; k++) {
+      drops.push({
+        x: w / 2 + (Math.random() - 0.5) * CELL * 5,
+        y: topY - CELL,
+        // Sideways more than up: a blob rolling off a swell
+        // leaves it, it does not leap from it.
+        vx: (Math.random() - 0.5) * 52,
+        vy: -(14 + Math.random() * 26),
+        life: 0,
+        shed: true,
+        hue: hueNow() + (Math.random() - 0.5) * 16,
+        size: Math.random() < 0.45 ? 2 : 1,
+        shape: Math.floor(Math.random() * 4)
+      });
+    }
+  }
+  const splashRoom = 1 - Math.max(0, Math.min(1, (r - 0.72) / 0.2));
+  drawSplash(f, splashRoom);
+  if (liq.airborne > 2e-4) {
+    liq.airborne = Math.max(0, liq.airborne - liq.airborne * 4.2 * f.dt - 4e-3);
+    if (liq.airborne <= 0.02 && liq.splashAmp > 0 && !liq.splashAt) liq.splashAt = f.now;
+  } else if (liq.airborne !== 0) {
+    liq.airborne = 0;
+    if (liq.splashAmp > 0 && !liq.splashAt) liq.splashAt = f.now;
+  }
+  if (inks.length) {
+    for (let ii = inks.length - 1; ii >= 0; ii--) {
+      if ((f.now - inks[ii].t) / 1e3 > INK_LIFE) inks.splice(ii, 1);
+    }
+  }
+  drawGlow(f);
+  drawTilt(f);
+  drawWaves(f);
+  drawOrb(f);
+  drawDrops(f);
+  drawAurora(f);
+  if (reduce) return;
+  liq.last = f.now;
+  const busy = !reduce;
+  if (!busy) {
+    liq.raf = null;
+    return;
+  }
+  liq.raf = window.requestAnimationFrame(step);
+}
+function wsJarInkPress(a, p, now) {
+  const { BUBBLES_MAX, CELL, DROPS_MAX, INKS_MAX, POKES_MAX, WAVES_MAX, agitNow, bubbles, cols, drops, h, hueNow, inks, kick, liq, pokes, w, waveAmp, waves } = a;
+  const BOX = [330, 340, 355, 8, 22, 36, 50, 265, 285, 300, 318];
+  const boxOdds = Math.max(0, Math.min(0.85, (liq.rNow - 0.8) / 0.22));
+  const STEPS = [-155, -120, -85, -55, 55, 85, 120, 155, 180];
+  const hue = (Math.random() < boxOdds ? BOX[Math.floor(Math.random() * BOX.length)] : hueNow() + STEPS[Math.floor(Math.random() * STEPS.length)]) + (Math.random() - 0.5) * 22;
+  liq.inkRun = now - liq.inkAt < 900 ? Math.min(8, liq.inkRun + 1) : 1;
+  liq.inkAt = now;
+  const push = 1 + (liq.inkRun - 1) * 0.42;
+  if (inks.length >= INKS_MAX) inks.shift();
+  const gxi = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
+  const line = liq.surfaceNow ? liq.surfaceNow[gxi] || h : h;
+  inks.push({
+    x: p.x,
+    y: Math.max(p.y, line + CELL),
+    t: now,
+    hue,
+    push,
+    spin: (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.7)
+  });
+  const wasVented = liq.inkCharge >= 1;
+  if (liq.inkCharge <= 0.01) liq.inkChargeX = p.x;
+  else liq.inkChargeX += (p.x - liq.inkChargeX) * 0.45;
+  liq.inkCharge = Math.min(1, liq.inkCharge + 0.2);
+  liq.inkChargeAt = now;
+  if (liq.inkCharge >= 1 && !wasVented) {
+    liq.inkCharge = 0;
+    liq.inkVent = now;
+    const gxc = Math.max(0, Math.min(cols - 1, Math.round(liq.inkChargeX / CELL)));
+    const surfC = liq.surfaceNow ? liq.surfaceNow[gxc] || h : h;
+    const room = Math.max(6, surfC);
+    const mid = Math.abs(liq.inkChargeX - w / 2) < w * 0.09;
+    const dirs = mid ? [-1, 1] : [liq.inkChargeX < w / 2 ? 1 : -1];
+    const swellAmp = Math.min(waveAmp() * 2.6, room * 0.62);
+    for (const dir of dirs) {
+      if (waves.length >= WAVES_MAX) waves.shift();
+      waves.push({
+        x: liq.inkChargeX,
+        dir,
+        born: 0,
+        amp: swellAmp * (mid ? 0.78 : 1),
+        // A swell, not a chop: broad, deliberate, with a
+        // real hollow behind it — the water the mound was
+        // made of, going.
+        wid: 1700,
+        spd: 240,
+        hollow: 0.55,
+        spray: 1.2,
+        hue,
+        broke: false
+      });
+    }
+    liq.agitLevel = Math.min(0.55, agitNow(now) + 0.1);
+    liq.agitAt = now;
+    if (liq.surfaceNow && drops.length < DROPS_MAX) {
+      const many2 = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
+      for (let k = 0; k < many2; k++) {
+        drops.push({
+          x: liq.inkChargeX + (Math.random() - 0.5) * CELL * 5,
+          y: surfC - CELL * 2,
+          vx: (Math.random() - 0.5) * 120 + (dirs.length === 1 ? dirs[0] * 40 : 0),
+          vy: -(55 + Math.random() * 90),
+          life: 0,
+          shed: true,
+          hue: hue + (Math.random() - 0.5) * 40,
+          size: Math.random() < 0.3 ? 2 : 1,
+          shape: Math.floor(Math.random() * 4)
+        });
+      }
+    }
+  }
+  if (liq.surfaceNow) {
+    const bn = Math.min(
+      BUBBLES_MAX - bubbles.length,
+      2 + Math.floor(Math.random() * 3)
+    );
+    for (let k = 0; k < bn; k++) {
+      bubbles.push({
+        x: p.x + (Math.random() - 0.5) * CELL * 5,
+        // Just under the surface, not deep: they were
+        // carried down by the drop, not released from the
+        // floor, so they have a short way back.
+        y: Math.min(h - CELL, line + CELL * (2 + Math.random() * 5)),
+        size: Math.random() < 0.4 ? 2 : 1,
+        rise: 22 + Math.random() * 30,
+        phase: Math.random() * 6.283,
+        wob: 0.6 + Math.random() * 1.3,
+        hue: hue + (Math.random() - 0.5) * 30
+      });
+    }
+  }
+  if (liq.surfaceNow && drops.length < DROPS_MAX) {
+    const many = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
+    for (let k = 0; k < many; k++) {
+      drops.push({
+        x: p.x + (Math.random() - 0.5) * CELL * 4,
+        y: line - CELL,
+        vx: (Math.random() - 0.5) * 105,
+        vy: -(48 + Math.random() * 78),
+        life: 0,
+        shed: true,
+        hue: hue + (Math.random() - 0.5) * 40,
+        size: Math.random() < 0.3 ? 2 : 1,
+        shape: Math.floor(Math.random() * 4)
+      });
+    }
+  }
+  if (pokes.length >= POKES_MAX) pokes.shift();
+  pokes.push({ x: p.x, y: null, t: now, still: true, hue });
+  kick();
+}
+function wsJarOrbPress(a, p, now) {
+  const { CELL, DROPS_MAX, ORB_BITE, ORB_SPIN_CAP, POKES_MAX, cols, drops, h, hueNow, kick, liq, orb, pokes } = a;
+  orb.falling = false;
+  orb.dropping = false;
+  orb.vy = 0;
+  orb.x = p.x;
+  orb.y = p.y;
+  const gap = Math.max(0, now - (orb.last || 0));
+  const urge = Math.max(0, Math.min(1, 1 - gap / 520));
+  orb.last = now;
+  const room = Math.max(0, 1 - orb.want);
+  orb.want = Math.min(1, orb.want + ORB_BITE * (0.45 + urge * 1.1) * (0.35 + room * 0.65));
+  orb.streak = urge > 0.15 ? Math.min(14, (orb.streak || 0) + 1) : 0;
+  const zeal = 1 + orb.streak / 14 * 0.7;
+  orb.vel = Math.min(ORB_SPIN_CAP, orb.vel + (0.7 + urge * 2.4) * zeal);
+  if (liq.surfaceNow) {
+    const many = Math.min(Math.max(0, DROPS_MAX - drops.length), 7);
+    for (let k = 0; k < many; k++) {
+      const gx2 = Math.floor(Math.random() * cols);
+      const sx = gx2 * CELL;
+      const sy = liq.surfaceNow[gx2] || h;
+      const flight = 0.42;
+      drops.push({
+        x: sx,
+        y: sy - CELL,
+        vx: (p.x - sx) / flight,
+        vy: (p.y - sy) / flight - 900 * flight * 0.5,
+        life: 0,
+        shed: true,
+        pull: true,
+        hue: hueNow() + (Math.random() - 0.5) * 70,
+        size: Math.random() < 0.35 ? 2 : 1,
+        shape: Math.floor(Math.random() * 4)
+      });
+    }
+  }
+  if (pokes.length >= POKES_MAX) pokes.shift();
+  pokes.push({
+    x: p.x,
+    y: p.y,
+    t: now,
+    still: true,
+    hue: hueNow() + 40 + Math.random() * 220
+  });
+  kick();
+}
+function wsJarBite(a, ev) {
+  const { CELL, DROPS_MAX, POKES_MAX, S_SPLASH, WAVES_MAX, agitNow, cols, drops, full, h, hueNow, kick, liq, pointAt, pokes, stageStart, w, waveAmp, waves } = a;
+  const p = pointAt(ev);
+  const now = performance.now();
+  if (full && now - stageStart >= S_SPLASH) {
+    liq.hold = null;
+    return;
+  }
+  const heldFor = liq.hold ? Math.min(1, (now - liq.hold.t) / 1100) : 0;
+  const eased = 1 - Math.pow(1 - heldFor, 3);
+  liq.hold = null;
+  const gx = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
+  const surf = liq.surfaceNow ? liq.surfaceNow[gx] || h : h;
+  const tank = Math.max(1, h - surf);
+  const under = (p.y - surf) / tank;
+  let kind = "surface";
+  if (under < -0.06) kind = "air";
+  else if (under < 0.1) kind = "crest";
+  else kind = "swell";
+  const room = Math.max(6, surf);
+  const base = waveAmp();
+  const wants = base * (kind === "swell" ? 2.1 : kind === "air" ? 3.4 : 2.8) * (0.75 + eased * 1.5);
+  const height = Math.min(wants, room * 0.7);
+  const spilled = Math.max(0, wants - height) / Math.max(1, base);
+  const jitter = (v, by) => v * (1 - by + Math.random() * by * 2);
+  const shapes = {
+    // Something falling in: narrow, quick, and it throws.
+    air: { wid: 760, spd: 330, hollow: 0.3, spray: 5 },
+    // Struck at the surface: the classic travelling crest.
+    crest: { wid: 900, spd: 305, hollow: 0.42, spray: 3 },
+    // Reached into the body: a long slow swell with a deep
+    // trough behind it, and almost nothing thrown.
+    swell: { wid: 2100, spd: 215, hollow: 0.62, spray: 1 },
+    surface: { wid: 900, spd: 305, hollow: 0.42, spray: 3 }
+  };
+  const sh = shapes[kind] || shapes.crest;
+  const hue = hueNow() + (Math.random() - 0.5) * 70;
+  const mid = Math.abs(p.x - w / 2) < w * 0.09;
+  const dirs = mid ? [-1, 1] : [p.x < w / 2 ? 1 : -1];
+  for (const dir of dirs) {
+    if (waves.length >= WAVES_MAX) waves.shift();
+    waves.push({
+      x: p.x,
+      dir,
+      born: 0,
+      // stamped by the first frame that sees it
+      amp: jitter(height, 0.14) * (mid ? 0.78 : 1),
+      wid: jitter(sh.wid, 0.18),
+      spd: jitter(sh.spd, 0.1),
+      hollow: sh.hollow,
+      spray: sh.spray * (1 + spilled * 0.8) * (0.6 + eased),
+      hue,
+      broke: false
+    });
+  }
+  if (pokes.length >= POKES_MAX) pokes.shift();
+  pokes.push({ x: p.x, y: null, t: now, still: false, hue });
+  liq.agitLevel = Math.min(0.55, agitNow(now) + 0.02 + eased * 0.05);
+  liq.agitAt = now;
+  if (liq.surfaceNow && (spilled > 0.2 || eased > 0.3)) {
+    const many = Math.min(
+      DROPS_MAX - drops.length,
+      1 + Math.round(spilled * 5 + eased * 6)
+    );
+    for (let k = 0; k < many; k++) {
+      drops.push({
+        x: p.x + (Math.random() - 0.5) * CELL * 4,
+        y: surf - CELL,
+        vx: (Math.random() - 0.5) * 110,
+        vy: -(60 + Math.random() * 120),
+        life: 0,
+        shed: true,
+        hue: hue + (Math.random() - 0.5) * 50,
+        size: Math.random() < 0.3 ? 2 : 1,
+        shape: Math.floor(Math.random() * 4)
+      });
+    }
+  }
+  kick();
+}
 var reportMethods = {
   // Strip a leading YAML frontmatter block. Frontmatter inflates word
   // counts on heavily-tagged notes and makes goals inconsistent with
@@ -22934,7 +24039,7 @@ var reportMethods = {
       // green     (140°) — the goal
     ];
     const hueNow = () => {
-      const f = Math.max(0, Math.min(1, rNow));
+      const f = Math.max(0, Math.min(1, liq.rNow));
       for (let i = 1; i < HUE_STOPS.length; i++) {
         const [p12, h1] = HUE_STOPS[i - 1];
         const [p22, h2] = HUE_STOPS[i];
@@ -22944,13 +24049,44 @@ var reportMethods = {
       }
       return HUE_STOPS[HUE_STOPS.length - 1][1];
     };
-    let raf = null, last = 0, w = 0, h = 0, cols = 0, rows = 0, kick = () => {
+    const liq = {
+      stirNow: 0,
+      inkCharge: 0,
+      // 0..1, built a click at a time
+      inkHump: 0,
+      // what is DRAWN, chasing inkCharge with mass
+      restSeen: 0,
+      springNow: 0,
+      splashAt: 0,
+      splashAmp: 0,
+      agitLevel: 0,
+      agitAt: 0,
+      orbShedAt: 0,
+      airborne: 0,
+      auroraFront: null,
+      raf: null,
+      last: 0,
+      prevT: 0,
+      surfaceNow: null,
+      rNow: 0,
+      inkRun: 0,
+      inkAt: 0,
+      inkChargeX: 0,
+      // where the mound stands
+      inkChargeAt: 0,
+      // last press, for the idle drain
+      inkVent: 0,
+      // when a full mound last left as the wave
+      lastRingAt: 0,
+      hold: null,
+      // a press being held, gathering
+      bubbleAt: 0
+    };
+    let w = 0, h = 0, cols = 0, rows = 0, kick = () => {
     };
     const t0 = performance.now();
     const POUR_MS = 1900;
     let pourFrom = 0, pourStart = t0;
-    let prevT = 0;
-    let surfaceNow = null;
     let sloshPhase = 0;
     const S_RISE = 480;
     const S_SPLASH = 1150;
@@ -22966,7 +24102,6 @@ var reportMethods = {
     ];
     const DROPS_MAX = 28;
     const drops = [];
-    let auroraFront = null;
     const POKES_MAX = 4;
     const pokes = [];
     const pokeEnergy = (now) => {
@@ -22977,9 +24112,7 @@ var reportMethods = {
       }
       return e;
     };
-    let agitAt = 0, agitLevel = 0;
-    let stirNow = 0;
-    const agitNow = (now) => agitLevel * Math.exp(-(now - agitAt) / 1100);
+    const agitNow = (now) => liq.agitLevel * Math.exp(-(now - liq.agitAt) / 1100);
     const DEEP_TOY = "orb";
     const INK_TOY = "ink";
     const toyHere = () => r >= 1 ? "aurora" : r >= 0.67 ? INK_TOY : r >= 0.34 ? DEEP_TOY : "wave";
@@ -22988,16 +24121,9 @@ var reportMethods = {
     const INK_LIFE = 3.4;
     const bubbles = [];
     const BUBBLES_MAX = 9;
-    let bubbleAt = 0;
-    let inkRun = 0, inkAt = 0;
-    let inkCharge = 0;
-    let inkChargeX = 0;
-    let inkChargeAt = 0;
-    let inkHump = 0;
-    let inkVent = 0;
     let tilt = 0;
     let tiltV = 0;
-    const sloshW = () => 3.9 - Math.min(1, rNow) * 1.15;
+    const sloshW = () => 3.9 - Math.min(1, liq.rNow) * 1.15;
     const SLOSH_DAMP = 0.72;
     const orb = {
       amount: 0,
@@ -23021,10 +24147,7 @@ var reportMethods = {
       // burst, giving its water back
     };
     const waves = [];
-    let hold = null;
-    let restSeen = 0;
-    let springNow = 0;
-    const waveAmp = () => Math.min(8, h * 0.06 * (1 + rNow * 0.8));
+    const waveAmp = () => Math.min(8, h * 0.06 * (1 + liq.rNow * 0.8));
     const WAVES_MAX = 14;
     const WAVE_SPEED = 305;
     const WAVE_LIFE = 2.6;
@@ -23035,9 +24158,7 @@ var reportMethods = {
     const ORB_RATE = 2.4;
     const ORB_IDLE = 650;
     const ORB_SHED = 0.09;
-    let orbShedAt = 0, lastRingAt = 0, lastSpillAt = 0;
-    let splashAt = 0, splashAmp = 0;
-    let airborne = 0;
+    let lastSpillAt = 0;
     const orbR = () => Math.sqrt(orb.amount) * Math.min(w, h) * 0.34;
     const orbEcc = () => Math.min(0.16, Math.abs(orb.vel) / ORB_SPIN_MAX * 0.16);
     const orbRAt = (ang) => {
@@ -23068,14 +24189,14 @@ var reportMethods = {
     };
     let swirlPhase = Math.random() * Math.PI * 2;
     let flowPhase = Math.random() * Math.PI * 2;
-    let rNow = reduce ? r : 0;
+    liq.rNow = reduce ? r : 0;
     const pour = () => {
       if (reduce) {
-        rNow = r;
+        liq.rNow = r;
         return;
       }
       pourFrom = 0;
-      rNow = 0;
+      liq.rNow = 0;
       pourStart = performance.now();
       sloshPhase = Math.random() * Math.PI * 2;
       swirlPhase = Math.random() * Math.PI * 2;
@@ -23083,7 +24204,7 @@ var reportMethods = {
       stageStart = performance.now();
       splashed = false;
       drops.length = 0;
-      auroraFront = null;
+      liq.auroraFront = null;
       kick();
     };
     const ease = (u) => u * u * (3 - 2 * u);
@@ -23110,263 +24231,8 @@ var reportMethods = {
     const p3 = frac(8.9) * 6.283;
     const spread = 0.72 + frac(3.3) * 0.62;
     const dir = frac(6.4) < 0.5 ? -1 : 1;
-    const auroraCell = (u, v, t, ph, fire) => {
-      const T = t * 0.42;
-      const ph2 = ph || 0;
-      const warp = Math.sin(v * 4.1 + T * 0.55 + u * 2.3 + p1) * 0.22 + Math.sin(v * 7.3 - T * 0.38 + u * 3.7 + p2) * 0.12 + Math.sin(u * 5.2 + T * 0.62 - v * 1.9 + p3) * 0.16 + Math.sin((u + v) * 3.3 - T * 0.27 + p1) * 0.09;
-      let s = v * 0.6 - T * 0.14 + warp;
-      s = s - Math.floor(s);
-      const ray1 = 0.5 + 0.5 * Math.sin(u * 3 + warp * 6 + T * 0.3 + p2 + ph2);
-      const ray2 = 0.5 + 0.5 * Math.sin(u * 7.5 - warp * 4 - T * 0.22 + v * 2 + p3 + ph2 * 1.6);
-      const wander = Math.sin(T * 0.081 + p1) * 96 + Math.sin(T * 0.047 + p2) * 71 + Math.sin(T * 0.029 + p3) * 54;
-      const hue = rot + Math.sin(s * Math.PI * 2) * 70 * spread + Math.sin((s + 0.33) * Math.PI * 4) * 50 * spread + Math.sin((s + 0.66) * Math.PI * 6) * 28 * spread + wander * dir + T * 9 * dir;
-      const curtain = quant(ray1 * 0.65 + ray2 * 0.35);
-      const f2 = fire || 0;
-      const cur2 = f2 > 0 ? Math.min(1, curtain * (1 + f2 * 0.55)) : curtain;
-      const lig = 30 + cur2 * 34 + (1 - v) * 10 + f2 * 16;
-      const sat = 58 + cur2 * 30 + f2 * 8;
-      const alpha = quantA(0.62 + cur2 * 0.38 + f2 * 0.1);
-      return "hsla(" + Math.round((hue % 360 + 360) % 360) + "," + Math.round(Math.max(0, Math.min(100, sat))) + "%," + Math.round(Math.max(0, Math.min(100, lig))) + "%," + alpha.toFixed(2) + ")";
-    };
-    const drawSurface = (f) => {
-      const pokeE = pokeEnergy(f.now);
-      const brimCalm = 1 - 0.8 * Math.max(0, Math.min(1, (r - 0.72) / 0.2));
-      const stirWant = Math.min(
-        3.6,
-        Math.max(f.stage.wave * brimCalm, pokeE) + agitNow(f.now)
-      );
-      const stirRate = stirWant > stirNow ? 7.5 : 2.6;
-      stirNow += (stirWant - stirNow) * Math.min(1, stirRate * f.dt);
-      const stir = stirNow;
-      if (inkCharge > 0 && f.now - inkChargeAt > 400) {
-        inkCharge = Math.max(0, inkCharge - f.dt * 1.2);
-      }
-      {
-        const humpRate = inkCharge > inkHump ? 6 : f.now - inkVent < 700 ? 7 : 4.6;
-        inkHump += (inkCharge - inkHump) * Math.min(1, humpRate * f.dt);
-        if (inkHump < 1e-3 && inkCharge <= 0) inkHump = 0;
-      }
-      const calm = 1 - Math.min(1, stir);
-      const climb = f.t * 0.34 * (1 + 0.55 * calm) + Math.sin(f.t * 0.19 + flowPhase) * 0.9 + Math.sin(f.t * 0.07 + flowPhase * 1.7) * 1.6;
-      const ampWant = Math.min(8, h * 0.06 * (1 + rNow * 0.8));
-      const skyShare = 0.3 + 8 * Math.max(0, (0.67 - rNow) / 0.67);
-      const depthSeen = Math.max(1, h - restSeen);
-      const amp = Math.min(
-        ampWant * stir,
-        restSeen > 0 ? restSeen * skyShare : ampWant * stir,
-        depthSeen * 0.35
-      );
-      const brimEase = Math.max(0, Math.min(1, (r - 0.72) / 0.2));
-      const calmRise = 1 - brimEase;
-      const shown = Math.min(1, rNow + f.stage.over * rNow * calmRise);
-      const sinceSplash = splashAt ? f.now - splashAt : 1e9;
-      const bounce = sinceSplash < 900 ? Math.exp(-sinceSplash / 320) * Math.sin(sinceSplash / 62) * splashAmp * calmRise : 0;
-      if (splashAt && sinceSplash >= 900) {
-        splashAt = 0;
-        splashAmp = 0;
-      }
-      const held = Math.min(1, orb.amount + airborne);
-      const inJar = Math.max(0, Math.min(1, shown * (1 - held) + bounce));
-      const SKY = 8;
-      const maxH = h - SKY;
-      const knee = maxH * 0.75;
-      const aimAt = Math.max(1e-4, Math.min(1, r));
-      const aimRaw = aimAt * (h + amp);
-      const aimSoft = aimRaw <= knee ? aimRaw : knee + (maxH - knee) * (1 - Math.exp(-(aimRaw - knee) / (maxH - knee)));
-      const brim = Math.max(0, Math.min(1, (aimAt - 0.85) / 0.15));
-      const aimH = aimSoft + (aimRaw - aimSoft) * Math.pow(brim, 16);
-      const bodyH = aimH * (inJar / aimAt);
-      const restY = h - bodyH;
-      f.restNow = restY;
-      restSeen = restY;
-      const tank = Math.max(1, h - restY);
-      f.surfaceY = new Array(cols);
-      const jetNow = (f.stage.jet || 0) * calmRise;
-      const pourU = Math.max(0, Math.min(
-        1,
-        (f.now - pourStart) / POUR_MS
-      ));
-      const spring = brimEase * Math.sin(Math.PI * Math.min(1, pourU * 1.06)) * (rNow > 0.02 ? 1 : 0);
-      springNow = spring;
-      const jetProfile = (x) => {
-        if (!jetNow) return 0;
-        const d = Math.abs(x + CELL / 2 - w / 2);
-        const gone = 1 - jetNow;
-        const half = CELL * 2 + Math.pow(gone, 1.7) * (w / 2);
-        if (d > half) return 0;
-        return Math.pow(
-          Math.cos(d / Math.max(1, half) * Math.PI / 2),
-          2.6
-        );
-      };
-      for (let gx = 0; gx < cols; gx++) {
-        const x = gx * CELL;
-        const jetK = jetProfile(x);
-        const rise = (h - 12) * 0.85 * (1 - Math.pow(1 - jetNow, 2));
-        const jetLift = jetK * rise;
-        let surf = restY + Math.sin(x * 0.055 + f.t * 1.15) * amp + Math.sin(x * 0.021 - f.t * 0.7) * amp * 0.7 + Math.sin(x * 0.13 + f.t * 1.9) * amp * 0.22 + Math.sin(x / Math.max(1, w) * Math.PI + f.t * 2.6 + sloshPhase) * amp * 1.4 * Math.max(0, f.stage.wave - 0.6) - jetLift + (() => {
-          let ring = 0;
-          for (const pk of pokes) {
-            const d = Math.abs(x - pk.x);
-            const age = (f.now - pk.t) / 1e3;
-            if (age > 1.6) continue;
-            ring += Math.sin(d * 0.09 - age * 9.5) * Math.exp(-d / 42) * Math.exp(-age * 2.6);
-          }
-          return Math.max(-1.3, Math.min(1.3, ring)) * amp * 2.4;
-        })() - (tilt !== 0 ? (() => {
-          const u = (x - w / 2) / (w / 2);
-          const bent = 0.55 * u + 0.45 * u * u * u;
-          return bent * tilt * Math.min(h * 0.34, tank * 0.5);
-        })() : 0) - (spring > 0.01 ? (() => {
-          const dS = Math.abs(x - w / 2);
-          return Math.exp(-(dS * dS) / 2600) * spring * Math.min(waveAmp() * 1.6, f.restNow * 0.42);
-        })() : 0) - (inkHump > 0.01 ? (() => {
-          const d = Math.abs(x - inkChargeX);
-          const heap = Math.exp(-(d * d) / 1300);
-          const ring = d - 42;
-          const moat = Math.exp(-(ring * ring) / 1100) * 0.34;
-          const reach = Math.min(waveAmp() * 5.5, f.restNow * 0.62);
-          const sink = Math.min(
-            waveAmp() * 4.6,
-            (h - f.restNow) * 0.34
-          );
-          return heap * inkHump * reach - moat * inkHump * sink;
-        })() : 0) - (() => {
-          const ceil = waveAmp() * 3.4;
-          const raw = waves.reduce((sum, wv) => {
-            const d = x - wv.x;
-            const ad = Math.abs(d);
-            if (ad > 150) return sum;
-            const age = wv.born ? (f.now - wv.born) / 1e3 : 0;
-            if (age > WAVE_LIFE) return sum;
-            const spend = Math.exp(-age / (WAVE_LIFE * 0.55));
-            const crest = Math.exp(-(ad * ad) / (wv.wid || 900));
-            const back = d * wv.dir;
-            const hollow = back < 0 ? Math.exp(-(back * back) / ((wv.wid || 900) * 5.8)) * (wv.hollow || 0.42) : 0;
-            return sum + (crest - hollow) * wv.amp * spend;
-          }, 0);
-          if (raw <= ceil && raw >= -ceil) return raw;
-          const over = Math.abs(raw) - ceil;
-          const sign = raw < 0 ? -1 : 1;
-          return sign * (ceil + ceil * 0.45 * (1 - Math.exp(-over / (ceil * 0.9))));
-        })() - (hold ? (() => {
-          const held2 = Math.min(1, (f.now - hold.t) / 1e3);
-          const eased = Math.pow(held2, 0.55);
-          const d = Math.abs(x - hold.x);
-          const heap = Math.exp(-(d * d) / 2600);
-          const moat = Math.exp(-(d * d) / 26e3) * 0.3;
-          const reach = Math.min(
-            waveAmp() * 7.5,
-            f.restNow * 0.62,
-            (h - f.restNow) * 0.8
-          );
-          return (heap - moat) * eased * reach;
-        })() : 0) - (orb.amount > 0.01 ? (() => {
-          const d = Math.abs(x - orb.x);
-          const lift = Math.exp(-(d * d) / 3e3) - Math.exp(-(d * d) / 3e4) * 0.32;
-          const draw2 = lift * orb.amount * amp * 3;
-          const R = orbR() * (1 + orbEcc());
-          if (d >= R) return draw2;
-          const chord = 2 * Math.sqrt(R * R - d * d);
-          const under = Math.max(0, Math.min(
-            1,
-            (orb.y + R - f.restNow) / (2 * R)
-          ));
-          return draw2 - chord * under * 0.22;
-        })() : 0);
-        {
-          const wallD = Math.min(gx, cols - 1 - gx);
-          if (wallD < 2 && f.restNow > 0) {
-            const kW = wallD === 0 ? 1 : 0.45;
-            const dev = f.restNow - surf;
-            surf -= dev * (dev > 0 ? 0.6 : 0.25) * kW;
-          }
-        }
-        const floorY = Math.max(
-          f.restNow * 0.25,
-          f.restNow - (h - f.restNow) * 0.75,
-          Math.min(6, f.restNow)
-        );
-        if (f.restNow > 0) surf = Math.max(floorY, surf);
-        surf = Math.max(1, Math.min(h, surf));
-        f.surfaceY[gx] = surf;
-        const lane = Math.sin(x * 0.031) * 2.1 + Math.sin(x * 0.013 + 1.7) * 1.3;
-        const lane2 = Math.sin(x * 0.021 + 0.6) * 1.8;
-        for (let gy = 0; gy < rows; gy++) {
-          const y = gy * CELL;
-          if (y + CELL <= surf) continue;
-          const shaft = 0.5 + 0.35 * Math.sin(y * 0.07 + lane2 * 0.7 + climb * 0.55) + 0.15 * Math.sin(x * 0.017);
-          const below = y - surf;
-          const tankCol = Math.min(h, Math.max(tank, h - surf));
-          const depth = quant(Math.max(0, Math.min(1, below / tankCol)) * (1 - 0.65 * jetK * jetNow));
-          const caus = quantA(0.5 + 0.26 * Math.sin(y * 0.15 + lane + climb * 1.6) + 0.15 * Math.sin(y * 0.062 + lane2 + climb * 0.72) + 0.11 * Math.sin(y * 0.23 + lane * 1.6 + climb * 2.3) + 0.1 * Math.sin(x * 0.045));
-          const causS = quantA(0.5 + (caus - 0.5) * (1 + 1.15 * calm));
-          const causDepth = causS * (1 - depth * 0.65);
-          let inkH = 0, inkW = 0;
-          for (let ii = 0; ii < inks.length; ii++) {
-            const ik = inks[ii];
-            const iAge = (f.now - ik.t) / 1e3;
-            if (iAge > INK_LIFE) continue;
-            let dx3 = x - ik.x, dy3 = y - ik.y;
-            const dist = Math.sqrt(dx3 * dx3 + dy3 * dy3);
-            if (dist > 0.5 && dist < 90) {
-              const curl = (ik.spin || 1) * 0.22 * Math.exp(-dist / 34) * Math.exp(-iAge / 1.6);
-              if (curl > 4e-3) {
-                const ca3 = Math.cos(curl), sa3 = Math.sin(curl);
-                const rx = dx3 * ca3 - dy3 * sa3;
-                dy3 = dx3 * sa3 + dy3 * ca3;
-                dx3 = rx;
-              }
-            }
-            const grow = 1 - Math.pow(1 - Math.min(1, iAge / INK_LIFE), 2.2);
-            const edge = grow * (56 + 74 * (ik.push || 1));
-            const band2 = 90 + 340 * grow;
-            const ring = Math.exp(-((dist - edge) * (dist - edge)) / band2);
-            const inside = dist < edge ? 0.34 : 0;
-            const near = Math.min(1, ring + inside);
-            if (near < 0.02) continue;
-            const life = Math.min(1, iAge / 0.2) * Math.max(0, 1 - iAge / INK_LIFE);
-            const wgt = near * life;
-            inkH += ik.hue * wgt;
-            inkW += wgt;
-          }
-          const hue = (inkW > 1e-3 ? hueNow() + (inkH / inkW - hueNow()) * Math.min(0.85, inkW) : hueNow()) + Math.sin(f.t * 0.28 + depth * 2.4) * 7 + Math.sin(y * 0.045 + climb * 0.3) * 4 + causDepth * 4;
-          const wall = Math.min(gx, cols - 1 - gx);
-          const cling = 1 + (wall < 2 ? (2 - wall) * 0.9 * (1 - 0.72 * calm) : 0);
-          const skin = 1 - 0.82 * calm;
-          const chop = ((gx * 5 + gy * 11) % 8 / 8 - 0.5) * CELL * 1.2 * Math.min(1.35, stir);
-          const crest = below < CELL * cling * skin + chop;
-          const foam = below < CELL * (2.5 - 1.15 * calm);
-          let lig, sat, alpha;
-          if (crest) {
-            lig = baseLig + (lightPaper ? 34 : 22) + causDepth * 6;
-            sat = baseSat - (lightPaper ? 6 : 12);
-            alpha = 0.96;
-          } else if (foam) {
-            lig = baseLig + 14 + causDepth * 8;
-            sat = baseSat - 6;
-            alpha = quantA(0.8 + caus * 0.12);
-          } else {
-            const deepLig = lightPaper ? Math.max(22, paperLig - 60) : Math.min(62, paperLig + 30);
-            lig = baseLig + 12 + (deepLig - (baseLig + 12)) * depth + causDepth * (9 + 6 * calm) + shaft * 5;
-            sat = baseSat + depth * 16 - causDepth * 6;
-            alpha = quantA((lightPaper ? 0.7 : 0.48) + depth * (lightPaper ? 0.28 : 0.5) + caus * 0.06);
-            if (lightPaper) sat += 12;
-          }
-          if (depth > 0.62) {
-            const s2 = (depth - 0.62) / 0.38;
-            lig += (paperLig - lig) * s2 * 0.72;
-            sat -= s2 * (lightPaper ? 22 : -14);
-            const grit = (gx * 3 + gy * 7) % 9 / 9;
-            if (grit < s2 * 0.55) {
-              lig += (paperLig > lig ? 1 : -1) * (4 + s2 * 5);
-            }
-          }
-          ctx.fillStyle = "hsla(" + Math.round(hue) + "," + Math.round(Math.max(0, Math.min(100, sat))) + "%," + band(Math.max(0, Math.min(100, lig))) + "%," + alpha.toFixed(2) + ")";
-          ctx.fillRect(x, y, CELL, CELL);
-        }
-      }
-    };
+    const auroraCell = (u, v, t, ph, fire) => wsJarAuroraCell({ dir, p1, p2, p3, quant, quantA, rot, spread }, u, v, t, ph, fire);
+    const drawSurface = (f) => wsJarDrawSurface({ CELL, INK_LIFE, POUR_MS, WAVE_LIFE, agitNow, band, baseLig, baseSat, cols, ctx, flowPhase, h, hueNow, inks, lightPaper, liq, orb, orbEcc, orbR, paperLig, pokeEnergy, pokes, pourStart, quant, quantA, r, rows, sloshPhase, tilt, w, waveAmp, waves }, f);
     const drawSplash = (f, splashRoom) => {
       if (!splashed && f.stageMs >= S_RISE && f.surfaceY && !reduce && splashRoom > 0.05) {
         splashed = true;
@@ -23399,70 +24265,7 @@ var reportMethods = {
         }
       }
     };
-    const drawGlow = (f) => {
-      if (surfaceNow && rNow > 0.04) {
-        const busy = inks.length > 0 ? 1 : 0.18;
-        const body = 0.35 + Math.min(1, rNow) * 0.65;
-        if (f.now - bubbleAt > 620 / ((0.4 + busy) * body) && bubbles.length < BUBBLES_MAX) {
-          bubbleAt = f.now;
-          const bx = Math.random() * w;
-          const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx / CELL)));
-          const from = surfaceNow[gxb] || h;
-          const depthStart = from + (h - from) * (0.25 + Math.random() * 0.7);
-          bubbles.push({
-            x: bx,
-            y: Math.min(h - CELL, depthStart),
-            // Small ones dawdle, big ones climb — which is what
-            // bubbles do, and it stops them moving as a set.
-            size: Math.random() < 0.3 ? 2 : 1,
-            rise: 16 + Math.random() * 26,
-            phase: Math.random() * 6.283,
-            wob: 0.6 + Math.random() * 1.4,
-            hue: hueNow() + (Math.random() - 0.5) * 40
-          });
-        }
-        for (let bi = bubbles.length - 1; bi >= 0; bi--) {
-          const bb = bubbles[bi];
-          bb.y -= bb.rise * (bb.size === 2 ? 1.5 : 1) * f.dt;
-          bb.phase += f.dt * 2.2;
-          const bx2 = bb.x + Math.sin(bb.phase) * bb.wob * 2.4;
-          const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx2 / CELL)));
-          const line = surfaceNow[gxb] || h;
-          if (bb.y <= line + CELL * 0.5) {
-            if (pokes.length < POKES_MAX) {
-              pokes.push({ x: bx2, y: null, t: f.now, still: true, hue: bb.hue });
-            }
-            if (bb.size === 2 && drops.length < DROPS_MAX && Math.random() < 0.6) {
-              drops.push({
-                x: bx2,
-                y: line - CELL,
-                vx: (Math.random() - 0.5) * 26,
-                vy: -(26 + Math.random() * 34),
-                life: 0,
-                shed: true,
-                pull: true,
-                hue: bb.hue,
-                size: 1,
-                shape: Math.floor(Math.random() * 4)
-              });
-            }
-            bubbles.splice(bi, 1);
-            continue;
-          }
-          const px3 = Math.round(bx2 / CELL) * CELL;
-          const py3 = Math.round(bb.y / CELL) * CELL;
-          ctx.fillStyle = "hsla(" + Math.round(bb.hue) + "," + Math.round(Math.max(0, baseSat - 18)) + "%," + band(Math.min(96, baseLig + 30)) + "%,0.66)";
-          ctx.fillRect(px3, py3, CELL, CELL);
-          if (bb.size === 2) {
-            ctx.fillRect(px3 + CELL, py3, CELL, CELL);
-            ctx.fillRect(px3, py3 + CELL, CELL, CELL);
-            ctx.fillRect(px3 + CELL, py3 + CELL, CELL, CELL);
-          }
-        }
-      } else if (bubbles.length) {
-        bubbles.length = 0;
-      }
-    };
+    const drawGlow = (f) => wsJarDrawGlow({ BUBBLES_MAX, CELL, DROPS_MAX, POKES_MAX, band, baseLig, baseSat, bubbles, cols, ctx, drops, h, hueNow, inks, liq, pokes, w }, f);
     const drawTilt = (f) => {
       if (Math.abs(tilt) > 5e-4 || Math.abs(tiltV) > 5e-4) {
         const wsq = sloshW() * sloshW();
@@ -23471,7 +24274,7 @@ var reportMethods = {
         const cap = 1;
         if (Math.abs(tilt) > cap) {
           tilt = tilt < 0 ? -cap : cap;
-          if (Math.abs(tiltV) > 0.35 && surfaceNow && drops.length < DROPS_MAX && f.now - lastSpillAt > 90) {
+          if (Math.abs(tiltV) > 0.35 && liq.surfaceNow && drops.length < DROPS_MAX && f.now - lastSpillAt > 90) {
             lastSpillAt = f.now;
             const side = tilt > 0 ? cols - 1 : 0;
             const sx = side * CELL;
@@ -23482,7 +24285,7 @@ var reportMethods = {
             for (let k = 0; k < many; k++) {
               drops.push({
                 x: sx + (Math.random() - 0.5) * CELL * 3,
-                y: (surfaceNow[side] || h) - CELL,
+                y: (liq.surfaceNow[side] || h) - CELL,
                 vx: (tilt > 0 ? 1 : -1) * (10 + Math.random() * 40),
                 vy: -(50 + Math.random() * 110),
                 life: 0,
@@ -23500,511 +24303,14 @@ var reportMethods = {
         tiltV = 0;
       }
     };
-    const drawWaves = (f) => {
-      if (waves.length) {
-        const spray = (px2, many, upward, hue) => {
-          const gxs = Math.max(0, Math.min(cols - 1, Math.round(px2 / CELL)));
-          const from = (surfaceNow ? surfaceNow[gxs] || h : h) - CELL;
-          const room = Math.max(0, Math.min(DROPS_MAX - drops.length, many));
-          for (let k = 0; k < room; k++) {
-            drops.push({
-              x: px2 + (Math.random() - 0.5) * CELL * 3,
-              y: from,
-              vx: (Math.random() - 0.5) * 90 + upward * 0,
-              vy: -(70 + Math.random() * 130),
-              life: 0,
-              shed: true,
-              hue: hue + (Math.random() - 0.5) * 60,
-              size: Math.random() < 0.34 ? 2 : 1,
-              shape: Math.floor(Math.random() * 4)
-            });
-          }
-        };
-        for (let i = waves.length - 1; i >= 0; i--) {
-          const wv = waves[i];
-          if (!wv.born) wv.born = f.now;
-          const age = (f.now - wv.born) / 1e3;
-          wv.x += wv.dir * (wv.spd || WAVE_SPEED) * f.dt;
-          if (!wv.broke && (wv.x <= 1 || wv.x >= w - 1)) {
-            wv.broke = true;
-            wv.x = wv.x <= 1 ? 0 : w;
-            const left = Math.exp(-age / (WAVE_LIFE * 0.55));
-            const sp = wv.spray == null ? 1 : wv.spray;
-            spray(wv.x, Math.round((1 + left * 4) * sp), 0, wv.hue);
-            if (pokes.length >= POKES_MAX) pokes.shift();
-            const room2 = Math.min(1, restSeen / (h * 0.22));
-            const bite2 = Math.min(1, sp / 3) * room2;
-            pokes.push({
-              x: wv.x,
-              y: null,
-              t: f.now,
-              still: bite2 < 0.5,
-              hue: wv.hue
-            });
-            agitLevel = Math.min(
-              0.75,
-              agitNow(f.now) + (0.04 + left * 0.1) * bite2
-            );
-            agitAt = f.now;
-          }
-          if (age > WAVE_LIFE || wv.broke && age > WAVE_LIFE * 0.4) {
-            waves.splice(i, 1);
-          }
-        }
-        for (let i = waves.length - 1; i >= 0; i--) {
-          for (let j = i - 1; j >= 0; j--) {
-            const a = waves[i], b = waves[j];
-            if (!a || !b || a.broke || b.broke) continue;
-            if (a.dir === b.dir) continue;
-            if (Math.abs(a.x - b.x) > CELL * 2.2) continue;
-            if ((b.x - a.x) * a.dir < 0) continue;
-            const mid = (a.x + b.x) / 2;
-            const ageA = a.born ? (f.now - a.born) / 1e3 : 0;
-            const ageB = b.born ? (f.now - b.born) / 1e3 : 0;
-            const force = Math.exp(-ageA / (WAVE_LIFE * 0.55)) + Math.exp(-ageB / (WAVE_LIFE * 0.55));
-            spray(mid, 6 + Math.round(force * 11), 0, (a.hue + b.hue) / 2);
-            if (pokes.length >= POKES_MAX) pokes.shift();
-            pokes.push({
-              x: mid,
-              y: null,
-              t: f.now,
-              still: false,
-              hue: (a.hue + b.hue) / 2
-            });
-            agitLevel = Math.min(0.95, agitNow(f.now) + 0.08 + force * 0.16);
-            agitAt = f.now;
-            waves.splice(i, 1);
-            waves.splice(j, 1);
-            i = Math.min(i, waves.length);
-            break;
-          }
-        }
-      }
-    };
-    const drawOrb = (f) => {
-      if (orb.amount > 1e-3 || orb.want > 1e-3) {
-        orb.vel *= Math.pow(0.36, f.dt);
-        orb.spin += orb.vel * f.dt;
-        if (!orb.falling) {
-          const spinN = Math.min(1, Math.abs(orb.vel) / ORB_SPIN_CAP);
-          const spinLoss = spinN * spinN * 1.6;
-          orb.want = Math.max(0, orb.want - ORB_LEAK * spinLoss * f.dt * (0.35 + orb.want * 0.65));
-          orb.amount += (orb.want - orb.amount) * Math.min(1, ORB_RATE * f.dt);
-          if (orb.want > 0.02 && orb.vel > 0.8 && drops.length < DROPS_MAX && Math.random() < 0.5) {
-            const a = Math.random() * Math.PI * 2;
-            const R2 = orbR();
-            drops.push({
-              x: orb.x + Math.cos(a) * R2,
-              y: orb.y + Math.sin(a) * R2,
-              vx: Math.cos(a) * 26 + (Math.random() - 0.5) * 30,
-              vy: Math.sin(a) * 20 + 25,
-              life: 0,
-              shed: true,
-              hue: hueNow() + (Math.random() - 0.5) * 70,
-              size: 1,
-              shape: Math.floor(Math.random() * 4)
-            });
-          }
-        }
-        if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
-          orb.dropping = true;
-          orb.vy = 0;
-        }
-        if (!orb.dropping && !orb.falling) {
-          const rr2 = orbR() * (1 + orbEcc());
-          if (orb.y - rr2 < 0) orb.y = rr2;
-        }
-        if (orb.dropping) {
-          orb.vy += 780 * f.dt;
-          orb.y += orb.vy * f.dt;
-          const col = Math.max(0, Math.min(cols - 1, Math.round(orb.x / CELL)));
-          const surf = surfaceNow ? surfaceNow[col] || h : h;
-          if (orb.y + orbR() >= surf || orb.y >= h) {
-            orb.dropping = false;
-            orb.last = 0;
-          }
-        }
-        if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
-          orb.falling = true;
-          orb.dropping = false;
-          orb.vy = 0;
-          orb.want = 0;
-          const held = Math.pow(orb.amount, 1.6) * (0.55 + rNow * 0.9);
-          agitLevel = Math.min(2.4, agitNow(f.now) + 0.03 + held * 2.6);
-          agitAt = f.now;
-          splashAmp = held * 0.17;
-          splashAt = 0;
-          airborne = Math.min(1, airborne + orb.amount);
-          const heavy = Math.min(
-            DROPS_MAX - drops.length,
-            1 + Math.round(held * 44)
-          );
-          for (let k = 0; k < heavy; k++) {
-            const a = Math.random() * Math.PI * 2;
-            const r2 = orbR() * (0.25 + Math.random() * 0.75);
-            drops.push({
-              x: orb.x + Math.cos(a) * r2,
-              y: orb.y + Math.sin(a) * r2,
-              // OUTWARD IN EVERY DIRECTION, and hard. It threw at
-              // 40–160 with a slight upward lean, which
-              // gravity flattened almost at once — so a burst
-              // read as the ball FALLING rather than as it
-              // coming apart. Doubled outward, and the
-              // vertical component is biased up rather than
-              // centred, so the crown opens before it drops.
-              vx: Math.cos(a) * (90 + Math.random() * 210) + orb.vel * 12,
-              vy: Math.sin(a) * 130 - 120 - Math.random() * 90,
-              life: 0,
-              shed: true,
-              hue: hueNow() + (Math.random() - 0.5) * 90,
-              size: 1 + (Math.random() < 0.6 ? 1 : 0),
-              shape: Math.floor(Math.random() * 4)
-            });
-          }
-          for (const dir2 of [-1, 1]) {
-            if (waves.length >= WAVES_MAX) waves.shift();
-            waves.push({
-              x: orb.x,
-              dir: dir2,
-              born: 0,
-              amp: waveAmp() * (0.9 + held * 1.7),
-              wid: 1500,
-              spd: 250 + held * 90,
-              hollow: 0.5,
-              spray: 2,
-              hue: hueNow() + (Math.random() - 0.5) * 60,
-              broke: false
-            });
-          }
-          const hits = 1 + Math.round(held * 4);
-          const reach = w * (0.08 + held * 0.42);
-          for (let k = 0; k < hits; k++) {
-            if (pokes.length >= POKES_MAX) pokes.shift();
-            const off = hits === 1 ? 0 : (k / (hits - 1) - 0.5) * 2 * reach;
-            pokes.push({
-              x: Math.max(0, Math.min(w, orb.x + off)),
-              y: null,
-              // Spread in TIME as well as space: the middle
-              // lands first and the edges follow, which is
-              // what a mass hitting water does and what a
-              // simultaneous row of ripples never looks like.
-              t: f.now + Math.abs(off) / (w * 0.9) * 260,
-              still: false,
-              hue: hueNow() + (Math.random() - 0.5) * 120
-            });
-          }
-        }
-        if (orb.falling) {
-          orb.amount = Math.max(0, orb.amount - f.dt * (3 + 2.5 * (1 - orb.amount)));
-          orb.vel *= Math.pow(0.05, f.dt);
-          if (orb.amount <= 1e-3) {
-            orb.amount = 0;
-            orb.vel = 0;
-            orb.falling = false;
-          }
-        }
-        if (!orb.falling && orb.vel > 1.2 && f.now - orbShedAt > ORB_SHED * 1e3 && drops.length < DROPS_MAX) {
-          orbShedAt = f.now;
-          const R2 = orbR();
-          const a = orb.spin + Math.random() * 0.9;
-          drops.push({
-            x: orb.x + Math.cos(a) * R2,
-            y: orb.y + Math.sin(a) * R2,
-            // TANGENTIAL, not radial: thrown along the turn, the
-            // way anything leaving a spinning body goes.
-            vx: -Math.sin(a) * orb.vel * R2 * 0.55,
-            vy: Math.cos(a) * orb.vel * R2 * 0.55 - 20,
-            life: 0,
-            shed: true,
-            hue: hueNow() + (Math.random() - 0.5) * 80,
-            size: Math.random() < 0.4 ? 2 : 1,
-            shape: Math.floor(Math.random() * 4)
-          });
-        }
-        const R = orbR() * (1 + orbEcc());
-        if (R > CELL) {
-          const cx = orb.x, cy = orb.y;
-          const g0 = Math.max(0, Math.floor((cx - R) / CELL));
-          const g1 = Math.min(cols - 1, Math.ceil((cx + R) / CELL));
-          const r0 = Math.max(0, Math.floor((cy - R) / CELL));
-          const r1 = Math.min(rows - 1, Math.ceil((cy + R) / CELL));
-          for (let gy = r0; gy <= r1; gy++) {
-            for (let gx = g0; gx <= g1; gx++) {
-              const px2 = gx * CELL + CELL / 2;
-              const py2 = gy * CELL + CELL / 2;
-              const dx2 = px2 - cx, dy2 = py2 - cy;
-              const rr = Math.hypot(dx2, dy2);
-              const angC = Math.atan2(dy2, dx2);
-              const Rh = orbRAt(angC);
-              if (rr > Rh) continue;
-              const u = rr / Rh;
-              const thr = (gx * 7 + gy * 13) % 16 / 16;
-              if (u > 0.72 && (u - 0.72) / 0.28 > 1 - thr) continue;
-              const ang = angC;
-              const arm = Math.sin(ang * 2 + orb.spin * 2.2 - u * 5.5);
-              const dith = (gx * 7 + gy * 13) % 8 / 8 - 0.5;
-              const litness = (arm + 1) * 0.5;
-              const oh0 = hueNow() + arm * 9 + (0.5 - u) * 10 + dith * 4;
-              let oh = oh0;
-              if (f.auroraMix > 0.01) {
-                const ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
-                const ru = (dx2 * ca - dy2 * sa) / w;
-                const rv = (dx2 * sa + dy2 * ca) / h;
-                const cellCol = auroraCell(0.5 + ru, 0.5 + rv, f.t);
-                const cellM = /^hsla?\((-?[\d.]+)/.exec(String(cellCol || ""));
-                const cellHue = cellM ? parseFloat(cellM[1]) : NaN;
-                if (isFinite(cellHue)) {
-                  oh = oh0 + (cellHue - oh0) * f.auroraMix;
-                }
-              }
-              ctx.fillStyle = "hsla(" + Math.round(oh) + "," + Math.round(Math.max(0, baseSat - 4 - litness * 16)) + "%," + band(Math.min(96, baseLig + 6 + litness * 30 + (0.5 - u) * 10)) + "%," + (0.86 + (1 - u) * 0.13).toFixed(2) + ")";
-              ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
-            }
-          }
-        }
-      }
-    };
-    const drawDrops = (f) => {
-      if (drops.length) {
-        const sprayFill = "hsla(" + Math.round(hueNow()) + "," + Math.round(Math.max(0, baseSat - 24)) + "%," + band(Math.min(100, baseLig + 44)) + "%,0.95)";
-        ctx.fillStyle = sprayFill;
-        for (let i = drops.length - 1; i >= 0; i--) {
-          const d = drops[i];
-          if (d.hue != null) {
-            const j = (d.shape || 0) * 7 % 5 / 5 - 0.4;
-            ctx.fillStyle = "hsla(" + Math.round(d.hue) + "," + Math.round(Math.max(0, baseSat - 6 + j * 18)) + "%," + band(Math.min(100, baseLig + 30 + j * 14)) + "%,0.95)";
-          } else {
-            ctx.fillStyle = sprayFill;
-          }
-          d.vy += 900 * f.dt;
-          d.x += d.vx * f.dt;
-          d.y += d.vy * f.dt;
-          d.life += f.dt;
-          const col = Math.max(0, Math.min(cols - 1, Math.round(d.x / CELL)));
-          const floorY = f.surfaceY ? f.surfaceY[col] : h;
-          const graced = d.shed && d.life < 0.15;
-          const landed = !graced && d.vy > 0 && d.y >= floorY;
-          if (d.life > 1.4 || d.x < -CELL || d.x > w || landed) {
-            if (landed && d.shed && !d.pull && d.vy > 90 && f.now - lastRingAt > 55 && pokes.length < POKES_MAX) {
-              lastRingAt = f.now;
-              pokes.push({
-                x: d.x,
-                y: null,
-                t: f.now,
-                // A RING IS LOCAL, NOT ENERGY. This is the
-                // tremor, and throttling could never have
-                // fixed it: pokeEnergy is a MAXIMUM over the
-                // pokes decaying on a 620ms clock, so a ring
-                // arriving every 70ms held it at 0.89 and one
-                // every 300ms still held it at 0.62 — the
-                // whole surface pinned at full agitation for
-                // as long as any spray was falling. Worst at
-                // a high level, where the water above the
-                // rest line is shallow and a maxed amplitude
-                // has nowhere to go but sideways, fast.
-                //
-                // `still` is what a poke uses to say "the
-                // aurora's, not the water's" — pokeEnergy
-                // skips it while the ripple sum still draws
-                // it. A landing ring wants exactly that
-                // bargain: a visible ring where it fell, and
-                // no claim on how lively the whole tank is.
-                still: true,
-                // The ring carries the blob's own colour, so
-                // a coloured splash lands coloured.
-                hue: d.hue != null ? d.hue : hueNow()
-              });
-            }
-            drops.splice(i, 1);
-            continue;
-          }
-          const dx = Math.round(d.x / CELL) * CELL;
-          const dy = Math.round(d.y / CELL) * CELL;
-          const dthr = ((dx / CELL | 0) * 7 + (dy / CELL | 0) * 13) % 16 / 16;
-          if (1 - d.life / 1.4 <= dthr) continue;
-          const sz = d.size || 1;
-          ctx.fillRect(dx, dy, CELL, CELL);
-          if (sz > 1) {
-            const keep = 1 - d.life / 1.4;
-            const arms = BLOB_SHAPES[(d.shape || 0) % BLOB_SHAPES.length];
-            const take = sz === 3 ? arms.length : Math.min(2, arms.length);
-            for (let a = 0; a < take; a++) {
-              if (keep < (a + 1) / (take + 1) * 0.85) continue;
-              ctx.fillRect(
-                dx + arms[a][0] * CELL,
-                dy + arms[a][1] * CELL,
-                CELL,
-                CELL
-              );
-            }
-          }
-        }
-      }
-    };
-    const drawAurora = (f) => {
-      if (f.auroraMix > 0 && f.surfaceY) {
-        for (let gx = 0; gx < cols; gx++) {
-          const top = f.surfaceY[gx] != null ? f.surfaceY[gx] : 0;
-          if (!auroraFront || auroraFront.length !== cols) {
-            auroraFront = new Array(cols).fill(-Infinity);
-          }
-          const from = Math.min(top, f.restNow);
-          const reach = from + (h + CELL * 12 - from) * (f.auroraMix * f.auroraMix);
-          if (reach > auroraFront[gx]) auroraFront[gx] = reach;
-          const front = auroraFront[gx];
-          for (let gy = 0; gy < rows; gy++) {
-            const y = gy * CELL;
-            if (y + CELL <= top) continue;
-            const seedX = gx * CELL / w, seedY = gy * CELL / h;
-            const lobes = Math.sin(seedX * 5.1 + p1) * 0.16 + Math.sin(seedY * 3.7 - p2 + seedX * 2.2) * 0.12 + Math.sin((seedX + seedY) * 4.3 + p3) * 0.09;
-            const thr = Math.max(0, Math.min(
-              1,
-              ((gx * 7 + gy * 13) % 16 + 0.5) / 16 + lobes
-            ));
-            const into = (front - y) / Math.max(CELL * 6, 1);
-            if (into <= thr) continue;
-            const depthA = quantA(Math.min(1, 0.35 + into * 0.9));
-            const u = gx / cols - 0.5, v2 = gy / rows - 0.5;
-            const rad = Math.sqrt(u * u + v2 * v2);
-            const turn = Math.sin(f.t * 0.42 + swirlPhase);
-            const pull = (1 - Math.min(1, rad * 2)) * 0.3 * f.auroraMix;
-            const ang = Math.atan2(v2, u) + turn * 1.1 * pull;
-            const draw2 = pull * (0.55 + 0.45 * Math.abs(turn));
-            let su = 0.5 + Math.cos(ang) * rad * (1 - draw2);
-            let sv = 0.5 + Math.sin(ang) * rad * (1 - draw2);
-            const fade = quantA(Math.min(1, (into - thr) * 2.2));
-            if (fade <= 0) continue;
-            ctx.globalAlpha = Math.min(1, depthA * fade);
-            let rot2 = 0;
-            let phase = 0, fire = 0;
-            if (f.auroraJitter > 0.01) {
-              const j = (gx * 11 + gy * 17) % 32 / 32 - 0.5;
-              rot2 += j * 220 * f.auroraJitter;
-            }
-            if (orb.amount > 0.01) {
-              const cu = orb.x / w, cv = orb.y / h;
-              const du = su - cu, dv = sv - cv;
-              const dd = Math.hypot(du, dv);
-              const sw = Math.exp(-dd * 6) * orb.amount * 3.2 + orb.spin * Math.exp(-dd * 9) * 0.35;
-              if (Math.abs(sw) > 0.03) {
-                const ca = Math.cos(sw), sa = Math.sin(sw);
-                su = cu + du * ca - dv * sa;
-                sv = cv + du * sa + dv * ca;
-              }
-            }
-            let newest = 1e9;
-            for (const pk of pokes) {
-              if (pk.hue == null) continue;
-              const a2 = (f.now - pk.t) / 1e3;
-              if (a2 < newest) newest = a2;
-            }
-            for (const pk of pokes) {
-              if (pk.hue == null) continue;
-              const age = (f.now - pk.t) / 1e3;
-              if (age > 2.4) continue;
-              const yield2 = 1 / (1 + Math.max(0, age - newest) * 2.2);
-              const d = pk.y != null ? Math.hypot(gx * CELL - pk.x, y - pk.y) : Math.abs(gx * CELL - pk.x);
-              const reach2 = Math.exp(-d / 46) * Math.exp(-age / 1.5);
-              if (reach2 < 0.02) continue;
-              rot2 += (pk.hue - hueNow()) * reach2 * yield2;
-              if (pk.y != null) {
-                const cu = pk.x / w, cv = pk.y / h;
-                const du = su - cu, dv = sv - cv;
-                const dd = Math.hypot(du, dv);
-                const trav = dd * 7.5 - age * 2.4;
-                const grip = Math.min(1, age / 0.3) * Math.exp(-age / 1.7);
-                phase += Math.sin(trav) * Math.exp(-dd * 3.6) * grip * yield2 * 0.5;
-                fire += 0.6 * yield2 * Math.exp(-dd * 5.5) * Math.min(1, age / 0.12) * Math.exp(-age / 1.1);
-              }
-            }
-            rot2 = Math.max(-95, Math.min(95, rot2));
-            if (rot2 !== 0) ctx.filter = "hue-rotate(" + Math.round(rot2) + "deg)";
-            ctx.fillStyle = auroraCell(
-              su,
-              sv,
-              f.t,
-              Math.max(-1.6, Math.min(1.6, phase)),
-              Math.min(1.15, fire)
-            );
-            ctx.fillRect(gx * CELL, y, CELL, CELL);
-            if (rot2 !== 0) ctx.filter = "none";
-            ctx.globalAlpha = 1;
-          }
-        }
-      }
-    };
-    const draw = (now) => {
-      raf = null;
-      if (!canvas.isConnected) return;
-      resize();
-      const t = (now - t0) / 1e3;
-      const dt = Math.min(0.05, prevT ? (now - prevT) / 1e3 : 0.016);
-      prevT = now;
-      const stageMs = now - stageStart;
-      const stage = stageAt(stageMs);
-      if (!reduce && rNow !== r) {
-        const u = Math.min(1, Math.max(0, (now - pourStart) / POUR_MS));
-        rNow = pourFrom + (r - pourFrom) * ease(u);
-        if (u >= 1) rNow = r;
-      }
-      ctx.clearRect(0, 0, w, h);
-      const auroraMix = full ? Math.max(0, Math.min(1, (stageMs - S_SPLASH) / (S_CALM - S_SPLASH))) : 0;
-      const auroraJitter = full ? quantA(1 - auroraMix) : 0;
-      const f = { now, t, dt, stage, stageMs, auroraMix, auroraJitter, surfaceY: null, restNow: 0 };
-      drawSurface(f);
-      surfaceNow = f.surfaceY;
-      if (springNow > 0.15 && !reduce && f.surfaceY && drops.length < DROPS_MAX && Math.random() < 0.28) {
-        const gxm = Math.round(cols / 2);
-        const topY = f.surfaceY[gxm] != null ? f.surfaceY[gxm] : h;
-        const many = 1 + Math.floor(Math.random() * 2);
-        for (let k = 0; k < many; k++) {
-          drops.push({
-            x: w / 2 + (Math.random() - 0.5) * CELL * 5,
-            y: topY - CELL,
-            // Sideways more than up: a blob rolling off a swell
-            // leaves it, it does not leap from it.
-            vx: (Math.random() - 0.5) * 52,
-            vy: -(14 + Math.random() * 26),
-            life: 0,
-            shed: true,
-            hue: hueNow() + (Math.random() - 0.5) * 16,
-            size: Math.random() < 0.45 ? 2 : 1,
-            shape: Math.floor(Math.random() * 4)
-          });
-        }
-      }
-      const splashRoom = 1 - Math.max(0, Math.min(1, (r - 0.72) / 0.2));
-      drawSplash(f, splashRoom);
-      if (airborne > 2e-4) {
-        airborne = Math.max(0, airborne - airborne * 4.2 * f.dt - 4e-3);
-        if (airborne <= 0.02 && splashAmp > 0 && !splashAt) splashAt = f.now;
-      } else if (airborne !== 0) {
-        airborne = 0;
-        if (splashAmp > 0 && !splashAt) splashAt = f.now;
-      }
-      if (inks.length) {
-        for (let ii = inks.length - 1; ii >= 0; ii--) {
-          if ((f.now - inks[ii].t) / 1e3 > INK_LIFE) inks.splice(ii, 1);
-        }
-      }
-      drawGlow(f);
-      drawTilt(f);
-      drawWaves(f);
-      drawOrb(f);
-      drawDrops(f);
-      drawAurora(f);
-      if (reduce) return;
-      last = f.now;
-      const busy = !reduce;
-      if (!busy) {
-        raf = null;
-        return;
-      }
-      raf = window.requestAnimationFrame(step);
-    };
+    const drawWaves = (f) => wsJarDrawWaves({ CELL, DROPS_MAX, POKES_MAX, WAVE_LIFE, WAVE_SPEED, agitNow, cols, drops, h, liq, pokes, w, waves }, f);
+    const drawOrb = (f) => wsJarDrawOrb({ CELL, DROPS_MAX, ORB_IDLE, ORB_LEAK, ORB_RATE, ORB_SHED, ORB_SPIN_CAP, POKES_MAX, WAVES_MAX, agitNow, auroraCell, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, orb, orbEcc, orbR, orbRAt, pokes, rows, w, waveAmp, waves }, f);
+    const drawDrops = (f) => wsJarDrawDrops({ BLOB_SHAPES, CELL, POKES_MAX, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, pokes, w }, f);
+    const drawAurora = (f) => wsJarDrawAurora({ CELL, auroraCell, cols, ctx, h, hueNow, liq, orb, p1, p2, p3, pokes, quantA, rows, swirlPhase, w }, f);
+    const draw = (now) => wsJarDraw({ CELL, DROPS_MAX, INK_LIFE, POUR_MS, S_CALM, S_SPLASH, canvas, cols, ctx, drawAurora, drawDrops, drawGlow, drawOrb, drawSplash, drawSurface, drawTilt, drawWaves, drops, ease, full, h, hueNow, inks, liq, pourFrom, pourStart, quantA, r, reduce, resize, stageAt, stageStart, step, t0, w }, now);
     const step = (now) => {
-      if (now - last < 33) {
-        raf = window.requestAnimationFrame(step);
+      if (now - liq.last < 33) {
+        liq.raf = window.requestAnimationFrame(step);
         return;
       }
       draw(now);
@@ -24014,7 +24320,7 @@ var reportMethods = {
         draw(performance.now());
         return;
       }
-      if (raf == null) raf = window.requestAnimationFrame(step);
+      if (liq.raf == null) liq.raf = window.requestAnimationFrame(step);
     };
     const pointAt = (ev) => {
       let px = w / 2, py = h / 2;
@@ -24030,116 +24336,7 @@ var reportMethods = {
         y: Math.max(0, Math.min(h, py))
       };
     };
-    const inkPress = (p, now) => {
-      const BOX = [330, 340, 355, 8, 22, 36, 50, 265, 285, 300, 318];
-      const boxOdds = Math.max(0, Math.min(0.85, (rNow - 0.8) / 0.22));
-      const STEPS = [-155, -120, -85, -55, 55, 85, 120, 155, 180];
-      const hue = (Math.random() < boxOdds ? BOX[Math.floor(Math.random() * BOX.length)] : hueNow() + STEPS[Math.floor(Math.random() * STEPS.length)]) + (Math.random() - 0.5) * 22;
-      inkRun = now - inkAt < 900 ? Math.min(8, inkRun + 1) : 1;
-      inkAt = now;
-      const push = 1 + (inkRun - 1) * 0.42;
-      if (inks.length >= INKS_MAX) inks.shift();
-      const gxi = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
-      const line = surfaceNow ? surfaceNow[gxi] || h : h;
-      inks.push({
-        x: p.x,
-        y: Math.max(p.y, line + CELL),
-        t: now,
-        hue,
-        push,
-        spin: (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.7)
-      });
-      const wasVented = inkCharge >= 1;
-      if (inkCharge <= 0.01) inkChargeX = p.x;
-      else inkChargeX += (p.x - inkChargeX) * 0.45;
-      inkCharge = Math.min(1, inkCharge + 0.2);
-      inkChargeAt = now;
-      if (inkCharge >= 1 && !wasVented) {
-        inkCharge = 0;
-        inkVent = now;
-        const gxc = Math.max(0, Math.min(cols - 1, Math.round(inkChargeX / CELL)));
-        const surfC = surfaceNow ? surfaceNow[gxc] || h : h;
-        const room = Math.max(6, surfC);
-        const mid = Math.abs(inkChargeX - w / 2) < w * 0.09;
-        const dirs = mid ? [-1, 1] : [inkChargeX < w / 2 ? 1 : -1];
-        const swellAmp = Math.min(waveAmp() * 2.6, room * 0.62);
-        for (const dir2 of dirs) {
-          if (waves.length >= WAVES_MAX) waves.shift();
-          waves.push({
-            x: inkChargeX,
-            dir: dir2,
-            born: 0,
-            amp: swellAmp * (mid ? 0.78 : 1),
-            // A swell, not a chop: broad, deliberate, with a
-            // real hollow behind it — the water the mound was
-            // made of, going.
-            wid: 1700,
-            spd: 240,
-            hollow: 0.55,
-            spray: 1.2,
-            hue,
-            broke: false
-          });
-        }
-        agitLevel = Math.min(0.55, agitNow(now) + 0.1);
-        agitAt = now;
-        if (surfaceNow && drops.length < DROPS_MAX) {
-          const many2 = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
-          for (let k = 0; k < many2; k++) {
-            drops.push({
-              x: inkChargeX + (Math.random() - 0.5) * CELL * 5,
-              y: surfC - CELL * 2,
-              vx: (Math.random() - 0.5) * 120 + (dirs.length === 1 ? dirs[0] * 40 : 0),
-              vy: -(55 + Math.random() * 90),
-              life: 0,
-              shed: true,
-              hue: hue + (Math.random() - 0.5) * 40,
-              size: Math.random() < 0.3 ? 2 : 1,
-              shape: Math.floor(Math.random() * 4)
-            });
-          }
-        }
-      }
-      if (surfaceNow) {
-        const bn = Math.min(
-          BUBBLES_MAX - bubbles.length,
-          2 + Math.floor(Math.random() * 3)
-        );
-        for (let k = 0; k < bn; k++) {
-          bubbles.push({
-            x: p.x + (Math.random() - 0.5) * CELL * 5,
-            // Just under the surface, not deep: they were
-            // carried down by the drop, not released from the
-            // floor, so they have a short way back.
-            y: Math.min(h - CELL, line + CELL * (2 + Math.random() * 5)),
-            size: Math.random() < 0.4 ? 2 : 1,
-            rise: 22 + Math.random() * 30,
-            phase: Math.random() * 6.283,
-            wob: 0.6 + Math.random() * 1.3,
-            hue: hue + (Math.random() - 0.5) * 30
-          });
-        }
-      }
-      if (surfaceNow && drops.length < DROPS_MAX) {
-        const many = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
-        for (let k = 0; k < many; k++) {
-          drops.push({
-            x: p.x + (Math.random() - 0.5) * CELL * 4,
-            y: line - CELL,
-            vx: (Math.random() - 0.5) * 105,
-            vy: -(48 + Math.random() * 78),
-            life: 0,
-            shed: true,
-            hue: hue + (Math.random() - 0.5) * 40,
-            size: Math.random() < 0.3 ? 2 : 1,
-            shape: Math.floor(Math.random() * 4)
-          });
-        }
-      }
-      if (pokes.length >= POKES_MAX) pokes.shift();
-      pokes.push({ x: p.x, y: null, t: now, still: true, hue });
-      kick();
-    };
+    const inkPress = (p, now) => wsJarInkPress({ BUBBLES_MAX, CELL, DROPS_MAX, INKS_MAX, POKES_MAX, WAVES_MAX, agitNow, bubbles, cols, drops, h, hueNow, inks, kick, liq, pokes, w, waveAmp, waves }, p, now);
     const sloshPress = (p, now) => {
       const u = Math.max(-1, Math.min(1, (p.x - w / 2) / (w / 2)));
       const lever = Math.abs(u) < 0.06 ? 0 : u;
@@ -24153,134 +24350,12 @@ var reportMethods = {
         still: false,
         hue: hueNow() + (Math.random() - 0.5) * 70
       });
-      agitLevel = Math.min(0.55, agitNow(now) + (lever === 0 ? 0.12 : 0.04));
-      agitAt = now;
+      liq.agitLevel = Math.min(0.55, agitNow(now) + (lever === 0 ? 0.12 : 0.04));
+      liq.agitAt = now;
       kick();
     };
-    const orbPress = (p, now) => {
-      orb.falling = false;
-      orb.dropping = false;
-      orb.vy = 0;
-      orb.x = p.x;
-      orb.y = p.y;
-      const gap = Math.max(0, now - (orb.last || 0));
-      const urge = Math.max(0, Math.min(1, 1 - gap / 520));
-      orb.last = now;
-      const room = Math.max(0, 1 - orb.want);
-      orb.want = Math.min(1, orb.want + ORB_BITE * (0.45 + urge * 1.1) * (0.35 + room * 0.65));
-      orb.streak = urge > 0.15 ? Math.min(14, (orb.streak || 0) + 1) : 0;
-      const zeal = 1 + orb.streak / 14 * 0.7;
-      orb.vel = Math.min(ORB_SPIN_CAP, orb.vel + (0.7 + urge * 2.4) * zeal);
-      if (surfaceNow) {
-        const many = Math.min(Math.max(0, DROPS_MAX - drops.length), 7);
-        for (let k = 0; k < many; k++) {
-          const gx2 = Math.floor(Math.random() * cols);
-          const sx = gx2 * CELL;
-          const sy = surfaceNow[gx2] || h;
-          const flight = 0.42;
-          drops.push({
-            x: sx,
-            y: sy - CELL,
-            vx: (p.x - sx) / flight,
-            vy: (p.y - sy) / flight - 900 * flight * 0.5,
-            life: 0,
-            shed: true,
-            pull: true,
-            hue: hueNow() + (Math.random() - 0.5) * 70,
-            size: Math.random() < 0.35 ? 2 : 1,
-            shape: Math.floor(Math.random() * 4)
-          });
-        }
-      }
-      if (pokes.length >= POKES_MAX) pokes.shift();
-      pokes.push({
-        x: p.x,
-        y: p.y,
-        t: now,
-        still: true,
-        hue: hueNow() + 40 + Math.random() * 220
-      });
-      kick();
-    };
-    const bite = (ev) => {
-      const p = pointAt(ev);
-      const now = performance.now();
-      if (full && now - stageStart >= S_SPLASH) {
-        hold = null;
-        return;
-      }
-      const heldFor = hold ? Math.min(1, (now - hold.t) / 1100) : 0;
-      const eased = 1 - Math.pow(1 - heldFor, 3);
-      hold = null;
-      const gx = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
-      const surf = surfaceNow ? surfaceNow[gx] || h : h;
-      const tank = Math.max(1, h - surf);
-      const under = (p.y - surf) / tank;
-      let kind = "surface";
-      if (under < -0.06) kind = "air";
-      else if (under < 0.1) kind = "crest";
-      else kind = "swell";
-      const room = Math.max(6, surf);
-      const base = waveAmp();
-      const wants = base * (kind === "swell" ? 2.1 : kind === "air" ? 3.4 : 2.8) * (0.75 + eased * 1.5);
-      const height = Math.min(wants, room * 0.7);
-      const spilled = Math.max(0, wants - height) / Math.max(1, base);
-      const jitter = (v, by) => v * (1 - by + Math.random() * by * 2);
-      const shapes = {
-        // Something falling in: narrow, quick, and it throws.
-        air: { wid: 760, spd: 330, hollow: 0.3, spray: 5 },
-        // Struck at the surface: the classic travelling crest.
-        crest: { wid: 900, spd: 305, hollow: 0.42, spray: 3 },
-        // Reached into the body: a long slow swell with a deep
-        // trough behind it, and almost nothing thrown.
-        swell: { wid: 2100, spd: 215, hollow: 0.62, spray: 1 },
-        surface: { wid: 900, spd: 305, hollow: 0.42, spray: 3 }
-      };
-      const sh = shapes[kind] || shapes.crest;
-      const hue = hueNow() + (Math.random() - 0.5) * 70;
-      const mid = Math.abs(p.x - w / 2) < w * 0.09;
-      const dirs = mid ? [-1, 1] : [p.x < w / 2 ? 1 : -1];
-      for (const dir2 of dirs) {
-        if (waves.length >= WAVES_MAX) waves.shift();
-        waves.push({
-          x: p.x,
-          dir: dir2,
-          born: 0,
-          // stamped by the first frame that sees it
-          amp: jitter(height, 0.14) * (mid ? 0.78 : 1),
-          wid: jitter(sh.wid, 0.18),
-          spd: jitter(sh.spd, 0.1),
-          hollow: sh.hollow,
-          spray: sh.spray * (1 + spilled * 0.8) * (0.6 + eased),
-          hue,
-          broke: false
-        });
-      }
-      if (pokes.length >= POKES_MAX) pokes.shift();
-      pokes.push({ x: p.x, y: null, t: now, still: false, hue });
-      agitLevel = Math.min(0.55, agitNow(now) + 0.02 + eased * 0.05);
-      agitAt = now;
-      if (surfaceNow && (spilled > 0.2 || eased > 0.3)) {
-        const many = Math.min(
-          DROPS_MAX - drops.length,
-          1 + Math.round(spilled * 5 + eased * 6)
-        );
-        for (let k = 0; k < many; k++) {
-          drops.push({
-            x: p.x + (Math.random() - 0.5) * CELL * 4,
-            y: surf - CELL,
-            vx: (Math.random() - 0.5) * 110,
-            vy: -(60 + Math.random() * 120),
-            life: 0,
-            shed: true,
-            hue: hue + (Math.random() - 0.5) * 50,
-            size: Math.random() < 0.3 ? 2 : 1,
-            shape: Math.floor(Math.random() * 4)
-          });
-        }
-      }
-      kick();
-    };
+    const orbPress = (p, now) => wsJarOrbPress({ CELL, DROPS_MAX, ORB_BITE, ORB_SPIN_CAP, POKES_MAX, cols, drops, h, hueNow, kick, liq, orb, pokes }, p, now);
+    const bite = (ev) => wsJarBite({ CELL, DROPS_MAX, POKES_MAX, S_SPLASH, WAVES_MAX, agitNow, cols, drops, full, h, hueNow, kick, liq, pointAt, pokes, stageStart, w, waveAmp, waves }, ev);
     if (!(import_obsidian17.Platform && import_obsidian17.Platform.isMobile) && !reduce) {
       wrap.addEventListener("pointerdown", (ev) => {
         const p = pointAt(ev);
@@ -24304,16 +24379,16 @@ var reportMethods = {
           inkPress(p, now);
           return;
         }
-        hold = { x: p.x, y: p.y, t: now };
+        liq.hold = { x: p.x, y: p.y, t: now };
         kick();
       });
       wrap.addEventListener("pointermove", (ev) => {
         const hasOrb = orb.amount > 1e-3 && !orb.falling && !orb.dropping;
-        if (!hold && !hasOrb) return;
+        if (!liq.hold && !hasOrb) return;
         const p = pointAt(ev);
-        if (hold) {
-          hold.x = p.x;
-          hold.y = p.y;
+        if (liq.hold) {
+          liq.hold.x = p.x;
+          liq.hold.y = p.y;
         }
         if (hasOrb) {
           orb.x = p.x;
@@ -24321,13 +24396,13 @@ var reportMethods = {
         }
       });
       wrap.addEventListener("pointerup", (ev) => {
-        if (hold) bite(ev);
+        if (liq.hold) bite(ev);
       });
       wrap.addEventListener("pointercancel", (ev) => {
-        if (hold) bite(ev);
+        if (liq.hold) bite(ev);
       });
       wrap.addEventListener("pointerleave", (ev) => {
-        if (hold) bite(ev);
+        if (liq.hold) bite(ev);
       });
     }
     wrap.wsPour = () => {
@@ -24335,7 +24410,7 @@ var reportMethods = {
       kick();
     };
     pour();
-    raf = window.requestAnimationFrame(draw);
+    liq.raf = window.requestAnimationFrame(draw);
     return wrap;
   },
   // rgb → hsl, hue in degrees, s/l in percent. Only used by the gauge to
@@ -25122,7 +25197,7 @@ var barMethods = {
     const at = names.indexOf(this._activeBarPreset);
     const next = names[(at + direction + names.length) % names.length];
     await this.loadBarPreset(next);
-    new import_obsidian18.Notice("Bar preset: " + next);
+    new import_obsidian18.Notice("Word-Smith: bar preset " + next + ".");
   },
   async deleteBarPreset(name) {
     delete this.getBarPresets()[name];
@@ -26293,6 +26368,7 @@ var barMethods = {
   barCountPaint(node, id, n, word) {
     node.textContent = "";
     node.classList.remove("is-icon", "is-both");
+    if (typeof node.removeAttribute === "function") node.removeAttribute("aria-label");
     const fmt = this.barTokenFormat(id);
     const num = createSpan();
     num.className = "ws-bartok-n";
@@ -26309,6 +26385,7 @@ var barMethods = {
       if (ic.childElementCount > 0) {
         node.appendChild(ic);
         node.classList.add("is-icon");
+        if (fmt === "icon" && typeof node.setAttribute === "function") node.setAttribute("aria-label", String(n) + " " + word);
       }
     }
     if (fmt !== "icon") {
@@ -32460,6 +32537,449 @@ var themesMethods = {
 
 // src/export.ts
 var import_obsidian21 = require("obsidian");
+function wsPreviewMetrics(a) {
+  const { docOf } = a;
+  const doc = docOf();
+  const stack = doc && doc.querySelector(".stack");
+  const sheet = doc && (doc.querySelector(".sheet:not([hidden])") || doc.querySelector(".sheet"));
+  const flow = sheet && sheet.querySelector(".flow");
+  if (!doc || !stack || !sheet || !flow) return null;
+  const win = doc.defaultView;
+  if (!win) return null;
+  let gap = 18;
+  try {
+    const g = parseFloat(win.getComputedStyle(doc.documentElement).getPropertyValue("--sheet-gap"));
+    if (isFinite(g)) gap = g;
+  } catch (_) {
+    wsCatch("exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(doc.documentElement)", _);
+  }
+  let colGap = 0;
+  try {
+    const g = parseFloat(win.getComputedStyle(flow).columnGap);
+    if (isFinite(g)) colGap = g;
+  } catch (_) {
+    wsCatch("exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(flow).columnGap);", _);
+  }
+  const sheetH = sheet.offsetHeight || 0;
+  const across = (flow.clientWidth || 0) + colGap;
+  if (!sheetH || (flow.clientWidth || 0) <= 0) return null;
+  const pages = across > 0 ? Math.max(1, Math.round((flow.scrollWidth + colGap) / across)) : 1;
+  return {
+    doc,
+    win,
+    stack,
+    first: sheet,
+    gap,
+    across,
+    down: sheetH + gap,
+    pages
+  };
+}
+function wsPreviewPlaceSheets(a, m, from) {
+  const { o, pool, topOf } = a;
+  const need = [];
+  for (let i = 0; i < pool.length; i++) {
+    const n = from + i;
+    if (n >= 0 && n < m.pages) need.push(n);
+  }
+  const held = /* @__PURE__ */ new Map();
+  for (const el of pool) {
+    const at = el.dataset.page === void 0 ? null : Number(el.dataset.page);
+    if (at != null && need.indexOf(at) !== -1 && !held.has(at)) held.set(at, el);
+  }
+  const spare = pool.filter((el) => {
+    const at = el.dataset.page === void 0 ? null : Number(el.dataset.page);
+    return !(at != null && held.get(at) === el);
+  });
+  for (const n of need) {
+    if (held.has(n)) continue;
+    const el = spare.shift();
+    if (!el) break;
+    el.dataset.page = String(n);
+    held.set(n, el);
+  }
+  for (const [n, el] of held) {
+    el.style.top = topOf(m, n) + "px";
+    el.hidden = false;
+    const flow = el.querySelector(".flow");
+    if (flow) flow.scrollLeft = n * m.across;
+    const hdr = el.querySelector(".hdr");
+    if (hdr) {
+      const bare = !!o.titlePage && n === 0;
+      hdr.textContent = !o.runningHeader || bare ? "" : o.runningHeader + " " + (n + 1);
+    }
+  }
+  const placed = new Set(held.values());
+  for (const el of pool) if (!placed.has(el)) el.hidden = true;
+}
+function wsPreviewTopNow(a) {
+  const { metrics, pool, pv } = a;
+  try {
+    const sheet = pool[0];
+    const fl = sheet && sheet.querySelector(".flow");
+    if (!fl) return null;
+    const kids = fl.querySelectorAll("p, h1, h2, h3, h4, h5, h6");
+    if (!kids.length) return null;
+    if (pv.flow) {
+      for (const k of kids) {
+        if (k.getBoundingClientRect().bottom > 0) return k;
+      }
+      return kids[kids.length - 1];
+    }
+    const m = metrics();
+    if (!m || !(m.across > 0)) return null;
+    for (const k of kids) {
+      if (Math.floor((k.offsetLeft + 1) / m.across) >= pv.pageAt) return k;
+    }
+    return kids[kids.length - 1];
+  } catch {
+    return null;
+  }
+}
+function wsPreviewTopTo(a, el) {
+  const { metrics, pv, showPage } = a;
+  if (!el) return;
+  const doc = el.ownerDocument;
+  const win = doc && doc.defaultView;
+  if (!win) return;
+  try {
+    if (pv.flow) {
+      const y = el.getBoundingClientRect().top + (win.scrollY || 0);
+      win.scrollTo(0, Math.max(0, y - 12));
+      return;
+    }
+    const m = metrics();
+    if (!m || !(m.across > 0)) return;
+    showPage(Math.floor((el.offsetLeft + 1) / m.across));
+  } catch (_) {
+    wsCatch("exportPreviewInto / topTo: if (flow)", _);
+  }
+}
+function wsPreviewFlowApply(a) {
+  const { apply, docOf, host, pv, readFileSay } = a;
+  try {
+    const doc = docOf();
+    if (doc && doc.documentElement) {
+      doc.documentElement.classList.toggle("is-flow", pv.flow);
+    }
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: const doc = docOf();", _);
+  }
+  try {
+    const split = host && host.closest && host.closest(".ws-export-split");
+    if (split) split.classList.toggle("is-flow", pv.flow);
+    const body = split && split.closest && split.closest(".ws-uni-body");
+    if (body) body.classList.toggle("is-reader", pv.flow);
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: const split = host && host.closest && \u2026", _);
+  }
+  try {
+    if (pv.pageBox) pv.pageBox.toggleClass("is-gone", pv.flow);
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: if (pageBox) pageBox.toggleClass('is-gone', flow);", _);
+  }
+  try {
+    apply();
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: apply();", _);
+  }
+  try {
+    if (pv.readPage) pv.readPage.toggleClass("is-gone", !pv.flow);
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: if (readPage) readPage.toggleClass('is-gone', !flow);", _);
+  }
+  try {
+    if (pv.readFile) {
+      pv.readFile.toggleClass("is-gone", !pv.flow);
+      if (pv.flow) readFileSay();
+    }
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowApply: readFile.toggleClass(is-gone)", _);
+  }
+  if (pv.flowSay) {
+    try {
+      pv.flowSay();
+    } catch (_) {
+      wsCatch("exportPreviewInto / flowApply: flowSay();", _);
+    }
+  }
+}
+function wsPreviewReadSay(plugin, a) {
+  const { docOf, pageOf, pagesTotal, pool, pv, readFileSay, restoring, topNow } = a;
+  readFileSay();
+  if (!pv.flow || !pv.readPage) return;
+  try {
+    const doc0 = docOf();
+    const sheet = pool[0] || doc0 && (doc0.querySelector(".sheet:not([hidden])") || doc0.querySelector(".sheet"));
+    const fl = sheet && sheet.querySelector(".flow");
+    const doc = fl && fl.ownerDocument;
+    const win = doc && doc.defaultView;
+    if (!win) return;
+    const top = topNow();
+    if (!restoring) {
+      try {
+        if (plugin._wsSession) {
+          plugin._wsSession.flowScroll = win.scrollY || 0;
+          if (top) {
+            const kids = fl.querySelectorAll("p, h1, h2, h3, h4, h5, h6");
+            plugin._wsSession.flowTop = { idx: Array.prototype.indexOf.call(kids, top), off: top.getBoundingClientRect().top };
+          }
+        }
+      } catch (_) {
+        wsCatch("exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;", _);
+      }
+    }
+    const n = top && pageOf && pageOf.has(top) ? pageOf.get(top) : null;
+    pv.readPage.setText(n == null || !pagesTotal ? "" : "p. " + (n + 1) + " of " + pagesTotal);
+  } catch (_) {
+    wsCatch("exportPreviewInto / readSay: const sheet = pool[0];", _);
+  }
+}
+function wsPreviewFlowSet(plugin, a, on) {
+  const { docOf, flowApply, flowY0, pageMap, pv, readSay, syncPages, topNow, topTo } = a;
+  const was = !!pv.flow;
+  if (was === !!on) return;
+  if (!was) pageMap();
+  const keep = topNow();
+  pv.flow = !!on;
+  try {
+    if (plugin._wsSession) plugin._wsSession.flow = pv.flow;
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowSet: if (this._wsSession) this._wsSession.flow = flow;", _);
+  }
+  flowApply();
+  const after = () => {
+    if (!pv.flow) {
+      try {
+        syncPages();
+      } catch (_) {
+        wsCatch("exportPreviewInto / after: syncPages();", _);
+      }
+    }
+    if (pv.flow) {
+      try {
+        const d = docOf();
+        if (d && d.body) {
+          d.body.setAttribute("tabindex", "-1");
+          d.body.focus();
+        }
+      } catch (_) {
+        wsCatch("exportPreviewInto / after: const d = docOf();", _);
+      }
+    }
+    if (pv.flow) {
+      if (!keep) {
+        try {
+          const y0 = flowY0;
+          const d0 = docOf();
+          const w0 = d0 && d0.defaultView;
+          if (w0 && typeof y0 === "number" && y0 > 0) {
+            w0.scrollTo(0, y0);
+            try {
+              if (plugin._wsSession) plugin._wsSession.flowScroll = y0;
+            } catch (_) {
+              wsCatch("exportPreviewInto / after: this._wsSession.flowScroll = y0;", _);
+            }
+          }
+        } catch (_) {
+          wsCatch("exportPreviewInto / after: const y0 = flowY0;", _);
+        }
+      }
+      try {
+        readSay();
+      } catch (_) {
+        wsCatch("exportPreviewInto / after: readSay();", _);
+      }
+    }
+    const scroll = () => topTo(keep);
+    if (!pv.flow && win0 && win0.requestAnimationFrame) {
+      win0.requestAnimationFrame(scroll);
+    } else {
+      scroll();
+    }
+  };
+  let win0 = null;
+  try {
+    const d = docOf();
+    win0 = d && d.defaultView;
+  } catch (_) {
+    wsCatch("exportPreviewInto / flowSet: const d = docOf();", _);
+  }
+  if (win0 && win0.requestAnimationFrame) win0.requestAnimationFrame(after);
+  else after();
+}
+function wsPreviewSyncPages(plugin, a) {
+  const { fillPool, metrics, placeSheets, pv, windowStart } = a;
+  if (pv.flow) return;
+  const m = metrics();
+  if (!m) return;
+  fillPool(m);
+  m.stack.style.height = m.pages * m.down - m.gap + "px";
+  const z = parseFloat(m.doc.documentElement.style.zoom) || 1;
+  const y = (m.win.scrollY || 0) / (z || 1);
+  const at = m.down > 0 ? Math.round(y / m.down) : 0;
+  pv.pageAt = Math.max(0, Math.min(m.pages - 1, at));
+  plugin._exportPage = pv.pageAt;
+  placeSheets(m, windowStart(m, pv.pageAt));
+  if (pv.pageNow) pv.pageNow.setText(String(pv.pageAt + 1));
+  if (pv.pageEst) pv.pageEst.setText("~" + m.pages);
+  if (pv.prevBtn) pv.prevBtn.disabled = pv.pageAt <= 0;
+  if (pv.nextBtn) pv.nextBtn.disabled = pv.pageAt >= m.pages - 1;
+}
+function wsPreviewPaint(plugin, a) {
+  const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages } = a;
+  try {
+    const doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
+    if (!doc) return;
+    const fresh = new (doc.defaultView || window).DOMParser().parseFromString(html, "text/html");
+    const root = doc.adoptNode(fresh.documentElement);
+    if (doc.documentElement) doc.replaceChild(root, doc.documentElement);
+    else doc.appendChild(root);
+  } catch (_) {
+    wsCatch("exportPreviewInto / paint: const doc = frame.contentDocument", _);
+  }
+  if (!pv.zoom) pv.zoom = asText ? 1 : plugin._exportZoom || fitZoom();
+  apply();
+  applyDark();
+  try {
+    plugin.exportReaderClicks(docOf(), null, frame);
+  } catch (_) {
+    wsCatch("exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);", _);
+  }
+  try {
+    plugin.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => plugin.openNoteAt(p, sn), step: (by) => fileStep(by), vim: () => !!(plugin.app.vault.getConfig && plugin.app.vault.getConfig("vimMode")) });
+  } catch (_) {
+    wsCatch("exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: \u2026", _);
+  }
+  if (pv.flow) {
+    try {
+      flowApply();
+    } catch (_) {
+      wsCatch("exportPreviewInto / paint: flowApply();", _);
+    }
+  }
+  armScroll();
+  try {
+    restoreArm();
+  } catch (_) {
+    wsCatch("exportPreviewInto / paint: restoreArm();", _);
+  }
+  try {
+    window.requestAnimationFrame(() => syncPages());
+  } catch (_) {
+    wsCatch("exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());", _);
+  }
+}
+function wsPreviewFlipper(plugin, a) {
+  const { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage } = a;
+  if (!asText) {
+    pv.pageBox = foot.createDiv({ cls: "ws-export-flip" });
+    pv.prevBtn = iconBtn(pv.pageBox, "ws-export-prev", ["chevron-left"], "\u2039", "Previous page", () => showPage(pv.pageAt - 1));
+    pv.pageNum = pv.pageBox.createSpan({ cls: "ws-export-pagenum" });
+    pv.pageNow = pv.pageNum.createSpan({ cls: "ws-export-pagenow", text: "1" });
+    pv.pageNum.createSpan({ cls: "ws-export-pagesep", text: " / " });
+    pv.pageEst = pv.pageNum.createSpan({ cls: "ws-export-pageest", text: "~1" });
+    pv.pageEst.setAttribute("tabindex", "0");
+    pv.pageEst.setAttribute("role", "note");
+    pv.pageEst.title = o.format === "html" || o.format === "pdf" ? "Roughly this many pages \u2014 the file breaks in near enough the same places." : "Roughly this many pages \u2014 Word will break the .docx its own way.";
+    pv.nextBtn = iconBtn(pv.pageBox, "ws-export-next", ["chevron-right"], "\u203A", "Next page", () => showPage(pv.pageAt + 1));
+    const zoomBox = foot.createDiv({ cls: "ws-export-zoom" });
+    const zoomNow = () => pv.flow ? pv.flowZoom : pv.zoom;
+    iconBtn(zoomBox, "ws-export-zoomout", ["zoom-out"], "\u2212", "Zoom out", () => setZoom(zoomNow() - 0.1));
+    pv.pct = zoomBox.createSpan({ cls: "ws-export-zoompct", text: "100%" });
+    iconBtn(zoomBox, "ws-export-zoomin", ["zoom-in"], "+", "Zoom in", () => setZoom(zoomNow() + 0.1));
+    const fitBtn = zoomBox.createEl("button", { cls: "ws-export-mini ws-export-fit" });
+    const fitted = () => !pv.flow && plugin._exportZoom == null;
+    const sayFit = () => {
+      const atFit = fitted();
+      fitBtn.setText(atFit ? "100%" : "Fit");
+      fitBtn.title = atFit ? "Show the page at its printed size" : "Fit the page to the window";
+      fitBtn.setAttribute("aria-label", fitBtn.title);
+    };
+    pv.fitSay = sayFit;
+    fitBtn.addEventListener("click", () => {
+      if (fitted()) {
+        setZoom(1);
+        return;
+      }
+      plugin._exportZoom = null;
+      setZoom(pv.flow ? 1 : fitZoom(), false);
+    });
+    sayFit();
+    const viewBox = foot.createDiv({ cls: "ws-export-view" });
+    const dk = viewBox.createEl("button", { cls: "ws-export-mini ws-export-ico ws-export-prevdark" });
+    const sayDark = () => {
+      wsIconInto(dk, pv.dark ? ["sun"] : ["moon"], pv.dark ? "Light" : "Dark");
+      dk.title = pv.dark ? "Show the page as paper" : "Dim the page for reading";
+      dk.setAttribute("aria-label", dk.title);
+      dk.setAttribute("aria-pressed", pv.dark ? "true" : "false");
+      dk.toggleClass("is-on", pv.dark);
+    };
+    dk.addEventListener("click", () => {
+      pv.dark = !pv.dark;
+      try {
+        if (plugin.settings && plugin.settings.exportOpts) {
+          plugin.settings.exportOpts.previewDark = pv.dark;
+          void plugin.saveSettings();
+        }
+      } catch (_) {
+        wsCatch("exportPreviewInto: if (this.settings && this.settings.exportOpts)", _);
+      }
+      applyDark();
+      sayDark();
+    });
+    sayDark();
+    const rfile = viewBox.createEl("select", { cls: "ws-export-readfile dropdown is-gone" });
+    pv.readFile = rfile;
+    rfile.title = "Go to a file \u2014 [ and ] step through them";
+    rfile.setAttribute("aria-label", "Go to a file");
+    rfile.addEventListener("change", () => {
+      try {
+        jumpTo(rfile.value);
+      } catch (_) {
+        wsCatch("exportPreviewInto / readFile change: jumpTo(readFile.value);", _);
+      }
+    });
+    pv.readPage = viewBox.createSpan({ cls: "ws-export-readpage is-gone" });
+    const xb = viewBox.createEl(
+      "button",
+      { cls: "ws-export-mini ws-export-expand" }
+    );
+    const expandIcon = xb.createSpan({ cls: "ws-export-ico-in" });
+    const expandWord = xb.createSpan({ cls: "ws-export-word" });
+    const sayFlow = () => {
+      wsIconInto(expandIcon, pv.flow ? ["book-open"] : ["scroll-text", "align-justify"], "");
+      expandWord.setText(pv.flow ? "Collapse" : "Expand");
+      xb.title = pv.flow ? "Back to the page preview" : "Read the whole thing as one text";
+      xb.setAttribute("aria-label", xb.title);
+      xb.setAttribute("aria-pressed", pv.flow ? "true" : "false");
+      xb.toggleClass("is-on", pv.flow);
+    };
+    xb.addEventListener("click", () => flowSet(!pv.flow));
+    sayFlow();
+    pv.flowSay = sayFlow;
+    if (typeof onRefresh === "function") {
+      const rf = viewBox.createEl("button", { cls: "ws-export-mini ws-export-refresh" });
+      wsGlyphWord(rf, ["refresh-cw"], "Refresh");
+      rf.title = "Compile again, with what the notes say now";
+      rf.setAttribute("aria-label", rf.title);
+      rf.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        rf.disabled = true;
+        try {
+          onRefresh();
+        } finally {
+          window.setTimeout(() => {
+            rf.disabled = false;
+          }, 400);
+        }
+      });
+    }
+    if (pv.flow) flowApply();
+    apply();
+  }
+}
 var exportMethods = {
   // ── Export ──────────────────────────────────────────────────────────────
   // Everything in scope, in the order it will be compiled. A folder is
@@ -33140,22 +33660,38 @@ var exportMethods = {
       const byH = h > 40 ? (h - 24) / paperHighPx() : byW;
       return Math.max(0.2, Math.min(1, Math.min(byW, byH)));
     };
-    let zoom = 0;
-    let flowZoom = 1;
+    const pv = {
+      zoom: 0,
+      // 0 = not measured yet
+      flowZoom: 1,
+      pct: null,
+      // the read-out, once the foot exists
+      fitSay: null,
+      // the Fit/100% toggle's word, once it exists
+      dark: !!(this.settings && this.settings.exportOpts && this.settings.exportOpts.previewDark || false),
+      pageAt: Math.max(0, Number(this._exportPage) || 0),
+      pageNum: null,
+      prevBtn: null,
+      nextBtn: null,
+      pageNow: null,
+      pageEst: null,
+      flow: false,
+      pageBox: null,
+      readPage: null,
+      flowSay: null,
+      readFile: null
+    };
     try {
       const z0 = this._wsSession && this._wsSession.flowZoom;
-      if (typeof z0 === "number" && z0 > 0) flowZoom = z0;
+      if (typeof z0 === "number" && z0 > 0) pv.flowZoom = z0;
     } catch (_) {
       wsCatch("exportPreviewInto: const z0 = this._wsSession && this._wsSession.flowZoom;", _);
     }
-    let pct = null;
-    let fitSay = null;
-    let dark = !!(this.settings && this.settings.exportOpts && this.settings.exportOpts.previewDark || false);
     const applyDark = () => {
       try {
         const doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
         if (!doc || !doc.documentElement) return;
-        doc.documentElement.classList.toggle("is-dark", dark);
+        doc.documentElement.classList.toggle("is-dark", pv.dark);
       } catch (_) {
         wsCatch("exportPreviewInto / applyDark: const doc = frame.contentDocument", _);
       }
@@ -33164,41 +33700,36 @@ var exportMethods = {
       try {
         const doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
         if (!doc || !doc.documentElement) return;
-        doc.documentElement.style.zoom = String(flow ? flowZoom : zoom);
+        doc.documentElement.style.zoom = String(pv.flow ? pv.flowZoom : pv.zoom);
       } catch (_) {
         wsCatch("exportPreviewInto / apply: const doc = frame.contentDocument", _);
       }
-      if (pct) pct.setText(Math.round((flow ? flowZoom : zoom) * 100) + "%");
-      if (fitSay) fitSay();
+      if (pv.pct) pv.pct.setText(Math.round((pv.flow ? pv.flowZoom : pv.zoom) * 100) + "%");
+      if (pv.fitSay) pv.fitSay();
       syncPages();
     };
     const setZoom = (z, keep) => {
-      if (flow) {
-        flowZoom = Math.max(0.5, Math.min(2.5, z));
+      if (pv.flow) {
+        pv.flowZoom = Math.max(0.5, Math.min(2.5, z));
         try {
-          if (this._wsSession) this._wsSession.flowZoom = flowZoom;
+          if (this._wsSession) this._wsSession.flowZoom = pv.flowZoom;
         } catch (_) {
           wsCatch("exportPreviewInto / setZoom: if (this._wsSession) this._wsSession.flowZoom = flowZoom;", _);
         }
         apply();
         return;
       }
-      zoom = Math.max(0.25, Math.min(2, z));
-      if (keep !== false) this._exportZoom = zoom;
+      pv.zoom = Math.max(0.25, Math.min(2, z));
+      if (keep !== false) this._exportZoom = pv.zoom;
       apply();
     };
-    let pageAt = Math.max(0, Number(this._exportPage) || 0);
-    let pageNum = null, prevBtn = null, nextBtn = null;
-    let pageNow = null, pageEst = null;
-    let flow = false;
     try {
-      flow = !!(this._wsSession && this._wsSession.flow);
+      pv.flow = !!(this._wsSession && this._wsSession.flow);
     } catch (_) {
       wsCatch("exportPreviewInto: flow = !!(this._wsSession && this._wsSession.flow);", _);
     }
-    let pageBox = null;
-    let readPage = null;
-    let pageOf = null, pagesTotal = 0;
+    let pageOf = null;
+    let pagesTotal = 0;
     let pool = [];
     const docOf = () => {
       try {
@@ -33207,43 +33738,7 @@ var exportMethods = {
         return null;
       }
     };
-    const metrics = () => {
-      const doc = docOf();
-      const stack = doc && doc.querySelector(".stack");
-      const sheet = doc && (doc.querySelector(".sheet:not([hidden])") || doc.querySelector(".sheet"));
-      const flow2 = sheet && sheet.querySelector(".flow");
-      if (!doc || !stack || !sheet || !flow2) return null;
-      const win = doc.defaultView;
-      if (!win) return null;
-      let gap = 18;
-      try {
-        const g = parseFloat(win.getComputedStyle(doc.documentElement).getPropertyValue("--sheet-gap"));
-        if (isFinite(g)) gap = g;
-      } catch (_) {
-        wsCatch("exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(doc.documentElement)", _);
-      }
-      let colGap = 0;
-      try {
-        const g = parseFloat(win.getComputedStyle(flow2).columnGap);
-        if (isFinite(g)) colGap = g;
-      } catch (_) {
-        wsCatch("exportPreviewInto / metrics: const g = parseFloat(win.getComputedStyle(flow).columnGap);", _);
-      }
-      const sheetH = sheet.offsetHeight || 0;
-      const across = (flow2.clientWidth || 0) + colGap;
-      if (!sheetH || (flow2.clientWidth || 0) <= 0) return null;
-      const pages = across > 0 ? Math.max(1, Math.round((flow2.scrollWidth + colGap) / across)) : 1;
-      return {
-        doc,
-        win,
-        stack,
-        first: sheet,
-        gap,
-        across,
-        down: sheetH + gap,
-        pages
-      };
-    };
+    const metrics = () => wsPreviewMetrics({ docOf });
     const topOf = (m, n) => n * m.down;
     const wantPool = (m) => {
       let visible = 1;
@@ -33270,132 +33765,10 @@ var exportMethods = {
       0,
       Math.min(n - 1, m.pages - pool.length)
     );
-    const placeSheets = (m, from) => {
-      const need = [];
-      for (let i = 0; i < pool.length; i++) {
-        const n = from + i;
-        if (n >= 0 && n < m.pages) need.push(n);
-      }
-      const held = /* @__PURE__ */ new Map();
-      for (const el of pool) {
-        const at = el.dataset.page === void 0 ? null : Number(el.dataset.page);
-        if (at != null && need.indexOf(at) !== -1 && !held.has(at)) held.set(at, el);
-      }
-      const spare = pool.filter((el) => {
-        const at = el.dataset.page === void 0 ? null : Number(el.dataset.page);
-        return !(at != null && held.get(at) === el);
-      });
-      for (const n of need) {
-        if (held.has(n)) continue;
-        const el = spare.shift();
-        if (!el) break;
-        el.dataset.page = String(n);
-        held.set(n, el);
-      }
-      for (const [n, el] of held) {
-        el.style.top = topOf(m, n) + "px";
-        el.hidden = false;
-        const flow2 = el.querySelector(".flow");
-        if (flow2) flow2.scrollLeft = n * m.across;
-        const hdr = el.querySelector(".hdr");
-        if (hdr) {
-          const bare = !!o.titlePage && n === 0;
-          hdr.textContent = !o.runningHeader || bare ? "" : o.runningHeader + " " + (n + 1);
-        }
-      }
-      const placed = new Set(held.values());
-      for (const el of pool) if (!placed.has(el)) el.hidden = true;
-    };
-    const topNow = () => {
-      try {
-        const sheet = pool[0];
-        const fl = sheet && sheet.querySelector(".flow");
-        if (!fl) return null;
-        const kids = fl.querySelectorAll("p, h1, h2, h3, h4, h5, h6");
-        if (!kids.length) return null;
-        if (flow) {
-          for (const k of kids) {
-            if (k.getBoundingClientRect().bottom > 0) return k;
-          }
-          return kids[kids.length - 1];
-        }
-        const m = metrics();
-        if (!m || !(m.across > 0)) return null;
-        for (const k of kids) {
-          if (Math.floor((k.offsetLeft + 1) / m.across) >= pageAt) return k;
-        }
-        return kids[kids.length - 1];
-      } catch {
-        return null;
-      }
-    };
-    const topTo = (el) => {
-      if (!el) return;
-      const doc = el.ownerDocument;
-      const win = doc && doc.defaultView;
-      if (!win) return;
-      try {
-        if (flow) {
-          const y = el.getBoundingClientRect().top + (win.scrollY || 0);
-          win.scrollTo(0, Math.max(0, y - 12));
-          return;
-        }
-        const m = metrics();
-        if (!m || !(m.across > 0)) return;
-        showPage(Math.floor((el.offsetLeft + 1) / m.across));
-      } catch (_) {
-        wsCatch("exportPreviewInto / topTo: if (flow)", _);
-      }
-    };
-    let flowSay = null;
-    const flowApply = () => {
-      try {
-        const doc = docOf();
-        if (doc && doc.documentElement) {
-          doc.documentElement.classList.toggle("is-flow", flow);
-        }
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: const doc = docOf();", _);
-      }
-      try {
-        const split = host && host.closest && host.closest(".ws-export-split");
-        if (split) split.classList.toggle("is-flow", flow);
-        const body2 = split && split.closest && split.closest(".ws-uni-body");
-        if (body2) body2.classList.toggle("is-reader", flow);
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: const split = host && host.closest && \u2026", _);
-      }
-      try {
-        if (pageBox) pageBox.toggleClass("is-gone", flow);
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: if (pageBox) pageBox.toggleClass('is-gone', flow);", _);
-      }
-      try {
-        apply();
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: apply();", _);
-      }
-      try {
-        if (readPage) readPage.toggleClass("is-gone", !flow);
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: if (readPage) readPage.toggleClass('is-gone', !flow);", _);
-      }
-      try {
-        if (readFile) {
-          readFile.toggleClass("is-gone", !flow);
-          if (flow) readFileSay();
-        }
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowApply: readFile.toggleClass(is-gone)", _);
-      }
-      if (flowSay) {
-        try {
-          flowSay();
-        } catch (_) {
-          wsCatch("exportPreviewInto / flowApply: flowSay();", _);
-        }
-      }
-    };
+    const placeSheets = (m, from) => wsPreviewPlaceSheets({ o, pool, topOf }, m, from);
+    const topNow = () => wsPreviewTopNow({ metrics, pool, pv });
+    const topTo = (el) => wsPreviewTopTo({ metrics, pv, showPage }, el);
+    const flowApply = () => wsPreviewFlowApply({ apply, docOf, host, pv, readFileSay });
     const pageMap = () => {
       try {
         const m = metrics();
@@ -33414,7 +33787,7 @@ var exportMethods = {
       }
     };
     const jumpTo = (path) => {
-      if (!flow || !path) return false;
+      if (!pv.flow || !path) return false;
       try {
         const doc = docOf();
         const sheet = pool[0];
@@ -33433,7 +33806,7 @@ var exportMethods = {
       }
     };
     const restorePlace = (tries) => {
-      if (!restoring || !flow) {
+      if (!restoring || !pv.flow) {
         restoring = false;
         return;
       }
@@ -33479,7 +33852,7 @@ var exportMethods = {
       }
     };
     const restoreArm = () => {
-      if (!flow || !(flowY0 > 0 || flowTop0 && flowTop0.idx >= 0)) return;
+      if (!pv.flow || !(flowY0 > 0 || flowTop0 && flowTop0.idx >= 0)) return;
       restoring = true;
       let w = null;
       try {
@@ -33521,147 +33894,30 @@ var exportMethods = {
       const to = Math.max(0, Math.min(secs.length - 1, (at === -1 ? 0 : at) + by));
       return jumpTo(secs[to] || "");
     };
-    let readFile = null;
     const readFileSay = () => {
-      if (!flow || !readFile) return;
+      if (!pv.flow || !pv.readFile) return;
       try {
         const secs = fileSecs();
         const want = secs.map((s) => s.getAttribute("data-ws-note")).join("\n");
-        if (readFile.getAttribute("data-ws-list") !== want) {
-          readFile.empty();
+        if (pv.readFile.getAttribute("data-ws-list") !== want) {
+          pv.readFile.empty();
           for (const s of secs) {
             const p = s.getAttribute("data-ws-note");
-            const o2 = readFile.createEl("option", { text: (String(p).split("/").pop() || "").replace(/\.md$/i, "") });
+            const o2 = pv.readFile.createEl("option", { text: (String(p).split("/").pop() || "").replace(/\.md$/i, "") });
             o2.value = p || "";
           }
-          readFile.setAttribute("data-ws-list", want);
+          pv.readFile.setAttribute("data-ws-list", want);
         }
         const top = fileAtTop();
-        if (top !== null && readFile.value !== top) readFile.value = top;
-        readFile.toggleClass("is-gone", !secs.length);
+        if (top !== null && pv.readFile.value !== top) pv.readFile.value = top;
+        pv.readFile.toggleClass("is-gone", !secs.length);
       } catch (_) {
         wsCatch("exportPreviewInto / readFileSay: const secs = fileSecs();", _);
       }
     };
-    const readSay = () => {
-      readFileSay();
-      if (!flow || !readPage) return;
-      try {
-        const doc0 = docOf();
-        const sheet = pool[0] || doc0 && (doc0.querySelector(".sheet:not([hidden])") || doc0.querySelector(".sheet"));
-        const fl = sheet && sheet.querySelector(".flow");
-        const doc = fl && fl.ownerDocument;
-        const win = doc && doc.defaultView;
-        if (!win) return;
-        const top = topNow();
-        if (!restoring) {
-          try {
-            if (this._wsSession) {
-              this._wsSession.flowScroll = win.scrollY || 0;
-              if (top) {
-                const kids = fl.querySelectorAll("p, h1, h2, h3, h4, h5, h6");
-                this._wsSession.flowTop = { idx: Array.prototype.indexOf.call(kids, top), off: top.getBoundingClientRect().top };
-              }
-            }
-          } catch (_) {
-            wsCatch("exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;", _);
-          }
-        }
-        const n = top && pageOf && pageOf.has(top) ? pageOf.get(top) : null;
-        readPage.setText(n == null || !pagesTotal ? "" : "p. " + (n + 1) + " of " + pagesTotal);
-      } catch (_) {
-        wsCatch("exportPreviewInto / readSay: const sheet = pool[0];", _);
-      }
-    };
-    const flowSet = (on) => {
-      const was = !!flow;
-      if (was === !!on) return;
-      if (!was) pageMap();
-      const keep = topNow();
-      flow = !!on;
-      try {
-        if (this._wsSession) this._wsSession.flow = flow;
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowSet: if (this._wsSession) this._wsSession.flow = flow;", _);
-      }
-      flowApply();
-      const after = () => {
-        if (!flow) {
-          try {
-            syncPages();
-          } catch (_) {
-            wsCatch("exportPreviewInto / after: syncPages();", _);
-          }
-        }
-        if (flow) {
-          try {
-            const d = docOf();
-            if (d && d.body) {
-              d.body.setAttribute("tabindex", "-1");
-              d.body.focus();
-            }
-          } catch (_) {
-            wsCatch("exportPreviewInto / after: const d = docOf();", _);
-          }
-        }
-        if (flow) {
-          if (!keep) {
-            try {
-              const y0 = flowY0;
-              const d0 = docOf();
-              const w0 = d0 && d0.defaultView;
-              if (w0 && typeof y0 === "number" && y0 > 0) {
-                w0.scrollTo(0, y0);
-                try {
-                  if (this._wsSession) this._wsSession.flowScroll = y0;
-                } catch (_) {
-                  wsCatch("exportPreviewInto / after: this._wsSession.flowScroll = y0;", _);
-                }
-              }
-            } catch (_) {
-              wsCatch("exportPreviewInto / after: const y0 = flowY0;", _);
-            }
-          }
-          try {
-            readSay();
-          } catch (_) {
-            wsCatch("exportPreviewInto / after: readSay();", _);
-          }
-        }
-        const scroll = () => topTo(keep);
-        if (!flow && win0 && win0.requestAnimationFrame) {
-          win0.requestAnimationFrame(scroll);
-        } else {
-          scroll();
-        }
-      };
-      let win0 = null;
-      try {
-        const d = docOf();
-        win0 = d && d.defaultView;
-      } catch (_) {
-        wsCatch("exportPreviewInto / flowSet: const d = docOf();", _);
-      }
-      if (win0 && win0.requestAnimationFrame) win0.requestAnimationFrame(after);
-      else after();
-    };
-    const syncPages = () => {
-      if (flow) return;
-      const m = metrics();
-      if (!m) return;
-      fillPool(m);
-      m.stack.style.height = m.pages * m.down - m.gap + "px";
-      const z = parseFloat(m.doc.documentElement.style.zoom) || 1;
-      const y = (m.win.scrollY || 0) / (z || 1);
-      const at = m.down > 0 ? Math.round(y / m.down) : 0;
-      pageAt = Math.max(0, Math.min(m.pages - 1, at));
-      this._exportPage = pageAt;
-      placeSheets(m, windowStart(m, pageAt));
-      if (pageNow) pageNow.setText(String(pageAt + 1));
-      if (pageEst) pageEst.setText("~" + m.pages);
-      if (prevBtn) prevBtn.disabled = pageAt <= 0;
-      if (nextBtn) nextBtn.disabled = pageAt >= m.pages - 1;
-    };
+    const readSay = () => wsPreviewReadSay(this, { docOf, pageOf, pagesTotal, pool, pv, readFileSay, restoring, topNow });
+    const flowSet = (on) => wsPreviewFlowSet(this, { docOf, flowApply, flowY0, pageMap, pv, readSay, syncPages, topNow, topTo }, on);
+    const syncPages = () => wsPreviewSyncPages(this, { fillPool, metrics, placeSheets, pv, windowStart });
     const showPage = (n) => {
       const m = metrics();
       if (!m) return;
@@ -33697,14 +33953,14 @@ var exportMethods = {
       });
     };
     const onWheel = (ev) => {
-      if (!flow || !ev || !ev.ctrlKey) return;
+      if (!pv.flow || !ev || !ev.ctrlKey) return;
       try {
         ev.preventDefault();
       } catch (_) {
         wsCatch("exportPreviewInto / onWheel: ev.preventDefault();", _);
       }
       const dir = (ev.deltaY || 0) > 0 ? -1 : 1;
-      setZoom(flowZoom * (1 + dir * 0.1));
+      setZoom(pv.flowZoom * (1 + dir * 0.1));
     };
     const armScroll = () => {
       if (asText) return;
@@ -33736,49 +33992,7 @@ var exportMethods = {
         wsCatch("exportPreviewInto / armScroll: win.addEventListener('wheel', onWheel, passive: false );", _);
       }
     };
-    const paint = () => {
-      try {
-        const doc = frame.contentDocument || frame.contentWindow && frame.contentWindow.document;
-        if (!doc) return;
-        const fresh = new (doc.defaultView || window).DOMParser().parseFromString(html, "text/html");
-        const root = doc.adoptNode(fresh.documentElement);
-        if (doc.documentElement) doc.replaceChild(root, doc.documentElement);
-        else doc.appendChild(root);
-      } catch (_) {
-        wsCatch("exportPreviewInto / paint: const doc = frame.contentDocument", _);
-      }
-      if (!zoom) zoom = asText ? 1 : this._exportZoom || fitZoom();
-      apply();
-      applyDark();
-      try {
-        this.exportReaderClicks(docOf(), null, frame);
-      } catch (_) {
-        wsCatch("exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);", _);
-      }
-      try {
-        this.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p, sn) => this.openNoteAt(p, sn), step: (by) => fileStep(by), vim: () => !!(this.app.vault.getConfig && this.app.vault.getConfig("vimMode")) });
-      } catch (_) {
-        wsCatch("exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: \u2026", _);
-      }
-      if (flow) {
-        try {
-          flowApply();
-        } catch (_) {
-          wsCatch("exportPreviewInto / paint: flowApply();", _);
-        }
-      }
-      armScroll();
-      try {
-        restoreArm();
-      } catch (_) {
-        wsCatch("exportPreviewInto / paint: restoreArm();", _);
-      }
-      try {
-        window.requestAnimationFrame(() => syncPages());
-      } catch (_) {
-        wsCatch("exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());", _);
-      }
-    };
+    const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages });
     paint();
     frame.addEventListener("load", paint);
     window.setTimeout(paint, 0);
@@ -33791,113 +34005,7 @@ var exportMethods = {
       b.addEventListener("click", fn);
       return b;
     };
-    if (!asText) {
-      pageBox = foot.createDiv({ cls: "ws-export-flip" });
-      prevBtn = iconBtn(pageBox, "ws-export-prev", ["chevron-left"], "\u2039", "Previous page", () => showPage(pageAt - 1));
-      pageNum = pageBox.createSpan({ cls: "ws-export-pagenum" });
-      pageNow = pageNum.createSpan({ cls: "ws-export-pagenow", text: "1" });
-      pageNum.createSpan({ cls: "ws-export-pagesep", text: " / " });
-      pageEst = pageNum.createSpan({ cls: "ws-export-pageest", text: "~1" });
-      pageEst.setAttribute("tabindex", "0");
-      pageEst.setAttribute("role", "note");
-      pageEst.title = o.format === "html" || o.format === "pdf" ? "Roughly this many pages \u2014 the file breaks in near enough the same places." : "Roughly this many pages \u2014 Word will break the .docx its own way.";
-      nextBtn = iconBtn(pageBox, "ws-export-next", ["chevron-right"], "\u203A", "Next page", () => showPage(pageAt + 1));
-      const zoomBox = foot.createDiv({ cls: "ws-export-zoom" });
-      const zoomNow = () => flow ? flowZoom : zoom;
-      iconBtn(zoomBox, "ws-export-zoomout", ["zoom-out"], "\u2212", "Zoom out", () => setZoom(zoomNow() - 0.1));
-      pct = zoomBox.createSpan({ cls: "ws-export-zoompct", text: "100%" });
-      iconBtn(zoomBox, "ws-export-zoomin", ["zoom-in"], "+", "Zoom in", () => setZoom(zoomNow() + 0.1));
-      const fitBtn = zoomBox.createEl("button", { cls: "ws-export-mini ws-export-fit" });
-      const fitted = () => !flow && this._exportZoom == null;
-      const sayFit = () => {
-        const atFit = fitted();
-        fitBtn.setText(atFit ? "100%" : "Fit");
-        fitBtn.title = atFit ? "Show the page at its printed size" : "Fit the page to the window";
-        fitBtn.setAttribute("aria-label", fitBtn.title);
-      };
-      fitSay = sayFit;
-      fitBtn.addEventListener("click", () => {
-        if (fitted()) {
-          setZoom(1);
-          return;
-        }
-        this._exportZoom = null;
-        setZoom(flow ? 1 : fitZoom(), false);
-      });
-      sayFit();
-      const viewBox = foot.createDiv({ cls: "ws-export-view" });
-      const dk = viewBox.createEl("button", { cls: "ws-export-mini ws-export-ico ws-export-prevdark" });
-      const sayDark = () => {
-        wsIconInto(dk, dark ? ["sun"] : ["moon"], dark ? "Light" : "Dark");
-        dk.title = dark ? "Show the page as paper" : "Dim the page for reading";
-        dk.setAttribute("aria-label", dk.title);
-        dk.setAttribute("aria-pressed", dark ? "true" : "false");
-        dk.toggleClass("is-on", dark);
-      };
-      dk.addEventListener("click", () => {
-        dark = !dark;
-        try {
-          if (this.settings && this.settings.exportOpts) {
-            this.settings.exportOpts.previewDark = dark;
-            void this.saveSettings();
-          }
-        } catch (_) {
-          wsCatch("exportPreviewInto: if (this.settings && this.settings.exportOpts)", _);
-        }
-        applyDark();
-        sayDark();
-      });
-      sayDark();
-      const rfile = viewBox.createEl("select", { cls: "ws-export-readfile dropdown is-gone" });
-      readFile = rfile;
-      rfile.title = "Go to a file \u2014 [ and ] step through them";
-      rfile.setAttribute("aria-label", "Go to a file");
-      rfile.addEventListener("change", () => {
-        try {
-          jumpTo(rfile.value);
-        } catch (_) {
-          wsCatch("exportPreviewInto / readFile change: jumpTo(readFile.value);", _);
-        }
-      });
-      readPage = viewBox.createSpan({ cls: "ws-export-readpage is-gone" });
-      const xb = viewBox.createEl(
-        "button",
-        { cls: "ws-export-mini ws-export-expand" }
-      );
-      const expandIcon = xb.createSpan({ cls: "ws-export-ico-in" });
-      const expandWord = xb.createSpan({ cls: "ws-export-word" });
-      const sayFlow = () => {
-        wsIconInto(expandIcon, flow ? ["book-open"] : ["scroll-text", "align-justify"], "");
-        expandWord.setText(flow ? "Collapse" : "Expand");
-        xb.title = flow ? "Back to the page preview" : "Read the whole thing as one text";
-        xb.setAttribute("aria-label", xb.title);
-        xb.setAttribute("aria-pressed", flow ? "true" : "false");
-        xb.toggleClass("is-on", flow);
-      };
-      xb.addEventListener("click", () => flowSet(!flow));
-      sayFlow();
-      flowSay = sayFlow;
-      if (typeof onRefresh === "function") {
-        const rf = viewBox.createEl("button", { cls: "ws-export-mini ws-export-refresh" });
-        wsGlyphWord(rf, ["refresh-cw"], "Refresh");
-        rf.title = "Compile again, with what the notes say now";
-        rf.setAttribute("aria-label", rf.title);
-        rf.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          rf.disabled = true;
-          try {
-            onRefresh();
-          } finally {
-            window.setTimeout(() => {
-              rf.disabled = false;
-            }, 400);
-          }
-        });
-      }
-      if (flow) flowApply();
-      apply();
-    }
+    wsPreviewFlipper(this, { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage });
     if (onExport) {
       const go = foot.createEl("button", { cls: "mod-cta ws-export-prevgo" });
       wsGlyphWord(go, ["file-output", "download"], onExport.label || "Export");
@@ -37266,6 +37374,541 @@ var historyMethods = {
 };
 
 // src/plugin.ts
+function wsFieldsReset(plugin) {
+  plugin.maskTopEl = null;
+  plugin.maskBottomEl = null;
+  plugin.arrowsTopEl = null;
+  plugin.arrowsBottomEl = null;
+  plugin.maskResizeObserver = null;
+  plugin._maskRaf = null;
+  plugin.retroStatusBarEl = null;
+  plugin._peekArmed = false;
+  plugin._peekZoneTop = Infinity;
+  plugin._barPeek = false;
+  plugin._barPeekTimer = null;
+  plugin._barBoxHeight = 0;
+  plugin.retroPlinthEl = null;
+  plugin.clockInterval = null;
+  plugin.batteryLevel = null;
+  plugin.batteryCharging = false;
+  plugin._batteryManager = null;
+  plugin._batteryHandler = null;
+  plugin._wsLastTotalWordCount = 0;
+  plugin._docStatsCache = null;
+  plugin._capsLockOn = false;
+  plugin._numLockOn = false;
+  plugin._statusRowEls = [];
+  plugin._goalWasMet = null;
+  plugin._fenceCache = null;
+  plugin._paraCache = null;
+  plugin._lastTypo = null;
+  plugin._barPicker = null;
+  plugin._barPickerDismiss = null;
+  plugin._barPickerKey = (e) => {
+    if (e.key === "Escape") plugin.closeBarPicker();
+  };
+  plugin._vimMapped = false;
+  plugin._fmCache = {};
+  plugin._hemFlashTimer = null;
+  plugin._scopeGen = 0;
+  plugin._lastScopeInScope = null;
+  plugin.currentScroller = null;
+  plugin.scrollHandler = null;
+  plugin.windowResizeHandler = null;
+  plugin.explorerObserver = null;
+  plugin.wordCountCache = /* @__PURE__ */ new Map();
+  plugin._patchScheduled = false;
+  plugin._isTogglingZen = false;
+  plugin._wasZenMode = false;
+  plugin._tabContainersCache = null;
+  plugin._sidebarsSuspended = false;
+  plugin._suspendedLeft = false;
+  plugin._suspendedRight = false;
+  plugin._barReserve = null;
+  plugin._activeDragCleanup = null;
+  plugin._refreshTimer = null;
+  plugin._selectionRaf = null;
+  plugin._reviving = null;
+  plugin._themeObserver = null;
+}
+function wsRegisterCommands(plugin) {
+  plugin.addCommand({
+    id: "repair-display",
+    name: "Repair the display (draw everything again)",
+    callback: () => {
+      plugin.repairDisplay();
+      new import_obsidian23.Notice("Word-Smith: repaired.", 4e3);
+    }
+  });
+  plugin.addCommand({
+    id: "copy-settings",
+    name: "Copy your settings as text",
+    callback: async () => {
+      try {
+        await navigator.clipboard.writeText(plugin.settingsCopyText());
+        new import_obsidian23.Notice("Word-Smith: settings copied.", 4e3);
+      } catch {
+        new import_obsidian23.Notice("Word-Smith: could not reach the clipboard.", 6e3);
+      }
+    }
+  });
+  plugin.addCommand({
+    id: "paste-settings",
+    name: "Paste settings from the clipboard (replaces everything; the settings can undo it)",
+    callback: async () => {
+      let text = "";
+      try {
+        text = await navigator.clipboard.readText();
+      } catch {
+        new import_obsidian23.Notice("Word-Smith: could not read the clipboard.", 6e3);
+        return;
+      }
+      const r = await plugin.settingsPasteText(text);
+      new import_obsidian23.Notice("Word-Smith: " + (r.error !== void 0 ? r.error : r.applied + " setting(s) pasted" + (r.repaired.length ? ", " + r.repaired.length + " reset" : "") + "."), 8e3);
+    }
+  });
+  plugin.addCommand({
+    id: "copy-diagnostics",
+    name: "Copy diagnostics for a bug report",
+    callback: async () => {
+      await new Promise((r) => window.setTimeout(r, 1200));
+      try {
+        await plugin.sheetSelfTest();
+      } catch (_) {
+        wsCatch("onload / callback: await this.sheetSelfTest();", _);
+      }
+      let text = "";
+      try {
+        text = plugin.diagnostics();
+      } catch (e) {
+        text = "Word-Smith: diagnostics failed \u2014 " + wsErrMsg(e);
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        new import_obsidian23.Notice("Word-Smith: diagnostics copied. Paste them into the issue.", 6e3);
+      } catch {
+        try {
+          console.warn(text);
+        } catch (_e) {
+          wsCatch("onload / callback: console.warn(text);", _e);
+        }
+        new import_obsidian23.Notice("Word-Smith: could not reach the clipboard \u2014 the diagnostics are in the developer console instead.", 8e3);
+      }
+    }
+  });
+  plugin.addCommand({
+    id: "open-export",
+    name: "Export a manuscript\u2026",
+    callback: () => plugin.openExportModal()
+  });
+  plugin.addCommand({
+    id: "open-menu-panel",
+    name: "Open the menu in a panel",
+    callback: async () => {
+      if (!plugin.settings.menuDock) {
+        new import_obsidian23.Notice("Word-Smith: switch on the panel first, in the settings under Powermenu.");
+        return;
+      }
+      await plugin.openMenuPanel(true);
+    }
+  });
+  plugin.addCommand({
+    id: "toggle-retro-bar",
+    name: "Toggle the Powerline bar",
+    // Mirrors the settings-tab switch: flip the master, repaint, and
+    // save with a full refresh — the refresh is what lifts/reapplies
+    // the inline display:none on Obsidian's native status bar.
+    callback: async () => {
+      if (typeof import_obsidian23.Platform !== "undefined" && import_obsidian23.Platform && import_obsidian23.Platform.isPhone && !plugin.settings.retroBarOnPhone) {
+        new import_obsidian23.Notice("Word-Smith: the bar is off on phones by default. Switch it on in the settings, under Powerline.", 6e3);
+        return;
+      }
+      plugin.settings.enableRetroStatus = !plugin.settings.enableRetroStatus;
+      plugin.updateStatusBar();
+      plugin.updateRetroStatusBar();
+      await plugin.saveSettings(true);
+    }
+  });
+  plugin.addCommand({
+    id: "toggle-wordsmith",
+    name: "Turn everything on or off",
+    callback: () => plugin.toggleFullPlugin()
+  });
+  plugin.addCommand({
+    id: "cycle-bar-preset",
+    name: "Cycle Powerline presets",
+    callback: () => plugin.cycleBarPreset(1)
+  });
+  const featureToggle = (id, name, key, label) => {
+    plugin.addCommand({
+      id,
+      name,
+      callback: async () => {
+        plugin.settings[key] = !plugin.settings[key];
+        await plugin.saveSettings(true);
+        new import_obsidian23.Notice("Word-Smith: " + label + (plugin.settings[key] ? " on." : " off."));
+      }
+    });
+  };
+  featureToggle(
+    "toggle-letterbox",
+    "Toggle letter box mode",
+    "enableLetterbox",
+    "Letter box mode"
+  );
+  featureToggle(
+    "toggle-typewriter",
+    "Toggle typewriter mode",
+    "enableTypewriter",
+    "Typewriter mode"
+  );
+  featureToggle(
+    "toggle-hemingway",
+    "Toggle Hemingway mode",
+    "hemingwayEnabled",
+    "Hemingway mode"
+  );
+  featureToggle(
+    "toggle-syntax",
+    "Toggle syntax highlighting",
+    "posEnabled",
+    "Syntax highlighting"
+  );
+  featureToggle(
+    "toggle-prose-checks",
+    "Toggle prose checks",
+    "checksEnabled",
+    "Prose checks"
+  );
+  plugin.addCommand({
+    id: "toggle-zen",
+    name: "Toggle zen mode",
+    callback: () => plugin.toggleZen()
+  });
+  plugin.addCommand({
+    id: "open-report",
+    name: "Show the writing report",
+    callback: () => plugin.openReportModal()
+  });
+  plugin.addCommand({
+    id: "open-history",
+    name: "Show the writing history",
+    callback: () => plugin.openHistoryModal()
+  });
+  plugin.addCommand({
+    id: "open-manuscript",
+    name: "Open the Organizer",
+    // THE PANE: the id and the name are promised to every saved hotkey and
+    // stay. THE SWITCH: off, the command is not offered.
+    checkCallback: (checking) => {
+      if (plugin.settings.organizerOn === false) return false;
+      if (!checking) void plugin.orgOpenTab("organizer");
+      return true;
+    }
+  });
+  const quickCmd = (id, name, key, viewType) => plugin.addCommand({
+    id,
+    name,
+    checkCallback: (checking) => {
+      if (!plugin.settings[key]) return false;
+      if (!checking) void plugin.toggleQuickPanel(viewType);
+      return true;
+    }
+  });
+  plugin.registerDomEvent(document, "keydown", (e) => plugin.quickCycleVimKey(e), true);
+  quickCmd(
+    "quick-file-explorer",
+    "Quick file explorer",
+    "quickExplorer",
+    "file-explorer"
+  );
+  quickCmd("quick-outline", "Quick outline", "quickOutline", "outline");
+  plugin.addCommand({
+    id: "open-menu",
+    name: "Open the menu",
+    callback: () => plugin.openBarMenu()
+  });
+  for (const dir of ["left", "right", "up", "down"]) {
+    plugin.addCommand({
+      id: "quick-cycle-" + dir,
+      name: "Quick cycle: focus " + dir,
+      checkCallback: (checking) => {
+        if (!plugin.settings.quickCycle) return false;
+        if (!checking) void plugin.quickCycleMove(dir);
+        return true;
+      }
+    });
+  }
+  try {
+    if (import_obsidian23.addIcon) (0, import_obsidian23.addIcon)(WS_ICON, WS_ICON_SVG);
+  } catch (_) {
+    wsCatch("onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);", _);
+  }
+}
+function wsWireWorkspace(plugin) {
+  plugin.onAppEvent(
+    plugin.app.workspace,
+    "file-menu",
+    (menu, file, source) => {
+      if (source === "word-smith-outliner") return;
+      plugin.fileMenuFor(menu, file);
+    }
+  );
+  plugin.onAppEvent(
+    plugin.app.workspace,
+    "files-menu",
+    (menu, files, source) => {
+      if (source === "word-smith-outliner") return;
+      plugin.filesMenuFor(menu, files);
+    }
+  );
+  plugin.onAppEvent(plugin.app.workspace, "file-open", (file) => {
+    plugin.orgTreeFollow(file && file.path);
+    plugin.syncScope();
+    plugin.applyEditorFont();
+    plugin.applyVimMotionMaps();
+    plugin.updateWorkspaceAesthetics();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "active-leaf-change", () => {
+    plugin.syncScope();
+    plugin.applyEditorFont();
+    plugin.applyVimMotionMaps();
+    plugin.updateWorkspaceAesthetics();
+    plugin.scheduleExplorerPatch();
+    if (plugin.zenActive() && plugin.settings.focusedFileMode) void plugin.updateFocusedFileMode();
+    plugin.typewriterScroll();
+    plugin.orgTicksSchedule();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "editor-change", () => {
+    plugin.updateRetroStatusBar();
+    plugin.typewriterScroll();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "resize", () => {
+    plugin.scheduleMaskPosition();
+    plugin.scheduleFit();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "layout-change", () => {
+    plugin._tabContainersCache = null;
+    plugin._scopeGen++;
+    plugin.orgTicksSchedule();
+    plugin.applyBodyClasses();
+    plugin.scheduleMaskPosition();
+    if (plugin.zenActive() && plugin.settings.focusedFileMode) void plugin.updateFocusedFileMode();
+    if (plugin.settings.pluginEnabled && plugin.explorerWanted()) {
+      plugin.attachExplorerObserver();
+      plugin.scheduleExplorerPatch();
+    }
+    if (plugin.settings.pluginEnabled) plugin.patchExplorerSort();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "active-leaf-change", () => {
+    plugin.rememberActiveMarkdown();
+    plugin.refreshMenuPanels();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "file-open", () => {
+    plugin.rememberActiveMarkdown();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "css-change", () => {
+    plugin.barThemeOnCssChange();
+    plugin.flagsApply();
+  });
+  plugin.onAppEvent(plugin.app.workspace, "resize", () => plugin.barThemeGuard());
+  plugin.onAppEvent(plugin.app.workspace, "active-leaf-change", () => plugin.barThemeGuard());
+  plugin.registerDomEvent(document, "visibilitychange", () => {
+    if (!document.hidden) plugin.barThemeGuard();
+  });
+}
+function wsWireDocument(plugin) {
+  plugin.registerDomEvent(document, "keyup", (evt) => {
+    plugin.updateModifierState(evt);
+    plugin.updateRetroStatusBar();
+    plugin.typewriterScroll();
+  });
+  plugin.registerDomEvent(document, "mousemove", (evt) => {
+    if (!plugin._peekArmed) return;
+    plugin.onPointerForBarPeek(evt.clientY);
+  });
+  plugin.registerDomEvent(document, "mouseup", () => {
+    plugin.updateRetroStatusBar();
+    plugin.typewriterScroll();
+  });
+  plugin._selectionRaf = null;
+  plugin.registerDomEvent(document, "selectionchange", () => {
+    if (plugin._selectionRaf) return;
+    plugin._selectionRaf = window.requestAnimationFrame(() => {
+      plugin._selectionRaf = null;
+      plugin.updateRetroStatusBar();
+    });
+  });
+  plugin.registerDomEvent(document, "keydown", (evt) => {
+    plugin.updateModifierState(evt);
+    if (evt.key === "Escape" && plugin.settings.zenEscExits !== false && plugin.zenActive()) {
+      const target = evt.target;
+      if (target) {
+        const cmEditor = target.closest(".cm-editor");
+        if (cmEditor) {
+          const vault = plugin.app.vault;
+          if (vault.config && vault.config.vimMode === true) {
+            if (plugin.getVimModeKey() !== "normal") return;
+          }
+        }
+        if (target.instanceOf(HTMLTextAreaElement) && target.className && target.className.includes("excalidraw")) return;
+      }
+      const activeModal = document.querySelector(".modal");
+      if (!activeModal) {
+        void plugin.toggleZen();
+        evt.preventDefault();
+      }
+    }
+  });
+  const updateEditorFocusClass = () => {
+    const active = document.activeElement;
+    const inEditor = !!(active && active.closest && (active.closest(".cm-editor") || active.closest(".ws-menu-panel")));
+    document.body.classList.toggle("ws-editor-focused", inEditor);
+    const blocked = !!(active && active.closest && active.closest(".modal-container, .prompt, .suggestion-container, .menu"));
+    document.body.classList.toggle("ws-drag-ok", !blocked);
+    plugin.updateRetroStatusBar();
+  };
+  const OVERLAYS = ".modal-container, .prompt, .suggestion-container, .menu";
+  const syncOverlayClass = () => {
+    let open = false;
+    try {
+      for (const el of Array.from(document.body.children)) {
+        if (el.matches && el.matches(OVERLAYS)) {
+          open = true;
+          break;
+        }
+      }
+    } catch (_) {
+      wsCatch("onload / syncOverlayClass: for (const el of Array.from(document.body.children))", _);
+    }
+    document.body.classList.toggle("ws-overlay-open", open);
+  };
+  syncOverlayClass();
+  const overlayObserver = new MutationObserver(syncOverlayClass);
+  overlayObserver.observe(document.body, { childList: true });
+  plugin.register(() => {
+    overlayObserver.disconnect();
+    document.body.classList.remove("ws-overlay-open");
+  });
+  plugin.registerDomEvent(document, "focusin", updateEditorFocusClass);
+  plugin.registerDomEvent(document, "focusout", () => window.requestAnimationFrame(updateEditorFocusClass));
+  plugin.registerDomEvent(window, "blur", () => window.requestAnimationFrame(() => {
+    if (!document.hasFocus()) {
+      document.body.classList.remove("ws-editor-focused");
+      document.body.classList.remove("ws-drag-ok");
+      plugin.updateRetroStatusBar();
+    }
+  }));
+  plugin.registerDomEvent(window, "focus", () => window.requestAnimationFrame(updateEditorFocusClass));
+  updateEditorFocusClass();
+}
+function wsWireVault(plugin) {
+  plugin.onAppEvent(plugin.app.vault, "modify", (file) => {
+    if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
+    plugin.scheduleExplorerPatch();
+    plugin.historyNoteChange(file);
+    plugin.treeCountsChanged(file && file.path);
+    void plugin.historyAdopt(file);
+    plugin.treeOrderAdopt(file);
+  });
+  plugin.onAppEvent(plugin.app.metadataCache, "changed", (file) => {
+    if (plugin._fmCache && file && file.path) delete plugin._fmCache[file.path];
+    plugin._scopeGen++;
+    plugin._linkGen = (plugin._linkGen || 0) + 1;
+    const active = plugin.app.workspace.getActiveFile();
+    if (file && active && file.path === active.path) {
+      plugin.requestBarRebuild();
+    }
+  });
+  plugin.onAppEvent(plugin.app.metadataCache, "resolved", () => {
+    plugin._linkGen = (plugin._linkGen || 0) + 1;
+    plugin.requestBarRebuild();
+  });
+  plugin.onAppEvent(plugin.app.vault, "create", (file) => {
+    plugin.treeShapeChanged();
+    plugin.orgTicksSchedule();
+    if (plugin._historyPath || !plugin.settings.historyTracking) return;
+    void plugin.historyAdopt(file);
+  });
+  plugin.onAppEvent(plugin.app.vault, "rename", (file, oldPath) => {
+    if (plugin.wordCountCache) plugin.wordCountCache.delete(oldPath);
+    void plugin.renameScopePath(oldPath, file.path);
+    plugin.historyRenamePath(oldPath, file.path);
+    const followed = plugin.storeRenameFollow(oldPath, file.path);
+    if (plugin.renameGoalPaths(oldPath, file.path) || followed) void plugin.saveSettings(true);
+    void plugin.structureRenameStore(oldPath, file.path);
+    plugin.orgTicksSchedule();
+    plugin.treeShapeChanged();
+  });
+  plugin.onAppEvent(plugin.app.vault, "delete", (file) => {
+    if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
+    void plugin.removeScopePath(file.path);
+    plugin.historyForgetPath(file.path);
+    plugin.settingsMirrorForget(file.path);
+    void plugin.structureForgetStore(file.path);
+    if (plugin.forgetGoalPaths(file.path)) void plugin.saveSettings(true);
+    plugin.treeShapeChanged();
+  });
+}
+function wsWatchTheme(plugin) {
+  plugin._themeObsBusy = false;
+  plugin._themeObserver = new MutationObserver(() => {
+    if (!plugin.settings.pluginEnabled) return;
+    if (plugin._themeObsBusy) return;
+    plugin._themeObsBusy = true;
+    try {
+      plugin.applyCssVariables();
+      plugin.applyStyleProps();
+      plugin.applyTorchVars();
+      plugin.barThemeGuard();
+    } finally {
+      window.setTimeout(() => {
+        plugin._themeObsBusy = false;
+      }, 0);
+    }
+  });
+  plugin._themeObserver.observe(
+    document.body,
+    { attributes: true, attributeFilter: ["class", "style"] }
+  );
+}
+function wsOnLayoutReady(plugin) {
+  window.setTimeout(() => plugin.startGuardEnd(), 2e3);
+  if (!plugin.settings.pluginEnabled) return;
+  const t0 = performance.now();
+  plugin.refresh();
+  plugin.checkStylesheetVersion();
+  plugin.checkManifestVersion();
+  window.setTimeout(() => {
+    if (plugin.settings && plugin.settings.pluginEnabled) plugin.refresh();
+  }, 0);
+  try {
+    if (!plugin._loadMarks) plugin._loadMarks = [];
+    plugin._loadMarks.push([
+      "layout ready",
+      plugin._loadMarks[plugin._loadMarks.length - 1][1] + (performance.now() - t0)
+    ]);
+  } catch (_) {
+    wsCatch("onload: if (!this._loadMarks) this._loadMarks = [];", _);
+  }
+  if (plugin.settings.menuDock) {
+    void plugin.reviveMenuPanel().then(() => {
+      if (!plugin.menuPanelLeaves().length) return plugin.openMenuPanel(false);
+      return null;
+    });
+    plugin.onAppEvent(plugin.app.workspace, "layout-change", () => {
+      if (plugin.settings.menuDock) void plugin.reviveMenuPanel();
+    });
+  }
+  if (plugin.settings.markersEnabled !== true && plugin.settings.showHiddenMarkers && plugin.settings.miscEnabled) {
+    plugin.settings.markersEnabled = true;
+    void plugin.saveSettings();
+  }
+  plugin.settingsMirrorRestore(plugin._rawData).catch(() => false).then(() => plugin.goalsFileLoad()).then(() => plugin.refresh()).catch(() => {
+  });
+  if (plugin.settings.menuDock) plugin.checkAppClasses();
+  if (plugin.settings.historyTracking) void plugin.historyLoad();
+}
 var WordSmith = class extends import_obsidian23.Plugin {
   // ════════════════════════════════════════════════════════════════════════
   // THE BOUNDARY
@@ -37439,61 +38082,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
     this.loadMark("start");
     this._startTripped = this.startGuardBegin();
     wsGuardTell((where, err) => this.guardNotice(where, err));
-    this.maskTopEl = null;
-    this.maskBottomEl = null;
-    this.arrowsTopEl = null;
-    this.arrowsBottomEl = null;
-    this.maskResizeObserver = null;
-    this._maskRaf = null;
-    this.retroStatusBarEl = null;
-    this._peekArmed = false;
-    this._peekZoneTop = Infinity;
-    this._barPeek = false;
-    this._barPeekTimer = null;
-    this._barBoxHeight = 0;
-    this.retroPlinthEl = null;
-    this.clockInterval = null;
-    this.batteryLevel = null;
-    this.batteryCharging = false;
-    this._batteryManager = null;
-    this._batteryHandler = null;
-    this._wsLastTotalWordCount = 0;
-    this._docStatsCache = null;
-    this._capsLockOn = false;
-    this._numLockOn = false;
-    this._statusRowEls = [];
-    this._goalWasMet = null;
-    this._fenceCache = null;
-    this._paraCache = null;
-    this._lastTypo = null;
-    this._barPicker = null;
-    this._barPickerDismiss = null;
-    this._barPickerKey = (e) => {
-      if (e.key === "Escape") this.closeBarPicker();
-    };
-    this._vimMapped = false;
-    this._fmCache = {};
-    this._hemFlashTimer = null;
-    this._scopeGen = 0;
-    this._lastScopeInScope = null;
-    this.currentScroller = null;
-    this.scrollHandler = null;
-    this.windowResizeHandler = null;
-    this.explorerObserver = null;
-    this.wordCountCache = /* @__PURE__ */ new Map();
-    this._patchScheduled = false;
-    this._isTogglingZen = false;
-    this._wasZenMode = false;
-    this._tabContainersCache = null;
-    this._sidebarsSuspended = false;
-    this._suspendedLeft = false;
-    this._suspendedRight = false;
-    this._barReserve = null;
-    this._activeDragCleanup = null;
-    this._refreshTimer = null;
-    this._selectionRaf = null;
-    this._reviving = null;
-    this._themeObserver = null;
+    wsFieldsReset(this);
     this.loadMark("fields");
     await this.loadSettings();
     this.loadMark("loadSettings");
@@ -37555,440 +38144,14 @@ var WordSmith = class extends import_obsidian23.Plugin {
     void this.setupBattery();
     if (this.settings.menuDock) this.registerMenuPanel();
     this.registerOutlinerPane();
-    this.addCommand({
-      id: "repair-display",
-      name: "Repair the display (draw everything again)",
-      callback: () => {
-        this.repairDisplay();
-        new import_obsidian23.Notice("Word-Smith: repaired.", 4e3);
-      }
-    });
-    this.addCommand({
-      id: "copy-settings",
-      name: "Copy your settings as text",
-      callback: async () => {
-        try {
-          await navigator.clipboard.writeText(this.settingsCopyText());
-          new import_obsidian23.Notice("Word-Smith: settings copied.", 4e3);
-        } catch {
-          new import_obsidian23.Notice("Word-Smith: could not reach the clipboard.", 6e3);
-        }
-      }
-    });
-    this.addCommand({
-      id: "paste-settings",
-      name: "Paste settings from the clipboard (replaces everything; the settings can undo it)",
-      callback: async () => {
-        let text = "";
-        try {
-          text = await navigator.clipboard.readText();
-        } catch {
-          new import_obsidian23.Notice("Word-Smith: could not read the clipboard.", 6e3);
-          return;
-        }
-        const r = await this.settingsPasteText(text);
-        new import_obsidian23.Notice("Word-Smith: " + (r.error !== void 0 ? r.error : r.applied + " setting(s) pasted" + (r.repaired.length ? ", " + r.repaired.length + " reset" : "") + "."), 8e3);
-      }
-    });
-    this.addCommand({
-      id: "copy-diagnostics",
-      name: "Copy diagnostics for a bug report",
-      callback: async () => {
-        await new Promise((r) => window.setTimeout(r, 1200));
-        try {
-          await this.sheetSelfTest();
-        } catch (_) {
-          wsCatch("onload / callback: await this.sheetSelfTest();", _);
-        }
-        let text = "";
-        try {
-          text = this.diagnostics();
-        } catch (e) {
-          text = "Word-Smith: diagnostics failed \u2014 " + wsErrMsg(e);
-        }
-        try {
-          await navigator.clipboard.writeText(text);
-          new import_obsidian23.Notice("Word-Smith: diagnostics copied. Paste them into the issue.", 6e3);
-        } catch {
-          try {
-            console.warn(text);
-          } catch (_e) {
-            wsCatch("onload / callback: console.warn(text);", _e);
-          }
-          new import_obsidian23.Notice("Word-Smith: could not reach the clipboard \u2014 the diagnostics are in the developer console instead.", 8e3);
-        }
-      }
-    });
-    this.addCommand({
-      id: "open-export",
-      name: "Export a manuscript\u2026",
-      callback: () => this.openExportModal()
-    });
-    this.addCommand({
-      id: "open-menu-panel",
-      name: "Open the menu in a panel",
-      callback: async () => {
-        if (!this.settings.menuDock) {
-          new import_obsidian23.Notice("Word-Smith: switch on the panel first, in the settings under Powermenu.");
-          return;
-        }
-        await this.openMenuPanel(true);
-      }
-    });
-    this.addCommand({
-      id: "toggle-retro-bar",
-      name: "Toggle the Powerline bar",
-      // Mirrors the settings-tab switch: flip the master, repaint, and
-      // save with a full refresh — the refresh is what lifts/reapplies
-      // the inline display:none on Obsidian's native status bar.
-      callback: async () => {
-        if (typeof import_obsidian23.Platform !== "undefined" && import_obsidian23.Platform && import_obsidian23.Platform.isPhone && !this.settings.retroBarOnPhone) {
-          new import_obsidian23.Notice("Word-Smith: the bar is off on phones by default. Switch it on in the settings, under Powerline.", 6e3);
-          return;
-        }
-        this.settings.enableRetroStatus = !this.settings.enableRetroStatus;
-        this.updateStatusBar();
-        this.updateRetroStatusBar();
-        await this.saveSettings(true);
-      }
-    });
-    this.addCommand({
-      id: "toggle-wordsmith",
-      name: "Turn everything on or off",
-      callback: () => this.toggleFullPlugin()
-    });
-    this.addCommand({
-      id: "cycle-bar-preset",
-      name: "Cycle Powerline presets",
-      callback: () => this.cycleBarPreset(1)
-    });
-    const featureToggle = (id, name, key, label) => {
-      this.addCommand({
-        id,
-        name,
-        callback: async () => {
-          this.settings[key] = !this.settings[key];
-          await this.saveSettings(true);
-          new import_obsidian23.Notice(label + (this.settings[key] ? " on" : " off"));
-        }
-      });
-    };
-    featureToggle(
-      "toggle-letterbox",
-      "Toggle letter box mode",
-      "enableLetterbox",
-      "Letter box mode"
-    );
-    featureToggle(
-      "toggle-typewriter",
-      "Toggle typewriter mode",
-      "enableTypewriter",
-      "Typewriter mode"
-    );
-    featureToggle(
-      "toggle-hemingway",
-      "Toggle Hemingway mode",
-      "hemingwayEnabled",
-      "Hemingway mode"
-    );
-    featureToggle(
-      "toggle-syntax",
-      "Toggle syntax highlighting",
-      "posEnabled",
-      "Syntax highlighting"
-    );
-    featureToggle(
-      "toggle-prose-checks",
-      "Toggle prose checks",
-      "checksEnabled",
-      "Prose checks"
-    );
-    this.addCommand({
-      id: "toggle-zen",
-      name: "Toggle zen mode",
-      callback: () => this.toggleZen()
-    });
-    this.addCommand({
-      id: "open-report",
-      name: "Show the writing report",
-      callback: () => this.openReportModal()
-    });
-    this.addCommand({
-      id: "open-history",
-      name: "Show the writing history",
-      callback: () => this.openHistoryModal()
-    });
-    this.addCommand({
-      id: "open-manuscript",
-      name: "Open the Organizer",
-      // THE PANE: the id and the name are promised to every saved hotkey and
-      // stay. THE SWITCH: off, the command is not offered.
-      checkCallback: (checking) => {
-        if (this.settings.organizerOn === false) return false;
-        if (!checking) void this.orgOpenTab("organizer");
-        return true;
-      }
-    });
-    const quickCmd = (id, name, key, viewType) => this.addCommand({
-      id,
-      name,
-      checkCallback: (checking) => {
-        if (!this.settings[key]) return false;
-        if (!checking) void this.toggleQuickPanel(viewType);
-        return true;
-      }
-    });
-    this.registerDomEvent(document, "keydown", (e) => this.quickCycleVimKey(e), true);
-    quickCmd(
-      "quick-file-explorer",
-      "Quick file explorer",
-      "quickExplorer",
-      "file-explorer"
-    );
-    quickCmd("quick-outline", "Quick outline", "quickOutline", "outline");
-    this.addCommand({
-      id: "open-menu",
-      name: "Open the menu",
-      callback: () => this.openBarMenu()
-    });
-    for (const dir of ["left", "right", "up", "down"]) {
-      this.addCommand({
-        id: "quick-cycle-" + dir,
-        name: "Quick cycle: focus " + dir,
-        checkCallback: (checking) => {
-          if (!this.settings.quickCycle) return false;
-          if (!checking) void this.quickCycleMove(dir);
-          return true;
-        }
-      });
-    }
-    try {
-      if (import_obsidian23.addIcon) (0, import_obsidian23.addIcon)(WS_ICON, WS_ICON_SVG);
-    } catch (_) {
-      wsCatch("onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);", _);
-    }
+    wsRegisterCommands(this);
     this.loadMark("commands");
     this.registerWsIcon();
     if (this.settings.pluginEnabled !== false) this.wsRibbonMake();
-    this.onAppEvent(
-      this.app.workspace,
-      "file-menu",
-      (menu, file, source) => {
-        if (source === "word-smith-outliner") return;
-        this.fileMenuFor(menu, file);
-      }
-    );
-    this.onAppEvent(
-      this.app.workspace,
-      "files-menu",
-      (menu, files, source) => {
-        if (source === "word-smith-outliner") return;
-        this.filesMenuFor(menu, files);
-      }
-    );
-    this.onAppEvent(this.app.workspace, "file-open", (file) => {
-      this.orgTreeFollow(file && file.path);
-      this.syncScope();
-      this.applyEditorFont();
-      this.applyVimMotionMaps();
-      this.updateWorkspaceAesthetics();
-    });
-    this.onAppEvent(this.app.workspace, "active-leaf-change", () => {
-      this.syncScope();
-      this.applyEditorFont();
-      this.applyVimMotionMaps();
-      this.updateWorkspaceAesthetics();
-      this.scheduleExplorerPatch();
-      if (this.zenActive() && this.settings.focusedFileMode) void this.updateFocusedFileMode();
-      this.typewriterScroll();
-      this.orgTicksSchedule();
-    });
-    this.onAppEvent(this.app.workspace, "editor-change", () => {
-      this.updateRetroStatusBar();
-      this.typewriterScroll();
-    });
-    this.onAppEvent(this.app.workspace, "resize", () => {
-      this.scheduleMaskPosition();
-      this.scheduleFit();
-    });
-    this.onAppEvent(this.app.workspace, "layout-change", () => {
-      this._tabContainersCache = null;
-      this._scopeGen++;
-      this.orgTicksSchedule();
-      this.applyBodyClasses();
-      this.scheduleMaskPosition();
-      if (this.zenActive() && this.settings.focusedFileMode) void this.updateFocusedFileMode();
-      if (this.settings.pluginEnabled && this.explorerWanted()) {
-        this.attachExplorerObserver();
-        this.scheduleExplorerPatch();
-      }
-      if (this.settings.pluginEnabled) this.patchExplorerSort();
-    });
-    this.onAppEvent(this.app.workspace, "active-leaf-change", () => {
-      this.rememberActiveMarkdown();
-      this.refreshMenuPanels();
-    });
-    this.onAppEvent(this.app.workspace, "file-open", () => {
-      this.rememberActiveMarkdown();
-    });
-    this.onAppEvent(this.app.workspace, "css-change", () => {
-      this.barThemeOnCssChange();
-      this.flagsApply();
-    });
-    this.onAppEvent(this.app.workspace, "resize", () => this.barThemeGuard());
-    this.onAppEvent(this.app.workspace, "active-leaf-change", () => this.barThemeGuard());
-    this.registerDomEvent(document, "visibilitychange", () => {
-      if (!document.hidden) this.barThemeGuard();
-    });
-    this.registerDomEvent(document, "keyup", (evt) => {
-      this.updateModifierState(evt);
-      this.updateRetroStatusBar();
-      this.typewriterScroll();
-    });
-    this.registerDomEvent(document, "mousemove", (evt) => {
-      if (!this._peekArmed) return;
-      this.onPointerForBarPeek(evt.clientY);
-    });
-    this.registerDomEvent(document, "mouseup", () => {
-      this.updateRetroStatusBar();
-      this.typewriterScroll();
-    });
-    this._selectionRaf = null;
-    this.registerDomEvent(document, "selectionchange", () => {
-      if (this._selectionRaf) return;
-      this._selectionRaf = window.requestAnimationFrame(() => {
-        this._selectionRaf = null;
-        this.updateRetroStatusBar();
-      });
-    });
-    this.registerDomEvent(document, "keydown", (evt) => {
-      this.updateModifierState(evt);
-      if (evt.key === "Escape" && this.settings.zenEscExits !== false && this.zenActive()) {
-        const target = evt.target;
-        if (target) {
-          const cmEditor = target.closest(".cm-editor");
-          if (cmEditor) {
-            const vault = this.app.vault;
-            if (vault.config && vault.config.vimMode === true) {
-              if (this.getVimModeKey() !== "normal") return;
-            }
-          }
-          if (target.instanceOf(HTMLTextAreaElement) && target.className && target.className.includes("excalidraw")) return;
-        }
-        const activeModal = document.querySelector(".modal");
-        if (!activeModal) {
-          void this.toggleZen();
-          evt.preventDefault();
-        }
-      }
-    });
-    const updateEditorFocusClass = () => {
-      const active = document.activeElement;
-      const inEditor = !!(active && active.closest && (active.closest(".cm-editor") || active.closest(".ws-menu-panel")));
-      document.body.classList.toggle("ws-editor-focused", inEditor);
-      const blocked2 = !!(active && active.closest && active.closest(".modal-container, .prompt, .suggestion-container, .menu"));
-      document.body.classList.toggle("ws-drag-ok", !blocked2);
-      this.updateRetroStatusBar();
-    };
-    const OVERLAYS = ".modal-container, .prompt, .suggestion-container, .menu";
-    const syncOverlayClass = () => {
-      let open = false;
-      try {
-        for (const el of Array.from(document.body.children)) {
-          if (el.matches && el.matches(OVERLAYS)) {
-            open = true;
-            break;
-          }
-        }
-      } catch (_) {
-        wsCatch("onload / syncOverlayClass: for (const el of Array.from(document.body.children))", _);
-      }
-      document.body.classList.toggle("ws-overlay-open", open);
-    };
-    syncOverlayClass();
-    const overlayObserver = new MutationObserver(syncOverlayClass);
-    overlayObserver.observe(document.body, { childList: true });
-    this.register(() => {
-      overlayObserver.disconnect();
-      document.body.classList.remove("ws-overlay-open");
-    });
-    this.registerDomEvent(document, "focusin", updateEditorFocusClass);
-    this.registerDomEvent(document, "focusout", () => window.requestAnimationFrame(updateEditorFocusClass));
-    this.registerDomEvent(window, "blur", () => window.requestAnimationFrame(() => {
-      if (!document.hasFocus()) {
-        document.body.classList.remove("ws-editor-focused");
-        document.body.classList.remove("ws-drag-ok");
-        this.updateRetroStatusBar();
-      }
-    }));
-    this.registerDomEvent(window, "focus", () => window.requestAnimationFrame(updateEditorFocusClass));
-    updateEditorFocusClass();
-    this.onAppEvent(this.app.vault, "modify", (file) => {
-      if (this.wordCountCache) this.wordCountCache.delete(file.path);
-      this.scheduleExplorerPatch();
-      this.historyNoteChange(file);
-      this.treeCountsChanged(file && file.path);
-      void this.historyAdopt(file);
-      this.treeOrderAdopt(file);
-    });
-    this.onAppEvent(this.app.metadataCache, "changed", (file) => {
-      if (this._fmCache && file && file.path) delete this._fmCache[file.path];
-      this._scopeGen++;
-      this._linkGen = (this._linkGen || 0) + 1;
-      const active = this.app.workspace.getActiveFile();
-      if (file && active && file.path === active.path) {
-        this.requestBarRebuild();
-      }
-    });
-    this.onAppEvent(this.app.metadataCache, "resolved", () => {
-      this._linkGen = (this._linkGen || 0) + 1;
-      this.requestBarRebuild();
-    });
-    this.onAppEvent(this.app.vault, "create", (file) => {
-      this.treeShapeChanged();
-      this.orgTicksSchedule();
-      if (this._historyPath || !this.settings.historyTracking) return;
-      void this.historyAdopt(file);
-    });
-    this.onAppEvent(this.app.vault, "rename", (file, oldPath) => {
-      if (this.wordCountCache) this.wordCountCache.delete(oldPath);
-      void this.renameScopePath(oldPath, file.path);
-      this.historyRenamePath(oldPath, file.path);
-      const followed = this.storeRenameFollow(oldPath, file.path);
-      if (this.renameGoalPaths(oldPath, file.path) || followed) void this.saveSettings(true);
-      void this.structureRenameStore(oldPath, file.path);
-      this.orgTicksSchedule();
-      this.treeShapeChanged();
-    });
-    this.onAppEvent(this.app.vault, "delete", (file) => {
-      if (this.wordCountCache) this.wordCountCache.delete(file.path);
-      void this.removeScopePath(file.path);
-      this.historyForgetPath(file.path);
-      this.settingsMirrorForget(file.path);
-      void this.structureForgetStore(file.path);
-      if (this.forgetGoalPaths(file.path)) void this.saveSettings(true);
-      this.treeShapeChanged();
-    });
-    this._themeObsBusy = false;
-    this._themeObserver = new MutationObserver(() => {
-      if (!this.settings.pluginEnabled) return;
-      if (this._themeObsBusy) return;
-      this._themeObsBusy = true;
-      try {
-        this.applyCssVariables();
-        this.applyStyleProps();
-        this.applyTorchVars();
-        this.barThemeGuard();
-      } finally {
-        window.setTimeout(() => {
-          this._themeObsBusy = false;
-        }, 0);
-      }
-    });
-    this._themeObserver.observe(
-      document.body,
-      { attributes: true, attributeFilter: ["class", "style"] }
-    );
+    wsWireWorkspace(this);
+    wsWireDocument(this);
+    wsWireVault(this);
+    wsWatchTheme(this);
     this.loadMark("events + chrome");
     this.setupEditorExtensions();
     this.scheduleVimMotionMaps();
@@ -37996,43 +38159,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
     this.refresh();
     this.loadMark("first refresh");
     this.loadMark("onload done");
-    this.app.workspace.onLayoutReady(() => {
-      window.setTimeout(() => this.startGuardEnd(), 2e3);
-      if (!this.settings.pluginEnabled) return;
-      const t0 = performance.now();
-      this.refresh();
-      this.checkStylesheetVersion();
-      this.checkManifestVersion();
-      window.setTimeout(() => {
-        if (this.settings && this.settings.pluginEnabled) this.refresh();
-      }, 0);
-      try {
-        if (!this._loadMarks) this._loadMarks = [];
-        this._loadMarks.push([
-          "layout ready",
-          this._loadMarks[this._loadMarks.length - 1][1] + (performance.now() - t0)
-        ]);
-      } catch (_) {
-        wsCatch("onload: if (!this._loadMarks) this._loadMarks = [];", _);
-      }
-      if (this.settings.menuDock) {
-        void this.reviveMenuPanel().then(() => {
-          if (!this.menuPanelLeaves().length) return this.openMenuPanel(false);
-          return null;
-        });
-        this.onAppEvent(this.app.workspace, "layout-change", () => {
-          if (this.settings.menuDock) void this.reviveMenuPanel();
-        });
-      }
-      if (this.settings.markersEnabled !== true && this.settings.showHiddenMarkers && this.settings.miscEnabled) {
-        this.settings.markersEnabled = true;
-        void this.saveSettings();
-      }
-      this.settingsMirrorRestore(this._rawData).catch(() => false).then(() => this.goalsFileLoad()).then(() => this.refresh()).catch(() => {
-      });
-      if (this.settings.menuDock) this.checkAppClasses();
-      if (this.settings.historyTracking) void this.historyLoad();
-    });
+    this.app.workspace.onLayoutReady(() => wsOnLayoutReady(this));
   }
   // ── ONE WAY TO MAKE A WINDOW, AND IT IS ON THE REGISTER ────────
   //
@@ -38709,6 +38836,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
   disablePlugin() {
     this.barThemeUndress();
     this.clearChromeColors();
+    this.setWindowControlColours(false);
     this.endBarPeek(true);
     this._peekArmed = false;
     this.clearBarBounds();

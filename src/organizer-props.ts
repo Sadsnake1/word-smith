@@ -57,71 +57,9 @@ export interface OrgPropsDeps {
 	readonly host: WsHost;
 }
 
-export const wsOrgPropsMake = (d: OrgPropsDeps) => {
-// RANKED BY USE, NOT BY ALPHABET: an alphabetical shortlist of twelve
-// comes back as nine `excalidraw-*` keys belonging to another plugin,
-// and not one of the writer's own properties reaches the menu. A
-// vault does not choose its neighbours' namespaces.
-//
-// NOT `propKeysInScope`, which ranks the same way and is right there —
-// it answers a DIFFERENT question ("which key could become a COLUMN")
-// and drops `tags` and anything already a column. Every one of those
-// exclusions is a column rule; the drawer edits all of them.
-const orgPropsByUse = () => {
-	const seen = new Map<string, { label: string; n: number }>();
-	for (const p2 of d.liveFiles()) {
-		const f = d.plugin.app.vault.getAbstractFileByPath(p2);
-		const cache = f && d.plugin.app.metadataCache
-			&& d.plugin.app.metadataCache.getFileCache(f);
-		const fm = cache && cache.frontmatter;
-		if (!fm) continue;
-		for (const k of Object.keys(fm)) {
-			// Obsidian's own bookkeeping, never the writer's.
-			if (k === 'position') continue;
-			const low = k.toLowerCase();
-			const at = seen.get(low) || { label: k, n: 0 };
-			at.n += 1;
-			seen.set(low, at);
-		}
-	}
-	return Array.from(seen.values())
-		.sort((a, b) => (b.n - a.n) || a.label.localeCompare(b.label))
-		.map((x) => x.label);
-};
-// ── "IS IT OPEN" IS READ FROM THE DOM, NOT REMEMBERED ───────────
-//
-// A `let` holding the element is one writer too many: an orphan sweep
-// can remove the node without this window hearing — and then the
-// button believes a panel is open, presses shut, and appears dead. The
-// node IS the state; anything else is a copy that can go stale. Still
-// true with the panel inside the window: a reload orphans the whole
-// window with the panel inside it, which is the same stale handle by
-// another route.
-const orgPropPopEl = () => {
-	try { return d.ownerDoc().querySelector('.ws-org-proppop'); }
-	catch { return null; }
-};
-let orgPropPopQuery = '';
-let orgPropPopOff: (() => void) | null = null;
-// WHAT THE PANEL LISTS, AND IN WHAT ORDER — one function, so the
-// render and every reader of it are asking the same question.
-//
-// A ROW IS `{ sect, col, key, name, dead }`: the section it belongs
-// to, the COLUMN it switches on (or null, for a key that has never
-// been made one), the FRONTMATTER KEY it switches on (or '', for a
-// reading), and whether ▤ is dead.
-// ── A ROW'S ID IS THE ID ITS COLUMN HAS, OR WOULD HAVE ──────────
-//
-// `words` for a reading, `fm:Pov` for a property — whether or not a
-// column for it exists yet. That is the SAME id space `uniColOrder`
-// already ranks, so one store carries the order of this panel and the
-// order of the table, and a key ranked before it was ever a column
-// simply starts meaning something the moment it becomes one.
-// A ROW OF THE PROPERTIES PANEL: a column of the table, or a bare key the notes carry.
-interface WsPropRow { col: WsOrgCol | null; key: string; name: string; dead: boolean }
-const orgPropRowId = (r: WsPropRow) => (r && r.col ? r.col.id
-	: (r && r.key ? d.plugin.propColId(r.key) : ''));
-const orgPropPanelRows = () => {
+// The properties panel's rows, ranked by use (lifted out of wsOrgPropsMake, A488).
+function wsOrgPropPanelRows(a: { d: OrgPropsDeps; orgPropRowId: (r: WsPropRow) => string; orgPropsByUse: () => string[] }) {
+	const { d, orgPropRowId, orgPropsByUse } = a;
 	const rows: WsPropRow[] = [];
 	const taken = new Set();
 	const addRow = (col: WsOrgCol | null, key: string, name: string) => {
@@ -166,22 +104,11 @@ const orgPropPanelRows = () => {
 	// render that follows the click.
 	const shown = (r: WsPropRow) => !!(r.col && !d.colOff.has(r.col.id));
 	return ordered.filter(shown).concat(ordered.filter((r) => !shown(r)));
-};
-// ── AND A DRAG REWRITES IT, BOTH HALVES (brief C3) ──────────────
-//
-// "The drag order drives column order AND chip order." Two stores,
-// one gesture, and the second is DERIVED from the first rather than
-// dragged separately: `organizerOutlineProps` keeps saying WHICH
-// properties are chosen (ticking still appends, as it has since 302)
-// and takes its ORDER from the panel, so the chips under a card and
-// the columns across a row cannot disagree about what comes first.
-//
-// A DROP TAKES THE TARGET'S PLACE rather than swapping with it. The
-// band's grammar since it had columns: dragging the last row to the
-// front should leave everything else in the order it was in, and a
-// swap moves two things when a writer moved one.
-let orgPropDragId: string | null = null;
-const orgPropMoveTo = async (moved: string, target: string) => {
+}
+
+// A dragged property row dropped on another (lifted out of wsOrgPropsMake, A488).
+async function wsOrgPropMoveTo(a: { d: OrgPropsDeps; orgPropPanelRows: () => WsPropRow[]; orgPropPopRender: () => void; orgPropRowId: (r: WsPropRow) => string }, moved: string, target: string) {
+	const { d, orgPropPanelRows, orgPropPopRender, orgPropRowId } = a;
 	const here = orgPropPanelRows();
 	const ids = here.map(orgPropRowId).filter(Boolean);
 	const from = ids.indexOf(moved);
@@ -220,112 +147,17 @@ const orgPropMoveTo = async (moved: string, target: string) => {
 	await d.plugin.saveSettings();
 	d.draw(); void d.fill(); d.drawPanel();
 	orgPropPopRender();
-};
-// THE TYPE BADGE COMES FROM OBSIDIAN'S OWN REGISTRY and from nowhere
-// else. A READING HAS NO ENTRY THERE — it is counted, not declared — so
-// it wears no badge and no icon rather than a guess. Hand-typing a type
-// per built-in column would be a second writer of a fact this plugin
-// does not own.
-const orgPropKindOf = (r: { key: string }) => {
-	if (!r.key) return '';
-	try { return String(d.plugin.orgPropType(r.key) || ''); }
-	catch { return ''; }
-};
-// ── AND A COLUMN TURNED ON IS BROUGHT INTO VIEW ────────────────────
-//
-// A new column lands PAST THE RIGHT EDGE of a pane narrower than its
-// table; the pane scrolls, so the column is there, but nothing tells
-// the eye — and A CONTROL THAT WORKS AND SHOWS NOTHING READS AS BROKEN
-// ("unclickable" and "off screen" are the same thing from the writer's
-// side). SCROLLED ONLY WHEN TURNING ON, and only when the header really
-// is out of sight: scrolling on the way OFF would move the pane away
-// from what the writer was looking at, and scrolling to something
-// already visible is a jump for nothing.
-const orgRevealCol = (id: string) => {
-	try {
-		const scroller = d.panel.querySelector('.ws-org-panel');
-		const th = d.panel.querySelector('thead th[data-col="' + id + '"]');
-		if (!scroller || !th) return;
-		const hr = scroller.getBoundingClientRect();
-		const tr = th.getBoundingClientRect();
-		if (tr.right <= hr.right && tr.left >= hr.left) return;
-		scroller.scrollLeft += (tr.right - hr.right) + 12;
-	} catch (_) { wsCatch('openManuscriptModal / orgRevealCol: const host = panel.querySelector(\'.ws-org-panel\');', _); }
-};
-const orgPropColToggle = async (r: { col: { id: string } | null; key: string }) => {
-	if (r.col) {
-		const turningOn = d.colOff.has(r.col.id);
-		if (d.colOff.has(r.col.id)) d.colOff.delete(r.col.id);
-		else d.colOff.add(r.col.id);
-		d.s.uniColsOff = Array.from<string>(d.colOff);
-		await d.plugin.saveSettings();
-		// The name column is `1fr` and takes whatever the columns
-		// give back; and the FIGURES are gathered lazily, so a column
-		// switched on draws empty until something asks for them —
-		// reported as "they don't display immediately after clicking
-		// word counts", which is exactly what it was.
-			d.draw(); void d.fill(); d.drawPanel();
-		// AFTER THE REDRAW, because the header does not exist until
-		// `drawPanel` has built it and a scroll aimed at nothing does
-		// nothing.
-		if (turningOn) orgRevealCol(r.col.id);
-	} else {
-		// A KEY THAT IS NOT A COLUMN YET BECOMES ONE. This is the
-		// whole of point 5 above: the panel lists the vault, so ▦ on
-		// a listed key has to be able to make the column it promises.
-		// `addProp` is the one writer of `uniUserCols` and redraws
-		// everything derived from it.
-		await d.addProp({ key: String(r.key).toLowerCase(), label: r.key });
-	}
-	orgPropPopRender();
-};
-// ── THE TYPE SUBMENU ──────────────────────────────────────────────
-//
-// OURS, NOT OBSIDIAN'S. This panel is a div wearing the `menu` costume,
-// not a `Menu`, so `setSubmenu` has nothing to hang off even on a build
-// that has it. The flyout is a second div in the same costume. AND IT
-// IS BUILT WHERE THE PANEL IS: a node outside the modal is an escape as
-// far as Obsidian's focus trap is concerned, and the caret is taken off
-// it. READ FROM THE DOM, like the panel: the node IS the state.
-const orgPropSubEl = () => {
-	try { return d.ownerDoc().querySelector('.ws-org-propsub'); }
-	catch { return null; }
-};
-const orgPropSubClose = () => {
-	try {
-		const d0 = d.ownerDoc();
-		for (const n of Array.from<HTMLElement>(
-			d0.querySelectorAll('.ws-org-propsub'))) n.remove();
-	} catch (_) { wsCatch('openManuscriptModal / orgPropSubClose: const d0 = ownerDoc();', _); }
-};
-const orgPropPopClose = () => {
-	// THE SUBMENU GOES FIRST AND ALWAYS. It is a sibling, not a
-	// child, so removing the panel would leave it standing over an
-	// empty space with handlers that still fire.
-	orgPropSubClose();
-	if (orgPropPopOff) {
-		try { orgPropPopOff(); } catch (_) { wsCatch('openManuscriptModal / orgPropPopClose: orgPropPopOff();', _); }
-		orgPropPopOff = null;
-	}
-	// EVERY ONE IN THE DOCUMENT, not only the node this window remembers.
-	// The panel is a child of this window's own root, so closing takes it —
-	// but a panel left by a PREVIOUS build or by an orphaned window is
-	// still in the document, and this is the sweep that finds it. A query
-	// that narrowed to `host.rootEl` would stop finding exactly the ones
-	// nothing else will.
-	try {
-		const d0 = d.ownerDoc();
-		const old = Array.from<HTMLElement>(d0.querySelectorAll('.ws-org-proppop'));
-		for (const n of old) n.remove();
-	} catch (_) { wsCatch('openManuscriptModal / orgPropPopClose: const d0 = ownerDoc();', _); }
-};
-const orgPropPopRender = () => {
+}
+
+// THE PROPERTIES POPOVER, drawn (lifted out of wsOrgPropsMake, A488).
+function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: { id: string; } | null; key: string; }) => Promise<void>; orgPropIcon: (into: HTMLElement, key: string) => HTMLSpanElement; orgPropKindOf: (r: { key: string; }) => string; orgPropMoveTo: (moved: string, target: string) => Promise<void>; orgPropPanelRows: () => WsPropRow[]; orgPropPopEl: () => HTMLElement | null; orgPropRowId: (r: WsPropRow) => string; st: { orgPropPopQuery: string; orgPropPopOff: (() => void) | null; orgPropDragId: string | null; orgEditGuard: { path: string; key: string; } | null; orgOpenAfter: { path: string; id: string; key: string; } | null; orgRedrawPending: boolean; orgFieldEscape: (() => void) | null; } }) {
+	const { d, orgPropColToggle, orgPropIcon, orgPropKindOf, orgPropMoveTo, orgPropPanelRows, orgPropPopEl, orgPropRowId, st } = a;
 	const pop = orgPropPopEl();
 	if (!pop) return;
 	const box = pop.querySelector('.ws-org-propbody');
 	if (!box) return;
 	box.empty();
-	const q = orgPropPopQuery.trim().toLowerCase();
+	const q = st.orgPropPopQuery.trim().toLowerCase();
 	const rows = orgPropPanelRows()
 		.filter(r => !q || r.name.toLowerCase().indexOf(q) !== -1);
 	// ONE TOGGLE, DRAWN THE SAME WAY TWICE. A dead one keeps its box
@@ -387,25 +219,25 @@ const orgPropPopRender = () => {
 				+ 'and the chip order';
 			row.setAttribute('draggable', 'true');
 			row.addEventListener('dragstart', (ev: DragEvent) => {
-				orgPropDragId = rid;
+				st.orgPropDragId = rid;
 				try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', rid); } catch (_) { wsCatch('openManuscriptModal / orgPropPopRender: ev.dataTransfer.setData(\'text/plain\', rid);', _); }
 			});
 			row.addEventListener('dragover', (ev: Event) => {
-				if (!orgPropDragId || orgPropDragId === rid) return;
+				if (!st.orgPropDragId || st.orgPropDragId === rid) return;
 				ev.preventDefault();
 				clearAim();
 				row.addClass('ws-drop-above');
 			});
 			row.addEventListener('drop', (ev: Event) => {
 				ev.preventDefault();
-				const moved = orgPropDragId;
-				orgPropDragId = null;
+				const moved = st.orgPropDragId;
+				st.orgPropDragId = null;
 				clearAim();
 				if (!moved || moved === rid) return;
 				void orgPropMoveTo(moved, rid);
 			});
 			row.addEventListener('dragend', () => {
-				orgPropDragId = null;
+				st.orgPropDragId = null;
 				clearAim();
 			});
 		}
@@ -465,30 +297,11 @@ const orgPropPopRender = () => {
 		box.createDiv({ cls: 'ws-org-propnone',
 			text: 'No property of that name' });
 	}
-};
-// TOGGLES, LIKE THE PANEL'S OWN DOOR. A second press on the same row
-// shuts it — without this the row looks dead, because closing and
-// reopening draws the identical list in the identical place.
-//
-// ── A VIEWPORT POINT, IN THE COORDINATES THE FLYOUT IS PLACED IN ──
-//
-// The flyouts are drawn inside the host (so the modal's focus trap
-// counts them as inside the window), and a `left`/`top` measured in
-// the viewport is written into the frame of the offset parent. A
-// MODAL's root starts at the viewport origin, where the two frames
-// agree; a PANE's root starts wherever the leaf is, so the panel would
-// paint a hand's width to the right of its button. ONE CONVERTER FOR
-// BOTH FLYOUTS, because the panel and its type submenu place
-// themselves the same way.
-const orgPopBase = (el: HTMLElement) => {
-	try {
-		const par = el && el.offsetParent;
-		if (!par || !par.getBoundingClientRect) return { left: 0, top: 0 };
-		const b = par.getBoundingClientRect();
-		return { left: b.left || 0, top: b.top || 0 };
-	} catch (_) { wsCatch('openManuscriptModal / orgPopBase: const par = el && el.offsetParent;', _); return { left: 0, top: 0 }; }
-};
-const orgPropSubOpen = (anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) => {
+}
+
+// A property type's submenu, opened (lifted out of wsOrgPropsMake, A488).
+function wsOrgPropSubOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) => { left: number; top: number; }; orgPropPopEl: () => HTMLElement | null; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null }, anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) {
+	const { d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
 	const was = !!orgPropSubEl();
 	orgPropSubClose();
 	if (was) return null;
@@ -545,8 +358,11 @@ const orgPropSubOpen = (anchor: HTMLElement, door: { label?: string; icons?: str
 		sub.style.top = Math.round(y - base.top) + 'px';
 	} catch (_) { wsCatch('openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();', _); }
 	return sub;
-};
-const orgPropPopOpen = (anchor: HTMLElement) => {
+}
+
+// THE PROPERTIES POPOVER, opened under its button (lifted out of wsOrgPropsMake, A488).
+function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) => { left: number; top: number; }; orgPropPopClose: () => void; orgPropPopRender: () => void; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null; orgPropSubOpen: (anchor: HTMLElement, door: { label?: string | undefined; icons?: string[] | undefined; types: { id: string; label: string; }[]; pick: (type: string, ev2: MouseEvent) => void; open?: ((ev2: MouseEvent) => void) | undefined; }) => HTMLDivElement | null; st: { orgPropPopQuery: string; orgPropPopOff: (() => void) | null; orgPropDragId: string | null; orgEditGuard: { path: string; key: string; } | null; orgOpenAfter: { path: string; id: string; key: string; } | null; orgRedrawPending: boolean; orgFieldEscape: (() => void) | null; } }, anchor: HTMLElement) {
+	const { d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
 	orgPropPopClose();
 	const d0 = d.ownerDoc();
 	// ── IN THE WINDOW, NOT ON THE BODY ──────────────────────────────
@@ -567,9 +383,9 @@ const orgPropPopOpen = (anchor: HTMLElement) => {
 	const srch = pop.createEl('input', { cls: 'ws-org-propsearch' });
 	srch.type = 'text';
 	srch.placeholder = 'Search properties…';
-	srch.value = orgPropPopQuery;
+	srch.value = st.orgPropPopQuery;
 	srch.addEventListener('input', () => {
-		orgPropPopQuery = srch.value || '';
+		st.orgPropPopQuery = srch.value || '';
 		orgPropPopRender();
 	});
 	pop.createDiv({ cls: 'ws-org-propbody' });
@@ -708,124 +524,17 @@ const orgPropPopOpen = (anchor: HTMLElement) => {
 		// mousedown where a touch handler has claimed the touch, and the pane's
 		// own have; a pointerdown comes for every finger.
 		w0.addEventListener('pointerdown', onDown, true);
-		orgPropPopOff = () => {
+		st.orgPropPopOff = () => {
 			try { w0.removeEventListener('pointerdown', onDown, true); } catch (_) { wsCatch('openManuscriptModal / orgPropPopOpen: w0.removeEventListener(\'mousedown\', onDown, true);', _); }
 		};
 	} catch (_) { wsCatch('openManuscriptModal / orgPropPopOpen: const w0 = ownerWin();', _); }
 	return pop;
-};
+}
 
-// ── THE EDIT-GUARD (spec: a focused row never redraws) ──────────────
-//
-// While any field editor holds focus, drawOrg DEFERS: the pane is
-// not rebuilt, so the editor element — and the writer's cursor,
-// selection and half-typed sentence — survive every index event,
-// order change and lens ring that lands mid-edit. The deferred
-// redraw runs the moment the edit ends. This is the last arrow of
-// view → writer → vault → event → index → view, held until the
-// writer looks up.
-let orgEditGuard: { path: string; key: string } | null = null;      // truthy while an editor holds focus
-// ── ONE CELL IS OPEN AT A TIME ───────────────────────────────────
-//
-// An opened editor DOES NOT FOCUS ITSELF — `engage` arms the guard on
-// the element's own `focus` event and nothing calls `.focus()` — so
-// clicking a cell opens a box that never receives focus, never blurs,
-// and is never taken away; a plus left behind on `.ws-org-chipval` IS
-// an editor left behind in a cell nobody is writing in. `orgEditDone`
-// cannot help either: it returns early unless a redraw was already
-// owed. SO IT IS FIXED WHERE THE SECOND ONE IS BORN: opening an editor
-// asks whether another is open and, if so, rebuilds the pane first —
-// `drawOrg` is the ONE writer of a cell's contents, so nothing here
-// has to know how to un-draw one. `orgOpenAfter` carries the cell to
-// re-open across that redraw, because the `td` it was clicked on does
-// not survive it.
-let orgOpenAfter: { path: string; id: string; key: string } | null = null;      // to re-open after a redraw
-const orgOtherEditorOpen = (td: HTMLElement) => {
-	try {
-		return Array.from(d.panel.querySelectorAll('.ws-org-editor'))
-			.some((e) => !td.contains(e));
-	} catch { return false; }
-};
-let orgRedrawPending = false;
-let orgFieldEscape: (() => void) | null = null;    // the focused editor's own Escape, for the ladder
-const orgEditDone = () => {
-	orgEditGuard = null;
-	orgFieldEscape = null;
-	if (!orgRedrawPending) return;
-	// ── THE CARET MAY BE LANDING IN THE NEXT FIELD ───────────────────
-	//
-	// `blur` fires BEFORE the incoming `focus`, so a redraw run here would
-	// tear out the field the caret is moving INTO, half a tick before it
-	// gets there — both fields out of the document, focus on `body`. ONE
-	// TICK IS ENOUGH TO TELL THE TWO APART: `orgEditGuard` is armed by an
-	// editor's own `focus` handler, and focus follows blur in the same
-	// task, so by the time this timeout runs the guard says whether the
-	// writer moved to another field or left the fields altogether. AND
-	// `orgRedrawPending` IS NOT CLEARED on the way out: if the caret did
-	// land in another editor, the redraw is still owed and runs when THAT
-	// edit ends. Clearing it here would drop the index event that queued
-	// it — the pane would go stale instead of flickering, which is worse
-	// and quieter.
-	window.setTimeout(() => {
-		if (orgEditGuard) return;
-		if (!orgRedrawPending) return;
-		orgRedrawPending = false;
-		d.drawPanel();
-	}, 0);
-};
-
-// ── ONE FIELD, TYPED FROM THE REGISTRY ──────────────────────────────
-//
-// input / growing textarea / chips with vault autocomplete / toggle
-// / number / date — decided by `orgPropType` (metadataTypeManager,
-// feature-detected) and the value at hand. Flat values only: a
-// nested object is read-only here and edited in the note. Commit on
-// blur and Enter; Shift+Enter is a newline in the textarea; Escape
-// restores and backs out. Every write goes through the ONE
-// frontmatter writer, `orgPropWrite`.
-// ── WHAT THIS NOTE ACTUALLY HAS — ONE READER ─────────────────
-//
-// Frontmatter keys are the writer's capitals and the index keeps them,
-// so every lookup is case-insensitive; two loops over `entry.props`
-// that disagreed about case would show a property in one place and
-// hide it in the other. AND THE STORE IS ASKED TOO: the org index is
-// built from `getMarkdownFiles`, so a PDF has no entry there, and an
-// editor seeded from the index alone opens EMPTY over a cell that is
-// showing a stored value — the next keystroke replaces it. There are
-// three readers of a property — the column (`orgColRaw`), the property
-// lookup (`propRaw`) and this one — and a fallback wired into two of
-// three is a value that displays and cannot be edited.
-const orgPropValue = (path: string, key: string) => {
-	const entry = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
-	if (entry && entry.props) {
-		for (const k of Object.keys(entry.props)) {
-			if (k.toLowerCase() === String(key).toLowerCase()) {
-				return entry.props[k];
-			}
-		}
-		return null;
-	}
-	const sv = d.plugin.propStoreGetSync(String(path || ''), key);
-	return sv === undefined ? null : sv;
-};
-// ONE EDITOR, ONE CALLER, AND NO SWITCH. A growing textarea is right in
-// a card and wrong in a 24px cell, where the row would change height as
-// a writer types; with one caller the argument could not vary, and a
-// knob with one setting is a knob somebody turns.
-const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: boolean) => {
-	// ── THE HOST WAS EMPTIED TO HOLD THIS, SO A REPAINT IS OWED ──────
-	//
-	// `orgEditDone` redraws only if a repaint was already held back, and a
-	// click that changes nothing holds none back — so a chips box would
-	// stay in the cell after the blur, at the height of two lines, with
-	// its add-box still in it. ASKING AT BIRTH RATHER THAN AT EACH
-	// TEARDOWN: there are four ways out of here — checkbox blur, chips
-	// blur, scalar commit, scalar Escape — and one line here covers all
-	// four and cannot be forgotten by a fifth. It is safe to set this
-	// early: `orgEditDone` consumes it a tick later and only when no other
-	// editor has taken focus, so moving between two fields still defers
-	// the redraw to the last one.
-	orgRedrawPending = true;
+// A CARD'S FIELD EDITOR: one property of one note, edited in place (lifted out of wsOrgPropsMake, A488).
+function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgPropValue: (path: string, key: string) => unknown; st: { orgPropPopQuery: string; orgPropPopOff: (() => void) | null; orgPropDragId: string | null; orgEditGuard: { path: string; key: string; } | null; orgOpenAfter: { path: string; id: string; key: string; } | null; orgRedrawPending: boolean; orgFieldEscape: (() => void) | null; } }, card: HTMLElement, path: string, key: string, isDraft: boolean) {
+	const { d, orgEditDone, orgPropValue, st } = a;
+	st.orgRedrawPending = true;
 	// ── AND THE HOST SAYS IT IS HOLDING ONE ─────────────────────────
 	//
 	// An `<input>` takes its `size` in characters and does not grow to
@@ -861,8 +570,8 @@ const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: b
 	}
 	const engage = (el2: HTMLElement, esc: () => void) => {
 		el2.addEventListener('focus', () => {
-			orgEditGuard = { path, key };
-			orgFieldEscape = esc;
+			st.orgEditGuard = { path, key };
+			st.orgFieldEscape = esc;
 		});
 	};
 	// `tags` IS A LIST WHATEVER THE REGISTRY SAYS. The other three
@@ -1020,10 +729,10 @@ const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: b
 				// reads as broken — which is what "there is a problem with
 				// Tags" was, one fault ago.
 				try {
-					new Notice(val ? 'A tag cannot start with a number — Obsidian '
+					new Notice(val ? 'Word-Smith: a tag cannot start with a number — Obsidian '
 						+ 'will not index “' + val + '”.'
-						: 'That is not a tag Obsidian can index.');
-				} catch (_) { wsCatch('openManuscriptModal / orgFieldEditor: new Notice(val ? \'A tag cannot start with a number — Obsidian \'', _); }
+						: 'Word-Smith: that is not a tag Obsidian can index.');
+				} catch (_) { wsCatch('openManuscriptModal / orgFieldEditor: new Notice(val ? \'Word-Smith: a tag cannot start with a number — Obsidian \'', _); }
 				return;
 			}
 			if (live.indexOf(val) === -1) {
@@ -1207,7 +916,323 @@ const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: b
 		});
 	}
 	return el2;
+}
+
+// A ROW OF THE PROPERTIES PANEL: a column of the table, or a bare key the notes carry.
+interface WsPropRow { col: WsOrgCol | null; key: string; name: string; dead: boolean }
+
+export const wsOrgPropsMake = (d: OrgPropsDeps) => {
+// RANKED BY USE, NOT BY ALPHABET: an alphabetical shortlist of twelve
+// comes back as nine `excalidraw-*` keys belonging to another plugin,
+// and not one of the writer's own properties reaches the menu. A
+// vault does not choose its neighbours' namespaces.
+//
+// NOT `propKeysInScope`, which ranks the same way and is right there —
+// it answers a DIFFERENT question ("which key could become a COLUMN")
+// and drops `tags` and anything already a column. Every one of those
+// exclusions is a column rule; the drawer edits all of them.
+const orgPropsByUse = () => {
+	const seen = new Map<string, { label: string; n: number }>();
+	for (const p2 of d.liveFiles()) {
+		const f = d.plugin.app.vault.getAbstractFileByPath(p2);
+		const cache = f && d.plugin.app.metadataCache
+			&& d.plugin.app.metadataCache.getFileCache(f);
+		const fm = cache && cache.frontmatter;
+		if (!fm) continue;
+		for (const k of Object.keys(fm)) {
+			// Obsidian's own bookkeeping, never the writer's.
+			if (k === 'position') continue;
+			const low = k.toLowerCase();
+			const at = seen.get(low) || { label: k, n: 0 };
+			at.n += 1;
+			seen.set(low, at);
+		}
+	}
+	return Array.from(seen.values())
+		.sort((a, b) => (b.n - a.n) || a.label.localeCompare(b.label))
+		.map((x) => x.label);
 };
+// ── "IS IT OPEN" IS READ FROM THE DOM, NOT REMEMBERED ───────────
+//
+// A `let` holding the element is one writer too many: an orphan sweep
+// can remove the node without this window hearing — and then the
+// button believes a panel is open, presses shut, and appears dead. The
+// node IS the state; anything else is a copy that can go stale. Still
+// true with the panel inside the window: a reload orphans the whole
+// window with the panel inside it, which is the same stale handle by
+// another route.
+const orgPropPopEl = () => {
+	try { return d.ownerDoc().querySelector('.ws-org-proppop'); }
+	catch { return null; }
+};
+// THE FACTORY'S SHARED STATE, one object (A488): its inner functions write
+// these, and a function lifted out of the factory writes them through it.
+const st: {
+	orgPropPopQuery: string;
+	orgPropPopOff: (() => void) | null;
+	orgPropDragId: string | null;
+	orgEditGuard: { path: string; key: string } | null;
+	orgOpenAfter: { path: string; id: string; key: string } | null;
+	orgRedrawPending: boolean;
+	orgFieldEscape: (() => void) | null;
+} = {
+	orgPropPopQuery: '',
+	orgPropPopOff: null,
+	orgPropDragId: null,
+	orgEditGuard: null,   // truthy while an editor holds focus
+	orgOpenAfter: null,   // to re-open after a redraw
+	orgRedrawPending: false,
+	orgFieldEscape: null,   // the focused editor's own Escape, for the ladder
+};
+// WHAT THE PANEL LISTS, AND IN WHAT ORDER — one function, so the
+// render and every reader of it are asking the same question.
+//
+// A ROW IS `{ sect, col, key, name, dead }`: the section it belongs
+// to, the COLUMN it switches on (or null, for a key that has never
+// been made one), the FRONTMATTER KEY it switches on (or '', for a
+// reading), and whether ▤ is dead.
+// ── A ROW'S ID IS THE ID ITS COLUMN HAS, OR WOULD HAVE ──────────
+//
+// `words` for a reading, `fm:Pov` for a property — whether or not a
+// column for it exists yet. That is the SAME id space `uniColOrder`
+// already ranks, so one store carries the order of this panel and the
+// order of the table, and a key ranked before it was ever a column
+// simply starts meaning something the moment it becomes one.
+const orgPropRowId = (r: WsPropRow) => (r && r.col ? r.col.id
+	: (r && r.key ? d.plugin.propColId(r.key) : ''));
+const orgPropPanelRows = () => wsOrgPropPanelRows({ d, orgPropRowId, orgPropsByUse });
+// ── AND A DRAG REWRITES IT, BOTH HALVES (brief C3) ──────────────
+//
+// "The drag order drives column order AND chip order." Two stores,
+// one gesture, and the second is DERIVED from the first rather than
+// dragged separately: `organizerOutlineProps` keeps saying WHICH
+// properties are chosen (ticking still appends, as it has since 302)
+// and takes its ORDER from the panel, so the chips under a card and
+// the columns across a row cannot disagree about what comes first.
+//
+// A DROP TAKES THE TARGET'S PLACE rather than swapping with it. The
+// band's grammar since it had columns: dragging the last row to the
+// front should leave everything else in the order it was in, and a
+// swap moves two things when a writer moved one.
+const orgPropMoveTo = async (moved: string, target: string) => wsOrgPropMoveTo({ d, orgPropPanelRows, orgPropPopRender, orgPropRowId }, moved, target);
+// THE TYPE BADGE COMES FROM OBSIDIAN'S OWN REGISTRY and from nowhere
+// else. A READING HAS NO ENTRY THERE — it is counted, not declared — so
+// it wears no badge and no icon rather than a guess. Hand-typing a type
+// per built-in column would be a second writer of a fact this plugin
+// does not own.
+const orgPropKindOf = (r: { key: string }) => {
+	if (!r.key) return '';
+	try { return String(d.plugin.orgPropType(r.key) || ''); }
+	catch { return ''; }
+};
+// ── AND A COLUMN TURNED ON IS BROUGHT INTO VIEW ────────────────────
+//
+// A new column lands PAST THE RIGHT EDGE of a pane narrower than its
+// table; the pane scrolls, so the column is there, but nothing tells
+// the eye — and A CONTROL THAT WORKS AND SHOWS NOTHING READS AS BROKEN
+// ("unclickable" and "off screen" are the same thing from the writer's
+// side). SCROLLED ONLY WHEN TURNING ON, and only when the header really
+// is out of sight: scrolling on the way OFF would move the pane away
+// from what the writer was looking at, and scrolling to something
+// already visible is a jump for nothing.
+const orgRevealCol = (id: string) => {
+	try {
+		const scroller = d.panel.querySelector('.ws-org-panel');
+		const th = d.panel.querySelector('thead th[data-col="' + id + '"]');
+		if (!scroller || !th) return;
+		const hr = scroller.getBoundingClientRect();
+		const tr = th.getBoundingClientRect();
+		if (tr.right <= hr.right && tr.left >= hr.left) return;
+		scroller.scrollLeft += (tr.right - hr.right) + 12;
+	} catch (_) { wsCatch('openManuscriptModal / orgRevealCol: const host = panel.querySelector(\'.ws-org-panel\');', _); }
+};
+const orgPropColToggle = async (r: { col: { id: string } | null; key: string }) => {
+	if (r.col) {
+		const turningOn = d.colOff.has(r.col.id);
+		if (d.colOff.has(r.col.id)) d.colOff.delete(r.col.id);
+		else d.colOff.add(r.col.id);
+		d.s.uniColsOff = Array.from<string>(d.colOff);
+		await d.plugin.saveSettings();
+		// The name column is `1fr` and takes whatever the columns
+		// give back; and the FIGURES are gathered lazily, so a column
+		// switched on draws empty until something asks for them —
+		// reported as "they don't display immediately after clicking
+		// word counts", which is exactly what it was.
+			d.draw(); void d.fill(); d.drawPanel();
+		// AFTER THE REDRAW, because the header does not exist until
+		// `drawPanel` has built it and a scroll aimed at nothing does
+		// nothing.
+		if (turningOn) orgRevealCol(r.col.id);
+	} else {
+		// A KEY THAT IS NOT A COLUMN YET BECOMES ONE. This is the
+		// whole of point 5 above: the panel lists the vault, so ▦ on
+		// a listed key has to be able to make the column it promises.
+		// `addProp` is the one writer of `uniUserCols` and redraws
+		// everything derived from it.
+		await d.addProp({ key: String(r.key).toLowerCase(), label: r.key });
+	}
+	orgPropPopRender();
+};
+// ── THE TYPE SUBMENU ──────────────────────────────────────────────
+//
+// OURS, NOT OBSIDIAN'S. This panel is a div wearing the `menu` costume,
+// not a `Menu`, so `setSubmenu` has nothing to hang off even on a build
+// that has it. The flyout is a second div in the same costume. AND IT
+// IS BUILT WHERE THE PANEL IS: a node outside the modal is an escape as
+// far as Obsidian's focus trap is concerned, and the caret is taken off
+// it. READ FROM THE DOM, like the panel: the node IS the state.
+const orgPropSubEl = () => {
+	try { return d.ownerDoc().querySelector('.ws-org-propsub'); }
+	catch { return null; }
+};
+const orgPropSubClose = () => {
+	try {
+		const d0 = d.ownerDoc();
+		for (const n of Array.from<HTMLElement>(
+			d0.querySelectorAll('.ws-org-propsub'))) n.remove();
+	} catch (_) { wsCatch('openManuscriptModal / orgPropSubClose: const d0 = ownerDoc();', _); }
+};
+const orgPropPopClose = () => {
+	// THE SUBMENU GOES FIRST AND ALWAYS. It is a sibling, not a
+	// child, so removing the panel would leave it standing over an
+	// empty space with handlers that still fire.
+	orgPropSubClose();
+	if (st.orgPropPopOff) {
+		try { st.orgPropPopOff(); } catch (_) { wsCatch('openManuscriptModal / orgPropPopClose: orgPropPopOff();', _); }
+		st.orgPropPopOff = null;
+	}
+	// EVERY ONE IN THE DOCUMENT, not only the node this window remembers.
+	// The panel is a child of this window's own root, so closing takes it —
+	// but a panel left by a PREVIOUS build or by an orphaned window is
+	// still in the document, and this is the sweep that finds it. A query
+	// that narrowed to `host.rootEl` would stop finding exactly the ones
+	// nothing else will.
+	try {
+		const d0 = d.ownerDoc();
+		const old = Array.from<HTMLElement>(d0.querySelectorAll('.ws-org-proppop'));
+		for (const n of old) n.remove();
+	} catch (_) { wsCatch('openManuscriptModal / orgPropPopClose: const d0 = ownerDoc();', _); }
+};
+const orgPropPopRender = () => wsOrgPropPopRender({ d, orgPropColToggle, orgPropIcon, orgPropKindOf, orgPropMoveTo, orgPropPanelRows, orgPropPopEl, orgPropRowId, st });
+// TOGGLES, LIKE THE PANEL'S OWN DOOR. A second press on the same row
+// shuts it — without this the row looks dead, because closing and
+// reopening draws the identical list in the identical place.
+//
+// ── A VIEWPORT POINT, IN THE COORDINATES THE FLYOUT IS PLACED IN ──
+//
+// The flyouts are drawn inside the host (so the modal's focus trap
+// counts them as inside the window), and a `left`/`top` measured in
+// the viewport is written into the frame of the offset parent. A
+// MODAL's root starts at the viewport origin, where the two frames
+// agree; a PANE's root starts wherever the leaf is, so the panel would
+// paint a hand's width to the right of its button. ONE CONVERTER FOR
+// BOTH FLYOUTS, because the panel and its type submenu place
+// themselves the same way.
+const orgPopBase = (el: HTMLElement) => {
+	try {
+		const par = el && el.offsetParent;
+		if (!par || !par.getBoundingClientRect) return { left: 0, top: 0 };
+		const b = par.getBoundingClientRect();
+		return { left: b.left || 0, top: b.top || 0 };
+	} catch (_) { wsCatch('openManuscriptModal / orgPopBase: const par = el && el.offsetParent;', _); return { left: 0, top: 0 }; }
+};
+const orgPropSubOpen = (anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) => wsOrgPropSubOpen({ d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
+const orgPropPopOpen = (anchor: HTMLElement) => wsOrgPropPopOpen({ d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
+
+// ── THE EDIT-GUARD (spec: a focused row never redraws) ──────────────
+//
+// While any field editor holds focus, drawOrg DEFERS: the pane is
+// not rebuilt, so the editor element — and the writer's cursor,
+// selection and half-typed sentence — survive every index event,
+// order change and lens ring that lands mid-edit. The deferred
+// redraw runs the moment the edit ends. This is the last arrow of
+// view → writer → vault → event → index → view, held until the
+// writer looks up.
+// ── ONE CELL IS OPEN AT A TIME ───────────────────────────────────
+//
+// An opened editor DOES NOT FOCUS ITSELF — `engage` arms the guard on
+// the element's own `focus` event and nothing calls `.focus()` — so
+// clicking a cell opens a box that never receives focus, never blurs,
+// and is never taken away; a plus left behind on `.ws-org-chipval` IS
+// an editor left behind in a cell nobody is writing in. `orgEditDone`
+// cannot help either: it returns early unless a redraw was already
+// owed. SO IT IS FIXED WHERE THE SECOND ONE IS BORN: opening an editor
+// asks whether another is open and, if so, rebuilds the pane first —
+// `drawOrg` is the ONE writer of a cell's contents, so nothing here
+// has to know how to un-draw one. `orgOpenAfter` carries the cell to
+// re-open across that redraw, because the `td` it was clicked on does
+// not survive it.
+const orgOtherEditorOpen = (td: HTMLElement) => {
+	try {
+		return Array.from(d.panel.querySelectorAll('.ws-org-editor'))
+			.some((e) => !td.contains(e));
+	} catch { return false; }
+};
+const orgEditDone = () => {
+	st.orgEditGuard = null;
+	st.orgFieldEscape = null;
+	if (!st.orgRedrawPending) return;
+	// ── THE CARET MAY BE LANDING IN THE NEXT FIELD ───────────────────
+	//
+	// `blur` fires BEFORE the incoming `focus`, so a redraw run here would
+	// tear out the field the caret is moving INTO, half a tick before it
+	// gets there — both fields out of the document, focus on `body`. ONE
+	// TICK IS ENOUGH TO TELL THE TWO APART: `orgEditGuard` is armed by an
+	// editor's own `focus` handler, and focus follows blur in the same
+	// task, so by the time this timeout runs the guard says whether the
+	// writer moved to another field or left the fields altogether. AND
+	// `orgRedrawPending` IS NOT CLEARED on the way out: if the caret did
+	// land in another editor, the redraw is still owed and runs when THAT
+	// edit ends. Clearing it here would drop the index event that queued
+	// it — the pane would go stale instead of flickering, which is worse
+	// and quieter.
+	window.setTimeout(() => {
+		if (st.orgEditGuard) return;
+		if (!st.orgRedrawPending) return;
+		st.orgRedrawPending = false;
+		d.drawPanel();
+	}, 0);
+};
+
+// ── ONE FIELD, TYPED FROM THE REGISTRY ──────────────────────────────
+//
+// input / growing textarea / chips with vault autocomplete / toggle
+// / number / date — decided by `orgPropType` (metadataTypeManager,
+// feature-detected) and the value at hand. Flat values only: a
+// nested object is read-only here and edited in the note. Commit on
+// blur and Enter; Shift+Enter is a newline in the textarea; Escape
+// restores and backs out. Every write goes through the ONE
+// frontmatter writer, `orgPropWrite`.
+// ── WHAT THIS NOTE ACTUALLY HAS — ONE READER ─────────────────
+//
+// Frontmatter keys are the writer's capitals and the index keeps them,
+// so every lookup is case-insensitive; two loops over `entry.props`
+// that disagreed about case would show a property in one place and
+// hide it in the other. AND THE STORE IS ASKED TOO: the org index is
+// built from `getMarkdownFiles`, so a PDF has no entry there, and an
+// editor seeded from the index alone opens EMPTY over a cell that is
+// showing a stored value — the next keystroke replaces it. There are
+// three readers of a property — the column (`orgColRaw`), the property
+// lookup (`propRaw`) and this one — and a fallback wired into two of
+// three is a value that displays and cannot be edited.
+const orgPropValue = (path: string, key: string) => {
+	const entry = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
+	if (entry && entry.props) {
+		for (const k of Object.keys(entry.props)) {
+			if (k.toLowerCase() === String(key).toLowerCase()) {
+				return entry.props[k];
+			}
+		}
+		return null;
+	}
+	const sv = d.plugin.propStoreGetSync(String(path || ''), key);
+	return sv === undefined ? null : sv;
+};
+// ONE EDITOR, ONE CALLER, AND NO SWITCH. A growing textarea is right in
+// a card and wrong in a 24px cell, where the row would change height as
+// a writer types; with one caller the argument could not vary, and a
+// knob with one setting is a knob somebody turns.
+const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: boolean) => wsOrgFieldEditor({ d, orgEditDone, orgPropValue, st }, card, path, key, isDraft);
 
 // The field row itself: property label (the view-wide picker), the
 // editor, and the per-row "+" that adds a property to that note.
@@ -1251,5 +1276,5 @@ const orgPropIcon = (into: HTMLElement, key: string) => {
 	}
 	return g;
 };
-	return { orgPropPopEl, orgPropPanelRows, orgPropSubEl, orgPropSubClose, orgPropPopClose, orgPropPopOpen, orgOtherEditorOpen, orgEditDone, orgPropValue, orgFieldEditor, get orgEditGuard() { return orgEditGuard; }, set orgEditGuard(v) { orgEditGuard = v; }, get orgOpenAfter() { return orgOpenAfter; }, set orgOpenAfter(v) { orgOpenAfter = v; }, get orgRedrawPending() { return orgRedrawPending; }, set orgRedrawPending(v) { orgRedrawPending = v; }, get orgFieldEscape() { return orgFieldEscape; }, set orgFieldEscape(v) { orgFieldEscape = v; } };
+	return { orgPropPopEl, orgPropPanelRows, orgPropSubEl, orgPropSubClose, orgPropPopClose, orgPropPopOpen, orgOtherEditorOpen, orgEditDone, orgPropValue, orgFieldEditor, get orgEditGuard() { return st.orgEditGuard; }, set orgEditGuard(v) { st.orgEditGuard = v; }, get orgOpenAfter() { return st.orgOpenAfter; }, set orgOpenAfter(v) { st.orgOpenAfter = v; }, get orgRedrawPending() { return st.orgRedrawPending; }, set orgRedrawPending(v) { st.orgRedrawPending = v; }, get orgFieldEscape() { return st.orgFieldEscape; }, set orgFieldEscape(v) { st.orgFieldEscape = v; } };
 };

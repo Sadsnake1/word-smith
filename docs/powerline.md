@@ -33,7 +33,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 
 `{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes; `{powermenu}` opens the Powermenu, the menu of everything. Buttons are never dropped, however narrow the window gets.
 
-Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Token formats**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent color under the pointer.
+Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Tokens**: the pickers and the pane buttons, `{flag}`, `{properties}` and `{backlinks}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent color under the pointer.
 
 ## Dividers
 

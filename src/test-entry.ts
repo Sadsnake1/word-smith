@@ -3,7 +3,7 @@
 // test`; never shipped. `export default`, and the test build's footer makes
 // it `module.exports` itself (`export =` is not an ES module; esbuild would
 // refuse it).
-import WordSmith from './plugin';
+import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme } from './plugin';
 import { WordSmithSettingTab } from './settings-tab';
 import { wsCompat, wsCompatText, WS_INTERNALS } from './obsidian-internals';
 import {
@@ -25,6 +25,7 @@ import {
 	wsBuildDocx, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
+	tokenizeLine, tagTokens, countSyllables, splitSentences,
 } from './preamble';
 
 export default Object.assign(WordSmith, {
@@ -51,4 +52,8 @@ export default Object.assign(WordSmith, {
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did
 	findDialogue, BAR_THEMES,
+	// the tagger's own words, for the accents suite (A482)
+	tokenizeLine, tagTokens, countSyllables, splitSentences,
+	// onload's phases, driven by the phases suite (A488)
+	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme,
 });

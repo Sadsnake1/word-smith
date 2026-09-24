@@ -43,7 +43,7 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 Give a note a word count to aim for. A folder's target is the sum of its notes, so a book laid out as folders carries a target at every level for free.
 
-Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → File tree flags** and the same flag shows in Obsidian's explorer.
+Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
 
 Targets and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
@@ -53,7 +53,7 @@ Select several folders in the explorer, right-click, **Export these**. Or tick b
 
 ## Your own order
 
-Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 - The Ferry`. Turn on **File tree → Custom order in the file tree** and drag your chapters into the order the book reads in instead.
+Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 - The Ferry`. Turn on **File tree → Custom order** and drag your chapters into the order the book reads in instead.
 
 - Drag to the top or bottom edge of a row to put something above or below it. Drop on a folder and it still moves the file in, like always.
 - New notes go to the end until you move them.

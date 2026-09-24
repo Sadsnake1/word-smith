@@ -132,7 +132,7 @@ const orgFilterByKey = (key: string, ev: MouseEvent) => {
 	try { vals = d.plugin.orgDistinctUnder(at, key) || []; }
 	catch { vals = []; }
 	if (!vals.length) {
-		try { new Notice('No values for ' + key); } catch (_) { wsCatch('openManuscriptModal / orgFilterByKey: new Notice(\'No values for \' + key);', _); }
+		try { new Notice('Word-Smith: no values for ' + key + '.'); } catch (_) { wsCatch('openManuscriptModal / orgFilterByKey: new Notice(\'Word-Smith: no values for \' + key);', _); }
 		return;
 	}
 	// ── WITH HOW MANY NOTES BEHIND EACH (brief C2) ─────────────

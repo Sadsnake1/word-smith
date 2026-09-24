@@ -1176,7 +1176,15 @@ export const LY_NOT_ADVERB = new Set(`only family reply apply supply imply compl
 // quietly wrong on any prose with figures in it. The separator part
 // only continues into another digit, so the full stop after "in 1984."
 // stays outside the token and sentence detection still sees it.
-export const WORD_RE = /[A-Za-z][A-Za-z'\u2019-]*|\d+(?:[.,:]\d+)*%?/g;
+//
+// LATIN LETTERS, NOT A\u2013Z (A482): an English writer's caf\u00e9, na\u00efve, r\u00e9sum\u00e9
+// and Zo\u00eb were cut at the accent \u2014 "caf", "na" + "ve", "r" + "sum" \u2014 and
+// each piece was tagged and checked as a word of its own. \p{M} keeps a
+// decomposed accent (e + U+0301) inside its word. The Latin SCRIPT, not
+// every letter: the tagger is English, and a run of Chinese or Cyrillic
+// read as one unknown word would be coloured as a noun it knows nothing
+// about \u2014 outside the script is outside the tagger, as before.
+export const WORD_RE = /\p{Script=Latin}[\p{Script=Latin}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*%?/gu;
 
 // One word of a line as the checks see it: the text, lowered, its span, the
 // tag the tagger gives it, and whether it opens a sentence.
@@ -1196,7 +1204,7 @@ export function tokenizeLine(text: string) {
 
 // ── Suffix tagging ───────────────────────────────────────────────────────────
 
-export function suffixTag(lw: string, raw: string, isFirstInSentence: boolean) {
+export function suffixTag(lw: string) {
 	if (/^\d/.test(lw)) return 'NUM';
 	if (lw.length > 3 && /ly$/.test(lw) && !LY_NOT_ADVERB.has(lw)) return 'ADV';
 	if (lw.length > 4 && /(ing)$/.test(lw)) return 'VERB';
@@ -1211,8 +1219,9 @@ export function suffixTag(lw: string, raw: string, isFirstInSentence: boolean) {
 		if (POS_LEX[base] === 'VERB') return 'VERB';
 		return 'NOUN';
 	}
-	// Capitalised mid-sentence → proper noun.
-	if (!isFirstInSentence && /^[A-Z]/.test(raw)) return 'NOUN';
+	// Anything else is a noun, a capitalised name mid-sentence included: the
+	// proper-noun test that stood here returned the same NOUN as this line and
+	// could change nothing (found by A482's sweep: a case on it passed anyway).
 	return 'NOUN';
 }
 
@@ -1271,7 +1280,7 @@ export function tagTokens(tokens: WsToken[], text: string) {
 			const cm = /'(ll|d|re|ve|m)$/.exec(t.lw);
 			if (cm) dyn = (cm[1] === 'll' || cm[1] === 'd') ? 'MOD' : 'AUX';
 		}
-		t.tag = lex || dyn || suffixTag(t.lw, t.w, firstInSentence);
+		t.tag = lex || dyn || suffixTag(t.lw);
 		// A sentence ends when the character right after this token is a
 		// terminator (the tokenizer never swallows punctuation).
 		const after = text.slice(t.to, t.to + 2);
@@ -1280,7 +1289,7 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		if (ch !== '.') { firstInSentence = true; continue; }
 		const nx = tokens[i + 1];
 		firstInSentence = !(ABBREVIATIONS.has(t.lw) || t.lw.length === 1) &&
-			(!nx || /^[A-Z]/.test(nx.w));
+			(!nx || /^\p{Lu}/u.test(nx.w));
 	}
 
 	// Pass 2 — context. Cheap, local, and in the order that matters:
@@ -1781,7 +1790,16 @@ export function isVaguePronoun(t: WsToken, next: WsToken | null | undefined) {
 // fine — Flesch–Kincaid averages over a whole document and the error washes
 // out long before it moves the grade.
 export function countSyllables(word: string) {
-	let w = String(word).toLowerCase().replace(/[^a-z]/g, '');
+	// THE ACCENTS ARE VOWELS (A482): stripped as "not a–z", café was "caf" —
+	// one syllable — and résumé "rsum". A final é or ë is spoken (ca-fé,
+	// Zo-ë), so it becomes a vowel pair the silent-e rule below cannot eat;
+	// a diaeresis opens a new syllable (na-ïve), so a consonant is put in
+	// front of it; then the marks go and the English rules run as before.
+	let w = String(word).toLowerCase()
+		.replace(/[éë]$/, 'ey')
+		.replace(/([aeiouy])([äëïöü])/g, '$1h$2')
+		.normalize('NFD').replace(/\p{M}/gu, '')
+		.replace(/[^a-z]/g, '');
 	if (!w) {
 		// Spoken length of a figure grows with its digits — "1984" is five
 		// syllables out loud. Digits+1, capped, tracks that well enough
@@ -1822,9 +1840,9 @@ export function splitSentences(text: string) {
 		const prev = out.length ? out[out.length - 1] : null;
 		if (prev) {
 			const tail = text.slice(prev.from, prev.to);
-			const am   = /([A-Za-z]+)\.$/.exec(tail);
+			const am   = /(\p{L}+)\.$/u.exec(tail);
 			const falseEnd = (am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase()))) ||
-				/\d\.$/.test(tail) || /^[a-z0-9]/.test(raw.trim());
+				/\d\.$/.test(tail) || /^[\p{Ll}0-9]/u.test(raw.trim());
 			if (falseEnd) {
 				prev.to   = to;
 				prev.text = text.slice(prev.from, to).trim();
@@ -4854,7 +4872,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.6.0';
+export const WS_PLUGIN_VERSION = '1.6.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

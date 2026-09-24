@@ -117,6 +117,839 @@ export interface WsInkBubble { x: number; y: number; size: number; rise: number;
 export interface WsInkWave { x: number; dir: number; born: number; amp: number; wid: number; spd: number; hollow: number; spray: number; hue: number; broke: boolean }
 export interface WsInkOrb { amount: number; want: number; x: number; y: number; spin: number; vel: number; last: number; vy: number; dropping: boolean; falling: boolean; streak?: number }
 
+// THE FIELDS A FRESH LOAD STARTS FROM: every handle, timer, cache and latch
+// the plugin keeps, set to its empty value (lifted out of onload, A488).
+function wsFieldsReset(plugin: WordSmith) {
+	plugin.maskTopEl        = null;
+	plugin.maskBottomEl     = null;
+	plugin.arrowsTopEl      = null;
+	plugin.arrowsBottomEl   = null;
+	plugin.maskResizeObserver = null;
+	plugin._maskRaf         = null;
+
+	// ── Retro bar state ───────────────────────────────────────────────────
+	plugin.retroStatusBarEl = null;
+	// Peek state for a hidden bar (see syncBarPeekState).
+	plugin._peekArmed    = false;
+	plugin._peekZoneTop  = Infinity;
+	plugin._barPeek      = false;
+	plugin._barPeekTimer = null;
+	plugin._barBoxHeight = 0;
+	plugin.retroPlinthEl = null;
+	plugin.clockInterval    = null;
+	plugin.batteryLevel     = null;
+	plugin.batteryCharging  = false;
+	plugin._batteryManager  = null;   // kept so listeners can be detached on unload
+	plugin._batteryHandler  = null;
+	plugin._wsLastTotalWordCount = 0;
+	plugin._docStatsCache   = null;   // { doc, totalWC, charCount, paras } keyed on CM doc identity
+	plugin._capsLockOn      = false;  // tracked from keyboard events for {caps}
+	plugin._numLockOn       = false;  // tracked from keyboard events for {nump}
+	plugin._statusRowEls    = [];     // per-row elements, for per-row text fitting
+	plugin._goalWasMet      = null;   // previous goal state, to fire the celebration once
+	plugin._fenceCache      = null;   // { doc, set } of non-prose line numbers
+	plugin._paraCache       = null;   // { doc, val } paragraph geometry
+	plugin._lastTypo        = null;   // last typography substitution, for backspace-to-revert
+	plugin._barPicker       = null;   // open bar popup, if any
+	plugin._barPickerDismiss = null;
+	plugin._barPickerKey    = (e) => { if (e.key === 'Escape') plugin.closeBarPicker(); };
+	plugin._vimMapped       = false;  // whether our vim motion maps are installed
+	plugin._fmCache         = {};     // path -> frontmatter overrides
+	plugin._hemFlashTimer   = null;   // clears the blocked-key flash class
+	plugin._scopeGen        = 0;      // bumped on file/layout change; keys the per-editor scope cache
+	plugin._lastScopeInScope = null;  // last known scope state of the active file
+
+	// ── Scroll / resize handlers ──────────────────────────────────────────
+	plugin.currentScroller  = null;
+	plugin.scrollHandler    = null;
+	plugin.windowResizeHandler = null;
+
+	// ── Paragraph tagger ──────────────────────────────────────────────────
+
+	// ── Style injection ───────────────────────────────────────────────────
+
+	// ── Word count cache ──────────────────────────────────────────────────
+	plugin.explorerObserver = null;
+	plugin.wordCountCache   = new Map();
+	plugin._patchScheduled  = false;
+
+	// ── Zen state ─────────────────────────────────────────────────────────
+	plugin._isTogglingZen   = false;
+	plugin._wasZenMode      = false;
+	plugin._tabContainersCache = null;
+
+	// ── Surface gate ──────────────────────────────────────────────────────
+	// Whether zen's sidebar collapse is currently suspended because the
+	// active pane is not a note, and what to put back when it is again.
+	plugin._sidebarsSuspended = false;
+	plugin._suspendedLeft     = false;
+	plugin._suspendedRight    = false;
+	// Last value written to --ws-bar-reserve, so the mask pass (which
+	// runs on scroll) only touches :root when the strip actually
+	// changes depth.
+	plugin._barReserve        = null;
+
+	// ── Drag / refresh bookkeeping ────────────────────────────────────────
+	plugin._activeDragCleanup = null;   // aborts an in-flight mask drag on unload
+	plugin._refreshTimer      = null;   // debounced saveSettings → refresh
+
+	// ── Live selection rAF ────────────────────────────────────────────────
+	plugin._selectionRaf    = null;
+
+	// ── The docked menu's revival: one pass in flight at a time ──
+	plugin._reviving        = null;
+
+	// ── Theme observer ────────────────────────────────────────────────────
+	plugin._themeObserver   = null;
+}
+
+// THE COMMANDS: the palette's every entry, the feature toggles, the quick
+// panels and the menu's arrows (lifted out of onload, A488).
+function wsRegisterCommands(plugin: WordSmith) {
+	plugin.addCommand({
+		id: 'repair-display',
+		name: 'Repair the display (draw everything again)',
+		callback: () => { plugin.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }
+	});
+	plugin.addCommand({
+		id: 'copy-settings',
+		name: 'Copy your settings as text',
+		callback: async () => {
+			try { await navigator.clipboard.writeText(plugin.settingsCopyText()); new Notice('Word-Smith: settings copied.', 4000); }
+			catch { new Notice('Word-Smith: could not reach the clipboard.', 6000); }
+		}
+	});
+	plugin.addCommand({
+		id: 'paste-settings',
+		name: 'Paste settings from the clipboard (replaces everything; the settings can undo it)',
+		callback: async () => {
+			let text = '';
+			try { text = await navigator.clipboard.readText(); } catch { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
+			const r = await plugin.settingsPasteText(text);
+			new Notice('Word-Smith: ' + (r.error !== undefined ? r.error : (r.applied + ' setting(s) pasted' + (r.repaired.length ? ', ' + r.repaired.length + ' reset' : '') + '.')), 8000);
+		}
+	});
+	plugin.addCommand({
+		id: 'copy-diagnostics',
+		name: 'Copy diagnostics for a bug report',
+		callback: async () => {
+			// A PAUSE FIRST: on a phone this runs from the command palette, whose
+			// search field has the keyboard up and the workspace shrunk. 1200ms is
+			// inside the five seconds a user gesture keeps the clipboard open for.
+			await new Promise((r) => window.setTimeout(r, 1200));
+			try { await plugin.sheetSelfTest(); } catch (_) { wsCatch('onload / callback: await this.sheetSelfTest();', _); }
+			let text = '';
+			try { text = plugin.diagnostics(); }
+			catch (e) { text = 'Word-Smith: diagnostics failed — ' + wsErrMsg(e); }
+			try {
+				await navigator.clipboard.writeText(text);
+				new Notice('Word-Smith: diagnostics copied. Paste them into the '
+					+ 'issue.', 6000);
+			} catch {
+				// THE CLIPBOARD CAN REFUSE — no permission, or no focus. The
+				// console is the fallback and NOT the plan: a writer who
+				// cannot open it has been told that much by the failure.
+				try { console.warn(text); } catch (_e) { wsCatch('onload / callback: console.warn(text);', _e); }
+				new Notice('Word-Smith: could not reach the clipboard — the '
+					+ 'diagnostics are in the developer console instead.', 8000);
+			}
+		}
+	});
+	plugin.addCommand({
+		id: 'open-export',
+		name: 'Export a manuscript\u2026',
+		callback: () => plugin.openExportModal()
+	});
+	plugin.addCommand({
+		id: 'open-menu-panel',
+		name: 'Open the menu in a panel',
+		callback: async () => {
+			if (!plugin.settings.menuDock) {
+				new Notice('Word-Smith: switch on the panel first, in the settings under Powermenu.');
+				return;
+			}
+			await plugin.openMenuPanel(true);
+		}
+	});
+	plugin.addCommand({
+		id: 'toggle-retro-bar',
+		name: 'Toggle the Powerline bar',
+		// Mirrors the settings-tab switch: flip the master, repaint, and
+		// save with a full refresh — the refresh is what lifts/reapplies
+		// the inline display:none on Obsidian's native status bar.
+		callback: async () => {
+			// ON A PHONE WITH ITS OWN SWITCH OFF, SAY WHY NOTHING HAPPENS rather
+			// than flip a master that changes nothing on this screen.
+			if (typeof Platform !== 'undefined' && Platform && Platform.isPhone
+				&& !plugin.settings.retroBarOnPhone) {
+				new Notice('Word-Smith: the bar is off on phones by default. Switch it on in the settings, under Powerline.', 6000);
+				return;
+			}
+			plugin.settings.enableRetroStatus = !plugin.settings.enableRetroStatus;
+			plugin.updateStatusBar();
+			plugin.updateRetroStatusBar();
+			await plugin.saveSettings(true);
+		}
+	});
+	plugin.addCommand({
+		id: 'toggle-wordsmith',
+		name: 'Turn everything on or off',
+		callback: () => plugin.toggleFullPlugin()
+	});
+	plugin.addCommand({
+		id: 'cycle-bar-preset',
+		name: 'Cycle Powerline presets',
+		callback: () => plugin.cycleBarPreset(1)
+	});
+
+	// ── Feature toggles ───────────────────────────────────────────────
+	// One shape for all of them: flip the master flag, save with an
+	// immediate refresh so the change is on screen before the palette
+	// has finished closing, and say which way it went. The Notice is
+	// not decoration — several of these are invisible on a note that
+	// happens not to trigger them (no passive voice, no long sentences),
+	// and a toggle you cannot confirm reads as a toggle that did nothing.
+	const featureToggle = (id: string, name: string, key: WsBoolKey, label: string) => {
+		plugin.addCommand({
+			id, name,
+			callback: async () => {
+				plugin.settings[key] = !plugin.settings[key];
+				await plugin.saveSettings(true);
+				new Notice('Word-Smith: ' + label + (plugin.settings[key] ? ' on.' : ' off.'));
+			}
+		});
+	};
+	featureToggle('toggle-letterbox', 'Toggle letter box mode',
+		'enableLetterbox', 'Letter box mode');
+	featureToggle('toggle-typewriter', 'Toggle typewriter mode',
+		'enableTypewriter', 'Typewriter mode');
+	featureToggle('toggle-hemingway', 'Toggle Hemingway mode',
+		'hemingwayEnabled', 'Hemingway mode');
+	featureToggle('toggle-syntax', 'Toggle syntax highlighting',
+		'posEnabled', 'Syntax highlighting');
+	featureToggle('toggle-prose-checks', 'Toggle prose checks',
+		'checksEnabled', 'Prose checks');
+
+	// Zen is not a plain flag — it collapses sidebars, hides chrome and
+	// records what to put back — so it routes through its own method
+	// rather than being flipped here.
+	plugin.addCommand({
+		id: 'toggle-zen',
+		name: 'Toggle zen mode',
+		callback: () => plugin.toggleZen()
+	});
+
+	// The id is NOT renamed with the label. It is the key a user's
+	// hotkey is bound to, and a hotkey that silently stops working is a
+	// worse defect than the wrong noun in a palette.
+	plugin.addCommand({
+		id: 'open-report',
+		name: 'Show the writing report',
+		callback: () => plugin.openReportModal()
+	});
+
+	// Its own command, not a mode of the report's: they are two windows
+	// now, and one of them works with no note open.
+	plugin.addCommand({
+		id: 'open-history',
+		name: 'Show the writing history',
+		callback: () => plugin.openHistoryModal()
+	});
+
+	// THE UNIFIED WINDOW — a tree with the report and the history beside
+	// it. Its own command while it is being built, rather than taking
+	// over the four the palette already has: those still open the four
+	// windows, and a writer who finds this one wanting can go straight
+	// back to them. When the Export tab lands and the old four become
+	// wrappers, this becomes the way in and they point at it.
+	plugin.addCommand({
+		id: 'open-manuscript',
+		name: 'Open the Organizer',
+		// THE PANE: the id and the name are promised to every saved hotkey and
+		// stay. THE SWITCH: off, the command is not offered.
+		checkCallback: (checking: boolean) => {
+			if (plugin.settings.organizerOn === false) return false;
+			if (!checking) void plugin.orgOpenTab('organizer');
+			return true;
+		}
+	});
+
+	// Quick panels — the left/right sidebar toggle and "reveal the view"
+	// as one keystroke, with the sidebar closing again once you have
+	// picked something.
+	//
+	// checkCallback, not callback: returning false while `checking` is
+	// true takes the command OUT of the palette, which is the official
+	// way to make one conditional. Obsidian has no public
+	// removeCommand, so a plain callback gated on the setting would
+	// leave a dead entry in the palette whenever the toggle was off.
+	const quickCmd = (id: string, name: string, key: WsBoolKey, viewType: string) => plugin.addCommand({
+		id, name,
+		checkCallback: (checking: boolean) => {
+			if (!plugin.settings[key]) return false;
+			if (!checking) void plugin.toggleQuickPanel(viewType);
+			return true;
+		}
+	});
+	// Capture, so the translation happens before the view sees a letter
+	// it has no use for. Registered once and gated inside, rather than
+	// hooked and unhooked as the setting changes.
+	plugin.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => plugin.quickCycleVimKey(e), true);
+
+	quickCmd('quick-file-explorer', 'Quick file explorer',
+		'quickExplorer', 'file-explorer');
+	quickCmd('quick-outline', 'Quick outline', 'quickOutline', 'outline');
+
+	// Quick cycle. Four commands, no default hotkeys — Alt+arrows and
+	// Alt+hjkl are both good bindings and which one a writer wants
+	// depends on whether they think in vim, so the choice is left in
+	// Obsidian's Hotkeys pane where it can be either or both. Alt is
+	// untouched by vim mode, so neither conflicts in any mode.
+	plugin.addCommand({
+		id: 'open-menu',
+		name: 'Open the menu',
+		callback: () => plugin.openBarMenu()
+	});
+
+	for (const dir of ['left', 'right', 'up', 'down']) {
+		plugin.addCommand({
+			id: 'quick-cycle-' + dir,
+			name: 'Quick cycle: focus ' + dir,
+			checkCallback: (checking: boolean) => {
+				if (!plugin.settings.quickCycle) return false;
+				if (!checking) void plugin.quickCycleMove(dir);
+				return true;
+			}
+		});
+	}
+
+	// The mark, registered before anything can ask for it.
+	try { if (addIcon) addIcon(WS_ICON, WS_ICON_SVG); } catch (_) { wsCatch('onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);', _); }
+}
+
+// THE WORKSPACE'S EVENTS: file menus, leaf and layout changes, resize, the
+// theme's CSS (lifted out of onload, A488).
+export function wsWireWorkspace(plugin: WordSmith) {
+	plugin.onAppEvent(plugin.app.workspace, 'file-menu',
+		(menu: Menu, file: TAbstractFile, source: string) => {
+			if (source === 'word-smith-outliner') return;
+			plugin.fileMenuFor(menu, file);
+		});
+	// SEVERAL ROWS AT ONCE: select folders in Obsidian's tree, right-click,
+	// "Export these".
+	plugin.onAppEvent(plugin.app.workspace, 'files-menu',
+		(menu: Menu, files: TAbstractFile[], source: string) => {
+			if (source === 'word-smith-outliner') return;
+			plugin.filesMenuFor(menu, files);
+		});
+
+	plugin.onAppEvent(plugin.app.workspace, 'file-open', (file: TAbstractFile) => {
+		// THE NOTE YOU OPEN IS FOLLOWED by every open Organizer.
+		plugin.orgTreeFollow(file && file.path);
+		plugin.syncScope();
+		plugin.applyEditorFont();
+		plugin.applyVimMotionMaps();
+		plugin.updateWorkspaceAesthetics();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'active-leaf-change', () => {
+		plugin.syncScope();
+		plugin.applyEditorFont();
+		// Vim state is rebuilt with the editor, taking our maps with it.
+		plugin.applyVimMotionMaps();
+		plugin.updateWorkspaceAesthetics();
+		plugin.scheduleExplorerPatch();
+		if (plugin.zenActive() && plugin.settings.focusedFileMode) void plugin.updateFocusedFileMode();
+		plugin.typewriterScroll();
+		// A tab put behind another is a leaf-change, not a layout-change;
+		// the tree's boxes belong to a tab that is on screen.
+		plugin.orgTicksSchedule();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'editor-change', () => {
+		plugin.updateRetroStatusBar();
+		plugin.typewriterScroll();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'resize', () => {
+		plugin.scheduleMaskPosition();
+		// Re-measure: a narrower window drops tokens, a wider one puts
+		// them back.
+		plugin.scheduleFit();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'layout-change', () => {
+		plugin._tabContainersCache = null;
+		plugin._scopeGen++;
+		// An explorer leaf that was just opened has rows with no ticks yet;
+		// nothing to do unless a window wants them.
+		plugin.orgTicksSchedule();
+		// The masks come off in reading view, and that is a refresh rather
+		// than a re-measure: letterboxActive() changes answer, so the body
+		// classes and the Modes popup have to change with it.
+		plugin.applyBodyClasses();
+		// Switching between editing and reading is a layout change, and
+		// nothing else re-measures the masks when it happens. Without
+		// this the geometry stamped before the swap is what stays on
+		// screen until an unrelated event happens to run the pass —
+		// which is why issue #1 could be cleared by changing note or
+		// toggling zen, and by nothing you would think to try.
+		plugin.scheduleMaskPosition();
+		if (plugin.zenActive() && plugin.settings.focusedFileMode) void plugin.updateFocusedFileMode();
+		// The explorer/outline observers are scoped to their leaf
+		// containers, which layout changes can recreate — re-bind them.
+		// …AND THE FLAGS COUNT AS A REASON TO WATCH. This asked only
+		// about the two COUNT switches, so a vault with flags on and
+		// counts off attached no observer and scheduled no pass: the
+		// tree drew nothing until something else in the plugin happened
+		// to call the patch, which is why flags appeared only after a
+		// click on the bar's own token. A feature that draws in the
+		// explorer has to be in every condition that decides whether the
+		// explorer is drawn.
+		if (plugin.settings.pluginEnabled && plugin.explorerWanted()) {
+			plugin.attachExplorerObserver();
+			plugin.scheduleExplorerPatch();
+		}
+		// THE SORT IS ITS OWN QUESTION, and it is asked here rather than
+		// inside `explorerWanted()`: that condition decides whether to
+		// WATCH the explorer's DOM, which the order does not need — it
+		// goes through the view's own comparator. What it does need is a
+		// re-patch, because a layout change can build a new view object
+		// and the old patch went with the old one.
+		if (plugin.settings.pluginEnabled) plugin.patchExplorerSort();
+	});
+	// THE MODE-SWITCH FIX: 'css-change' is the only event that fires when
+	// the writer flips light/dark, and nothing above listens to it — which
+	// left a scheme's dark half painted onto a light workspace until some
+	// unrelated refresh happened by. See barThemeOnCssChange for why the
+	// cursor bridge is deliberately not resynced from here.
+	// Every leaf change is a chance to note which markdown view is
+	// current, so a panel click later can still answer for it.
+	plugin.onAppEvent(plugin.app.workspace, 'active-leaf-change', () => {
+		plugin.rememberActiveMarkdown();
+		// The panel shows live state — word counts, the current mode —
+		// so it redraws when the writer moves, like any other pane.
+		plugin.refreshMenuPanels();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'file-open', () => {
+		plugin.rememberActiveMarkdown();
+	});
+	plugin.onAppEvent(plugin.app.workspace, 'css-change', () => {
+		plugin.barThemeOnCssChange();
+		// A THEME SWITCH IS WHEN THE OTHER COLOUR BECOMES THE RIGHT ONE.
+		// Without this, a writer moving from dark to light keeps flags
+		// chosen for the dark one and wonders why they have gone faint.
+		plugin.flagsApply();
+	});
+
+	// Mobile rebuilds the app container when Obsidian resumes, which
+	// discards inline body styles. These are the events that follow a
+	// rebuild; the guard is a no-op unless something actually went
+	// missing, so listening broadly costs nothing.
+	plugin.onAppEvent(plugin.app.workspace, 'resize', () => plugin.barThemeGuard());
+	plugin.onAppEvent(plugin.app.workspace, 'active-leaf-change', () => plugin.barThemeGuard());
+	plugin.registerDomEvent(document, 'visibilitychange', () => {
+		if (!document.hidden) plugin.barThemeGuard();
+	});
+}
+
+// THE DOCUMENT'S EVENTS: keys, pointer, selection, focus and the overlays
+// Obsidian lays over the editor (lifted out of onload, A488).
+function wsWireDocument(plugin: WordSmith) {
+	plugin.registerDomEvent(document, 'keyup', (evt: KeyboardEvent) => {
+		plugin.updateModifierState(evt);
+		plugin.updateRetroStatusBar();
+		plugin.typewriterScroll();
+	});
+	// Peeking at a hidden bar. Deliberately the whole handler: everything
+	// it could need is precomputed by syncBarPeekState, so a pointer move
+	// with peeking disarmed costs one property read.
+	plugin.registerDomEvent(document, 'mousemove', (evt: MouseEvent) => {
+		if (!plugin._peekArmed) return;
+		plugin.onPointerForBarPeek(evt.clientY);
+	});
+	plugin.registerDomEvent(document, 'mouseup', () => {
+		plugin.updateRetroStatusBar();
+		plugin.typewriterScroll();
+	});
+	// Live selection word count. selectionchange fires only when the
+	// selection actually changes (mouse drag, shift+arrows, double-click),
+	// unlike the old document-wide mousemove listener that re-derived
+	// word counts on every pointer frame even with no selection at all.
+	plugin._selectionRaf = null;
+	plugin.registerDomEvent(document, 'selectionchange', () => {
+		if (plugin._selectionRaf) return;
+		plugin._selectionRaf = window.requestAnimationFrame(() => {
+			plugin._selectionRaf = null;
+			plugin.updateRetroStatusBar();
+		});
+	});
+	// Escape exits zen mode (from new zen plugin — respects vim mode and excalidraw)
+	plugin.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
+		plugin.updateModifierState(evt);
+		// zenActive(), not settings.zenMode: the two disagree whenever the
+		// master is off, and `zenMode` alone stays true after a bar-badge
+		// exit — so this fired on Escape in a note that was not in zen,
+		// and toggleZen() would then have taken it as a request to ENTER.
+		if (evt.key === 'Escape' && plugin.settings.zenEscExits !== false && plugin.zenActive()) {
+			const target = evt.target as HTMLElement | null;
+			if (target) {
+				const cmEditor = target.closest('.cm-editor');
+				if (cmEditor) {
+					const vault = plugin.app.vault;
+					if (vault.config && vault.config.vimMode === true) {
+						// In vim, Escape belongs to vim: it is how you
+						// leave insert, visual and replace, and taking it
+						// meant zen simply could not be left from the
+						// keyboard — the guard here used to return
+						// unconditionally.
+						//
+						// So it is taken only in NORMAL mode, where vim
+						// has nothing left to do with it. The first
+						// Escape drops you to normal as always; a second
+						// one leaves zen. Nothing is stolen, and the
+						// habit still works.
+						if (plugin.getVimModeKey() !== 'normal') return;
+					}
+				}
+				if (target.instanceOf(HTMLTextAreaElement) && target.className && target.className.includes('excalidraw')) return;
+			}
+			const activeModal = document.querySelector('.modal');
+			if (!activeModal) { void plugin.toggleZen(); evt.preventDefault(); }
+		}
+	});
+
+	// Track whether the note editor itself has focus. Used to gate the
+	// elevated z-index (above Cursor Smith's canvas) so masks/arrows/bar
+	// only float above everything while actually writing — not above the
+	// command palette, settings, context menus, or other modals, which
+	// take focus away from .cm-editor.
+	const updateEditorFocusClass = () => {
+		const active = document.activeElement;
+		// WORD-SMITH'S OWN PANEL COUNTS AS WRITING. Focus in the docked
+		// menu is not focus taken away by a modal or a palette — it is
+		// the writer reaching for this plugin's own controls, and
+		// dropping the masks the moment they do meant the letterbox
+		// only appeared once they clicked back into the note. The pane
+		// is part of the same act.
+		const inEditor = !!(active && active.closest && (
+			active.closest('.cm-editor') || active.closest('.ws-menu-panel')));
+		document.body.classList.toggle('ws-editor-focused', inEditor);
+		// The drag handles (the titlebar strip and the top mask) are
+		// gated the OTHER way round from the z-index band: not "focus
+		// is in the editor" but "focus is not inside anything that must
+		// own its clicks". Two field reports shaped this. Gated on
+		// editor focus alone, zen had NO drag handle whenever focus sat
+		// elsewhere — "I can't drag the window". Widened to focus-on-
+		// <body>, it STILL failed, because Obsidian parks focus on a
+		// workspace container after ordinary clicks, not on body — a
+		// whitelist here is a guess about Obsidian's focus routing that
+		// each release can invalidate. The blacklist is the actual
+		// invariant: dragging is wrong exactly while a modal, prompt,
+		// suggestion popover or menu has focus, and those are stable,
+		// purpose-named containers. Menus that take no focus at all are
+		// covered separately: they carry their own no-drag later in the
+		// DOM than the masks, which by invariant 12 (last element wins
+		// the overlap) subtracts their rectangles from any grant
+		// beneath.
+		const blocked = !!(active && active.closest
+			&& active.closest('.modal-container, .prompt, .suggestion-container, .menu'));
+		document.body.classList.toggle('ws-drag-ok', !blocked);
+		// {vim} reads focus, so the bar has to repaint on it — otherwise
+		// the label lags by up to a second behind the palette opening.
+		plugin.updateRetroStatusBar();
+	};
+	// `.ws-overlay-open` — is a modal, prompt, suggestion popover or menu
+	// ON SCREEN? A different question from the focus one above, which
+	// asks whether one HAS FOCUS: a menu can exist unfocused, and the
+	// drag grants need to stand down for it either way.
+	//
+	// This was a `:has()` in the stylesheet, which needed no JS and was
+	// the wrong tool: `body:not(:has(...))` puts the SUBJECT on body, so
+	// the engine may re-check it on any change beneath body — and
+	// beneath body is an editor whose DOM changes on every keystroke.
+	//
+	// The observer watches document.body's DIRECT CHILDREN only. That is
+	// not a shortcut; it is why this is cheap. Obsidian appends all four
+	// of these to body itself, so nothing here ever looks inside the
+	// editor, and a keystroke produces no work at all.
+	const OVERLAYS = '.modal-container, .prompt, .suggestion-container, .menu';
+	const syncOverlayClass = () => {
+		let open = false;
+		try {
+			for (const el of Array.from(document.body.children)) {
+				if (el.matches && el.matches(OVERLAYS)) { open = true; break; }
+			}
+		} catch (_) { wsCatch('onload / syncOverlayClass: for (const el of Array.from(document.body.children))', _); }
+		document.body.classList.toggle('ws-overlay-open', open);
+	};
+	syncOverlayClass();
+	const overlayObserver = new MutationObserver(syncOverlayClass);
+	overlayObserver.observe(document.body, { childList: true });
+	plugin.register(() => {
+		overlayObserver.disconnect();
+		document.body.classList.remove('ws-overlay-open');
+	});
+
+	plugin.registerDomEvent(document, 'focusin', updateEditorFocusClass);
+	plugin.registerDomEvent(document, 'focusout', () => window.requestAnimationFrame(updateEditorFocusClass));
+	// Since 1.13 settings open in a separate window, which deactivates
+	// this one WITHOUT firing focusin/focusout — activeElement keeps
+	// reporting .cm-editor while the user is over in settings, so the
+	// class stayed set and the masks/strip kept claiming
+	// -webkit-app-region: drag, which is what made the settings window
+	// un-draggable. Window blur is the event that does fire for it.
+	//
+	// hasFocus() is consulted here and ONLY here, and only to CLEAR.
+	// Folding it into updateEditorFocusClass as a requirement for
+	// setting the class turned out to break the letterbox outright:
+	// hasFocus() reads false with DevTools focused (and misreports in
+	// other Electron corner cases), and with it gating focusin the
+	// class could stay off during ordinary typing — the masks then
+	// never rose above full-viewport overlays (Cursor-Smith's canvas
+	// at z 10000), which reads as "the letterbox doesn't display".
+	// Clear-only means the worst a misreport can do is nothing.
+	plugin.registerDomEvent(window, 'blur', () => window.requestAnimationFrame(() => {
+		if (!document.hasFocus()) {
+			document.body.classList.remove('ws-editor-focused');
+			// And the drag class: this window's regions must not stay
+			// claimed while another window (1.13 settings, a pop-out)
+			// is the one being used — the original un-draggable
+			// settings bug, on a second path.
+			document.body.classList.remove('ws-drag-ok');
+			plugin.updateRetroStatusBar();
+		}
+	}));
+	plugin.registerDomEvent(window, 'focus', () => window.requestAnimationFrame(updateEditorFocusClass));
+	updateEditorFocusClass();
+}
+
+// THE VAULT'S AND THE METADATA CACHE'S EVENTS: modify, create, rename,
+// delete, changed, resolved (lifted out of onload, A488).
+export function wsWireVault(plugin: WordSmith) {
+	plugin.onAppEvent(plugin.app.vault, 'modify', (file: TAbstractFile) => {
+		if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
+		plugin.scheduleExplorerPatch();
+		// Same event, one more reader. The history is debounced and gated
+		// on its own opt-in inside historyNoteChange, so this line costs a
+		// function call in a vault that has never turned it on.
+		plugin.historyNoteChange(file);
+		// EVERY TREE SHOWING A FIGURE ABOUT THIS NOTE. The Manuscript
+		// window caches a word count per path and never asked again, so a
+		// window left open beside the editor showed the count the note had
+		// when the window opened — for the rest of the session. Reported as
+		// "the word counts don't update automatically", and that is exactly
+		// what it was: nothing wrong with the counting, and nothing asking
+		// for it a second time.
+		plugin.treeCountsChanged(file && file.path);
+		// The store changing under us — synced from another device, or
+		// edited by hand — is read back rather than ignored. This is what
+		// replaces the "find it again" button: there is nothing to press,
+		// because the plugin notices.
+		void plugin.historyAdopt(file);
+		// THE ORDER FILE, TOO. `ws-export.md` is a note in the vault: it
+		// syncs from another device and a writer can reorder its lines by
+		// hand, which its own header invites them to do. The parsed store
+		// is cached for the life of the session, so without this the tree
+		// would go on drawing an order that is no longer in the file.
+		plugin.treeOrderAdopt(file);
+	});
+	plugin.onAppEvent(plugin.app.metadataCache, 'changed', (file: TAbstractFile) => {
+		if (plugin._fmCache && file && file.path) delete plugin._fmCache[file.path];
+		plugin._scopeGen++;
+		// {backlinks} caches a walk of the whole vault against this.
+		plugin._linkGen = (plugin._linkGen || 0) + 1;
+		// The heading tokens read this cache, and it is the only thing on
+		// the bar that does. A repaint that happened before the cache
+		// answered has no headings to show and nothing that would make it
+		// try again — see the 'resolved' handler below.
+		const active = plugin.app.workspace.getActiveFile();
+		if (file && active && file.path === active.path) {
+			plugin.requestBarRebuild();
+		}
+	});
+	// Fired once when the vault's links have all been resolved at startup,
+	// and again after a batch of changes settles. Without it the first
+	// backlink count of a session is whatever was resolvable at load.
+	plugin.onAppEvent(plugin.app.metadataCache, 'resolved', () => {
+		plugin._linkGen = (plugin._linkGen || 0) + 1;
+		// AND repaint the bar.
+		//
+		// The heading tokens ({#} and the rest, {#>}) resolve through
+		// metadataCache, which fills asynchronously. On a slower machine
+		// the first paint of a session lands before it has answered, so
+		// those tokens resolve to nothing — and a segment whose tokens
+		// all resolve to nothing is dropped, by design. The row comes up
+		// empty and stays empty, because nothing rebuilds it.
+		//
+		// Reported from ChromeOS, where a heading-only bar showed no left
+		// or centre section at all; Windows and Android won the race and
+		// never showed it. Forcing a repaint in the console fixed it and
+		// it then held, which is what named this as a startup race rather
+		// than a rendering fault.
+		plugin.requestBarRebuild();
+	});
+	// A store that appears in the vault — first sync of a new install, or a
+	// file the user pasted in — is picked up without being asked for.
+	plugin.onAppEvent(plugin.app.vault, 'create', (file: TAbstractFile) => {
+		// Every tree drawing this vault, once the vault knows about it.
+		plugin.treeShapeChanged();
+		// A new row in Obsidian's tree gets its export tick.
+		plugin.orgTicksSchedule();
+		if (plugin._historyPath || !plugin.settings.historyTracking) return;
+		void plugin.historyAdopt(file);
+	});
+	plugin.onAppEvent(plugin.app.vault, 'rename', (file: TAbstractFile, oldPath: string) => {
+		if (plugin.wordCountCache) plugin.wordCountCache.delete(oldPath);
+		void plugin.renameScopePath(oldPath, file.path);
+		plugin.historyRenamePath(oldPath, file.path);
+		// FIRST, before anything writes: if the thing that moved was one
+		// of this plugin's own files — or a folder holding one — the
+		// path in settings has to follow it, or the next write makes a
+		// fresh empty file at the address the writer just vacated.
+		const followed = plugin.storeRenameFollow(oldPath, file.path);
+		// Folders fire this too, so a folder rename carries the goals of
+		// everything inside it.
+		if (plugin.renameGoalPaths(oldPath, file.path) || followed) void plugin.saveSettings(true);
+		// …and the export list, which is keyed by path twice over: the
+		// rows inside a section, and the section's own scope.
+		void plugin.structureRenameStore(oldPath, file.path);
+		// The renamed row's export tick is read against its new path.
+		plugin.orgTicksSchedule();
+		// LAST, after the stores have followed the file. The trees redraw
+		// from those stores, and redrawing before they were rewritten
+		// would paint the order the vault had a moment ago.
+		plugin.treeShapeChanged();
+	});
+	plugin.onAppEvent(plugin.app.vault, 'delete', (file: TAbstractFile) => {
+		if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
+		void plugin.removeScopePath(file.path);
+		plugin.historyForgetPath(file.path);
+		// AND THE MIRROR: a deleted ws-settings.md returns with the next save
+		// instead of waiting for a setting to move.
+		plugin.settingsMirrorForget(file.path);
+		// …AND THE ORDER STORE, which had no delete arm at all. See
+		// `structureForgetPath`: the rename half has been here since
+		// 1.41 and this half never was, so a deleted note left its row
+		// and a deleted folder left its whole section. Folders fire this
+		// event too, which is what makes one call enough.
+		void plugin.structureForgetStore(file.path);
+		// …AND THE GOALS, THE FLAGS AND THE COLOURS, which had no delete
+		// arm either. The rename half two handlers up has carried them
+		// since 1.41; this half never has, so a deleted note kept its
+		// target at an address nothing could reach — and `renameGoalPaths`
+		// lets an existing key WIN, so re-using that path later gave the
+		// new note the dead one's goal.
+		if (plugin.forgetGoalPaths(file.path)) void plugin.saveSettings(true);
+		plugin.treeShapeChanged();
+	});
+}
+
+// THE THEME OBSERVER: the body's class list, watched for a theme or a
+// light/dark switch (lifted out of onload, A488).
+export function wsWatchTheme(plugin: WordSmith) {
+	plugin._themeObsBusy = false;
+	plugin._themeObserver = new MutationObserver(() => {
+		if (!plugin.settings.pluginEnabled) return;
+		if (plugin._themeObsBusy) return;
+		plugin._themeObsBusy = true;
+		try {
+			plugin.applyCssVariables();
+			plugin.applyStyleProps();
+			// Cursor-Smith's torch flips a body class of its own
+			plugin.applyTorchVars();
+			// A worn scheme has to survive whoever else writes to body.
+			plugin.barThemeGuard();
+		} finally {
+			// CLEARED ON A TASK, not in the finally alone: the records
+			// this callback's own writes queued are delivered at the next
+			// microtask checkpoint, which is still inside this turn. A
+			// flag cleared synchronously would be false again by then and
+			// the loop would resume.
+			window.setTimeout(() => { plugin._themeObsBusy = false; }, 0);
+		}
+	});
+	plugin._themeObserver.observe(document.body,
+		{ attributes: true, attributeFilter: ['class', 'style'] });
+}
+
+// ONCE THE LAYOUT IS READY: the work that needs the workspace built
+// (lifted out of onload, A488).
+export function wsOnLayoutReady(plugin: WordSmith) {
+	window.setTimeout(() => plugin.startGuardEnd(), 2000);
+	if (!plugin.settings.pluginEnabled) return;
+	const t0 = performance.now();
+	plugin.refresh();
+	plugin.checkStylesheetVersion();
+	plugin.checkManifestVersion();
+	// A SECOND PASS ONCE THE STYLESHEET IS CERTAINLY UP. Everything
+	// this plugin MEASURES is measured against rules that
+	// styles.css supplies, and when the plugin is switched on from
+	// the settings page this callback runs synchronously — before
+	// Obsidian has necessarily applied them. The bar is the case a
+	// writer sees: it is laid out by CSS, it was measured while
+	// there was none, and it came up the wrong width until the
+	// next note switch happened to rebuild it. Cheap, once, and it
+	// costs nothing when the stylesheet was already there — the
+	// refresh is idempotent.
+	window.setTimeout(() => {
+		if (plugin.settings && plugin.settings.pluginEnabled) plugin.refresh();
+	}, 0);
+	try {
+		if (!plugin._loadMarks) plugin._loadMarks = [];
+		plugin._loadMarks.push(['layout ready',
+			plugin._loadMarks[plugin._loadMarks.length - 1][1]
+				+ (performance.now() - t0)]);
+	} catch (_) { wsCatch('onload: if (!this._loadMarks) this._loadMarks = [];', _); }
+	// AND THE PANEL DOCKS ITSELF. Registering the view type is what lets
+	// Obsidian RESTORE a pane it already has in the workspace — it does
+	// not create one; on a fresh install, or after any start where the
+	// workspace had no leaf of ours, the writer would have to dock it by
+	// hand. `menuDock` is the writer's statement that they want the panel;
+	// turning it off is how they say otherwise, and that path already
+	// detaches the pane. Opened with `active: false` and no reveal, so a
+	// docked pane appears where it belongs without stealing focus from
+	// the note or, on a phone, throwing the sidebar open over what they
+	// were reading. A pane Obsidian kept as a placeholder counts as one
+	// that exists — reviveMenuPanel wakes it. A placeholder left by an
+	// unload of a LIVE pane is not yet a leaf of our type while onload
+	// runs — Obsidian makes it one, deferred, a moment later — so the
+	// wake runs again on every layout change; it costs a look at a few
+	// leaves and settles the moment nothing is a ghost.
+	if (plugin.settings.menuDock) {
+		void plugin.reviveMenuPanel().then(() => { if (!plugin.menuPanelLeaves().length) return plugin.openMenuPanel(false); return null; });
+		plugin.onAppEvent(plugin.app.workspace, 'layout-change', () => { if (plugin.settings.menuDock) void plugin.reviveMenuPanel(); });
+	}
+	// MARKERS MOVED OUT OF TEXT OPTIONS, so a vault that had them on
+	// under the old arrangement keeps them on under the new one.
+	// Without this the fix would read to an existing writer as "the
+	// update turned my markers off" — a worse bug than the one it
+	// fixes.
+	if (plugin.settings.markersEnabled !== true
+		&& plugin.settings.showHiddenMarkers && plugin.settings.miscEnabled) {
+		plugin.settings.markersEnabled = true;
+		void plugin.saveSettings();
+	}
+	// The goals file, read after the vault is up — it cannot be
+	// read in onload, where getAbstractFileByPath answers for a
+	// vault Obsidian has not finished indexing.
+	//
+	// THE MIRROR GOES FIRST, and for the same reason it is here at all
+	// rather than in loadSettings: finding it means reading files. It
+	// restores only when data.json had nothing in it, so on every
+	// ordinary start this is one `getAbstractFileByPath` and a return.
+	plugin.settingsMirrorRestore(plugin._rawData)
+		.catch(() => false)
+		.then(() => plugin.goalsFileLoad())
+		.then(() => plugin.refresh())
+		.catch(() => {});
+	// Only worth asking when the panel is on: a writer who never
+	// docks it has no stake in whether the tree's classes moved,
+	// and a notice they cannot act on is noise.
+	if (plugin.settings.menuDock) plugin.checkAppClasses();
+	// Read the store once the vault's file list exists — finding the
+	// file means looking through it. Nothing is recorded until this
+	// resolves; historyCapture waits on the same promise, so an edit
+	// made during startup is counted rather than dropped.
+	if (plugin.settings.historyTracking) void plugin.historyLoad();
+}
+
 export default class WordSmith extends Plugin {
 	// THE CLASS IS IN MORE THAN ONE FILE: each area's methods are a module's
 	// functions with an explicit `this`, put onto the prototype at the foot of
@@ -1173,87 +2006,7 @@ export default class WordSmith extends Plugin {
 		// diagnostics without the reporter opening a console.
 		wsGuardTell((where, err) => this.guardNotice(where, err));
 		// ── Mask / letterbox state ─────────────────────────────────────────────
-		this.maskTopEl        = null;
-		this.maskBottomEl     = null;
-		this.arrowsTopEl      = null;
-		this.arrowsBottomEl   = null;
-		this.maskResizeObserver = null;
-		this._maskRaf         = null;
-
-		// ── Retro bar state ───────────────────────────────────────────────────
-		this.retroStatusBarEl = null;
-		// Peek state for a hidden bar (see syncBarPeekState).
-		this._peekArmed    = false;
-		this._peekZoneTop  = Infinity;
-		this._barPeek      = false;
-		this._barPeekTimer = null;
-		this._barBoxHeight = 0;
-		this.retroPlinthEl = null;
-		this.clockInterval    = null;
-		this.batteryLevel     = null;
-		this.batteryCharging  = false;
-		this._batteryManager  = null;   // kept so listeners can be detached on unload
-		this._batteryHandler  = null;
-		this._wsLastTotalWordCount = 0;
-		this._docStatsCache   = null;   // { doc, totalWC, charCount, paras } keyed on CM doc identity
-		this._capsLockOn      = false;  // tracked from keyboard events for {caps}
-		this._numLockOn       = false;  // tracked from keyboard events for {nump}
-		this._statusRowEls    = [];     // per-row elements, for per-row text fitting
-		this._goalWasMet      = null;   // previous goal state, to fire the celebration once
-		this._fenceCache      = null;   // { doc, set } of non-prose line numbers
-		this._paraCache       = null;   // { doc, val } paragraph geometry
-		this._lastTypo        = null;   // last typography substitution, for backspace-to-revert
-		this._barPicker       = null;   // open bar popup, if any
-		this._barPickerDismiss = null;
-		this._barPickerKey    = (e) => { if (e.key === 'Escape') this.closeBarPicker(); };
-		this._vimMapped       = false;  // whether our vim motion maps are installed
-		this._fmCache         = {};     // path -> frontmatter overrides
-		this._hemFlashTimer   = null;   // clears the blocked-key flash class
-		this._scopeGen        = 0;      // bumped on file/layout change; keys the per-editor scope cache
-		this._lastScopeInScope = null;  // last known scope state of the active file
-
-		// ── Scroll / resize handlers ──────────────────────────────────────────
-		this.currentScroller  = null;
-		this.scrollHandler    = null;
-		this.windowResizeHandler = null;
-
-		// ── Paragraph tagger ──────────────────────────────────────────────────
-
-		// ── Style injection ───────────────────────────────────────────────────
-
-		// ── Word count cache ──────────────────────────────────────────────────
-		this.explorerObserver = null;
-		this.wordCountCache   = new Map();
-		this._patchScheduled  = false;
-
-		// ── Zen state ─────────────────────────────────────────────────────────
-		this._isTogglingZen   = false;
-		this._wasZenMode      = false;
-		this._tabContainersCache = null;
-
-		// ── Surface gate ──────────────────────────────────────────────────────
-		// Whether zen's sidebar collapse is currently suspended because the
-		// active pane is not a note, and what to put back when it is again.
-		this._sidebarsSuspended = false;
-		this._suspendedLeft     = false;
-		this._suspendedRight    = false;
-		// Last value written to --ws-bar-reserve, so the mask pass (which
-		// runs on scroll) only touches :root when the strip actually
-		// changes depth.
-		this._barReserve        = null;
-
-		// ── Drag / refresh bookkeeping ────────────────────────────────────────
-		this._activeDragCleanup = null;   // aborts an in-flight mask drag on unload
-		this._refreshTimer      = null;   // debounced saveSettings → refresh
-
-		// ── Live selection rAF ────────────────────────────────────────────────
-		this._selectionRaf    = null;
-
-		// ── The docked menu's revival: one pass in flight at a time ──
-		this._reviving        = null;
-
-		// ── Theme observer ────────────────────────────────────────────────────
-		this._themeObserver   = null;
+		wsFieldsReset(this);
 
 		this.loadMark('fields');
 		await this.loadSettings();
@@ -1371,225 +2124,7 @@ export default class WordSmith extends Plugin {
 		// method it has. This carries what would have answered them — and it
 		// copies, because one of those writers could not open the console
 		// after the freeze.
-		this.addCommand({
-			id: 'repair-display',
-			name: 'Repair the display (draw everything again)',
-			callback: () => { this.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }
-		});
-		this.addCommand({
-			id: 'copy-settings',
-			name: 'Copy your settings as text',
-			callback: async () => {
-				try { await navigator.clipboard.writeText(this.settingsCopyText()); new Notice('Word-Smith: settings copied.', 4000); }
-				catch { new Notice('Word-Smith: could not reach the clipboard.', 6000); }
-			}
-		});
-		this.addCommand({
-			id: 'paste-settings',
-			name: 'Paste settings from the clipboard (replaces everything; the settings can undo it)',
-			callback: async () => {
-				let text = '';
-				try { text = await navigator.clipboard.readText(); } catch { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
-				const r = await this.settingsPasteText(text);
-				new Notice('Word-Smith: ' + (r.error !== undefined ? r.error : (r.applied + ' setting(s) pasted' + (r.repaired.length ? ', ' + r.repaired.length + ' reset' : '') + '.')), 8000);
-			}
-		});
-		this.addCommand({
-			id: 'copy-diagnostics',
-			name: 'Copy diagnostics for a bug report',
-			callback: async () => {
-				// A PAUSE FIRST: on a phone this runs from the command palette, whose
-				// search field has the keyboard up and the workspace shrunk. 1200ms is
-				// inside the five seconds a user gesture keeps the clipboard open for.
-				await new Promise((r) => window.setTimeout(r, 1200));
-				try { await this.sheetSelfTest(); } catch (_) { wsCatch('onload / callback: await this.sheetSelfTest();', _); }
-				let text = '';
-				try { text = this.diagnostics(); }
-				catch (e) { text = 'Word-Smith: diagnostics failed — ' + wsErrMsg(e); }
-				try {
-					await navigator.clipboard.writeText(text);
-					new Notice('Word-Smith: diagnostics copied. Paste them into the '
-						+ 'issue.', 6000);
-				} catch {
-					// THE CLIPBOARD CAN REFUSE — no permission, or no focus. The
-					// console is the fallback and NOT the plan: a writer who
-					// cannot open it has been told that much by the failure.
-					try { console.warn(text); } catch (_e) { wsCatch('onload / callback: console.warn(text);', _e); }
-					new Notice('Word-Smith: could not reach the clipboard — the '
-						+ 'diagnostics are in the developer console instead.', 8000);
-				}
-			}
-		});
-		this.addCommand({
-			id: 'open-export',
-			name: 'Export a manuscript\u2026',
-			callback: () => this.openExportModal()
-		});
-		this.addCommand({
-			id: 'open-menu-panel',
-			name: 'Open the menu in a panel',
-			callback: async () => {
-				if (!this.settings.menuDock) {
-					new Notice('Word-Smith: switch on the panel first, in the settings under Powermenu.');
-					return;
-				}
-				await this.openMenuPanel(true);
-			}
-		});
-		this.addCommand({
-			id: 'toggle-retro-bar',
-			name: 'Toggle the Powerline bar',
-			// Mirrors the settings-tab switch: flip the master, repaint, and
-			// save with a full refresh — the refresh is what lifts/reapplies
-			// the inline display:none on Obsidian's native status bar.
-			callback: async () => {
-				// ON A PHONE WITH ITS OWN SWITCH OFF, SAY WHY NOTHING HAPPENS rather
-				// than flip a master that changes nothing on this screen.
-				if (typeof Platform !== 'undefined' && Platform && Platform.isPhone
-					&& !this.settings.retroBarOnPhone) {
-					new Notice('Word-Smith: the bar is off on phones by default. Switch it on in the settings, under Powerline.', 6000);
-					return;
-				}
-				this.settings.enableRetroStatus = !this.settings.enableRetroStatus;
-				this.updateStatusBar();
-				this.updateRetroStatusBar();
-				await this.saveSettings(true);
-			}
-		});
-		this.addCommand({
-			id: 'toggle-wordsmith',
-			name: 'Turn everything on or off',
-			callback: () => this.toggleFullPlugin()
-		});
-		this.addCommand({
-			id: 'cycle-bar-preset',
-			name: 'Cycle Powerline presets',
-			callback: () => this.cycleBarPreset(1)
-		});
-
-		// ── Feature toggles ───────────────────────────────────────────────
-		// One shape for all of them: flip the master flag, save with an
-		// immediate refresh so the change is on screen before the palette
-		// has finished closing, and say which way it went. The Notice is
-		// not decoration — several of these are invisible on a note that
-		// happens not to trigger them (no passive voice, no long sentences),
-		// and a toggle you cannot confirm reads as a toggle that did nothing.
-		const featureToggle = (id: string, name: string, key: WsBoolKey, label: string) => {
-			this.addCommand({
-				id, name,
-				callback: async () => {
-					this.settings[key] = !this.settings[key];
-					await this.saveSettings(true);
-					new Notice(label + (this.settings[key] ? ' on' : ' off'));
-				}
-			});
-		};
-		featureToggle('toggle-letterbox', 'Toggle letter box mode',
-			'enableLetterbox', 'Letter box mode');
-		featureToggle('toggle-typewriter', 'Toggle typewriter mode',
-			'enableTypewriter', 'Typewriter mode');
-		featureToggle('toggle-hemingway', 'Toggle Hemingway mode',
-			'hemingwayEnabled', 'Hemingway mode');
-		featureToggle('toggle-syntax', 'Toggle syntax highlighting',
-			'posEnabled', 'Syntax highlighting');
-		featureToggle('toggle-prose-checks', 'Toggle prose checks',
-			'checksEnabled', 'Prose checks');
-
-		// Zen is not a plain flag — it collapses sidebars, hides chrome and
-		// records what to put back — so it routes through its own method
-		// rather than being flipped here.
-		this.addCommand({
-			id: 'toggle-zen',
-			name: 'Toggle zen mode',
-			callback: () => this.toggleZen()
-		});
-
-		// The id is NOT renamed with the label. It is the key a user's
-		// hotkey is bound to, and a hotkey that silently stops working is a
-		// worse defect than the wrong noun in a palette.
-		this.addCommand({
-			id: 'open-report',
-			name: 'Show the writing report',
-			callback: () => this.openReportModal()
-		});
-
-		// Its own command, not a mode of the report's: they are two windows
-		// now, and one of them works with no note open.
-		this.addCommand({
-			id: 'open-history',
-			name: 'Show the writing history',
-			callback: () => this.openHistoryModal()
-		});
-
-		// THE UNIFIED WINDOW — a tree with the report and the history beside
-		// it. Its own command while it is being built, rather than taking
-		// over the four the palette already has: those still open the four
-		// windows, and a writer who finds this one wanting can go straight
-		// back to them. When the Export tab lands and the old four become
-		// wrappers, this becomes the way in and they point at it.
-		this.addCommand({
-			id: 'open-manuscript',
-			name: 'Open the Organizer',
-			// THE PANE: the id and the name are promised to every saved hotkey and
-			// stay. THE SWITCH: off, the command is not offered.
-			checkCallback: (checking: boolean) => {
-				if (this.settings.organizerOn === false) return false;
-				if (!checking) void this.orgOpenTab('organizer');
-				return true;
-			}
-		});
-
-		// Quick panels — the left/right sidebar toggle and "reveal the view"
-		// as one keystroke, with the sidebar closing again once you have
-		// picked something.
-		//
-		// checkCallback, not callback: returning false while `checking` is
-		// true takes the command OUT of the palette, which is the official
-		// way to make one conditional. Obsidian has no public
-		// removeCommand, so a plain callback gated on the setting would
-		// leave a dead entry in the palette whenever the toggle was off.
-		const quickCmd = (id: string, name: string, key: WsBoolKey, viewType: string) => this.addCommand({
-			id, name,
-			checkCallback: (checking: boolean) => {
-				if (!this.settings[key]) return false;
-				if (!checking) void this.toggleQuickPanel(viewType);
-				return true;
-			}
-		});
-		// Capture, so the translation happens before the view sees a letter
-		// it has no use for. Registered once and gated inside, rather than
-		// hooked and unhooked as the setting changes.
-		this.registerDomEvent(document, 'keydown', (e: KeyboardEvent) => this.quickCycleVimKey(e), true);
-
-		quickCmd('quick-file-explorer', 'Quick file explorer',
-			'quickExplorer', 'file-explorer');
-		quickCmd('quick-outline', 'Quick outline', 'quickOutline', 'outline');
-
-		// Quick cycle. Four commands, no default hotkeys — Alt+arrows and
-		// Alt+hjkl are both good bindings and which one a writer wants
-		// depends on whether they think in vim, so the choice is left in
-		// Obsidian's Hotkeys pane where it can be either or both. Alt is
-		// untouched by vim mode, so neither conflicts in any mode.
-		this.addCommand({
-			id: 'open-menu',
-			name: 'Open the menu',
-			callback: () => this.openBarMenu()
-		});
-
-		for (const dir of ['left', 'right', 'up', 'down']) {
-			this.addCommand({
-				id: 'quick-cycle-' + dir,
-				name: 'Quick cycle: focus ' + dir,
-				checkCallback: (checking: boolean) => {
-					if (!this.settings.quickCycle) return false;
-					if (!checking) void this.quickCycleMove(dir);
-					return true;
-				}
-			});
-		}
-
-		// The mark, registered before anything can ask for it.
-		try { if (addIcon) addIcon(WS_ICON, WS_ICON_SVG); } catch (_) { wsCatch('onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);', _); }
+		wsRegisterCommands(this);
 		// The icon first: the ribbon is about to ask for it by name.
 		this.loadMark('commands');
 		this.registerWsIcon();
@@ -1618,410 +2153,14 @@ export default class WordSmith extends Plugin {
 		// rows to a menu it did not build), so this listener skips the broadcast
 		// by its source string: every other plugin still hears the event, and
 		// the one listener that has already had its say stays quiet.
-		this.onAppEvent(this.app.workspace, 'file-menu',
-			(menu: Menu, file: TAbstractFile, source: string) => {
-				if (source === 'word-smith-outliner') return;
-				this.fileMenuFor(menu, file);
-			});
-		// SEVERAL ROWS AT ONCE: select folders in Obsidian's tree, right-click,
-		// "Export these".
-		this.onAppEvent(this.app.workspace, 'files-menu',
-			(menu: Menu, files: TAbstractFile[], source: string) => {
-				if (source === 'word-smith-outliner') return;
-				this.filesMenuFor(menu, files);
-			});
-
-		this.onAppEvent(this.app.workspace, 'file-open', (file: TAbstractFile) => {
-			// THE NOTE YOU OPEN IS FOLLOWED by every open Organizer.
-			this.orgTreeFollow(file && file.path);
-			this.syncScope();
-			this.applyEditorFont();
-			this.applyVimMotionMaps();
-			this.updateWorkspaceAesthetics();
-		});
-		this.onAppEvent(this.app.workspace, 'active-leaf-change', () => {
-			this.syncScope();
-			this.applyEditorFont();
-			// Vim state is rebuilt with the editor, taking our maps with it.
-			this.applyVimMotionMaps();
-			this.updateWorkspaceAesthetics();
-			this.scheduleExplorerPatch();
-			if (this.zenActive() && this.settings.focusedFileMode) void this.updateFocusedFileMode();
-			this.typewriterScroll();
-			// A tab put behind another is a leaf-change, not a layout-change;
-			// the tree's boxes belong to a tab that is on screen.
-			this.orgTicksSchedule();
-		});
-		this.onAppEvent(this.app.workspace, 'editor-change', () => {
-			this.updateRetroStatusBar();
-			this.typewriterScroll();
-		});
-		this.onAppEvent(this.app.workspace, 'resize', () => {
-			this.scheduleMaskPosition();
-			// Re-measure: a narrower window drops tokens, a wider one puts
-			// them back.
-			this.scheduleFit();
-		});
-		this.onAppEvent(this.app.workspace, 'layout-change', () => {
-			this._tabContainersCache = null;
-			this._scopeGen++;
-			// An explorer leaf that was just opened has rows with no ticks yet;
-			// nothing to do unless a window wants them.
-			this.orgTicksSchedule();
-			// The masks come off in reading view, and that is a refresh rather
-			// than a re-measure: letterboxActive() changes answer, so the body
-			// classes and the Modes popup have to change with it.
-			this.applyBodyClasses();
-			// Switching between editing and reading is a layout change, and
-			// nothing else re-measures the masks when it happens. Without
-			// this the geometry stamped before the swap is what stays on
-			// screen until an unrelated event happens to run the pass —
-			// which is why issue #1 could be cleared by changing note or
-			// toggling zen, and by nothing you would think to try.
-			this.scheduleMaskPosition();
-			if (this.zenActive() && this.settings.focusedFileMode) void this.updateFocusedFileMode();
-			// The explorer/outline observers are scoped to their leaf
-			// containers, which layout changes can recreate — re-bind them.
-			// …AND THE FLAGS COUNT AS A REASON TO WATCH. This asked only
-			// about the two COUNT switches, so a vault with flags on and
-			// counts off attached no observer and scheduled no pass: the
-			// tree drew nothing until something else in the plugin happened
-			// to call the patch, which is why flags appeared only after a
-			// click on the bar's own token. A feature that draws in the
-			// explorer has to be in every condition that decides whether the
-			// explorer is drawn.
-			if (this.settings.pluginEnabled && this.explorerWanted()) {
-				this.attachExplorerObserver();
-				this.scheduleExplorerPatch();
-			}
-			// THE SORT IS ITS OWN QUESTION, and it is asked here rather than
-			// inside `explorerWanted()`: that condition decides whether to
-			// WATCH the explorer's DOM, which the order does not need — it
-			// goes through the view's own comparator. What it does need is a
-			// re-patch, because a layout change can build a new view object
-			// and the old patch went with the old one.
-			if (this.settings.pluginEnabled) this.patchExplorerSort();
-		});
-		// THE MODE-SWITCH FIX: 'css-change' is the only event that fires when
-		// the writer flips light/dark, and nothing above listens to it — which
-		// left a scheme's dark half painted onto a light workspace until some
-		// unrelated refresh happened by. See barThemeOnCssChange for why the
-		// cursor bridge is deliberately not resynced from here.
-		// Every leaf change is a chance to note which markdown view is
-		// current, so a panel click later can still answer for it.
-		this.onAppEvent(this.app.workspace, 'active-leaf-change', () => {
-			this.rememberActiveMarkdown();
-			// The panel shows live state — word counts, the current mode —
-			// so it redraws when the writer moves, like any other pane.
-			this.refreshMenuPanels();
-		});
-		this.onAppEvent(this.app.workspace, 'file-open', () => {
-			this.rememberActiveMarkdown();
-		});
-		this.onAppEvent(this.app.workspace, 'css-change', () => {
-			this.barThemeOnCssChange();
-			// A THEME SWITCH IS WHEN THE OTHER COLOUR BECOMES THE RIGHT ONE.
-			// Without this, a writer moving from dark to light keeps flags
-			// chosen for the dark one and wonders why they have gone faint.
-			this.flagsApply();
-		});
-
-		// Mobile rebuilds the app container when Obsidian resumes, which
-		// discards inline body styles. These are the events that follow a
-		// rebuild; the guard is a no-op unless something actually went
-		// missing, so listening broadly costs nothing.
-		this.onAppEvent(this.app.workspace, 'resize', () => this.barThemeGuard());
-		this.onAppEvent(this.app.workspace, 'active-leaf-change', () => this.barThemeGuard());
-		this.registerDomEvent(document, 'visibilitychange', () => {
-			if (!document.hidden) this.barThemeGuard();
-		});
+		wsWireWorkspace(this);
 
 
 		// DOM events
-		this.registerDomEvent(document, 'keyup', (evt: KeyboardEvent) => {
-			this.updateModifierState(evt);
-			this.updateRetroStatusBar();
-			this.typewriterScroll();
-		});
-		// Peeking at a hidden bar. Deliberately the whole handler: everything
-		// it could need is precomputed by syncBarPeekState, so a pointer move
-		// with peeking disarmed costs one property read.
-		this.registerDomEvent(document, 'mousemove', (evt: MouseEvent) => {
-			if (!this._peekArmed) return;
-			this.onPointerForBarPeek(evt.clientY);
-		});
-		this.registerDomEvent(document, 'mouseup', () => {
-			this.updateRetroStatusBar();
-			this.typewriterScroll();
-		});
-		// Live selection word count. selectionchange fires only when the
-		// selection actually changes (mouse drag, shift+arrows, double-click),
-		// unlike the old document-wide mousemove listener that re-derived
-		// word counts on every pointer frame even with no selection at all.
-		this._selectionRaf = null;
-		this.registerDomEvent(document, 'selectionchange', () => {
-			if (this._selectionRaf) return;
-			this._selectionRaf = window.requestAnimationFrame(() => {
-				this._selectionRaf = null;
-				this.updateRetroStatusBar();
-			});
-		});
-		// Escape exits zen mode (from new zen plugin — respects vim mode and excalidraw)
-		this.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
-			this.updateModifierState(evt);
-			// zenActive(), not settings.zenMode: the two disagree whenever the
-			// master is off, and `zenMode` alone stays true after a bar-badge
-			// exit — so this fired on Escape in a note that was not in zen,
-			// and toggleZen() would then have taken it as a request to ENTER.
-			if (evt.key === 'Escape' && this.settings.zenEscExits !== false && this.zenActive()) {
-				const target = evt.target as HTMLElement | null;
-				if (target) {
-					const cmEditor = target.closest('.cm-editor');
-					if (cmEditor) {
-						const vault = this.app.vault;
-						if (vault.config && vault.config.vimMode === true) {
-							// In vim, Escape belongs to vim: it is how you
-							// leave insert, visual and replace, and taking it
-							// meant zen simply could not be left from the
-							// keyboard — the guard here used to return
-							// unconditionally.
-							//
-							// So it is taken only in NORMAL mode, where vim
-							// has nothing left to do with it. The first
-							// Escape drops you to normal as always; a second
-							// one leaves zen. Nothing is stolen, and the
-							// habit still works.
-							if (this.getVimModeKey() !== 'normal') return;
-						}
-					}
-					if (target.instanceOf(HTMLTextAreaElement) && target.className && target.className.includes('excalidraw')) return;
-				}
-				const activeModal = document.querySelector('.modal');
-				if (!activeModal) { void this.toggleZen(); evt.preventDefault(); }
-			}
-		});
-
-		// Track whether the note editor itself has focus. Used to gate the
-		// elevated z-index (above Cursor Smith's canvas) so masks/arrows/bar
-		// only float above everything while actually writing — not above the
-		// command palette, settings, context menus, or other modals, which
-		// take focus away from .cm-editor.
-		const updateEditorFocusClass = () => {
-			const active = document.activeElement;
-			// WORD-SMITH'S OWN PANEL COUNTS AS WRITING. Focus in the docked
-			// menu is not focus taken away by a modal or a palette — it is
-			// the writer reaching for this plugin's own controls, and
-			// dropping the masks the moment they do meant the letterbox
-			// only appeared once they clicked back into the note. The pane
-			// is part of the same act.
-			const inEditor = !!(active && active.closest && (
-				active.closest('.cm-editor') || active.closest('.ws-menu-panel')));
-			document.body.classList.toggle('ws-editor-focused', inEditor);
-			// The drag handles (the titlebar strip and the top mask) are
-			// gated the OTHER way round from the z-index band: not "focus
-			// is in the editor" but "focus is not inside anything that must
-			// own its clicks". Two field reports shaped this. Gated on
-			// editor focus alone, zen had NO drag handle whenever focus sat
-			// elsewhere — "I can't drag the window". Widened to focus-on-
-			// <body>, it STILL failed, because Obsidian parks focus on a
-			// workspace container after ordinary clicks, not on body — a
-			// whitelist here is a guess about Obsidian's focus routing that
-			// each release can invalidate. The blacklist is the actual
-			// invariant: dragging is wrong exactly while a modal, prompt,
-			// suggestion popover or menu has focus, and those are stable,
-			// purpose-named containers. Menus that take no focus at all are
-			// covered separately: they carry their own no-drag later in the
-			// DOM than the masks, which by invariant 12 (last element wins
-			// the overlap) subtracts their rectangles from any grant
-			// beneath.
-			const blocked = !!(active && active.closest
-				&& active.closest('.modal-container, .prompt, .suggestion-container, .menu'));
-			document.body.classList.toggle('ws-drag-ok', !blocked);
-			// {vim} reads focus, so the bar has to repaint on it — otherwise
-			// the label lags by up to a second behind the palette opening.
-			this.updateRetroStatusBar();
-		};
-		// `.ws-overlay-open` — is a modal, prompt, suggestion popover or menu
-		// ON SCREEN? A different question from the focus one above, which
-		// asks whether one HAS FOCUS: a menu can exist unfocused, and the
-		// drag grants need to stand down for it either way.
-		//
-		// This was a `:has()` in the stylesheet, which needed no JS and was
-		// the wrong tool: `body:not(:has(...))` puts the SUBJECT on body, so
-		// the engine may re-check it on any change beneath body — and
-		// beneath body is an editor whose DOM changes on every keystroke.
-		//
-		// The observer watches document.body's DIRECT CHILDREN only. That is
-		// not a shortcut; it is why this is cheap. Obsidian appends all four
-		// of these to body itself, so nothing here ever looks inside the
-		// editor, and a keystroke produces no work at all.
-		const OVERLAYS = '.modal-container, .prompt, .suggestion-container, .menu';
-		const syncOverlayClass = () => {
-			let open = false;
-			try {
-				for (const el of Array.from(document.body.children)) {
-					if (el.matches && el.matches(OVERLAYS)) { open = true; break; }
-				}
-			} catch (_) { wsCatch('onload / syncOverlayClass: for (const el of Array.from(document.body.children))', _); }
-			document.body.classList.toggle('ws-overlay-open', open);
-		};
-		syncOverlayClass();
-		const overlayObserver = new MutationObserver(syncOverlayClass);
-		overlayObserver.observe(document.body, { childList: true });
-		this.register(() => {
-			overlayObserver.disconnect();
-			document.body.classList.remove('ws-overlay-open');
-		});
-
-		this.registerDomEvent(document, 'focusin', updateEditorFocusClass);
-		this.registerDomEvent(document, 'focusout', () => window.requestAnimationFrame(updateEditorFocusClass));
-		// Since 1.13 settings open in a separate window, which deactivates
-		// this one WITHOUT firing focusin/focusout — activeElement keeps
-		// reporting .cm-editor while the user is over in settings, so the
-		// class stayed set and the masks/strip kept claiming
-		// -webkit-app-region: drag, which is what made the settings window
-		// un-draggable. Window blur is the event that does fire for it.
-		//
-		// hasFocus() is consulted here and ONLY here, and only to CLEAR.
-		// Folding it into updateEditorFocusClass as a requirement for
-		// setting the class turned out to break the letterbox outright:
-		// hasFocus() reads false with DevTools focused (and misreports in
-		// other Electron corner cases), and with it gating focusin the
-		// class could stay off during ordinary typing — the masks then
-		// never rose above full-viewport overlays (Cursor-Smith's canvas
-		// at z 10000), which reads as "the letterbox doesn't display".
-		// Clear-only means the worst a misreport can do is nothing.
-		this.registerDomEvent(window, 'blur', () => window.requestAnimationFrame(() => {
-			if (!document.hasFocus()) {
-				document.body.classList.remove('ws-editor-focused');
-				// And the drag class: this window's regions must not stay
-				// claimed while another window (1.13 settings, a pop-out)
-				// is the one being used — the original un-draggable
-				// settings bug, on a second path.
-				document.body.classList.remove('ws-drag-ok');
-				this.updateRetroStatusBar();
-			}
-		}));
-		this.registerDomEvent(window, 'focus', () => window.requestAnimationFrame(updateEditorFocusClass));
-		updateEditorFocusClass();
+		wsWireDocument(this);
 
 		// Vault events
-		this.onAppEvent(this.app.vault, 'modify', (file: TAbstractFile) => {
-			if (this.wordCountCache) this.wordCountCache.delete(file.path);
-			this.scheduleExplorerPatch();
-			// Same event, one more reader. The history is debounced and gated
-			// on its own opt-in inside historyNoteChange, so this line costs a
-			// function call in a vault that has never turned it on.
-			this.historyNoteChange(file);
-			// EVERY TREE SHOWING A FIGURE ABOUT THIS NOTE. The Manuscript
-			// window caches a word count per path and never asked again, so a
-			// window left open beside the editor showed the count the note had
-			// when the window opened — for the rest of the session. Reported as
-			// "the word counts don't update automatically", and that is exactly
-			// what it was: nothing wrong with the counting, and nothing asking
-			// for it a second time.
-			this.treeCountsChanged(file && file.path);
-			// The store changing under us — synced from another device, or
-			// edited by hand — is read back rather than ignored. This is what
-			// replaces the "find it again" button: there is nothing to press,
-			// because the plugin notices.
-			void this.historyAdopt(file);
-			// THE ORDER FILE, TOO. `ws-export.md` is a note in the vault: it
-			// syncs from another device and a writer can reorder its lines by
-			// hand, which its own header invites them to do. The parsed store
-			// is cached for the life of the session, so without this the tree
-			// would go on drawing an order that is no longer in the file.
-			this.treeOrderAdopt(file);
-		});
-		this.onAppEvent(this.app.metadataCache, 'changed', (file: TAbstractFile) => {
-			if (this._fmCache && file && file.path) delete this._fmCache[file.path];
-			this._scopeGen++;
-			// {backlinks} caches a walk of the whole vault against this.
-			this._linkGen = (this._linkGen || 0) + 1;
-			// The heading tokens read this cache, and it is the only thing on
-			// the bar that does. A repaint that happened before the cache
-			// answered has no headings to show and nothing that would make it
-			// try again — see the 'resolved' handler below.
-			const active = this.app.workspace.getActiveFile();
-			if (file && active && file.path === active.path) {
-				this.requestBarRebuild();
-			}
-		});
-		// Fired once when the vault's links have all been resolved at startup,
-		// and again after a batch of changes settles. Without it the first
-		// backlink count of a session is whatever was resolvable at load.
-		this.onAppEvent(this.app.metadataCache, 'resolved', () => {
-			this._linkGen = (this._linkGen || 0) + 1;
-			// AND repaint the bar.
-			//
-			// The heading tokens ({#} and the rest, {#>}) resolve through
-			// metadataCache, which fills asynchronously. On a slower machine
-			// the first paint of a session lands before it has answered, so
-			// those tokens resolve to nothing — and a segment whose tokens
-			// all resolve to nothing is dropped, by design. The row comes up
-			// empty and stays empty, because nothing rebuilds it.
-			//
-			// Reported from ChromeOS, where a heading-only bar showed no left
-			// or centre section at all; Windows and Android won the race and
-			// never showed it. Forcing a repaint in the console fixed it and
-			// it then held, which is what named this as a startup race rather
-			// than a rendering fault.
-			this.requestBarRebuild();
-		});
-		// A store that appears in the vault — first sync of a new install, or a
-		// file the user pasted in — is picked up without being asked for.
-		this.onAppEvent(this.app.vault, 'create', (file: TAbstractFile) => {
-			// Every tree drawing this vault, once the vault knows about it.
-			this.treeShapeChanged();
-			// A new row in Obsidian's tree gets its export tick.
-			this.orgTicksSchedule();
-			if (this._historyPath || !this.settings.historyTracking) return;
-			void this.historyAdopt(file);
-		});
-		this.onAppEvent(this.app.vault, 'rename', (file: TAbstractFile, oldPath: string) => {
-			if (this.wordCountCache) this.wordCountCache.delete(oldPath);
-			void this.renameScopePath(oldPath, file.path);
-			this.historyRenamePath(oldPath, file.path);
-			// FIRST, before anything writes: if the thing that moved was one
-			// of this plugin's own files — or a folder holding one — the
-			// path in settings has to follow it, or the next write makes a
-			// fresh empty file at the address the writer just vacated.
-			const followed = this.storeRenameFollow(oldPath, file.path);
-			// Folders fire this too, so a folder rename carries the goals of
-			// everything inside it.
-			if (this.renameGoalPaths(oldPath, file.path) || followed) void this.saveSettings(true);
-			// …and the export list, which is keyed by path twice over: the
-			// rows inside a section, and the section's own scope.
-			void this.structureRenameStore(oldPath, file.path);
-			// The renamed row's export tick is read against its new path.
-			this.orgTicksSchedule();
-			// LAST, after the stores have followed the file. The trees redraw
-			// from those stores, and redrawing before they were rewritten
-			// would paint the order the vault had a moment ago.
-			this.treeShapeChanged();
-		});
-		this.onAppEvent(this.app.vault, 'delete', (file: TAbstractFile) => {
-			if (this.wordCountCache) this.wordCountCache.delete(file.path);
-			void this.removeScopePath(file.path);
-			this.historyForgetPath(file.path);
-			// AND THE MIRROR: a deleted ws-settings.md returns with the next save
-			// instead of waiting for a setting to move.
-			this.settingsMirrorForget(file.path);
-			// …AND THE ORDER STORE, which had no delete arm at all. See
-			// `structureForgetPath`: the rename half has been here since
-			// 1.41 and this half never was, so a deleted note left its row
-			// and a deleted folder left its whole section. Folders fire this
-			// event too, which is what makes one call enough.
-			void this.structureForgetStore(file.path);
-			// …AND THE GOALS, THE FLAGS AND THE COLOURS, which had no delete
-			// arm either. The rename half two handlers up has carried them
-			// since 1.41; this half never has, so a deleted note kept its
-			// target at an address nothing could reach — and `renameGoalPaths`
-			// lets an existing key WIN, so re-using that path later gave the
-			// new note the dead one's goal.
-			if (this.forgetGoalPaths(file.path)) void this.saveSettings(true);
-			this.treeShapeChanged();
-		});
+		wsWireVault(this);
 
 		// Theme observer. Guarded on pluginEnabled: disablePlugin() removes
 		// body classes, which fires this very observer — without the guard
@@ -2040,29 +2179,7 @@ export default class WordSmith extends Plugin {
 		// inside `barThemeGuard` only protects that one function from calling
 		// itself; it never covered this callback reaching `applyCssVariables`
 		// directly.
-		this._themeObsBusy = false;
-		this._themeObserver = new MutationObserver(() => {
-			if (!this.settings.pluginEnabled) return;
-			if (this._themeObsBusy) return;
-			this._themeObsBusy = true;
-			try {
-				this.applyCssVariables();
-				this.applyStyleProps();
-				// Cursor-Smith's torch flips a body class of its own
-				this.applyTorchVars();
-				// A worn scheme has to survive whoever else writes to body.
-				this.barThemeGuard();
-			} finally {
-				// CLEARED ON A TASK, not in the finally alone: the records
-				// this callback's own writes queued are delivered at the next
-				// microtask checkpoint, which is still inside this turn. A
-				// flag cleared synchronously would be false again by then and
-				// the loop would resume.
-				window.setTimeout(() => { this._themeObsBusy = false; }, 0);
-			}
-		});
-		this._themeObserver.observe(document.body,
-			{ attributes: true, attributeFilter: ['class', 'style'] });
+		wsWatchTheme(this);
 
 		this.loadMark('events + chrome');
 		// CM6 decoration extensions (focus dimming + hidden markers)
@@ -2090,88 +2207,7 @@ export default class WordSmith extends Plugin {
 		// cold start it runs after Obsidian has built the workspace — so it is
 		// timed separately rather than folded into the load.
 		this.loadMark('onload done');
-		this.app.workspace.onLayoutReady(() => {
-			// THE GUARD'S MARK COMES OFF two seconds after this callback, and
-			// before the enabled check: a vault with the plugin OFF finishes
-			// its start too. A synchronous freeze inside the refresh below
-			// never reaches the timer, which is the whole point.
-			window.setTimeout(() => this.startGuardEnd(), 2000);
-			if (!this.settings.pluginEnabled) return;
-			const t0 = performance.now();
-			this.refresh();
-			this.checkStylesheetVersion();
-			this.checkManifestVersion();
-			// A SECOND PASS ONCE THE STYLESHEET IS CERTAINLY UP. Everything
-			// this plugin MEASURES is measured against rules that
-			// styles.css supplies, and when the plugin is switched on from
-			// the settings page this callback runs synchronously — before
-			// Obsidian has necessarily applied them. The bar is the case a
-			// writer sees: it is laid out by CSS, it was measured while
-			// there was none, and it came up the wrong width until the
-			// next note switch happened to rebuild it. Cheap, once, and it
-			// costs nothing when the stylesheet was already there — the
-			// refresh is idempotent.
-			window.setTimeout(() => {
-				if (this.settings && this.settings.pluginEnabled) this.refresh();
-			}, 0);
-			try {
-				if (!this._loadMarks) this._loadMarks = [];
-				this._loadMarks.push(['layout ready',
-					this._loadMarks[this._loadMarks.length - 1][1]
-						+ (performance.now() - t0)]);
-			} catch (_) { wsCatch('onload: if (!this._loadMarks) this._loadMarks = [];', _); }
-			// AND THE PANEL DOCKS ITSELF. Registering the view type is what lets
-			// Obsidian RESTORE a pane it already has in the workspace — it does
-			// not create one; on a fresh install, or after any start where the
-			// workspace had no leaf of ours, the writer would have to dock it by
-			// hand. `menuDock` is the writer's statement that they want the panel;
-			// turning it off is how they say otherwise, and that path already
-			// detaches the pane. Opened with `active: false` and no reveal, so a
-			// docked pane appears where it belongs without stealing focus from
-			// the note or, on a phone, throwing the sidebar open over what they
-			// were reading. A pane Obsidian kept as a placeholder counts as one
-			// that exists — reviveMenuPanel wakes it. A placeholder left by an
-			// unload of a LIVE pane is not yet a leaf of our type while onload
-			// runs — Obsidian makes it one, deferred, a moment later — so the
-			// wake runs again on every layout change; it costs a look at a few
-			// leaves and settles the moment nothing is a ghost.
-			if (this.settings.menuDock) {
-				void this.reviveMenuPanel().then(() => { if (!this.menuPanelLeaves().length) return this.openMenuPanel(false); return null; });
-				this.onAppEvent(this.app.workspace, 'layout-change', () => { if (this.settings.menuDock) void this.reviveMenuPanel(); });
-			}
-			// MARKERS MOVED OUT OF TEXT OPTIONS, so a vault that had them on
-			// under the old arrangement keeps them on under the new one.
-			// Without this the fix would read to an existing writer as "the
-			// update turned my markers off" — a worse bug than the one it
-			// fixes.
-			if (this.settings.markersEnabled !== true
-				&& this.settings.showHiddenMarkers && this.settings.miscEnabled) {
-				this.settings.markersEnabled = true;
-				void this.saveSettings();
-			}
-			// The goals file, read after the vault is up — it cannot be
-			// read in onload, where getAbstractFileByPath answers for a
-			// vault Obsidian has not finished indexing.
-			//
-			// THE MIRROR GOES FIRST, and for the same reason it is here at all
-			// rather than in loadSettings: finding it means reading files. It
-			// restores only when data.json had nothing in it, so on every
-			// ordinary start this is one `getAbstractFileByPath` and a return.
-			this.settingsMirrorRestore(this._rawData)
-				.catch(() => false)
-				.then(() => this.goalsFileLoad())
-				.then(() => this.refresh())
-				.catch(() => {});
-			// Only worth asking when the panel is on: a writer who never
-			// docks it has no stake in whether the tree's classes moved,
-			// and a notice they cannot act on is noise.
-			if (this.settings.menuDock) this.checkAppClasses();
-			// Read the store once the vault's file list exists — finding the
-			// file means looking through it. Nothing is recorded until this
-			// resolves; historyCapture waits on the same promise, so an edit
-			// made during startup is counted rather than dropped.
-			if (this.settings.historyTracking) void this.historyLoad();
-		});
+		this.app.workspace.onLayoutReady(() => wsOnLayoutReady(this));
 	}
 
 	// ── ONE WAY TO MAKE A WINDOW, AND IT IS ON THE REGISTER ────────
@@ -3210,6 +3246,9 @@ export default class WordSmith extends Plugin {
 		// The chrome override lives on body, not in the stylesheet, so it
 		// outlives clearStyleProps() unless it is cleared by hand.
 		this.clearChromeColors();
+		// And the window's controls, which are Electron's: no class coming
+		// off repaints them, and the switch is a disable as much as onunload.
+		this.setWindowControlColours(false);
 		this.endBarPeek(true);
 		this._peekArmed = false;
 		this.clearBarBounds();

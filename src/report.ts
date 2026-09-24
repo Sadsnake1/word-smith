@@ -13,6 +13,2594 @@ import { CJK_CHAR, READ_WPM, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade,
 import type WordSmith from './plugin';
 import type { WsInkDrop, WsInkBubble, WsInkWave, WsInkOrb } from './plugin';
 
+// THE JAR'S FRAME, at module level since its phases are (A489): what one tick
+// decides, handed to each phase. A stage of the pour is how wavy, how far
+// over, and — while the column still stands — the jet (`stageAt`'s answer).
+type WsJarStage = { wave: number; over: number; jet?: number };
+interface WsJarFrame {
+	now: number; t: number; dt: number; stage: WsJarStage; stageMs: number;
+	auroraMix: number; auroraJitter: number;
+	surfaceY: number[] | null; restNow: number;
+}
+
+// One cell of the aurora, lit (lifted out of buildGoalLiquid, A489).
+function wsJarAuroraCell(a: { dir: 1 | -1; p1: number; p2: number; p3: number; quant: (v: number) => number; quantA: (v: number) => number; rot: number; spread: number }, u: number, v: number, t: number, ph?: number, fire?: number) {
+	const { dir, p1, p2, p3, quant, quantA, rot, spread } = a;
+	const T = t * 0.42;
+	// The nudge rides IN the warp, so every term downstream — the colour
+	// coordinate `s` and both ray systems — is carried by it together;
+	// adding it to any one of them separately would slide the colours off
+	// the curtains. THE NUDGE DOES NOT TOUCH THE COLOUR: `warp` feeds `s`,
+	// and `s` runs through three hue harmonics at ±70, ±50 and ±28
+	// degrees, so a press riding there would REPAINT the curtains rather
+	// than ripple them, and presses in several spots would sum into a
+	// swing of the whole palette. The phase goes to the RAY SYSTEMS only
+	// (below): colour is decided by `s`, structure by the rays, and a
+	// press answers in the second alone. Colour has its own answer to a
+	// press: the hue bloom in `rot`, one tint at a time.
+	const ph2 = ph || 0;
+	const warp =
+		Math.sin(v * 4.1 + T * 0.55 + u * 2.3 + p1) * 0.22 +
+		Math.sin(v * 7.3 - T * 0.38 + u * 3.7 + p2) * 0.12 +
+		Math.sin(u * 5.2 + T * 0.62 - v * 1.9 + p3) * 0.16 +
+		Math.sin((u + v) * 3.3 - T * 0.27 + p1) * 0.09;
+	let s = v * 0.6 - T * 0.14 + warp;
+	s = s - Math.floor(s);
+	// THE RAYS, HOISTED — the hue needs them now, because the pink
+	// fringe rides the curtain's own brightness rather than being
+	// painted along a line. Two systems at different scales: broad
+	// curtains with a finer structure inside them, which is what
+	// keeps the field from reading as a single soft cloud.
+	//
+	// FOLDED, TOO. Both varied with `u` alone, so the curtains hung
+	// as straight vertical bands; real ones drape. Shearing the
+	// horizontal coordinate by a slow function of height gives the
+	// S-fold that makes a curtain look like cloth.
+	const ray1 = 0.5 + 0.5 * Math.sin(u * 3.0 + warp * 6 + T * 0.30 + p2 + ph2);
+	const ray2 = 0.5 + 0.5 * Math.sin(u * 7.5 - warp * 4 - T * 0.22 + v * 2.0 + p3
+		+ ph2 * 1.6);
+	// AND THE WHOLE WHEEL, WANDERING. `T * 9 * dir` walked the
+	// palette one way for ever at a fixed rate, so a report left
+	// open cycled predictably and two reports differed only in
+	// where they started. Three slow sines at incommensurable
+	// rates wander instead: the palette drifts through every hue
+	// there is, never repeating, and never in a direction you
+	// can anticipate. `dir` still decides which way it leans on
+	// the whole, so half of them drift warm-to-cold.
+	const wander = Math.sin(T * 0.081 + p1) * 96
+		+ Math.sin(T * 0.047 + p2) * 71
+		+ Math.sin(T * 0.029 + p3) * 54;
+	const hue = rot
+		+ Math.sin(s * Math.PI * 2) * 70 * spread
+		+ Math.sin((s + 0.33) * Math.PI * 4) * 50 * spread
+		+ Math.sin((s + 0.66) * Math.PI * 6) * 28 * spread
+		+ wander * dir
+		+ T * 9 * dir;
+	const curtain = quant(ray1 * 0.65 + ray2 * 0.35);
+	// THE ORIGINAL LIGHT, to the number. Every constant here is the
+	// one this field shipped with; the temper is added ON TOP and
+	// is zero at rest, so an unprovoked sky is the old sky exactly
+	// and a worked one is brighter than it ever was.
+	// IGNITION. More particles arriving means a brighter glow and a
+	// crisper striation, so the press raises the light AND leans
+	// on the curtain's own contrast — a flare in the cloth rather
+	// than a lamp shone at it. It cannot shear: it is a
+	// multiplier on values this cell already had.
+	const f2  = fire || 0;
+	const cur2 = f2 > 0 ? Math.min(1, curtain * (1 + f2 * 0.55)) : curtain;
+	const lig = 30 + cur2 * 34 + (1 - v) * 10 + f2 * 16;
+	const sat = 58 + cur2 * 30 + f2 * 8;
+	// Banded transparency: the gaps between curtains let the tank behind
+	// show through, so the aurora hangs IN the glass rather than filling
+	// it like paint — at a floor high enough (0.62) that a FULL jar never
+	// reads as unfilled at its dark edges.
+	const alpha = quantA(0.62 + cur2 * 0.38 + f2 * 0.10);
+	return 'hsla(' + Math.round(((hue % 360) + 360) % 360) + ','
+		+ Math.round(Math.max(0, Math.min(100, sat))) + '%,'
+		+ Math.round(Math.max(0, Math.min(100, lig))) + '%,'
+		+ alpha.toFixed(2) + ')';
+}
+
+// THE SURFACE: the liquid's top, its waves, its ink mound and its splash (lifted out of buildGoalLiquid, A489).
+function wsJarDrawSurface(a: { CELL: 5; INK_LIFE: 3.4; POUR_MS: 1900; WAVE_LIFE: 2.6; agitNow: (now: number) => number; band: (v: number) => number; baseLig: number; baseSat: number; cols: number; ctx: CanvasRenderingContext2D; flowPhase: number; h: number; hueNow: () => number; inks: { x: number; y: number; t: number; hue: number; push: number; spin: number; }[]; lightPaper: boolean; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; orb: WsInkOrb; orbEcc: () => number; orbR: () => number; paperLig: number; pokeEnergy: (now: number) => number; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; pourStart: number; quant: (v: number) => number; quantA: (v: number) => number; r: number; rows: number; sloshPhase: number; tilt: number; w: number; waveAmp: () => number; waves: WsInkWave[] }, f: WsJarFrame) {
+	const { CELL, INK_LIFE, POUR_MS, WAVE_LIFE, agitNow, band, baseLig, baseSat, cols, ctx, flowPhase, h, hueNow, inks, lightPaper, liq, orb, orbEcc, orbR, paperLig, pokeEnergy, pokes, pourStart, quant, quantA, r, rows, sloshPhase, tilt, w, waveAmp, waves } = a;
+	const pokeE = pokeEnergy(f.now);
+	// The stir: the stage or a press, whichever is louder — the max keeps
+	// a settled jar's press from replaying the pour — PLUS the built-up
+	// agitation, which is the part a max could never carry. Capped just
+	// above the splash's own opening energy, so a storm of clicks reads as
+	// a storm and not as a glitch.
+	//
+	// THE WATER HAS MASS, AND THIS IS WHERE IT GETS IT. `stir` scales the
+	// whole surface's amplitude, and every disturbance in the tank reaches
+	// the water through it — a click in the ink band, a press in the orb
+	// band and a wave below half all pass through this one number. Read
+	// straight from the poke store it would jump from glass to full chop in
+	// ONE FRAME (pokeEnergy is a MAXIMUM of exp(-age/620), which is 1.0 on
+	// the frame a poke lands), and water cannot change speed instantly,
+	// because it weighs something. So the target is filtered rather than
+	// used. It RISES over about a fifth of a second — quick enough that a
+	// press feels answered, slow enough that the first frame is a swell
+	// rather than a step — and FALLS more slowly still, because water
+	// settles by losing energy and losing energy takes longer than gaining
+	// it. Attack and release differ on purpose; a symmetric filter reads
+	// as a fade, not as momentum.
+	//
+	// THE POUR'S OWN CHOP ANSWERS TO THE HEADROOM TOO. `stage` is a clock,
+	// not a physical quantity: it hands out the same energy whether the
+	// water has half a tank of sky to throw itself into or two cells, so
+	// it is quieted at the brim like every other source (the ambient
+	// swell, the gather, the poke rings, the break). At 100% the stage
+	// keeps a fifth of its voice — enough that the surface lives, far too
+	// little to break. Computed here rather than read from `brimEase`
+	// below: the stir is worked out EARLIER in the frame than the level
+	// is; `rNow` is an outer-scope value and safe at either point.
+	const brimCalm = 1 - 0.80 * Math.max(0, Math.min(1, (r - 0.72) / 0.20));
+	const stirWant = Math.min(3.6,
+		Math.max(f.stage.wave * brimCalm, pokeE) + agitNow(f.now));
+	const stirRate = stirWant > liq.stirNow ? 7.5 : 2.6;
+	liq.stirNow += (stirWant - liq.stirNow) * Math.min(1, stirRate * f.dt);
+	const stir  = liq.stirNow;
+	// THE INK'S MOUND HAS MASS, the same lesson as `stir` directly above:
+	// the handler moves the TARGET (`inkCharge`, a step per click) and the
+	// drawn height chases it here, so five quick clicks are a mound
+	// swelling in five surges rather than five steps. The fall has two
+	// speeds on purpose — a SPENT mound (just vented into its wave) drains
+	// fast, because its water visibly went somewhere; an ABANDONED one
+	// subsides slowly, because nothing took the water and it just settles
+	// back.
+	//
+	// GRACE AND DRAIN SET TWO THINGS AT ONCE: how fast an abandoned mound
+	// falls, and how slowly a person may click and still build one. At
+	// 400ms and 1.2/s a lone swell is gone in under a second and a cadence
+	// up to about 400ms still reaches the release; a CLICKED mound is
+	// untouched, because the grace resets on every press. An accelerating
+	// drain cannot have both: to empty a mound quickly it has to take more
+	// per second than a slow hand puts in.
+	if (liq.inkCharge > 0 && f.now - liq.inkChargeAt > 400) {
+		liq.inkCharge = Math.max(0, liq.inkCharge - f.dt * 1.2);
+	}
+	{
+		const humpRate = liq.inkCharge > liq.inkHump ? 6.0
+			: ((f.now - liq.inkVent) < 700 ? 7.0 : 4.6);
+		liq.inkHump += (liq.inkCharge - liq.inkHump) * Math.min(1, humpRate * f.dt);
+		if (liq.inkHump < 0.001 && liq.inkCharge <= 0) liq.inkHump = 0;
+	}
+	// HOW STILL THIS FRAME IS, 0 (churning) to 1 (glass). One
+	// derivation beside `stir` itself, because two places now
+	// read it — the meniscus thins with it and the caustics
+	// climb faster — and a second copy is a second thing to
+	// forget when either is tuned.
+	const calm  = 1 - Math.min(1, stir);
+	// THE CLIMB, shared by every field that drifts. Hoisted here because
+	// the light shaft is computed per COLUMN and the caustics per CELL,
+	// and the two must rise together or the tank has two currents. AND IT
+	// WANDERS: a single rate is a metronome, and bands marching up at a
+	// fixed speed read as a machine part. Two slow sines — incommensurate,
+	// so they never line up — make the current surge and ease the way
+	// water does, at a drift of ~5px/s rather than a conveyor belt's 16.
+	// Still a function of t alone, so the motion stays purely vertical.
+	const climb = f.t * 0.34 * (1 + 0.55 * calm)
+		+ Math.sin(f.t * 0.19 + flowPhase) * 0.9
+		+ Math.sin(f.t * 0.07 + flowPhase * 1.7) * 1.6;
+	const ampWant = Math.min(8, h * 0.06 * (1 + liq.rNow * 0.8));
+	// NO SKY, NO SWELL. The base amplitude grows with the LEVEL
+	// — a full tank has the most water to move — and nothing
+	// ever asked whether it had the sky to move it INTO. In a
+	// nearly-full jar the stirred sines wanted ±17px of global
+	// motion over ~10px of headroom, so any event that raised
+	// `stir` (a wave breaking on a wall, most of all) turned
+	// the whole surface into one clamped crawling band — the
+	// "big snake". The cap is on the STIRRED product, not the
+	// base, because the snake is the output: however loud the
+	// stir, the ambient swell may not exceed a share of the
+	// headroom that actually exists. Low and mid fills are
+	// untouched (the cap sits above what they ever ask for);
+	// only the band that has no sky is quieted, which is what
+	// "full of water and out of sky" was always meant to mean.
+	// …AND ONLY WHERE THE SKY IS ACTUALLY GONE. A flat share
+	// of headroom also bit at mid fill, where the pour's storm
+	// and a flurry's earned chop legitimately dwarf the
+	// headroom and always did (guard 4 is what holds them).
+	// The share fades in with the level: 0.30 across the ink
+	// band — the band the snake lives in — and effectively
+	// unbounded below it, continuously, so no fill has a seam.
+	const skyShare = 0.30 + 8 * Math.max(0, (0.67 - liq.rNow) / 0.67);
+	// AND BY THE WATER'S OWN DEPTH, which is the half that was
+	// missing. The sky cap was faded out below half fill on the
+	// argument that a shallow jar has headroom to spare — true,
+	// and it left the ambient chop of a PUDDLE bounded by
+	// nothing at all. A tank holding 22px of water was swinging
+	// its surface ±16px, and that is the low-fill flash: not one
+	// runaway term but every term sized for a jar that isn't
+	// there. Water cannot slosh much deeper than it is.
+	const depthSeen = Math.max(1, h - liq.restSeen);
+	const amp   = Math.min(ampWant * stir,
+		liq.restSeen > 0 ? liq.restSeen * skyShare : ampWant * stir,
+		depthSeen * 0.35);
+	// …and how far past its own level the water is riding. SHOWN, not
+	// rNow: the water rides PAST its own level during the rise and falls
+	// back through it, which is what throws the splash. The orb takes its
+	// share on the NEXT line rather than inside this one, so the overshoot
+	// stays an overshoot of the jar's own level and not of some quantity
+	// the ball has already reduced.
+	//
+	// ONE FACTOR FOR THE WHOLE ARRIVAL, computed once here and used by
+	// everything that makes the pour dramatic: the overshoot below, the
+	// bounce after it, the jet, and the stage's chop. A jar with room
+	// should keep all four — water poured into space overshoots, rocks,
+	// lands in the middle and chops. A jar filling to its brim has room
+	// for none of them, and they are added AFTER the level, so no easing
+	// of the level could hide them. FROM THE TARGET, NOT FROM THE CLIMB:
+	// `rNow` is the ANIMATING level, below 0.72 for most of a pour to
+	// 100%, so a factor keyed to it would leave the jet, the overshoot and
+	// the chop at full strength for the whole rise and quiet them only
+	// underneath the splash. A jar's ARRIVAL is decided by where it is
+	// going, and it is known before the first frame.
+	const brimEase = Math.max(0, Math.min(1, (r - 0.72) / 0.20));
+	const calmRise = 1 - brimEase;
+	const shown = Math.min(1, liq.rNow + f.stage.over * liq.rNow * calmRise);
+	// WHAT THE ORB HOLDS IS NOT IN THE JAR. The line drops by
+	// the fraction the ball has taken, which is what makes the
+	// gather read as water LEAVING rather than as a bump on the
+	// surface. `rNow` — the figure the percentage is drawn from
+	// — is untouched: only what is shown moves.
+	// THE BOUNCE. Water coming back does not arrive politely: the
+	// level overshoots and rocks before it settles, which is
+	// what the eye reads as a splash rather than as a bar
+	// filling. Damped sine, half a second, and it can never
+	// take the level outside the jar.
+	const sinceSplash = liq.splashAt ? (f.now - liq.splashAt) : 1e9;
+	const bounce = sinceSplash < 900
+		? Math.exp(-sinceSplash / 320) * Math.sin(sinceSplash / 62)
+			* liq.splashAmp * calmRise
+		: 0;
+	// Spent: disarmed, so the next burst arms a fresh one rather
+	// than inheriting an amplitude that has already been used.
+	if (liq.splashAt && sinceSplash >= 900) { liq.splashAt = 0; liq.splashAmp = 0; }
+	// THREE PLACES NOW: the ball, the air, and the jar. Both are
+	// taken off the level, so nothing is counted twice and
+	// nothing arrives before it has landed.
+	const held = Math.min(1, orb.amount + liq.airborne);
+	const inJar = Math.max(0, Math.min(1, shown * (1 - held) + bounce));
+	// FROM THE FLOOR TO THE BRIM: both ends of the rest line are the
+	// tank's own, so an empty jar has no strip of nothing along the bottom
+	// and a full one no gap above the water.
+	//
+	// A SKY THAT CANNOT BE SPENT. The mapping deliberately OVERSHOOTS —
+	// `h + amp`, so a brim-full jar's swell still reaches the ceiling —
+	// and the cost would be arriving there early: at 95% the water at the
+	// top of the glass with nowhere for anything to happen. Every bound in
+	// this file is written in terms of the headroom; when the headroom is
+	// gone they are all bounding zero. So the last of the fill is
+	// COMPRESSED rather than clipped: below three quarters the mapping is
+	// plain, and above it the remaining rise approaches a ceiling of
+	// `h - SKY` without ever touching it. 99% is visibly fuller than 85%
+	// and both still have a strip of air. A clamp would flatten them into
+	// the same picture; an asymptote keeps the progress and still promises
+	// the sky.
+	//
+	// THE RESERVE IS A PROPERTY OF THE TARGET, NOT OF THE FRAME. Computed
+	// from the ANIMATING level, the pour would travel through the steep
+	// part of the curve and the last stretch of an even rise would close
+	// several pixels in a frame — a curve the animation moves ALONG is
+	// always traversed at whatever speed the animation is going. So the
+	// shape is worked out once for where the jar is GOING, and the pour is
+	// a plain proportion of it: the mapping is identical at rest, and the
+	// climb to it is as smooth as the easing itself, because it is the
+	// easing itself.
+	const SKY   = 8;
+	const maxH  = h - SKY;
+	const knee  = maxH * 0.75;
+	const aimAt = Math.max(0.0001, Math.min(1, r));
+	const aimRaw = aimAt * (h + amp);
+	const aimSoft = aimRaw <= knee ? aimRaw
+		: knee + (maxH - knee) * (1 - Math.exp(-(aimRaw - knee) / (maxH - knee)));
+	// A cell of glass left at 99%, closed completely at 100% —
+	// decided by the goal, once, rather than sampled mid-climb.
+	const brim  = Math.max(0, Math.min(1, (aimAt - 0.85) / 0.15));
+	const aimH  = aimSoft + (aimRaw - aimSoft) * Math.pow(brim, 16);
+	const bodyH = aimH * (inJar / aimAt);
+	const restY = h - bodyH;
+	f.restNow = restY;
+	liq.restSeen = restY;
+	const tank  = Math.max(1, h - restY);
+	// The crest line, kept per column: the aurora starts AT THE
+	// SURFACE and works downward, so it needs to know where the
+	// water's top actually is in each column rather than
+	// assuming a flat line the waves have long since left.
+	f.surfaceY = new Array<number>(cols);
+	// THE GEYSER'S SHAPE, hoisted: the shading pass needs to know how much
+	// of a column is jet, so the profile is computed once per column
+	// instead of living inside the surface sum.
+	//
+	// `stage.jet` is the stage's CLOCK (1 at the first frame, 0 when the
+	// water meets the walls); the column's height and reach are shaped
+	// here, separately, because tying both to the clock linearly makes a
+	// shrinking hump — at half-time half the height and half the width,
+	// which the eye reads as "the middle bulges", not "a column lands and
+	// collapses outward".
+	//
+	//   HEIGHT holds early, plunges late (1 - gone²): a column is still a
+	//   column at half-time.
+	//   REACH starts at two cells and ACCELERATES to the walls (gone^1.7):
+	//   slow to let go, quick to arrive, which is what a collapse outward
+	//   looks like.
+	//   CENTRED ON THE LATTICE: distance runs from the CELL'S CENTRE to the
+	//   canvas's centre, or the peak sits one cell right of centre — a
+	//   quarter of the whole column at birth.
+	//
+	// THE STAGE ONLY CARRIES `jet` DURING THE RISE — every later stage
+	// omits the key, and `1 - undefined` is NaN, which `0 · NaN` does NOT
+	// rescue: every column's surface would come out NaN, the `y + CELL <=
+	// surf` skip would never fire, and the whole jar would paint in the
+	// last valid colour the context held (`hsla(NaN,…)` is an assignment
+	// canvas silently ignores) — instantly full, and green for ever. Read
+	// once, defaulted once, used everywhere below; nothing else touches
+	// `stage.jet` raw.
+	//
+	// …AND A BRIM-FULL JAR HAS NO JET AT ALL. A column arriving in the
+	// middle and collapsing outward is right for a jar with room; at the
+	// top of the range there is no air for a column to stand in, and its
+	// collapse is where the pour's turbulence comes from. What is left when
+	// the jet is taken away is water seeping up from below and filling the
+	// tank calmly, the way a spring fills a pool — the level simply rises,
+	// evenly across the width, with the bubbles carrying it. The jet fades
+	// out across the same band the sky reserve closes over, so no fill
+	// gains or loses it suddenly.
+	const jetNow = (f.stage.jet || 0) * calmRise;
+	// THE SPRING'S OWN MOUND. With the jet gone a brim-full
+	// pour had nothing at the middle at all — the level simply
+	// rose, which is calm but says nothing about WHERE the
+	// water is coming from. A spring has a low swell over its
+	// mouth, and that swell is what the blobs roll off. It is
+	// a fifth the height the jet's column was and it does not
+	// collapse: it stands while the water rises and eases away
+	// as the jar fills, so the surface is never disturbed by
+	// its going. Exactly the inverse of `calmRise` — it exists
+	// only where the jet does not.
+	const pourU  = Math.max(0, Math.min(1,
+		(f.now - pourStart) / POUR_MS));
+	const spring = brimEase * Math.sin(Math.PI * Math.min(1, pourU * 1.06))
+		* (liq.rNow > 0.02 ? 1 : 0);
+	liq.springNow = spring;
+	const jetProfile = (x: number) => {
+		if (!jetNow) return 0;
+		const d    = Math.abs(x + CELL / 2 - w / 2);
+		const gone = 1 - jetNow;               // 0..1 outward
+		const half = CELL * 2 + Math.pow(gone, 1.7) * (w / 2);
+		if (d > half) return 0;
+		// A DOME IS A HUMP. The raw cosine carries its flanks
+		// nearly to the rim, so at any width past a few cells
+		// the eye reads "bulge" — which is what the vault
+		// reported. Raised to a power, the flanks fall away
+		// and the peak keeps its height: a jet with skirts,
+		// slimmer than its own reach all the way to the walls,
+		// at birth and mid-collapse alike.
+		return Math.pow(
+			Math.cos((d / Math.max(1, half)) * Math.PI / 2), 2.6);
+	};
+	for (let gx = 0; gx < cols; gx++) {
+		const x = gx * CELL;
+		// How much of this column is jet (0..1), and its lift.
+		// Height in TANK units, not in wave units.
+		const jetK  = jetProfile(x);
+		const rise  = (h - 12) * 0.85
+			* (1 - Math.pow(1 - jetNow, 2));
+		const jetLift = jetK * rise;
+		// TRAVELLING WAVES, not standing ones. A standing pattern
+		// (`cos(nπx/w) · cos(ωt)`) is what water in a container really does,
+		// and it reads as the whole surface pumping up and down in place —
+		// correct and lifeless. Three drifting sines, deliberately
+		// incommensurate so the surface never repeats, are what this gauge
+		// looks right with. Physics lost to the eye, which is the right way
+		// round for an ornament. `let`, because the clamp below writes it: the
+		// sum of several separately-bounded terms still needs one bound of its
+		// own.
+		let surf = restY
+			+ Math.sin(x * 0.055 + f.t * 1.15) * amp
+			+ Math.sin(x * 0.021 - f.t * 0.70) * amp * 0.7
+			+ Math.sin(x * 0.130 + f.t * 1.90) * amp * 0.22
+			// The slosh: one long wave across the whole tank,
+			// slower than the three and dying away, so a jar
+			// just filled rocks before it settles.
+			// The slosh rides on the stage too, loudest through
+			// the splash and gone by the time the water stills.
+			+ Math.sin((x / Math.max(1, w)) * Math.PI
+				+ f.t * 2.6 + sloshPhase) * amp * 1.4
+				* Math.max(0, f.stage.wave - 0.6)
+			// EACH POKE, as a ring spreading from where it was pressed: a wave
+			// whose phase is the DISTANCE from that point, so the crest travels
+			// outward both ways rather than the whole surface moving at once. It
+			// fades with distance and with age, and the two together are what
+			// make it read as a disturbance rather than as a new mode.
+			//
+			// THE GEYSER. While the water is arriving it is heaped in the MIDDLE
+			// and running outward — a column landing hard rather than a level
+			// rising evenly. Measured against the TANK, not the wave amplitude (a
+			// bulge on the waves comes to two pixels and the water simply looks
+			// like it rose): a narrow column standing most of the jar's height at
+			// the moment it starts, collapsing and spreading until it reaches the
+			// walls, which is where the splash comes from. Narrow first and wide
+			// later: a jet is a column when it arrives and a swell by the time it
+			// gets to the sides.
+			- jetLift
+			// BOUNDED AS A SET, the recurring lesson. Each ring
+			// is amp * 2.4 and there can be four of them at once;
+			// clicking fast puts four fresh pokes within a few
+			// cells of each other and they simply ADDED, so the
+			// rings alone could raise the surface by ten times
+			// the ambient swell. The stack is held to a little
+			// over one ring, which is what overlapping ripples
+			// really do.
+			+ (() => {
+				let ring = 0;
+				for (const pk of pokes) {
+					const d   = Math.abs(x - pk.x);
+					const age = (f.now - pk.t) / 1000;
+					if (age > 1.6) continue;
+					ring += Math.sin(d * 0.09 - age * 9.5)
+						* Math.exp(-d / 42)
+						* Math.exp(-age * 2.6);
+				}
+				return Math.max(-1.3, Math.min(1.3, ring)) * amp * 2.4;
+			})()
+			// A DRAW TOWARD THE ORB, not a heap: the surface is pulled UP under
+			// the ball and dented either side of it, so the water looks like it is
+			// being drawn off rather than piled on. Small: the real gathering is
+			// the level falling (see `shown`), and this is only the tell that the
+			// jar is losing it from THERE.
+			//
+			// THE SLOSH, as a slope across the tank. Measured from the middle, so
+			// the water pivots about its centre rather than about one wall — a
+			// tank tipped at one end lifts there and drops at the other, and the
+			// level in between is unchanged. Which is also what keeps the READING
+			// honest: a slope about the centre moves no water on average, so the
+			// percentage the jar reports cannot be tilted. The profile is not a
+			// straight line: real slosh piles up steeply at the ends and stays
+			// flatter through the middle, so the slope is bent by a gentle cube —
+			// enough that the ends dominate.
+			- (tilt !== 0 ? (() => {
+				const u = (x - w / 2) / (w / 2);        // -1..1
+				const bent = 0.55 * u + 0.45 * u * u * u;
+				return bent * tilt * Math.min(h * 0.34, tank * 0.5);
+			})() : 0)
+			// THE SPRING'S SWELL, over the mouth of the fill. A
+			// low dome at the middle while a brim-full jar is
+			// rising: bounded against the headroom like every
+			// other term, and gone by the time the pour ends.
+			- (spring > 0.01 ? (() => {
+				const dS = Math.abs(x - w / 2);
+				return Math.exp(-(dS * dS) / 2600) * spring
+					* Math.min(waveAmp() * 1.6, f.restNow * 0.42);
+			})() : 0)
+			// THE INK'S GATHERED MOUND belongs to the RUN of presses:
+			// each click adds a share (see `inkPress`), the drawn height
+			// chases the count with mass (the filter by `stir`), and a
+			// full mound is spent as a wave at the opposite wall. A lone
+			// click is a swell that subsides; a run is a mound growing
+			// under the clicking.
+			- (liq.inkHump > 0.01 ? (() => {
+				const d = Math.abs(x - liq.inkChargeX);
+				// The mound's water comes from somewhere: A RING, NOT A CENTRED DIP.
+				// A moat on the same centre as the heap but wider is very nearly a
+				// CONSTANT across the heap, which flattens a dome into a plateau. The
+				// trough belongs BESIDE the mound, where the water it is made of
+				// actually comes from — zero at the centre, deepest about forty pixels
+				// out — so the peak keeps its full height, the surface visibly dips
+				// either side, and the eye reads water being DRAWN IN from the
+				// vicinity rather than a slab being lifted.
+				const heap = Math.exp(-(d * d) / 1300);
+				// The ring sits close in and falls away quickly: a trough still deep
+				// half a tank away is just a lower water level, not water drawn toward
+				// a mound.
+				const ring = d - 42;
+				const moat = Math.exp(-(ring * ring) / 1100) * 0.34;
+				// TWO SCALES, AND THIS IS THE POINT. The mound is bounded by the SKY
+				// (restNow, like the gather and the waves) — and in this band the sky
+				// is nearly gone: at 85% the headroom is about eight pixels, so the
+				// whole hump comes to ONE CELL on a five-pixel lattice. The trough is
+				// bounded by the WATER instead, and there is plenty of that: a jar
+				// with no sky still has depth. So the relief is bought downward — one
+				// cell up at the peak, two or three down either side — and the mound
+				// reads as a dome with water drawn in around it rather than as a tile
+				// lifted off the surface. Which is also the more honest picture: this
+				// IS water being gathered from the vicinity, and the vicinity is where
+				// it visibly leaves.
+				const reach = Math.min(waveAmp() * 5.5, f.restNow * 0.62);
+				// DEEP ENOUGH TO CROSS A CELL: it is drawn on the same coarse grid as
+				// everything else, so any relief that matters has to be worth a whole
+				// cell or more.
+				const sink  = Math.min(waveAmp() * 4.6,
+					(h - f.restNow) * 0.34);
+				return heap * liq.inkHump * reach
+					- moat * liq.inkHump * sink;
+			})() : 0)
+			// THE TRAVELLING WAVE. A crest at the wave's own position, a shallow
+			// trough behind it, and both fading as it goes: water thrown forward
+			// leaves a hollow where it came from, and a bump with no hollow reads
+			// as a bulge sliding along rather than as a wave moving through.
+			//
+			// CAPPED AS A WHOLE, not one wave at a time: with each wave held to
+			// the headroom and their SUM held to nothing, a press in the middle
+			// (which makes two) repeated quickly stacks crest on crest at the same
+			// column until the surface leaves the canvas. Water does not add like
+			// that — two crests meeting make one bigger crest, not one twice as
+			// tall — so the total is squashed through a soft knee: below the
+			// ceiling it is untouched, above it, it compresses instead of
+			// clipping. Clipping would flatten the tops into a hard plateau, which
+			// is its own kind of wrong.
+			- (() => {
+				const ceil = waveAmp() * 3.4;
+				const raw = waves.reduce((sum, wv) => {
+				const d = x - wv.x;
+				const ad = Math.abs(d);
+				if (ad > 150) return sum;
+				const age = wv.born ? (f.now - wv.born) / 1000 : 0;
+				if (age > WAVE_LIFE) return sum;
+				// Spends itself over its life AND over the
+				// distance it has run, so a wave crossing a wide
+				// jar arrives quieter than one crossing a narrow
+				// one — which is what a wave does.
+				const spend = Math.exp(-age / (WAVE_LIFE * 0.55));
+				const crest = Math.exp(-(ad * ad) / (wv.wid || 900));
+				// The hollow sits BEHIND it: behind is the side
+				// it came from, which is the opposite of its
+				// direction of travel.
+				const back  = d * wv.dir;
+				const hollow = back < 0
+					? Math.exp(-(back * back) / ((wv.wid || 900) * 5.8))
+						* (wv.hollow || 0.42) : 0;
+				return sum + (crest - hollow) * wv.amp * spend;
+				}, 0);
+				if (raw <= ceil && raw >= -ceil) return raw;
+				const over = Math.abs(raw) - ceil;
+				const sign = raw < 0 ? -1 : 1;
+				// tanh-ish knee: the first pixels over the
+				// ceiling still count for something, the
+				// hundredth for almost nothing.
+				return sign * (ceil + ceil * 0.45 * (1 - Math.exp(-over / (ceil * 0.9))));
+			})()
+			// THE HELD PRESS. A mound rises under the finger while
+			// the button is down and leaves with the wave when
+			// it lets go — so a click is a wave and a HOLD is a
+			// bigger one, with the water visibly gathering for
+			// it rather than the size arriving out of nowhere.
+			// It eases in, so there is no step at the moment of
+			// pressing.
+			- (liq.hold ? (() => {
+				// THE HUMP HAS TO BE SEEN TO GROW. It was a
+				// gentle 2.6× bump easing in over a second, which
+				// on a shallow jar is a couple of pixels — the
+				// gather was happening and could not be watched.
+				// It is taller, wider, and it MOVES EARLY: the
+				// curve is a square root rather than a cubic, so
+				// a third of the mound is up within the first
+				// fifth of a second and the rest arrives while
+				// you are already watching it. A gather you
+				// notice only in hindsight is not a gather.
+				const held = Math.min(1, (f.now - liq.hold.t) / 1000);
+				const eased = Math.pow(held, 0.55);
+				const d = Math.abs(x - liq.hold.x);
+				// …and the water it is made of comes from
+				// somewhere: a shallow moat around the mound,
+				// wider and far weaker, so the surface reads as
+				// being DRAWN IN rather than pushed up.
+				const heap  = Math.exp(-(d * d) / 2600);
+				const moat  = Math.exp(-(d * d) / 26000) * 0.30;
+				// waveAmp(), NOT `amp`: `amp` carries the frame's `stir`, which is
+				// near zero on still water, so a mound sized by it would be multiplied
+				// away by the very stillness it was meant to break. The gather is the
+				// writer's, not the weather's: it is sized by the JAR and looks the
+				// same on a glassy tank as on a churning one. AGAINST THE HEADROOM,
+				// like the waves — a share of the room that is actually there, so a
+				// shallow jar gathers a small mound and a deep one a big one, and
+				// neither goes over — AND BY THE WATER, not only the sky: a gather
+				// must not stand taller than the thing it is gathered from.
+				const reach = Math.min(waveAmp() * 7.5, f.restNow * 0.62,
+					(h - f.restNow) * 0.8);
+				return (heap - moat) * eased * reach;
+			})() : 0)
+			- (orb.amount > 0.01 ? (() => {
+				const d = Math.abs(x - orb.x);
+				const lift = Math.exp(-(d * d) / 3000) - Math.exp(-(d * d) / 30000) * 0.32;
+				const draw = lift * orb.amount * amp * 3;
+				// DISPLACEMENT. Whatever of the ball is BELOW the
+				// line has to push water aside — that is what
+				// makes a body in a liquid a body rather than a
+				// picture laid over one. The chord of the sphere
+				// at this column is how much of it is in the way
+				// here, and how far under it sits is how much of
+				// that chord counts, so the bulge is tallest
+				// under the middle and dies at the edges by
+				// itself. Held gentle: the jar has to keep
+				// reading as a gauge while somebody plays with
+				// it, and a wall of water where the reading
+				// should be is not a gauge.
+				const R = orbR() * (1 + orbEcc());
+				if (d >= R) return draw;
+				const chord = 2 * Math.sqrt(R * R - d * d);
+				// Measured against the REST LINE, not against the
+				// surface being computed: the sum is still being
+				// built at this point, so the wave's own height
+				// here is not yet a number. `restNow` is the flat
+				// level the water oscillates about, which is the
+				// right datum anyway — a body does not displace
+				// more because a wave happened to pass under it.
+				const under = Math.max(0, Math.min(1,
+					((orb.y + R) - f.restNow) / (2 * R)));
+				return draw - chord * under * 0.22;
+			})() : 0);
+		// THE SURFACE MAY NOT LEAVE THE CANVAS. Every term above
+		// is bounded on its own — the waves as a stack, the
+		// gather against the headroom, the geyser by its stage —
+		// and none of that adds up to a guarantee, because they
+		// are bounded SEPARATELY and drawn TOGETHER. A mound and
+		// a stack of crests at the same column could still put
+		// the water over the ceiling, and a surface above the
+		// ceiling means every cell in the column is water: the
+		// tank filling with one colour, which is the flash.
+		//
+		// This is the guarantee, in one line, at the one place
+		// every term has already been summed. Above it the water
+		// flattens against the top rather than vanishing over
+		// it — a brimming tank, which is at least what it would
+		// really do.
+		// THE JAR ALWAYS KEEPS SOME SKY. Clamping to the canvas
+		// stopped the surface leaving the picture but not the
+		// tank FILLING it — a column clamped at the top is a
+		// column that is water all the way up, which is the
+		// flash itself. It bounds the drawing, not the filling.
+		//
+		// Moving the pointer while clicking is what reached it:
+		// the mound follows the cursor, so instead of piling on
+		// one spot it lays a fresh full-height mound wherever
+		// the cursor now is, on top of whatever waves happen to
+		// be passing there.
+		//
+		// So the water may never climb more than three quarters
+		// of the way from its rest line to the ceiling, whatever
+		// the terms above want. A quarter of the headroom is
+		// always left, which means the tank can always be told
+		// from its own contents — and the cap is on the FINISHED
+		// height, so it holds however many effects are added
+		// later and however they interact.
+		// THE CONTACT LINE. Water meets glass at the two walls,
+		// and until now only the SHADING knew it (the meniscus
+		// cling) — the height field treated the wall columns
+		// like any other, so a wave arrived at the side and
+		// simply stopped, with no climb where it hit. Real
+		// water reflects at a wall, and reflection doubles the
+		// displacement there; drawn water gets a share of
+		// that: the outer two columns amplify how far they sit
+		// from the REST line, crests more than troughs,
+		// because water climbing glass clings and water
+		// leaving it lets go. A pure function of this frame's
+		// own sum — no state, no clock of its own — so it
+		// cannot flicker, and a settled jar (dev = 0) is
+		// untouched to the pixel. It sits ABOVE guard 4 on
+		// purpose: the climb is one more term that is bounded
+		// on its own and not when summed, and the quarter-sky
+		// clamp below is the only place that promise is kept.
+		{
+			const wallD = Math.min(gx, cols - 1 - gx);
+			if (wallD < 2 && f.restNow > 0) {
+				const kW  = wallD === 0 ? 1 : 0.45;
+				const dev = f.restNow - surf;   // >0: above rest
+				surf -= dev * (dev > 0 ? 0.60 : 0.25) * kW;
+			}
+		}
+		// …AND NOT TALLER THAN ITSELF, BY MUCH. The quarter-sky floor alone
+		// is a LOW-FILL trap: at 20% the headroom is ~56px, so "keep a
+		// quarter" still allows a climb of twice the water's depth, and
+		// aggressive clicking from many points stacks waves, pokes and stirred
+		// sines until a fifth of a jar momentarily wears a full jar's
+		// silhouette. So the finished height also answers to the water's own
+		// BODY: three quarters of its own depth above the rest line — a splash
+		// can reasonably stand most of the depth it came from; it cannot stand
+		// twice it. Same lesson, same address: bounded after the sum, or not
+		// at all.
+		//
+		// AND ONE WHOLE CELL OF AIR, ALWAYS. Both bounds above are SHARES, and
+		// a share of a small number is a small number: with the rest line at
+		// 13px a quarter of the headroom is 3px, which on a five-pixel lattice
+		// is not a row of anything. The last bound is therefore absolute — the
+		// crest may not enter the top row, so there is a strip of glass above
+		// the water at every fill the water exists at, and the jar always
+		// reads as a container with something in it rather than a solid block
+		// of colour. …AND THE ABSOLUTE FLOOR NEVER PUSHES WATER DOWN: it exists
+		// to stop a CREST climbing into the top row, so it is bounded by the
+		// rest line itself — it can only ever hold a wave back, never lower
+		// the water.
+		const floorY = Math.max(f.restNow * 0.25,
+			f.restNow - (h - f.restNow) * 0.75, Math.min(6, f.restNow));
+		if (f.restNow > 0) surf = Math.max(floorY, surf);
+		surf = Math.max(1, Math.min(h, surf));
+		f.surfaceY[gx] = surf;
+		// LANES: a phase that varies across the tank but not
+		// with time. Perfectly horizontal bands rising in
+		// lockstep are the other half of "robotic"; giving each
+		// column its own offset bends them into something that
+		// flows. This is NOT the coupling the invariant forbids
+		// — these are computed from x ALONE, so every column
+		// still moves purely vertically and at the same speed;
+		// only the phase differs. What is banned is x
+		// multiplied into the clock, which is what gives a
+		// pattern a sideways answer.
+		//
+		// Per COLUMN, not per cell: they do not vary with y, and
+		// the shaft (computed first in the cell loop) needs them
+		// too — defining them beside the caustics put one of
+		// them below its own first use.
+		const lane  = Math.sin(x * 0.031) * 2.1
+			+ Math.sin(x * 0.013 + 1.7) * 1.3;
+		const lane2 = Math.sin(x * 0.021 + 0.6) * 1.8;
+		for (let gy = 0; gy < rows; gy++) {
+			const y = gy * CELL;
+			if (y + CELL <= surf) continue;
+			// Slow, wide columns of light — the same trick as a
+			// light shaft through water, and what stops the fill
+			// from being uniform side to side. It used to sweep
+			// SIDEWAYS at 13px/s, which made it (with the hue
+			// drift) the fastest thing in the tank and the reason
+			// a still jar read as flowing right-to-left. It keeps
+			// its x term, so the shafts still differ column to
+			// column, but the phase climbs. Computed per CELL
+			// rather than per column now, because a phase that
+			// depends on y cannot be lifted out of the y loop.
+			// The shaft: a slow swell of light climbing the
+			// tank, with a STATIC side-to-side term so the
+			// columns still differ from one another. Same rule
+			// as the caustics — x never shares a sine with the
+			// clock, or the shaft slides sideways at 50px/s and
+			// takes the whole picture with it.
+			const shaft = 0.5
+				+ 0.35 * Math.sin(y * 0.070 + lane2 * 0.7 + climb * 0.55)
+				+ 0.15 * Math.sin(x * 0.017);
+			const below = y - surf;
+			// Depth below the surface, normalised on THIS COLUMN'S
+			// water rather than on the rest level alone. During
+			// the geyser the column stands most of the jar above a
+			// rest line still near the floor, so `below / tank`
+			// saturated within about one cell of the cap —
+			// everything under the crest wore full-depth shading
+			// AND the sediment block, and the eruption drew as a
+			// black pillar. Normalised on the water actually
+			// standing in the column, the ramp spreads down its
+			// height instead. Settled frames are untouched: there
+			// `h - surf` only exceeds the tank under a crest, and
+			// by at most the wave amplitude.
+			//
+			// AND THE JET IS AERATED. Rising water is full of air
+			// and light — it is the brightest thing in a real
+			// fountain, not the darkest — so the shading depth is
+			// scaled down by how much of this column is jet,
+			// fading back to honest depth as the stage hands over
+			// to the waves. Sediment follows for free: grains do
+			// not settle in an upward jet, and a shallowed depth
+			// never crosses the sediment line while the column is
+			// actually erupting.
+			//
+			// The cell the surface passes through is only partly
+			// wet, so `below` goes negative there — clamped,
+			// because a negative depth would brighten the ramp
+			// backwards.
+			// …and never deeper than the glass. A full jar's
+			// `tank` is h PLUS the swell, so the deepest cell
+			// reached only ~0.73 of the ramp: the whole tank
+			// sat mid-light with nothing dark to push against,
+			// which is the "washed out at 100%" the vault
+			// reported. Clamped to the canvas, a full jar uses
+			// the whole ramp. The geyser is unaffected — its
+			// column is aerated below, which is what keeps a
+			// deep reading from becoming a black pillar.
+			const tankCol = Math.min(h, Math.max(tank, h - surf));
+			const depth = quant(Math.max(0, Math.min(1, below / tankCol))
+				* (1 - 0.65 * jetK * jetNow));
+			// Caustics: two diagonal ripple fields crossing, which is what throws
+			// the wobbling net of light through real water. Quantised coarsely so
+			// it lands as blocks of brightness rather than a smooth sheen, and
+			// faded with depth because the light does not reach the bottom. DEPTH
+			// PARALLAX: the second field is slowed (the two rates keep their
+			// ratio, 0.41) and given a little more scale, so it sits BEHIND the
+			// first — the cheapest depth there is, and the reason real water looks
+			// deep.
+			//
+			// THE FLOW RISES. Water at rest convects upward — warmth and light
+			// climb — and the climb SPEEDS UP as the surface stills, so the body
+			// of the water takes over the motion the waves are giving up. AND IT
+			// RISES ONLY: a sine `sin(kx·x + ky·y + wt)` is a STRIPE pattern, and
+			// stripes match themselves under any shift ALONG the stripe, so "which
+			// way is it moving" has a whole family of answers and the eye takes
+			// the cheap one — sideways, at w/kx, which grows as the pattern
+			// steepens. There is no tuning out of it: x is gone from every MOVING
+			// term, the drifting fields are functions of y and t alone, and the
+			// picture is invariant under horizontal shift. The side-to-side
+			// variation that keeps the tank from looking uniform is a STATIC term
+			// in x, which textures without travelling.
+			const caus = quantA(0.5
+				+ 0.26 * Math.sin(y * 0.150 + lane + climb * 1.60)
+				+ 0.15 * Math.sin(y * 0.062 + lane2 + climb * 0.72)
+				+ 0.11 * Math.sin(y * 0.230 + lane * 1.6 + climb * 2.30)
+				+ 0.10 * Math.sin(x * 0.045));
+			// CALM WATER FOCUSES. Real caustics are crispest on a
+			// glassy surface and wash out when it churns, and
+			// the settled jar is exactly where this gauge had
+			// least to look at. The net's contrast is stretched
+			// about its own midpoint as `calm` rises — quantised
+			// again afterwards, so it stays a lattice of steps
+			// rather than becoming a gradient.
+			const causS = quantA(0.5 + (caus - 0.5) * (1 + 1.15 * calm));
+			const causDepth = causS * (1 - depth * 0.65);
+			// Hue drift: a few degrees, moving with time, depth and the caustic
+			// field. Big enough to notice on a slow look, small enough that it
+			// never reads as a cycle.
+			//
+			// THE INK, sampled where this cell is. Each drop opens out from where
+			// it landed and fades over a few seconds, and a cell inside one is
+			// pulled toward that drop's colour rather than tinted a flat amount —
+			// so the middle of a fresh drop is strongly its own colour and its
+			// edges barely differ from the water. `reach` grows with age, which is
+			// the spreading.
+			let inkH = 0, inkW = 0;
+			for (let ii = 0; ii < inks.length; ii++) {
+				const ik = inks[ii];
+				const iAge = (f.now - ik.t) / 1000;
+				if (iAge > INK_LIFE) continue;
+				let dx3 = x - ik.x, dy3 = y - ik.y;
+				const dist = Math.sqrt(dx3 * dx3 + dy3 * dy3);
+				// A SLOW CURL WHERE THE INK WENT IN. Ink dropped
+				// into water does not open as a perfect ring —
+				// it turns, because the water it displaced is
+				// still moving around it. The sample point is
+				// rotated about the drop by an angle that FALLS
+				// OFF with distance and fades with age, so the
+				// front near the centre lags and drags into a
+				// comma while its outer reaches stay round.
+				//
+				// It is the COLOUR field that turns, not the
+				// surface. This is the same shear that made the
+				// aurora's press read as a knot, and it is
+				// welcome here for the opposite reason: ink IS
+				// a substance being stirred, where the aurora's
+				// curtains are not, and the height field is
+				// left alone so a full jar gains no turbulence
+				// from it. Tiny by construction — about a fifth
+				// of a radian at the middle of a fresh drop —
+				// because past that the ring stops reading as a
+				// ring at all.
+				if (dist > 0.5 && dist < 90) {
+					const curl = (ik.spin || 1) * 0.22
+						* Math.exp(-dist / 34)
+						* Math.exp(-iAge / 1.6);
+					if (curl > 0.004) {
+						const ca3 = Math.cos(curl), sa3 = Math.sin(curl);
+						const rx = dx3 * ca3 - dy3 * sa3;
+						dy3 = dx3 * sa3 + dy3 * ca3;
+						dx3 = rx;
+					}
+				}
+				// A FRONT, NOT A BLOB — and this is the burst
+				// itself, moved into the medium it belongs in.
+				//
+				// The press used to express "something entered
+				// the water" as two travelling WAVES: a burst
+				// written into the surface. In a jar this full
+				// there is no headroom, so any surface motion
+				// there is turbulence — which is why 1.5×, then
+				// 0.62×, then 0.28× all felt wrong. The
+				// amplitude was never the problem; the surface
+				// was the wrong instrument for this band.
+				//
+				// So the burst is a ring of COLOUR racing
+				// outward instead. `edge` is where the front has
+				// got to, growing quickly and easing as it
+				// slows; a cell is coloured by how near it is to
+				// that radius rather than to the centre. The
+				// result travels, and the water never moves.
+				const grow = 1 - Math.pow(1 - Math.min(1, iAge / INK_LIFE), 2.2);
+				const edge = grow * (56 + 74 * (ik.push || 1));
+				// The shell thickens as it opens, so a young
+				// front is a sharp ring and an old one is a
+				// broad, soft cloud that has lost its edge.
+				const band2 = 90 + 340 * grow;
+				const ring = Math.exp(-((dist - edge) * (dist - edge)) / band2);
+				// INSIDE STAYS TINTED, faintly. A front with
+				// nothing behind it is a smoke ring; ink leaves
+				// a wake, so the interior keeps a third of the
+				// colour and the edge carries the rest.
+				const inside = dist < edge ? 0.34 : 0;
+				const near = Math.min(1, ring + inside);
+				if (near < 0.02) continue;
+				// Fades in over its first fifth of a second, so
+				// a drop arrives rather than appearing.
+				const life = Math.min(1, iAge / 0.2)
+					* Math.max(0, 1 - iAge / INK_LIFE);
+				const wgt = near * life;
+				inkH += ik.hue * wgt;
+				inkW += wgt;
+			}
+			const hue = (inkW > 0.001
+				? hueNow() + (inkH / inkW - hueNow()) * Math.min(0.85, inkW)
+				: hueNow())
+				+ Math.sin(f.t * 0.28 + depth * 2.4) * 7
+				// THIS ONE WAS THE FASTEST SIDEWAYS THING IN
+				// THE TANK — 16px/s, purely horizontal — and
+				// a colour drift moving crosswise pulls the
+				// whole picture with it however the light
+				// behaves. It climbs with everything else now.
+				+ Math.sin(y * 0.045 + climb * 0.30) * 4
+				+ causDepth * 4;
+			// Four bands down the column, each with its own treatment rather than
+			// one continuous ramp: the crest cap, the foam under it, open water,
+			// and the sediment at the floor. THE MENISCUS: real water clings to
+			// what holds it, so the top row is lighter and more opaque than the
+			// water under it, and thickens toward the two walls where the clinging
+			// actually happens. It is the cheapest thing in this gauge that reads
+			// as LIQUID rather than as fill.
+			const wall = Math.min(gx, cols - 1 - gx);
+			// THE MENISCUS THINS AS THE WATER SETTLES. Real
+			// clinging does not, but the drawn one has to: at
+			// full thickness the white band is right on a
+			// churning surface — where it IS the foam of a
+			// wave — and far too heavy on a still one, where
+			// the vault read it as a thick white lid rather
+			// than as the water's edge. Both the base skin
+			// and the extra the walls get shrink toward calm,
+			// so a settled jar keeps a hairline and a moving
+			// one keeps its foam.
+			const cling = 1 + (wall < 2
+				? (2 - wall) * 0.9 * (1 - 0.72 * calm) : 0);
+			// ONE CELL AT REST, and the arithmetic is deliberate.
+			// A still surface is FLAT, so every column agrees
+			// on where it falls between two cells — the crest
+			// band is therefore all-or-nothing across the
+			// whole tank, and at the old thickness it landed
+			// TWO rows of near-white on every column: the
+			// thick white lid the vault reported. The rest
+			// threshold is pushed inside the cell the surface
+			// passes through (whose `below` is negative), so
+			// calm water wears a one-cell hairline and the
+			// wall cling cannot push it to two either.
+			const skin  = 1 - 0.82 * calm;
+			// The crest's own edge is DITHERED, and more so the
+			// livelier the water: a calm surface keeps a clean
+			// line, and a churning one breaks up into the foam
+			// under it rather than staying a drawn curve. The
+			// stage decides how much, so this is the same
+			// energy the waves and the spray are answering to.
+			// CAPPED. This scattered the crest boundary by
+			// ±0.6 cells per unit of stir, and stir runs to
+			// 3.6 — so at full pour the bright band's edge
+			// jumped two cells in and out on a per-cell
+			// pattern, which is speckle rather than foam, and
+			// it is most of what "flickers a lot with white"
+			// was. The dither still breaks the line up; it can
+			// no longer strobe across it.
+			const chop = (((gx * 5 + gy * 11) % 8) / 8 - 0.5)
+				* CELL * 1.2 * Math.min(1.35, stir);
+			const crest = below < CELL * cling * skin + chop;
+			// The foam under the crest thins with it, or the
+			// band merely moves from one white to a slightly
+			// less white one and the lid is still a lid.
+			const foam  = below < CELL * (2.5 - 1.15 * calm);
+			let lig, sat, alpha;
+			if (crest) {
+				// The lit edge of the wave: BRIGHT WATER, NOT WHITE. A crest cell that
+				// is very nearly white makes a full jar, whose surface sweeps most of
+				// the tank, throw white across the picture every frame; a lit crest is
+				// bright enough to be the top of a wave and still carries the jar's
+				// own colour. THE CREST READS AGAINST THE PAPER IT IS ON: on a light
+				// theme a flat lift lands DARKER than white paper, and the meniscus
+				// reads as a grey line drawn along the top of the water instead of
+				// light on its edge — so it is pushed well past the paper on light
+				// schemes and left where it is on dark ones.
+				lig   = baseLig + (lightPaper ? 34 : 22) + causDepth * 6;
+				sat   = baseSat - (lightPaper ? 6 : 12);
+				alpha = 0.96;
+			} else if (foam) {
+				lig   = baseLig + 14 + causDepth * 8;
+				sat   = baseSat - 6;
+				alpha = quantA(0.80 + caus * 0.12);
+			} else {
+				// DEEP WATER IS DEEP, NOT BLACK — and not chalk. What differs between
+				// a dark popup and a white one is not the fill (`baseLig` is the
+				// SCHEME'S ACCENT, about 44 on either paper), it is the PAPER behind
+				// it, and the floor is nearly opaque. So the floor is set as a step
+				// away from the paper rather than as a value of its own: darker than
+				// the paper on white, lighter than it on black, by an amount that
+				// reads as depth without running to either end. A DEEPER STEP ON
+				// WHITE: water on white paper has to go a long way down before it
+				// reads as depth; on dark paper it has much less room.
+				const deepLig = lightPaper
+					? Math.max(22, paperLig - 60)
+					: Math.min(62, paperLig + 30);
+				lig   = (baseLig + 12) + (deepLig - (baseLig + 12)) * depth
+					+ causDepth * (9 + 6 * calm) + shaft * 5;
+				sat   = baseSat + depth * 16 - causDepth * 6;
+				// Deep water is denser: the background reads
+				// clearly through the shallows and not at all
+				// through the floor. The range is wide on
+				// purpose — a narrow one lands on two steps of
+				// the ladder and the layering disappears.
+				//
+				// ON WHITE PAPER IT STARTS DENSER. At 0.48 the
+				// shallows were half white, which on a dark
+				// popup is depth and on a light one is chalk —
+				// the vault's "washed out". The floor rises
+				// and the range shortens to keep the same
+				// ceiling, so the layering survives; the
+				// colour is simply allowed to be a colour.
+				alpha = quantA((lightPaper ? 0.70 : 0.48)
+					+ depth * (lightPaper ? 0.28 : 0.50)
+					+ caus * 0.06);
+				// …and carries more chroma, because a light
+				// backdrop bleaches what a dark one deepens.
+				if (lightPaper) sat += 12;
+			}
+			// Sediment: the last band of the tank darkens and saturates further,
+			// so the fill has a floor instead of fading out at the bottom edge. IT
+			// SETTLES TOWARD THE PAPER, not toward black: a LERP, so the deepest
+			// water walks most of the way to the surface the report is drawn on
+			// and the tank fades into its own background at the bottom on either
+			// kind of theme — a fixed subtraction on top of a ramp that already
+			// darkens is a floor on a dark popup and a bruise in the bottom of the
+			// glass on a white one. It still reads as a floor (the water above it
+			// is denser and more saturated), and it carries its own DITHER, so it
+			// is settled grains rather than a band.
+			if (depth > 0.62) {
+				const s2 = (depth - 0.62) / 0.38;
+				lig += (paperLig - lig) * s2 * 0.72;
+				// Toward the paper means toward the paper's
+				// greyness too: a deep cell that keeps full
+				// chroma while walking to a pale surface goes
+				// muddy rather than quiet.
+				sat -= s2 * (lightPaper ? 22 : -14);
+				const grit = ((gx * 3 + gy * 7) % 9) / 9;
+				if (grit < s2 * 0.55) {
+					lig += (paperLig > lig ? 1 : -1) * (4 + s2 * 5);
+				}
+			}
+			ctx.fillStyle = 'hsla(' + Math.round(hue) + ','
+				+ Math.round(Math.max(0, Math.min(100, sat))) + '%,'
+				+ band(Math.max(0, Math.min(100, lig))) + '%,'
+				+ alpha.toFixed(2) + ')';
+			ctx.fillRect(x, y, CELL, CELL);
+		}
+	}
+}
+
+// The glow over a filled jar (lifted out of buildGoalLiquid, A489).
+function wsJarDrawGlow(a: { BUBBLES_MAX: 9; CELL: 5; DROPS_MAX: 28; POKES_MAX: 4; band: (v: number) => number; baseLig: number; baseSat: number; bubbles: WsInkBubble[]; cols: number; ctx: CanvasRenderingContext2D; drops: WsInkDrop[]; h: number; hueNow: () => number; inks: { x: number; y: number; t: number; hue: number; push: number; spin: number; }[]; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; w: number }, f: WsJarFrame) {
+	const { BUBBLES_MAX, CELL, DROPS_MAX, POKES_MAX, band, baseLig, baseSat, bubbles, cols, ctx, drops, h, hueNow, inks, liq, pokes, w } = a;
+	if (liq.surfaceNow && liq.rNow > 0.04) {
+		const busy = inks.length > 0 ? 1 : 0.18;
+		const body = 0.35 + Math.min(1, liq.rNow) * 0.65;
+		if (f.now - liq.bubbleAt > (620 / ((0.4 + busy) * body)) && bubbles.length < BUBBLES_MAX) {
+			liq.bubbleAt = f.now;
+			const bx = Math.random() * w;
+			const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx / CELL)));
+			const from = liq.surfaceNow[gxb] || h;
+			// Born in the BODY of the water, not at its floor: a
+			// bubble that always starts on the base reads as a row
+			// of vents rather than as water.
+			const depthStart = from + (h - from) * (0.25 + Math.random() * 0.7);
+			bubbles.push({
+				x: bx,
+				y: Math.min(h - CELL, depthStart),
+				// Small ones dawdle, big ones climb — which is what
+				// bubbles do, and it stops them moving as a set.
+				size: Math.random() < 0.3 ? 2 : 1,
+				rise: 16 + Math.random() * 26,
+				phase: Math.random() * 6.283,
+				wob: 0.6 + Math.random() * 1.4,
+				hue: hueNow() + (Math.random() - 0.5) * 40
+			});
+		}
+		for (let bi = bubbles.length - 1; bi >= 0; bi--) {
+			const bb = bubbles[bi];
+			bb.y -= bb.rise * (bb.size === 2 ? 1.5 : 1) * f.dt;
+			// A wobble as it goes, because a bubble does not rise
+			// in a straight line through moving water.
+			bb.phase += f.dt * 2.2;
+			const bx2 = bb.x + Math.sin(bb.phase) * bb.wob * 2.4;
+			const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx2 / CELL)));
+			const line = liq.surfaceNow[gxb] || h;
+			if (bb.y <= line + CELL * 0.5) {
+				// IT POPS, SLIGHTLY. A ring on the surface where it
+				// broke and, for a big one, a bead or two thrown —
+				// small enough that a jar full of bubbles is still
+				// a jar rather than a rolling boil.
+				if (pokes.length < POKES_MAX) {
+					pokes.push({ x: bx2, y: null, t: f.now, still: true, hue: bb.hue });
+				}
+				if (bb.size === 2 && drops.length < DROPS_MAX && Math.random() < 0.6) {
+					drops.push({
+						x: bx2, y: line - CELL,
+						vx: (Math.random() - 0.5) * 26,
+						vy: -(26 + Math.random() * 34),
+						life: 0, shed: true, pull: true,
+						hue: bb.hue, size: 1,
+						shape: Math.floor(Math.random() * 4)
+					});
+				}
+				bubbles.splice(bi, 1);
+				continue;
+			}
+			// Drawn as its own cells, on the lattice, lighter than
+			// the water it is in — a hole in the liquid, not a dot
+			// laid on top of it.
+			const px3 = Math.round(bx2 / CELL) * CELL;
+			const py3 = Math.round(bb.y / CELL) * CELL;
+			ctx.fillStyle = 'hsla(' + Math.round(bb.hue) + ','
+				+ Math.round(Math.max(0, baseSat - 18)) + '%,'
+				// 0.66: a cell you can half see through is chalk on a light theme
+				// whatever it is meant to be. A bubble reads as a hole in the liquid
+				// by being LIGHTER than the water, not by being thinner than it.
+				+ band(Math.min(96, baseLig + 30)) + '%,0.66)';
+			ctx.fillRect(px3, py3, CELL, CELL);
+			if (bb.size === 2) {
+				ctx.fillRect(px3 + CELL, py3, CELL, CELL);
+				ctx.fillRect(px3, py3 + CELL, CELL, CELL);
+				ctx.fillRect(px3 + CELL, py3 + CELL, CELL, CELL);
+			}
+		}
+	} else if (bubbles.length) {
+		// An empty jar has nothing to release.
+		bubbles.length = 0;
+	}
+}
+
+// The waves under the surface (lifted out of buildGoalLiquid, A489).
+function wsJarDrawWaves(a: { CELL: 5; DROPS_MAX: 28; POKES_MAX: 4; WAVE_LIFE: 2.6; WAVE_SPEED: 305; agitNow: (now: number) => number; cols: number; drops: WsInkDrop[]; h: number; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; w: number; waves: WsInkWave[] }, f: WsJarFrame) {
+	const { CELL, DROPS_MAX, POKES_MAX, WAVE_LIFE, WAVE_SPEED, agitNow, cols, drops, h, liq, pokes, w, waves } = a;
+	if (waves.length) {
+		const spray = (px2: number, many: number, upward: number, hue: number) => {
+			const gxs = Math.max(0, Math.min(cols - 1, Math.round(px2 / CELL)));
+			const from = (liq.surfaceNow ? (liq.surfaceNow[gxs] || h) : h) - CELL;
+			const room = Math.max(0, Math.min(DROPS_MAX - drops.length, many));
+			for (let k = 0; k < room; k++) {
+				drops.push({
+					x: px2 + (Math.random() - 0.5) * CELL * 3,
+					y: from,
+					vx: (Math.random() - 0.5) * 90 + upward * 0,
+					vy: -(70 + Math.random() * 130),
+					life: 0,
+					shed: true,
+					hue: hue + (Math.random() - 0.5) * 60,
+					size: Math.random() < 0.34 ? 2 : 1,
+					shape: Math.floor(Math.random() * 4)
+				});
+			}
+		};
+
+		for (let i = waves.length - 1; i >= 0; i--) {
+			const wv = waves[i];
+			// FIRST-FRAME ANCHOR, not the moment of the click. The
+			// handler runs on performance.now() and the draw loop on
+			// the frame's own timestamp; in the running app those are
+			// the same clock a millisecond apart, so a wave born at
+			// one and aged against the other looked fine. It is still
+			// two clocks, and the codebase has been bitten by exactly
+			// that before (see the agitation note). A wave stamped
+			// here can never be older than the frame that first saw
+			// it, whatever the two clocks think of each other.
+			if (!wv.born) wv.born = f.now;
+			const age = (f.now - wv.born) / 1000;
+			wv.x += wv.dir * (wv.spd || WAVE_SPEED) * f.dt;
+
+			// BREAKING ON THE WALL. A wave that simply left the tank
+			// would be a bump that stopped existing; water arriving
+			// at a wall goes UP it. The spray is thrown from the
+			// wall itself and leans back into the jar, and how much
+			// of it there is follows what the wave still had.
+			if (!wv.broke && (wv.x <= 1 || wv.x >= w - 1)) {
+				wv.broke = true;
+				wv.x = wv.x <= 1 ? 0 : w;
+				const left = Math.exp(-age / (WAVE_LIFE * 0.55));
+				// Scaled by the wave's OWN spray appetite: an ink
+				// swell arriving at a wall should lap it, not burst
+				// on it, and it carries spray: 0 for exactly that.
+				const sp = wv.spray == null ? 1 : wv.spray;
+				spray(wv.x, Math.round((1 + left * 4) * sp), 0, wv.hue);
+				if (pokes.length >= POKES_MAX) pokes.shift();
+				// A break IS energy — unlike a landing bead, which
+				// only rings. This is the wave arriving, and the
+				// tank is entitled to feel it.
+				//
+				// BUT ONLY AS MUCH AS THE WAVE HAD. A non-still poke
+				// takes `pokeEnergy` to 1.0 on the frame it lands —
+				// it is a MAXIMUM, so one break pins the whole
+				// surface's amplitude at full for the next half
+				// second, and every column in the tank trembles
+				// because a wave touched one wall. On a jar with
+				// headroom that reads as the wall answering; in the
+				// ink band it read as the whole water shivering
+				// after the swell arrived, which is not what
+				// hitting a wall looks like.
+				//
+				// So the claim is scaled by the wave's OWN appetite,
+				// the same number that already decides its spray —
+				// a click wave (3–5) breaks exactly as it always
+				// did, and an ink swell (1.2) laps the wall: it
+				// rings where it struck, throws its handful, and
+				// leaves the rest of the tank alone. Below a
+				// threshold the poke goes `still` outright, which is
+				// the flag that means "draw the ripple, claim no
+				// energy".
+				// …AND ONLY WHERE THERE IS SKY TO PUT IT. Scaling by
+				// the wave's appetite fixed the tank trembling in
+				// general; at the very top of the range it still
+				// read as turbulence, because a jar with two cells
+				// of air has nowhere to put even a small claim and
+				// every bit of it comes back as chop across the
+				// whole surface. A wave arriving at a brim-full jar
+				// LAPS the wall: it rings where it struck, and the
+				// tank does not answer.
+				const room2 = Math.min(1, liq.restSeen / (h * 0.22));
+				const bite2 = Math.min(1, sp / 3) * room2;
+				pokes.push({ x: wv.x, y: null, t: f.now,
+					still: bite2 < 0.5, hue: wv.hue });
+				liq.agitLevel = Math.min(0.75,
+					agitNow(f.now) + (0.04 + left * 0.10) * bite2);
+				liq.agitAt = f.now;
+			}
+			if (age > WAVE_LIFE || (wv.broke && age > WAVE_LIFE * 0.4)) {
+				waves.splice(i, 1);
+			}
+		}
+
+		// CLASHING. Two waves running at each other meet somewhere
+		// between the hands that made them, and water meeting water
+		// head-on goes straight up — which is the one place in this
+		// tank a column of spray is physically owed rather than
+		// decorative. Both waves spend themselves in it, so a clash
+		// is an ending rather than a pass-through: click left, click
+		// right, and the answer arrives in the middle.
+		for (let i = waves.length - 1; i >= 0; i--) {
+			for (let j = i - 1; j >= 0; j--) {
+				const a = waves[i], b = waves[j];
+				if (!a || !b || a.broke || b.broke) continue;
+				if (a.dir === b.dir) continue;
+				if (Math.abs(a.x - b.x) > CELL * 2.2) continue;
+				// Only if they are CLOSING: two waves that have
+				// already passed through each other are moving
+				// apart and must not clash a second time.
+				if ((b.x - a.x) * a.dir < 0) continue;
+				const mid = (a.x + b.x) / 2;
+				const ageA = a.born ? (f.now - a.born) / 1000 : 0;
+				const ageB = b.born ? (f.now - b.born) / 1000 : 0;
+				const force = Math.exp(-ageA / (WAVE_LIFE * 0.55))
+					+ Math.exp(-ageB / (WAVE_LIFE * 0.55));
+				spray(mid, 6 + Math.round(force * 11), 0, (a.hue + b.hue) / 2);
+				if (pokes.length >= POKES_MAX) pokes.shift();
+				pokes.push({ x: mid, y: null, t: f.now, still: false,
+					hue: (a.hue + b.hue) / 2 });
+				liq.agitLevel = Math.min(0.95, agitNow(f.now) + 0.08 + force * 0.16);
+				liq.agitAt = f.now;
+				waves.splice(i, 1);
+				waves.splice(j, 1);
+				i = Math.min(i, waves.length);
+				break;
+			}
+		}
+	}
+}
+
+// THE ORB: the drop that rises, sheds and rings (lifted out of buildGoalLiquid, A489).
+function wsJarDrawOrb(a: { CELL: 5; DROPS_MAX: 28; ORB_IDLE: 650; ORB_LEAK: 0.03; ORB_RATE: 2.4; ORB_SHED: 0.09; ORB_SPIN_CAP: 22; POKES_MAX: 4; WAVES_MAX: 14; agitNow: (now: number) => number; auroraCell: (u: number, v: number, t: number, ph?: number, fire?: number) => string; band: (v: number) => number; baseLig: number; baseSat: number; cols: number; ctx: CanvasRenderingContext2D; drops: WsInkDrop[]; h: number; hueNow: () => number; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; orb: WsInkOrb; orbEcc: () => number; orbR: () => number; orbRAt: (ang: number) => number; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; rows: number; w: number; waveAmp: () => number; waves: WsInkWave[] }, f: WsJarFrame) {
+	const { CELL, DROPS_MAX, ORB_IDLE, ORB_LEAK, ORB_RATE, ORB_SHED, ORB_SPIN_CAP, POKES_MAX, WAVES_MAX, agitNow, auroraCell, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, orb, orbEcc, orbR, orbRAt, pokes, rows, w, waveAmp, waves } = a;
+	if (orb.amount > 0.001 || orb.want > 0.001) {
+		// INERTIA. The ball keeps turning after the last click and
+		// slows on its own clock — clicking faster winds it up,
+		// stopping lets it run down. Same shape as the agitation
+		// store above, and for the same reason: a maximum cannot
+		// build, and building is the whole feel of this.
+		orb.vel *= Math.pow(0.36, f.dt);
+		orb.spin += orb.vel * f.dt;
+		// The ball EASES toward what the clicks asked for, so water
+		// takes a moment to arrive and the size never snaps.
+		if (!orb.falling) {
+			// LOSS COMES FROM THE SPIN, AND ONLY FROM THE SPIN. A spinning body
+			// throws water off its rim, which is the whole reason there is a leak;
+			// a still one is just water being held, and water being held does not
+			// evaporate — so a ball that has stopped turning can be KEPT. Squared,
+			// so a lazy turn barely loses anything and only a fast one really
+			// bleeds; and proportional to its own size, so a big ball loses more in
+			// absolute terms than a bead and the two do not decay at the same rate.
+			const spinN = Math.min(1, Math.abs(orb.vel) / ORB_SPIN_CAP);
+			const spinLoss = spinN * spinN * 1.6;
+			orb.want = Math.max(0, orb.want
+				- ORB_LEAK * spinLoss * f.dt * (0.35 + orb.want * 0.65));
+			orb.amount += (orb.want - orb.amount) * Math.min(1, ORB_RATE * f.dt);
+			// The water it loses is not deleted: it goes back where
+			// it came from, as spray the surface will catch.
+			if (orb.want > 0.02 && orb.vel > 0.8
+				&& drops.length < DROPS_MAX && Math.random() < 0.5) {
+				const a = Math.random() * Math.PI * 2;
+				const R2 = orbR();
+				drops.push({
+					x: orb.x + Math.cos(a) * R2,
+					y: orb.y + Math.sin(a) * R2,
+					vx: Math.cos(a) * 26 + (Math.random() - 0.5) * 30,
+					vy: Math.sin(a) * 20 + 25,
+					life: 0,
+					shed: true,
+					hue: hueNow() + (Math.random() - 0.5) * 70,
+					size: 1,
+					shape: Math.floor(Math.random() * 4)
+				});
+			}
+		}
+
+		// LETTING GO. No click for a moment and the ball gives the water back
+		// — `falling` drains `amount` fast, and every frame of that drain is
+		// water rejoining the tank, because the line is drawn from
+		// (1 - amount). The splash is thrown once, at the moment it lets go,
+		// not per frame. LET GO MEANS LET FALL: water does not dissolve where
+		// it hangs, it drops, gathers speed, and bursts WHERE IT LANDS. So the
+		// strike points, the spray and the bounce all start from the impact
+		// rather than from wherever the pointer had been — and releasing it
+		// high above the line is worth something, because it has further to
+		// fall.
+		if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
+			orb.dropping = true;
+			orb.vy = 0;
+		}
+		// IT MAY GO IN, AND THE WATER ANSWERS. A previous build
+		// forbade it — the ball was clamped to sit on the line —
+		// because a sphere drawn over the liquid, displacing
+		// nothing, is the one arrangement that cannot be read as
+		// physical. Forbidding it fixed the wrong half: the fault
+		// was never that the ball went in, it was that the water
+		// did not notice. It notices now (see the displacement term
+		// in the surface sum), so the ball is free again and only
+		// the ceiling is kept — a ball is not held above the jar.
+		if (!orb.dropping && !orb.falling) {
+			const rr2 = orbR() * (1 + orbEcc());
+			if (orb.y - rr2 < 0) orb.y = rr2;
+		}
+		if (orb.dropping) {
+			// One rate: the ball no longer tears, so there is no `torn` branch.
+			orb.vy += 780 * f.dt;
+			orb.y += orb.vy * f.dt;
+			// The water it is falling toward, under its own middle.
+			const col = Math.max(0, Math.min(cols - 1, Math.round(orb.x / CELL)));
+			const surf = liq.surfaceNow ? (liq.surfaceNow[col] || h) : h;
+			// A torn ball never lands whole — it is already gone.
+			if (orb.y + orbR() >= surf || orb.y >= h) {
+				orb.dropping = false;
+				orb.last = 0;
+			}
+		}
+		if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
+			// IT BURSTS, THEN THE JAR FILLS. The old collapse simply
+			// ran `amount` down, so the level slid back up while
+			// nothing else happened — the vault's "the growing
+			// animation just starts instead of water splashing".
+			// The ball comes apart FIRST: every bit of it is thrown
+			// as a blob, the surface is struck in several places at
+			// once, and the level is left to arrive behind the spray
+			// with a bounce on the end of it.
+			orb.falling = true;
+			orb.dropping = false;
+			orb.vy = 0;
+			orb.want = 0;
+			// A ball that TORE throws harder than one that was set
+			// down: it came apart under its own spin, and that
+			// energy has to go somewhere.
+
+			// EVERYTHING SCALES WITH WHAT WAS HELD, harder than linearly: a small
+			// ball makes a small splash and only a full one makes the storm, and
+			// raised to 1.6 a tenth of a jar throws about 3% of a full one's spray
+			// rather than 10%, so the small ones nearly vanish and the big ones
+			// commit. SIZE TELLS, AND SO DOES THE JAR: `orb.amount` is a share of
+			// the TANK, so the same share out of a nearly full jar is far more
+			// water than out of a half one. The level is folded in, so a big ball
+			// dropped into a deep jar is the loudest thing the gauge does and the
+			// same gesture at 50% is markedly quieter.
+			const held = Math.pow(orb.amount, 1.6) * (0.55 + liq.rNow * 0.9);
+			liq.agitLevel = Math.min(2.4, agitNow(f.now) + 0.03 + held * 2.6);
+			liq.agitAt = f.now;
+			// The bounce used to start HERE, at the impact — so it was
+			// oscillating while the water was still in the air. It
+			// is armed instead for the moment the air is nearly
+			// home, which is when the jar actually gets its mass
+			// back and the only moment a settle means anything.
+			liq.splashAmp = held * 0.17;
+			liq.splashAt = 0;   // armed by the air landing, above
+			// EVERYTHING IT HELD GOES UP, NOT STRAIGHT INTO THE JAR.
+			liq.airborne = Math.min(1, liq.airborne + orb.amount);
+			const heavy = Math.min(DROPS_MAX - drops.length,
+				1 + Math.round(held * 44));
+			for (let k = 0; k < heavy; k++) {
+				const a = Math.random() * Math.PI * 2;
+				const r = orbR() * (0.25 + Math.random() * 0.75);
+				drops.push({
+					x: orb.x + Math.cos(a) * r,
+					y: orb.y + Math.sin(a) * r,
+					// OUTWARD IN EVERY DIRECTION, and hard. It threw at
+					// 40–160 with a slight upward lean, which
+					// gravity flattened almost at once — so a burst
+					// read as the ball FALLING rather than as it
+					// coming apart. Doubled outward, and the
+					// vertical component is biased up rather than
+					// centred, so the crown opens before it drops.
+					vx: Math.cos(a) * (90 + Math.random() * 210) + orb.vel * 12,
+					vy: Math.sin(a) * 130 - 120 - Math.random() * 90,
+					life: 0,
+					shed: true,
+					hue: hueNow() + (Math.random() - 0.5) * 90,
+					size: 1 + (Math.random() < 0.6 ? 1 : 0),
+					shape: Math.floor(Math.random() * 4)
+				});
+			}
+			// STRUCK IN AS MANY PLACES AS IT IS BIG. A body of water landing
+			// disturbs the surface around it, and how far around is how much of it
+			// there was — one ripple for a bead, the whole width for a tankful.
+			// The strikes are spread about the point the ball fell from rather
+			// than evenly across the jar, because that is where it landed; the
+			// reach grows with the amount. AND IT BURSTS ALONG THE SURFACE: a body
+			// of water landing does not only throw upward, it shoves the water
+			// sideways. Two travelling waves out of the landing point, one each
+			// way, so the burst races to both walls and breaks there — the same
+			// code a click uses, which is why this costs nothing and cannot look
+			// like a different feature. Their height rides the SAME capped stack
+			// the click waves do, so a big drop cannot put the surface over the
+			// ceiling.
+			for (const dir of [-1, 1]) {
+				if (waves.length >= WAVES_MAX) waves.shift();
+				waves.push({
+					x: orb.x,
+					dir,
+					born: 0,
+					amp: waveAmp() * (0.9 + held * 1.7),
+					wid: 1500,
+					spd: 250 + held * 90,
+					hollow: 0.5,
+					spray: 2,
+					hue: hueNow() + (Math.random() - 0.5) * 60,
+					broke: false
+				});
+			}
+			const hits = 1 + Math.round(held * 4);
+			const reach = w * (0.08 + held * 0.42);
+			for (let k = 0; k < hits; k++) {
+				if (pokes.length >= POKES_MAX) pokes.shift();
+				const off = hits === 1 ? 0
+					: ((k / (hits - 1)) - 0.5) * 2 * reach;
+				pokes.push({
+					x: Math.max(0, Math.min(w, orb.x + off)),
+					y: null,
+					// Spread in TIME as well as space: the middle
+					// lands first and the edges follow, which is
+					// what a mass hitting water does and what a
+					// simultaneous row of ripples never looks like.
+					t: f.now + Math.abs(off) / (w * 0.9) * 260,
+					still: false,
+					hue: hueNow() + (Math.random() - 0.5) * 120
+				});
+			}
+		}
+		if (orb.falling) {
+			// Faster than it gathered, and it should be: this is
+			// falling, not being lifted.
+			// A small ball is gone in a blink; a full one takes the
+			// moment its size deserves.
+			orb.amount = Math.max(0, orb.amount - f.dt * (3.0 + 2.5 * (1 - orb.amount)));
+			orb.vel *= Math.pow(0.05, f.dt);
+			if (orb.amount <= 0.001) { orb.amount = 0; orb.vel = 0; orb.falling = false; }
+		}
+
+		// SHEDDING. A spinning ball of water does not hold itself
+		// together at the rim: blobs fly off tangentially while it
+		// turns, and the faster it turns the more it throws. This
+		// is where "swirly ball that splashes blobs and pixels"
+		// lives — the drops pool already knows how to draw a lump
+		// that comes apart in flight, so the orb only has to hand
+		// it the right velocity.
+		if (!orb.falling && orb.vel > 1.2 && f.now - liq.orbShedAt > ORB_SHED * 1000
+			&& drops.length < DROPS_MAX) {
+			liq.orbShedAt = f.now;
+			const R = orbR();
+			const a = orb.spin + Math.random() * 0.9;
+			drops.push({
+				x: orb.x + Math.cos(a) * R,
+				y: orb.y + Math.sin(a) * R,
+				// TANGENTIAL, not radial: thrown along the turn, the
+				// way anything leaving a spinning body goes.
+				vx: -Math.sin(a) * orb.vel * R * 0.55,
+				vy: Math.cos(a) * orb.vel * R * 0.55 - 20,
+				life: 0,
+				shed: true,
+				hue: hueNow() + (Math.random() - 0.5) * 80,
+				size: Math.random() < 0.4 ? 2 : 1,
+				shape: Math.floor(Math.random() * 4)
+			});
+		}
+
+		// THE BALL ITSELF, in the tank's own cells. Spiral bands
+		// rather than a disc: the angle is offset by the radius, so
+		// the pattern winds outward and the whole thing reads as
+		// turning instead of merely being round. Every cell is
+		// snapped to the lattice and dithered at the edge, so it is
+		// made of the same stuff as the water below it.
+		const R = orbR() * (1 + orbEcc());
+		if (R > CELL) {
+			const cx = orb.x, cy = orb.y;
+			const g0 = Math.max(0, Math.floor((cx - R) / CELL));
+			const g1 = Math.min(cols - 1, Math.ceil((cx + R) / CELL));
+			const r0 = Math.max(0, Math.floor((cy - R) / CELL));
+			const r1 = Math.min(rows - 1, Math.ceil((cy + R) / CELL));
+			for (let gy = r0; gy <= r1; gy++) {
+				for (let gx = g0; gx <= g1; gx++) {
+					const px2 = gx * CELL + CELL / 2;
+					const py2 = gy * CELL + CELL / 2;
+					const dx2 = px2 - cx, dy2 = py2 - cy;
+					const rr = Math.hypot(dx2, dy2);
+					// Against the DEFORMED edge at this angle, not a
+					// circle: the equator swells and the poles pull
+					// in, so the outline turns with the spiral
+					// instead of the spiral turning inside a stencil.
+					const angC = Math.atan2(dy2, dx2);
+					const Rh = orbRAt(angC);
+					if (rr > Rh) continue;
+					const u = rr / Rh;
+					// The rim frays: an ordered threshold rising with
+					// u breaks the circle's edge into cells instead
+					// of drawing a hard curve, the way the water's
+					// own edge is broken.
+					const thr = (((gx * 7 + gy * 13) % 16) / 16);
+					if (u > 0.72 && (u - 0.72) / 0.28 > 1 - thr) continue;
+					const ang = angC;
+					// The spiral: angle carried by the spin, wound by
+					// the radius. Two arms, so the turn is legible
+					// at a glance rather than hypnotic.
+					// `arm`, NOT `band`: `band()` is the tank's own
+					// lightness quantiser, live in this scope, and
+					// shadowing it here would have silently replaced
+					// a function with a number for the rest of the
+					// block. Caught before it shipped; named apart so
+					// it cannot come back.
+					const arm = Math.sin(ang * 2 + orb.spin * 2.2 - u * 5.5);
+					// TWO TONES WAS THE WHOLE PALETTE. `arm > 0.15`
+					// threw a continuous spiral away and kept one
+					// bit of it, so a ball made of a few hundred
+					// cells was painted in exactly two colours —
+					// which is why it read as a striped disc rather
+					// than as a body of water turning.
+					//
+					// The arm is kept as the NUMBER it is now, and
+					// three things are drawn from it. The hue walks
+					// a span of the ramp, so the spiral is a
+					// gradient of the water's own colour rather than
+					// a pair of stripes. Depth adds to it — the
+					// centre of a sphere of water is not the colour
+					// of its edge — and a small ordered dither per
+					// cell breaks the bands into the lattice
+					// everything else in this tank is made of.
+					const dith = (((gx * 7 + gy * 13) % 8) / 8 - 0.5);
+					const litness = (arm + 1) * 0.5;
+					// THE BALL IS MADE OF THE WATER'S OWN COLOURS. The water itself is
+					// ONE hue, hueNow(), with about fifteen degrees of drift for depth,
+					// time and caustics (see the cell shading above). The ball is made of
+					// that water, so it takes the same hue and the same size of drift —
+					// the spiral and the depth move it a few degrees, not across the
+					// spectrum. (Walking the ramp across the ball would paint every colour
+					// the jar had on its way up, none of which the liquid is currently
+					// wearing: purple in a cyan jar.)
+					const oh0 = hueNow() + arm * 9 + (0.5 - u) * 10 + dith * 4;
+					// THE AURORA TWIRLS INSIDE IT. When the light is
+					// up, the ball is not a differently-coloured
+					// object floating in front of it — it is the
+					// same field, sampled in the ball's OWN turning
+					// frame. The sample point is rotated by the spin
+					// about the orb's centre, so the curtains wind
+					// round inside the sphere and travel with it;
+					// mixed by auroraMix, so a jar that has not lit
+					// yet gets the plain water ball it had before.
+					let oh = oh0;
+					if (f.auroraMix > 0.01) {
+						const ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
+						const ru = (dx2 * ca - dy2 * sa) / w;
+						const rv = (dx2 * sa + dy2 * ca) / h;
+						// THE HUE, OUT OF THE COLOUR. `auroraCell` answers an `hsla(...)`
+						// string, and `isFinite` of a string that starts with a letter is
+						// false — the hue has to be taken out of it before the orb can lean
+						// toward the aurora's.
+						const cellCol = auroraCell(0.5 + ru, 0.5 + rv, f.t);
+						const cellM = /^hsla?\((-?[\d.]+)/.exec(String(cellCol || ''));
+						const cellHue = cellM ? parseFloat(cellM[1]) : NaN;
+						if (isFinite(cellHue)) {
+							oh = oh0 + (cellHue - oh0) * f.auroraMix;
+						}
+					}
+					ctx.fillStyle = 'hsla(' + Math.round(oh) + ','
+						// Saturation follows the spiral too: the
+						// bright side of a turning body is the
+						// washed-out one, the shadowed side holds
+						// its colour.
+						+ Math.round(Math.max(0, baseSat - 4 - litness * 16)) + '%,'
+						// Quantised through band(), like every other
+						// lightness in the jar, so the gradient
+						// arrives in the tank's own steps instead of
+						// as a smooth wash that would be the one
+						// un-pixelated thing on screen.
+						+ band(Math.min(96, baseLig + 6 + litness * 30 + (0.5 - u) * 10)) + '%,'
+						// NEARLY SOLID. It ran 0.50 at the rim to 0.92 at the
+					// centre, which on a dark theme let the tank show
+					// through the whole ball and left it looking like a
+					// stain rather than like water lifted out. A body of
+					// water is not translucent to its own tank. 0.86 at
+					// the rim, 0.99 at the centre — the little that is
+					// left is what keeps the rim from reading as a hard
+					// cut. Still short of 0.95 flat: that exact alpha is
+					// spray's signature here, and an orb cell wearing it
+					// would be indistinguishable from a bead.
+					+ (0.86 + (1 - u) * 0.13).toFixed(2) + ')';
+					ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
+				}
+			}
+		}
+	}
+}
+
+// The drops in the air (lifted out of buildGoalLiquid, A489).
+function wsJarDrawDrops(a: { BLOB_SHAPES: number[][][]; CELL: 5; POKES_MAX: 4; band: (v: number) => number; baseLig: number; baseSat: number; cols: number; ctx: CanvasRenderingContext2D; drops: WsInkDrop[]; h: number; hueNow: () => number; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; w: number }, f: WsJarFrame) {
+	const { BLOB_SHAPES, CELL, POKES_MAX, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, pokes, w } = a;
+	if (drops.length) {
+		// NEAR-WHITE, deliberately past the crest. The old fill sat
+		// at +30 lightness against crests at +34 — spray drawn in
+		// the surface's own colour is spray that cannot be seen
+		// over it. A bead in flight is a point of light.
+		const sprayFill = 'hsla(' + Math.round(hueNow()) + ','
+			+ Math.round(Math.max(0, baseSat - 24)) + '%,'
+			+ band(Math.min(100, baseLig + 44)) + '%,0.95)';
+		ctx.fillStyle = sprayFill;
+		for (let i = drops.length - 1; i >= 0; i--) {
+			const d = drops[i];
+			// A BLOB MAY CARRY ITS OWN COLOUR. Spray from the pour
+			// is the meniscus's near-white and stays that way, but
+			// water pulled into the ball or thrown out of it takes a
+			// hue off the ramp — the vault's "the blobs only have
+			// that meniscus colour". Set per drop, so one flight can
+			// hold a dozen shades at once.
+			if (d.hue != null) {
+				// Lightness and saturation jitter with the hue, or a
+				// row of differently-hued beads at one lightness
+				// reads as a palette swatch rather than as spray.
+				// Seeded off the drop's own shape so a bead does not
+				// shimmer as it flies.
+				const j = ((d.shape || 0) * 7 % 5) / 5 - 0.4;
+				ctx.fillStyle = 'hsla(' + Math.round(d.hue) + ','
+					+ Math.round(Math.max(0, baseSat - 6 + j * 18)) + '%,'
+					+ band(Math.min(100, baseLig + 30 + j * 14)) + '%,0.95)';
+			} else {
+				ctx.fillStyle = sprayFill;
+			}
+			d.vy += 900 * f.dt;
+			d.x  += d.vx * f.dt;
+			d.y  += d.vy * f.dt;
+			d.life += f.dt;
+			const col = Math.max(0, Math.min(cols - 1, Math.round(d.x / CELL)));
+			const floorY = f.surfaceY ? f.surfaceY[col] : h;
+			// A BLOB LEAVING THE BALL GETS A MOMENT. The floor rule
+			// culls anything falling that has reached the water, and
+			// an orb hanging BELOW the waterline — which is most
+			// places you might click — spawns every blob already
+			// under it, so they died on the frame they were born and
+			// the ball threw nothing at all. A shed blob is water
+			// leaving a body of water; it is entitled to the instant
+			// it takes to get out. 0.15s, and only for blobs the orb
+			// threw: spray from the pour and the splash keeps the
+			// old rule exactly.
+			const graced = d.shed && d.life < 0.15;
+			const landed = !graced && d.vy > 0 && d.y >= floorY;
+			if (d.life > 1.4 || d.x < -CELL || d.x > w || landed) {
+				// A BLOB THAT LANDS MAKES A RING. Every returning blob strikes the
+				// surface it fell into, so the second half of a splash is dozens of
+				// small rings arriving out of time with each other; spray that simply
+				// ceased at the waterline would read as an effect rather than as an
+				// event. That is most of what makes real water look like water, and it
+				// costs one poke. Fast blobs only, and only while there is room in the
+				// ring pool: a bead dribbling over the edge of the crest has not struck
+				// anything. ORB-THROWN BLOBS ONLY (`d.shed`): the pour is a tuned
+				// sequence that ends still, and a jar that rings its own spray never
+				// finishes settling; this belongs to the thing the writer is doing, not
+				// to the thing the jar does on its own. THROTTLED, and not by the
+				// pool's size: the pool evicting its oldest is not a brake — it keeps
+				// the surface permanently full of new ripples instead of letting it
+				// settle between them. One ring every 70ms is enough for a splash to
+				// read as many arrivals and few enough that the water can breathe.
+				if (landed && d.shed && !d.pull && d.vy > 90
+					&& f.now - liq.lastRingAt > 55 && pokes.length < POKES_MAX) {
+					liq.lastRingAt = f.now;
+					pokes.push({
+						x: d.x,
+						y: null,
+						t: f.now,
+						// A RING IS LOCAL, NOT ENERGY. This is the
+						// tremor, and throttling could never have
+						// fixed it: pokeEnergy is a MAXIMUM over the
+						// pokes decaying on a 620ms clock, so a ring
+						// arriving every 70ms held it at 0.89 and one
+						// every 300ms still held it at 0.62 — the
+						// whole surface pinned at full agitation for
+						// as long as any spray was falling. Worst at
+						// a high level, where the water above the
+						// rest line is shallow and a maxed amplitude
+						// has nowhere to go but sideways, fast.
+						//
+						// `still` is what a poke uses to say "the
+						// aurora's, not the water's" — pokeEnergy
+						// skips it while the ripple sum still draws
+						// it. A landing ring wants exactly that
+						// bargain: a visible ring where it fell, and
+						// no claim on how lively the whole tank is.
+						still: true,
+						// The ring carries the blob's own colour, so
+						// a coloured splash lands coloured.
+						hue: d.hue != null ? d.hue : hueNow()
+					});
+				}
+				drops.splice(i, 1);
+				continue;
+			}
+			// DITHERED, like everything else in the tank. A drop drawn
+			// solid is a hard little square travelling over a
+			// surface built entirely from ordered patterns — it
+			// reads as a sprite laid on the water rather than as
+			// part of it. Its own cell decides its strength, and
+			// the older it is the more of the pattern shows
+			// through, so spray thins out as it flies instead of
+			// vanishing at a fixed age.
+			const dx = Math.round(d.x / CELL) * CELL;
+			const dy = Math.round(d.y / CELL) * CELL;
+			const dthr = (((dx / CELL | 0) * 7 + (dy / CELL | 0) * 13) % 16) / 16;
+			if (1 - d.life / 1.4 <= dthr) continue;
+			// THE BLOB'S OWN CELLS. Offsets rather than a scaled
+			// rect: a 3-cell lump is a plus, an L, a stubby bar or
+			// a clump, and which one it is was rolled when it was
+			// thrown so it does not change in flight. A lump also
+			// SHEDS as it flies — the outer cells drop off with
+			// age — so spray comes apart on the way up instead of
+			// vanishing whole.
+			const sz = d.size || 1;
+			ctx.fillRect(dx, dy, CELL, CELL);
+			if (sz > 1) {
+				const keep = 1 - d.life / 1.4;
+				const arms = BLOB_SHAPES[(d.shape || 0) % BLOB_SHAPES.length];
+				const take = sz === 3 ? arms.length : Math.min(2, arms.length);
+				for (let a = 0; a < take; a++) {
+					// Each arm has its own threshold, so a lump
+					// loses cells one at a time rather than all at
+					// once — and always the same ones, since the
+					// order is fixed.
+					if (keep < (a + 1) / (take + 1) * 0.85) continue;
+					ctx.fillRect(dx + arms[a][0] * CELL,
+						dy + arms[a][1] * CELL, CELL, CELL);
+				}
+			}
+		}
+	}
+}
+
+// THE AURORA over the jar (lifted out of buildGoalLiquid, A489).
+function wsJarDrawAurora(a: { CELL: 5; auroraCell: (u: number, v: number, t: number, ph?: number, fire?: number) => string; cols: number; ctx: CanvasRenderingContext2D; h: number; hueNow: () => number; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; orb: WsInkOrb; p1: number; p2: number; p3: number; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; quantA: (v: number) => number; rows: number; swirlPhase: number; w: number }, f: WsJarFrame) {
+	const { CELL, auroraCell, cols, ctx, h, hueNow, liq, orb, p1, p2, p3, pokes, quantA, rows, swirlPhase, w } = a;
+	if (f.auroraMix > 0 && f.surfaceY) {
+		for (let gx = 0; gx < cols; gx++) {
+			const top   = f.surfaceY[gx] != null ? f.surfaceY[gx] : 0;
+			// How far the light has reached below this column's crest. Eased so
+			// it moves quickly through the bright water near the top and slows in
+			// the depths. WELL PAST THE FLOOR: the dither's soft edge is six cells
+			// deep, so a front that stops AT the base leaves the last six rows
+			// below their threshold for ever — a band of plain water at the bottom
+			// of a finished jar. FROM THE REST LINE, NOT THE CREST: measured from
+			// this column's wavy top the front's progress is a function of the
+			// wave, lurching deeper whenever a crest peaks, and with the reach
+			// held monotonic those lurches never come back — the curtain descends
+			// in steps and swallows parts of the wave in single frames. `restNow`
+			// is the flat level the water is oscillating ABOUT, so the front
+			// travels smoothly whatever the surface is doing. The monotonic hold
+			// stays: it guarantees the dissolve's own rule, that a cell which has
+			// turned stays turned.
+			if (!liq.auroraFront || liq.auroraFront.length !== cols) {
+				liq.auroraFront = new Array<number>(cols).fill(-Infinity);
+			}
+			const from  = Math.min(top, f.restNow);
+			const reach = from + (h + CELL * 12 - from) * (f.auroraMix * f.auroraMix);
+			if (reach > liq.auroraFront[gx]) liq.auroraFront[gx] = reach;
+			const front = liq.auroraFront[gx];
+			for (let gy = 0; gy < rows; gy++) {
+				const y = gy * CELL;
+				if (y + CELL <= top) continue;   // above the water
+				// A stable per-cell threshold in [0,1). The pair of primes keeps the
+				// pattern from lining up with the grid, which would dissolve in
+				// visible stripes. THE LIGHT ARRIVES FROM SEVERAL PLACES AT ONCE: one
+				// ordered pattern over the whole tank comes down as a single even veil
+				// — correct, and lifeless — where real light entering water finds it
+				// in patches, some of which run ahead of the rest. A few slow standing
+				// lobes are folded into the threshold, so some regions turn early and
+				// others hold out, and the boundary between them wanders. The pattern
+				// is still the same ordered dither underneath, which is what keeps it
+				// pixel art rather than a soft gradient. `p1` and the seeds are the
+				// pour's own, so the lobes fall differently for every jar and nobody
+				// learns where the light will start.
+				const seedX = gx * CELL / w, seedY = gy * CELL / h;
+				const lobes =
+					Math.sin(seedX * 5.1 + p1) * 0.16
+					+ Math.sin(seedY * 3.7 - p2 + seedX * 2.2) * 0.12
+					+ Math.sin((seedX + seedY) * 4.3 + p3) * 0.09;
+				const thr  = Math.max(0, Math.min(1,
+					(((gx * 7 + gy * 13) % 16) + 0.5) / 16 + lobes));
+				// Depth into the lit band, so the dither only scatters at the FRONT:
+				// well above it every cell has turned, below it none has. A WIDE, SOFT
+				// EDGE: over three cells the scatter is a hard line with a few stray
+				// pixels on it; over six the front reads as light SOAKING down rather
+				// than a boundary moving. And the cells at the edge are drawn
+				// part-strength — still one colour per cell, chosen per cell, but the
+				// aurora's own alpha eased in — so the join with the water underneath
+				// is a gradient of COVERAGE rather than a change of state.
+				const into = (front - y) / Math.max(CELL * 6, 1);
+				if (into <= thr) continue;
+				// QUANTISED, like everything else in this tank. This
+				// was a continuous alpha over a palette built
+				// entirely from steps: every frame it changed by a
+				// hair, so each cell at the front was composited a
+				// fraction differently over water that is itself
+				// moving — which is what "flickers when it starts
+				// dithering down" was. On eighths a cell holds its
+				// value for many frames and then steps once.
+				// HELD, NOT SET. This wrote ctx.globalAlpha
+				// directly and the fade below then had to juggle
+				// a save/restore around it — see the note at the
+				// fill. It is a plain number now, multiplied with
+				// the cell's own fade at the one place the cell
+				// is drawn.
+				const depthA = quantA(Math.min(1, 0.35 + into * 0.9));
+				// THE SWIRL. The lights are read from a point that is
+				// dragged toward the middle of the jar and turned
+				// slowly around it, so as the aurora arrives the
+				// colours are pulled inward rather than simply
+				// switched on where they stand. Strongest as the
+				// front passes and easing off behind it, which is
+				// what makes it read as a current rather than a
+				// wobble.
+				const u = gx / cols - 0.5, v2 = gy / rows - 0.5;
+				const rad  = Math.sqrt(u * u + v2 * v2);
+				// THE SWIRL BREATHES. It used to wind one way for
+				// ever, which settles into a texture the eye stops
+				// reading after a second. A slow sine on the
+				// strength winds it in, unwinds it, and takes it
+				// round the OTHER way — the current keeps changing
+				// its mind, which is what a current does.
+				const turn = Math.sin(f.t * 0.42 + swirlPhase);
+				const pull = (1 - Math.min(1, rad * 2)) * 0.30 * f.auroraMix;
+				const ang  = Math.atan2(v2, u) + turn * 1.1 * pull;
+				// The inward drag breathes with it, so the colours
+				// are pulled in as it winds and released as it
+				// unwinds rather than staying permanently gathered.
+				const draw = pull * (0.55 + 0.45 * Math.abs(turn));
+				// `let`, not `const`: the poke loop below bends
+				// these — a press on the lit jar winds the colour
+				// field around the point pressed.
+				let su   = 0.5 + Math.cos(ang) * rad * (1 - draw);
+				let sv   = 0.5 + Math.sin(ang) * rad * (1 - draw);
+				// AND THE CELL ITSELF FADES IN. A cell that had
+				// crossed its threshold went straight to full
+				// aurora, so the front was a scatter of opaque
+				// cells over untouched water — crunchy, and
+				// nothing like light entering. Each now arrives
+				// over its own short ramp, quantised to eight
+				// steps so it is still pixel art and not a
+				// gradient: the ladder is what keeps the two
+				// readings apart.
+				const fade = quantA(Math.min(1, (into - thr) * 2.2));
+				if (fade <= 0) continue;
+				// ONE ALPHA, MULTIPLIED, AND HANDED BACK AT 1.
+				// This is where "still flickers" lived. The old
+				// code SET globalAlpha to the depth value, then
+				// REPLACED it with the fade (so the two never
+				// combined), and after the fill ran
+				//   globalAlpha = 1; if (fade < 1) globalAlpha = prevA;
+				// — a restore written backwards. Whenever the
+				// LAST cell of the pass was an edge cell, the
+				// context left the frame carrying that cell's
+				// alpha instead of 1, and nothing else in the
+				// gauge ever writes globalAlpha — so the NEXT
+				// frame painted the entire tank, water and all,
+				// through whatever fraction the dither happened
+				// to end on. That fraction changed frame to
+				// frame, which is exactly a full-jar strobe.
+				// Depth and fade are one multiplied alpha now,
+				// applied for the fill and returned to 1 right
+				// after it, unconditionally.
+				ctx.globalAlpha = Math.min(1, depthA * fade);
+				// WHILE IT IS MIXING, each cell takes a hue near the aurora's rather
+				// than exactly it — a scatter that shrinks to nothing as the water
+				// calms, so the jar resolves INTO the aurora instead of cutting to it.
+				// The offset is per cell and stable frame to frame (the same ordered
+				// value the dither uses), or the whole tank would fizz. PLUS whatever
+				// the writer has stirred in: a poke's colour spreads from where it
+				// landed and fades with distance and with age, so a press on a lit jar
+				// puts a bloom of another hue into the aurora rather than nudging the
+				// surface and doing nothing visible.
+				let rot = 0;
+				// The press's two answers, gathered over every poke
+				// and BOUNDED AS A SET before they are used — a run
+				// of presses in one place otherwise stacks into a
+				// white patch, which is the lesson this gauge has
+				// now learned in the waves, the poke rings and the
+				// ink humps alike.
+				let phase = 0, fire = 0;
+				if (f.auroraJitter > 0.01) {
+					const j = ((gx * 11 + gy * 17) % 32) / 32 - 0.5;
+					rot += j * 220 * f.auroraJitter;
+				}
+				// THE BALL WINDS THE LIGHT IN TOO — and this line is
+				// why the aurora went dark. It read `hold`, a
+				// variable the orb rewrite deleted, so the whole
+				// aurora pass threw a ReferenceError on its first
+				// cell and drew nothing at all. The lesson: a
+				// name that survives its owner takes down whatever
+				// reads it, and the failure looks like a feature
+				// that "stopped working" rather than like a crash.
+				//
+				// It does what it was written to do, driven by the
+				// ball instead: the field's sample point is rotated
+				// about the orb, hardest at its centre, so the
+				// curtains wind into the vortex the water is being
+				// gathered into. The spin carries it, so the light
+				// turns with the ball rather than merely bending
+				// toward it.
+				if (orb.amount > 0.01) {
+					const cu = orb.x / w, cv = orb.y / h;
+					const du = su - cu, dv = sv - cv;
+					const dd = Math.hypot(du, dv);
+					const sw = Math.exp(-dd * 6) * orb.amount * 3.2
+						+ orb.spin * Math.exp(-dd * 9) * 0.35;
+					if (Math.abs(sw) > 0.03) {
+						const ca = Math.cos(sw), sa = Math.sin(sw);
+						su = cu + du * ca - dv * sa;
+						sv = cv + du * sa + dv * ca;
+					}
+				}
+				// NEWEST PRESS WINS. The nudges and flares of every
+				// live poke were simply added, bounded only as a
+				// total — so four presses in four places all shouted
+				// at once and the field became busy wherever the
+				// reader had recently been. `newest` is the age of
+				// the most recent one; an older poke is damped by
+				// how far behind it that leaves it, so clicking
+				// around the jar reads as MOVING one's attention
+				// rather than as piling four presses on top of each
+				// other. A single press is untouched (it is the
+				// newest), which is why the gesture the vault
+				// approved is unchanged.
+				let newest = 1e9;
+				for (const pk of pokes) {
+					if (pk.hue == null) continue;
+					const a2 = (f.now - pk.t) / 1000;
+					if (a2 < newest) newest = a2;
+				}
+				for (const pk of pokes) {
+					if (pk.hue == null) continue;
+					const age = (f.now - pk.t) / 1000;
+					if (age > 2.4) continue;
+					// How far behind the newest this one is: level
+					// with it, it keeps all its voice; a second
+					// older, about a third of it.
+					const yield2 = 1 / (1 + Math.max(0, age - newest) * 2.2);
+					// ROUND, NOT A COLUMN. With only x recorded, the
+					// bloom coloured the jar's full height under the
+					// finger — a stripe, not an injection. The press
+					// records y now, so the colour spreads from the
+					// POINT pressed; pokes from before y existed fall
+					// back to the column read rather than throwing.
+					const d = pk.y != null
+						? Math.hypot(gx * CELL - pk.x, y - pk.y)
+						: Math.abs(gx * CELL - pk.x);
+					const reach = Math.exp(-d / 46) * Math.exp(-age / 1.5);
+					if (reach < 0.02) continue;
+					// THE BLOOM IS BOUNDED. Each press injects the DIFFERENCE between its
+					// hue and the water's, which can be most of the wheel; summed over
+					// every live poke with no ceiling, four presses could rotate a cell by
+					// several hundred degrees and the colours would tear around. It yields
+					// to the newest press like everything else the loop gathers, and the
+					// TOTAL is capped below, so a run of presses tints the light instead of
+					// spinning it.
+					rot += (pk.hue - hueNow()) * reach * yield2;
+					// …AND IT SWIRLS WHERE IT LANDED. The injected colour is stirred in,
+					// not stamped on: the field's sample point is rotated about the press,
+					// hardest at the centre and dying with distance and age, so the
+					// curtains wind into a little vortex there and let go over a couple of
+					// seconds. This is the whole answer a press on a FULL jar gets — the
+					// water has nowhere to go, so the light moves instead — and on a
+					// part-lit jar it simply rides along with the ripple the same press
+					// still makes. WHAT A PRESS DOES: it nudges the field's PHASE and it
+					// IGNITES the curtains, and it moves nothing — a displacement drags a
+					// cell across several features of a quantised field and it snaps,
+					// never shades.
+					if (pk.y != null) {
+						const cu = pk.x / w, cv = pk.y / h;
+						const du = su - cu, dv = sv - cv;
+						const dd = Math.hypot(du, dv);
+						// THE RIPPLE RUNS OUT THROUGH THE CURTAINS. The nudge's phase is the
+						// DISTANCE from the press less the time since it — so the crest of it
+						// travels outward, which is the flaming a real aurora does, rather
+						// than the whole region shifting together. At these numbers it moves
+						// the same amount of picture as the rotation does with less than half
+						// the worst per-cell jump: same presence, half the violence.
+						const trav = dd * 7.5 - age * 2.4;
+						// It swells and lets go on one smooth
+						// envelope, and both ends are zero: the
+						// press does not begin or finish with a
+						// step. This is the part the earlier
+						// versions got right and it is kept.
+						const grip = Math.min(1, age / 0.3)
+							* Math.exp(-age / 1.7);
+						phase += Math.sin(trav) * Math.exp(-dd * 3.6)
+							* grip * yield2 * 0.5;
+						// AND THE FLARE, which does not travel: it
+						// sits where the finger did, brightest at
+						// once and fading. Bounded as a SET below,
+						// because a run of presses in one place
+						// otherwise stacks into a white patch —
+						// the lesson this gauge keeps relearning.
+						fire += 0.6 * yield2 * Math.exp(-dd * 5.5)
+							* Math.min(1, age / 0.12)
+							* Math.exp(-age / 1.1);
+					}
+				}
+				// BOUNDED AS A SET — a quarter turn is a bloom, half
+				// the wheel is a different picture. The jitter that
+				// also writes `rot` is inside the cap too: during
+				// the dissolve both are live at once, which is
+				// exactly when an unbounded sum shows.
+				rot = Math.max(-95, Math.min(95, rot));
+				if (rot !== 0) ctx.filter = 'hue-rotate(' + Math.round(rot) + 'deg)';
+				ctx.fillStyle = auroraCell(su, sv, f.t,
+					Math.max(-1.6, Math.min(1.6, phase)),
+					Math.min(1.15, fire));
+				ctx.fillRect(gx * CELL, y, CELL, CELL);
+				if (rot !== 0) ctx.filter = 'none';
+				ctx.globalAlpha = 1;
+			}
+		}
+	}
+}
+
+// ONE FRAME: the phases in order, and the next frame asked for (lifted out of buildGoalLiquid, A489).
+function wsJarDraw(a: { CELL: 5; DROPS_MAX: 28; INK_LIFE: 3.4; POUR_MS: 1900; S_CALM: 6400; S_SPLASH: 1150; canvas: HTMLCanvasElement; cols: number; ctx: CanvasRenderingContext2D; drawAurora: (f: WsJarFrame) => void; drawDrops: (f: WsJarFrame) => void; drawGlow: (f: WsJarFrame) => void; drawOrb: (f: WsJarFrame) => void; drawSplash: (f: WsJarFrame, splashRoom: number) => void; drawSurface: (f: WsJarFrame) => void; drawTilt: (f: WsJarFrame) => void; drawWaves: (f: WsJarFrame) => void; drops: WsInkDrop[]; ease: (u: number) => number; full: boolean; h: number; hueNow: () => number; inks: { x: number; y: number; t: number; hue: number; push: number; spin: number; }[]; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pourFrom: number; pourStart: number; quantA: (v: number) => number; r: number; reduce: boolean; resize: () => void; stageAt: (ms: number) => { wave: number; over: number; jet: number; } | { wave: number; over: number; jet?: undefined; }; stageStart: number; step: (now: number) => void; t0: number; w: number }, now: number) {
+	const { CELL, DROPS_MAX, INK_LIFE, POUR_MS, S_CALM, S_SPLASH, canvas, cols, ctx, drawAurora, drawDrops, drawGlow, drawOrb, drawSplash, drawSurface, drawTilt, drawWaves, drops, ease, full, h, hueNow, inks, liq, pourFrom, pourStart, quantA, r, reduce, resize, stageAt, stageStart, step, t0, w } = a;
+	liq.raf = null;
+	// The modal empties its body on every tab switch and on close,
+	// which detaches this canvas — that is the teardown signal. No
+	// listener to leak, and nothing keeps rendering behind a closed
+	// report.
+	if (!canvas.isConnected) return;
+	resize();
+	const t = (now - t0) / 1000;
+	// Seconds since the last frame, clamped: a tab that was in the
+	// background hands back a gap of seconds, and integrating the
+	// spray over that would fire every drop into the ceiling at
+	// once the moment the writer looked back.
+	const dt = Math.min(0.05, liq.prevT ? (now - liq.prevT) / 1000 : 0.016);
+	liq.prevT = now;
+	// Where in the four stages this frame falls. One read, so
+	// nothing downstream can decide it differently.
+	const stageMs = now - stageStart;
+	const stage   = stageAt(stageMs);
+	// Where the pour has got to. Clamped at both ends, so a frame
+	// that arrives late cannot overshoot the number.
+	if (!reduce && liq.rNow !== r) {
+		const u = Math.min(1, Math.max(0, (now - pourStart) / POUR_MS));
+		liq.rNow = pourFrom + (r - pourFrom) * ease(u);
+		if (u >= 1) liq.rNow = r;
+	}
+	ctx.clearRect(0, 0, w, h);
+
+	// A FULL JAR POURS TOO, and stays water: the tank fills as water, with
+	// a BIGGER swell at the brim (a full tank has the most to move), and
+	// the aurora is composited over it as it fades up. Nothing switches;
+	// one thing becomes another. Reduced motion starts at the answer, so
+	// it is aurora from the first frame. THE AURORA ARRIVES AFTER THE
+	// SPLASH, when the water is falling back, and finishes as the surface
+	// goes still — so the whole lively stage is water, the crests are seen
+	// breaking, and the light arrives into a settling jar.
+	const auroraMix = full
+		? Math.max(0, Math.min(1, (stageMs - S_SPLASH) / (S_CALM - S_SPLASH)))
+		: 0;
+	// HOW MUCH THE HUES ARE STILL SCATTERING: while the water is churning
+	// the cells take random hues around the aurora's own, and as it calms
+	// they resolve into it — the mixing IS the transition. The scatter is
+	// the inverse of the mix (full when the light arrives, gone when it
+	// has settled) and QUANTISED: a continuous rotation over a quantised
+	// palette is a shimmer with no lattice to sit on, so the scatter
+	// resolves in a few visible steps instead of creeping.
+	const auroraJitter = full ? quantA(1 - auroraMix) : 0;
+	// THE FRAME, handed to each phase: what this tick computed, and two
+	// things the surface phase leaves for the rest — the water's height per
+	// column, and the flat level it oscillates about (kept for the aurora:
+	// a front measured from a wave is a front that lurches).
+	const f: WsJarFrame = { now, t, dt, stage, stageMs, auroraMix, auroraJitter, surfaceY: null, restNow: 0 };
+	drawSurface(f);
+
+	// THE AURORA ARRIVES AS A PIXEL DISSOLVE, cell by cell.
+	//
+	// Two earlier versions were wrong in opposite directions: the
+	// first REPLACED the water at full, so the jar cut from waves
+	// to a flat wash in one frame; the second faded the aurora over
+	// it with globalAlpha, which blends two colours inside every
+	// cell and produces exactly the smooth in-between shades this
+	// whole gauge is drawn to avoid. A fade is not a transition
+	// pixel art can make.
+	//
+	// So each cell is either water or aurora, and the SHARE of them
+	// that has turned rises with the pour. Which cells turn is
+	// decided by an ordered dither — the same 4×4 matrix idea as
+	// the bar heat ramps — so they come on in a stable, scattered
+	// pattern rather than a wave or a random sparkle, and a cell
+	// that has turned stays turned. Nothing is ever half-coloured.
+
+	// THE SPLASH, thrown once when the water falls back through its
+	// own level. Spawned along the whole surface rather than at the
+	// two walls, because this is the water hitting ITSELF — the
+	// overshoot collapsing — and that happens everywhere at once.
+	// The cells nearest the walls go up hardest and lean inward:
+	// water with a wall behind it has one way left to go.
+	liq.surfaceNow = f.surfaceY;
+	// THE SPRING SHEDS BLOBS, and this is the picture the splash
+	// below is NOT: not water thrown out of a collapse, but water
+	// welling over a mouth and rolling off it. A few lumps at a
+	// time, lobbed barely clear of the swell and falling back
+	// into it — thrown with a fraction of the splash's speed, so
+	// they arc rather than fly, and always from the middle where
+	// the swell is. `shed: true` is the flag that already means
+	// "this came off the water rather than out of it", which is
+	// exactly what these are.
+	if (liq.springNow > 0.15 && !reduce && f.surfaceY && drops.length < DROPS_MAX
+		&& Math.random() < 0.28) {
+		const gxm = Math.round(cols / 2);
+		const topY = f.surfaceY[gxm] != null ? f.surfaceY[gxm] : h;
+		const many = 1 + Math.floor(Math.random() * 2);
+		for (let k = 0; k < many; k++) {
+			drops.push({
+				x: w / 2 + (Math.random() - 0.5) * CELL * 5,
+				y: topY - CELL,
+				// Sideways more than up: a blob rolling off a swell
+				// leaves it, it does not leap from it.
+				vx: (Math.random() - 0.5) * 52,
+				vy: -(14 + Math.random() * 26),
+				life: 0, shed: true,
+				hue: hueNow() + (Math.random() - 0.5) * 16,
+				size: Math.random() < 0.45 ? 2 : 1,
+				shape: Math.floor(Math.random() * 4)
+			});
+		}
+	}
+	// …AND A SPRING DOES NOT SPLASH. The burst below is the
+	// collapse throwing water out of the tank — lumps, beads, the
+	// lot — and it is the "blobs" half of what a brim-full pour
+	// was still doing. It belongs to a jar with air above it: at
+	// the top of the range there is no room to throw anything
+	// into, and the arrival should be water reaching the glass,
+	// not water leaving it. Keyed to the TARGET like every other
+	// part of the arrival, so it is decided before the first
+	// frame rather than switching on partway up.
+	const splashRoom = 1 - Math.max(0, Math.min(1, (r - 0.72) / 0.20));
+	drawSplash(f, splashRoom);
+
+	// The spray, integrated and drawn. Gravity in the same units as the
+	// velocities above; a cell dies when it falls back to the water under
+	// it or leaves the jar.
+	//
+	// ── THE WATER IN THE AIR, COMING HOME ────────────────────────────
+	// `airborne` is filled by the burst and drained here, or the ball's
+	// water leaves the jar and stays gone. It returns over about three
+	// quarters of a second and EASES — fast while there is a lot of it,
+	// gentle as the last of it lands — which is the difference between a
+	// level that climbs and one that plops.
+	if (liq.airborne > 0.0002) {
+		// Rate proportional to what is left, so the tail flattens
+		// on its own rather than needing a curve imposed on it.
+		liq.airborne = Math.max(0, liq.airborne - liq.airborne * 4.2 * f.dt - 0.004);
+		// AND THE SETTLE WAITS FOR THE MASS. The bounce is what a
+		// jar does when it GETS its water, so it is armed at the
+		// moment the air is nearly home rather than at the impact —
+		// otherwise it was rocking while the water was still
+		// falling, which is a jar settling before it has anything
+		// to settle.
+		if (liq.airborne <= 0.02 && liq.splashAmp > 0 && !liq.splashAt) liq.splashAt = f.now;
+	} else if (liq.airborne !== 0) {
+		liq.airborne = 0;
+		if (liq.splashAmp > 0 && !liq.splashAt) liq.splashAt = f.now;
+	}
+
+	// ── INK AND BUBBLES ───────────────────────────────────────────
+	if (inks.length) {
+		for (let ii = inks.length - 1; ii >= 0; ii--) {
+			if ((f.now - inks[ii].t) / 1000 > INK_LIFE) inks.splice(ii, 1);
+		}
+	}
+	drawGlow(f);
+
+	drawTilt(f);
+
+	drawWaves(f);
+
+	drawOrb(f);
+
+	drawDrops(f);
+
+	drawAurora(f);
+	// ~30fps. The lattice cannot show more, and this is a modal
+	// that may sit open for minutes.
+	if (reduce) return;
+	liq.last = f.now;
+	// STILL DOES NOT MEAN STOPPED. A liquid in which NOTHING moves reads
+	// as a screenshot of a liquid; the picture changes every frame — the
+	// caustic net crawls, the light shafts drift and the hue breathes, all
+	// functions of `t` — so the loop runs for as long as the canvas is
+	// connected (isConnected at the top of draw is the teardown, so
+	// nothing renders behind a closed report), throttled to ~30fps.
+	// Reduced motion keeps the other contract in full: one frame, no
+	// timer. `kick()` is what starts the loop, and every path that changes
+	// the picture calls it.
+	const busy = !reduce;
+	if (!busy) { liq.raf = null; return; }
+	liq.raf = window.requestAnimationFrame(step);
+}
+
+// A press on the ink: the mound gathers (lifted out of buildGoalLiquid, A489).
+function wsJarInkPress(a: { BUBBLES_MAX: 9; CELL: 5; DROPS_MAX: 28; INKS_MAX: 10; POKES_MAX: 4; WAVES_MAX: 14; agitNow: (now: number) => number; bubbles: WsInkBubble[]; cols: number; drops: WsInkDrop[]; h: number; hueNow: () => number; inks: { x: number; y: number; t: number; hue: number; push: number; spin: number; }[]; kick: () => void; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; w: number; waveAmp: () => number; waves: WsInkWave[] }, p: { x: number; y: number; }, now: number) {
+	const { BUBBLES_MAX, CELL, DROPS_MAX, INKS_MAX, POKES_MAX, WAVES_MAX, agitNow, bubbles, cols, drops, h, hueNow, inks, kick, liq, pokes, w, waveAmp, waves } = a;
+	const BOX = [330, 340, 355, 8, 22, 36, 50, 265, 285, 300, 318];
+	const boxOdds = Math.max(0, Math.min(0.85, (liq.rNow - 0.80) / 0.22));
+	const STEPS = [-155, -120, -85, -55, 55, 85, 120, 155, 180];
+	const hue = (Math.random() < boxOdds
+		? BOX[Math.floor(Math.random() * BOX.length)]
+		: hueNow() + STEPS[Math.floor(Math.random() * STEPS.length)])
+		+ (Math.random() - 0.5) * 22;
+	// KEEP CLICKING AND IT SPREADS FURTHER. A run of presses is a
+	// jar being stirred, and stirred ink goes further and mixes
+	// harder: the streak fades if you stop, so one drop into still
+	// water stays a drop.
+	liq.inkRun = (now - liq.inkAt < 900) ? Math.min(8, liq.inkRun + 1) : 1;
+	liq.inkAt = now;
+	const push = 1 + (liq.inkRun - 1) * 0.42;
+	if (inks.length >= INKS_MAX) inks.shift();
+	// Dropped where the pointer is, but never above the water: ink
+	// landing in mid-air would spread from a point with nothing in
+	// it. The surface is where it enters.
+	const gxi = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
+	const line = liq.surfaceNow ? (liq.surfaceNow[gxi] || h) : h;
+	// …and which WAY it turns is the drop's own. All curling one
+	// way would read as the whole tank rotating; a mix reads as
+	// water, which is what it is.
+	inks.push({ x: p.x, y: Math.max(p.y, line + CELL), t: now, hue, push,
+		spin: (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.7) });
+
+	// THE MOUND, NOT A BURST. Four attempts at answering a drop on
+	// the surface — travelling waves at 1.5×, 0.62×, 0.28×, then a
+	// "tiny" 0.15× ripple pair plus a per-drop hump — and every one
+	// was turbulence after ONE click, because a nearly-full jar
+	// has no sky and anything the surface does per click is
+	// immediate weather. So the click no longer makes weather: it
+	// adds a share to ONE mound (see the surface sum), and the
+	// mound moves toward wherever the pressing actually is rather
+	// than standing where the first click happened to land.
+	const wasVented = liq.inkCharge >= 1;
+	if (liq.inkCharge <= 0.01) liq.inkChargeX = p.x;
+	else liq.inkChargeX += (p.x - liq.inkChargeX) * 0.45;
+	liq.inkCharge = Math.min(1, liq.inkCharge + 0.2);
+	liq.inkChargeAt = now;
+	// A FULL MOUND LEAVES — as the wave the gathering was for.
+	// Five presses build it; the press that tops it up spends it,
+	// at the wall OPPOSITE the mound (a mound near the middle has
+	// no opposite wall, so it splits and runs at both), on the
+	// same capped stack every other wave rides. HEADROOM decides
+	// its height exactly as the wave band's press does: this band
+	// is nearly full, so the tank gives what room it has and no
+	// more — the release reads as the mound going somewhere, not
+	// as a storm arriving from nowhere.
+	if (liq.inkCharge >= 1 && !wasVented) {
+		liq.inkCharge = 0;
+		liq.inkVent = now;
+		const gxc = Math.max(0, Math.min(cols - 1, Math.round(liq.inkChargeX / CELL)));
+		const surfC = liq.surfaceNow ? (liq.surfaceNow[gxc] || h) : h;
+		const room = Math.max(6, surfC);
+		const mid = Math.abs(liq.inkChargeX - w / 2) < w * 0.09;
+		const dirs = mid ? [-1, 1] : [liq.inkChargeX < w / 2 ? 1 : -1];
+		const swellAmp = Math.min(waveAmp() * 2.6, room * 0.62);
+		for (const dir of dirs) {
+			if (waves.length >= WAVES_MAX) waves.shift();
+			waves.push({
+				x: liq.inkChargeX, dir, born: 0,
+				amp: swellAmp * (mid ? 0.78 : 1),
+				// A swell, not a chop: broad, deliberate, with a
+				// real hollow behind it — the water the mound was
+				// made of, going.
+				wid: 1700, spd: 240, hollow: 0.55, spray: 1.2,
+				hue, broke: false
+			});
+		}
+		// The release is an EVENT and may say so — a modest share
+		// of agitation, under the same low ceiling a wave-band
+		// press keeps, so even releasing over and over is a run of
+		// waves rather than a storm.
+		liq.agitLevel = Math.min(0.55, agitNow(now) + 0.10);
+		liq.agitAt = now;
+		// …and the collapsing crest throws a little, off the top
+		// of the mound, wearing the ink that was pressed into it.
+		if (liq.surfaceNow && drops.length < DROPS_MAX) {
+			const many2 = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
+			for (let k = 0; k < many2; k++) {
+				drops.push({
+					x: liq.inkChargeX + (Math.random() - 0.5) * CELL * 5,
+					y: surfC - CELL * 2,
+					vx: (Math.random() - 0.5) * 120 + (dirs.length === 1 ? dirs[0] * 40 : 0),
+					vy: -(55 + Math.random() * 90),
+					life: 0, shed: true,
+					hue: hue + (Math.random() - 0.5) * 40,
+					size: Math.random() < 0.3 ? 2 : 1,
+					shape: Math.floor(Math.random() * 4)
+				});
+			}
+		}
+	}
+	// AN INKY BUBBLE GOING IN. A few bubbles born at the point of
+	// entry, carrying the drop's own colour rather than the water's
+	// — air pushed under by something arriving, coming back up a
+	// moment later and popping at the surface. They use the same
+	// machinery every other bubble does, so they wobble as they
+	// climb and ring the surface where they break; they simply
+	// start where the ink did and wear its hue.
+	if (liq.surfaceNow) {
+		const bn = Math.min(BUBBLES_MAX - bubbles.length,
+			2 + Math.floor(Math.random() * 3));
+		for (let k = 0; k < bn; k++) {
+			bubbles.push({
+				x: p.x + (Math.random() - 0.5) * CELL * 5,
+				// Just under the surface, not deep: they were
+				// carried down by the drop, not released from the
+				// floor, so they have a short way back.
+				y: Math.min(h - CELL, line + CELL * (2 + Math.random() * 5)),
+				size: Math.random() < 0.4 ? 2 : 1,
+				rise: 22 + Math.random() * 30,
+				phase: Math.random() * 6.283,
+				wob: 0.6 + Math.random() * 1.3,
+				hue: hue + (Math.random() - 0.5) * 30
+			});
+		}
+	}
+	// …and a handful of beads off the surface at the entry point,
+	// carrying the ink's own colour, because that is the water the
+	// drop displaced on its way in.
+	if (liq.surfaceNow && drops.length < DROPS_MAX) {
+		// Three to five beads over the meniscus: a drop going in should push
+		// a small crown of water above the line, and more than that over a
+		// surface that barely moves reads as the beads being the event.
+		const many = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
+		for (let k = 0; k < many; k++) {
+			drops.push({
+				x: p.x + (Math.random() - 0.5) * CELL * 4,
+				y: line - CELL,
+				vx: (Math.random() - 0.5) * 105,
+				vy: -(48 + Math.random() * 78),
+				life: 0, shed: true,
+				hue: hue + (Math.random() - 0.5) * 40,
+				size: Math.random() < 0.3 ? 2 : 1,
+				shape: Math.floor(Math.random() * 4)
+			});
+		}
+	}
+	// A RING WHERE IT WENT IN, AND NO MORE. `still` is the flag that
+	// means "draw the ripple, claim no energy": the drop marks the
+	// surface it broke without making the whole tank livelier for
+	// the next second. Without it every ink click was quietly
+	// stirring the jar on top of everything else.
+	if (pokes.length >= POKES_MAX) pokes.shift();
+	pokes.push({ x: p.x, y: null, t: now, still: true, hue });
+	kick();
+}
+
+// A press on the orb (lifted out of buildGoalLiquid, A489).
+function wsJarOrbPress(a: { CELL: 5; DROPS_MAX: 28; ORB_BITE: 0.045; ORB_SPIN_CAP: 22; POKES_MAX: 4; cols: number; drops: WsInkDrop[]; h: number; hueNow: () => number; kick: () => void; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; orb: WsInkOrb; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[] }, p: { x: number; y: number; }, now: number) {
+	const { CELL, DROPS_MAX, ORB_BITE, ORB_SPIN_CAP, POKES_MAX, cols, drops, h, hueNow, kick, liq, orb, pokes } = a;
+	orb.falling = false;
+	orb.dropping = false;
+	orb.vy = 0;
+	orb.x = p.x;
+	orb.y = p.y;
+	const gap  = Math.max(0, now - (orb.last || 0));
+	const urge = Math.max(0, Math.min(1, 1 - gap / 520));
+	orb.last = now;
+	const room = Math.max(0, 1 - orb.want);
+	orb.want = Math.min(1, orb.want
+		+ ORB_BITE * (0.45 + urge * 1.1) * (0.35 + room * 0.65));
+	// KEEP CLICKING AND IT KEEPS WINDING. A run of presses used to
+	// add the same push each time, so the ball reached a speed and
+	// sat there however long you kept at it. `streak` counts the
+	// presses that have followed one another closely and fades when
+	// you stop, so the tenth press in a run pushes half again as
+	// hard as the first — the ball accelerates while you are
+	// working at it rather than settling into a pace.
+	orb.streak = urge > 0.15 ? Math.min(14, (orb.streak || 0) + 1) : 0;
+	// 0.7, down from 1.6. The streak is meant to make a sustained
+	// run feel like it is winding something up, not to reach the
+	// cap in six presses.
+	const zeal = 1 + (orb.streak / 14) * 0.7;
+	orb.vel = Math.min(ORB_SPIN_CAP, orb.vel + (0.7 + urge * 2.4) * zeal);
+	// The water is SEEN to come: blobs leave the surface across the
+	// whole width and are aimed to arrive, so the ball is visibly
+	// made of water that left the jar rather than conjured at the
+	// pointer. `pull` keeps them from ringing the surface if they
+	// fall back — they were on their way up, not thrown down.
+	if (liq.surfaceNow) {
+		const many = Math.min(Math.max(0, DROPS_MAX - drops.length), 7);
+		for (let k = 0; k < many; k++) {
+			const gx2 = Math.floor(Math.random() * cols);
+			const sx = gx2 * CELL;
+			const sy = liq.surfaceNow[gx2] || h;
+			const flight = 0.42;
+			drops.push({
+				x: sx,
+				y: sy - CELL,
+				vx: (p.x - sx) / flight,
+				vy: (p.y - sy) / flight - 900 * flight * 0.5,
+				life: 0,
+				shed: true,
+				pull: true,
+				hue: hueNow() + (Math.random() - 0.5) * 70,
+				size: Math.random() < 0.35 ? 2 : 1,
+				shape: Math.floor(Math.random() * 4)
+			});
+		}
+	}
+	// A RING WHERE THE WATER LEFT, AND NO STORM. This poke was
+	// `still: false`, which feeds the global agitation store — and
+	// that store is a MAXIMUM decaying over 620ms, so a single
+	// press pinned the whole surface at full amplitude for half a
+	// second. One click, and the entire tank churned.
+	//
+	// `still: true` draws the ripple and claims no energy, which is
+	// the right bargain here: the water leaving is already visible
+	// as seven blobs climbing to the ball, and the ball itself is
+	// the answer to the press. The surface does not also need to be
+	// thrown about to say something happened.
+	if (pokes.length >= POKES_MAX) pokes.shift();
+	pokes.push({
+		x: p.x, y: p.y, t: now, still: true,
+		hue: hueNow() + 40 + Math.random() * 220
+	});
+	kick();
+}
+
+// A bite out of the surface, where the pointer went (lifted out of buildGoalLiquid, A489).
+function wsJarBite(a: { CELL: 5; DROPS_MAX: 28; POKES_MAX: 4; S_SPLASH: 1150; WAVES_MAX: 14; agitNow: (now: number) => number; cols: number; drops: WsInkDrop[]; full: boolean; h: number; hueNow: () => number; kick: () => void; liq: { stirNow: number; inkCharge: number; inkHump: number; restSeen: number; springNow: number; splashAt: number; splashAmp: number; agitLevel: number; agitAt: number; orbShedAt: number; airborne: number; auroraFront: number[] | null; raf: number | null; last: number; prevT: number; surfaceNow: number[] | null; rNow: number; inkRun: number; inkAt: number; inkChargeX: number; inkChargeAt: number; inkVent: number; lastRingAt: number; hold: { t: number; x: number; y: number; } | null; bubbleAt: number; }; pointAt: (ev: PointerEvent) => { x: number; y: number; }; pokes: { x: number; y: number | null; t: number; still: boolean; hue: number; }[]; stageStart: number; w: number; waveAmp: () => number; waves: WsInkWave[] }, ev: PointerEvent) {
+	const { CELL, DROPS_MAX, POKES_MAX, S_SPLASH, WAVES_MAX, agitNow, cols, drops, full, h, hueNow, kick, liq, pointAt, pokes, stageStart, w, waveAmp, waves } = a;
+	const p = pointAt(ev);
+	const now = performance.now();
+
+	// A LIT JAR KEEPS ITS LIGHT. At 100%, past the splash, the
+	// aurora is the whole point of the picture and there is no
+	// headroom for a wave anyway. The press stirs colour and winds
+	// the curtains, exactly as it did before any of this.
+	// The lit jar answers neither half of a press (see the pointerdown twin).
+	if (full && (now - stageStart >= S_SPLASH)) { liq.hold = null; return; }
+
+	const heldFor = liq.hold ? Math.min(1, (now - liq.hold.t) / 1100) : 0;
+	const eased   = 1 - Math.pow(1 - heldFor, 3);
+	liq.hold = null;
+
+	// WHERE THE PRESS LANDED, relative to the water. The same click
+	// means three different things depending on whether it fell
+	// through air, broke the meniscus, or reached down into the
+	// body of the liquid — and a jar that answers all three the
+	// same way is a jar that is not really wet.
+	const gx = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
+	const surf = liq.surfaceNow ? (liq.surfaceNow[gx] || h) : h;
+	const tank = Math.max(1, h - surf);
+	const under = (p.y - surf) / tank;      // <0 air, ~0 meniscus, >0 deep
+	let kind = 'surface';
+	if (under < -0.06) kind = 'air';
+	else if (under < 0.10) kind = 'crest';
+	else kind = 'swell';
+
+	// HEADROOM. A nearly full jar has nowhere to put a tall wave,
+	// and a wave drawn taller than the room it has just clips
+	// against the ceiling. The height it cannot take is thrown as
+	// SPRAY instead — energy has to go somewhere, and upward out of
+	// a brimming tank is where it actually goes.
+	const room  = Math.max(6, surf);
+	const base  = waveAmp();
+	const wants = base * (kind === 'swell' ? 2.1 : kind === 'air' ? 3.4 : 2.8)
+		* (0.75 + eased * 1.5);
+	const height = Math.min(wants, room * 0.7);
+	const spilled = Math.max(0, wants - height) / Math.max(1, base);
+
+	// Every wave is a little unlike the last: a tank that answers
+	// twenty identical clicks with twenty identical waves stops
+	// reading as water by about the fourth.
+	const jitter = (v: number, by: number) => v * (1 - by + Math.random() * by * 2);
+
+	const shapes: Record<string, { wid: number; spd: number; hollow: number; spray: number }> = {
+		// Something falling in: narrow, quick, and it throws.
+		air:     { wid: 760,  spd: 330, hollow: 0.30, spray: 5 },
+		// Struck at the surface: the classic travelling crest.
+		crest:   { wid: 900,  spd: 305, hollow: 0.42, spray: 3 },
+		// Reached into the body: a long slow swell with a deep
+		// trough behind it, and almost nothing thrown.
+		swell:   { wid: 2100, spd: 215, hollow: 0.62, spray: 1 },
+		surface: { wid: 900,  spd: 305, hollow: 0.42, spray: 3 }
+	};
+	const sh = shapes[kind] || shapes.crest;
+	const hue = hueNow() + (Math.random() - 0.5) * 70;
+
+	// WHICH WAY. At the wall opposite the pointer — press left and
+	// it runs right. Press near the middle and there is no opposite
+	// wall to pick, so it splits and runs at both.
+	const mid = Math.abs(p.x - w / 2) < w * 0.09;
+	const dirs = mid ? [-1, 1] : [p.x < w / 2 ? 1 : -1];
+	for (const dir of dirs) {
+		if (waves.length >= WAVES_MAX) waves.shift();
+		waves.push({
+			x: p.x,
+			dir,
+			born: 0,   // stamped by the first frame that sees it
+			amp: jitter(height, 0.14) * (mid ? 0.78 : 1),
+			wid: jitter(sh.wid, 0.18),
+			spd: jitter(sh.spd, 0.10),
+			hollow: sh.hollow,
+			spray: sh.spray * (1 + spilled * 0.8) * (0.6 + eased),
+			hue,
+			broke: false
+		});
+	}
+
+	// The press itself disturbs the water where it landed, whatever
+	// the wave then does with it.
+	if (pokes.length >= POKES_MAX) pokes.shift();
+	pokes.push({ x: p.x, y: null, t: now, still: false, hue });
+	// A GENTLE SHARE, AND A LOW CEILING. Every press used to add to
+	// the same store the pour's storm uses, and `stir` scales the
+	// WHOLE surface's amplitude — so ten quick clicks drove it to
+	// its 2.4 cap, the waves grew to a fifth of the tank's height,
+	// and the surface swung across the canvas every frame. That is
+	// the one-colour flash: not a colour bug at all, but the water
+	// filling and emptying the picture.
+	//
+	// The wave IS the answer to a press; it does not also need the
+	// tank to churn. A tenth of what it added, under a ceiling of
+	// its own well below the pour's, so clicking fast makes many
+	// waves rather than one storm.
+	liq.agitLevel = Math.min(0.55, agitNow(now) + 0.02 + eased * 0.05);
+	liq.agitAt = now;
+	// A held press that spilled its height throws on release too,
+	// so a brimming jar answers a big press with water in the air
+	// rather than with a wave it has no room for.
+	if (liq.surfaceNow && (spilled > 0.2 || eased > 0.3)) {
+		const many = Math.min(DROPS_MAX - drops.length,
+			1 + Math.round(spilled * 5 + eased * 6));
+		for (let k = 0; k < many; k++) {
+			drops.push({
+				x: p.x + (Math.random() - 0.5) * CELL * 4,
+				y: surf - CELL,
+				vx: (Math.random() - 0.5) * 110,
+				vy: -(60 + Math.random() * 120),
+				life: 0,
+				shed: true,
+				hue: hue + (Math.random() - 0.5) * 50,
+				size: Math.random() < 0.3 ? 2 : 1,
+				shape: Math.floor(Math.random() * 4)
+			});
+		}
+	}
+	kick();
+}
+
 export const reportMethods = {
 
 	// Strip a leading YAML frontmatter block. Frontmatter inflates word
@@ -760,7 +3348,7 @@ export const reportMethods = {
 			// jar that reached the goal reaches green. (Not `rNow / r`, the pour's
 			// progress, which would end EVERY jar on the last stop — green at 20%
 			// exactly as at 100%.)
-			const f = Math.max(0, Math.min(1, rNow));
+			const f = Math.max(0, Math.min(1, liq.rNow));
 			for (let i = 1; i < HUE_STOPS.length; i++) {
 				const [p1, h1] = HUE_STOPS[i - 1];
 				const [p2, h2] = HUE_STOPS[i];
@@ -771,7 +3359,62 @@ export const reportMethods = {
 			return HUE_STOPS[HUE_STOPS.length - 1][1];
 		};
 
-		let raf: number | null = null, last = 0, w = 0, h = 0, cols = 0, rows = 0, kick = () => {};
+		// THE FACTORY'S SHARED STATE, one object (A488): its inner functions write
+		// these, and a function lifted out of the factory writes them through it.
+		const liq: {
+			stirNow: number;
+			inkCharge: number;
+			inkHump: number;
+			restSeen: number;
+			springNow: number;
+			splashAt: number;
+			splashAmp: number;
+			agitLevel: number;
+			agitAt: number;
+			orbShedAt: number;
+			airborne: number;
+			auroraFront: number[] | null;
+			raf: number | null;
+			last: number;
+			prevT: number;
+			surfaceNow: number[] | null;
+			rNow: number;
+			inkRun: number;
+			inkAt: number;
+			inkChargeX: number;
+			inkChargeAt: number;
+			inkVent: number;
+			lastRingAt: number;
+			hold: { t: number; x: number; y: number } | null;
+			bubbleAt: number;
+		} = {
+			stirNow: 0,
+			inkCharge: 0,   // 0..1, built a click at a time
+			inkHump: 0,   // what is DRAWN, chasing inkCharge with mass
+			restSeen: 0,
+			springNow: 0,
+			splashAt: 0,
+			splashAmp: 0,
+			agitLevel: 0,
+			agitAt: 0,
+			orbShedAt: 0,
+			airborne: 0,
+			auroraFront: null,
+			raf: null,
+			last: 0,
+			prevT: 0,
+			surfaceNow: null,
+			rNow: 0,
+			inkRun: 0,
+			inkAt: 0,
+			inkChargeX: 0,   // where the mound stands
+			inkChargeAt: 0,   // last press, for the idle drain
+			inkVent: 0,   // when a full mound last left as the wave
+			lastRingAt: 0,
+			hold: null,   // a press being held, gathering
+			bubbleAt: 0,
+		};
+		let w = 0, h = 0, cols = 0, rows = 0, kick = () => {};
 		const t0 = performance.now();
 
 		// THE FILL POURS IN, from nothing to the number. A gauge that is
@@ -791,11 +3434,9 @@ export const reportMethods = {
 		// climbing at the walls. Without it a splash could only be guessed
 		// from the wave function, which is the same thing said twice and
 		// drifts out of step the moment either is touched.
-		let prevT = 0;
 		// The last surface the loop drew, so a press can throw spray from
 		// the water's actual height rather than from a guess. Read only —
 		// the loop owns it.
-		let surfaceNow: number[] | null = null;
 		// SLOSH. A jar that has just been filled is not calm: the water
 		// arrives with somewhere to go and takes a few seconds to stop.
 		// One extra swell, wider and slower than the three standing ones,
@@ -850,7 +3491,6 @@ export const reportMethods = {
 		// stays turned. Remembering the deepest the front has reached is
 		// what makes that true rather than merely intended. Cleared on
 		// every pour, with everything else the stages own.
-		let auroraFront: number[] | null = null;
 		// What keeps the settled jar alive: the caustic net, the drifting light
 		// shafts and the slow hue breath all move every frame, so the loop still
 		// runs (see `busy`) and the liquid shimmers without anything detaching.
@@ -889,11 +3529,9 @@ export const reportMethods = {
 		// original promise intact: one press still does not pretend the
 		// pour is happening again — but a flurry of them earns its storm,
 		// and the spray thrown per press grows with it too.
-		let agitAt = 0, agitLevel = 0;
 		// How lively the water actually IS, as against how lively the
 		// disturbances say it should be. See the filter at `stirWant`.
-		let stirNow = 0;
-		const agitNow = (now: number) => agitLevel * Math.exp(-(now - agitAt) / 1100);
+		const agitNow = (now: number) => liq.agitLevel * Math.exp(-(now - liq.agitAt) / 1100);
 
 		// ── THE ORB ──────────────────────────────────────────────────────
 		// Click, and a little of the tank leaves it and joins a spinning ball
@@ -988,8 +3626,6 @@ export const reportMethods = {
 		// is happening in it, not to keep the tank busy.
 		const bubbles: WsInkBubble[] = [];
 		const BUBBLES_MAX = 9;
-		let bubbleAt = 0;
-		let inkRun = 0, inkAt = 0;
 		// THE MOUND IS THE COUNT OF PRESSES. The ink band's surface answer
 		// used to be per click — a pair of tiny travelling waves and a
 		// transient hump for every drop — and even at a tenth of the wave
@@ -1001,18 +3637,13 @@ export const reportMethods = {
 		// one wave at the opposite wall, which is the release the
 		// gathering was for. One click is a swell that subsides; the wave
 		// is earned.
-		let inkCharge = 0;    // 0..1, built a click at a time
-		let inkChargeX = 0;   // where the mound stands
-		let inkChargeAt = 0;  // last press, for the idle drain
-		let inkHump = 0;      // what is DRAWN, chasing inkCharge with mass
-		let inkVent = 0;      // when a full mound last left as the wave
 
 		let tilt = 0;      // radians-ish: the surface's slope, -1..1
 		let tiltV = 0;     // how fast it is changing
 		// The natural period comes from the water's DEPTH the way a real
 		// tank's does — a fuller jar swings slower — so the rhythm to find
 		// is the jar's own rather than a constant.
-		const sloshW = () => 3.9 - Math.min(1, rNow) * 1.15;   // rad/s
+		const sloshW = () => 3.9 - Math.min(1, liq.rNow) * 1.15;   // rad/s
 		const SLOSH_DAMP = 0.72;   // per second; a jar settles in a few swings
 
 		const orb: WsInkOrb = {
@@ -1043,7 +3674,6 @@ export const reportMethods = {
 		// over the water the way the orb had to be. That is most of why it
 		// is a better fit for this renderer than a rigid body ever was.
 		const waves: WsInkWave[] = [];
-		let hold: { t: number; x: number; y: number } | null = null;   // a press being held, gathering
 		// THE WAVE'S OWN YARDSTICK, and it has to live OUT HERE. The surface
 		// sum has an `amp` — the wave amplitude for the frame — but it is a
 		// per-frame local declared inside draw(), so reading it from a click
@@ -1059,12 +3689,10 @@ export const reportMethods = {
 		// a cap written against `restNow` there reads zero every frame. This is
 		// the previous frame's value, outer-scope, written in one place; a
 		// one-frame lag on a line that moves by fractions of a pixel per frame.
-		let restSeen = 0;
 		// The spring's strength this frame, published the same way and for the
 		// same reason: it is computed inside the surface pass and read later by
 		// the shedding, which is a different block.
-		let springNow = 0;
-		const waveAmp = () => Math.min(8, h * 0.06 * (1 + rNow * 0.8));
+		const waveAmp = () => Math.min(8, h * 0.06 * (1 + liq.rNow * 0.8));
 		const WAVES_MAX  = 14;     // more than a hand can produce in a second
 		const WAVE_SPEED = 305;    // px/s, tuned so a press feels answered
 		const WAVE_LIFE  = 2.6;    // seconds before it has spent itself
@@ -1091,11 +3719,10 @@ export const reportMethods = {
 		// read as the ball LINGERING once the hand had plainly finished;
 		// 650 still clears any deliberate click cadence with room to spare
 		const ORB_SHED   = 0.09;   // seconds between blobs thrown off the rim
-		let orbShedAt = 0, lastRingAt = 0, lastSpillAt = 0;
+		let lastSpillAt = 0;
 		// The bounce the jar makes when it gets its water back: a damped
 		// oscillation added to the level, so the surface overshoots and
 		// settles instead of sliding up like a progress bar.
-		let splashAt = 0, splashAmp = 0;
 		// WATER IN THE AIR IS NOT WATER IN THE JAR. There were two places
 		// for it — in the ball, in the tank — and the level was simply
 		// whatever the ball did not hold. So the instant the ball stopped
@@ -1108,7 +3735,6 @@ export const reportMethods = {
 		// as it settles. The tank fills in behind the spray you can see,
 		// which is both smoother and more honest: water visibly in the air
 		// should not already be counted in the reading.
-		let airborne = 0;
 		// Radius from AMOUNT BY AREA, not linearly: a ball holding twice
 		// the water is √2 wider, not twice, or the first click makes an orb
 		// nearly as big as the last one does.
@@ -1212,11 +3838,11 @@ export const reportMethods = {
 		// (No hueSpin/hueDir. The spectrum-through-depth they randomised is
 		// gone; the hue is the LEVEL's to say, and a level that meant
 		// something different on each opening would say nothing.)
-		let rNow = reduce ? r : 0;
+		liq.rNow = reduce ? r : 0;
 		// A writer who asked the system for less motion gets the answer,
 		// not the performance.
 		const pour = () => {
-			if (reduce) { rNow = r; return; }
+			if (reduce) { liq.rNow = r; return; }
 			// FROM EMPTY, EVERY TIME. This read `pourFrom = rNow` — the
 			// level the jar happens to be at — which is right for a pour
 			// that interrupts another one and wrong for the only way a
@@ -1231,7 +3857,7 @@ export const reportMethods = {
 			// watch their week arrive, and a jar that is already full has
 			// nothing to show them.
 			pourFrom  = 0;
-			rNow      = 0;
+			liq.rNow      = 0;
 			pourStart = performance.now();
 			sloshPhase = Math.random() * Math.PI * 2;
 			swirlPhase = Math.random() * Math.PI * 2;
@@ -1244,7 +3870,7 @@ export const reportMethods = {
 			stageStart = performance.now();
 			splashed   = false;
 			drops.length = 0;
-			auroraFront = null;
+			liq.auroraFront = null;
 
 			kick();
 		};
@@ -1311,86 +3937,7 @@ export const reportMethods = {
 		// NOW. `ph` shifts the field's own PHASE at this cell and `fire`
 		// brightens it; neither moves where the field is sampled.
 		//
-		const auroraCell = (u: number, v: number, t: number, ph?: number, fire?: number) => {
-			// Its own slower clock. The aurora is the resting state of a
-			// finished goal; at the water's tempo it read as agitated.
-			// Its own slower clock — and a breakup hurries it. Everything in
-			// the field is phased on T, so one multiplier makes the whole
-			// sky race without any term having to know about the event.
-			const T = t * 0.42;
-			// The nudge rides IN the warp, so every term downstream — the colour
-			// coordinate `s` and both ray systems — is carried by it together;
-			// adding it to any one of them separately would slide the colours off
-			// the curtains. THE NUDGE DOES NOT TOUCH THE COLOUR: `warp` feeds `s`,
-			// and `s` runs through three hue harmonics at ±70, ±50 and ±28
-			// degrees, so a press riding there would REPAINT the curtains rather
-			// than ripple them, and presses in several spots would sum into a
-			// swing of the whole palette. The phase goes to the RAY SYSTEMS only
-			// (below): colour is decided by `s`, structure by the rays, and a
-			// press answers in the second alone. Colour has its own answer to a
-			// press: the hue bloom in `rot`, one tint at a time.
-			const ph2 = ph || 0;
-			const warp =
-				Math.sin(v * 4.1 + T * 0.55 + u * 2.3 + p1) * 0.22 +
-				Math.sin(v * 7.3 - T * 0.38 + u * 3.7 + p2) * 0.12 +
-				Math.sin(u * 5.2 + T * 0.62 - v * 1.9 + p3) * 0.16 +
-				Math.sin((u + v) * 3.3 - T * 0.27 + p1) * 0.09;
-			let s = v * 0.6 - T * 0.14 + warp;
-			s = s - Math.floor(s);
-			// THE RAYS, HOISTED — the hue needs them now, because the pink
-			// fringe rides the curtain's own brightness rather than being
-			// painted along a line. Two systems at different scales: broad
-			// curtains with a finer structure inside them, which is what
-			// keeps the field from reading as a single soft cloud.
-			//
-			// FOLDED, TOO. Both varied with `u` alone, so the curtains hung
-			// as straight vertical bands; real ones drape. Shearing the
-			// horizontal coordinate by a slow function of height gives the
-			// S-fold that makes a curtain look like cloth.
-			const ray1 = 0.5 + 0.5 * Math.sin(u * 3.0 + warp * 6 + T * 0.30 + p2 + ph2);
-			const ray2 = 0.5 + 0.5 * Math.sin(u * 7.5 - warp * 4 - T * 0.22 + v * 2.0 + p3
-				+ ph2 * 1.6);
-			// AND THE WHOLE WHEEL, WANDERING. `T * 9 * dir` walked the
-			// palette one way for ever at a fixed rate, so a report left
-			// open cycled predictably and two reports differed only in
-			// where they started. Three slow sines at incommensurable
-			// rates wander instead: the palette drifts through every hue
-			// there is, never repeating, and never in a direction you
-			// can anticipate. `dir` still decides which way it leans on
-			// the whole, so half of them drift warm-to-cold.
-			const wander = Math.sin(T * 0.081 + p1) * 96
-				+ Math.sin(T * 0.047 + p2) * 71
-				+ Math.sin(T * 0.029 + p3) * 54;
-			const hue = rot
-				+ Math.sin(s * Math.PI * 2) * 70 * spread
-				+ Math.sin((s + 0.33) * Math.PI * 4) * 50 * spread
-				+ Math.sin((s + 0.66) * Math.PI * 6) * 28 * spread
-				+ wander * dir
-				+ T * 9 * dir;
-			const curtain = quant(ray1 * 0.65 + ray2 * 0.35);
-			// THE ORIGINAL LIGHT, to the number. Every constant here is the
-			// one this field shipped with; the temper is added ON TOP and
-			// is zero at rest, so an unprovoked sky is the old sky exactly
-			// and a worked one is brighter than it ever was.
-			// IGNITION. More particles arriving means a brighter glow and a
-			// crisper striation, so the press raises the light AND leans
-			// on the curtain's own contrast — a flare in the cloth rather
-			// than a lamp shone at it. It cannot shear: it is a
-			// multiplier on values this cell already had.
-			const f2  = fire || 0;
-			const cur2 = f2 > 0 ? Math.min(1, curtain * (1 + f2 * 0.55)) : curtain;
-			const lig = 30 + cur2 * 34 + (1 - v) * 10 + f2 * 16;
-			const sat = 58 + cur2 * 30 + f2 * 8;
-			// Banded transparency: the gaps between curtains let the tank behind
-			// show through, so the aurora hangs IN the glass rather than filling
-			// it like paint — at a floor high enough (0.62) that a FULL jar never
-			// reads as unfilled at its dark edges.
-			const alpha = quantA(0.62 + cur2 * 0.38 + f2 * 0.10);
-			return 'hsla(' + Math.round(((hue % 360) + 360) % 360) + ','
-				+ Math.round(Math.max(0, Math.min(100, sat))) + '%,'
-				+ Math.round(Math.max(0, Math.min(100, lig))) + '%,'
-				+ alpha.toFixed(2) + ')';
-		};
+		const auroraCell = (u: number, v: number, t: number, ph?: number, fire?: number) => wsJarAuroraCell({ dir, p1, p2, p3, quant, quantA, rot, spread }, u, v, t, ph, fire);
 
 		// ── ONE FRAME, IN PHASES ─────────────────────────────────────────
 		//
@@ -1399,995 +3946,7 @@ export const reportMethods = {
 		// the glow, the slosh, the waves, the orb, the drops, the aurora. The
 		// phases share the jar's state through the closure; the frame carries
 		// only what one tick decides.
-		interface WsJarFrame {
-			now: number; t: number; dt: number; stage: ReturnType<typeof stageAt>; stageMs: number;
-			auroraMix: number; auroraJitter: number;
-			surfaceY: number[] | null; restNow: number;
-		}
-		const drawSurface = (f: WsJarFrame) => {
-			// Surface height per COLUMN, so the wave is sampled on the lattice
-			// too — the crest steps rather than curving, which is what makes it
-			// read as pixel water instead of as a smooth path that happens to be
-			// drawn in blocks.
-			//
-			// Three components, deliberately incommensurate: a primary swell, a
-			// slower counter-swell drifting the other way, and a small fast chop
-			// on top. Two waves beat against each other on a visible cycle; three
-			// do not, so the surface never looks like it is repeating.
-			//
-			// FULL MEANS FULL. The rest line reaches ABOVE the brim by the swell's
-			// own amplitude, so the crest rides against the top and the troughs
-			// still show water rather than air — a jar at 100% must not sit with
-			// a visible gap above the water. A FULL TANK SWELLS MORE: the
-			// amplitude grows with the level and is allowed a little more room at
-			// the brim, which is where the writer is looking. The stage owns how
-			// lively the surface is: at STILL it is zero and the water is flat,
-			// which is the point of the last stage.
-			const pokeE = pokeEnergy(f.now);
-			// The stir: the stage or a press, whichever is louder — the max keeps
-			// a settled jar's press from replaying the pour — PLUS the built-up
-			// agitation, which is the part a max could never carry. Capped just
-			// above the splash's own opening energy, so a storm of clicks reads as
-			// a storm and not as a glitch.
-			//
-			// THE WATER HAS MASS, AND THIS IS WHERE IT GETS IT. `stir` scales the
-			// whole surface's amplitude, and every disturbance in the tank reaches
-			// the water through it — a click in the ink band, a press in the orb
-			// band and a wave below half all pass through this one number. Read
-			// straight from the poke store it would jump from glass to full chop in
-			// ONE FRAME (pokeEnergy is a MAXIMUM of exp(-age/620), which is 1.0 on
-			// the frame a poke lands), and water cannot change speed instantly,
-			// because it weighs something. So the target is filtered rather than
-			// used. It RISES over about a fifth of a second — quick enough that a
-			// press feels answered, slow enough that the first frame is a swell
-			// rather than a step — and FALLS more slowly still, because water
-			// settles by losing energy and losing energy takes longer than gaining
-			// it. Attack and release differ on purpose; a symmetric filter reads
-			// as a fade, not as momentum.
-			//
-			// THE POUR'S OWN CHOP ANSWERS TO THE HEADROOM TOO. `stage` is a clock,
-			// not a physical quantity: it hands out the same energy whether the
-			// water has half a tank of sky to throw itself into or two cells, so
-			// it is quieted at the brim like every other source (the ambient
-			// swell, the gather, the poke rings, the break). At 100% the stage
-			// keeps a fifth of its voice — enough that the surface lives, far too
-			// little to break. Computed here rather than read from `brimEase`
-			// below: the stir is worked out EARLIER in the frame than the level
-			// is; `rNow` is an outer-scope value and safe at either point.
-			const brimCalm = 1 - 0.80 * Math.max(0, Math.min(1, (r - 0.72) / 0.20));
-			const stirWant = Math.min(3.6,
-				Math.max(f.stage.wave * brimCalm, pokeE) + agitNow(f.now));
-			const stirRate = stirWant > stirNow ? 7.5 : 2.6;
-			stirNow += (stirWant - stirNow) * Math.min(1, stirRate * f.dt);
-			const stir  = stirNow;
-			// THE INK'S MOUND HAS MASS, the same lesson as `stir` directly above:
-			// the handler moves the TARGET (`inkCharge`, a step per click) and the
-			// drawn height chases it here, so five quick clicks are a mound
-			// swelling in five surges rather than five steps. The fall has two
-			// speeds on purpose — a SPENT mound (just vented into its wave) drains
-			// fast, because its water visibly went somewhere; an ABANDONED one
-			// subsides slowly, because nothing took the water and it just settles
-			// back.
-			//
-			// GRACE AND DRAIN SET TWO THINGS AT ONCE: how fast an abandoned mound
-			// falls, and how slowly a person may click and still build one. At
-			// 400ms and 1.2/s a lone swell is gone in under a second and a cadence
-			// up to about 400ms still reaches the release; a CLICKED mound is
-			// untouched, because the grace resets on every press. An accelerating
-			// drain cannot have both: to empty a mound quickly it has to take more
-			// per second than a slow hand puts in.
-			if (inkCharge > 0 && f.now - inkChargeAt > 400) {
-				inkCharge = Math.max(0, inkCharge - f.dt * 1.2);
-			}
-			{
-				const humpRate = inkCharge > inkHump ? 6.0
-					: ((f.now - inkVent) < 700 ? 7.0 : 4.6);
-				inkHump += (inkCharge - inkHump) * Math.min(1, humpRate * f.dt);
-				if (inkHump < 0.001 && inkCharge <= 0) inkHump = 0;
-			}
-			// HOW STILL THIS FRAME IS, 0 (churning) to 1 (glass). One
-			// derivation beside `stir` itself, because two places now
-			// read it — the meniscus thins with it and the caustics
-			// climb faster — and a second copy is a second thing to
-			// forget when either is tuned.
-			const calm  = 1 - Math.min(1, stir);
-			// THE CLIMB, shared by every field that drifts. Hoisted here because
-			// the light shaft is computed per COLUMN and the caustics per CELL,
-			// and the two must rise together or the tank has two currents. AND IT
-			// WANDERS: a single rate is a metronome, and bands marching up at a
-			// fixed speed read as a machine part. Two slow sines — incommensurate,
-			// so they never line up — make the current surge and ease the way
-			// water does, at a drift of ~5px/s rather than a conveyor belt's 16.
-			// Still a function of t alone, so the motion stays purely vertical.
-			const climb = f.t * 0.34 * (1 + 0.55 * calm)
-				+ Math.sin(f.t * 0.19 + flowPhase) * 0.9
-				+ Math.sin(f.t * 0.07 + flowPhase * 1.7) * 1.6;
-			const ampWant = Math.min(8, h * 0.06 * (1 + rNow * 0.8));
-			// NO SKY, NO SWELL. The base amplitude grows with the LEVEL
-			// — a full tank has the most water to move — and nothing
-			// ever asked whether it had the sky to move it INTO. In a
-			// nearly-full jar the stirred sines wanted ±17px of global
-			// motion over ~10px of headroom, so any event that raised
-			// `stir` (a wave breaking on a wall, most of all) turned
-			// the whole surface into one clamped crawling band — the
-			// "big snake". The cap is on the STIRRED product, not the
-			// base, because the snake is the output: however loud the
-			// stir, the ambient swell may not exceed a share of the
-			// headroom that actually exists. Low and mid fills are
-			// untouched (the cap sits above what they ever ask for);
-			// only the band that has no sky is quieted, which is what
-			// "full of water and out of sky" was always meant to mean.
-			// …AND ONLY WHERE THE SKY IS ACTUALLY GONE. A flat share
-			// of headroom also bit at mid fill, where the pour's storm
-			// and a flurry's earned chop legitimately dwarf the
-			// headroom and always did (guard 4 is what holds them).
-			// The share fades in with the level: 0.30 across the ink
-			// band — the band the snake lives in — and effectively
-			// unbounded below it, continuously, so no fill has a seam.
-			const skyShare = 0.30 + 8 * Math.max(0, (0.67 - rNow) / 0.67);
-			// AND BY THE WATER'S OWN DEPTH, which is the half that was
-			// missing. The sky cap was faded out below half fill on the
-			// argument that a shallow jar has headroom to spare — true,
-			// and it left the ambient chop of a PUDDLE bounded by
-			// nothing at all. A tank holding 22px of water was swinging
-			// its surface ±16px, and that is the low-fill flash: not one
-			// runaway term but every term sized for a jar that isn't
-			// there. Water cannot slosh much deeper than it is.
-			const depthSeen = Math.max(1, h - restSeen);
-			const amp   = Math.min(ampWant * stir,
-				restSeen > 0 ? restSeen * skyShare : ampWant * stir,
-				depthSeen * 0.35);
-			// …and how far past its own level the water is riding. SHOWN, not
-			// rNow: the water rides PAST its own level during the rise and falls
-			// back through it, which is what throws the splash. The orb takes its
-			// share on the NEXT line rather than inside this one, so the overshoot
-			// stays an overshoot of the jar's own level and not of some quantity
-			// the ball has already reduced.
-			//
-			// ONE FACTOR FOR THE WHOLE ARRIVAL, computed once here and used by
-			// everything that makes the pour dramatic: the overshoot below, the
-			// bounce after it, the jet, and the stage's chop. A jar with room
-			// should keep all four — water poured into space overshoots, rocks,
-			// lands in the middle and chops. A jar filling to its brim has room
-			// for none of them, and they are added AFTER the level, so no easing
-			// of the level could hide them. FROM THE TARGET, NOT FROM THE CLIMB:
-			// `rNow` is the ANIMATING level, below 0.72 for most of a pour to
-			// 100%, so a factor keyed to it would leave the jet, the overshoot and
-			// the chop at full strength for the whole rise and quiet them only
-			// underneath the splash. A jar's ARRIVAL is decided by where it is
-			// going, and it is known before the first frame.
-			const brimEase = Math.max(0, Math.min(1, (r - 0.72) / 0.20));
-			const calmRise = 1 - brimEase;
-			const shown = Math.min(1, rNow + f.stage.over * rNow * calmRise);
-			// WHAT THE ORB HOLDS IS NOT IN THE JAR. The line drops by
-			// the fraction the ball has taken, which is what makes the
-			// gather read as water LEAVING rather than as a bump on the
-			// surface. `rNow` — the figure the percentage is drawn from
-			// — is untouched: only what is shown moves.
-			// THE BOUNCE. Water coming back does not arrive politely: the
-			// level overshoots and rocks before it settles, which is
-			// what the eye reads as a splash rather than as a bar
-			// filling. Damped sine, half a second, and it can never
-			// take the level outside the jar.
-			const sinceSplash = splashAt ? (f.now - splashAt) : 1e9;
-			const bounce = sinceSplash < 900
-				? Math.exp(-sinceSplash / 320) * Math.sin(sinceSplash / 62)
-					* splashAmp * calmRise
-				: 0;
-			// Spent: disarmed, so the next burst arms a fresh one rather
-			// than inheriting an amplitude that has already been used.
-			if (splashAt && sinceSplash >= 900) { splashAt = 0; splashAmp = 0; }
-			// THREE PLACES NOW: the ball, the air, and the jar. Both are
-			// taken off the level, so nothing is counted twice and
-			// nothing arrives before it has landed.
-			const held = Math.min(1, orb.amount + airborne);
-			const inJar = Math.max(0, Math.min(1, shown * (1 - held) + bounce));
-			// FROM THE FLOOR TO THE BRIM: both ends of the rest line are the
-			// tank's own, so an empty jar has no strip of nothing along the bottom
-			// and a full one no gap above the water.
-			//
-			// A SKY THAT CANNOT BE SPENT. The mapping deliberately OVERSHOOTS —
-			// `h + amp`, so a brim-full jar's swell still reaches the ceiling —
-			// and the cost would be arriving there early: at 95% the water at the
-			// top of the glass with nowhere for anything to happen. Every bound in
-			// this file is written in terms of the headroom; when the headroom is
-			// gone they are all bounding zero. So the last of the fill is
-			// COMPRESSED rather than clipped: below three quarters the mapping is
-			// plain, and above it the remaining rise approaches a ceiling of
-			// `h - SKY` without ever touching it. 99% is visibly fuller than 85%
-			// and both still have a strip of air. A clamp would flatten them into
-			// the same picture; an asymptote keeps the progress and still promises
-			// the sky.
-			//
-			// THE RESERVE IS A PROPERTY OF THE TARGET, NOT OF THE FRAME. Computed
-			// from the ANIMATING level, the pour would travel through the steep
-			// part of the curve and the last stretch of an even rise would close
-			// several pixels in a frame — a curve the animation moves ALONG is
-			// always traversed at whatever speed the animation is going. So the
-			// shape is worked out once for where the jar is GOING, and the pour is
-			// a plain proportion of it: the mapping is identical at rest, and the
-			// climb to it is as smooth as the easing itself, because it is the
-			// easing itself.
-			const SKY   = 8;
-			const maxH  = h - SKY;
-			const knee  = maxH * 0.75;
-			const aimAt = Math.max(0.0001, Math.min(1, r));
-			const aimRaw = aimAt * (h + amp);
-			const aimSoft = aimRaw <= knee ? aimRaw
-				: knee + (maxH - knee) * (1 - Math.exp(-(aimRaw - knee) / (maxH - knee)));
-			// A cell of glass left at 99%, closed completely at 100% —
-			// decided by the goal, once, rather than sampled mid-climb.
-			const brim  = Math.max(0, Math.min(1, (aimAt - 0.85) / 0.15));
-			const aimH  = aimSoft + (aimRaw - aimSoft) * Math.pow(brim, 16);
-			const bodyH = aimH * (inJar / aimAt);
-			const restY = h - bodyH;
-			f.restNow = restY;
-			restSeen = restY;
-			const tank  = Math.max(1, h - restY);
-			// The crest line, kept per column: the aurora starts AT THE
-			// SURFACE and works downward, so it needs to know where the
-			// water's top actually is in each column rather than
-			// assuming a flat line the waves have long since left.
-			f.surfaceY = new Array<number>(cols);
-			// THE GEYSER'S SHAPE, hoisted: the shading pass needs to know how much
-			// of a column is jet, so the profile is computed once per column
-			// instead of living inside the surface sum.
-			//
-			// `stage.jet` is the stage's CLOCK (1 at the first frame, 0 when the
-			// water meets the walls); the column's height and reach are shaped
-			// here, separately, because tying both to the clock linearly makes a
-			// shrinking hump — at half-time half the height and half the width,
-			// which the eye reads as "the middle bulges", not "a column lands and
-			// collapses outward".
-			//
-			//   HEIGHT holds early, plunges late (1 - gone²): a column is still a
-			//   column at half-time.
-			//   REACH starts at two cells and ACCELERATES to the walls (gone^1.7):
-			//   slow to let go, quick to arrive, which is what a collapse outward
-			//   looks like.
-			//   CENTRED ON THE LATTICE: distance runs from the CELL'S CENTRE to the
-			//   canvas's centre, or the peak sits one cell right of centre — a
-			//   quarter of the whole column at birth.
-			//
-			// THE STAGE ONLY CARRIES `jet` DURING THE RISE — every later stage
-			// omits the key, and `1 - undefined` is NaN, which `0 · NaN` does NOT
-			// rescue: every column's surface would come out NaN, the `y + CELL <=
-			// surf` skip would never fire, and the whole jar would paint in the
-			// last valid colour the context held (`hsla(NaN,…)` is an assignment
-			// canvas silently ignores) — instantly full, and green for ever. Read
-			// once, defaulted once, used everywhere below; nothing else touches
-			// `stage.jet` raw.
-			//
-			// …AND A BRIM-FULL JAR HAS NO JET AT ALL. A column arriving in the
-			// middle and collapsing outward is right for a jar with room; at the
-			// top of the range there is no air for a column to stand in, and its
-			// collapse is where the pour's turbulence comes from. What is left when
-			// the jet is taken away is water seeping up from below and filling the
-			// tank calmly, the way a spring fills a pool — the level simply rises,
-			// evenly across the width, with the bubbles carrying it. The jet fades
-			// out across the same band the sky reserve closes over, so no fill
-			// gains or loses it suddenly.
-			const jetNow = (f.stage.jet || 0) * calmRise;
-			// THE SPRING'S OWN MOUND. With the jet gone a brim-full
-			// pour had nothing at the middle at all — the level simply
-			// rose, which is calm but says nothing about WHERE the
-			// water is coming from. A spring has a low swell over its
-			// mouth, and that swell is what the blobs roll off. It is
-			// a fifth the height the jet's column was and it does not
-			// collapse: it stands while the water rises and eases away
-			// as the jar fills, so the surface is never disturbed by
-			// its going. Exactly the inverse of `calmRise` — it exists
-			// only where the jet does not.
-			const pourU  = Math.max(0, Math.min(1,
-				(f.now - pourStart) / POUR_MS));
-			const spring = brimEase * Math.sin(Math.PI * Math.min(1, pourU * 1.06))
-				* (rNow > 0.02 ? 1 : 0);
-			springNow = spring;
-			const jetProfile = (x: number) => {
-				if (!jetNow) return 0;
-				const d    = Math.abs(x + CELL / 2 - w / 2);
-				const gone = 1 - jetNow;               // 0..1 outward
-				const half = CELL * 2 + Math.pow(gone, 1.7) * (w / 2);
-				if (d > half) return 0;
-				// A DOME IS A HUMP. The raw cosine carries its flanks
-				// nearly to the rim, so at any width past a few cells
-				// the eye reads "bulge" — which is what the vault
-				// reported. Raised to a power, the flanks fall away
-				// and the peak keeps its height: a jet with skirts,
-				// slimmer than its own reach all the way to the walls,
-				// at birth and mid-collapse alike.
-				return Math.pow(
-					Math.cos((d / Math.max(1, half)) * Math.PI / 2), 2.6);
-			};
-			for (let gx = 0; gx < cols; gx++) {
-				const x = gx * CELL;
-				// How much of this column is jet (0..1), and its lift.
-				// Height in TANK units, not in wave units.
-				const jetK  = jetProfile(x);
-				const rise  = (h - 12) * 0.85
-					* (1 - Math.pow(1 - jetNow, 2));
-				const jetLift = jetK * rise;
-				// TRAVELLING WAVES, not standing ones. A standing pattern
-				// (`cos(nπx/w) · cos(ωt)`) is what water in a container really does,
-				// and it reads as the whole surface pumping up and down in place —
-				// correct and lifeless. Three drifting sines, deliberately
-				// incommensurate so the surface never repeats, are what this gauge
-				// looks right with. Physics lost to the eye, which is the right way
-				// round for an ornament. `let`, because the clamp below writes it: the
-				// sum of several separately-bounded terms still needs one bound of its
-				// own.
-				let surf = restY
-					+ Math.sin(x * 0.055 + f.t * 1.15) * amp
-					+ Math.sin(x * 0.021 - f.t * 0.70) * amp * 0.7
-					+ Math.sin(x * 0.130 + f.t * 1.90) * amp * 0.22
-					// The slosh: one long wave across the whole tank,
-					// slower than the three and dying away, so a jar
-					// just filled rocks before it settles.
-					// The slosh rides on the stage too, loudest through
-					// the splash and gone by the time the water stills.
-					+ Math.sin((x / Math.max(1, w)) * Math.PI
-						+ f.t * 2.6 + sloshPhase) * amp * 1.4
-						* Math.max(0, f.stage.wave - 0.6)
-					// EACH POKE, as a ring spreading from where it was pressed: a wave
-					// whose phase is the DISTANCE from that point, so the crest travels
-					// outward both ways rather than the whole surface moving at once. It
-					// fades with distance and with age, and the two together are what
-					// make it read as a disturbance rather than as a new mode.
-					//
-					// THE GEYSER. While the water is arriving it is heaped in the MIDDLE
-					// and running outward — a column landing hard rather than a level
-					// rising evenly. Measured against the TANK, not the wave amplitude (a
-					// bulge on the waves comes to two pixels and the water simply looks
-					// like it rose): a narrow column standing most of the jar's height at
-					// the moment it starts, collapsing and spreading until it reaches the
-					// walls, which is where the splash comes from. Narrow first and wide
-					// later: a jet is a column when it arrives and a swell by the time it
-					// gets to the sides.
-					- jetLift
-					// BOUNDED AS A SET, the recurring lesson. Each ring
-					// is amp * 2.4 and there can be four of them at once;
-					// clicking fast puts four fresh pokes within a few
-					// cells of each other and they simply ADDED, so the
-					// rings alone could raise the surface by ten times
-					// the ambient swell. The stack is held to a little
-					// over one ring, which is what overlapping ripples
-					// really do.
-					+ (() => {
-						let ring = 0;
-						for (const pk of pokes) {
-							const d   = Math.abs(x - pk.x);
-							const age = (f.now - pk.t) / 1000;
-							if (age > 1.6) continue;
-							ring += Math.sin(d * 0.09 - age * 9.5)
-								* Math.exp(-d / 42)
-								* Math.exp(-age * 2.6);
-						}
-						return Math.max(-1.3, Math.min(1.3, ring)) * amp * 2.4;
-					})()
-					// A DRAW TOWARD THE ORB, not a heap: the surface is pulled UP under
-					// the ball and dented either side of it, so the water looks like it is
-					// being drawn off rather than piled on. Small: the real gathering is
-					// the level falling (see `shown`), and this is only the tell that the
-					// jar is losing it from THERE.
-					//
-					// THE SLOSH, as a slope across the tank. Measured from the middle, so
-					// the water pivots about its centre rather than about one wall — a
-					// tank tipped at one end lifts there and drops at the other, and the
-					// level in between is unchanged. Which is also what keeps the READING
-					// honest: a slope about the centre moves no water on average, so the
-					// percentage the jar reports cannot be tilted. The profile is not a
-					// straight line: real slosh piles up steeply at the ends and stays
-					// flatter through the middle, so the slope is bent by a gentle cube —
-					// enough that the ends dominate.
-					- (tilt !== 0 ? (() => {
-						const u = (x - w / 2) / (w / 2);        // -1..1
-						const bent = 0.55 * u + 0.45 * u * u * u;
-						return bent * tilt * Math.min(h * 0.34, tank * 0.5);
-					})() : 0)
-					// THE SPRING'S SWELL, over the mouth of the fill. A
-					// low dome at the middle while a brim-full jar is
-					// rising: bounded against the headroom like every
-					// other term, and gone by the time the pour ends.
-					- (spring > 0.01 ? (() => {
-						const dS = Math.abs(x - w / 2);
-						return Math.exp(-(dS * dS) / 2600) * spring
-							* Math.min(waveAmp() * 1.6, f.restNow * 0.42);
-					})() : 0)
-					// THE INK'S GATHERED MOUND belongs to the RUN of presses:
-					// each click adds a share (see `inkPress`), the drawn height
-					// chases the count with mass (the filter by `stir`), and a
-					// full mound is spent as a wave at the opposite wall. A lone
-					// click is a swell that subsides; a run is a mound growing
-					// under the clicking.
-					- (inkHump > 0.01 ? (() => {
-						const d = Math.abs(x - inkChargeX);
-						// The mound's water comes from somewhere: A RING, NOT A CENTRED DIP.
-						// A moat on the same centre as the heap but wider is very nearly a
-						// CONSTANT across the heap, which flattens a dome into a plateau. The
-						// trough belongs BESIDE the mound, where the water it is made of
-						// actually comes from — zero at the centre, deepest about forty pixels
-						// out — so the peak keeps its full height, the surface visibly dips
-						// either side, and the eye reads water being DRAWN IN from the
-						// vicinity rather than a slab being lifted.
-						const heap = Math.exp(-(d * d) / 1300);
-						// The ring sits close in and falls away quickly: a trough still deep
-						// half a tank away is just a lower water level, not water drawn toward
-						// a mound.
-						const ring = d - 42;
-						const moat = Math.exp(-(ring * ring) / 1100) * 0.34;
-						// TWO SCALES, AND THIS IS THE POINT. The mound is bounded by the SKY
-						// (restNow, like the gather and the waves) — and in this band the sky
-						// is nearly gone: at 85% the headroom is about eight pixels, so the
-						// whole hump comes to ONE CELL on a five-pixel lattice. The trough is
-						// bounded by the WATER instead, and there is plenty of that: a jar
-						// with no sky still has depth. So the relief is bought downward — one
-						// cell up at the peak, two or three down either side — and the mound
-						// reads as a dome with water drawn in around it rather than as a tile
-						// lifted off the surface. Which is also the more honest picture: this
-						// IS water being gathered from the vicinity, and the vicinity is where
-						// it visibly leaves.
-						const reach = Math.min(waveAmp() * 5.5, f.restNow * 0.62);
-						// DEEP ENOUGH TO CROSS A CELL: it is drawn on the same coarse grid as
-						// everything else, so any relief that matters has to be worth a whole
-						// cell or more.
-						const sink  = Math.min(waveAmp() * 4.6,
-							(h - f.restNow) * 0.34);
-						return heap * inkHump * reach
-							- moat * inkHump * sink;
-					})() : 0)
-					// THE TRAVELLING WAVE. A crest at the wave's own position, a shallow
-					// trough behind it, and both fading as it goes: water thrown forward
-					// leaves a hollow where it came from, and a bump with no hollow reads
-					// as a bulge sliding along rather than as a wave moving through.
-					//
-					// CAPPED AS A WHOLE, not one wave at a time: with each wave held to
-					// the headroom and their SUM held to nothing, a press in the middle
-					// (which makes two) repeated quickly stacks crest on crest at the same
-					// column until the surface leaves the canvas. Water does not add like
-					// that — two crests meeting make one bigger crest, not one twice as
-					// tall — so the total is squashed through a soft knee: below the
-					// ceiling it is untouched, above it, it compresses instead of
-					// clipping. Clipping would flatten the tops into a hard plateau, which
-					// is its own kind of wrong.
-					- (() => {
-						const ceil = waveAmp() * 3.4;
-						const raw = waves.reduce((sum, wv) => {
-						const d = x - wv.x;
-						const ad = Math.abs(d);
-						if (ad > 150) return sum;
-						const age = wv.born ? (f.now - wv.born) / 1000 : 0;
-						if (age > WAVE_LIFE) return sum;
-						// Spends itself over its life AND over the
-						// distance it has run, so a wave crossing a wide
-						// jar arrives quieter than one crossing a narrow
-						// one — which is what a wave does.
-						const spend = Math.exp(-age / (WAVE_LIFE * 0.55));
-						const crest = Math.exp(-(ad * ad) / (wv.wid || 900));
-						// The hollow sits BEHIND it: behind is the side
-						// it came from, which is the opposite of its
-						// direction of travel.
-						const back  = d * wv.dir;
-						const hollow = back < 0
-							? Math.exp(-(back * back) / ((wv.wid || 900) * 5.8))
-								* (wv.hollow || 0.42) : 0;
-						return sum + (crest - hollow) * wv.amp * spend;
-						}, 0);
-						if (raw <= ceil && raw >= -ceil) return raw;
-						const over = Math.abs(raw) - ceil;
-						const sign = raw < 0 ? -1 : 1;
-						// tanh-ish knee: the first pixels over the
-						// ceiling still count for something, the
-						// hundredth for almost nothing.
-						return sign * (ceil + ceil * 0.45 * (1 - Math.exp(-over / (ceil * 0.9))));
-					})()
-					// THE HELD PRESS. A mound rises under the finger while
-					// the button is down and leaves with the wave when
-					// it lets go — so a click is a wave and a HOLD is a
-					// bigger one, with the water visibly gathering for
-					// it rather than the size arriving out of nowhere.
-					// It eases in, so there is no step at the moment of
-					// pressing.
-					- (hold ? (() => {
-						// THE HUMP HAS TO BE SEEN TO GROW. It was a
-						// gentle 2.6× bump easing in over a second, which
-						// on a shallow jar is a couple of pixels — the
-						// gather was happening and could not be watched.
-						// It is taller, wider, and it MOVES EARLY: the
-						// curve is a square root rather than a cubic, so
-						// a third of the mound is up within the first
-						// fifth of a second and the rest arrives while
-						// you are already watching it. A gather you
-						// notice only in hindsight is not a gather.
-						const held = Math.min(1, (f.now - hold.t) / 1000);
-						const eased = Math.pow(held, 0.55);
-						const d = Math.abs(x - hold.x);
-						// …and the water it is made of comes from
-						// somewhere: a shallow moat around the mound,
-						// wider and far weaker, so the surface reads as
-						// being DRAWN IN rather than pushed up.
-						const heap  = Math.exp(-(d * d) / 2600);
-						const moat  = Math.exp(-(d * d) / 26000) * 0.30;
-						// waveAmp(), NOT `amp`: `amp` carries the frame's `stir`, which is
-						// near zero on still water, so a mound sized by it would be multiplied
-						// away by the very stillness it was meant to break. The gather is the
-						// writer's, not the weather's: it is sized by the JAR and looks the
-						// same on a glassy tank as on a churning one. AGAINST THE HEADROOM,
-						// like the waves — a share of the room that is actually there, so a
-						// shallow jar gathers a small mound and a deep one a big one, and
-						// neither goes over — AND BY THE WATER, not only the sky: a gather
-						// must not stand taller than the thing it is gathered from.
-						const reach = Math.min(waveAmp() * 7.5, f.restNow * 0.62,
-							(h - f.restNow) * 0.8);
-						return (heap - moat) * eased * reach;
-					})() : 0)
-					- (orb.amount > 0.01 ? (() => {
-						const d = Math.abs(x - orb.x);
-						const lift = Math.exp(-(d * d) / 3000) - Math.exp(-(d * d) / 30000) * 0.32;
-						const draw = lift * orb.amount * amp * 3;
-						// DISPLACEMENT. Whatever of the ball is BELOW the
-						// line has to push water aside — that is what
-						// makes a body in a liquid a body rather than a
-						// picture laid over one. The chord of the sphere
-						// at this column is how much of it is in the way
-						// here, and how far under it sits is how much of
-						// that chord counts, so the bulge is tallest
-						// under the middle and dies at the edges by
-						// itself. Held gentle: the jar has to keep
-						// reading as a gauge while somebody plays with
-						// it, and a wall of water where the reading
-						// should be is not a gauge.
-						const R = orbR() * (1 + orbEcc());
-						if (d >= R) return draw;
-						const chord = 2 * Math.sqrt(R * R - d * d);
-						// Measured against the REST LINE, not against the
-						// surface being computed: the sum is still being
-						// built at this point, so the wave's own height
-						// here is not yet a number. `restNow` is the flat
-						// level the water oscillates about, which is the
-						// right datum anyway — a body does not displace
-						// more because a wave happened to pass under it.
-						const under = Math.max(0, Math.min(1,
-							((orb.y + R) - f.restNow) / (2 * R)));
-						return draw - chord * under * 0.22;
-					})() : 0);
-				// THE SURFACE MAY NOT LEAVE THE CANVAS. Every term above
-				// is bounded on its own — the waves as a stack, the
-				// gather against the headroom, the geyser by its stage —
-				// and none of that adds up to a guarantee, because they
-				// are bounded SEPARATELY and drawn TOGETHER. A mound and
-				// a stack of crests at the same column could still put
-				// the water over the ceiling, and a surface above the
-				// ceiling means every cell in the column is water: the
-				// tank filling with one colour, which is the flash.
-				//
-				// This is the guarantee, in one line, at the one place
-				// every term has already been summed. Above it the water
-				// flattens against the top rather than vanishing over
-				// it — a brimming tank, which is at least what it would
-				// really do.
-				// THE JAR ALWAYS KEEPS SOME SKY. Clamping to the canvas
-				// stopped the surface leaving the picture but not the
-				// tank FILLING it — a column clamped at the top is a
-				// column that is water all the way up, which is the
-				// flash itself. It bounds the drawing, not the filling.
-				//
-				// Moving the pointer while clicking is what reached it:
-				// the mound follows the cursor, so instead of piling on
-				// one spot it lays a fresh full-height mound wherever
-				// the cursor now is, on top of whatever waves happen to
-				// be passing there.
-				//
-				// So the water may never climb more than three quarters
-				// of the way from its rest line to the ceiling, whatever
-				// the terms above want. A quarter of the headroom is
-				// always left, which means the tank can always be told
-				// from its own contents — and the cap is on the FINISHED
-				// height, so it holds however many effects are added
-				// later and however they interact.
-				// THE CONTACT LINE. Water meets glass at the two walls,
-				// and until now only the SHADING knew it (the meniscus
-				// cling) — the height field treated the wall columns
-				// like any other, so a wave arrived at the side and
-				// simply stopped, with no climb where it hit. Real
-				// water reflects at a wall, and reflection doubles the
-				// displacement there; drawn water gets a share of
-				// that: the outer two columns amplify how far they sit
-				// from the REST line, crests more than troughs,
-				// because water climbing glass clings and water
-				// leaving it lets go. A pure function of this frame's
-				// own sum — no state, no clock of its own — so it
-				// cannot flicker, and a settled jar (dev = 0) is
-				// untouched to the pixel. It sits ABOVE guard 4 on
-				// purpose: the climb is one more term that is bounded
-				// on its own and not when summed, and the quarter-sky
-				// clamp below is the only place that promise is kept.
-				{
-					const wallD = Math.min(gx, cols - 1 - gx);
-					if (wallD < 2 && f.restNow > 0) {
-						const kW  = wallD === 0 ? 1 : 0.45;
-						const dev = f.restNow - surf;   // >0: above rest
-						surf -= dev * (dev > 0 ? 0.60 : 0.25) * kW;
-					}
-				}
-				// …AND NOT TALLER THAN ITSELF, BY MUCH. The quarter-sky floor alone
-				// is a LOW-FILL trap: at 20% the headroom is ~56px, so "keep a
-				// quarter" still allows a climb of twice the water's depth, and
-				// aggressive clicking from many points stacks waves, pokes and stirred
-				// sines until a fifth of a jar momentarily wears a full jar's
-				// silhouette. So the finished height also answers to the water's own
-				// BODY: three quarters of its own depth above the rest line — a splash
-				// can reasonably stand most of the depth it came from; it cannot stand
-				// twice it. Same lesson, same address: bounded after the sum, or not
-				// at all.
-				//
-				// AND ONE WHOLE CELL OF AIR, ALWAYS. Both bounds above are SHARES, and
-				// a share of a small number is a small number: with the rest line at
-				// 13px a quarter of the headroom is 3px, which on a five-pixel lattice
-				// is not a row of anything. The last bound is therefore absolute — the
-				// crest may not enter the top row, so there is a strip of glass above
-				// the water at every fill the water exists at, and the jar always
-				// reads as a container with something in it rather than a solid block
-				// of colour. …AND THE ABSOLUTE FLOOR NEVER PUSHES WATER DOWN: it exists
-				// to stop a CREST climbing into the top row, so it is bounded by the
-				// rest line itself — it can only ever hold a wave back, never lower
-				// the water.
-				const floorY = Math.max(f.restNow * 0.25,
-					f.restNow - (h - f.restNow) * 0.75, Math.min(6, f.restNow));
-				if (f.restNow > 0) surf = Math.max(floorY, surf);
-				surf = Math.max(1, Math.min(h, surf));
-				f.surfaceY[gx] = surf;
-				// LANES: a phase that varies across the tank but not
-				// with time. Perfectly horizontal bands rising in
-				// lockstep are the other half of "robotic"; giving each
-				// column its own offset bends them into something that
-				// flows. This is NOT the coupling the invariant forbids
-				// — these are computed from x ALONE, so every column
-				// still moves purely vertically and at the same speed;
-				// only the phase differs. What is banned is x
-				// multiplied into the clock, which is what gives a
-				// pattern a sideways answer.
-				//
-				// Per COLUMN, not per cell: they do not vary with y, and
-				// the shaft (computed first in the cell loop) needs them
-				// too — defining them beside the caustics put one of
-				// them below its own first use.
-				const lane  = Math.sin(x * 0.031) * 2.1
-					+ Math.sin(x * 0.013 + 1.7) * 1.3;
-				const lane2 = Math.sin(x * 0.021 + 0.6) * 1.8;
-				for (let gy = 0; gy < rows; gy++) {
-					const y = gy * CELL;
-					if (y + CELL <= surf) continue;
-					// Slow, wide columns of light — the same trick as a
-					// light shaft through water, and what stops the fill
-					// from being uniform side to side. It used to sweep
-					// SIDEWAYS at 13px/s, which made it (with the hue
-					// drift) the fastest thing in the tank and the reason
-					// a still jar read as flowing right-to-left. It keeps
-					// its x term, so the shafts still differ column to
-					// column, but the phase climbs. Computed per CELL
-					// rather than per column now, because a phase that
-					// depends on y cannot be lifted out of the y loop.
-					// The shaft: a slow swell of light climbing the
-					// tank, with a STATIC side-to-side term so the
-					// columns still differ from one another. Same rule
-					// as the caustics — x never shares a sine with the
-					// clock, or the shaft slides sideways at 50px/s and
-					// takes the whole picture with it.
-					const shaft = 0.5
-						+ 0.35 * Math.sin(y * 0.070 + lane2 * 0.7 + climb * 0.55)
-						+ 0.15 * Math.sin(x * 0.017);
-					const below = y - surf;
-					// Depth below the surface, normalised on THIS COLUMN'S
-					// water rather than on the rest level alone. During
-					// the geyser the column stands most of the jar above a
-					// rest line still near the floor, so `below / tank`
-					// saturated within about one cell of the cap —
-					// everything under the crest wore full-depth shading
-					// AND the sediment block, and the eruption drew as a
-					// black pillar. Normalised on the water actually
-					// standing in the column, the ramp spreads down its
-					// height instead. Settled frames are untouched: there
-					// `h - surf` only exceeds the tank under a crest, and
-					// by at most the wave amplitude.
-					//
-					// AND THE JET IS AERATED. Rising water is full of air
-					// and light — it is the brightest thing in a real
-					// fountain, not the darkest — so the shading depth is
-					// scaled down by how much of this column is jet,
-					// fading back to honest depth as the stage hands over
-					// to the waves. Sediment follows for free: grains do
-					// not settle in an upward jet, and a shallowed depth
-					// never crosses the sediment line while the column is
-					// actually erupting.
-					//
-					// The cell the surface passes through is only partly
-					// wet, so `below` goes negative there — clamped,
-					// because a negative depth would brighten the ramp
-					// backwards.
-					// …and never deeper than the glass. A full jar's
-					// `tank` is h PLUS the swell, so the deepest cell
-					// reached only ~0.73 of the ramp: the whole tank
-					// sat mid-light with nothing dark to push against,
-					// which is the "washed out at 100%" the vault
-					// reported. Clamped to the canvas, a full jar uses
-					// the whole ramp. The geyser is unaffected — its
-					// column is aerated below, which is what keeps a
-					// deep reading from becoming a black pillar.
-					const tankCol = Math.min(h, Math.max(tank, h - surf));
-					const depth = quant(Math.max(0, Math.min(1, below / tankCol))
-						* (1 - 0.65 * jetK * jetNow));
-					// Caustics: two diagonal ripple fields crossing, which is what throws
-					// the wobbling net of light through real water. Quantised coarsely so
-					// it lands as blocks of brightness rather than a smooth sheen, and
-					// faded with depth because the light does not reach the bottom. DEPTH
-					// PARALLAX: the second field is slowed (the two rates keep their
-					// ratio, 0.41) and given a little more scale, so it sits BEHIND the
-					// first — the cheapest depth there is, and the reason real water looks
-					// deep.
-					//
-					// THE FLOW RISES. Water at rest convects upward — warmth and light
-					// climb — and the climb SPEEDS UP as the surface stills, so the body
-					// of the water takes over the motion the waves are giving up. AND IT
-					// RISES ONLY: a sine `sin(kx·x + ky·y + wt)` is a STRIPE pattern, and
-					// stripes match themselves under any shift ALONG the stripe, so "which
-					// way is it moving" has a whole family of answers and the eye takes
-					// the cheap one — sideways, at w/kx, which grows as the pattern
-					// steepens. There is no tuning out of it: x is gone from every MOVING
-					// term, the drifting fields are functions of y and t alone, and the
-					// picture is invariant under horizontal shift. The side-to-side
-					// variation that keeps the tank from looking uniform is a STATIC term
-					// in x, which textures without travelling.
-					const caus = quantA(0.5
-						+ 0.26 * Math.sin(y * 0.150 + lane + climb * 1.60)
-						+ 0.15 * Math.sin(y * 0.062 + lane2 + climb * 0.72)
-						+ 0.11 * Math.sin(y * 0.230 + lane * 1.6 + climb * 2.30)
-						+ 0.10 * Math.sin(x * 0.045));
-					// CALM WATER FOCUSES. Real caustics are crispest on a
-					// glassy surface and wash out when it churns, and
-					// the settled jar is exactly where this gauge had
-					// least to look at. The net's contrast is stretched
-					// about its own midpoint as `calm` rises — quantised
-					// again afterwards, so it stays a lattice of steps
-					// rather than becoming a gradient.
-					const causS = quantA(0.5 + (caus - 0.5) * (1 + 1.15 * calm));
-					const causDepth = causS * (1 - depth * 0.65);
-					// Hue drift: a few degrees, moving with time, depth and the caustic
-					// field. Big enough to notice on a slow look, small enough that it
-					// never reads as a cycle.
-					//
-					// THE INK, sampled where this cell is. Each drop opens out from where
-					// it landed and fades over a few seconds, and a cell inside one is
-					// pulled toward that drop's colour rather than tinted a flat amount —
-					// so the middle of a fresh drop is strongly its own colour and its
-					// edges barely differ from the water. `reach` grows with age, which is
-					// the spreading.
-					let inkH = 0, inkW = 0;
-					for (let ii = 0; ii < inks.length; ii++) {
-						const ik = inks[ii];
-						const iAge = (f.now - ik.t) / 1000;
-						if (iAge > INK_LIFE) continue;
-						let dx3 = x - ik.x, dy3 = y - ik.y;
-						const dist = Math.sqrt(dx3 * dx3 + dy3 * dy3);
-						// A SLOW CURL WHERE THE INK WENT IN. Ink dropped
-						// into water does not open as a perfect ring —
-						// it turns, because the water it displaced is
-						// still moving around it. The sample point is
-						// rotated about the drop by an angle that FALLS
-						// OFF with distance and fades with age, so the
-						// front near the centre lags and drags into a
-						// comma while its outer reaches stay round.
-						//
-						// It is the COLOUR field that turns, not the
-						// surface. This is the same shear that made the
-						// aurora's press read as a knot, and it is
-						// welcome here for the opposite reason: ink IS
-						// a substance being stirred, where the aurora's
-						// curtains are not, and the height field is
-						// left alone so a full jar gains no turbulence
-						// from it. Tiny by construction — about a fifth
-						// of a radian at the middle of a fresh drop —
-						// because past that the ring stops reading as a
-						// ring at all.
-						if (dist > 0.5 && dist < 90) {
-							const curl = (ik.spin || 1) * 0.22
-								* Math.exp(-dist / 34)
-								* Math.exp(-iAge / 1.6);
-							if (curl > 0.004) {
-								const ca3 = Math.cos(curl), sa3 = Math.sin(curl);
-								const rx = dx3 * ca3 - dy3 * sa3;
-								dy3 = dx3 * sa3 + dy3 * ca3;
-								dx3 = rx;
-							}
-						}
-						// A FRONT, NOT A BLOB — and this is the burst
-						// itself, moved into the medium it belongs in.
-						//
-						// The press used to express "something entered
-						// the water" as two travelling WAVES: a burst
-						// written into the surface. In a jar this full
-						// there is no headroom, so any surface motion
-						// there is turbulence — which is why 1.5×, then
-						// 0.62×, then 0.28× all felt wrong. The
-						// amplitude was never the problem; the surface
-						// was the wrong instrument for this band.
-						//
-						// So the burst is a ring of COLOUR racing
-						// outward instead. `edge` is where the front has
-						// got to, growing quickly and easing as it
-						// slows; a cell is coloured by how near it is to
-						// that radius rather than to the centre. The
-						// result travels, and the water never moves.
-						const grow = 1 - Math.pow(1 - Math.min(1, iAge / INK_LIFE), 2.2);
-						const edge = grow * (56 + 74 * (ik.push || 1));
-						// The shell thickens as it opens, so a young
-						// front is a sharp ring and an old one is a
-						// broad, soft cloud that has lost its edge.
-						const band2 = 90 + 340 * grow;
-						const ring = Math.exp(-((dist - edge) * (dist - edge)) / band2);
-						// INSIDE STAYS TINTED, faintly. A front with
-						// nothing behind it is a smoke ring; ink leaves
-						// a wake, so the interior keeps a third of the
-						// colour and the edge carries the rest.
-						const inside = dist < edge ? 0.34 : 0;
-						const near = Math.min(1, ring + inside);
-						if (near < 0.02) continue;
-						// Fades in over its first fifth of a second, so
-						// a drop arrives rather than appearing.
-						const life = Math.min(1, iAge / 0.2)
-							* Math.max(0, 1 - iAge / INK_LIFE);
-						const wgt = near * life;
-						inkH += ik.hue * wgt;
-						inkW += wgt;
-					}
-					const hue = (inkW > 0.001
-						? hueNow() + (inkH / inkW - hueNow()) * Math.min(0.85, inkW)
-						: hueNow())
-						+ Math.sin(f.t * 0.28 + depth * 2.4) * 7
-						// THIS ONE WAS THE FASTEST SIDEWAYS THING IN
-						// THE TANK — 16px/s, purely horizontal — and
-						// a colour drift moving crosswise pulls the
-						// whole picture with it however the light
-						// behaves. It climbs with everything else now.
-						+ Math.sin(y * 0.045 + climb * 0.30) * 4
-						+ causDepth * 4;
-					// Four bands down the column, each with its own treatment rather than
-					// one continuous ramp: the crest cap, the foam under it, open water,
-					// and the sediment at the floor. THE MENISCUS: real water clings to
-					// what holds it, so the top row is lighter and more opaque than the
-					// water under it, and thickens toward the two walls where the clinging
-					// actually happens. It is the cheapest thing in this gauge that reads
-					// as LIQUID rather than as fill.
-					const wall = Math.min(gx, cols - 1 - gx);
-					// THE MENISCUS THINS AS THE WATER SETTLES. Real
-					// clinging does not, but the drawn one has to: at
-					// full thickness the white band is right on a
-					// churning surface — where it IS the foam of a
-					// wave — and far too heavy on a still one, where
-					// the vault read it as a thick white lid rather
-					// than as the water's edge. Both the base skin
-					// and the extra the walls get shrink toward calm,
-					// so a settled jar keeps a hairline and a moving
-					// one keeps its foam.
-					const cling = 1 + (wall < 2
-						? (2 - wall) * 0.9 * (1 - 0.72 * calm) : 0);
-					// ONE CELL AT REST, and the arithmetic is deliberate.
-					// A still surface is FLAT, so every column agrees
-					// on where it falls between two cells — the crest
-					// band is therefore all-or-nothing across the
-					// whole tank, and at the old thickness it landed
-					// TWO rows of near-white on every column: the
-					// thick white lid the vault reported. The rest
-					// threshold is pushed inside the cell the surface
-					// passes through (whose `below` is negative), so
-					// calm water wears a one-cell hairline and the
-					// wall cling cannot push it to two either.
-					const skin  = 1 - 0.82 * calm;
-					// The crest's own edge is DITHERED, and more so the
-					// livelier the water: a calm surface keeps a clean
-					// line, and a churning one breaks up into the foam
-					// under it rather than staying a drawn curve. The
-					// stage decides how much, so this is the same
-					// energy the waves and the spray are answering to.
-					// CAPPED. This scattered the crest boundary by
-					// ±0.6 cells per unit of stir, and stir runs to
-					// 3.6 — so at full pour the bright band's edge
-					// jumped two cells in and out on a per-cell
-					// pattern, which is speckle rather than foam, and
-					// it is most of what "flickers a lot with white"
-					// was. The dither still breaks the line up; it can
-					// no longer strobe across it.
-					const chop = (((gx * 5 + gy * 11) % 8) / 8 - 0.5)
-						* CELL * 1.2 * Math.min(1.35, stir);
-					const crest = below < CELL * cling * skin + chop;
-					// The foam under the crest thins with it, or the
-					// band merely moves from one white to a slightly
-					// less white one and the lid is still a lid.
-					const foam  = below < CELL * (2.5 - 1.15 * calm);
-					let lig, sat, alpha;
-					if (crest) {
-						// The lit edge of the wave: BRIGHT WATER, NOT WHITE. A crest cell that
-						// is very nearly white makes a full jar, whose surface sweeps most of
-						// the tank, throw white across the picture every frame; a lit crest is
-						// bright enough to be the top of a wave and still carries the jar's
-						// own colour. THE CREST READS AGAINST THE PAPER IT IS ON: on a light
-						// theme a flat lift lands DARKER than white paper, and the meniscus
-						// reads as a grey line drawn along the top of the water instead of
-						// light on its edge — so it is pushed well past the paper on light
-						// schemes and left where it is on dark ones.
-						lig   = baseLig + (lightPaper ? 34 : 22) + causDepth * 6;
-						sat   = baseSat - (lightPaper ? 6 : 12);
-						alpha = 0.96;
-					} else if (foam) {
-						lig   = baseLig + 14 + causDepth * 8;
-						sat   = baseSat - 6;
-						alpha = quantA(0.80 + caus * 0.12);
-					} else {
-						// DEEP WATER IS DEEP, NOT BLACK — and not chalk. What differs between
-						// a dark popup and a white one is not the fill (`baseLig` is the
-						// SCHEME'S ACCENT, about 44 on either paper), it is the PAPER behind
-						// it, and the floor is nearly opaque. So the floor is set as a step
-						// away from the paper rather than as a value of its own: darker than
-						// the paper on white, lighter than it on black, by an amount that
-						// reads as depth without running to either end. A DEEPER STEP ON
-						// WHITE: water on white paper has to go a long way down before it
-						// reads as depth; on dark paper it has much less room.
-						const deepLig = lightPaper
-							? Math.max(22, paperLig - 60)
-							: Math.min(62, paperLig + 30);
-						lig   = (baseLig + 12) + (deepLig - (baseLig + 12)) * depth
-							+ causDepth * (9 + 6 * calm) + shaft * 5;
-						sat   = baseSat + depth * 16 - causDepth * 6;
-						// Deep water is denser: the background reads
-						// clearly through the shallows and not at all
-						// through the floor. The range is wide on
-						// purpose — a narrow one lands on two steps of
-						// the ladder and the layering disappears.
-						//
-						// ON WHITE PAPER IT STARTS DENSER. At 0.48 the
-						// shallows were half white, which on a dark
-						// popup is depth and on a light one is chalk —
-						// the vault's "washed out". The floor rises
-						// and the range shortens to keep the same
-						// ceiling, so the layering survives; the
-						// colour is simply allowed to be a colour.
-						alpha = quantA((lightPaper ? 0.70 : 0.48)
-							+ depth * (lightPaper ? 0.28 : 0.50)
-							+ caus * 0.06);
-						// …and carries more chroma, because a light
-						// backdrop bleaches what a dark one deepens.
-						if (lightPaper) sat += 12;
-					}
-					// Sediment: the last band of the tank darkens and saturates further,
-					// so the fill has a floor instead of fading out at the bottom edge. IT
-					// SETTLES TOWARD THE PAPER, not toward black: a LERP, so the deepest
-					// water walks most of the way to the surface the report is drawn on
-					// and the tank fades into its own background at the bottom on either
-					// kind of theme — a fixed subtraction on top of a ramp that already
-					// darkens is a floor on a dark popup and a bruise in the bottom of the
-					// glass on a white one. It still reads as a floor (the water above it
-					// is denser and more saturated), and it carries its own DITHER, so it
-					// is settled grains rather than a band.
-					if (depth > 0.62) {
-						const s2 = (depth - 0.62) / 0.38;
-						lig += (paperLig - lig) * s2 * 0.72;
-						// Toward the paper means toward the paper's
-						// greyness too: a deep cell that keeps full
-						// chroma while walking to a pale surface goes
-						// muddy rather than quiet.
-						sat -= s2 * (lightPaper ? 22 : -14);
-						const grit = ((gx * 3 + gy * 7) % 9) / 9;
-						if (grit < s2 * 0.55) {
-							lig += (paperLig > lig ? 1 : -1) * (4 + s2 * 5);
-						}
-					}
-					ctx.fillStyle = 'hsla(' + Math.round(hue) + ','
-						+ Math.round(Math.max(0, Math.min(100, sat))) + '%,'
-						+ band(Math.max(0, Math.min(100, lig))) + '%,'
-						+ alpha.toFixed(2) + ')';
-					ctx.fillRect(x, y, CELL, CELL);
-				}
-			}
-		};
+		const drawSurface = (f: WsJarFrame) => wsJarDrawSurface({ CELL, INK_LIFE, POUR_MS, WAVE_LIFE, agitNow, band, baseLig, baseSat, cols, ctx, flowPhase, h, hueNow, inks, lightPaper, liq, orb, orbEcc, orbR, paperLig, pokeEnergy, pokes, pourStart, quant, quantA, r, rows, sloshPhase, tilt, w, waveAmp, waves }, f);
 
 		const drawSplash = (f: WsJarFrame, splashRoom: number) => {
 			if (!splashed && f.stageMs >= S_RISE && f.surfaceY && !reduce
@@ -2443,95 +4002,7 @@ export const reportMethods = {
 			}
 		};
 
-		const drawGlow = (f: WsJarFrame) => {
-			// EVERY LEVEL, not just the ink band. A jar has water in it at
-			// 5% as much as at 95%, and water lets air go — tying bubbles
-			// to one band said they were an ink effect, which they are not.
-			//
-			// The motes' lesson still governs the RATE: a picture that moves forever asks
-			// to be watched. So they stay few, they stay slow, and a jar
-			// nobody touches makes them rarely. What changed is only which
-			// jars get them.
-			//
-			// Scaled by the water there is: a nearly-empty tank is a
-			// puddle, and a puddle does not bubble like a full one.
-			if (surfaceNow && rNow > 0.04) {
-				const busy = inks.length > 0 ? 1 : 0.18;
-				const body = 0.35 + Math.min(1, rNow) * 0.65;
-				if (f.now - bubbleAt > (620 / ((0.4 + busy) * body)) && bubbles.length < BUBBLES_MAX) {
-					bubbleAt = f.now;
-					const bx = Math.random() * w;
-					const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx / CELL)));
-					const from = surfaceNow[gxb] || h;
-					// Born in the BODY of the water, not at its floor: a
-					// bubble that always starts on the base reads as a row
-					// of vents rather than as water.
-					const depthStart = from + (h - from) * (0.25 + Math.random() * 0.7);
-					bubbles.push({
-						x: bx,
-						y: Math.min(h - CELL, depthStart),
-						// Small ones dawdle, big ones climb — which is what
-						// bubbles do, and it stops them moving as a set.
-						size: Math.random() < 0.3 ? 2 : 1,
-						rise: 16 + Math.random() * 26,
-						phase: Math.random() * 6.283,
-						wob: 0.6 + Math.random() * 1.4,
-						hue: hueNow() + (Math.random() - 0.5) * 40
-					});
-				}
-				for (let bi = bubbles.length - 1; bi >= 0; bi--) {
-					const bb = bubbles[bi];
-					bb.y -= bb.rise * (bb.size === 2 ? 1.5 : 1) * f.dt;
-					// A wobble as it goes, because a bubble does not rise
-					// in a straight line through moving water.
-					bb.phase += f.dt * 2.2;
-					const bx2 = bb.x + Math.sin(bb.phase) * bb.wob * 2.4;
-					const gxb = Math.max(0, Math.min(cols - 1, Math.round(bx2 / CELL)));
-					const line = surfaceNow[gxb] || h;
-					if (bb.y <= line + CELL * 0.5) {
-						// IT POPS, SLIGHTLY. A ring on the surface where it
-						// broke and, for a big one, a bead or two thrown —
-						// small enough that a jar full of bubbles is still
-						// a jar rather than a rolling boil.
-						if (pokes.length < POKES_MAX) {
-							pokes.push({ x: bx2, y: null, t: f.now, still: true, hue: bb.hue });
-						}
-						if (bb.size === 2 && drops.length < DROPS_MAX && Math.random() < 0.6) {
-							drops.push({
-								x: bx2, y: line - CELL,
-								vx: (Math.random() - 0.5) * 26,
-								vy: -(26 + Math.random() * 34),
-								life: 0, shed: true, pull: true,
-								hue: bb.hue, size: 1,
-								shape: Math.floor(Math.random() * 4)
-							});
-						}
-						bubbles.splice(bi, 1);
-						continue;
-					}
-					// Drawn as its own cells, on the lattice, lighter than
-					// the water it is in — a hole in the liquid, not a dot
-					// laid on top of it.
-					const px3 = Math.round(bx2 / CELL) * CELL;
-					const py3 = Math.round(bb.y / CELL) * CELL;
-					ctx.fillStyle = 'hsla(' + Math.round(bb.hue) + ','
-						+ Math.round(Math.max(0, baseSat - 18)) + '%,'
-						// 0.66: a cell you can half see through is chalk on a light theme
-						// whatever it is meant to be. A bubble reads as a hole in the liquid
-						// by being LIGHTER than the water, not by being thinner than it.
-						+ band(Math.min(96, baseLig + 30)) + '%,0.66)';
-					ctx.fillRect(px3, py3, CELL, CELL);
-					if (bb.size === 2) {
-						ctx.fillRect(px3 + CELL, py3, CELL, CELL);
-						ctx.fillRect(px3, py3 + CELL, CELL, CELL);
-						ctx.fillRect(px3 + CELL, py3 + CELL, CELL, CELL);
-					}
-				}
-			} else if (bubbles.length) {
-				// An empty jar has nothing to release.
-				bubbles.length = 0;
-			}
-		};
+		const drawGlow = (f: WsJarFrame) => wsJarDrawGlow({ BUBBLES_MAX, CELL, DROPS_MAX, POKES_MAX, band, baseLig, baseSat, bubbles, cols, ctx, drops, h, hueNow, inks, liq, pokes, w }, f);
 
 		const drawTilt = (f: WsJarFrame) => {
 			// ── THE SLOSH: swing, damp, spill ─────────────────────────────
@@ -2553,7 +4024,7 @@ export const reportMethods = {
 					// piled against, and taken OUT of the swing, so a jar
 					// driven too hard spends itself instead of ringing
 					// forever. This is what "no headroom" is for.
-					if (Math.abs(tiltV) > 0.35 && surfaceNow
+					if (Math.abs(tiltV) > 0.35 && liq.surfaceNow
 						&& drops.length < DROPS_MAX && f.now - lastSpillAt > 90) {
 						lastSpillAt = f.now;
 						const side = tilt > 0 ? cols - 1 : 0;
@@ -2563,7 +4034,7 @@ export const reportMethods = {
 						for (let k = 0; k < many; k++) {
 							drops.push({
 								x: sx + (Math.random() - 0.5) * CELL * 3,
-								y: (surfaceNow[side] || h) - CELL,
+								y: (liq.surfaceNow[side] || h) - CELL,
 								vx: (tilt > 0 ? 1 : -1) * (10 + Math.random() * 40),
 								vy: -(50 + Math.random() * 110),
 								life: 0,
@@ -2581,1118 +4052,18 @@ export const reportMethods = {
 			}
 		};
 
-		const drawWaves = (f: WsJarFrame) => {
-			// ── THE WAVES: run, clash, break ──────────────────────────────
-			if (waves.length) {
-				const spray = (px2: number, many: number, upward: number, hue: number) => {
-					const gxs = Math.max(0, Math.min(cols - 1, Math.round(px2 / CELL)));
-					const from = (surfaceNow ? (surfaceNow[gxs] || h) : h) - CELL;
-					const room = Math.max(0, Math.min(DROPS_MAX - drops.length, many));
-					for (let k = 0; k < room; k++) {
-						drops.push({
-							x: px2 + (Math.random() - 0.5) * CELL * 3,
-							y: from,
-							vx: (Math.random() - 0.5) * 90 + upward * 0,
-							vy: -(70 + Math.random() * 130),
-							life: 0,
-							shed: true,
-							hue: hue + (Math.random() - 0.5) * 60,
-							size: Math.random() < 0.34 ? 2 : 1,
-							shape: Math.floor(Math.random() * 4)
-						});
-					}
-				};
+		const drawWaves = (f: WsJarFrame) => wsJarDrawWaves({ CELL, DROPS_MAX, POKES_MAX, WAVE_LIFE, WAVE_SPEED, agitNow, cols, drops, h, liq, pokes, w, waves }, f);
 
-				for (let i = waves.length - 1; i >= 0; i--) {
-					const wv = waves[i];
-					// FIRST-FRAME ANCHOR, not the moment of the click. The
-					// handler runs on performance.now() and the draw loop on
-					// the frame's own timestamp; in the running app those are
-					// the same clock a millisecond apart, so a wave born at
-					// one and aged against the other looked fine. It is still
-					// two clocks, and the codebase has been bitten by exactly
-					// that before (see the agitation note). A wave stamped
-					// here can never be older than the frame that first saw
-					// it, whatever the two clocks think of each other.
-					if (!wv.born) wv.born = f.now;
-					const age = (f.now - wv.born) / 1000;
-					wv.x += wv.dir * (wv.spd || WAVE_SPEED) * f.dt;
+		const drawOrb = (f: WsJarFrame) => wsJarDrawOrb({ CELL, DROPS_MAX, ORB_IDLE, ORB_LEAK, ORB_RATE, ORB_SHED, ORB_SPIN_CAP, POKES_MAX, WAVES_MAX, agitNow, auroraCell, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, orb, orbEcc, orbR, orbRAt, pokes, rows, w, waveAmp, waves }, f);
 
-					// BREAKING ON THE WALL. A wave that simply left the tank
-					// would be a bump that stopped existing; water arriving
-					// at a wall goes UP it. The spray is thrown from the
-					// wall itself and leans back into the jar, and how much
-					// of it there is follows what the wave still had.
-					if (!wv.broke && (wv.x <= 1 || wv.x >= w - 1)) {
-						wv.broke = true;
-						wv.x = wv.x <= 1 ? 0 : w;
-						const left = Math.exp(-age / (WAVE_LIFE * 0.55));
-						// Scaled by the wave's OWN spray appetite: an ink
-						// swell arriving at a wall should lap it, not burst
-						// on it, and it carries spray: 0 for exactly that.
-						const sp = wv.spray == null ? 1 : wv.spray;
-						spray(wv.x, Math.round((1 + left * 4) * sp), 0, wv.hue);
-						if (pokes.length >= POKES_MAX) pokes.shift();
-						// A break IS energy — unlike a landing bead, which
-						// only rings. This is the wave arriving, and the
-						// tank is entitled to feel it.
-						//
-						// BUT ONLY AS MUCH AS THE WAVE HAD. A non-still poke
-						// takes `pokeEnergy` to 1.0 on the frame it lands —
-						// it is a MAXIMUM, so one break pins the whole
-						// surface's amplitude at full for the next half
-						// second, and every column in the tank trembles
-						// because a wave touched one wall. On a jar with
-						// headroom that reads as the wall answering; in the
-						// ink band it read as the whole water shivering
-						// after the swell arrived, which is not what
-						// hitting a wall looks like.
-						//
-						// So the claim is scaled by the wave's OWN appetite,
-						// the same number that already decides its spray —
-						// a click wave (3–5) breaks exactly as it always
-						// did, and an ink swell (1.2) laps the wall: it
-						// rings where it struck, throws its handful, and
-						// leaves the rest of the tank alone. Below a
-						// threshold the poke goes `still` outright, which is
-						// the flag that means "draw the ripple, claim no
-						// energy".
-						// …AND ONLY WHERE THERE IS SKY TO PUT IT. Scaling by
-						// the wave's appetite fixed the tank trembling in
-						// general; at the very top of the range it still
-						// read as turbulence, because a jar with two cells
-						// of air has nowhere to put even a small claim and
-						// every bit of it comes back as chop across the
-						// whole surface. A wave arriving at a brim-full jar
-						// LAPS the wall: it rings where it struck, and the
-						// tank does not answer.
-						const room2 = Math.min(1, restSeen / (h * 0.22));
-						const bite2 = Math.min(1, sp / 3) * room2;
-						pokes.push({ x: wv.x, y: null, t: f.now,
-							still: bite2 < 0.5, hue: wv.hue });
-						agitLevel = Math.min(0.75,
-							agitNow(f.now) + (0.04 + left * 0.10) * bite2);
-						agitAt = f.now;
-					}
-					if (age > WAVE_LIFE || (wv.broke && age > WAVE_LIFE * 0.4)) {
-						waves.splice(i, 1);
-					}
-				}
+		const drawDrops = (f: WsJarFrame) => wsJarDrawDrops({ BLOB_SHAPES, CELL, POKES_MAX, band, baseLig, baseSat, cols, ctx, drops, h, hueNow, liq, pokes, w }, f);
 
-				// CLASHING. Two waves running at each other meet somewhere
-				// between the hands that made them, and water meeting water
-				// head-on goes straight up — which is the one place in this
-				// tank a column of spray is physically owed rather than
-				// decorative. Both waves spend themselves in it, so a clash
-				// is an ending rather than a pass-through: click left, click
-				// right, and the answer arrives in the middle.
-				for (let i = waves.length - 1; i >= 0; i--) {
-					for (let j = i - 1; j >= 0; j--) {
-						const a = waves[i], b = waves[j];
-						if (!a || !b || a.broke || b.broke) continue;
-						if (a.dir === b.dir) continue;
-						if (Math.abs(a.x - b.x) > CELL * 2.2) continue;
-						// Only if they are CLOSING: two waves that have
-						// already passed through each other are moving
-						// apart and must not clash a second time.
-						if ((b.x - a.x) * a.dir < 0) continue;
-						const mid = (a.x + b.x) / 2;
-						const ageA = a.born ? (f.now - a.born) / 1000 : 0;
-						const ageB = b.born ? (f.now - b.born) / 1000 : 0;
-						const force = Math.exp(-ageA / (WAVE_LIFE * 0.55))
-							+ Math.exp(-ageB / (WAVE_LIFE * 0.55));
-						spray(mid, 6 + Math.round(force * 11), 0, (a.hue + b.hue) / 2);
-						if (pokes.length >= POKES_MAX) pokes.shift();
-						pokes.push({ x: mid, y: null, t: f.now, still: false,
-							hue: (a.hue + b.hue) / 2 });
-						agitLevel = Math.min(0.95, agitNow(f.now) + 0.08 + force * 0.16);
-						agitAt = f.now;
-						waves.splice(i, 1);
-						waves.splice(j, 1);
-						i = Math.min(i, waves.length);
-						break;
-					}
-				}
-			}
-		};
+		const drawAurora = (f: WsJarFrame) => wsJarDrawAurora({ CELL, auroraCell, cols, ctx, h, hueNow, liq, orb, p1, p2, p3, pokes, quantA, rows, swirlPhase, w }, f);
 
-		const drawOrb = (f: WsJarFrame) => {
-			// ── THE ORB: spin, shed, collapse ─────────────────────────────
-			// `want` TOO, and this is what stopped the ball forming at all.
-			// The easing that carries `amount` toward `want` lives inside
-			// this block — so on the first click, with amount still 0, the
-			// block was skipped, amount never moved off 0, and the gate
-			// stayed shut forever. A click asked for water and nothing
-			// listened. The gate has to open on the ASK, not on the arrival.
-			if (orb.amount > 0.001 || orb.want > 0.001) {
-				// INERTIA. The ball keeps turning after the last click and
-				// slows on its own clock — clicking faster winds it up,
-				// stopping lets it run down. Same shape as the agitation
-				// store above, and for the same reason: a maximum cannot
-				// build, and building is the whole feel of this.
-				orb.vel *= Math.pow(0.36, f.dt);
-				orb.spin += orb.vel * f.dt;
-				// The ball EASES toward what the clicks asked for, so water
-				// takes a moment to arrive and the size never snaps.
-				if (!orb.falling) {
-					// LOSS COMES FROM THE SPIN, AND ONLY FROM THE SPIN. A spinning body
-					// throws water off its rim, which is the whole reason there is a leak;
-					// a still one is just water being held, and water being held does not
-					// evaporate — so a ball that has stopped turning can be KEPT. Squared,
-					// so a lazy turn barely loses anything and only a fast one really
-					// bleeds; and proportional to its own size, so a big ball loses more in
-					// absolute terms than a bead and the two do not decay at the same rate.
-					const spinN = Math.min(1, Math.abs(orb.vel) / ORB_SPIN_CAP);
-					const spinLoss = spinN * spinN * 1.6;
-					orb.want = Math.max(0, orb.want
-						- ORB_LEAK * spinLoss * f.dt * (0.35 + orb.want * 0.65));
-					orb.amount += (orb.want - orb.amount) * Math.min(1, ORB_RATE * f.dt);
-					// The water it loses is not deleted: it goes back where
-					// it came from, as spray the surface will catch.
-					if (orb.want > 0.02 && orb.vel > 0.8
-						&& drops.length < DROPS_MAX && Math.random() < 0.5) {
-						const a = Math.random() * Math.PI * 2;
-						const R2 = orbR();
-						drops.push({
-							x: orb.x + Math.cos(a) * R2,
-							y: orb.y + Math.sin(a) * R2,
-							vx: Math.cos(a) * 26 + (Math.random() - 0.5) * 30,
-							vy: Math.sin(a) * 20 + 25,
-							life: 0,
-							shed: true,
-							hue: hueNow() + (Math.random() - 0.5) * 70,
-							size: 1,
-							shape: Math.floor(Math.random() * 4)
-						});
-					}
-				}
-
-				// LETTING GO. No click for a moment and the ball gives the water back
-				// — `falling` drains `amount` fast, and every frame of that drain is
-				// water rejoining the tank, because the line is drawn from
-				// (1 - amount). The splash is thrown once, at the moment it lets go,
-				// not per frame. LET GO MEANS LET FALL: water does not dissolve where
-				// it hangs, it drops, gathers speed, and bursts WHERE IT LANDS. So the
-				// strike points, the spray and the bounce all start from the impact
-				// rather than from wherever the pointer had been — and releasing it
-				// high above the line is worth something, because it has further to
-				// fall.
-				if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
-					orb.dropping = true;
-					orb.vy = 0;
-				}
-				// IT MAY GO IN, AND THE WATER ANSWERS. A previous build
-				// forbade it — the ball was clamped to sit on the line —
-				// because a sphere drawn over the liquid, displacing
-				// nothing, is the one arrangement that cannot be read as
-				// physical. Forbidding it fixed the wrong half: the fault
-				// was never that the ball went in, it was that the water
-				// did not notice. It notices now (see the displacement term
-				// in the surface sum), so the ball is free again and only
-				// the ceiling is kept — a ball is not held above the jar.
-				if (!orb.dropping && !orb.falling) {
-					const rr2 = orbR() * (1 + orbEcc());
-					if (orb.y - rr2 < 0) orb.y = rr2;
-				}
-				if (orb.dropping) {
-					// One rate: the ball no longer tears, so there is no `torn` branch.
-					orb.vy += 780 * f.dt;
-					orb.y += orb.vy * f.dt;
-					// The water it is falling toward, under its own middle.
-					const col = Math.max(0, Math.min(cols - 1, Math.round(orb.x / CELL)));
-					const surf = surfaceNow ? (surfaceNow[col] || h) : h;
-					// A torn ball never lands whole — it is already gone.
-					if (orb.y + orbR() >= surf || orb.y >= h) {
-						orb.dropping = false;
-						orb.last = 0;
-					}
-				}
-				if (!orb.falling && !orb.dropping && f.now - orb.last > ORB_IDLE) {
-					// IT BURSTS, THEN THE JAR FILLS. The old collapse simply
-					// ran `amount` down, so the level slid back up while
-					// nothing else happened — the vault's "the growing
-					// animation just starts instead of water splashing".
-					// The ball comes apart FIRST: every bit of it is thrown
-					// as a blob, the surface is struck in several places at
-					// once, and the level is left to arrive behind the spray
-					// with a bounce on the end of it.
-					orb.falling = true;
-					orb.dropping = false;
-					orb.vy = 0;
-					orb.want = 0;
-					// A ball that TORE throws harder than one that was set
-					// down: it came apart under its own spin, and that
-					// energy has to go somewhere.
-
-					// EVERYTHING SCALES WITH WHAT WAS HELD, harder than linearly: a small
-					// ball makes a small splash and only a full one makes the storm, and
-					// raised to 1.6 a tenth of a jar throws about 3% of a full one's spray
-					// rather than 10%, so the small ones nearly vanish and the big ones
-					// commit. SIZE TELLS, AND SO DOES THE JAR: `orb.amount` is a share of
-					// the TANK, so the same share out of a nearly full jar is far more
-					// water than out of a half one. The level is folded in, so a big ball
-					// dropped into a deep jar is the loudest thing the gauge does and the
-					// same gesture at 50% is markedly quieter.
-					const held = Math.pow(orb.amount, 1.6) * (0.55 + rNow * 0.9);
-					agitLevel = Math.min(2.4, agitNow(f.now) + 0.03 + held * 2.6);
-					agitAt = f.now;
-					// The bounce used to start HERE, at the impact — so it was
-					// oscillating while the water was still in the air. It
-					// is armed instead for the moment the air is nearly
-					// home, which is when the jar actually gets its mass
-					// back and the only moment a settle means anything.
-					splashAmp = held * 0.17;
-					splashAt = 0;   // armed by the air landing, above
-					// EVERYTHING IT HELD GOES UP, NOT STRAIGHT INTO THE JAR.
-					airborne = Math.min(1, airborne + orb.amount);
-					const heavy = Math.min(DROPS_MAX - drops.length,
-						1 + Math.round(held * 44));
-					for (let k = 0; k < heavy; k++) {
-						const a = Math.random() * Math.PI * 2;
-						const r = orbR() * (0.25 + Math.random() * 0.75);
-						drops.push({
-							x: orb.x + Math.cos(a) * r,
-							y: orb.y + Math.sin(a) * r,
-							// OUTWARD IN EVERY DIRECTION, and hard. It threw at
-							// 40–160 with a slight upward lean, which
-							// gravity flattened almost at once — so a burst
-							// read as the ball FALLING rather than as it
-							// coming apart. Doubled outward, and the
-							// vertical component is biased up rather than
-							// centred, so the crown opens before it drops.
-							vx: Math.cos(a) * (90 + Math.random() * 210) + orb.vel * 12,
-							vy: Math.sin(a) * 130 - 120 - Math.random() * 90,
-							life: 0,
-							shed: true,
-							hue: hueNow() + (Math.random() - 0.5) * 90,
-							size: 1 + (Math.random() < 0.6 ? 1 : 0),
-							shape: Math.floor(Math.random() * 4)
-						});
-					}
-					// STRUCK IN AS MANY PLACES AS IT IS BIG. A body of water landing
-					// disturbs the surface around it, and how far around is how much of it
-					// there was — one ripple for a bead, the whole width for a tankful.
-					// The strikes are spread about the point the ball fell from rather
-					// than evenly across the jar, because that is where it landed; the
-					// reach grows with the amount. AND IT BURSTS ALONG THE SURFACE: a body
-					// of water landing does not only throw upward, it shoves the water
-					// sideways. Two travelling waves out of the landing point, one each
-					// way, so the burst races to both walls and breaks there — the same
-					// code a click uses, which is why this costs nothing and cannot look
-					// like a different feature. Their height rides the SAME capped stack
-					// the click waves do, so a big drop cannot put the surface over the
-					// ceiling.
-					for (const dir of [-1, 1]) {
-						if (waves.length >= WAVES_MAX) waves.shift();
-						waves.push({
-							x: orb.x,
-							dir,
-							born: 0,
-							amp: waveAmp() * (0.9 + held * 1.7),
-							wid: 1500,
-							spd: 250 + held * 90,
-							hollow: 0.5,
-							spray: 2,
-							hue: hueNow() + (Math.random() - 0.5) * 60,
-							broke: false
-						});
-					}
-					const hits = 1 + Math.round(held * 4);
-					const reach = w * (0.08 + held * 0.42);
-					for (let k = 0; k < hits; k++) {
-						if (pokes.length >= POKES_MAX) pokes.shift();
-						const off = hits === 1 ? 0
-							: ((k / (hits - 1)) - 0.5) * 2 * reach;
-						pokes.push({
-							x: Math.max(0, Math.min(w, orb.x + off)),
-							y: null,
-							// Spread in TIME as well as space: the middle
-							// lands first and the edges follow, which is
-							// what a mass hitting water does and what a
-							// simultaneous row of ripples never looks like.
-							t: f.now + Math.abs(off) / (w * 0.9) * 260,
-							still: false,
-							hue: hueNow() + (Math.random() - 0.5) * 120
-						});
-					}
-				}
-				if (orb.falling) {
-					// Faster than it gathered, and it should be: this is
-					// falling, not being lifted.
-					// A small ball is gone in a blink; a full one takes the
-					// moment its size deserves.
-					orb.amount = Math.max(0, orb.amount - f.dt * (3.0 + 2.5 * (1 - orb.amount)));
-					orb.vel *= Math.pow(0.05, f.dt);
-					if (orb.amount <= 0.001) { orb.amount = 0; orb.vel = 0; orb.falling = false; }
-				}
-
-				// SHEDDING. A spinning ball of water does not hold itself
-				// together at the rim: blobs fly off tangentially while it
-				// turns, and the faster it turns the more it throws. This
-				// is where "swirly ball that splashes blobs and pixels"
-				// lives — the drops pool already knows how to draw a lump
-				// that comes apart in flight, so the orb only has to hand
-				// it the right velocity.
-				if (!orb.falling && orb.vel > 1.2 && f.now - orbShedAt > ORB_SHED * 1000
-					&& drops.length < DROPS_MAX) {
-					orbShedAt = f.now;
-					const R = orbR();
-					const a = orb.spin + Math.random() * 0.9;
-					drops.push({
-						x: orb.x + Math.cos(a) * R,
-						y: orb.y + Math.sin(a) * R,
-						// TANGENTIAL, not radial: thrown along the turn, the
-						// way anything leaving a spinning body goes.
-						vx: -Math.sin(a) * orb.vel * R * 0.55,
-						vy: Math.cos(a) * orb.vel * R * 0.55 - 20,
-						life: 0,
-						shed: true,
-						hue: hueNow() + (Math.random() - 0.5) * 80,
-						size: Math.random() < 0.4 ? 2 : 1,
-						shape: Math.floor(Math.random() * 4)
-					});
-				}
-
-				// THE BALL ITSELF, in the tank's own cells. Spiral bands
-				// rather than a disc: the angle is offset by the radius, so
-				// the pattern winds outward and the whole thing reads as
-				// turning instead of merely being round. Every cell is
-				// snapped to the lattice and dithered at the edge, so it is
-				// made of the same stuff as the water below it.
-				const R = orbR() * (1 + orbEcc());
-				if (R > CELL) {
-					const cx = orb.x, cy = orb.y;
-					const g0 = Math.max(0, Math.floor((cx - R) / CELL));
-					const g1 = Math.min(cols - 1, Math.ceil((cx + R) / CELL));
-					const r0 = Math.max(0, Math.floor((cy - R) / CELL));
-					const r1 = Math.min(rows - 1, Math.ceil((cy + R) / CELL));
-					for (let gy = r0; gy <= r1; gy++) {
-						for (let gx = g0; gx <= g1; gx++) {
-							const px2 = gx * CELL + CELL / 2;
-							const py2 = gy * CELL + CELL / 2;
-							const dx2 = px2 - cx, dy2 = py2 - cy;
-							const rr = Math.hypot(dx2, dy2);
-							// Against the DEFORMED edge at this angle, not a
-							// circle: the equator swells and the poles pull
-							// in, so the outline turns with the spiral
-							// instead of the spiral turning inside a stencil.
-							const angC = Math.atan2(dy2, dx2);
-							const Rh = orbRAt(angC);
-							if (rr > Rh) continue;
-							const u = rr / Rh;
-							// The rim frays: an ordered threshold rising with
-							// u breaks the circle's edge into cells instead
-							// of drawing a hard curve, the way the water's
-							// own edge is broken.
-							const thr = (((gx * 7 + gy * 13) % 16) / 16);
-							if (u > 0.72 && (u - 0.72) / 0.28 > 1 - thr) continue;
-							const ang = angC;
-							// The spiral: angle carried by the spin, wound by
-							// the radius. Two arms, so the turn is legible
-							// at a glance rather than hypnotic.
-							// `arm`, NOT `band`: `band()` is the tank's own
-							// lightness quantiser, live in this scope, and
-							// shadowing it here would have silently replaced
-							// a function with a number for the rest of the
-							// block. Caught before it shipped; named apart so
-							// it cannot come back.
-							const arm = Math.sin(ang * 2 + orb.spin * 2.2 - u * 5.5);
-							// TWO TONES WAS THE WHOLE PALETTE. `arm > 0.15`
-							// threw a continuous spiral away and kept one
-							// bit of it, so a ball made of a few hundred
-							// cells was painted in exactly two colours —
-							// which is why it read as a striped disc rather
-							// than as a body of water turning.
-							//
-							// The arm is kept as the NUMBER it is now, and
-							// three things are drawn from it. The hue walks
-							// a span of the ramp, so the spiral is a
-							// gradient of the water's own colour rather than
-							// a pair of stripes. Depth adds to it — the
-							// centre of a sphere of water is not the colour
-							// of its edge — and a small ordered dither per
-							// cell breaks the bands into the lattice
-							// everything else in this tank is made of.
-							const dith = (((gx * 7 + gy * 13) % 8) / 8 - 0.5);
-							const litness = (arm + 1) * 0.5;
-							// THE BALL IS MADE OF THE WATER'S OWN COLOURS. The water itself is
-							// ONE hue, hueNow(), with about fifteen degrees of drift for depth,
-							// time and caustics (see the cell shading above). The ball is made of
-							// that water, so it takes the same hue and the same size of drift —
-							// the spiral and the depth move it a few degrees, not across the
-							// spectrum. (Walking the ramp across the ball would paint every colour
-							// the jar had on its way up, none of which the liquid is currently
-							// wearing: purple in a cyan jar.)
-							const oh0 = hueNow() + arm * 9 + (0.5 - u) * 10 + dith * 4;
-							// THE AURORA TWIRLS INSIDE IT. When the light is
-							// up, the ball is not a differently-coloured
-							// object floating in front of it — it is the
-							// same field, sampled in the ball's OWN turning
-							// frame. The sample point is rotated by the spin
-							// about the orb's centre, so the curtains wind
-							// round inside the sphere and travel with it;
-							// mixed by auroraMix, so a jar that has not lit
-							// yet gets the plain water ball it had before.
-							let oh = oh0;
-							if (f.auroraMix > 0.01) {
-								const ca = Math.cos(orb.spin), sa = Math.sin(orb.spin);
-								const ru = (dx2 * ca - dy2 * sa) / w;
-								const rv = (dx2 * sa + dy2 * ca) / h;
-								// THE HUE, OUT OF THE COLOUR. `auroraCell` answers an `hsla(...)`
-								// string, and `isFinite` of a string that starts with a letter is
-								// false — the hue has to be taken out of it before the orb can lean
-								// toward the aurora's.
-								const cellCol = auroraCell(0.5 + ru, 0.5 + rv, f.t);
-								const cellM = /^hsla?\((-?[\d.]+)/.exec(String(cellCol || ''));
-								const cellHue = cellM ? parseFloat(cellM[1]) : NaN;
-								if (isFinite(cellHue)) {
-									oh = oh0 + (cellHue - oh0) * f.auroraMix;
-								}
-							}
-							ctx.fillStyle = 'hsla(' + Math.round(oh) + ','
-								// Saturation follows the spiral too: the
-								// bright side of a turning body is the
-								// washed-out one, the shadowed side holds
-								// its colour.
-								+ Math.round(Math.max(0, baseSat - 4 - litness * 16)) + '%,'
-								// Quantised through band(), like every other
-								// lightness in the jar, so the gradient
-								// arrives in the tank's own steps instead of
-								// as a smooth wash that would be the one
-								// un-pixelated thing on screen.
-								+ band(Math.min(96, baseLig + 6 + litness * 30 + (0.5 - u) * 10)) + '%,'
-								// NEARLY SOLID. It ran 0.50 at the rim to 0.92 at the
-							// centre, which on a dark theme let the tank show
-							// through the whole ball and left it looking like a
-							// stain rather than like water lifted out. A body of
-							// water is not translucent to its own tank. 0.86 at
-							// the rim, 0.99 at the centre — the little that is
-							// left is what keeps the rim from reading as a hard
-							// cut. Still short of 0.95 flat: that exact alpha is
-							// spray's signature here, and an orb cell wearing it
-							// would be indistinguishable from a bead.
-							+ (0.86 + (1 - u) * 0.13).toFixed(2) + ')';
-							ctx.fillRect(gx * CELL, gy * CELL, CELL, CELL);
-						}
-					}
-				}
-			}
-		};
-
-		const drawDrops = (f: WsJarFrame) => {
-			if (drops.length) {
-				// NEAR-WHITE, deliberately past the crest. The old fill sat
-				// at +30 lightness against crests at +34 — spray drawn in
-				// the surface's own colour is spray that cannot be seen
-				// over it. A bead in flight is a point of light.
-				const sprayFill = 'hsla(' + Math.round(hueNow()) + ','
-					+ Math.round(Math.max(0, baseSat - 24)) + '%,'
-					+ band(Math.min(100, baseLig + 44)) + '%,0.95)';
-				ctx.fillStyle = sprayFill;
-				for (let i = drops.length - 1; i >= 0; i--) {
-					const d = drops[i];
-					// A BLOB MAY CARRY ITS OWN COLOUR. Spray from the pour
-					// is the meniscus's near-white and stays that way, but
-					// water pulled into the ball or thrown out of it takes a
-					// hue off the ramp — the vault's "the blobs only have
-					// that meniscus colour". Set per drop, so one flight can
-					// hold a dozen shades at once.
-					if (d.hue != null) {
-						// Lightness and saturation jitter with the hue, or a
-						// row of differently-hued beads at one lightness
-						// reads as a palette swatch rather than as spray.
-						// Seeded off the drop's own shape so a bead does not
-						// shimmer as it flies.
-						const j = ((d.shape || 0) * 7 % 5) / 5 - 0.4;
-						ctx.fillStyle = 'hsla(' + Math.round(d.hue) + ','
-							+ Math.round(Math.max(0, baseSat - 6 + j * 18)) + '%,'
-							+ band(Math.min(100, baseLig + 30 + j * 14)) + '%,0.95)';
-					} else {
-						ctx.fillStyle = sprayFill;
-					}
-					d.vy += 900 * f.dt;
-					d.x  += d.vx * f.dt;
-					d.y  += d.vy * f.dt;
-					d.life += f.dt;
-					const col = Math.max(0, Math.min(cols - 1, Math.round(d.x / CELL)));
-					const floorY = f.surfaceY ? f.surfaceY[col] : h;
-					// A BLOB LEAVING THE BALL GETS A MOMENT. The floor rule
-					// culls anything falling that has reached the water, and
-					// an orb hanging BELOW the waterline — which is most
-					// places you might click — spawns every blob already
-					// under it, so they died on the frame they were born and
-					// the ball threw nothing at all. A shed blob is water
-					// leaving a body of water; it is entitled to the instant
-					// it takes to get out. 0.15s, and only for blobs the orb
-					// threw: spray from the pour and the splash keeps the
-					// old rule exactly.
-					const graced = d.shed && d.life < 0.15;
-					const landed = !graced && d.vy > 0 && d.y >= floorY;
-					if (d.life > 1.4 || d.x < -CELL || d.x > w || landed) {
-						// A BLOB THAT LANDS MAKES A RING. Every returning blob strikes the
-						// surface it fell into, so the second half of a splash is dozens of
-						// small rings arriving out of time with each other; spray that simply
-						// ceased at the waterline would read as an effect rather than as an
-						// event. That is most of what makes real water look like water, and it
-						// costs one poke. Fast blobs only, and only while there is room in the
-						// ring pool: a bead dribbling over the edge of the crest has not struck
-						// anything. ORB-THROWN BLOBS ONLY (`d.shed`): the pour is a tuned
-						// sequence that ends still, and a jar that rings its own spray never
-						// finishes settling; this belongs to the thing the writer is doing, not
-						// to the thing the jar does on its own. THROTTLED, and not by the
-						// pool's size: the pool evicting its oldest is not a brake — it keeps
-						// the surface permanently full of new ripples instead of letting it
-						// settle between them. One ring every 70ms is enough for a splash to
-						// read as many arrivals and few enough that the water can breathe.
-						if (landed && d.shed && !d.pull && d.vy > 90
-							&& f.now - lastRingAt > 55 && pokes.length < POKES_MAX) {
-							lastRingAt = f.now;
-							pokes.push({
-								x: d.x,
-								y: null,
-								t: f.now,
-								// A RING IS LOCAL, NOT ENERGY. This is the
-								// tremor, and throttling could never have
-								// fixed it: pokeEnergy is a MAXIMUM over the
-								// pokes decaying on a 620ms clock, so a ring
-								// arriving every 70ms held it at 0.89 and one
-								// every 300ms still held it at 0.62 — the
-								// whole surface pinned at full agitation for
-								// as long as any spray was falling. Worst at
-								// a high level, where the water above the
-								// rest line is shallow and a maxed amplitude
-								// has nowhere to go but sideways, fast.
-								//
-								// `still` is what a poke uses to say "the
-								// aurora's, not the water's" — pokeEnergy
-								// skips it while the ripple sum still draws
-								// it. A landing ring wants exactly that
-								// bargain: a visible ring where it fell, and
-								// no claim on how lively the whole tank is.
-								still: true,
-								// The ring carries the blob's own colour, so
-								// a coloured splash lands coloured.
-								hue: d.hue != null ? d.hue : hueNow()
-							});
-						}
-						drops.splice(i, 1);
-						continue;
-					}
-					// DITHERED, like everything else in the tank. A drop drawn
-					// solid is a hard little square travelling over a
-					// surface built entirely from ordered patterns — it
-					// reads as a sprite laid on the water rather than as
-					// part of it. Its own cell decides its strength, and
-					// the older it is the more of the pattern shows
-					// through, so spray thins out as it flies instead of
-					// vanishing at a fixed age.
-					const dx = Math.round(d.x / CELL) * CELL;
-					const dy = Math.round(d.y / CELL) * CELL;
-					const dthr = (((dx / CELL | 0) * 7 + (dy / CELL | 0) * 13) % 16) / 16;
-					if (1 - d.life / 1.4 <= dthr) continue;
-					// THE BLOB'S OWN CELLS. Offsets rather than a scaled
-					// rect: a 3-cell lump is a plus, an L, a stubby bar or
-					// a clump, and which one it is was rolled when it was
-					// thrown so it does not change in flight. A lump also
-					// SHEDS as it flies — the outer cells drop off with
-					// age — so spray comes apart on the way up instead of
-					// vanishing whole.
-					const sz = d.size || 1;
-					ctx.fillRect(dx, dy, CELL, CELL);
-					if (sz > 1) {
-						const keep = 1 - d.life / 1.4;
-						const arms = BLOB_SHAPES[(d.shape || 0) % BLOB_SHAPES.length];
-						const take = sz === 3 ? arms.length : Math.min(2, arms.length);
-						for (let a = 0; a < take; a++) {
-							// Each arm has its own threshold, so a lump
-							// loses cells one at a time rather than all at
-							// once — and always the same ones, since the
-							// order is fixed.
-							if (keep < (a + 1) / (take + 1) * 0.85) continue;
-							ctx.fillRect(dx + arms[a][0] * CELL,
-								dy + arms[a][1] * CELL, CELL, CELL);
-						}
-					}
-				}
-			}
-		};
-
-		const drawAurora = (f: WsJarFrame) => {
-			// IT STARTS AT THE SURFACE AND SINKS. Turning the whole tank at
-			// once, evenly scattered, read as static settling over the
-			// water rather than as light entering it. The lights now
-			// appear along the CREST — which is where they would — and the
-			// front travels down as the last of the pour goes in, so the
-			// jar keeps filling while the aurora takes it.
-			//
-			// Each cell is still water OR aurora, never a blend of both:
-			// the ordered dither is what softens the front's edge, and it
-			// is the only thing pixel art can use in place of a fade.
-			if (f.auroraMix > 0 && f.surfaceY) {
-				for (let gx = 0; gx < cols; gx++) {
-					const top   = f.surfaceY[gx] != null ? f.surfaceY[gx] : 0;
-					// How far the light has reached below this column's crest. Eased so
-					// it moves quickly through the bright water near the top and slows in
-					// the depths. WELL PAST THE FLOOR: the dither's soft edge is six cells
-					// deep, so a front that stops AT the base leaves the last six rows
-					// below their threshold for ever — a band of plain water at the bottom
-					// of a finished jar. FROM THE REST LINE, NOT THE CREST: measured from
-					// this column's wavy top the front's progress is a function of the
-					// wave, lurching deeper whenever a crest peaks, and with the reach
-					// held monotonic those lurches never come back — the curtain descends
-					// in steps and swallows parts of the wave in single frames. `restNow`
-					// is the flat level the water is oscillating ABOUT, so the front
-					// travels smoothly whatever the surface is doing. The monotonic hold
-					// stays: it guarantees the dissolve's own rule, that a cell which has
-					// turned stays turned.
-					if (!auroraFront || auroraFront.length !== cols) {
-						auroraFront = new Array<number>(cols).fill(-Infinity);
-					}
-					const from  = Math.min(top, f.restNow);
-					const reach = from + (h + CELL * 12 - from) * (f.auroraMix * f.auroraMix);
-					if (reach > auroraFront[gx]) auroraFront[gx] = reach;
-					const front = auroraFront[gx];
-					for (let gy = 0; gy < rows; gy++) {
-						const y = gy * CELL;
-						if (y + CELL <= top) continue;   // above the water
-						// A stable per-cell threshold in [0,1). The pair of primes keeps the
-						// pattern from lining up with the grid, which would dissolve in
-						// visible stripes. THE LIGHT ARRIVES FROM SEVERAL PLACES AT ONCE: one
-						// ordered pattern over the whole tank comes down as a single even veil
-						// — correct, and lifeless — where real light entering water finds it
-						// in patches, some of which run ahead of the rest. A few slow standing
-						// lobes are folded into the threshold, so some regions turn early and
-						// others hold out, and the boundary between them wanders. The pattern
-						// is still the same ordered dither underneath, which is what keeps it
-						// pixel art rather than a soft gradient. `p1` and the seeds are the
-						// pour's own, so the lobes fall differently for every jar and nobody
-						// learns where the light will start.
-						const seedX = gx * CELL / w, seedY = gy * CELL / h;
-						const lobes =
-							Math.sin(seedX * 5.1 + p1) * 0.16
-							+ Math.sin(seedY * 3.7 - p2 + seedX * 2.2) * 0.12
-							+ Math.sin((seedX + seedY) * 4.3 + p3) * 0.09;
-						const thr  = Math.max(0, Math.min(1,
-							(((gx * 7 + gy * 13) % 16) + 0.5) / 16 + lobes));
-						// Depth into the lit band, so the dither only scatters at the FRONT:
-						// well above it every cell has turned, below it none has. A WIDE, SOFT
-						// EDGE: over three cells the scatter is a hard line with a few stray
-						// pixels on it; over six the front reads as light SOAKING down rather
-						// than a boundary moving. And the cells at the edge are drawn
-						// part-strength — still one colour per cell, chosen per cell, but the
-						// aurora's own alpha eased in — so the join with the water underneath
-						// is a gradient of COVERAGE rather than a change of state.
-						const into = (front - y) / Math.max(CELL * 6, 1);
-						if (into <= thr) continue;
-						// QUANTISED, like everything else in this tank. This
-						// was a continuous alpha over a palette built
-						// entirely from steps: every frame it changed by a
-						// hair, so each cell at the front was composited a
-						// fraction differently over water that is itself
-						// moving — which is what "flickers when it starts
-						// dithering down" was. On eighths a cell holds its
-						// value for many frames and then steps once.
-						// HELD, NOT SET. This wrote ctx.globalAlpha
-						// directly and the fade below then had to juggle
-						// a save/restore around it — see the note at the
-						// fill. It is a plain number now, multiplied with
-						// the cell's own fade at the one place the cell
-						// is drawn.
-						const depthA = quantA(Math.min(1, 0.35 + into * 0.9));
-						// THE SWIRL. The lights are read from a point that is
-						// dragged toward the middle of the jar and turned
-						// slowly around it, so as the aurora arrives the
-						// colours are pulled inward rather than simply
-						// switched on where they stand. Strongest as the
-						// front passes and easing off behind it, which is
-						// what makes it read as a current rather than a
-						// wobble.
-						const u = gx / cols - 0.5, v2 = gy / rows - 0.5;
-						const rad  = Math.sqrt(u * u + v2 * v2);
-						// THE SWIRL BREATHES. It used to wind one way for
-						// ever, which settles into a texture the eye stops
-						// reading after a second. A slow sine on the
-						// strength winds it in, unwinds it, and takes it
-						// round the OTHER way — the current keeps changing
-						// its mind, which is what a current does.
-						const turn = Math.sin(f.t * 0.42 + swirlPhase);
-						const pull = (1 - Math.min(1, rad * 2)) * 0.30 * f.auroraMix;
-						const ang  = Math.atan2(v2, u) + turn * 1.1 * pull;
-						// The inward drag breathes with it, so the colours
-						// are pulled in as it winds and released as it
-						// unwinds rather than staying permanently gathered.
-						const draw = pull * (0.55 + 0.45 * Math.abs(turn));
-						// `let`, not `const`: the poke loop below bends
-						// these — a press on the lit jar winds the colour
-						// field around the point pressed.
-						let su   = 0.5 + Math.cos(ang) * rad * (1 - draw);
-						let sv   = 0.5 + Math.sin(ang) * rad * (1 - draw);
-						// AND THE CELL ITSELF FADES IN. A cell that had
-						// crossed its threshold went straight to full
-						// aurora, so the front was a scatter of opaque
-						// cells over untouched water — crunchy, and
-						// nothing like light entering. Each now arrives
-						// over its own short ramp, quantised to eight
-						// steps so it is still pixel art and not a
-						// gradient: the ladder is what keeps the two
-						// readings apart.
-						const fade = quantA(Math.min(1, (into - thr) * 2.2));
-						if (fade <= 0) continue;
-						// ONE ALPHA, MULTIPLIED, AND HANDED BACK AT 1.
-						// This is where "still flickers" lived. The old
-						// code SET globalAlpha to the depth value, then
-						// REPLACED it with the fade (so the two never
-						// combined), and after the fill ran
-						//   globalAlpha = 1; if (fade < 1) globalAlpha = prevA;
-						// — a restore written backwards. Whenever the
-						// LAST cell of the pass was an edge cell, the
-						// context left the frame carrying that cell's
-						// alpha instead of 1, and nothing else in the
-						// gauge ever writes globalAlpha — so the NEXT
-						// frame painted the entire tank, water and all,
-						// through whatever fraction the dither happened
-						// to end on. That fraction changed frame to
-						// frame, which is exactly a full-jar strobe.
-						// Depth and fade are one multiplied alpha now,
-						// applied for the fill and returned to 1 right
-						// after it, unconditionally.
-						ctx.globalAlpha = Math.min(1, depthA * fade);
-						// WHILE IT IS MIXING, each cell takes a hue near the aurora's rather
-						// than exactly it — a scatter that shrinks to nothing as the water
-						// calms, so the jar resolves INTO the aurora instead of cutting to it.
-						// The offset is per cell and stable frame to frame (the same ordered
-						// value the dither uses), or the whole tank would fizz. PLUS whatever
-						// the writer has stirred in: a poke's colour spreads from where it
-						// landed and fades with distance and with age, so a press on a lit jar
-						// puts a bloom of another hue into the aurora rather than nudging the
-						// surface and doing nothing visible.
-						let rot = 0;
-						// The press's two answers, gathered over every poke
-						// and BOUNDED AS A SET before they are used — a run
-						// of presses in one place otherwise stacks into a
-						// white patch, which is the lesson this gauge has
-						// now learned in the waves, the poke rings and the
-						// ink humps alike.
-						let phase = 0, fire = 0;
-						if (f.auroraJitter > 0.01) {
-							const j = ((gx * 11 + gy * 17) % 32) / 32 - 0.5;
-							rot += j * 220 * f.auroraJitter;
-						}
-						// THE BALL WINDS THE LIGHT IN TOO — and this line is
-						// why the aurora went dark. It read `hold`, a
-						// variable the orb rewrite deleted, so the whole
-						// aurora pass threw a ReferenceError on its first
-						// cell and drew nothing at all. The lesson: a
-						// name that survives its owner takes down whatever
-						// reads it, and the failure looks like a feature
-						// that "stopped working" rather than like a crash.
-						//
-						// It does what it was written to do, driven by the
-						// ball instead: the field's sample point is rotated
-						// about the orb, hardest at its centre, so the
-						// curtains wind into the vortex the water is being
-						// gathered into. The spin carries it, so the light
-						// turns with the ball rather than merely bending
-						// toward it.
-						if (orb.amount > 0.01) {
-							const cu = orb.x / w, cv = orb.y / h;
-							const du = su - cu, dv = sv - cv;
-							const dd = Math.hypot(du, dv);
-							const sw = Math.exp(-dd * 6) * orb.amount * 3.2
-								+ orb.spin * Math.exp(-dd * 9) * 0.35;
-							if (Math.abs(sw) > 0.03) {
-								const ca = Math.cos(sw), sa = Math.sin(sw);
-								su = cu + du * ca - dv * sa;
-								sv = cv + du * sa + dv * ca;
-							}
-						}
-						// NEWEST PRESS WINS. The nudges and flares of every
-						// live poke were simply added, bounded only as a
-						// total — so four presses in four places all shouted
-						// at once and the field became busy wherever the
-						// reader had recently been. `newest` is the age of
-						// the most recent one; an older poke is damped by
-						// how far behind it that leaves it, so clicking
-						// around the jar reads as MOVING one's attention
-						// rather than as piling four presses on top of each
-						// other. A single press is untouched (it is the
-						// newest), which is why the gesture the vault
-						// approved is unchanged.
-						let newest = 1e9;
-						for (const pk of pokes) {
-							if (pk.hue == null) continue;
-							const a2 = (f.now - pk.t) / 1000;
-							if (a2 < newest) newest = a2;
-						}
-						for (const pk of pokes) {
-							if (pk.hue == null) continue;
-							const age = (f.now - pk.t) / 1000;
-							if (age > 2.4) continue;
-							// How far behind the newest this one is: level
-							// with it, it keeps all its voice; a second
-							// older, about a third of it.
-							const yield2 = 1 / (1 + Math.max(0, age - newest) * 2.2);
-							// ROUND, NOT A COLUMN. With only x recorded, the
-							// bloom coloured the jar's full height under the
-							// finger — a stripe, not an injection. The press
-							// records y now, so the colour spreads from the
-							// POINT pressed; pokes from before y existed fall
-							// back to the column read rather than throwing.
-							const d = pk.y != null
-								? Math.hypot(gx * CELL - pk.x, y - pk.y)
-								: Math.abs(gx * CELL - pk.x);
-							const reach = Math.exp(-d / 46) * Math.exp(-age / 1.5);
-							if (reach < 0.02) continue;
-							// THE BLOOM IS BOUNDED. Each press injects the DIFFERENCE between its
-							// hue and the water's, which can be most of the wheel; summed over
-							// every live poke with no ceiling, four presses could rotate a cell by
-							// several hundred degrees and the colours would tear around. It yields
-							// to the newest press like everything else the loop gathers, and the
-							// TOTAL is capped below, so a run of presses tints the light instead of
-							// spinning it.
-							rot += (pk.hue - hueNow()) * reach * yield2;
-							// …AND IT SWIRLS WHERE IT LANDED. The injected colour is stirred in,
-							// not stamped on: the field's sample point is rotated about the press,
-							// hardest at the centre and dying with distance and age, so the
-							// curtains wind into a little vortex there and let go over a couple of
-							// seconds. This is the whole answer a press on a FULL jar gets — the
-							// water has nowhere to go, so the light moves instead — and on a
-							// part-lit jar it simply rides along with the ripple the same press
-							// still makes. WHAT A PRESS DOES: it nudges the field's PHASE and it
-							// IGNITES the curtains, and it moves nothing — a displacement drags a
-							// cell across several features of a quantised field and it snaps,
-							// never shades.
-							if (pk.y != null) {
-								const cu = pk.x / w, cv = pk.y / h;
-								const du = su - cu, dv = sv - cv;
-								const dd = Math.hypot(du, dv);
-								// THE RIPPLE RUNS OUT THROUGH THE CURTAINS. The nudge's phase is the
-								// DISTANCE from the press less the time since it — so the crest of it
-								// travels outward, which is the flaming a real aurora does, rather
-								// than the whole region shifting together. At these numbers it moves
-								// the same amount of picture as the rotation does with less than half
-								// the worst per-cell jump: same presence, half the violence.
-								const trav = dd * 7.5 - age * 2.4;
-								// It swells and lets go on one smooth
-								// envelope, and both ends are zero: the
-								// press does not begin or finish with a
-								// step. This is the part the earlier
-								// versions got right and it is kept.
-								const grip = Math.min(1, age / 0.3)
-									* Math.exp(-age / 1.7);
-								phase += Math.sin(trav) * Math.exp(-dd * 3.6)
-									* grip * yield2 * 0.5;
-								// AND THE FLARE, which does not travel: it
-								// sits where the finger did, brightest at
-								// once and fading. Bounded as a SET below,
-								// because a run of presses in one place
-								// otherwise stacks into a white patch —
-								// the lesson this gauge keeps relearning.
-								fire += 0.6 * yield2 * Math.exp(-dd * 5.5)
-									* Math.min(1, age / 0.12)
-									* Math.exp(-age / 1.1);
-							}
-						}
-						// BOUNDED AS A SET — a quarter turn is a bloom, half
-						// the wheel is a different picture. The jitter that
-						// also writes `rot` is inside the cap too: during
-						// the dissolve both are live at once, which is
-						// exactly when an unbounded sum shows.
-						rot = Math.max(-95, Math.min(95, rot));
-						if (rot !== 0) ctx.filter = 'hue-rotate(' + Math.round(rot) + 'deg)';
-						ctx.fillStyle = auroraCell(su, sv, f.t,
-							Math.max(-1.6, Math.min(1.6, phase)),
-							Math.min(1.15, fire));
-						ctx.fillRect(gx * CELL, y, CELL, CELL);
-						if (rot !== 0) ctx.filter = 'none';
-						ctx.globalAlpha = 1;
-					}
-				}
-			}
-		};
-
-		const draw = (now: number) => {
-			raf = null;
-			// The modal empties its body on every tab switch and on close,
-			// which detaches this canvas — that is the teardown signal. No
-			// listener to leak, and nothing keeps rendering behind a closed
-			// report.
-			if (!canvas.isConnected) return;
-			resize();
-			const t = (now - t0) / 1000;
-			// Seconds since the last frame, clamped: a tab that was in the
-			// background hands back a gap of seconds, and integrating the
-			// spray over that would fire every drop into the ceiling at
-			// once the moment the writer looked back.
-			const dt = Math.min(0.05, prevT ? (now - prevT) / 1000 : 0.016);
-			prevT = now;
-			// Where in the four stages this frame falls. One read, so
-			// nothing downstream can decide it differently.
-			const stageMs = now - stageStart;
-			const stage   = stageAt(stageMs);
-			// Where the pour has got to. Clamped at both ends, so a frame
-			// that arrives late cannot overshoot the number.
-			if (!reduce && rNow !== r) {
-				const u = Math.min(1, Math.max(0, (now - pourStart) / POUR_MS));
-				rNow = pourFrom + (r - pourFrom) * ease(u);
-				if (u >= 1) rNow = r;
-			}
-			ctx.clearRect(0, 0, w, h);
-
-			// A FULL JAR POURS TOO, and stays water: the tank fills as water, with
-			// a BIGGER swell at the brim (a full tank has the most to move), and
-			// the aurora is composited over it as it fades up. Nothing switches;
-			// one thing becomes another. Reduced motion starts at the answer, so
-			// it is aurora from the first frame. THE AURORA ARRIVES AFTER THE
-			// SPLASH, when the water is falling back, and finishes as the surface
-			// goes still — so the whole lively stage is water, the crests are seen
-			// breaking, and the light arrives into a settling jar.
-			const auroraMix = full
-				? Math.max(0, Math.min(1, (stageMs - S_SPLASH) / (S_CALM - S_SPLASH)))
-				: 0;
-			// HOW MUCH THE HUES ARE STILL SCATTERING: while the water is churning
-			// the cells take random hues around the aurora's own, and as it calms
-			// they resolve into it — the mixing IS the transition. The scatter is
-			// the inverse of the mix (full when the light arrives, gone when it
-			// has settled) and QUANTISED: a continuous rotation over a quantised
-			// palette is a shimmer with no lattice to sit on, so the scatter
-			// resolves in a few visible steps instead of creeping.
-			const auroraJitter = full ? quantA(1 - auroraMix) : 0;
-			// THE FRAME, handed to each phase: what this tick computed, and two
-			// things the surface phase leaves for the rest — the water's height per
-			// column, and the flat level it oscillates about (kept for the aurora:
-			// a front measured from a wave is a front that lurches).
-			const f: WsJarFrame = { now, t, dt, stage, stageMs, auroraMix, auroraJitter, surfaceY: null, restNow: 0 };
-			drawSurface(f);
-
-			// THE AURORA ARRIVES AS A PIXEL DISSOLVE, cell by cell.
-			//
-			// Two earlier versions were wrong in opposite directions: the
-			// first REPLACED the water at full, so the jar cut from waves
-			// to a flat wash in one frame; the second faded the aurora over
-			// it with globalAlpha, which blends two colours inside every
-			// cell and produces exactly the smooth in-between shades this
-			// whole gauge is drawn to avoid. A fade is not a transition
-			// pixel art can make.
-			//
-			// So each cell is either water or aurora, and the SHARE of them
-			// that has turned rises with the pour. Which cells turn is
-			// decided by an ordered dither — the same 4×4 matrix idea as
-			// the bar heat ramps — so they come on in a stable, scattered
-			// pattern rather than a wave or a random sparkle, and a cell
-			// that has turned stays turned. Nothing is ever half-coloured.
-
-			// THE SPLASH, thrown once when the water falls back through its
-			// own level. Spawned along the whole surface rather than at the
-			// two walls, because this is the water hitting ITSELF — the
-			// overshoot collapsing — and that happens everywhere at once.
-			// The cells nearest the walls go up hardest and lean inward:
-			// water with a wall behind it has one way left to go.
-			surfaceNow = f.surfaceY;
-			// THE SPRING SHEDS BLOBS, and this is the picture the splash
-			// below is NOT: not water thrown out of a collapse, but water
-			// welling over a mouth and rolling off it. A few lumps at a
-			// time, lobbed barely clear of the swell and falling back
-			// into it — thrown with a fraction of the splash's speed, so
-			// they arc rather than fly, and always from the middle where
-			// the swell is. `shed: true` is the flag that already means
-			// "this came off the water rather than out of it", which is
-			// exactly what these are.
-			if (springNow > 0.15 && !reduce && f.surfaceY && drops.length < DROPS_MAX
-				&& Math.random() < 0.28) {
-				const gxm = Math.round(cols / 2);
-				const topY = f.surfaceY[gxm] != null ? f.surfaceY[gxm] : h;
-				const many = 1 + Math.floor(Math.random() * 2);
-				for (let k = 0; k < many; k++) {
-					drops.push({
-						x: w / 2 + (Math.random() - 0.5) * CELL * 5,
-						y: topY - CELL,
-						// Sideways more than up: a blob rolling off a swell
-						// leaves it, it does not leap from it.
-						vx: (Math.random() - 0.5) * 52,
-						vy: -(14 + Math.random() * 26),
-						life: 0, shed: true,
-						hue: hueNow() + (Math.random() - 0.5) * 16,
-						size: Math.random() < 0.45 ? 2 : 1,
-						shape: Math.floor(Math.random() * 4)
-					});
-				}
-			}
-			// …AND A SPRING DOES NOT SPLASH. The burst below is the
-			// collapse throwing water out of the tank — lumps, beads, the
-			// lot — and it is the "blobs" half of what a brim-full pour
-			// was still doing. It belongs to a jar with air above it: at
-			// the top of the range there is no room to throw anything
-			// into, and the arrival should be water reaching the glass,
-			// not water leaving it. Keyed to the TARGET like every other
-			// part of the arrival, so it is decided before the first
-			// frame rather than switching on partway up.
-			const splashRoom = 1 - Math.max(0, Math.min(1, (r - 0.72) / 0.20));
-			drawSplash(f, splashRoom);
-
-			// The spray, integrated and drawn. Gravity in the same units as the
-			// velocities above; a cell dies when it falls back to the water under
-			// it or leaves the jar.
-			//
-			// ── THE WATER IN THE AIR, COMING HOME ────────────────────────────
-			// `airborne` is filled by the burst and drained here, or the ball's
-			// water leaves the jar and stays gone. It returns over about three
-			// quarters of a second and EASES — fast while there is a lot of it,
-			// gentle as the last of it lands — which is the difference between a
-			// level that climbs and one that plops.
-			if (airborne > 0.0002) {
-				// Rate proportional to what is left, so the tail flattens
-				// on its own rather than needing a curve imposed on it.
-				airborne = Math.max(0, airborne - airborne * 4.2 * f.dt - 0.004);
-				// AND THE SETTLE WAITS FOR THE MASS. The bounce is what a
-				// jar does when it GETS its water, so it is armed at the
-				// moment the air is nearly home rather than at the impact —
-				// otherwise it was rocking while the water was still
-				// falling, which is a jar settling before it has anything
-				// to settle.
-				if (airborne <= 0.02 && splashAmp > 0 && !splashAt) splashAt = f.now;
-			} else if (airborne !== 0) {
-				airborne = 0;
-				if (splashAmp > 0 && !splashAt) splashAt = f.now;
-			}
-
-			// ── INK AND BUBBLES ───────────────────────────────────────────
-			if (inks.length) {
-				for (let ii = inks.length - 1; ii >= 0; ii--) {
-					if ((f.now - inks[ii].t) / 1000 > INK_LIFE) inks.splice(ii, 1);
-				}
-			}
-			drawGlow(f);
-
-			drawTilt(f);
-
-			drawWaves(f);
-
-			drawOrb(f);
-
-			drawDrops(f);
-
-			drawAurora(f);
-			// ~30fps. The lattice cannot show more, and this is a modal
-			// that may sit open for minutes.
-			if (reduce) return;
-			last = f.now;
-			// STILL DOES NOT MEAN STOPPED. A liquid in which NOTHING moves reads
-			// as a screenshot of a liquid; the picture changes every frame — the
-			// caustic net crawls, the light shafts drift and the hue breathes, all
-			// functions of `t` — so the loop runs for as long as the canvas is
-			// connected (isConnected at the top of draw is the teardown, so
-			// nothing renders behind a closed report), throttled to ~30fps.
-			// Reduced motion keeps the other contract in full: one frame, no
-			// timer. `kick()` is what starts the loop, and every path that changes
-			// the picture calls it.
-			const busy = !reduce;
-			if (!busy) { raf = null; return; }
-			raf = window.requestAnimationFrame(step);
-		};
+		const draw = (now: number) => wsJarDraw({ CELL, DROPS_MAX, INK_LIFE, POUR_MS, S_CALM, S_SPLASH, canvas, cols, ctx, drawAurora, drawDrops, drawGlow, drawOrb, drawSplash, drawSurface, drawTilt, drawWaves, drops, ease, full, h, hueNow, inks, liq, pourFrom, pourStart, quantA, r, reduce, resize, stageAt, stageStart, step, t0, w }, now);
 
 		const step = (now: number) => {
-			if (now - last < 33) { raf = window.requestAnimationFrame(step); return; }
+			if (now - liq.last < 33) { liq.raf = window.requestAnimationFrame(step); return; }
 			draw(now);
 		};
 
@@ -3701,7 +4072,7 @@ export const reportMethods = {
 		// than by scheduling frames nobody wants.
 		kick = () => {
 			if (reduce) { draw(performance.now()); return; }
-			if (raf == null) raf = window.requestAnimationFrame(step);
+			if (liq.raf == null) liq.raf = window.requestAnimationFrame(step);
 		};
 
 		// NO CURSOR, NO TOOLTIP, AND NOTHING HERE POURS. A pointer promises
@@ -3741,169 +4112,7 @@ export const reportMethods = {
 		// Both halves matter: the ink alone would be a stain appearing, and
 		// the burst alone would be a press with no reason behind it — together
 		// they read as something ARRIVING in the water.
-		const inkPress = (p: { x: number; y: number; }, now: number) => {
-			// A WHOLE WHEEL OF INKS. The offsets are drawn from a spread of steps
-			// around the ramp's own hue — a colour that belongs to this water
-			// reads as more of the same substance — so consecutive drops are
-			// plainly DIFFERENT inks, and because a cell takes the weighted
-			// average of every drop reaching it, two colours overlapping genuinely
-			// make a third rather than one covering the other. A BOX OF INKS
-			// ABOVE 80%: a nearly-full jar sits late on the ramp, where every
-			// relative offset lands in the same narrow arc, and it is the jar
-			// people press most — so it gets pinks, reds, oranges, yellows,
-			// purples and magentas, named as ABSOLUTE hues. It fades in rather
-			// than switching at a line: 80% mixes a few of them, 100% is nearly
-			// all box, so there is no fill at which the jar suddenly starts
-			// behaving differently.
-			const BOX = [330, 340, 355, 8, 22, 36, 50, 265, 285, 300, 318];
-			const boxOdds = Math.max(0, Math.min(0.85, (rNow - 0.80) / 0.22));
-			const STEPS = [-155, -120, -85, -55, 55, 85, 120, 155, 180];
-			const hue = (Math.random() < boxOdds
-				? BOX[Math.floor(Math.random() * BOX.length)]
-				: hueNow() + STEPS[Math.floor(Math.random() * STEPS.length)])
-				+ (Math.random() - 0.5) * 22;
-			// KEEP CLICKING AND IT SPREADS FURTHER. A run of presses is a
-			// jar being stirred, and stirred ink goes further and mixes
-			// harder: the streak fades if you stop, so one drop into still
-			// water stays a drop.
-			inkRun = (now - inkAt < 900) ? Math.min(8, inkRun + 1) : 1;
-			inkAt = now;
-			const push = 1 + (inkRun - 1) * 0.42;
-			if (inks.length >= INKS_MAX) inks.shift();
-			// Dropped where the pointer is, but never above the water: ink
-			// landing in mid-air would spread from a point with nothing in
-			// it. The surface is where it enters.
-			const gxi = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
-			const line = surfaceNow ? (surfaceNow[gxi] || h) : h;
-			// …and which WAY it turns is the drop's own. All curling one
-			// way would read as the whole tank rotating; a mix reads as
-			// water, which is what it is.
-			inks.push({ x: p.x, y: Math.max(p.y, line + CELL), t: now, hue, push,
-				spin: (Math.random() < 0.5 ? -1 : 1) * (0.6 + Math.random() * 0.7) });
-
-			// THE MOUND, NOT A BURST. Four attempts at answering a drop on
-			// the surface — travelling waves at 1.5×, 0.62×, 0.28×, then a
-			// "tiny" 0.15× ripple pair plus a per-drop hump — and every one
-			// was turbulence after ONE click, because a nearly-full jar
-			// has no sky and anything the surface does per click is
-			// immediate weather. So the click no longer makes weather: it
-			// adds a share to ONE mound (see the surface sum), and the
-			// mound moves toward wherever the pressing actually is rather
-			// than standing where the first click happened to land.
-			const wasVented = inkCharge >= 1;
-			if (inkCharge <= 0.01) inkChargeX = p.x;
-			else inkChargeX += (p.x - inkChargeX) * 0.45;
-			inkCharge = Math.min(1, inkCharge + 0.2);
-			inkChargeAt = now;
-			// A FULL MOUND LEAVES — as the wave the gathering was for.
-			// Five presses build it; the press that tops it up spends it,
-			// at the wall OPPOSITE the mound (a mound near the middle has
-			// no opposite wall, so it splits and runs at both), on the
-			// same capped stack every other wave rides. HEADROOM decides
-			// its height exactly as the wave band's press does: this band
-			// is nearly full, so the tank gives what room it has and no
-			// more — the release reads as the mound going somewhere, not
-			// as a storm arriving from nowhere.
-			if (inkCharge >= 1 && !wasVented) {
-				inkCharge = 0;
-				inkVent = now;
-				const gxc = Math.max(0, Math.min(cols - 1, Math.round(inkChargeX / CELL)));
-				const surfC = surfaceNow ? (surfaceNow[gxc] || h) : h;
-				const room = Math.max(6, surfC);
-				const mid = Math.abs(inkChargeX - w / 2) < w * 0.09;
-				const dirs = mid ? [-1, 1] : [inkChargeX < w / 2 ? 1 : -1];
-				const swellAmp = Math.min(waveAmp() * 2.6, room * 0.62);
-				for (const dir of dirs) {
-					if (waves.length >= WAVES_MAX) waves.shift();
-					waves.push({
-						x: inkChargeX, dir, born: 0,
-						amp: swellAmp * (mid ? 0.78 : 1),
-						// A swell, not a chop: broad, deliberate, with a
-						// real hollow behind it — the water the mound was
-						// made of, going.
-						wid: 1700, spd: 240, hollow: 0.55, spray: 1.2,
-						hue, broke: false
-					});
-				}
-				// The release is an EVENT and may say so — a modest share
-				// of agitation, under the same low ceiling a wave-band
-				// press keeps, so even releasing over and over is a run of
-				// waves rather than a storm.
-				agitLevel = Math.min(0.55, agitNow(now) + 0.10);
-				agitAt = now;
-				// …and the collapsing crest throws a little, off the top
-				// of the mound, wearing the ink that was pressed into it.
-				if (surfaceNow && drops.length < DROPS_MAX) {
-					const many2 = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
-					for (let k = 0; k < many2; k++) {
-						drops.push({
-							x: inkChargeX + (Math.random() - 0.5) * CELL * 5,
-							y: surfC - CELL * 2,
-							vx: (Math.random() - 0.5) * 120 + (dirs.length === 1 ? dirs[0] * 40 : 0),
-							vy: -(55 + Math.random() * 90),
-							life: 0, shed: true,
-							hue: hue + (Math.random() - 0.5) * 40,
-							size: Math.random() < 0.3 ? 2 : 1,
-							shape: Math.floor(Math.random() * 4)
-						});
-					}
-				}
-			}
-			// AN INKY BUBBLE GOING IN. A few bubbles born at the point of
-			// entry, carrying the drop's own colour rather than the water's
-			// — air pushed under by something arriving, coming back up a
-			// moment later and popping at the surface. They use the same
-			// machinery every other bubble does, so they wobble as they
-			// climb and ring the surface where they break; they simply
-			// start where the ink did and wear its hue.
-			if (surfaceNow) {
-				const bn = Math.min(BUBBLES_MAX - bubbles.length,
-					2 + Math.floor(Math.random() * 3));
-				for (let k = 0; k < bn; k++) {
-					bubbles.push({
-						x: p.x + (Math.random() - 0.5) * CELL * 5,
-						// Just under the surface, not deep: they were
-						// carried down by the drop, not released from the
-						// floor, so they have a short way back.
-						y: Math.min(h - CELL, line + CELL * (2 + Math.random() * 5)),
-						size: Math.random() < 0.4 ? 2 : 1,
-						rise: 22 + Math.random() * 30,
-						phase: Math.random() * 6.283,
-						wob: 0.6 + Math.random() * 1.3,
-						hue: hue + (Math.random() - 0.5) * 30
-					});
-				}
-			}
-			// …and a handful of beads off the surface at the entry point,
-			// carrying the ink's own colour, because that is the water the
-			// drop displaced on its way in.
-			if (surfaceNow && drops.length < DROPS_MAX) {
-				// Three to five beads over the meniscus: a drop going in should push
-				// a small crown of water above the line, and more than that over a
-				// surface that barely moves reads as the beads being the event.
-				const many = Math.min(DROPS_MAX - drops.length, 3 + Math.floor(Math.random() * 3));
-				for (let k = 0; k < many; k++) {
-					drops.push({
-						x: p.x + (Math.random() - 0.5) * CELL * 4,
-						y: line - CELL,
-						vx: (Math.random() - 0.5) * 105,
-						vy: -(48 + Math.random() * 78),
-						life: 0, shed: true,
-						hue: hue + (Math.random() - 0.5) * 40,
-						size: Math.random() < 0.3 ? 2 : 1,
-						shape: Math.floor(Math.random() * 4)
-					});
-				}
-			}
-			// A RING WHERE IT WENT IN, AND NO MORE. `still` is the flag that
-			// means "draw the ripple, claim no energy": the drop marks the
-			// surface it broke without making the whole tank livelier for
-			// the next second. Without it every ink click was quietly
-			// stirring the jar on top of everything else.
-			if (pokes.length >= POKES_MAX) pokes.shift();
-			pokes.push({ x: p.x, y: null, t: now, still: true, hue });
-			kick();
-		};
+		const inkPress = (p: { x: number; y: number; }, now: number) => wsJarInkPress({ BUBBLES_MAX, CELL, DROPS_MAX, INKS_MAX, POKES_MAX, WAVES_MAX, agitNow, bubbles, cols, drops, h, hueNow, inks, kick, liq, pokes, w, waveAmp, waves }, p, now);
 
 		// ── THE SLOSH'S PRESS ───────────────────────────────────────────────
 		// A press pushes the water toward the side it landed on, and it adds
@@ -3935,8 +4144,8 @@ export const reportMethods = {
 			});
 			// A slap disturbs the surface where it landed whatever the body
 			// then does, and a centre press has only this to give.
-			agitLevel = Math.min(0.55, agitNow(now) + (lever === 0 ? 0.12 : 0.04));
-			agitAt = now;
+			liq.agitLevel = Math.min(0.55, agitNow(now) + (lever === 0 ? 0.12 : 0.04));
+			liq.agitAt = now;
 			kick();
 		};
 
@@ -3948,202 +4157,14 @@ export const reportMethods = {
 		// the spin. Its draw-loop half (leak, fall, tear, deformation) never
 		// went away; only this end of it did, when the waves took the
 		// handler over.
-		const orbPress = (p: { x: number; y: number; }, now: number) => {
-			// A press catches it mid-fall, torn or not.
-			orb.falling = false;
-			orb.dropping = false;
-			orb.vy = 0;
-			orb.x = p.x;
-			orb.y = p.y;
-			const gap  = Math.max(0, now - (orb.last || 0));
-			const urge = Math.max(0, Math.min(1, 1 - gap / 520));
-			orb.last = now;
-			const room = Math.max(0, 1 - orb.want);
-			orb.want = Math.min(1, orb.want
-				+ ORB_BITE * (0.45 + urge * 1.1) * (0.35 + room * 0.65));
-			// KEEP CLICKING AND IT KEEPS WINDING. A run of presses used to
-			// add the same push each time, so the ball reached a speed and
-			// sat there however long you kept at it. `streak` counts the
-			// presses that have followed one another closely and fades when
-			// you stop, so the tenth press in a run pushes half again as
-			// hard as the first — the ball accelerates while you are
-			// working at it rather than settling into a pace.
-			orb.streak = urge > 0.15 ? Math.min(14, (orb.streak || 0) + 1) : 0;
-			// 0.7, down from 1.6. The streak is meant to make a sustained
-			// run feel like it is winding something up, not to reach the
-			// cap in six presses.
-			const zeal = 1 + (orb.streak / 14) * 0.7;
-			orb.vel = Math.min(ORB_SPIN_CAP, orb.vel + (0.7 + urge * 2.4) * zeal);
-			// The water is SEEN to come: blobs leave the surface across the
-			// whole width and are aimed to arrive, so the ball is visibly
-			// made of water that left the jar rather than conjured at the
-			// pointer. `pull` keeps them from ringing the surface if they
-			// fall back — they were on their way up, not thrown down.
-			if (surfaceNow) {
-				const many = Math.min(Math.max(0, DROPS_MAX - drops.length), 7);
-				for (let k = 0; k < many; k++) {
-					const gx2 = Math.floor(Math.random() * cols);
-					const sx = gx2 * CELL;
-					const sy = surfaceNow[gx2] || h;
-					const flight = 0.42;
-					drops.push({
-						x: sx,
-						y: sy - CELL,
-						vx: (p.x - sx) / flight,
-						vy: (p.y - sy) / flight - 900 * flight * 0.5,
-						life: 0,
-						shed: true,
-						pull: true,
-						hue: hueNow() + (Math.random() - 0.5) * 70,
-						size: Math.random() < 0.35 ? 2 : 1,
-						shape: Math.floor(Math.random() * 4)
-					});
-				}
-			}
-			// A RING WHERE THE WATER LEFT, AND NO STORM. This poke was
-			// `still: false`, which feeds the global agitation store — and
-			// that store is a MAXIMUM decaying over 620ms, so a single
-			// press pinned the whole surface at full amplitude for half a
-			// second. One click, and the entire tank churned.
-			//
-			// `still: true` draws the ripple and claims no energy, which is
-			// the right bargain here: the water leaving is already visible
-			// as seven blobs climbing to the ball, and the ball itself is
-			// the answer to the press. The surface does not also need to be
-			// thrown about to say something happened.
-			if (pokes.length >= POKES_MAX) pokes.shift();
-			pokes.push({
-				x: p.x, y: p.y, t: now, still: true,
-				hue: hueNow() + 40 + Math.random() * 220
-			});
-			kick();
-		};
+		const orbPress = (p: { x: number; y: number; }, now: number) => wsJarOrbPress({ CELL, DROPS_MAX, ORB_BITE, ORB_SPIN_CAP, POKES_MAX, cols, drops, h, hueNow, kick, liq, orb, pokes }, p, now);
 
 		// ── WHAT A PRESS DOES ───────────────────────────────────────────────
 		// Down gathers, up releases. A quick press is a plain wave; a held
 		// one raises a mound first and leaves with a bigger one. Nothing
 		// snaps into place at either end — the mound eases in while the
 		// finger is down and eases out into the wave that carries it away.
-		const bite = (ev: PointerEvent) => {
-			const p = pointAt(ev);
-			const now = performance.now();
-
-			// A LIT JAR KEEPS ITS LIGHT. At 100%, past the splash, the
-			// aurora is the whole point of the picture and there is no
-			// headroom for a wave anyway. The press stirs colour and winds
-			// the curtains, exactly as it did before any of this.
-			// The lit jar answers neither half of a press (see the pointerdown twin).
-			if (full && (now - stageStart >= S_SPLASH)) { hold = null; return; }
-
-			const heldFor = hold ? Math.min(1, (now - hold.t) / 1100) : 0;
-			const eased   = 1 - Math.pow(1 - heldFor, 3);
-			hold = null;
-
-			// WHERE THE PRESS LANDED, relative to the water. The same click
-			// means three different things depending on whether it fell
-			// through air, broke the meniscus, or reached down into the
-			// body of the liquid — and a jar that answers all three the
-			// same way is a jar that is not really wet.
-			const gx = Math.max(0, Math.min(cols - 1, Math.round(p.x / CELL)));
-			const surf = surfaceNow ? (surfaceNow[gx] || h) : h;
-			const tank = Math.max(1, h - surf);
-			const under = (p.y - surf) / tank;      // <0 air, ~0 meniscus, >0 deep
-			let kind = 'surface';
-			if (under < -0.06) kind = 'air';
-			else if (under < 0.10) kind = 'crest';
-			else kind = 'swell';
-
-			// HEADROOM. A nearly full jar has nowhere to put a tall wave,
-			// and a wave drawn taller than the room it has just clips
-			// against the ceiling. The height it cannot take is thrown as
-			// SPRAY instead — energy has to go somewhere, and upward out of
-			// a brimming tank is where it actually goes.
-			const room  = Math.max(6, surf);
-			const base  = waveAmp();
-			const wants = base * (kind === 'swell' ? 2.1 : kind === 'air' ? 3.4 : 2.8)
-				* (0.75 + eased * 1.5);
-			const height = Math.min(wants, room * 0.7);
-			const spilled = Math.max(0, wants - height) / Math.max(1, base);
-
-			// Every wave is a little unlike the last: a tank that answers
-			// twenty identical clicks with twenty identical waves stops
-			// reading as water by about the fourth.
-			const jitter = (v: number, by: number) => v * (1 - by + Math.random() * by * 2);
-
-			const shapes: Record<string, { wid: number; spd: number; hollow: number; spray: number }> = {
-				// Something falling in: narrow, quick, and it throws.
-				air:     { wid: 760,  spd: 330, hollow: 0.30, spray: 5 },
-				// Struck at the surface: the classic travelling crest.
-				crest:   { wid: 900,  spd: 305, hollow: 0.42, spray: 3 },
-				// Reached into the body: a long slow swell with a deep
-				// trough behind it, and almost nothing thrown.
-				swell:   { wid: 2100, spd: 215, hollow: 0.62, spray: 1 },
-				surface: { wid: 900,  spd: 305, hollow: 0.42, spray: 3 }
-			};
-			const sh = shapes[kind] || shapes.crest;
-			const hue = hueNow() + (Math.random() - 0.5) * 70;
-
-			// WHICH WAY. At the wall opposite the pointer — press left and
-			// it runs right. Press near the middle and there is no opposite
-			// wall to pick, so it splits and runs at both.
-			const mid = Math.abs(p.x - w / 2) < w * 0.09;
-			const dirs = mid ? [-1, 1] : [p.x < w / 2 ? 1 : -1];
-			for (const dir of dirs) {
-				if (waves.length >= WAVES_MAX) waves.shift();
-				waves.push({
-					x: p.x,
-					dir,
-					born: 0,   // stamped by the first frame that sees it
-					amp: jitter(height, 0.14) * (mid ? 0.78 : 1),
-					wid: jitter(sh.wid, 0.18),
-					spd: jitter(sh.spd, 0.10),
-					hollow: sh.hollow,
-					spray: sh.spray * (1 + spilled * 0.8) * (0.6 + eased),
-					hue,
-					broke: false
-				});
-			}
-
-			// The press itself disturbs the water where it landed, whatever
-			// the wave then does with it.
-			if (pokes.length >= POKES_MAX) pokes.shift();
-			pokes.push({ x: p.x, y: null, t: now, still: false, hue });
-			// A GENTLE SHARE, AND A LOW CEILING. Every press used to add to
-			// the same store the pour's storm uses, and `stir` scales the
-			// WHOLE surface's amplitude — so ten quick clicks drove it to
-			// its 2.4 cap, the waves grew to a fifth of the tank's height,
-			// and the surface swung across the canvas every frame. That is
-			// the one-colour flash: not a colour bug at all, but the water
-			// filling and emptying the picture.
-			//
-			// The wave IS the answer to a press; it does not also need the
-			// tank to churn. A tenth of what it added, under a ceiling of
-			// its own well below the pour's, so clicking fast makes many
-			// waves rather than one storm.
-			agitLevel = Math.min(0.55, agitNow(now) + 0.02 + eased * 0.05);
-			agitAt = now;
-			// A held press that spilled its height throws on release too,
-			// so a brimming jar answers a big press with water in the air
-			// rather than with a wave it has no room for.
-			if (surfaceNow && (spilled > 0.2 || eased > 0.3)) {
-				const many = Math.min(DROPS_MAX - drops.length,
-					1 + Math.round(spilled * 5 + eased * 6));
-				for (let k = 0; k < many; k++) {
-					drops.push({
-						x: p.x + (Math.random() - 0.5) * CELL * 4,
-						y: surf - CELL,
-						vx: (Math.random() - 0.5) * 110,
-						vy: -(60 + Math.random() * 120),
-						life: 0,
-						shed: true,
-						hue: hue + (Math.random() - 0.5) * 50,
-						size: Math.random() < 0.3 ? 2 : 1,
-						shape: Math.floor(Math.random() * 4)
-					});
-				}
-			}
-			kick();
-		};
+		const bite = (ev: PointerEvent) => wsJarBite({ CELL, DROPS_MAX, POKES_MAX, S_SPLASH, WAVES_MAX, agitNow, cols, drops, full, h, hueNow, kick, liq, pointAt, pokes, stageStart, w, waveAmp, waves }, ev);
 
 		// NOT ON A PHONE. Every gesture here is a press, and on a touch
 		// screen a press in the middle of a report is how you scroll it — the
@@ -4181,7 +4202,7 @@ export const reportMethods = {
 				if (toy === 'orb')   { orbPress(p, now);   return; }
 				if (toy === 'slosh') { sloshPress(p, now); return; }
 				if (toy === 'ink')   { inkPress(p, now);   return; }
-				hold = { x: p.x, y: p.y, t: now };
+				liq.hold = { x: p.x, y: p.y, t: now };
 				kick();
 			});
 			// BOTH TOYS FOLLOW THE FINGER, and this handler serves both.
@@ -4198,17 +4219,17 @@ export const reportMethods = {
 			// let go — a falling ball is falling, not being led.
 			wrap.addEventListener('pointermove', (ev) => {
 				const hasOrb = orb.amount > 0.001 && !orb.falling && !orb.dropping;
-				if (!hold && !hasOrb) return;
+				if (!liq.hold && !hasOrb) return;
 				const p = pointAt(ev);
-				if (hold) { hold.x = p.x; hold.y = p.y; }
+				if (liq.hold) { liq.hold.x = p.x; liq.hold.y = p.y; }
 				if (hasOrb) { orb.x = p.x; orb.y = p.y; }
 			});
 			// Only the wave has anything to release.
-			wrap.addEventListener('pointerup', (ev) => { if (hold) bite(ev); });
-			wrap.addEventListener('pointercancel', (ev) => { if (hold) bite(ev); });
+			wrap.addEventListener('pointerup', (ev) => { if (liq.hold) bite(ev); });
+			wrap.addEventListener('pointercancel', (ev) => { if (liq.hold) bite(ev); });
 			// A pointer that leaves the window never sends up: the water
 			// must not be left holding a gather it can never spend.
-			wrap.addEventListener('pointerleave', (ev) => { if (hold) bite(ev); });
+			wrap.addEventListener('pointerleave', (ev) => { if (liq.hold) bite(ev); });
 		}
 
 		// First frame synchronously-ish, so the tank is never briefly blank —
@@ -4220,7 +4241,7 @@ export const reportMethods = {
 		// a hole in the panel for one paint.
 		wrap.wsPour = () => { pour(); kick(); };
 		pour();
-		raf = window.requestAnimationFrame(draw);
+		liq.raf = window.requestAnimationFrame(draw);
 		return wrap;
 	},
 

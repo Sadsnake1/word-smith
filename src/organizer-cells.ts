@@ -111,8 +111,8 @@ const orgCanHoldGoal = (path: string) => /\.md$/i.test(String(path || ''));
 const orgPropRefuse = (path: string) => {
 	const ext = String(path || '').split('.').pop();
 	try {
-		new Notice('A .' + ext + ' cannot hold properties — they live in a note\u2019s frontmatter.');
-	} catch (_) { wsCatch('openManuscriptModal / orgPropRefuse: new Notice(\'A .\' + ext + \' cannot hold properties — they live in a …', _); }
+		new Notice('Word-Smith: a .' + ext + ' cannot hold properties — they live in a note\u2019s frontmatter.');
+	} catch (_) { wsCatch('openManuscriptModal / orgPropRefuse: new Notice(\'Word-Smith: a .\' + ext + \' cannot hold properties — they live in a …', _); }
 };
 const orgPropCell = (td: HTMLElement, row: WsOrgRow, col: { id: string; key?: string }, text: string) => {
 	const key = col.key || '';
@@ -216,8 +216,8 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 		if (!canGoal) {
 			const ext = String(row.path || '').split('.').pop();
 			try {
-				new Notice('A .' + ext + ' has no word count, so a target has nothing to measure.');
-			} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: new Notice(\'A .\' + ext + \' has no word count, so a target has nothing …', _); }
+				new Notice('Word-Smith: a .' + ext + ' has no word count, so a target has nothing to measure.');
+			} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: new Notice(\'Word-Smith: a .\' + ext + \' has no word count, so a target has nothing …', _); }
 			return;
 		}
 		if (td.querySelector('input')) return;

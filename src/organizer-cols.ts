@@ -622,7 +622,7 @@ const pickProp = (ev2: MouseEvent) => {
 	// empty list it would be a menu of nothing, so that one case
 	// still says so rather than opening a blank.
 	if (!found.length) {
-		try { new Notice('No properties in these notes'); } catch (_) { wsCatch('openManuscriptModal / pickProp: new Notice(\'No properties in these notes\');', _); }
+		try { new Notice('Word-Smith: no properties in these notes.'); } catch (_) { wsCatch('openManuscriptModal / pickProp: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
 		return;
 	}
 	const pick = wsMenu();

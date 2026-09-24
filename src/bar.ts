@@ -254,7 +254,7 @@ export const barMethods = {
 		const at = names.indexOf(this._activeBarPreset);
 		const next = names[(at + direction + names.length) % names.length];
 		await this.loadBarPreset(next);
-		new Notice('Bar preset: ' + next);
+		new Notice('Word-Smith: bar preset ' + next + '.');
 	},
 
 	async deleteBarPreset(this: WordSmith, name: string) {
@@ -1800,6 +1800,8 @@ export const barMethods = {
 	barCountPaint(this: WordSmith, node: HTMLElement, id: string, n: number | string, word: string) {
 		node.textContent = '';
 		node.classList.remove('is-icon', 'is-both');
+		// (a suite's stand-in node has no removeAttribute)
+		if (typeof node.removeAttribute === 'function') node.removeAttribute('aria-label');
 		const fmt = this.barTokenFormat(id);
 		const num = createSpan();
 		num.className = 'ws-bartok-n';
@@ -1809,7 +1811,14 @@ export const barMethods = {
 			const ic = createSpan();
 			ic.className = 'ws-bartok-ic';
 			try { if (typeof setIcon === 'function') setIcon(ic, this.barTokenIconName(id)); } catch (_) { wsCatch('barCountPaint: setIcon(ic, …)', _); }
-			if (ic.childElementCount > 0) { node.appendChild(ic); node.classList.add('is-icon'); }
+			if (ic.childElementCount > 0) {
+				node.appendChild(ic); node.classList.add('is-icon');
+				// THE COUNT AND ITS WORD AS THE LABEL when the word is not on the
+				// bar (A486): "3 backlinks", where a screen reader had only "3"
+				// and a hover had nothing — the glyph tokens beside it
+				// (`barTokenPaint`) always carried theirs.
+				if (fmt === 'icon' && typeof node.setAttribute === 'function') node.setAttribute('aria-label', String(n) + ' ' + word);
+			}
 		}
 		if (fmt !== 'icon') {
 			if (fmt === 'both') node.classList.add('is-both');

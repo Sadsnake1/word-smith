@@ -31,16 +31,20 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
-      # The smoke test over the built file: it loads, it asks Obsidian for
-      # its packages at run time, the three files agree on their versions.
+      # The smoke test over the built files: they load, they ask Obsidian for
+      # their packages at run time, the files agree on their versions, and
+      # build/main.js and build/styles.css are the source minus its comments.
       - run: npm test
+      # THE ASSETS ARE build/'s: the same code without the comments the
+      # source carries (about 900 KB of a 2.3 MB plugin). The files beside the
+      # manifest stay the source; the asset names are unchanged.
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            main.js
-            styles.css
+            build/main.js
+            build/styles.css
             manifest.json
       - name: Attach the assets to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name || inputs.tag }}" main.js styles.css manifest.json --clobber
+        run: gh release upload "${{ github.event.release.tag_name || inputs.tag }}" build/main.js build/styles.css manifest.json --clobber
