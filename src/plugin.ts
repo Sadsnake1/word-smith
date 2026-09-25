@@ -205,7 +205,7 @@ function wsFieldsReset(plugin: WordSmith) {
 
 // THE COMMANDS: the palette's every entry, the feature toggles, the quick
 // panels and the menu's arrows (lifted out of onload, A488).
-function wsRegisterCommands(plugin: WordSmith) {
+export function wsRegisterCommands(plugin: WordSmith) {
 	plugin.addCommand({
 		id: 'repair-display',
 		name: 'Repair the display (draw everything again)',
@@ -414,7 +414,7 @@ function wsRegisterCommands(plugin: WordSmith) {
 	for (const dir of ['left', 'right', 'up', 'down']) {
 		plugin.addCommand({
 			id: 'quick-cycle-' + dir,
-			name: 'Quick cycle: focus ' + dir,
+			name: 'Quick cycle: jump ' + dir,
 			checkCallback: (checking: boolean) => {
 				if (!plugin.settings.quickCycle) return false;
 				if (!checking) void plugin.quickCycleMove(dir);

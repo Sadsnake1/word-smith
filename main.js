@@ -4197,7 +4197,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.2";
+var WS_PLUGIN_VERSION = "1.6.3";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -5455,6 +5455,10 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       const row = icon.closest(".setting-item");
       if (!info || !row)
         return;
+      for (const old of Array.from(info.children)) {
+        if (old !== icon && old.classList.contains("ws-page-icon"))
+          old.remove();
+      }
       info.prepend(icon);
       setClass(row, "ws-set-entry", true);
     });
@@ -6217,7 +6221,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.section("Look", [
         { name: "Match the note’s text size", desc: "The bar follows the editor’s font size.", control: { type: "toggle", key: "statusBarFontFollowNote" } },
         { name: "Font size", desc: "In pixels.", control: { type: "slider", key: "statusBarFontSize", min: 8, max: 24, step: 1 }, visible: () => !s.statusBarFontFollowNote },
-        { name: "Interface font", desc: "Obsidian’s own face for the bar, whatever font the note is in.", control: { type: "toggle", key: "statusBarUiFont" } },
+        { name: "Use the interface font", desc: "Obsidian’s own face for the bar, whatever font the note is in.", control: { type: "toggle", key: "statusBarUiFont" } },
         { name: "Row height", desc: "In pixels.", control: { type: "slider", key: "statusBarHeight", min: 12, max: 30, step: 1 } },
         { name: "Space above", desc: "In pixels.", control: { type: "slider", key: "statusBarPadTop", min: 0, max: 24, step: 1 } },
         { name: "Space below", desc: "In pixels.", control: { type: "slider", key: "statusBarPadBottom", min: 0, max: 24, step: 1 } },
@@ -6923,7 +6927,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         this.railRow("prose", RAIL)
       ], void 0, false),
       this.section("Syntax", [
-        { name: "Syntax highlight", desc: "Colors parts of speech as you write. Fully local.", control: { type: "toggle", key: "posEnabled" } },
+        { name: "Syntax highlight", desc: "Colors parts of speech as you write. Works offline.", control: { type: "toggle", key: "posEnabled" } },
         { name: "Syntax display style", desc: "How a part of speech is marked.", control: { type: "dropdown", key: "syntaxStyle", options: { text: "Colored text", highlight: "Highlight", line: "Underline" } }, visible: pos },
         cat("Nouns", "Nouns and pronouns.", "posNoun", "posNounColor", pos),
         cat("Verbs", "Verbs, auxiliaries and modals.", "posVerb", "posVerbColor", pos),
@@ -6934,7 +6938,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         this.hotkeysRow(["toggle-syntax"])
       ], this.railed("prose", "syntax")),
       this.section("Prose checks", [
-        { name: "Prose checks", desc: "Things worth a second look, not mistakes. Fully local.", control: { type: "toggle", key: "checksEnabled" } },
+        { name: "Prose checks", desc: "Things worth a second look, not mistakes. Works offline.", control: { type: "toggle", key: "checksEnabled" } },
         { name: "Prose checks display style", desc: "How a finding is marked.", control: { type: "dropdown", key: "checkStyle", options: { line: "Underline", highlight: "Highlight", text: "Colored text" } }, visible: ck },
         cat("Filler words", "Words like very, really, basically, kind of.", "checkFiller", "checkFillerColor", ck),
         { name: "Also flag vague quantifiers", desc: "Many, most, some, often. Stricter, and it flags more.", control: { type: "toggle", key: "checkFillerSoft" }, visible: all(ck, () => !!s.checkFiller) },
@@ -6945,7 +6949,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Minimum length", desc: "Skips words shorter than this.", control: { type: "slider", key: "repetitionMinLength", min: 3, max: 10, step: 1 }, visible: all(ck, () => !!s.checkRepetition) },
         cat("Commonly misused", "Affect and effect, its and it’s, fewer and less.", "checkMisused", "checkMisusedColor", ck),
         cat("Lexical illusions", "The same word twice in a row.", "checkIllusion", "checkIllusionColor", ck),
-        cat("Dialogue focus", "Everything inside quotes.", "checkDialogue", "checkDialogueColor", ck),
+        cat("Dialogue", "Everything inside quotes.", "checkDialogue", "checkDialogueColor", ck),
         rendered({ name: "Sentence rhythm", desc: "Shades each sentence by how hard it reads: two tints, and the switch.", render: (st) => this.renderRhythm(st), visible: ck }, ["checkRhythm", "checkRhythmHardColor", "checkRhythmVeryHardColor"]),
         { name: "Hard above grade", desc: "Flesch-Kincaid grade for the first tint.", control: { type: "slider", key: "checkRhythmHardGrade", min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
         { name: "Very hard above", desc: "And for the second.", control: { type: "slider", key: "checkRhythmVeryHardGrade", min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
@@ -6986,7 +6990,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Typography", desc: "Turns what you type into the proper characters as you go.", control: { type: "toggle", key: "typographyEnabled" } },
         this.alertRow("Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.", ty),
         { name: "Curly quotes", desc: "Straight quotes turn curly as you type.", control: { type: "toggle", key: "typoSmartQuotes" }, visible: ty },
-        { name: "Choose the characters", desc: "Your own quote marks instead of the usual ones.", control: { type: "toggle", key: "typoCustomQuotes" }, visible: all(ty, () => !!s.typoSmartQuotes) },
+        { name: "Custom quote marks", desc: "Your own quote marks instead of the usual ones.", control: { type: "toggle", key: "typoCustomQuotes" }, visible: all(ty, () => !!s.typoSmartQuotes) },
         { name: "Open double", desc: 'Replaces " at the start of a quotation.', control: { type: "text", key: "typoOpenDouble" }, visible: quotes },
         { name: "Close double", desc: 'Replaces " at the end.', control: { type: "text", key: "typoCloseDouble" }, visible: quotes },
         { name: "Open single", desc: "Replaces the straight single quote at the start.", control: { type: "text", key: "typoOpenSingle" }, visible: quotes },
@@ -7220,7 +7224,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     return this.page("Navigation", "compass", "Quick panels and Vim motions.", [
       this.section("Quick panels", [
         this.subheadRow("Quick panels"),
-        { name: "Quick file explorer", desc: "A command that opens the file explorer and focuses it.", control: { type: "toggle", key: "quickExplorer" } },
+        { name: "Quick file explorer", desc: "A command that opens the file explorer and moves you into it.", control: { type: "toggle", key: "quickExplorer" } },
         { name: "Quick outline", desc: "And one for the outline.", control: { type: "toggle", key: "quickOutline" } },
         { name: "Quick cycle", desc: "Four commands for directional jumps; bind them to Alt and the arrows.", control: { type: "toggle", key: "quickCycle" } },
         { name: "Close a sidebar when you leave it", desc: "Only when you move out with a direction key, never when you pick something.", control: { type: "toggle", key: "quickCycleCloseOnLeave" }, visible: () => !!s.quickCycle },
@@ -8665,19 +8669,16 @@ function wsEditorExtensions(plugin, cm) {
       this.view = view;
       this.el = createDiv();
       this.el.className = "ws-eof-tildes";
-      view.dom.appendChild(this.el);
+      view.scrollDOM.appendChild(this.el);
       this.measure = { read: () => this.read(), write: (m) => this.write(m) };
-      this.onScroll = () => view.requestMeasure(this.measure);
-      view.scrollDOM.addEventListener("scroll", this.onScroll, { passive: true });
       view.requestMeasure(this.measure);
     }
     update(u) {
-      if (u.docChanged || u.viewportChanged || u.geometryChanged) {
+      if (u.docChanged || u.viewportChanged || u.geometryChanged || u.heightChanged) {
         u.view.requestMeasure(this.measure);
       }
     }
     destroy() {
-      this.view.scrollDOM.removeEventListener("scroll", this.onScroll);
       this.el.remove();
     }
     read() {
@@ -8697,14 +8698,26 @@ function wsEditorExtensions(plugin, cm) {
         textBottom = cRect.bottom - (parseFloat(cStyle.paddingBottom) || 0);
       }
       const lineH = view.defaultLineHeight || 24;
-      const startY = Math.max(textBottom, scRect.top);
-      const height = scRect.bottom - startY;
+      const sd = view.scrollDOM;
+      const top = textBottom - scRect.top + sd.scrollTop;
+      let end = sd.clientHeight;
+      for (const c of Array.from(sd.children)) {
+        const e = c;
+        if (e === this.el || typeof e.offsetTop !== "number")
+          continue;
+        const pos = getComputedStyle(e).position;
+        if (pos === "absolute" || pos === "fixed")
+          continue;
+        end = Math.max(end, e.offsetTop + e.offsetHeight);
+      }
+      end += parseFloat(getComputedStyle(sd).paddingBottom) || 0;
+      const height = end - top;
       if (height < lineH * 0.5)
         return { hide: true };
-      const domRect = view.dom.getBoundingClientRect();
       return {
-        top: startY - domRect.top,
-        left: cRect.left - domRect.left + (parseFloat(cStyle.paddingLeft) || 0),
+        top,
+        left: cRect.left - scRect.left + sd.scrollLeft + (parseFloat(cStyle.paddingLeft) || 0),
+        height,
         lineH,
         font: cStyle.fontFamily,
         size: cStyle.fontSize,
@@ -8721,6 +8734,8 @@ function wsEditorExtensions(plugin, cm) {
       this.el.classList.add("is-on");
       st.top = m.top + "px";
       st.left = m.left + "px";
+      st.height = m.height + "px";
+      st.overflow = "hidden";
       st.lineHeight = m.lineH + "px";
       st.fontFamily = m.font;
       st.fontSize = m.size;
@@ -23996,7 +24011,7 @@ var barMethods = {
       { key: "checkRepetition", color: "checkRepetitionColor", label: "Repetition radar" },
       { key: "checkMisused", color: "checkMisusedColor", label: "Commonly misused" },
       { key: "checkIllusion", color: "checkIllusionColor", label: "Lexical illusions" },
-      { key: "checkDialogue", color: "checkDialogueColor", label: "Dialogue Focus" },
+      { key: "checkDialogue", color: "checkDialogueColor", label: "Dialogue" },
       {
         key: "checkRhythm",
         color: "checkRhythmHardColor",
@@ -30727,15 +30742,32 @@ var exportMethods = {
             hits.style.top = Math.round(r.bottom + 2) + "px";
           }
         };
-        const onMove = () => placeHits();
         const iwin = inp.ownerDocument && inp.ownerDocument.defaultView || window;
-        iwin.addEventListener("scroll", onMove, true);
-        iwin.addEventListener("resize", onMove);
+        let listening = false;
+        const listen = (on) => {
+          if (on === listening)
+            return;
+          listening = on;
+          if (on) {
+            iwin.addEventListener("scroll", onMove, true);
+            iwin.addEventListener("resize", onMove);
+          } else {
+            iwin.removeEventListener("scroll", onMove, true);
+            iwin.removeEventListener("resize", onMove);
+          }
+        };
+        const onMove = () => {
+          if (inp.isConnected)
+            placeHits();
+          else
+            listen(false);
+        };
         const close = () => {
           hits.textContent = "";
           rows = [];
           found = [];
           sel = -1;
+          listen(false);
           noteShow();
         };
         const mark = () => rows.forEach((r, i) => r.classList.toggle("is-selected", i === sel));
@@ -30773,6 +30805,7 @@ var exportMethods = {
           if (!found.length)
             hits.createDiv({ cls: "ws-export-nohit", text: "No font by that name." });
           noteShow();
+          listen(true);
           placeHits();
         };
         const wake = () => {
@@ -33159,7 +33192,7 @@ function wsRegisterCommands(plugin) {
   for (const dir of ["left", "right", "up", "down"]) {
     plugin.addCommand({
       id: "quick-cycle-" + dir,
-      name: "Quick cycle: focus " + dir,
+      name: "Quick cycle: jump " + dir,
       checkCallback: (checking) => {
         if (!plugin.settings.quickCycle)
           return false;

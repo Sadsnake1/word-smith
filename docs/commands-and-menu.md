@@ -25,7 +25,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Open the menu in a panel | The same menu, docked. Switch the panel on under **Menu** first |
 | Quick file explorer | Switch it on under **Misc** first |
 | Quick outline | |
-| Quick cycle: focus left / right / up / down | Also **Misc**. No default keys |
+| Quick cycle: jump left / right / up / down | Also **Misc**. No default keys |
 | Repair the display | If something looks wrong after a theme or plugin change |
 | Copy your settings as text | To keep, or to paste into another vault |
 | Paste settings from the clipboard | Replaces everything. **Undo** on the Vault page puts them back |

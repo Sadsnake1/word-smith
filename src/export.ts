@@ -3510,19 +3510,34 @@ export const exportMethods = {
 			// A FIXED BOX DOES NOT TRAVEL WITH ITS FIELD. Scrolling the
 			// options column moves the input and leaves the list behind, so
 			// the list is re-placed on any scroll anywhere (capture, because
-			// the scroll happens on an ancestor) and on any resize. Both
-			// return immediately while the list is shut.
-			const onMove = () => placeHits();
+			// the scroll happens on an ancestor) and on any resize, while it
+			// is open (`listen` below).
 			// ON THE FIELD'S OWN WINDOW, for the reason `placeHits` gives: a
 			// popout scrolls and resizes in its own window, and listeners on
 			// the main one would never hear it - the list would sit where it
 			// was first put while its field moved out from under it.
 			const iwin = (inp.ownerDocument && inp.ownerDocument.defaultView)
 				|| window;
-			iwin.addEventListener('scroll', onMove, true);
-			iwin.addEventListener('resize', onMove);
+			// ONLY WHILE THE LIST IS OPEN. This row is built again on every
+			// redraw of the options and every visit to the tab, and a pair of
+			// listeners added per build and never taken off piled up on the
+			// window (two more each time, each holding a row that was gone).
+			let listening = false;
+			const listen = (on: boolean) => {
+				if (on === listening) return;
+				listening = on;
+				if (on) {
+					iwin.addEventListener('scroll', onMove, true);
+					iwin.addEventListener('resize', onMove);
+				} else {
+					iwin.removeEventListener('scroll', onMove, true);
+					iwin.removeEventListener('resize', onMove);
+				}
+			};
+			const onMove = () => { if (inp.isConnected) placeHits(); else listen(false); };
 			const close = () => {
 				hits.textContent = ''; rows = []; found = []; sel = -1;
+				listen(false);
 				noteShow();
 			};
 			const mark = () => rows.forEach((r, i) => r.classList.toggle('is-selected', i === sel));
@@ -3550,6 +3565,7 @@ export const exportMethods = {
 				}
 				if (!found.length) hits.createDiv({ cls: 'ws-export-nohit', text: 'No font by that name.' });
 				noteShow();
+				listen(true);
 				placeHits();
 			};
 			// The real list arrives asynchronously; the box opens on whatever

@@ -3,7 +3,7 @@
 // test`; never shipped. `export default`, and the test build's footer makes
 // it `module.exports` itself (`export =` is not an ES module; esbuild would
 // refuse it).
-import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme } from './plugin';
+import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin';
 import { WordSmithSettingTab } from './settings-tab';
 import { wsCompat, wsCompatText, WS_INTERNALS } from './obsidian-internals';
 import {
@@ -55,5 +55,5 @@ export default Object.assign(WordSmith, {
 	// the tagger's own words, for the accents suite (A482)
 	tokenizeLine, tagTokens, countSyllables, splitSentences,
 	// onload's phases, driven by the phases suite (A488)
-	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme,
+	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
 });

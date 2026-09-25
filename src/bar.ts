@@ -2192,7 +2192,7 @@ export const barMethods = {
 			// drives the picker, the bar tooltip AND that tab, so one
 			// sequence is the whole ordering and the three cannot
 			// disagree about it.
-			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue Focus'    },
+			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue'          },
 			// No colour of its own in the picker. Sentence rhythm paints in
 			// TWO (hard and very hard, and it is a background tint rather
 			// than a mark), so a single swatch picked one of them and told

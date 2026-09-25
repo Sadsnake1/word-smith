@@ -27,7 +27,7 @@ import type WordSmith from './plugin';
 
 // what the tildes' measure phase hands its write phase: nothing, a hide, or
 // where the rows are and what face they wear
-type TildeMeasure = null | { hide: true } | { hide?: false; top: number; left: number; lineH: number; font: string; size: string; weight: string; count: number };
+type TildeMeasure = null | { hide: true } | { hide?: false; top: number; left: number; height: number; lineH: number; font: string; size: string; weight: string; count: number };
 
 // ── THE EDITOR EXTENSIONS, AS A FACTORY ────────────────────────────────
 //
@@ -515,40 +515,40 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 	});
 
 	// ── EOF tildes (vim's ~) ──────────────────────────────────────────────
-	// Vim draws a ~ on every VISIBLE screen row past the end of the
-	// buffer. Those rows are not document positions — no decoration can
-	// reach them — so this plugin owns a real element, absolutely
-	// positioned over the empty space between the last line and the
-	// bottom of the scroll viewport, and repainted on scroll/resize/
-	// edit. It lives in view.dom (.cm-editor is position:relative in
-	// CM's base theme), so like vim's the tildes hold their screen rows
-	// while the text scrolls beneath them.
+	// Vim draws a ~ on every screen row past the end of the buffer. Those
+	// rows are not document positions — no decoration can reach them — so
+	// this plugin owns a real element over the empty space after the last
+	// line.
+	//
+	// A LAYER OF THE SCROLLED CONTENT, inside .cm-scroller (the rerender
+	// audit, 2026-09-25). It lived in view.dom, over the scroller, and was
+	// placed again on every scroll — but Obsidian scrolls the note on the
+	// compositor a frame before the page runs, so on each wheel tick the
+	// tildes sat a whole scroll step off the last line for a frame (91px,
+	// measured): the jitter Cursor-Smith's caret had. In the scrolled
+	// content they move with the text and a scroll does not touch them.
+	// The block runs from the last line to the end of what the scroller
+	// holds, measured WITHOUT the block, and clips there: an absolute child
+	// adds to what a scroller can scroll, and a block reaching past the end
+	// would give the note room it could never lose.
 	const eofTildePlugin = ViewPlugin.fromClass(class {
 		view: EditorView;
 		el: HTMLElement;
 		measure: { read: () => TildeMeasure; write: (m: TildeMeasure) => void };
-		onScroll: () => void;
 		constructor(view: EditorView) {
 			this.view = view;
 			this.el = createDiv();
 			this.el.className = 'ws-eof-tildes';
-			view.dom.appendChild(this.el);
+			view.scrollDOM.appendChild(this.el);
 			this.measure = { read: () => this.read(), write: (m) => this.write(m) };
-			// CM only produces a plugin update when the viewport set
-			// actually changes, which small scrolls inside the render
-			// margin don't — an own scroll listener keeps the tildes
-			// glued to their rows. requestMeasure is scheduler-safe.
-			this.onScroll = () => view.requestMeasure(this.measure);
-			view.scrollDOM.addEventListener('scroll', this.onScroll, { passive: true });
 			view.requestMeasure(this.measure);
 		}
 		update(u: ViewUpdate) {
-			if (u.docChanged || u.viewportChanged || u.geometryChanged) {
+			if (u.docChanged || u.viewportChanged || u.geometryChanged || u.heightChanged) {
 				u.view.requestMeasure(this.measure);
 			}
 		}
 		destroy() {
-			this.view.scrollDOM.removeEventListener('scroll', this.onScroll);
 			this.el.remove();
 		}
 		// All layout reads happen here, inside CM's measure phase.
@@ -578,19 +578,34 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				textBottom = cRect.bottom - (parseFloat(cStyle.paddingBottom) || 0);
 			}
 			const lineH   = view.defaultLineHeight || 24;
-			// Scrolled far past the end, the last line can sit above the
-			// viewport; then every visible row is past EOF (clamp to top).
-			const startY  = Math.max(textBottom, scRect.top);
-			const height  = scRect.bottom - startY;
+			const sd = view.scrollDOM;
+			// in the scrolled content's own coordinates
+			const top = textBottom - scRect.top + sd.scrollTop;
+			// THE END OF WHAT THE SCROLLER HOLDS, from the children in its flow
+			// and its own bottom padding (the 50vh pads in zen) — never from its
+			// scrollHeight, which counts this block, and never from a layer.
+			// Cursor-Smith's caret layer sits in here too, absolute and as tall
+			// as the scroll height: read, it fed this block its own height back
+			// and the note gained 32px of room on every measure (measured).
+			let end = sd.clientHeight;
+			for (const c of Array.from(sd.children)) {
+				const e = c as HTMLElement;
+				if (e === this.el || typeof e.offsetTop !== 'number') continue;
+				const pos = getComputedStyle(e).position;
+				if (pos === 'absolute' || pos === 'fixed') continue;
+				end = Math.max(end, e.offsetTop + e.offsetHeight);
+			}
+			end += parseFloat(getComputedStyle(sd).paddingBottom) || 0;
+			const height = end - top;
 			if (height < lineH * 0.5) return { hide: true as const };
-			const domRect = view.dom.getBoundingClientRect();
 			return {
-				top:   startY - domRect.top,
-				left:  (cRect.left - domRect.left) + (parseFloat(cStyle.paddingLeft) || 0),
+				top,
+				left:  (cRect.left - scRect.left) + sd.scrollLeft + (parseFloat(cStyle.paddingLeft) || 0),
+				height,
 				lineH,
 				// The face is READ from the content element rather than
-				// inherited through .cm-editor. The overlay is a sibling
-				// of .cm-scroller, so the font rules that target
+				// inherited. The overlay sits in .cm-scroller but outside
+				// .cm-content, so the font rules that target
 				// .cm-content (and the --ws-font stamp that drives them)
 				// never reached it — which is why the tildes came out in
 				// the interface font instead of the chosen one. Copying
@@ -607,6 +622,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			this.el.classList.add('is-on');
 			st.top        = m.top + 'px';
 			st.left       = m.left + 'px';
+			st.height     = m.height + 'px';
+			st.overflow   = 'hidden';
 			st.lineHeight = m.lineH + 'px';
 			st.fontFamily = m.font;
 			st.fontSize   = m.size;

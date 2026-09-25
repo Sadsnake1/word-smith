@@ -318,6 +318,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			const info = icon.closest('.setting-item-info');
 			const row = icon.closest('.setting-item');
 			if (!info || !row) return;
+			// Obsidian keeps the entry's element when it redraws and writes the
+			// description again, a fresh icon in it: the one moved last time goes
+			// first, or every redraw leaves one more (ten after nine, measured).
+			for (const old of Array.from(info.children)) {
+				if (old !== icon && old.classList.contains('ws-page-icon')) old.remove();
+			}
 			info.prepend(icon);
 			setClass(row, 'ws-set-entry', true);
 		});
@@ -1058,7 +1064,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Look', [
 				{ name: 'Match the note’s text size', desc: 'The bar follows the editor’s font size.', control: { type: 'toggle', key: 'statusBarFontFollowNote' } },
 				{ name: 'Font size', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarFontSize', min: 8, max: 24, step: 1 }, visible: () => !s.statusBarFontFollowNote },
-				{ name: 'Interface font', desc: 'Obsidian’s own face for the bar, whatever font the note is in.', control: { type: 'toggle', key: 'statusBarUiFont' } },
+				{ name: 'Use the interface font', desc: 'Obsidian’s own face for the bar, whatever font the note is in.', control: { type: 'toggle', key: 'statusBarUiFont' } },
 				{ name: 'Row height', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarHeight', min: 12, max: 30, step: 1 } },
 				{ name: 'Space above', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarPadTop', min: 0, max: 24, step: 1 } },
 				{ name: 'Space below', desc: 'In pixels.', control: { type: 'slider', key: 'statusBarPadBottom', min: 0, max: 24, step: 1 } },
@@ -1707,7 +1713,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.railRow('prose', RAIL),
 			], undefined, false),
 			this.section('Syntax', [
-				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Fully local.', control: { type: 'toggle', key: 'posEnabled' } },
+				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Works offline.', control: { type: 'toggle', key: 'posEnabled' } },
 				{ name: 'Syntax display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
 				cat('Nouns', 'Nouns and pronouns.', 'posNoun', 'posNounColor', pos),
 				cat('Verbs', 'Verbs, auxiliaries and modals.', 'posVerb', 'posVerbColor', pos),
@@ -1718,7 +1724,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.hotkeysRow(['toggle-syntax']),
 			], this.railed('prose', 'syntax')),
 			this.section('Prose checks', [
-				{ name: 'Prose checks', desc: 'Things worth a second look, not mistakes. Fully local.', control: { type: 'toggle', key: 'checksEnabled' } },
+				{ name: 'Prose checks', desc: 'Things worth a second look, not mistakes. Works offline.', control: { type: 'toggle', key: 'checksEnabled' } },
 				{ name: 'Prose checks display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
 				cat('Filler words', 'Words like very, really, basically, kind of.', 'checkFiller', 'checkFillerColor', ck),
 				{ name: 'Also flag vague quantifiers', desc: 'Many, most, some, often. Stricter, and it flags more.', control: { type: 'toggle', key: 'checkFillerSoft' }, visible: all(ck, () => !!s.checkFiller) },
@@ -1729,7 +1735,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Minimum length', desc: 'Skips words shorter than this.', control: { type: 'slider', key: 'repetitionMinLength', min: 3, max: 10, step: 1 }, visible: all(ck, () => !!s.checkRepetition) },
 				cat('Commonly misused', 'Affect and effect, its and it’s, fewer and less.', 'checkMisused', 'checkMisusedColor', ck),
 				cat('Lexical illusions', 'The same word twice in a row.', 'checkIllusion', 'checkIllusionColor', ck),
-				cat('Dialogue focus', 'Everything inside quotes.', 'checkDialogue', 'checkDialogueColor', ck),
+				cat('Dialogue', 'Everything inside quotes.', 'checkDialogue', 'checkDialogueColor', ck),
 				rendered({ name: 'Sentence rhythm', desc: 'Shades each sentence by how hard it reads: two tints, and the switch.', render: (st) => this.renderRhythm(st), visible: ck }, ['checkRhythm', 'checkRhythmHardColor', 'checkRhythmVeryHardColor']),
 				{ name: 'Hard above grade', desc: 'Flesch-Kincaid grade for the first tint.', control: { type: 'slider', key: 'checkRhythmHardGrade', min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
 				{ name: 'Very hard above', desc: 'And for the second.', control: { type: 'slider', key: 'checkRhythmVeryHardGrade', min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
@@ -1768,7 +1774,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Typography', desc: 'Turns what you type into the proper characters as you go.', control: { type: 'toggle', key: 'typographyEnabled' } },
 				this.alertRow('Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.', ty),
 				{ name: 'Curly quotes', desc: 'Straight quotes turn curly as you type.', control: { type: 'toggle', key: 'typoSmartQuotes' }, visible: ty },
-				{ name: 'Choose the characters', desc: 'Your own quote marks instead of the usual ones.', control: { type: 'toggle', key: 'typoCustomQuotes' }, visible: all(ty, () => !!s.typoSmartQuotes) },
+				{ name: 'Custom quote marks', desc: 'Your own quote marks instead of the usual ones.', control: { type: 'toggle', key: 'typoCustomQuotes' }, visible: all(ty, () => !!s.typoSmartQuotes) },
 				{ name: 'Open double', desc: 'Replaces " at the start of a quotation.', control: { type: 'text', key: 'typoOpenDouble' }, visible: quotes },
 				{ name: 'Close double', desc: 'Replaces " at the end.', control: { type: 'text', key: 'typoCloseDouble' }, visible: quotes },
 				{ name: 'Open single', desc: 'Replaces the straight single quote at the start.', control: { type: 'text', key: 'typoOpenSingle' }, visible: quotes },
@@ -1955,7 +1961,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.page('Navigation', 'compass', 'Quick panels and Vim motions.', [
 			this.section('Quick panels', [
 				this.subheadRow('Quick panels'),
-				{ name: 'Quick file explorer', desc: 'A command that opens the file explorer and focuses it.', control: { type: 'toggle', key: 'quickExplorer' } },
+				{ name: 'Quick file explorer', desc: 'A command that opens the file explorer and moves you into it.', control: { type: 'toggle', key: 'quickExplorer' } },
 				{ name: 'Quick outline', desc: 'And one for the outline.', control: { type: 'toggle', key: 'quickOutline' } },
 				{ name: 'Quick cycle', desc: 'Four commands for directional jumps; bind them to Alt and the arrows.', control: { type: 'toggle', key: 'quickCycle' } },
 				{ name: 'Close a sidebar when you leave it', desc: 'Only when you move out with a direction key, never when you pick something.', control: { type: 'toggle', key: 'quickCycleCloseOnLeave' }, visible: () => !!s.quickCycle },
