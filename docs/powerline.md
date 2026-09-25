@@ -18,6 +18,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{ln:col}` `{paragraph}` | Where the cursor is |
 | `{readtime}` | How long the note takes to read |
 | `{tasks}` | Tasks ticked over tasks in the note, `[3/7]`, as the Organizer shows them. Nothing when there are none |
+| `{target}` | How far the note is toward its target, `43%` or `2,145/5,000` (pick one under **Powerline → Tokens**). Set a target in the Organizer. Nothing when there is none |
 | `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
 | `{time}` `{clock}` | The time, written or drawn as a dial |

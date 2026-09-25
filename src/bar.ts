@@ -2626,6 +2626,17 @@ export const barMethods = {
 		}
 	},
 
+	// {target}: the note's target, said by the Organizer's own `orgTargetSay`
+	// in the token's own shape (a percentage, or words and target). The words
+	// are the whole note's, never a selection's; a note with no target says
+	// nothing, as its cell does.
+	barTargetText(this: WordSmith, view: MarkdownView | null, words: number) {
+		const path = view && view.file ? view.file.path : '';
+		if (!path) return '';
+		const s: Partial<WordSmithSettings> = this.settings || {};
+		return this.orgTargetSay(words, this.fileGoalFor(path), s.targetTokenFormat === 'ratio' ? 'ratio' : 'percent');
+	},
+
 	updateRetroStatusBar(this: WordSmith) {
 		if (!this.retroStatusBarEl) return;
 		this._goalStates = [];
@@ -2759,6 +2770,7 @@ export const barMethods = {
 			// is `[3/7]` there — and a note with no tasks says nothing, as its cell
 			// does.
 			'{tasks}':     stats && stats.tasks ? wsTaskSay(stats.tasks.done, stats.tasks.all) : '',
+			'{target}':    this.barTargetText(view, totalWC),
 			'{properties}': '\x00PROPS\x00'
 		};
 

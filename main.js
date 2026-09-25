@@ -2713,6 +2713,7 @@ function wsBlocksFromMarkdown(md, opts) {
   const notes = [];
   let i = 0;
   let firstPara = true;
+  const breaks = /* @__PURE__ */ new Set();
   if (lines.length && /^---\s*$/.test(lines[0])) {
     let j = 1;
     while (j < lines.length && !/^---\s*$/.test(lines[j]))
@@ -2806,6 +2807,11 @@ function wsBlocksFromMarkdown(md, opts) {
       continue;
     }
     if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+      if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
+        breaks.add(out.length);
+        firstPara = true;
+        continue;
+      }
       out.push(wsPara([{ text: wsJoinMark(o) }], "WsDivider", { align: "center", noIndent: true }));
       firstPara = true;
       continue;
@@ -2846,6 +2852,17 @@ function wsBlocksFromMarkdown(md, opts) {
     }
     out.push(wsPara(runs, "WsBody", { noIndent: firstPara === false ? false : true }));
     firstPara = false;
+  }
+  for (const at of Array.from(breaks).sort((a, b) => b - a)) {
+    if (at >= out.length)
+      continue;
+    const p = String(out[at]);
+    if (p.indexOf("<w:pageBreakBefore/>") !== -1)
+      continue;
+    if (/^<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>/.test(p))
+      out[at] = p.replace(/^(<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>)/, "$1<w:pageBreakBefore/>");
+    else
+      out.splice(at, 0, wsPara([], "WsBody", { pageBreakBefore: true, noIndent: true }));
   }
   return { blocks: out, notes };
 }
@@ -4197,7 +4214,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.3";
+var WS_PLUGIN_VERSION = "1.6.4";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -4664,6 +4681,7 @@ var DEFAULT_SETTINGS = {
     }
   ],
   fileTokenFormat: "path",
+  targetTokenFormat: "percent",
   flagTokenFormat: "icon",
   statusBarBorderStyle: "none",
   statusBarBorderWidth: 1,
@@ -4933,7 +4951,8 @@ var BAR_KEYS = [
   "markersTokenFormat",
   "flagTokenFormat",
   "barTokenIcons",
-  "statusBarUiFont"
+  "statusBarUiFont",
+  "targetTokenFormat"
 ];
 var BAR_KEYS_INERT = /* @__PURE__ */ new Set([
   "powerlineEnabled",
@@ -5138,7 +5157,8 @@ var DEFAULT_BAR_PRESETS = {
     "fontTokenFormat": "word",
     "markersTokenFormat": "word",
     "barTokenIcons": { "history": "icon", "export": "icon", "organizer": "icon", "powermenu": "icon", "report": "both", "modes": "both", "syntax": "both", "prose": "both" },
-    "statusBarUiFont": false
+    "statusBarUiFont": false,
+    "targetTokenFormat": "percent"
   },
   "Code": {
     "statusBarRows": 1,
@@ -5193,7 +5213,8 @@ var DEFAULT_BAR_PRESETS = {
     "fontTokenFormat": "glyph",
     "markersTokenFormat": "glyph",
     "barTokenIcons": {},
-    "statusBarUiFont": false
+    "statusBarUiFont": false,
+    "targetTokenFormat": "percent"
   },
   "Fade": {
     "statusBarRows": 1,
@@ -5248,7 +5269,8 @@ var DEFAULT_BAR_PRESETS = {
     "fontTokenFormat": "glyph",
     "markersTokenFormat": "glyph",
     "barTokenIcons": {},
-    "statusBarUiFont": false
+    "statusBarUiFont": false,
+    "targetTokenFormat": "percent"
   }
 };
 var import_obsidian2 = require("obsidian");
@@ -6250,6 +6272,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.section("Tokens", [
         { name: "{file}", desc: "The note’s name, with or without its folders.", control: { type: "dropdown", key: "fileTokenFormat", options: { path: "Full path", name: "File name only" } } },
         { name: "{flag}", desc: "The flag’s icon, its name, or both.", control: { type: "dropdown", key: "flagTokenFormat", options: { icon: "Icon", name: "Name", both: "Icon and name" } } },
+        { name: "{target}", desc: "The note’s progress toward its target.", control: { type: "dropdown", key: "targetTokenFormat", options: { percent: "Percentage (43%)", ratio: "Words and target (2,145/5,000)" } } },
         { name: "{font}", desc: "The menu’s icon, the word, or both.", control: { type: "dropdown", key: "fontTokenFormat", options: { glyph: "Icon", word: "Name", both: "Icon and name" } } },
         { name: "{markers}", desc: "The menu’s icon, the word, or both.", control: { type: "dropdown", key: "markersTokenFormat", options: { glyph: "Icon", word: "Name", both: "Icon and name" } } },
         tokenFormat("{mode}", "modes", "Modes", "The menu’s icon, the word, or both."),
@@ -6393,6 +6416,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     L(["{paragraph}"], "The paragraph the cursor is in.");
     SUB("Counts");
     L(["{tasks}"], "Tasks ticked over tasks in the note, [3/7], as the Organizer shows them. Nothing when there are none.");
+    L(["{target}"], "How far the note is toward its target, 43% or 2,145/5,000. Set a target in the Organizer. Nothing when there is none.");
     L(["{properties}"], "How many properties the note has. Click to open the Properties pane.");
     L(["{backlinks}"], "How many notes link here. Click to open the backlinks pane.");
     g = G("Buttons", "mouse-pointer-click");
@@ -7370,6 +7394,9 @@ var AFTER = {
     tab.plugin.updateRetroStatusBar();
   },
   flagTokenFormat: (tab) => {
+    tab.plugin.updateRetroStatusBar();
+  },
+  targetTokenFormat: (tab) => {
     tab.plugin.updateRetroStatusBar();
   },
   fontTokenFormat: (tab) => {
@@ -19253,12 +19280,12 @@ var organizerWindowMethods = {
       ic.style.color = cdef.css;
     return ic;
   },
-  orgTargetSay(words, target) {
+  orgTargetSay(words, target, show) {
     const t = Number(target) || 0;
     if (t <= 0)
       return "";
     const w = Number(words) || 0;
-    const how = this.settings && this.settings.orgTargetShow || "percent";
+    const how = show || this.settings && this.settings.orgTargetShow || "percent";
     if (how === "percent") {
       const raw = w / t * 100;
       const pct = raw < 100 ? Math.min(99, Math.round(raw)) : Math.round(raw);
@@ -24342,6 +24369,13 @@ var barMethods = {
       return "";
     }
   },
+  barTargetText(view, words) {
+    const path = view && view.file ? view.file.path : "";
+    if (!path)
+      return "";
+    const s = this.settings || {};
+    return this.orgTargetSay(words, this.fileGoalFor(path), s.targetTokenFormat === "ratio" ? "ratio" : "percent");
+  },
   updateRetroStatusBar() {
     if (!this.retroStatusBarEl)
       return;
@@ -24408,6 +24442,7 @@ var barMethods = {
       "{flag}": "\0FLAG\0",
       "{readtime}": this.formatReadTime(totalWC),
       "{tasks}": stats && stats.tasks ? wsTaskSay(stats.tasks.done, stats.tasks.all) : "",
+      "{target}": this.barTargetText(view, totalWC),
       "{properties}": "\0PROPS\0"
     };
     const rows = this.getStatusRows();
@@ -29361,6 +29396,7 @@ var exportMethods = {
     dflt("divider", "#");
     dflt("a4", false);
     dflt("starBetween", true);
+    dflt("dashPageBreak", false);
     dflt("folderHeadings", WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
     o.wordCountOnTitle = true;
     o.pageNumbers = true;
@@ -30106,6 +30142,7 @@ var exportMethods = {
       heldPage = false;
       const note = forScreen && sec.path ? ' data-ws-note="' + esc(sec.path) + '"' : "";
       parts.push('<section class="' + (brk ? "page" : "run") + '" id="' + wsAnchorId(sec.title, i) + '"' + note + ">");
+      const pageOpen = '<section class="page"' + note + ">";
       if (pendingFolder) {
         const tight = !!(o.sectionTitles && sec.title);
         parts.push(tight ? pendingFolder.replace('class="folderhead"', 'class="folderhead is-tight"') : pendingFolder);
@@ -30154,6 +30191,12 @@ var exportMethods = {
           continue;
         }
         if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+          if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
+            if (!/^<section /.test(parts[parts.length - 1]))
+              parts.push("</section>", pageOpen);
+            firstPara = true;
+            continue;
+          }
           parts.push('<p class="div">' + esc(o.divider == null ? "#" : o.divider) + "</p>");
           firstPara = true;
           continue;
@@ -30179,6 +30222,8 @@ var exportMethods = {
         parts.push("<p" + (firstPara ? ' class="first"' : "") + ">" + runs + "</p>");
         firstPara = false;
       }
+      if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === "</section>")
+        parts.length -= 2;
       parts.push("</section>");
     });
     if (pendingFolder) {
@@ -30972,6 +31017,7 @@ var exportMethods = {
           redrawOpts();
         }, true);
         toggle(structGrp, "folderHeadings", "Folder names as headings", "A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.");
+        toggle(structGrp, "dashPageBreak", "--- starts a new page", "A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.").addClass("ws-export-pages");
       }
       {
         const grp = optGroup("Typesetting");

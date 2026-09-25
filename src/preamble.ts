@@ -3412,10 +3412,12 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 	// fence, which is kept verbatim: the CR would travel into the .docx and
 	// Word would draw it.
 	const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
-	const out = [];
+	const out: string[] = [];
 	const notes = [];
 	let i = 0;
 	let firstPara = true;
+	// where a --- asked for a new page: the index of the block that opens it
+	const breaks = new Set<number>();
 
 	// FRONTMATTER, which does not travel unless it is asked for. It is the
 	// note's plumbing — status, tags, the day it was started — and a
@@ -3533,6 +3535,9 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 		// really depends on, so it is centred and spaced rather than drawn
 		// as a rule: agents expect a # on its own line between scenes.
 		if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+			// --- STARTS A NEW PAGE when the writer asks (A502); *** and ___
+			// stay scene breaks, so a book can have both
+			if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) { breaks.add(out.length); firstPara = true; continue; }
 			out.push(wsPara([{ text: wsJoinMark(o) }], 'WsDivider',
 				{ align: 'center', noIndent: true }));
 			firstPara = true;
@@ -3593,6 +3598,18 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 		}
 		out.push(wsPara(runs, 'WsBody', { noIndent: firstPara === false ? false : true }));
 		firstPara = false;
+	}
+	// THE BLOCK AFTER A --- OPENS THE PAGE: the break goes on that paragraph's
+	// own properties, after its style as OOXML orders them, so the page starts
+	// with the prose and not with an empty line. A table there gets an empty
+	// paragraph to carry it; a --- with nothing after it is dropped rather
+	// than printing a blank last page.
+	for (const at of Array.from(breaks).sort((a, b) => b - a)) {
+		if (at >= out.length) continue;
+		const p = String(out[at]);
+		if (p.indexOf('<w:pageBreakBefore/>') !== -1) continue;
+		if (/^<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>/.test(p)) out[at] = p.replace(/^(<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>)/, '$1<w:pageBreakBefore/>');
+		else out.splice(at, 0, wsPara([], 'WsBody', { pageBreakBefore: true, noIndent: true }));
 	}
 	return { blocks: out, notes };
 }
@@ -4872,7 +4889,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.6.3';
+export const WS_PLUGIN_VERSION = '1.6.4';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5895,6 +5912,7 @@ export const DEFAULT_SETTINGS = {
 		  right: '' },
 	],
 	fileTokenFormat:          'path',     // 'path' (~/folder/name) | 'name' (basename only)
+	targetTokenFormat:        'percent',  // {target}: 'percent' (43%) | 'ratio' (2,145/5,000)
 	// 'icon' (the silhouette alone) | 'name' (the word alone, for a bar in a
 	// face where an inline SVG sits badly) | 'both'.
 	//
@@ -6497,7 +6515,9 @@ export const BAR_KEYS = [
 	// APPENDED: the indices before it are burned into share codes.
 	'barTokenIcons',
 	// APPENDED: the bar in the interface font.
-	'statusBarUiFont'
+	'statusBarUiFont',
+	// APPENDED: how {target} says the note's target.
+	'targetTokenFormat'
 ];
 
 // The keys above that no longer DO anything.
@@ -6768,6 +6788,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"markersTokenFormat": "word",
 		"barTokenIcons": {"history":"icon","export":"icon","organizer":"icon","powermenu":"icon","report":"both","modes":"both","syntax":"both","prose":"both"},
 		"statusBarUiFont": false,
+		"targetTokenFormat": "percent",
 	},
 	"Code": {
 		"statusBarRows": 1,
@@ -6823,6 +6844,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"markersTokenFormat": "glyph",
 		"barTokenIcons": {},
 		"statusBarUiFont": false,
+		"targetTokenFormat": "percent",
 	},
 	// ── TWO MORE, DIFFERENT FROM THE TWO. FADE is built on the {g} runs —
 	// three fades a row, a warm seven-colour palette, mode colours on, no
@@ -6884,6 +6906,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"markersTokenFormat": "glyph",
 		"barTokenIcons": {},
 		"statusBarUiFont": false,
+		"targetTokenFormat": "percent",
 	},
 };
 

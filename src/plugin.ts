@@ -1311,6 +1311,7 @@ export default class WordSmith extends Plugin {
 	declare getLineColumn: BarMethods["getLineColumn"];
 	declare headingTrail: BarMethods["headingTrail"];
 	declare getBacklinkCount: BarMethods["getBacklinkCount"];
+	declare barTargetText: BarMethods["barTargetText"];
 	declare formatCount: BarMethods["formatCount"];
 	declare formatReadTime: BarMethods["formatReadTime"];
 	declare getVimModeKey: BarMethods["getVimModeKey"];

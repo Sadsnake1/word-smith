@@ -1107,6 +1107,7 @@ export const exportMethods = {
 		dflt('runningHeaderOn', true); dflt('author', '');
 		dflt('divider', '#');     dflt('a4', false);
 		dflt('starBetween', true);
+		dflt('dashPageBreak', false);
 		// Folder names as headings — off, because it changes the shape of
 		// every existing export and a flat folder of scenes gains nothing.
 		dflt('folderHeadings', WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
@@ -2092,7 +2093,7 @@ export const exportMethods = {
 	exportToHtml(this: WordSmith, sections: WsExportSection[], o: WsExportRun, forScreen: boolean) {
 		const esc = (t: string) => String(t == null ? '' : t)
 			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-		const parts = [];
+		const parts: string[] = [];
 		// TRUE FOR EXACTLY ONE SECTION: the file that comes straight after a
 		// folder heading, which is already on a page of its own.
 		let heldPage = false;
@@ -2178,6 +2179,9 @@ export const exportMethods = {
 				+ esc(sec.path) + '"') : '';
 			parts.push('<section class="' + (brk ? 'page' : 'run')
 				+ '" id="' + wsAnchorId(sec.title, i) + '"' + note + '>');
+			// what a --- opens when it starts a new page (A502): a page-section, the
+			// break the preview and every page target already know
+			const pageOpen = '<section class="page"' + note + '>';
 			if (pendingFolder) {
 				// ── AND IT SITS TIGHT AGAINST THE HEADING BELOW IT ──────────
 				//
@@ -2240,6 +2244,12 @@ export const exportMethods = {
 					continue;
 				}
 				if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+					// --- STARTS A NEW PAGE when asked (A502); *** and ___ stay scene
+					// breaks. Not at the top of a section: that is a page start already.
+					if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
+						if (!/^<section /.test(parts[parts.length - 1])) parts.push('</section>', pageOpen);
+						firstPara = true; continue;
+					}
 					parts.push('<p class="div">' + esc(o.divider == null ? '#' : o.divider) + '</p>');
 					firstPara = true; continue;
 				}
@@ -2263,6 +2273,8 @@ export const exportMethods = {
 				parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runs + '</p>');
 				firstPara = false;
 			}
+			// a --- with nothing after it opens no empty page
+			if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === '</section>') parts.length -= 2;
 			parts.push('</section>');
 		});
 		// A FOLDER WITH NOTHING AFTER IT still prints its heading. The heading
@@ -3852,6 +3864,12 @@ export const exportMethods = {
 			// pair's cells and leave the other empty.
 			toggle(structGrp, 'folderHeadings', 'Folder names as headings',
 				'A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.');
+			// --- AS A PAGE BREAK (A502, the writer: "add another option in export
+			// that --- in markdown is a page break"). Inside a note, where "Each file"
+			// is between notes; hidden with the other page rows for Markdown.
+			toggle(structGrp, 'dashPageBreak', '--- starts a new page',
+				'A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.')
+				.addClass('ws-export-pages');
 		}
 
 		// ── The words ───────────────────────────────────────────────────

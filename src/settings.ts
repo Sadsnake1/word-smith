@@ -31,6 +31,7 @@ import type { ItemView, KeymapEventListener, Modal, Modifier, TAbstractFile } fr
 export interface WsExportOpts {
 	// switches
 	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean;
+	dashPageBreak?: boolean;
 	keepImages?: boolean; dropImages?: boolean; keepFrontmatter?: boolean; keepComments?: boolean;
 	keepHeadings?: boolean; wordCountOnTitle?: boolean; roundWordCount?: boolean; pageNumbers?: boolean;
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;

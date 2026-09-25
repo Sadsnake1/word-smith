@@ -1094,6 +1094,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Tokens', [
 				{ name: '{file}', desc: 'The note’s name, with or without its folders.', control: { type: 'dropdown', key: 'fileTokenFormat', options: { path: 'Full path', name: 'File name only' } } },
 				{ name: '{flag}', desc: 'The flag’s icon, its name, or both.', control: { type: 'dropdown', key: 'flagTokenFormat', options: { icon: 'Icon', name: 'Name', both: 'Icon and name' } } },
+				{ name: '{target}', desc: 'The note’s progress toward its target.', control: { type: 'dropdown', key: 'targetTokenFormat', options: { percent: 'Percentage (43%)', ratio: 'Words and target (2,145/5,000)' } } },
 				{ name: '{font}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'fontTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				{ name: '{markers}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'markersTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				tokenFormat('{mode}', 'modes', 'Modes', 'The menu’s icon, the word, or both.'),
@@ -1246,6 +1247,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{paragraph}'], 'The paragraph the cursor is in.');
 		SUB('Counts');
 		L(['{tasks}'], 'Tasks ticked over tasks in the note, [3/7], as the Organizer shows them. Nothing when there are none.');
+		L(['{target}'], 'How far the note is toward its target, 43% or 2,145/5,000. Set a target in the Organizer. Nothing when there is none.');
 		L(['{properties}'], 'How many properties the note has. Click to open the Properties pane.');
 		L(['{backlinks}'], 'How many notes link here. Click to open the backlinks pane.');
 		g = G('Buttons', 'mouse-pointer-click');
@@ -2090,6 +2092,7 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	statusBarUiFont: (tab) => { tab.plugin.applyBodyClasses(); tab.plugin.fitStatusBarText(); },   // the class, then the fit at the new face's widths
 	fileTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	flagTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
+	targetTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	fontTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	markersTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	barThemeEnabled: (tab) => { tab.plugin.applyThemeClass(); tab.plugin.applyThemeVars(); void tab.plugin.barThemeCursorSync(); },

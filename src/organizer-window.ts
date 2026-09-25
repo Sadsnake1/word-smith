@@ -3260,11 +3260,13 @@ export const organizerWindowMethods = {
 	// 5,000 is 99.98%, and a writer who reads 100% stops. It is not capped
 	// at the top either: past the target is past it, which is the one thing
 	// an over-long scene needs to say.
-	orgTargetSay(this: WordSmith, words: number, target: number) {
+	// `show` is the bar's {target}, which has its own shape; the Organizer's
+	// cells leave it out and follow the column's.
+	orgTargetSay(this: WordSmith, words: number, target: number, show?: string) {
 		const t = Number(target) || 0;
 		if (t <= 0) return '';
 		const w = Number(words) || 0;
-		const how = (this.settings && this.settings.orgTargetShow)
+		const how = show || (this.settings && this.settings.orgTargetShow)
 			|| 'percent';
 		if (how === 'percent') {
 			const raw = (w / t) * 100;
