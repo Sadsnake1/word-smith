@@ -4204,7 +4204,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 571;
+var WS_STYLESHEET_VERSION = 572;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4220,7 +4220,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.6";
+var WS_PLUGIN_VERSION = "1.6.7";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;

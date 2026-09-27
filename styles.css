@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 571;
+	--ws-stylesheet-version: 572;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -401,6 +401,13 @@ body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar.ws-status-bar::b
 }
 /* the bands: the wash over their surface; the arrows: faded by the same amount */
 body.cursor-smith-torch-active.ws-masks-active.ws-editor-focused .ws-mask.ws-mask {
+	background-image: linear-gradient(var(--ws-torch-wash), var(--ws-torch-wash));
+}
+/* the plinth, the strip under the bar (A505, relayed from Cursor-Smith): raised
+   with the bar (`--ws-z-status`, 10006 while the editor has focus), so washed
+   with it, over its surface as the bands are; left bright, it read as a lit
+   line under a darkened bar */
+body.cursor-smith-torch-active.ws-editor-focused .ws-bar-plinth.ws-bar-plinth {
 	background-image: linear-gradient(var(--ws-torch-wash), var(--ws-torch-wash));
 }
 /* (the visible arrows only: their hidden state is opacity 0, and a wash that
