@@ -129,6 +129,54 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	}, { decorations: v => v.decorations });
 
+	// ── THE LINE BEING WRITTEN IS HELD (issue #22) ──────────────────────────
+	// A reader on iOS: "After pressing Backspace, the keyboard switches to Caps
+	// Lock / capitalization mode, so the next character is entered as an
+	// uppercase letter." Safari keeps the virtual keyboard's capitalization
+	// from where the caret was when a SCRIPT moves the selection (CodeMirror
+	// #165, a Safari bug), and CodeMirror has to move it whenever a decoration
+	// change redraws the text under the caret. A Backspace between two words
+	// did exactly that: their marks were rebuilt, the text node went, and the
+	// next letter came up a capital. So a line being TYPED OR DELETED in keeps
+	// the marks it had, carried through the edit, and every other line is
+	// live; the line is marked afresh when the caret leaves it or the editor
+	// loses focus. Only the writer's own keystrokes hold it: an undo, a paste
+	// or a sync marks everything afresh.
+	const typed = (u: ViewUpdate) => u.transactions.some((tr) => tr.isUserEvent('input.type') || tr.isUserEvent('delete'));
+	const heldLineOf = (u: ViewUpdate) => { const l = u.state.doc.lineAt(u.state.selection.main.head); return { from: l.from, to: l.to }; };
+	// `fresh` everywhere but the held line, `kept` on it; a line decoration
+	// carried off a line start (two lines joined) is dropped, not moved.
+	// `kept` is FILTERED, not rebuilt from its ranges: two marks over the same
+	// word ("very", an adverb and a filler) nest in the set's own order, and a
+	// set made again from its ranges nested them the other way round, which
+	// CodeMirror redraws.
+	const holdOver = (fresh: DecorationSet, kept: DecorationSet, held: { from: number; to: number }, u: ViewUpdate): DecorationSet => {
+		const doc = u.state.doc;
+		const add: Range<Decoration>[] = [];
+		for (const it = fresh.iter(); it.value; it.next()) if (it.from < held.from || it.from > held.to) add.push(it.value.range(it.from, it.to));
+		return kept.update({
+			filter: (from, _to, value) => from >= held.from && from <= held.to
+				&& !(value === markedLine && doc.lineAt(from).from !== from),
+			add, sort: true,
+		});
+	};
+	// the update every held plugin makes: `build` is its own fresh pass
+	const holdUpdate = (inst: { decorations: DecorationSet; held: { from: number; to: number } | null }, u: ViewUpdate, build: (view: EditorView) => DecorationSet) => {
+		if (u.docChanged && typed(u)) {
+			inst.held = heldLineOf(u);
+			inst.decorations = holdOver(build(u.view), inst.decorations.map(u.changes), inst.held, u);
+		} else if (u.docChanged) {
+			inst.held = null;
+			inst.decorations = build(u.view);
+		} else if (inst.held && (u.selectionSet || u.focusChanged)) {
+			const head = u.state.selection.main.head;
+			if (!u.view.hasFocus || head < inst.held.from || head > inst.held.to) { inst.held = null; inst.decorations = build(u.view); }
+			else if (u.viewportChanged) inst.decorations = holdOver(build(u.view), inst.decorations, inst.held, u);
+		} else if (u.viewportChanged) {
+			inst.decorations = inst.held ? holdOver(build(u.view), inst.decorations, inst.held, u) : build(u.view);
+		}
+	};
+
 	// ── Hidden markers ────────────────────────────────────────────────────
 	const markerPlugin = ViewPlugin.fromClass(class {
 		decorations: DecorationSet;
@@ -207,26 +255,13 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 
 	const syntaxPlugin = ViewPlugin.fromClass(class {
 		decorations: DecorationSet;
-		// The span the caret's marks would have covered, left bare (A479); null
-		// when nothing touched the head at the last build.
-		bare: { from: number; to: number } | null = null;
+		// the line being written, held (issue #22). It replaces A479's bare
+		// word: that took the marks off the word under the caret, which is
+		// itself a redraw under the caret on every tap into a marked word.
+		// The caret alone moving changes nothing now.
+		held: { from: number; to: number } | null = null;
 		constructor(view: EditorView) { this.decorations = this.build(view); }
-		update(u: ViewUpdate) {
-			if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view);
-			// The caret alone moved: rebuild only when it left the bare span or
-			// landed on a mark — read at the head, not rebuilt, so an arrow key
-			// through plain text costs nothing.
-			else if (u.selectionSet && this.caretCrossed(u.view)) this.decorations = this.build(u.view);
-		}
-		caretCrossed(view: EditorView) {
-			const head = view.state.selection.main.head;
-			if (this.bare) return head < this.bare.from || head > this.bare.to;
-			let hit = false;
-			this.decorations.between(head, head, (from, to, d) => {
-				if (d !== markedLine && from <= head && head <= to) { hit = true; return false; }
-			});
-			return hit;
-		}
+		update(u: ViewUpdate) { holdUpdate(this, u, (v) => this.build(v)); }
 		build(view: EditorView) {
 			const s = plugin.settings;
 			if (!s.pluginEnabled) return Decoration.none;
@@ -245,21 +280,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			const doc  = view.state.doc;
 			const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
 			const out: Range<Decoration>[] = [];
-			// THE WORD UNDER THE CARET IS BARE (A479; a reader on Mac and iPad:
-			// "backspacing + typing seems to force an uppercase letter in the
-			// middle of a word like thIs"). A word's class changes with every
-			// letter typed into it, and each change replaced the text node under
-			// the caret — the node Apple's autocapitalization reads its context
-			// from; a fresh node reads as a fresh sentence. So no word-level mark
-			// touches the head: the class, the check, the repeat. The marks
-			// arrive when the caret leaves the word. The sentence tint and the
-			// dialogue mark grow in place under one class and stay.
-			const head = view.state.selection.main.head;
-			let bareFrom = Infinity, bareTo = -Infinity;
-			const keep = (r: Range<Decoration>) => {
-				if (r.from <= head && head <= r.to) { bareFrom = Math.min(bareFrom, r.from); bareTo = Math.max(bareTo, r.to); return; }
-				out.push(r);
-			};
+			const keep = (r: Range<Decoration>) => { out.push(r); };
 			// Repetition spans lines, so its tokens are collected across
 			// the whole visible range and scanned once at the end.
 			const seen: WsToken[] | null = s.checkRepetition ? [] : null;
@@ -380,13 +401,11 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				const win = s.repetitionWindow    != null ? s.repetitionWindow    : 50;
 				const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
 				for (const r of findRepetitions(seen, win, min)) {
-					if (r.from <= head && head <= r.to) { bareFrom = Math.min(bareFrom, r.from); bareTo = Math.max(bareTo, r.to); continue; }
 					out.push(checkMark.repeat.range(r.from, r.to));
 					marked.add(doc.lineAt(r.from).from);
 				}
 			}
 			for (const at of marked) out.push(markedLine.range(at));
-			this.bare = bareFrom <= bareTo ? { from: bareFrom, to: bareTo } : null;
 			return Decoration.set(out, true);
 		}
 	}, { decorations: v => v.decorations });

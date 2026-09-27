@@ -4214,7 +4214,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.4";
+var WS_PLUGIN_VERSION = "1.6.5";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -8381,6 +8381,41 @@ function wsEditorExtensions(plugin, cm) {
       return b.finish();
     }
   }, { decorations: (v) => v.decorations });
+  const typed = (u) => u.transactions.some((tr) => tr.isUserEvent("input.type") || tr.isUserEvent("delete"));
+  const heldLineOf = (u) => {
+    const l = u.state.doc.lineAt(u.state.selection.main.head);
+    return { from: l.from, to: l.to };
+  };
+  const holdOver = (fresh, kept, held, u) => {
+    const doc = u.state.doc;
+    const add = [];
+    for (const it = fresh.iter(); it.value; it.next())
+      if (it.from < held.from || it.from > held.to)
+        add.push(it.value.range(it.from, it.to));
+    return kept.update({
+      filter: (from, _to, value) => from >= held.from && from <= held.to && !(value === markedLine && doc.lineAt(from).from !== from),
+      add,
+      sort: true
+    });
+  };
+  const holdUpdate = (inst, u, build) => {
+    if (u.docChanged && typed(u)) {
+      inst.held = heldLineOf(u);
+      inst.decorations = holdOver(build(u.view), inst.decorations.map(u.changes), inst.held, u);
+    } else if (u.docChanged) {
+      inst.held = null;
+      inst.decorations = build(u.view);
+    } else if (inst.held && (u.selectionSet || u.focusChanged)) {
+      const head = u.state.selection.main.head;
+      if (!u.view.hasFocus || head < inst.held.from || head > inst.held.to) {
+        inst.held = null;
+        inst.decorations = build(u.view);
+      } else if (u.viewportChanged)
+        inst.decorations = holdOver(build(u.view), inst.decorations, inst.held, u);
+    } else if (u.viewportChanged) {
+      inst.decorations = inst.held ? holdOver(build(u.view), inst.decorations, inst.held, u) : build(u.view);
+    }
+  };
   const markerPlugin = ViewPlugin2.fromClass(class {
     constructor(view) {
       this.decorations = this.build(view);
@@ -8450,27 +8485,11 @@ function wsEditorExtensions(plugin, cm) {
   };
   const syntaxPlugin = ViewPlugin2.fromClass(class {
     constructor(view) {
-      this.bare = null;
+      this.held = null;
       this.decorations = this.build(view);
     }
     update(u) {
-      if (u.docChanged || u.viewportChanged)
-        this.decorations = this.build(u.view);
-      else if (u.selectionSet && this.caretCrossed(u.view))
-        this.decorations = this.build(u.view);
-    }
-    caretCrossed(view) {
-      const head = view.state.selection.main.head;
-      if (this.bare)
-        return head < this.bare.from || head > this.bare.to;
-      let hit = false;
-      this.decorations.between(head, head, (from, to, d) => {
-        if (d !== markedLine && from <= head && head <= to) {
-          hit = true;
-          return false;
-        }
-      });
-      return hit;
+      holdUpdate(this, u, (v) => this.build(v));
     }
     build(view) {
       const s = plugin.settings;
@@ -8491,14 +8510,7 @@ function wsEditorExtensions(plugin, cm) {
       const doc = view.state.doc;
       const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
       const out = [];
-      const head = view.state.selection.main.head;
-      let bareFrom = Infinity, bareTo = -Infinity;
       const keep = (r) => {
-        if (r.from <= head && head <= r.to) {
-          bareFrom = Math.min(bareFrom, r.from);
-          bareTo = Math.max(bareTo, r.to);
-          return;
-        }
         out.push(r);
       };
       const seen = s.checkRepetition ? [] : null;
@@ -8592,18 +8604,12 @@ function wsEditorExtensions(plugin, cm) {
         const win = s.repetitionWindow != null ? s.repetitionWindow : 50;
         const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
         for (const r of findRepetitions(seen, win, min)) {
-          if (r.from <= head && head <= r.to) {
-            bareFrom = Math.min(bareFrom, r.from);
-            bareTo = Math.max(bareTo, r.to);
-            continue;
-          }
           out.push(checkMark.repeat.range(r.from, r.to));
           marked.add(doc.lineAt(r.from).from);
         }
       }
       for (const at of marked)
         out.push(markedLine.range(at));
-      this.bare = bareFrom <= bareTo ? { from: bareFrom, to: bareTo } : null;
       return Decoration2.set(out, true);
     }
   }, { decorations: (v) => v.decorations });
