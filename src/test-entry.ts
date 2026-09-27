@@ -3,13 +3,13 @@
 // test`; never shipped. `export default`, and the test build's footer makes
 // it `module.exports` itself (`export =` is not an ES module; esbuild would
 // refuse it).
-import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin';
-import { WordSmithSettingTab } from './settings-tab';
-import { wsCompat, wsCompatText, WS_INTERNALS } from './obsidian-internals';
+import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin/plugin';
+import { WordSmithSettingTab } from './plugin/settings-tab';
+import { wsCompat, wsCompatText, WS_INTERNALS } from './core/obsidian-internals';
 import {
 	wsCountFootnotes, wsOrgAgg, wsOrgDistinct, wsOrgDropBefore, wsOrgFolderWords, wsOrgIndex, wsOrgPathsUnder, wsOrgPut,
 	wsOrgRemove, wsOrgRename, wsOrgStale, wsUnderIndex, wsUnderRow,
-} from './org-index';
+} from './organizer/org-index';
 import {
 	BAR_DIRECTIVE_BG, BAR_DIRECTIVE_TEXT, BAR_KEYS, BAR_KEYS_INERT, BAR_KEYS_LIVE, BAR_SHARE_VERSION,
 	WS_AXIS_MED_MULT, WS_AXIS_PCT, wsAxisBound, wsQuantile,
@@ -26,7 +26,7 @@ import {
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences,
-} from './preamble';
+} from './core/preamble';
 
 export default Object.assign(WordSmith, {
 	// the 47 the slices exported

@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 570;
+	--ws-stylesheet-version: 571;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -2141,6 +2141,10 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
    editor font by inheritance, and a figure that bobs is a figure you
    read twice. It sits still, dead centre, and it is the biggest thing
    in the report. */
+/* The goal gauge's heat ramp (A504): the hue from the report, the rest here,
+   so a theme or a snippet can restyle it. */
+.ws-report-ring .ws-goal.ws-goal-heat { color: hsl(var(--ws-goal-hue), 62%, 44%); }
+
 .ws-goal-liquid {
 	position: relative;
 	width: 100%;

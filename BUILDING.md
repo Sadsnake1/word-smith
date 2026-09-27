@@ -5,24 +5,33 @@ The plugin's source, as a TypeScript project.
 ```
 src/
   main.ts                 entry: exports the plugin class
-  plugin.ts               the plugin class: lifecycle, settings, the bar, the modes,
-                          the menu, the Organizer's windows, export, history
-  preamble.ts             helpers and constants: tokens, colors, the bar's grammar,
-                          presets and share codes, the flags, the docx and zip writers
-  settings.ts             the settings schema: the defaults are the type
-  settings-tab.ts         the settings panel (Obsidian's declarative settings)
-  editor-extensions.ts    the CodeMirror extensions: markers, paragraph numbers,
-                          the letter box's masks, Hemingway
-  org-index.ts            the Organizer's index of notes and folders
-  obsidian-internals.ts   what the plugin reaches in Obsidian's private API,
-                          checked at load
-  organizer-*.ts          the Organizer's window, one file per concern
-                          (cells, cols, drag, files, flags, journal, keys, lens,
-                          mode, nav, props, readings, rename, rows, scope, sel,
-                          shape, ticks, widths, writes, zoom, chips)
-  global.d.ts             typing gaps the compiler cannot know
-  obsidian-private.d.ts   the private API's shape, as used here
   test-entry.ts           what the development harness reaches into (not shipped)
+  core/
+    preamble.ts           helpers and constants: tokens, colors, the bar's grammar,
+                          presets and share codes, the flags, the docx and zip writers
+    settings.ts           the settings schema: the defaults are the type
+    obsidian-internals.ts what the plugin reaches in Obsidian's private API,
+                          checked at load
+    global.d.ts           typing gaps the compiler cannot know
+    obsidian-private.d.ts the private API's shape, as used here
+  plugin/
+    plugin.ts             the plugin class: lifecycle, settings, commands
+    bar.ts, menu.ts, themes.ts, paint.ts, focus.ts, stores.ts, history.ts,
+    report.ts, export.ts, tree.ts, diagnostics.ts
+                          the class's areas, one file each
+    settings-tab.ts       the settings panel (Obsidian's declarative settings)
+  editor/
+    editor.ts             typography, the Hemingway lock, the Vim motion maps
+    editor-extensions.ts  the CodeMirror extensions: markers, syntax and prose
+                          marks, paragraph numbers, the end-of-buffer tildes
+  organizer/
+    organizer-window.ts   the Organizer's window
+    org-index.ts          its index of notes and folders
+    org-ctx.ts            what its parts share
+    organizer-*.ts        one file per concern (cells, chips, chrome, cols, drag,
+                          files, flags, journal, keys, lens, mode, nav, props,
+                          readings, rename, rows, scope, sel, shape, ticks,
+                          widths, writes, zoom)
 test/smoke.js             the smoke test over the built file (`npm test`)
 ```
 
@@ -58,6 +67,6 @@ plugin's behavior, live outside this tree and are not part of the upload.
 
 `styles.css` and the bundle carry one version number
 (`--ws-stylesheet-version` in the sheet, `WS_STYLESHEET_VERSION` in
-`src/preamble.ts`); a stale copy of one beside a new copy of the other is the
+`src/core/preamble.ts`); a stale copy of one beside a new copy of the other is the
 first thing to suspect when something looks wrong after an update, and the
 smoke test checks the pair.

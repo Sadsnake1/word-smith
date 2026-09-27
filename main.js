@@ -2040,7 +2040,7 @@ function wsCatch(where, err) {
   }
   WS_CATCH_SEEN.set(where, { n: 1, last: msg });
   try {
-    console.warn("Word-Smith: " + where + " threw and was contained: " + msg);
+    console.debug("Word-Smith: " + where + " threw and was contained: " + msg);
   } catch {
   }
   return true;
@@ -2269,9 +2269,15 @@ function wsGuard(fn, where) {
     try {
       const out = call.apply(this, args);
       if (out && typeof out.then === "function") {
-        return out.then(null, (err) => {
-          wsGuardReport(where, err);
-        });
+        const pending = out;
+        return (async () => {
+          try {
+            return await pending;
+          } catch (err) {
+            wsGuardReport(where, err);
+            return void 0;
+          }
+        })();
       }
       return out;
     } catch (err) {
@@ -4198,7 +4204,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 570;
+var WS_STYLESHEET_VERSION = 571;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4214,7 +4220,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.5";
+var WS_PLUGIN_VERSION = "1.6.6";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -6030,7 +6036,10 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
             if (!from || from === to)
               return;
             plugin.menuJoinAfter(from, to);
-            void plugin.saveSettings().then(() => redisplay());
+            void (async () => {
+              await plugin.saveSettings();
+              redisplay();
+            })();
           }
         });
         const handle = card.createSpan({ cls: "ws-card-text" });
@@ -7288,8 +7297,8 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     });
     return this.page("Vault", "vault", "Where it applies, settings as text, a repair, the files kept.", [
       this.scopeSection(),
-      this.section("Your settings", [
-        this.subheadRow("Your settings"),
+      this.section("Backup and repair", [
+        this.subheadRow("Backup and repair"),
         { name: "As text", desc: "Copy every setting as JSON, paste a copy back, or undo the last paste or reset.", render: (st) => this.renderSettingsText(st) },
         this.buttonRow("Repair the display", "Draws every surface again from the settings as they are.", "Repair", () => {
           plugin.repairDisplay();
@@ -11859,12 +11868,16 @@ var treeMethods = {
     }
     if (!this._structStore && !this._treeOrderLoading) {
       this._treeOrderLoading = true;
-      this.treeOrderLoad().then(() => {
-        this._treeOrderLoading = false;
-        this.repaintExplorerOrder();
-      }).catch(() => {
-        this._treeOrderLoading = false;
-      });
+      void (async () => {
+        try {
+          await this.treeOrderLoad();
+          this._treeOrderLoading = false;
+          this.repaintExplorerOrder();
+        } catch (_) {
+          this._treeOrderLoading = false;
+          wsCatch("patchExplorerSort: await this.treeOrderLoad();", _);
+        }
+      })();
     }
     for (const view of this.explorerViews()) {
       if (view._wsSortPatched)
@@ -12102,8 +12115,12 @@ var treeMethods = {
         return;
       }
       this._patchRunning = true;
-      void Promise.resolve().then(() => this.patchExplorerDOM()).catch(() => {
-      }).then(() => {
+      void (async () => {
+        try {
+          await this.patchExplorerDOM();
+        } catch (_) {
+          wsCatch("scheduleExplorerPatch: await this.patchExplorerDOM();", _);
+        }
         this._patchRunning = false;
         try {
           if (this.explorerObserver)
@@ -12115,7 +12132,7 @@ var treeMethods = {
           this._patchAgain = false;
           this.scheduleExplorerPatch();
         }
-      });
+      })();
     });
   },
   async patchExplorerDOM() {
@@ -14637,7 +14654,10 @@ function wsOrgFieldEditor(a, card, path, key, isDraft) {
     const pillHost = d.orgTagWrap(wrap2, String(key).toLowerCase() === "tags" ? "tags" : "multitext");
     const mkChip = (val) => {
       const chip = d.orgTagPill(pillHost, String(val), { remove: () => {
-        void commitList(live.filter((z) => z !== val)).then(() => chip.remove());
+        void (async () => {
+          await commitList(live.filter((z) => z !== val));
+          chip.remove();
+        })();
       } });
       return chip;
     };
@@ -16045,21 +16065,24 @@ var wsOrgTicksMake = (d) => {
     d.redraw();
     return true;
   };
-  const setOnly = (paths) => {
+  const setOnly = async (paths) => {
     const want = (Array.isArray(paths) ? paths : [paths]).map((p) => p == null || p === "/" ? "" : String(p)).filter((p) => p !== "");
-    return Promise.resolve(load()).then(() => {
-      if (!ticks)
-        return false;
-      ticks.clear();
-      for (const f of files()) {
-        const p = f.path;
-        if (want.some((w) => p === w || p.indexOf(w + "/") === 0))
-          ticks.add(p);
-      }
-      remember();
-      d.redraw();
-      return true;
-    }, () => false);
+    try {
+      await load();
+    } catch {
+      return false;
+    }
+    if (!ticks)
+      return false;
+    ticks.clear();
+    for (const f of files()) {
+      const p = f.path;
+      if (want.some((w) => p === w || p.indexOf(w + "/") === 0))
+        ticks.add(p);
+    }
+    remember();
+    d.redraw();
+    return true;
   };
   const door = {
     wanted: () => d.wanted(),
@@ -17718,12 +17741,15 @@ var organizerWindowMethods = {
   orgIndexResweep() {
     if (this._orgIndexBuild != null)
       return this._orgIndexBuild;
-    this._orgIndexBuild = this.orgIndexSweep().then((ix) => {
-      this._orgIndexRing();
-      return ix;
-    }).finally(() => {
-      this._orgIndexBuild = null;
-    });
+    this._orgIndexBuild = (async () => {
+      try {
+        const ix = await this.orgIndexSweep();
+        this._orgIndexRing();
+        return ix;
+      } finally {
+        this._orgIndexBuild = null;
+      }
+    })();
     return this._orgIndexBuild;
   },
   orgIndexVaultHasNotes() {
@@ -17836,8 +17862,14 @@ var organizerWindowMethods = {
           this._orgIndexRing();
         return;
       }
-      this.orgIndexRead(f).then(() => this._orgIndexRing()).catch(() => {
-      });
+      void (async () => {
+        try {
+          await this.orgIndexRead(f);
+          this._orgIndexRing();
+        } catch (_) {
+          wsCatch("orgIndexWatch changed: await this.orgIndexRead(f);", _);
+        }
+      })();
     });
     reg(this.app.vault, "delete", (f) => {
       if (md(f) && this._orgIndex && wsOrgRemove(this._orgIndex, f.path))
@@ -17854,8 +17886,14 @@ var organizerWindowMethods = {
       if (wsOrgRename(this._orgIndex, oldPath, f.path)) {
         this._orgIndexRing();
       } else {
-        this.orgIndexRead(f).then(() => this._orgIndexRing()).catch(() => {
-        });
+        void (async () => {
+          try {
+            await this.orgIndexRead(f);
+            this._orgIndexRing();
+          } catch (_) {
+            wsCatch("orgIndexWatch rename: await this.orgIndexRead(f);", _);
+          }
+        })();
       }
     });
   },
@@ -18869,14 +18907,19 @@ var organizerWindowMethods = {
         drawOrg();
     });
     if (!this._structStore) {
-      this.structureRead().then(() => {
+      void (async () => {
+        try {
+          await this.structureRead();
+        } catch (_) {
+          wsCatch("openManuscriptModal: await this.structureRead();", _);
+          return;
+        }
         try {
           drawPanel();
         } catch (_) {
           wsCatch("openManuscriptModal: drawPanel();", _);
         }
-      }).catch(() => {
-      });
+      })();
     }
     const histState = Object.assign({ scope: "", query: "", shiftPeriod: null, hideScope: true }, this.historyOpeningPeriod());
     this._orgSubject = () => subject;
@@ -18957,7 +19000,13 @@ var organizerWindowMethods = {
       const rows = subjectRows();
       drawSubject();
       if (tab === "export" && exportOpts && panel.querySelector(".ws-export-split")) {
-        Promise.resolve(loadTicks()).then(() => {
+        void (async () => {
+          try {
+            await loadTicks();
+          } catch (_) {
+            wsCatch("openManuscriptModal: await loadTicks();", _);
+            return;
+          }
           if (gen !== panelGen)
             return;
           try {
@@ -18966,13 +19015,7 @@ var organizerWindowMethods = {
           } catch (_) {
             wsCatch("openManuscriptModal: if (exportOpts && exportOpts.refresh) exportOpts.refresh();", _);
           }
-          try {
-            draw();
-          } catch (_) {
-            wsCatch("openManuscriptModal: draw();", _);
-          }
-        }, () => {
-        });
+        })();
         return;
       }
       exportOpts = null;
@@ -19392,13 +19435,14 @@ var organizerWindowMethods = {
     try {
       if (this.settings.historyTracking && !this._historyReady) {
         panel.createDiv({ cls: "ws-report-loading", text: "Reading…" });
-        void this.historyLoad().then(() => {
+        void (async () => {
+          await this.historyLoad();
           const at = this.historyOpeningPeriod();
           histState.year = at.year;
           histState.month = at.month;
           if (ctx.tab() === "history")
             drawPanel();
-        });
+        })();
         return;
       }
       this.renderHistoryTab(panel, histState, () => drawPanel());
@@ -19493,11 +19537,16 @@ var organizerWindowMethods = {
       ctx.orgDrawnSig = sig;
       ctx.drawSubject();
       if (this.settings.historyTracking && !this._historyReady) {
-        this.historyLoad().then(() => {
+        void (async () => {
+          try {
+            await this.historyLoad();
+          } catch (_) {
+            wsCatch("orgDrawHistoryFigures: await this.historyLoad();", _);
+            return;
+          }
           if (ctx.tab === "organizer")
             ctx.drawPanel();
-        }).catch(() => {
-        });
+        })();
       }
       const orgCounted = (p0) => {
         try {
@@ -22532,8 +22581,8 @@ var reportMethods = {
         const ringWrap = body.createDiv({ cls: "ws-report-ring" });
         if (target > 0) {
           const ratio = Math.min(stats.words / target, 1);
-          const holder = ringWrap.createSpan({ cls: "ws-goal" + (stats.words >= target ? " is-met" : "") });
-          holder.style.color = "hsl(" + Math.round(8 + ratio * 122) + ", 62%, 44%)";
+          const holder = ringWrap.createSpan({ cls: "ws-goal ws-goal-heat" + (stats.words >= target ? " is-met" : "") });
+          holder.style.setProperty("--ws-goal-hue", String(Math.round(8 + ratio * 122)));
           holder.appendChild(this.buildGoalLiquid(ratio));
         } else {
           const none = ringWrap.createDiv({ cls: "ws-report-ring-label is-muted" });
@@ -23737,13 +23786,15 @@ var barMethods = {
         leaf = ws.getRightLeaf(false);
       if (!leaf)
         return false;
-      void Promise.resolve(leaf.setViewState({ type: "file-properties", active: true })).then(() => {
+      const pane = leaf;
+      void (async () => {
+        await pane.setViewState({ type: "file-properties", active: true });
         try {
-          void ws.revealLeaf(leaf);
+          void ws.revealLeaf(pane);
         } catch (_) {
           wsCatch("openPropertiesView: ws.revealLeaf(leaf)", _);
         }
-      });
+      })();
       return true;
     } catch (_) {
       wsCatch("openPropertiesView: ws.getRightLeaf(false)", _);
@@ -25150,9 +25201,13 @@ var barMethods = {
       this.fitStatusBarText();
     };
     const el = this.retroStatusBarEl;
-    if (el && el.clientWidth && typeof Promise !== "undefined") {
-      Promise.resolve().then(run).catch(() => {
-        this._fitPending = false;
+    if (el && el.clientWidth && typeof queueMicrotask === "function") {
+      queueMicrotask(() => {
+        try {
+          run();
+        } catch {
+          this._fitPending = false;
+        }
       });
       return;
     }
@@ -26498,14 +26553,17 @@ var storesMethods = {
     this._goalsTimer = window.setTimeout(() => {
       this._goalsTimer = null;
       const wrote = this.goalsSignature();
-      this.goalsStoreWrite().then(() => {
-        if (wrote)
-          this._goalsSig = wrote;
-        this._goalsWritten = true;
-        this.storeWriteOk(WS_WRITE.goals);
-      }).catch((e) => {
-        this.storeWriteFailed(WS_WRITE.goals, e, "They are still set here; the file will be tried again.");
-      });
+      void (async () => {
+        try {
+          await this.goalsStoreWrite();
+          if (wrote)
+            this._goalsSig = wrote;
+          this._goalsWritten = true;
+          this.storeWriteOk(WS_WRITE.goals);
+        } catch (e) {
+          this.storeWriteFailed(WS_WRITE.goals, e, "They are still set here; the file will be tried again.");
+        }
+      })();
     }, 600);
   },
   storeWriteFailed(subject, e, tail) {
@@ -27279,9 +27337,14 @@ var storesMethods = {
     if (this._structStore)
       return this._structStore;
     if (this._structReading == null) {
-      this._structReading = this.vaultReady().then(() => this.structureReadNow()).finally(() => {
-        this._structReading = null;
-      });
+      this._structReading = (async () => {
+        try {
+          await this.vaultReady();
+          return await this.structureReadNow();
+        } finally {
+          this._structReading = null;
+        }
+      })();
     }
     return this._structReading;
   },
@@ -27328,7 +27391,14 @@ var storesMethods = {
     return this.structureQueue(() => this.structureWriteNow());
   },
   structureQueue(fn) {
-    const q = (this._structWriteQ ?? Promise.resolve()).then(fn, fn);
+    const prev = this._structWriteQ;
+    const q = (async () => {
+      try {
+        await prev;
+      } catch {
+      }
+      return fn();
+    })();
     this._structWriteQ = q;
     return q;
   },
@@ -27696,11 +27766,12 @@ var storesMethods = {
     if (!mine)
       return;
     const was = this._structText;
-    void this.structureReload().then(() => {
+    void (async () => {
+      await this.structureReload();
       if (this._structText === was)
         return;
       this.treeOrderChanged();
-    });
+    })();
   },
   async structureReload() {
     let text = "";
@@ -30861,11 +30932,12 @@ var exportMethods = {
         };
         const wake = () => {
           paint();
-          void this.ensureSystemFonts().then(() => {
+          void (async () => {
+            await this.ensureSystemFonts();
             if (rows.length)
               paint();
             sayNote();
-          });
+          })();
         };
         inp.addEventListener("focus", wake);
         inp.addEventListener("input", () => {
@@ -32177,16 +32249,16 @@ var historyMethods = {
       const act = this.historyEl("div", "ws-hist-empty-act", off);
       const go = this.historyEl("button", "mod-cta", act, "Start counting");
       const hint = this.historyEl("div", "ws-report-hint", off, "Counts only — never your words, and never backwards. You can switch it off again in Settings.");
-      try {
-        this.historyFindFile().then((f) => {
+      void (async () => {
+        try {
+          const f = await this.historyFindFile();
           if (!f || !hint.isConnected)
             return;
           hint.textContent = "Your record is still in " + f.path + " — switching this on reads it back.";
-        }).catch(() => {
-        });
-      } catch (_) {
-        wsCatch("renderHistoryTab: this.historyFindFile().then((f) =>", _);
-      }
+        } catch (_) {
+          wsCatch("renderHistoryTab: historyFindFile()", _);
+        }
+      })();
       go.addEventListener("click", () => {
         void (async () => {
           if (go.disabled)
@@ -33148,26 +33220,27 @@ function wsRegisterCommands(plugin) {
   plugin.addCommand({
     id: "open-menu-panel",
     name: "Open the menu in a panel",
-    callback: async () => {
-      if (!plugin.settings.menuDock) {
-        new import_obsidian23.Notice("Word-Smith: switch on the panel first, in the settings under Powermenu.");
-        return;
-      }
-      await plugin.openMenuPanel(true);
+    checkCallback: (checking) => {
+      if (!plugin.settings.menuDock)
+        return false;
+      if (!checking)
+        void plugin.openMenuPanel(true);
+      return true;
     }
   });
   plugin.addCommand({
     id: "toggle-retro-bar",
     name: "Toggle the Powerline bar",
-    callback: async () => {
-      if (typeof import_obsidian23.Platform !== "undefined" && import_obsidian23.Platform && import_obsidian23.Platform.isPhone && !plugin.settings.retroBarOnPhone) {
-        new import_obsidian23.Notice("Word-Smith: the bar is off on phones by default. Switch it on in the settings, under Powerline.", 6e3);
-        return;
+    checkCallback: (checking) => {
+      if (typeof import_obsidian23.Platform !== "undefined" && import_obsidian23.Platform && import_obsidian23.Platform.isPhone && !plugin.settings.retroBarOnPhone)
+        return false;
+      if (!checking) {
+        plugin.settings.enableRetroStatus = !plugin.settings.enableRetroStatus;
+        plugin.updateStatusBar();
+        plugin.updateRetroStatusBar();
+        void plugin.saveSettings(true);
       }
-      plugin.settings.enableRetroStatus = !plugin.settings.enableRetroStatus;
-      plugin.updateStatusBar();
-      plugin.updateRetroStatusBar();
-      await plugin.saveSettings(true);
+      return true;
     }
   });
   plugin.addCommand({
@@ -33519,11 +33592,11 @@ function wsOnLayoutReady(plugin) {
     wsCatch("onload: if (!this._loadMarks) this._loadMarks = [];", _);
   }
   if (plugin.settings.menuDock) {
-    void plugin.reviveMenuPanel().then(() => {
+    void (async () => {
+      await plugin.reviveMenuPanel();
       if (!plugin.menuPanelLeaves().length)
-        return plugin.openMenuPanel(false);
-      return null;
-    });
+        await plugin.openMenuPanel(false);
+    })();
     plugin.onAppEvent(plugin.app.workspace, "layout-change", () => {
       if (plugin.settings.menuDock)
         void plugin.reviveMenuPanel();
@@ -33533,8 +33606,19 @@ function wsOnLayoutReady(plugin) {
     plugin.settings.markersEnabled = true;
     void plugin.saveSettings();
   }
-  plugin.settingsMirrorRestore(plugin._rawData).catch(() => false).then(() => plugin.goalsFileLoad()).then(() => plugin.refresh()).catch(() => {
-  });
+  void (async () => {
+    try {
+      await plugin.settingsMirrorRestore(plugin._rawData);
+    } catch (_) {
+      wsCatch("onLayoutReady: await plugin.settingsMirrorRestore(plugin._rawData);", _);
+    }
+    try {
+      await plugin.goalsFileLoad();
+      plugin.refresh();
+    } catch (_) {
+      wsCatch("onLayoutReady: await plugin.goalsFileLoad();", _);
+    }
+  })();
   if (plugin.settings.menuDock)
     plugin.checkAppClasses();
   if (plugin.settings.historyTracking)
@@ -33720,7 +33804,10 @@ var WordSmith = class extends import_obsidian23.Plugin {
       }
       if (!this.settings.pluginEnabled || !this.settings.treeOrder)
         return;
-      void this.treeOrderLoad().then(() => this.patchExplorerSort());
+      void (async () => {
+        await this.treeOrderLoad();
+        this.patchExplorerSort();
+      })();
     });
     this.app.workspace.onLayoutReady(() => {
       if (!this.settings.pluginEnabled || !this.zenOn())

@@ -22,7 +22,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Open the Organizer | Opens the Organizer pane |
 | Export a manuscript… | Opens the Export pane |
 | Open the menu | Also the WS badge in the ribbon |
-| Open the menu in a panel | The same menu, docked. Switch the panel on under **Menu** first |
+| Open the menu in a panel | The same menu, docked. Offered once the panel is switched on under **Menu** |
 | Quick file explorer | Switch it on under **Misc** first |
 | Quick outline | |
 | Quick cycle: jump left / right / up / down | Also **Misc**. No default keys |
