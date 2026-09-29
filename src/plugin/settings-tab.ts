@@ -1058,7 +1058,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			], undefined, false),
 			this.section('Sections', [this.railRow('powerline', RAIL)], bar),
 			this.section('Rows', [
-				rendered({ name: 'What each row says', desc: 'Left, center and right of every row, written in tokens.', render: (st) => this.renderStatusRows(st) }, ['statusRows']),
+				rendered({ name: 'What the row says', desc: 'Left, center and right of the bar, written in tokens.', render: (st) => this.renderStatusRows(st) }, ['statusRows']),
 				{ name: 'How to write a row', desc: 'Every token, and how to color a segment.', render: (st) => this.renderFormatReference(st), searchable: false },
 			], this.railed('powerline', 'rows', bar)),
 			this.section('Look', [
@@ -1289,7 +1289,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		SUB('Both at once');
 		L(['{words}:3;1'], 'Background nr. 3, text nr. 1.');
 		SUB('The whole bar');
-		L([':3 {file} \u2026'], 'A colon before the first token of row 1 paints the whole bar\u2019s background: palette color nr. 3 here, or :b1, :vim, :f.');
+		L([':3 {file} \u2026'], 'A colon before the first token of the row paints the whole bar\u2019s background: palette color nr. 3 here, or :b1, :vim, :f.');
 		L([';2 {file} \u2026'], 'A semicolon there paints all of its text: palette color nr. 2 here, or ;t1, ;vim, ;f.');
 		L([':3;2 {file} \u2026'], 'Both at once. A token with a color of its own keeps it.');
 		N(g, 'Seven palette colors, a dark set and a light set, under Colors. A token with no color lies flush with the bar.');

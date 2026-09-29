@@ -4856,7 +4856,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 572;
+export const WS_STYLESHEET_VERSION = 573;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -4894,7 +4894,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.6.7';
+export const WS_PLUGIN_VERSION = '1.6.8';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5904,17 +5904,12 @@ export const DEFAULT_SETTINGS = {
 	// statusRows is the source of truth for bar content. The old flat
 	// statusFormatLeft/Center/Right keys are folded into row 0 on load and
 	// then deleted, so there is never a second place holding the same text.
-	statusBarRows:            1,
+	// ONE ROW: the bar draws one (getStatusRows). `statusBarRows` and the two
+	// empty rows every vault carried are deleted on load (A508).
 	statusRows:               [
 		{ left: ':b2{obsidian}:6>{ggggg}{ggggg}{ggggg}|{file}:vim>{ggggg}>{ggggg}>{ggggg}>{ggggg}~',
 		  center: '<{ss}{mode}:7/{syntax}::{prose}:2|{font}\\{report}:vim<',
 		  right: '~{markers}{paragraph}~{words} words){clock}{time}' },
-		{ left: '',
-		  center: '',
-		  right: '' },
-		{ left: '',
-		  center: '',
-		  right: '' },
 	],
 	fileTokenFormat:          'path',     // 'path' (~/folder/name) | 'name' (basename only)
 	targetTokenFormat:        'percent',  // {target}: 'percent' (43%) | 'ratio' (2,145/5,000)
@@ -5949,16 +5944,7 @@ export const DEFAULT_SETTINGS = {
 	// sets that boundary's shape (see PL_DIVIDERS). Inside a segment, ::
 	// draws a soft divider. A colour is chosen per segment by suffixing any
 	// token in it with :N — {file}:2, or {file} :2 if you want the space.
-	// INERT — see BAR_KEYS_INERT for what that means and why the value here
-	// still matters.
-	powerlineEnabled:         true,
 	powerlineModeColors:      true,
-	// Vestigial. The separator's angle was briefly a slider and is now the
-	// PL_SEP_ASPECT constant — there is one right answer for "does this read
-	// as an arrow", and it was not a question worth asking. The key stays
-	// because it is BAR_KEYS index 56 and share codes already carry it; it
-	// is written, encoded and decoded, and read by nothing.
-	powerlineSepWidth:        78,
 	// Six, numbered 1-6 the way they are written in a row. Defaults are a
 	// muted spread rather than six shouts: the loud bar is the classic way
 	// a homemade statusline becomes unreadable at 13px.
@@ -5971,13 +5957,6 @@ export const DEFAULT_SETTINGS = {
 	powerlineColor7:          "#cc141d",
 	// Mode colours, set beside the mode labels in the Vim tab. A segment
 	// suffixed :vim follows whichever of these matches the live mode.
-	// Text colours, addressed as ;N after the background number.
-	// INERT (BAR_KEYS_INERT). One palette now: ;N reads the background
-	// swatches, so a colour retinted there retints wherever it is used.
-	powerlineText1:           "#ffffff",
-	powerlineText2:           "#16181d",
-	powerlineText3:           "#9aa0a6",
-	powerlineText4:           "#4f9dde",
 	// Light-theme variants of all eleven, added in 1.12. The originals above
 	// are the DARK set — they keep their names, their values and their
 	// BAR_KEYS indices, because both the key order and those default values
@@ -5994,10 +5973,6 @@ export const DEFAULT_SETTINGS = {
 	powerlineColorLight5:     "#b96f1e",
 	powerlineColorLight6:     "#6a5cb8",
 	powerlineColorLight7:     "#a2404f",
-	powerlineTextLight1:      "#16181d",
-	powerlineTextLight2:      "#f7f7f5",
-	powerlineTextLight3:      "#5c636b",
-	powerlineTextLight4:      "#2d6da4",
 	// When Cursor-Smith is installed and theming the caret per vim mode, take
 	// its colours instead of the five below, so the bar and the cursor agree.
 	vimFollowCursorSmith:     true,
@@ -6015,16 +5990,9 @@ export const DEFAULT_SETTINGS = {
 	vimColorReplaceLight:     "#a03c36",
 	vimColorCommandLight:     "#b96f1e",
 	// ── Goals ────────────────────────────────────────────────────────────────
-	// Three of them, drawn the same way: the writing goal as a ring, the file
-	// goal as a triangle, the folder goal as a square. One label mode and one
-	// line weight across all three, so they never disagree about how they look.
-	goalTarget:               200,       // legacy vault-wide goal; kept so old data loads
-	// INERT. Kept so a vault that turned it off does not read as corrupt on
-	// load; nothing reads it any more. Targets and flags live in
-	// `ws-goals.md` full stop — the switch offered a state where they lived
-	// only in data.json, which a writer cannot read, cannot edit and loses on
-	// a reinstall, and that is not a choice worth offering for the numbers
-	// somebody chose deliberately.
+	// A note's target and its flag live in the structure file, which a writer
+	// can read and edit and which outlives a reinstall. (The vault-wide
+	// `goalTarget` and the label mode went in 1.6.8, A508: nothing read them.)
 	// LEGACY PATHS, kept because a vault that moved either file said where it
 	// wanted it, and that is the address the migration looks at first. Neither
 	// is written to again once the structure file exists — see
@@ -6082,16 +6050,7 @@ export const DEFAULT_SETTINGS = {
 	// which has to outlive a reinstall and be editable by hand. See
 	// WS_STATE_IDS.
 	fileStatus:               {} as Record<string, string>,   // note path -> flag id
-	goalLabelMode:            'fraction',  // 'percent' inside | 'fraction' beside | 'none'
 
-	// INERT (BAR_KEYS_INERT). The bar takes the theme's surface and text; a
-	// row directive (:b2, ;vim) is the only override, and it is visible in
-	// the format string rather than two tabs away.
-	retroCustomColors:        false,
-	retroDarkBgColor:         "#141010",
-	retroDarkTextColor:       "#f2f2f2",
-	retroLightBgColor:        "#e9e8e8",
-	retroLightTextColor:      "#f7fb09",
 	// The bar's top and bottom rules. Their own colours now rather than
 	// var(--ws-text): the rules are the one part of the bar that reads as a
 	// frame around it, and a frame that always matches the text has no way
@@ -6530,10 +6489,12 @@ export const BAR_KEYS = [
 // Every one belonged to a feature that was removed. None can be deleted from
 // BAR_KEYS: a share code stores each field as its INDEX into that array, so
 // removing one renumbers every field after it and silently reinterprets every
-// code anyone has already posted. They keep their slots, they keep their
-// DEFAULT_SETTINGS values (barShareFields emits only what differs from the
-// default, so sitting on it is what keeps new codes quiet about them), and
-// nothing reads them.
+// code anyone has already posted. They keep their slots and nothing reads
+// them. SINCE 1.6.8 (A508) THEY ARE IN NO VAULT EITHER: not in
+// DEFAULT_SETTINGS, never emitted by barShareFields, dropped by
+// barParseFields from an older code, never written by a snapshot (only the
+// live keys are), and deleted on load from data.json and every saved preset
+// (WS_RETIRED_KEYS).
 //
 // ONE list, rather than a comment at each site. It was three comments in
 // three places by the time there were three families of these, each preset
@@ -6542,8 +6503,9 @@ export const BAR_KEYS = [
 // share code now skips this set automatically; everything that reads BAR_KEYS
 // for its indices still walks the full array.
 //
-// To retire another key: add it here, remove its reads, and leave the array
-// alone. To bring one back: take it out of here. Nothing else changes.
+// To retire another key: add it here, remove its reads, take it out of
+// DEFAULT_SETTINGS, type it `never` in WsLegacySettings, and leave the array
+// alone. To bring one back, undo those.
 export const BAR_KEYS_INERT = new Set([
 	// 1.2.0 — powerline is baked in; there is no plain bar to switch to.
 	'powerlineEnabled',
@@ -6556,7 +6518,15 @@ export const BAR_KEYS_INERT = new Set([
 	'powerlineText1', 'powerlineText2', 'powerlineText3', 'powerlineText4',
 	'powerlineTextLight1', 'powerlineTextLight2',
 	'powerlineTextLight3', 'powerlineTextLight4',
+	// 1.6.8 (A508) — the bar draws one row, and the separator's angle is the
+	// PL_SEP_ASPECT constant.
+	'statusBarRows', 'powerlineSepWidth',
 ]);
+
+// Every settings key retired from DEFAULT_SETTINGS and deleted on load
+// (A508): the retired bar keys, and the vault-wide goal and its label
+// mode, which nothing has read since targets moved to the structure file.
+export const WS_RETIRED_KEYS: string[] = [...BAR_KEYS_INERT, 'goalTarget', 'goalLabelMode'];
 
 // The keys a preset or a share code should actually carry.
 export const BAR_KEYS_LIVE = BAR_KEYS.filter(k => !BAR_KEYS_INERT.has(k));
@@ -6675,6 +6645,7 @@ export function barParseFields(body: string) {
 		if (!m) continue;
 		const key = BAR_KEYS[Number(m[1])];
 		if (!key) continue;              // index from a newer version: skip it
+		if (BAR_KEYS_INERT.has(key)) continue;   // a retired key an older code carries
 		const val = barShareDecodeValue(m[2], m[3]);
 		if (val !== undefined) snap[key] = val;
 	}
@@ -6708,7 +6679,7 @@ export function barCodeToPreset(code: string) {
 export function barPresetWithDefaults(preset: Record<string, unknown> | null | undefined) {
 	const out: Record<string, unknown> = {};
 	const base = wsBag(DEFAULT_SETTINGS), given = preset || {};
-	for (const k of BAR_KEYS) {
+	for (const k of BAR_KEYS_LIVE) {
 		out[k] = barCloneValue(
 			Object.prototype.hasOwnProperty.call(given, k)
 				? given[k] : base[k]);
@@ -6740,8 +6711,7 @@ export function barPresetWithDefaults(preset: Record<string, unknown> | null | u
 // so a deleted one stays deleted.
 export const DEFAULT_BAR_PRESETS = {
 	"Plain": {
-		"statusBarRows": 1,
-		"statusRows": [{"left":":b1{ssss}{file}","center":"{mode} {syntax} {prose} {report}","right":"{words} words{ssss}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"statusRows": [{"left":":b1{ssss}{file}","center":"{mode} {syntax} {prose} {report}","right":"{words} words{ssss}"}],
 		"fileTokenFormat": "name",
 		"flagTokenFormat": "both",
 		"powerlineModeColors": false,
@@ -6783,7 +6753,6 @@ export const DEFAULT_BAR_PRESETS = {
 		"vimColorVisualLight": "#6a5cb8",
 		"vimColorReplaceLight": "#a03c36",
 		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
 		"statusBarFontFollowNote": true,
 		"barRuleDarkTopColor": "#fbfaf9",
 		"barRuleDarkBottomColor": "#fbfaf9",
@@ -6796,8 +6765,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"targetTokenFormat": "percent",
 	},
 	"Code": {
-		"statusBarRows": 1,
-		"statusRows": [{"left":":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}","center":"","right":"{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"statusRows": [{"left":":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}","center":"","right":"{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5"}],
 		"fileTokenFormat": "name",
 		"flagTokenFormat": "both",
 		"powerlineModeColors": true,
@@ -6839,7 +6807,6 @@ export const DEFAULT_BAR_PRESETS = {
 		"vimColorVisualLight": "#6a5cb8",
 		"vimColorReplaceLight": "#a03c36",
 		"vimColorCommandLight": "#b96f1e",
-		"powerlineSepWidth": 78,
 		"statusBarFontFollowNote": false,
 		"barRuleDarkTopColor": "#fbfaf9",
 		"barRuleDarkBottomColor": "#fbfaf9",
@@ -6858,8 +6825,7 @@ export const DEFAULT_BAR_PRESETS = {
 	// lower-case Vim labels, greys. Both state every live key, as the test
 	// demands of a shipped preset.
 	"Fade": {
-		"statusBarRows": 1,
-		"statusRows": [{"left":":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>","center":"","right":"{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}"},{"left":"","center":"","right":""},{"left":"","center":"","right":""}],
+		"statusRows": [{"left":":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>","center":"","right":"{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}"}],
 		"fileTokenFormat": "name",
 		"flagTokenFormat": "both",
 		"powerlineModeColors": true,
@@ -6901,7 +6867,6 @@ export const DEFAULT_BAR_PRESETS = {
 		"vimColorVisualLight": "#8e44ad",
 		"vimColorReplaceLight": "#c0392b",
 		"vimColorCommandLight": "#b9770e",
-		"powerlineSepWidth": 78,
 		"statusBarFontFollowNote": false,
 		"barRuleDarkTopColor": "#fbfaf9",
 		"barRuleDarkBottomColor": "#fbfaf9",

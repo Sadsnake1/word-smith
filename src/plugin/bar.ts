@@ -8,7 +8,7 @@
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf } from '../core/preamble';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -201,7 +201,8 @@ export const barMethods = {
 	// worth being strict for.
 	applyBarSnapshot(this: WordSmith, preset: Record<string, unknown>) {
 		const full = barPresetWithDefaults(preset);
-		for (const k of BAR_KEYS) wsBag(this.settings)[k] = full[k];
+		// the LIVE keys: a retired one is written into no vault (A508)
+		for (const k of BAR_KEYS_LIVE) wsBag(this.settings)[k] = full[k];
 		// A snapshot can carry a border style the dropdown no longer offers
 		// — an old saved preset, or a share code from someone still on a
 		// build that had Groove and Ridge. loadSettings sweeps the stored
@@ -213,13 +214,12 @@ export const barMethods = {
 			|| this.settings.statusBarBorderStyle === 'ridge') {
 			this.settings.statusBarBorderStyle = 'solid';
 		}
-		// getStatusRows() and the panel both assume three row objects exist
-		// whatever statusBarRows says, so a code carrying a short (or absent)
-		// array must not leave the panel reading row 2 of undefined.
+		// ONE row, as a load leaves it (A508): a code from an older build
+		// carries three, the last two empty, and a code with none must not
+		// leave the panel reading row 0 of nothing.
 		if (!Array.isArray(this.settings.statusRows)) this.settings.statusRows = [];
-		while (this.settings.statusRows.length < 3) {
-			this.settings.statusRows.push({ left: '', center: '', right: '' });
-		}
+		this.settings.statusRows = this.settings.statusRows.slice(0, 1);
+		if (!this.settings.statusRows.length) this.settings.statusRows.push({ left: '', center: '', right: '' });
 		for (const row of this.settings.statusRows) {
 			for (const slot of ['left', 'center', 'right'] as const) {
 				if (typeof row[slot] !== 'string') row[slot] = '';
@@ -1321,12 +1321,10 @@ export const barMethods = {
 	// Normalised row list: left/center/right strings, regardless of what
 	// data.json holds.
 	//
-	// ONE row, deliberately, and `statusBarRows` is vestigial — the bar's
-	// height reserves for one too (see barRows in applyCssVariables), so the
-	// two agree and nothing is half-drawn. What was left behind is the
-	// setting itself, which is still in DEFAULT_SETTINGS and still carried
-	// by share codes at index 0, and this comment, which used to claim it
-	// was honoured.
+	// ONE row, deliberately — the bar's height reserves for one too (see
+	// barRows in applyCssVariables), so the two agree and nothing is
+	// half-drawn. `statusBarRows` went in 1.6.8 (A508): out of the defaults,
+	// deleted on load, its share-code slot (index 0) kept and inert.
 	//
 	// Restoring multi-row means changing both counts together; changing one
 	// gives either rows with no space to draw in or a bar with an empty

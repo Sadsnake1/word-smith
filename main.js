@@ -4204,7 +4204,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 572;
+var WS_STYLESHEET_VERSION = 573;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4220,7 +4220,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.7";
+var WS_PLUGIN_VERSION = "1.6.8";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -4668,22 +4668,11 @@ var DEFAULT_SETTINGS = {
   retroBarOnPhone: false,
   enableRetroStatus: true,
   retroBarHidden: false,
-  statusBarRows: 1,
   statusRows: [
     {
       left: ":b2{obsidian}:6>{ggggg}{ggggg}{ggggg}|{file}:vim>{ggggg}>{ggggg}>{ggggg}>{ggggg}~",
       center: "<{ss}{mode}:7/{syntax}::{prose}:2|{font}\\{report}:vim<",
       right: "~{markers}{paragraph}~{words} words){clock}{time}"
-    },
-    {
-      left: "",
-      center: "",
-      right: ""
-    },
-    {
-      left: "",
-      center: "",
-      right: ""
     }
   ],
   fileTokenFormat: "path",
@@ -4699,9 +4688,7 @@ var DEFAULT_SETTINGS = {
   statusBarHeight: 16,
   statusBarPadTop: 2,
   statusBarPadBottom: 2,
-  powerlineEnabled: true,
   powerlineModeColors: true,
-  powerlineSepWidth: 78,
   powerlineColor1: "#4f9dde",
   powerlineColor2: "#3f4550",
   powerlineColor3: "#2f333c",
@@ -4709,10 +4696,6 @@ var DEFAULT_SETTINGS = {
   powerlineColor5: "#307853",
   powerlineColor6: "#8a7fd1",
   powerlineColor7: "#cc141d",
-  powerlineText1: "#ffffff",
-  powerlineText2: "#16181d",
-  powerlineText3: "#9aa0a6",
-  powerlineText4: "#4f9dde",
   powerlineColorLight1: "#2d6da4",
   powerlineColorLight2: "#d9dce1",
   powerlineColorLight3: "#eceef1",
@@ -4720,10 +4703,6 @@ var DEFAULT_SETTINGS = {
   powerlineColorLight5: "#b96f1e",
   powerlineColorLight6: "#6a5cb8",
   powerlineColorLight7: "#a2404f",
-  powerlineTextLight1: "#16181d",
-  powerlineTextLight2: "#f7f7f5",
-  powerlineTextLight3: "#5c636b",
-  powerlineTextLight4: "#2d6da4",
   vimFollowCursorSmith: true,
   vimColorNormal: "#4f9dde",
   vimColorInsert: "#4caf7d",
@@ -4735,7 +4714,6 @@ var DEFAULT_SETTINGS = {
   vimColorVisualLight: "#6a5cb8",
   vimColorReplaceLight: "#a03c36",
   vimColorCommandLight: "#b96f1e",
-  goalTarget: 200,
   goalsPath: "Word-Smith/ws-goals.md",
   exportListPath: "Word-Smith/ws-export.md",
   structurePath: "Word-Smith/ws-structure.md",
@@ -4749,12 +4727,6 @@ var DEFAULT_SETTINGS = {
   settingsMirrorPath: "Word-Smith/ws-settings.md",
   fileGoals: {},
   fileStatus: {},
-  goalLabelMode: "fraction",
-  retroCustomColors: false,
-  retroDarkBgColor: "#141010",
-  retroDarkTextColor: "#f2f2f2",
-  retroLightBgColor: "#e9e8e8",
-  retroLightTextColor: "#f7fb09",
   barRuleDarkTopColor: "#fbfaf9",
   barRuleDarkBottomColor: "#fbfaf9",
   barRuleLightTopColor: "#16181d",
@@ -4974,8 +4946,11 @@ var BAR_KEYS_INERT = /* @__PURE__ */ new Set([
   "powerlineTextLight1",
   "powerlineTextLight2",
   "powerlineTextLight3",
-  "powerlineTextLight4"
+  "powerlineTextLight4",
+  "statusBarRows",
+  "powerlineSepWidth"
 ]);
+var WS_RETIRED_KEYS = [...BAR_KEYS_INERT, "goalTarget", "goalLabelMode"];
 var BAR_KEYS_LIVE = BAR_KEYS.filter((k) => !BAR_KEYS_INERT.has(k));
 var BAR_SHARE_VERSION = "1";
 function barEnc(s) {
@@ -5079,6 +5054,8 @@ function barParseFields(body) {
     const key = BAR_KEYS[Number(m[1])];
     if (!key)
       continue;
+    if (BAR_KEYS_INERT.has(key))
+      continue;
     const val = barShareDecodeValue(m[2], m[3]);
     if (val !== void 0)
       snap[key] = val;
@@ -5104,15 +5081,14 @@ function barCodeToPreset(code) {
 function barPresetWithDefaults(preset) {
   const out = {};
   const base = wsBag(DEFAULT_SETTINGS), given = preset || {};
-  for (const k of BAR_KEYS) {
+  for (const k of BAR_KEYS_LIVE) {
     out[k] = barCloneValue(Object.prototype.hasOwnProperty.call(given, k) ? given[k] : base[k]);
   }
   return out;
 }
 var DEFAULT_BAR_PRESETS = {
   "Plain": {
-    "statusBarRows": 1,
-    "statusRows": [{ "left": ":b1{ssss}{file}", "center": "{mode} {syntax} {prose} {report}", "right": "{words} words{ssss}" }, { "left": "", "center": "", "right": "" }, { "left": "", "center": "", "right": "" }],
+    "statusRows": [{ "left": ":b1{ssss}{file}", "center": "{mode} {syntax} {prose} {report}", "right": "{words} words{ssss}" }],
     "fileTokenFormat": "name",
     "flagTokenFormat": "both",
     "powerlineModeColors": false,
@@ -5154,7 +5130,6 @@ var DEFAULT_BAR_PRESETS = {
     "vimColorVisualLight": "#6a5cb8",
     "vimColorReplaceLight": "#a03c36",
     "vimColorCommandLight": "#b96f1e",
-    "powerlineSepWidth": 78,
     "statusBarFontFollowNote": true,
     "barRuleDarkTopColor": "#fbfaf9",
     "barRuleDarkBottomColor": "#fbfaf9",
@@ -5167,8 +5142,7 @@ var DEFAULT_BAR_PRESETS = {
     "targetTokenFormat": "percent"
   },
   "Code": {
-    "statusBarRows": 1,
-    "statusRows": [{ "left": ":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}", "center": "", "right": "{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5" }, { "left": "", "center": "", "right": "" }, { "left": "", "center": "", "right": "" }],
+    "statusRows": [{ "left": ":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}", "center": "", "right": "{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5" }],
     "fileTokenFormat": "name",
     "flagTokenFormat": "both",
     "powerlineModeColors": true,
@@ -5210,7 +5184,6 @@ var DEFAULT_BAR_PRESETS = {
     "vimColorVisualLight": "#6a5cb8",
     "vimColorReplaceLight": "#a03c36",
     "vimColorCommandLight": "#b96f1e",
-    "powerlineSepWidth": 78,
     "statusBarFontFollowNote": false,
     "barRuleDarkTopColor": "#fbfaf9",
     "barRuleDarkBottomColor": "#fbfaf9",
@@ -5223,8 +5196,7 @@ var DEFAULT_BAR_PRESETS = {
     "targetTokenFormat": "percent"
   },
   "Fade": {
-    "statusBarRows": 1,
-    "statusRows": [{ "left": ":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>", "center": "", "right": "{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}" }, { "left": "", "center": "", "right": "" }, { "left": "", "center": "", "right": "" }],
+    "statusRows": [{ "left": ":1 | {gg}{gg}{gg}{gg}{gg}{gg}{gg} | {file}:2 > {ggg}>{ggg}>{ggg}>{ggg}>", "center": "", "right": "{gg}{gg}{gg}{gg}{gg}{gg}{gg} | {flag}:f ~ {tasks}:4 ~ {words}:5 words ~ {readtime}:6 | {gg}{gg}{gg}{gg}{gg}{gg}{gg}" }],
     "fileTokenFormat": "name",
     "flagTokenFormat": "both",
     "powerlineModeColors": true,
@@ -5266,7 +5238,6 @@ var DEFAULT_BAR_PRESETS = {
     "vimColorVisualLight": "#8e44ad",
     "vimColorReplaceLight": "#c0392b",
     "vimColorCommandLight": "#b9770e",
-    "powerlineSepWidth": 78,
     "statusBarFontFollowNote": false,
     "barRuleDarkTopColor": "#fbfaf9",
     "barRuleDarkBottomColor": "#fbfaf9",
@@ -6246,7 +6217,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       ], void 0, false),
       this.section("Sections", [this.railRow("powerline", RAIL)], bar),
       this.section("Rows", [
-        rendered({ name: "What each row says", desc: "Left, center and right of every row, written in tokens.", render: (st) => this.renderStatusRows(st) }, ["statusRows"]),
+        rendered({ name: "What the row says", desc: "Left, center and right of the bar, written in tokens.", render: (st) => this.renderStatusRows(st) }, ["statusRows"]),
         { name: "How to write a row", desc: "Every token, and how to color a segment.", render: (st) => this.renderFormatReference(st), searchable: false }
       ], this.railed("powerline", "rows", bar)),
       this.section("Look", [
@@ -6467,7 +6438,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     SUB("Both at once");
     L(["{words}:3;1"], "Background nr. 3, text nr. 1.");
     SUB("The whole bar");
-    L([":3 {file} …"], "A colon before the first token of row 1 paints the whole bar’s background: palette color nr. 3 here, or :b1, :vim, :f.");
+    L([":3 {file} …"], "A colon before the first token of the row paints the whole bar’s background: palette color nr. 3 here, or :b1, :vim, :f.");
     L([";2 {file} …"], "A semicolon there paints all of its text: palette color nr. 2 here, or ;t1, ;vim, ;f.");
     L([":3;2 {file} …"], "Both at once. A token with a color of its own keeps it.");
     N(g, "Seven palette colors, a dark set and a light set, under Colors. A token with no color lies flush with the bar.");
@@ -8624,20 +8595,68 @@ function wsEditorExtensions(plugin, cm) {
   }, { decorations: (v) => v.decorations });
   const paraFirstDeco = Decoration2.line({ class: "ws-para-first" });
   const paraBodyDeco = Decoration2.line({ class: "ws-para-line" });
+  const paraPendingDeco = Decoration2.line({ class: "ws-para-pending" });
+  const pendingLines = (view, info, single) => {
+    const doc = view.state.doc;
+    if (doc.length > 4e5)
+      return [];
+    const out = [];
+    let skip = null;
+    for (const r of view.state.selection.ranges) {
+      const line = doc.lineAt(r.head);
+      if (line.text.trim() !== "" || out.indexOf(line.number) !== -1)
+        continue;
+      if (!r.empty && doc.lineAt(r.anchor).number !== line.number)
+        continue;
+      const col = r.head - line.from;
+      if (!isParagraphLine(line.text.slice(0, col) + "x" + line.text.slice(col)))
+        continue;
+      if (!skip)
+        skip = plugin.getNonProseLines(doc);
+      if (skip.has(line.number))
+        continue;
+      if (!single) {
+        const n = line.number;
+        const above = n > 1 ? doc.line(n - 1) : null;
+        const prevBlank = !above || skip.has(n - 1) || !info.body.has(n - 1) && above.text.trim() === "";
+        let firstBody = Infinity;
+        for (const b of info.body) {
+          firstBody = Number(b);
+          break;
+        }
+        if (!prevBlank || firstBody >= n)
+          continue;
+      }
+      out.push(line.number);
+    }
+    return out.sort((a, b) => a - b);
+  };
   const paraPlugin = ViewPlugin2.fromClass(class {
     constructor(view) {
+      this.pending = "";
       this.decorations = this.build(view);
     }
     update(u) {
-      if (u.docChanged || u.viewportChanged)
+      if (u.docChanged || u.viewportChanged) {
+        this.decorations = this.build(u.view);
+        return;
+      }
+      if (u.selectionSet && this.pendingKey(u.view) !== this.pending)
         this.decorations = this.build(u.view);
     }
+    on(view) {
+      return !!plugin.settings.pluginEnabled && plugin.textOpt("enableParagraphIndent", false) && plugin.isEditorInScope(view);
+    }
+    pendingKey(view) {
+      if (!this.on(view))
+        return "";
+      return pendingLines(view, plugin.getParagraphLines(view.state.doc), plugin.settings.paragraphIndentMode === "single").join(",");
+    }
     build(view) {
+      this.pending = "";
+      if (!this.on(view))
+        return Decoration2.none;
       const s = plugin.settings;
-      if (!s.pluginEnabled || !plugin.textOpt("enableParagraphIndent", false))
-        return Decoration2.none;
-      if (!plugin.isEditorInScope(view))
-        return Decoration2.none;
       const doc = view.state.doc;
       const info = plugin.getParagraphLines(doc);
       const single = s.paragraphIndentMode === "single";
@@ -8653,6 +8672,10 @@ function wsEditorExtensions(plugin, cm) {
             out.push(deco.range(line.from));
         }
       }
+      const pending = pendingLines(view, info, single);
+      for (const n of pending)
+        out.push(paraPendingDeco.range(doc.line(n).from));
+      this.pending = pending.join(",");
       return Decoration2.set(out, true);
     }
   }, { decorations: (v) => v.decorations });
@@ -8858,7 +8881,18 @@ function wsEditorExtensions(plugin, cm) {
       return b.finish();
     }
   }, { decorations: (v) => v.decorations });
-  return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
+  const typewriterPlugin = ViewPlugin2.fromClass(class {
+    update(u) {
+      if (!u.docChanged && !u.selectionSet)
+        return;
+      if (!u.view.hasFocus)
+        return;
+      if (!u.docChanged && u.transactions.some((tr) => tr.isUserEvent("select.pointer")))
+        return;
+      plugin.typewriterRequest(u.view);
+    }
+  });
+  return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
 }
 var editorMethods = {
   reconfigureEditors() {
@@ -10168,43 +10202,42 @@ var focusMethods = {
     document.body.classList.toggle("ws-font-active", !!font);
   },
   typewriterScroll() {
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const cm = view && view.editor && view.editor.cm;
+    if (cm)
+      this.typewriterRequest(cm);
+  },
+  typewriterRequest(cm) {
     if (!this.settings.pluginEnabled || !this.settings.enableTypewriter)
       return;
-    if (!this.isActiveFileInScope())
+    if (!this.isEditorInScope(cm))
       return;
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
-    if (!view)
+    this._twView = cm;
+    if (this._twFrame != null)
       return;
-    const scroller = view.contentEl.querySelector(".cm-scroller");
-    if (!scroller)
-      return;
-    let lineTop, lineHeight;
-    const activeLine = view.contentEl.querySelector(".cm-active-line");
-    if (activeLine) {
-      const sr = scroller.getBoundingClientRect();
-      const lr = activeLine.getBoundingClientRect();
-      lineTop = lr.top - sr.top + scroller.scrollTop;
-      lineHeight = lr.height;
-    } else {
-      const cm = view.editor && view.editor.cm;
-      if (!cm)
+    const win = cm.dom.ownerDocument.defaultView || window;
+    this._twFrame = win.requestAnimationFrame(() => {
+      this._twFrame = null;
+      const v = this._twView;
+      this._twView = null;
+      if (!v || !v.dom.isConnected)
+        return;
+      if (!this.settings.pluginEnabled || !this.settings.enableTypewriter)
         return;
       try {
-        const coords = cm.coordsAtPos(cm.state.selection.main.head);
+        const coords = v.coordsAtPos(v.state.selection.main.head);
         if (!coords)
           return;
-        const sr = scroller.getBoundingClientRect();
-        lineTop = coords.top - sr.top + scroller.scrollTop;
-        lineHeight = coords.bottom - coords.top;
-      } catch {
-        return;
+        const scroller = v.scrollDOM;
+        const lineTop = coords.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+        const target = lineTop + (coords.bottom - coords.top) / 2 - scroller.clientHeight * this.typewriterAnchorRatio();
+        if (Math.abs(scroller.scrollTop - target) < 1)
+          return;
+        scroller.scrollTop = target;
+      } catch (e) {
+        wsCatch("typewriterRequest: the frame", e);
       }
-    }
-    const ratioAbove = this.typewriterAnchorRatio();
-    const target = lineTop + lineHeight / 2 - scroller.clientHeight * ratioAbove;
-    if (Math.abs(scroller.scrollTop - target) < 1)
-      return;
-    scroller.scrollTop = target;
+    });
   },
   typewriterAnchorRatio() {
     const raw = this.settings.typewriterAnchor;
@@ -22973,16 +23006,16 @@ var barMethods = {
   },
   applyBarSnapshot(preset) {
     const full = barPresetWithDefaults(preset);
-    for (const k of BAR_KEYS)
+    for (const k of BAR_KEYS_LIVE)
       wsBag(this.settings)[k] = full[k];
     if (this.settings.statusBarBorderStyle === "groove" || this.settings.statusBarBorderStyle === "ridge") {
       this.settings.statusBarBorderStyle = "solid";
     }
     if (!Array.isArray(this.settings.statusRows))
       this.settings.statusRows = [];
-    while (this.settings.statusRows.length < 3) {
+    this.settings.statusRows = this.settings.statusRows.slice(0, 1);
+    if (!this.settings.statusRows.length)
       this.settings.statusRows.push({ left: "", center: "", right: "" });
-    }
     for (const row of this.settings.statusRows) {
       for (const slot of ["left", "center", "right"]) {
         if (typeof row[slot] !== "string")
@@ -33144,6 +33177,8 @@ function wsFieldsReset(plugin) {
   plugin._activeDragCleanup = null;
   plugin._refreshTimer = null;
   plugin._selectionRaf = null;
+  plugin._twFrame = null;
+  plugin._twView = null;
   plugin._reviving = null;
   plugin._themeObserver = null;
 }
@@ -33365,7 +33400,6 @@ function wsWireWorkspace(plugin) {
   });
   plugin.onAppEvent(plugin.app.workspace, "editor-change", () => {
     plugin.updateRetroStatusBar();
-    plugin.typewriterScroll();
   });
   plugin.onAppEvent(plugin.app.workspace, "resize", () => {
     plugin.scheduleMaskPosition();
@@ -33408,7 +33442,6 @@ function wsWireDocument(plugin) {
   plugin.registerDomEvent(document, "keyup", (evt) => {
     plugin.updateModifierState(evt);
     plugin.updateRetroStatusBar();
-    plugin.typewriterScroll();
   });
   plugin.registerDomEvent(document, "mousemove", (evt) => {
     if (!plugin._peekArmed)
@@ -34232,6 +34265,16 @@ var WordSmith = class extends import_obsidian23.Plugin {
     delete this.settings.folderGoals;
     delete this.settings.uniColCh;
     delete this.settings.exportTicksAlways;
+    for (const k of WS_RETIRED_KEYS)
+      delete wsBag(this.settings)[k];
+    for (const snap of Object.values(this.settings.barPresets || {})) {
+      if (!snap || typeof snap !== "object")
+        continue;
+      for (const k of BAR_KEYS_INERT)
+        delete wsBag(snap)[k];
+      if (Array.isArray(snap.statusRows))
+        snap.statusRows = snap.statusRows.slice(0, 1);
+    }
     delete this.settings.manuscriptRoots;
     delete this.settings.organizerRoot;
     delete this.settings.uniRootShut;
@@ -34293,15 +34336,9 @@ var WordSmith = class extends import_obsidian23.Plugin {
     }
     {
       const src = Array.isArray(this.settings.statusRows) ? this.settings.statusRows : [];
-      this.settings.statusRows = [0, 1, 2].map((i) => Object.assign({ left: "", center: "", right: "" }, src[i] || {}));
+      this.settings.statusRows = [0].map((i) => Object.assign({ left: "", center: "", right: "" }, src[i] || {}));
     }
     if (this.settings.goalShapeLabel != null || this.settings.goalRingPercent != null || this.settings.goalDisplay != null) {
-      if (this.settings.goalDisplay === "fraction")
-        this.settings.goalLabelMode = "fraction";
-      else if (this.settings.goalShapeLabel != null)
-        this.settings.goalLabelMode = this.settings.goalShapeLabel;
-      else if (this.settings.goalRingPercent === false)
-        this.settings.goalLabelMode = "none";
       delete this.settings.goalDisplay;
       delete this.settings.goalRingPercent;
       delete this.settings.goalShapeLabel;
@@ -34322,8 +34359,6 @@ var WordSmith = class extends import_obsidian23.Plugin {
     if (this.settings.goalBarCells != null)
       delete this.settings.goalBarCells;
     if (this.settings.goalLabel != null) {
-      if (this.settings.goalLabel === "none")
-        this.settings.goalLabelMode = "none";
       if (Array.isArray(this.settings.statusRows)) {
         for (const r of this.settings.statusRows) {
           for (const k of ["left", "center", "right"]) {

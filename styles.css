@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 572;
+	--ws-stylesheet-version: 573;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -976,7 +976,7 @@ body.ws-text-pad .markdown-reading-view .markdown-preview-sizer {
    and mirroring the two markers that point somewhere. */
 body.ws-rtl .ws-ws-tab::before { content: '\2190'; left: auto; right: 1px; }
 
-body.ws-rtl .ws-invisible { margin-left: 0; margin-inline-start: 2px; }
+body.ws-rtl .ws-invisible { padding-left: 0; padding-inline-start: 2px; }
 
 /* Justified RTL wants its last line at the right, which is what `start`
    means once direction is set. */
@@ -1015,11 +1015,17 @@ body.ws-rtl.ws-justify .markdown-reading-view .markdown-preview-sizer {
 	pointer-events: none;
 }
 
-/* ¶ / ↵ end-of-line widgets */
+/* ¶ / ↵ end-of-line widgets.
+   THE GAP IS PADDING, NOT MARGIN (A507). CodeMirror places a caret that
+   stands before one of these at the widget's box, and a margin puts the box
+   2px past the text: on an empty line (¶) the caret read 2px right of where
+   the first letter then landed, and at a line's end (↵) 2px past the last
+   letter — Cursor-Smith draws where CodeMirror says. Padding draws the glyph
+   in the same place with the box flush against the text. */
 .ws-invisible {
 	color: var(--text-faint, currentColor);
 	opacity: 0.5;
-	margin-left: 2px;
+	padding-left: 2px;
 	pointer-events: none;
 	user-select: none;
 	/* The marks inherit the editor face — but ↵ and friends aren't in
@@ -14615,7 +14621,13 @@ body.ws-masks-active .cm-editor .cm-panels.cm-panels-bottom input {
    character reads past the spacer — layout_probe holds that). Only prose
    lines wear the class, so no blank line gains a box. The paragraph numbers
    sit on ::after for this — they are absolutely positioned and never cared
-   which side they hung from. */
+   which side they hung from.
+   AND THE EMPTY LINE A CARET IS ON (A507): ws-para-pending, put there by
+   the plugin only where a letter typed would make the line indented in the
+   mode that is set, so the caret waits where the text will start instead
+   of jumping 4em with the first letter. Its own class: it is a paragraph
+   to nothing else. */
+body.ws-para-indent .markdown-source-view.mod-cm6 .cm-content .ws-para-pending::before,
 body.ws-para-indent:where(.ws-para-single) .markdown-source-view.mod-cm6 .cm-content .ws-para-line::before,
 body.ws-para-indent:where(:not(.ws-para-single)) .markdown-source-view.mod-cm6 .cm-content .ws-para-first::before,
 body.ws-para-indent:where(.ws-para-single) .markdown-reading-view .markdown-preview-view p::before,

@@ -9,6 +9,7 @@ import { MarkdownView, Notice, Platform } from 'obsidian';
 import type { WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf } from 'obsidian';
 import { ARROW_STYLES, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, WS_MASK_MAX_FRAC, WS_MASK_MIN_PX, wsCatch, WS_FONT_CANDIDATES, WS_SAFE_FONTS, wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts } from '../core/preamble';
 import type WordSmith from './plugin';
+import type { EditorView } from '@codemirror/view';
 
 export const focusMethods = {
 
@@ -1311,38 +1312,56 @@ export const focusMethods = {
 	// Typewriter scroll
 	// ─────────────────────────────────────────────────────────────────────────
 
+	// The active note's editor asks. Called on a note switch, a settings
+	// change and a mouseup; the editor's own edits and keyboard moves ask
+	// from the editor extension (typewriterPlugin).
 	typewriterScroll(this: WordSmith) {
-		if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
-		if (!this.isActiveFileInScope()) return;
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-		if (!view) return;
-		const scroller = view.contentEl.querySelector('.cm-scroller');
-		if (!scroller) return;
-		let lineTop, lineHeight;
-		const activeLine = view.contentEl.querySelector('.cm-active-line');
-		if (activeLine) {
-			const sr = scroller.getBoundingClientRect();
-			const lr = activeLine.getBoundingClientRect();
-			lineTop = lr.top - sr.top + scroller.scrollTop;
-			lineHeight = lr.height;
-		} else {
-			const cm = view.editor && view.editor.cm;
-			if (!cm) return;
+		const cm = view && view.editor && view.editor.cm;
+		if (cm) this.typewriterRequest(cm);
+	},
+
+	// NEVER INSIDE A KEYSTROKE (issue #22, A506). With Typewriter on, a reader's
+	// Backspace on iOS brought the keyboard up in capitals; with it off it did
+	// not. This used to run straight from `editor-change` and again from the
+	// document's keyup, reading the caret there and then, and it scrolls the
+	// editor by script whenever the caret changes line — a Backspace that lets
+	// a word back onto the line above does. Now it waits for the next animation
+	// frame: the keystroke's own task is over by then, iOS has finished with
+	// it, and the frame has not been painted yet, so the text never shows in
+	// the wrong place. Not a CodeMirror measure request: Obsidian's editor
+	// forces CodeMirror's measure in a microtask after every edit (its list
+	// indentation reads `coordsAtPos`, measured), so a request would be
+	// answered inside the keystroke all the same. By the frame, that measure
+	// has run and reading the caret measures nothing. One frame, one read: a
+	// burst of keys before it asks once.
+	// (It read `.cm-active-line` first, a class Obsidian never puts on a line
+	// — the caret's own line was always what it went by, and still is.)
+	typewriterRequest(this: WordSmith, cm: EditorView) {
+		if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
+		if (!this.isEditorInScope(cm)) return;
+		this._twView = cm;
+		if (this._twFrame != null) return;
+		const win = cm.dom.ownerDocument.defaultView || window;
+		this._twFrame = win.requestAnimationFrame(() => {
+			this._twFrame = null;
+			const v = this._twView;
+			this._twView = null;
+			if (!v || !v.dom.isConnected) return;
+			if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
 			try {
-				const coords = cm.coordsAtPos(cm.state.selection.main.head);
+				const coords = v.coordsAtPos(v.state.selection.main.head);
 				if (!coords) return;
-				const sr = scroller.getBoundingClientRect();
-				lineTop = coords.top - sr.top + scroller.scrollTop;
-				lineHeight = coords.bottom - coords.top;
-			} catch { return; }
-		}
-		// WHERE THE CARET RESTS: a percentage of the editor's height, clamped
-		// and read through one accessor so the scroll, the padding and the
-		// settings slider can never disagree about it.
-		const ratioAbove = this.typewriterAnchorRatio();
-		const target = lineTop + lineHeight / 2 - scroller.clientHeight * ratioAbove;
-		if (Math.abs(scroller.scrollTop - target) < 1) return;
-		scroller.scrollTop = target;
+				const scroller = v.scrollDOM;
+				const lineTop = coords.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+				// WHERE THE CARET RESTS: a percentage of the editor's height,
+				// clamped and read through one accessor so the scroll, the
+				// padding and the settings slider can never disagree about it.
+				const target = lineTop + (coords.bottom - coords.top) / 2 - scroller.clientHeight * this.typewriterAnchorRatio();
+				if (Math.abs(scroller.scrollTop - target) < 1) return;
+				scroller.scrollTop = target;
+			} catch (e) { wsCatch('typewriterRequest: the frame', e); }
+		});
 	},
 
 	// 0..1. The single source of truth for the caret's resting height —

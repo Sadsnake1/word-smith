@@ -16,8 +16,10 @@ import type { WsOrgCtx } from '../organizer/org-ctx';
 import type { WsOrgCol } from '../organizer/organizer-cols';
 import type { Extension } from '@codemirror/state';
 import {
+	BAR_KEYS_INERT,
 	DEFAULT_BAR_PRESETS,
 	DEFAULT_SETTINGS,
+	WS_RETIRED_KEYS,
 	WS_ICON,
 	WS_ICON_SVG,
 	WS_MENU_VIEW,
@@ -195,6 +197,10 @@ function wsFieldsReset(plugin: WordSmith) {
 
 	// ── Live selection rAF ────────────────────────────────────────────────
 	plugin._selectionRaf    = null;
+
+	// ── The Typewriter's frame and the editor that asked (A506) ──
+	plugin._twFrame         = null;
+	plugin._twView          = null;
 
 	// ── The docked menu's revival: one pass in flight at a time ──
 	plugin._reviving        = null;
@@ -467,8 +473,9 @@ export function wsWireWorkspace(plugin: WordSmith) {
 		plugin.orgTicksSchedule();
 	});
 	plugin.onAppEvent(plugin.app.workspace, 'editor-change', () => {
+		// (No Typewriter here, A506: an edit asks from inside the editor,
+		// for the frame after the keystroke — see typewriterRequest.)
 		plugin.updateRetroStatusBar();
-		plugin.typewriterScroll();
 	});
 	plugin.onAppEvent(plugin.app.workspace, 'resize', () => {
 		plugin.scheduleMaskPosition();
@@ -554,10 +561,11 @@ export function wsWireWorkspace(plugin: WordSmith) {
 // THE DOCUMENT'S EVENTS: keys, pointer, selection, focus and the overlays
 // Obsidian lays over the editor (lifted out of onload, A488).
 function wsWireDocument(plugin: WordSmith) {
+	// NO TYPEWRITER ON A KEY (issue #22, A506): a key that moves the caret
+	// moves it through the editor, which asks for the scroll itself.
 	plugin.registerDomEvent(document, 'keyup', (evt: KeyboardEvent) => {
 		plugin.updateModifierState(evt);
 		plugin.updateRetroStatusBar();
-		plugin.typewriterScroll();
 	});
 	// Peeking at a hidden bar. Deliberately the whole handler: everything
 	// it could need is precomputed by syncBarPeekState, so a pointer move
@@ -566,6 +574,8 @@ function wsWireDocument(plugin: WordSmith) {
 		if (!plugin._peekArmed) return;
 		plugin.onPointerForBarPeek(evt.clientY);
 	});
+	// A click's caret is scrolled to on the way UP, not as it lands: a drag
+	// that selects must not have the text moved out from under the pointer.
 	plugin.registerDomEvent(document, 'mouseup', () => {
 		plugin.updateRetroStatusBar();
 		plugin.typewriterScroll();
@@ -1565,6 +1575,7 @@ export default class WordSmith extends Plugin {
 	declare ensureSystemFonts: FocusMethods["ensureSystemFonts"];
 	declare applyEditorFont: FocusMethods["applyEditorFont"];
 	declare typewriterScroll: FocusMethods["typewriterScroll"];
+	declare typewriterRequest: FocusMethods["typewriterRequest"];
 	declare typewriterAnchorRatio: FocusMethods["typewriterAnchorRatio"];
 	declare hemingwaySay: FocusMethods["hemingwaySay"];
 	declare buildMaskElements: FocusMethods["buildMaskElements"];
@@ -1773,6 +1784,8 @@ export default class WordSmith extends Plugin {
 	_repairedKeys: string[];
 	_scopeGen: number;
 	_selectionRaf: number | null;
+	_twFrame: number | null;
+	_twView: EditorView | null;
 	_settingsUndo: Record<string, unknown> | null;
 	_sheetTest: string;
 	_sidebarsSuspended: boolean;
@@ -2755,6 +2768,18 @@ export default class WordSmith extends Plugin {
 		// `exportTicksAlways`: the export ticks in Obsidian's tree are on only
 		// while an Export pane is open.
 		delete this.settings.exportTicksAlways;
+		// ── RETIRED IN 1.6.8 (A508) ── read by nothing, and written into every
+		// data.json by every preset applied until now: the bar's row count (it
+		// draws one), the separator's angle (a constant), the 1.2.x colours
+		// BAR_KEYS_INERT lists, the vault-wide goal and its label mode. Out of
+		// the saved presets too, which are applied whole, and their rows cut to
+		// the one the bar draws.
+		for (const k of WS_RETIRED_KEYS) delete wsBag(this.settings)[k];
+		for (const snap of Object.values(this.settings.barPresets || {})) {
+			if (!snap || typeof snap !== 'object') continue;
+			for (const k of BAR_KEYS_INERT) delete wsBag(snap)[k];
+			if (Array.isArray(snap.statusRows)) snap.statusRows = snap.statusRows.slice(0, 1);
+		}
 		// `manuscriptRoots`: the folders that were THE WRITING — what the counts
 		// counted, what the compile compiled. Everything in the vault is the
 		// writing now. A stale list here is not inert: a vault held `["Booksa"]`,
@@ -2893,11 +2918,12 @@ export default class WordSmith extends Plugin {
 				}
 			}
 		}
-		// Always end up with exactly three well-formed row slots, whatever
-		// was in data.json — hand-edited configs included.
+		// Always end up with exactly ONE well-formed row, whatever was in
+		// data.json — hand-edited configs included. The bar draws one; the
+		// two empty rows every vault carried went in 1.6.8 (A508).
 		{
 			const src = Array.isArray(this.settings.statusRows) ? this.settings.statusRows : [];
-			this.settings.statusRows = [0, 1, 2].map(i =>
+			this.settings.statusRows = [0].map(i =>
 				Object.assign({ left: '', center: '', right: '' }, src[i] || {}));
 		}
 		// The old fill bar drew Unicode block characters in the interface font,
@@ -2907,14 +2933,10 @@ export default class WordSmith extends Plugin {
 		// The border was a single on/off flag; the style None is the "off" (not
 		// weight 0, which `|| 1` drew as 1px for a year and is the hairline now).
 		// goalDisplay, goalRingPercent and goalShapeLabel collapsed into one
-		// mode shared by all three goals. The block bar became a ring long
-		// before that, so 'bar' resolves the same way 'ring' does: to the
-		// default percentage mode.
+		// label mode, and that mode was read by nothing (retired, A508): the
+		// three are simply deleted.
 		if (this.settings.goalShapeLabel != null || this.settings.goalRingPercent != null ||
 			this.settings.goalDisplay != null) {
-			if (this.settings.goalDisplay === 'fraction')     this.settings.goalLabelMode = 'fraction';
-			else if (this.settings.goalShapeLabel != null)    this.settings.goalLabelMode = this.settings.goalShapeLabel;
-			else if (this.settings.goalRingPercent === false) this.settings.goalLabelMode = 'none';
 			delete this.settings.goalDisplay;
 			delete this.settings.goalRingPercent;
 			delete this.settings.goalShapeLabel;
@@ -2940,7 +2962,6 @@ export default class WordSmith extends Plugin {
 		// goalLabel used to place text beside the indicator. The percentage
 		// now lives inside the ring, so the old setting maps onto the toggle.
 		if (this.settings.goalLabel != null) {
-			if (this.settings.goalLabel === 'none') this.settings.goalLabelMode = 'none';
 			// Goal tokens are gone from the bar — goals live in settings and
 			// on the hairline edges now. Saved bars that still carry the old
 			// tokens would otherwise print them as literal text.

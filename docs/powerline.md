@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md)
 
-A status bar you write yourself. One to three rows, each with a left, center and right slot. You type a row as text, and the punctuation between tokens becomes shape and color.
+A status bar you write yourself. One row, with a left, center and right slot. You type the row as text, and the punctuation between tokens becomes shape and color.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1862" alt="A full powerline bar with fades and dividers" src="https://github.com/user-attachments/assets/5e08b3eb-748d-482c-99e3-c418bbe07d39" />
@@ -68,7 +68,7 @@ Leave the `;` off and the text picks itself, light or dark, so it stays readable
 
 `{g}` is a fade, one color stepping into the next. `{g}{g}{g}` is three narrow steps, `{ggg}` one wide one. Fades are the first thing dropped when the window gets narrow.
 
-Put a color at the very start of row 1 and the whole bar takes it: a colon paints the whole bar's background, a semicolon all of its text, and a token with a color of its own keeps it.
+Put a color at the very start of the row and the whole bar takes it: a colon paints the whole bar's background, a semicolon all of its text, and a token with a color of its own keeps it.
 
 ```
 :vim {vim} > {file} :: {ln:col}

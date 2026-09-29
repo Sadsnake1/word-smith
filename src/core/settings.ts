@@ -193,6 +193,12 @@ export interface WsLegacySettings {
 	orgLenses?: never; uniSlimCol?: never; organizerView?: never; organizerDrawer?: never; organizerMode?: never;
 	// one unreleased day's light pick; deleted on load
 	barThemeLight?: never;
+	// retired in 1.6.8 (A508), read by nothing: WS_RETIRED_KEYS, deleted on load
+	statusBarRows?: never; powerlineSepWidth?: never; powerlineEnabled?: never;
+	powerlineText1?: never; powerlineText2?: never; powerlineText3?: never; powerlineText4?: never;
+	powerlineTextLight1?: never; powerlineTextLight2?: never; powerlineTextLight3?: never; powerlineTextLight4?: never;
+	retroCustomColors?: never; retroDarkBgColor?: never; retroDarkTextColor?: never;
+	retroLightBgColor?: never; retroLightTextColor?: never; goalTarget?: never; goalLabelMode?: never;
 }
 
 export type WordSmithSettings = typeof DEFAULT_SETTINGS & WsLazySettings & WsLegacySettings;
