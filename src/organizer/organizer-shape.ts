@@ -26,7 +26,6 @@ import type { WordSmithSettings } from '../core/settings';
 // closure local the window has not typed yet (0 of 5).
 export interface OrgShapeDeps {
 	plugin: WordSmith;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly fill: () => Promise<void>;
 	readonly s: WordSmithSettings;
@@ -58,9 +57,9 @@ const showShape = () => {
 const setShape = async (v: string) => {
 	d.s.uniShow = (v === 'files' || v === 'folders') ? v : 'all';
 	await d.plugin.saveSettings(true);
-	d.draw(); void d.fill();
-	// AND THE PANEL, for the Organizer's own kind chip. `draw()` is the
-	// tree; the chip that says a narrowing is on lives in the table's bar,
+	void d.fill();
+	// AND THE PANEL, for the Organizer's own kind chip: the chip that says
+	// a narrowing is on lives in the table's bar,
 	// and a sign that only appears on the next unrelated redraw is a sign a
 	// writer cannot trust. Guarded: `drawPanel` is declared further down.
 	try { d.drawPanel(); } catch (_) { wsCatch('openManuscriptModal / setShape: drawPanel();', _); }
@@ -105,7 +104,7 @@ const typeRows = (into: Menu) => {
 	const setAnd = (list: string[]) => {
 		d.plugin.settings.uniTypes = list;
 		void d.plugin.saveSettings(true);
-			d.draw(); void d.fill();
+		void d.fill();
 		// …and the bar's kind chip — see the note in `setShape`.
 		try { d.drawPanel(); } catch (_) { wsCatch('openManuscriptModal / setAnd: drawPanel();', _); }
 	};

@@ -86,7 +86,7 @@ export interface WsHistoryTabState { rerender?: () => void; scope: string | stri
 export interface WsOrgExportCtx {
 	panel: HTMLElement; tab: () => string;
 	ticks: () => Set<string> | null; tickAll: (on: boolean) => void;
-	draw: () => void; drawPanel: () => void;
+	drawPanel: () => void;
 	exportFiles: () => TFile[]; exportScope: () => string; exportScopes: () => string[] | null;
 	loadTicks: () => Promise<unknown>; setExportOpts: (o: WsExportPanelHandle | null) => void;
 }
@@ -201,6 +201,8 @@ function wsFieldsReset(plugin: WordSmith) {
 	// ── The Typewriter's frame and the editor that asked (A506) ──
 	plugin._twFrame         = null;
 	plugin._twView          = null;
+	plugin._twIdle          = null;
+	plugin._twIdleView      = null;
 
 	// ── The docked menu's revival: one pass in flight at a time ──
 	plugin._reviving        = null;
@@ -1584,6 +1586,7 @@ export default class WordSmith extends Plugin {
 	declare afterReflow: FocusMethods["afterReflow"];
 	declare zoomFactor: FocusMethods["zoomFactor"];
 	declare isMobileApp: FocusMethods["isMobileApp"];
+	declare isIosApp: FocusMethods["isIosApp"];
 	declare maskTopClip: FocusMethods["maskTopClip"];
 	declare stampMaskPositions: FocusMethods["stampMaskPositions"];
 	declare scheduleMaskPosition: FocusMethods["scheduleMaskPosition"];
@@ -1786,6 +1789,8 @@ export default class WordSmith extends Plugin {
 	_selectionRaf: number | null;
 	_twFrame: number | null;
 	_twView: EditorView | null;
+	_twIdle: number | null;
+	_twIdleView: EditorView | null;
 	_settingsUndo: Record<string, unknown> | null;
 	_sheetTest: string;
 	_sidebarsSuspended: boolean;
@@ -2263,6 +2268,8 @@ export default class WordSmith extends Plugin {
 		return m;
 	}
 	onunload() {
+		// the Typewriter's pending iOS scroll has no plugin to scroll for
+		if (this._twIdle != null) { window.clearTimeout(this._twIdle); this._twIdle = null; this._twIdleView = null; }
 		// THE SETTINGS TAB'S OBSERVER: it lives for the tab's life — not
 		// disconnected on hide(), since Obsidian 1.13 re-renders the last
 		// definitions on reopen without asking for them again — so this is the

@@ -46,7 +46,6 @@ export interface OrgChromeDeps {
 	readonly orgFolder: string;
 	readonly orgUnder: ReturnType<typeof wsOrgRowsMake>['orgUnder'];
 	readonly zoomTag: () => void;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 }
 
@@ -229,11 +228,6 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		// about what is on screen now.
 		said('');
 		d.drawPanel();
-		// AND THE TREE, because the tick column belongs to one tab. Leaving
-		// it to the panel meant the boxes outlived the tab that owns them:
-		// the Export tab redraws the tree on its way in, and nothing redrew
-		// it on the way out.
-		d.draw();
 		return true;
 	};
 

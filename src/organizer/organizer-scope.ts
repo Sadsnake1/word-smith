@@ -30,7 +30,6 @@ import type { WordSmithSettings } from '../core/settings';
 // closure local the window has not typed yet (6 of 11).
 export interface OrgScopeDeps {
 	plugin: WordSmith;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly folderOf: (path: string) => string;
 	readonly keyOf: (it: { path: string; kind: string; }) => string;
@@ -66,7 +65,6 @@ const orgSelect = (p: string) => {
 	// One pane at a time when there is only room for one: choosing a
 	// folder IS the move to the right pane, and the back button is the
 	// way home — same grammar as the old tabs' narrow layout.
-	d.draw();
 	d.drawPanel();
 };
 // ── SELECTION FOLLOWS THE NOTE ─────────────────────────────────
@@ -151,7 +149,6 @@ const showItem = (it: { path: string; kind: string }, markOnly?: boolean) => {
 	d.orgSel.cursor = d.keyOf(it);
 	d.orgSel.cursorDrives = true;
 	orgFollow(it, false, markOnly);
-	d.draw();
 	// AT ONCE, NOT ON THE DEBOUNCE. `moveCursor` ends in
 	// `schedulePanel()` because a held arrow key would otherwise
 	// rebuild the table on every step; a click is one deliberate act

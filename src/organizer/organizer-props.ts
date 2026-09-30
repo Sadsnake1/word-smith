@@ -41,7 +41,6 @@ export interface OrgPropsDeps {
 	readonly SORTS: { id: string; label: string; icon: string; }[];
 	readonly addProp: (info: WsPropItem) => Promise<void>;
 	readonly colOff: Set<string>;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly fill: () => Promise<void>;
 	readonly liveFiles: () => string[];
@@ -145,7 +144,7 @@ async function wsOrgPropMoveTo(a: { d: OrgPropsDeps; orgPropPanelRows: () => WsP
 		.filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
 	d.s.uniColOrder = keep.concat(rest);
 	await d.plugin.saveSettings();
-	d.draw(); void d.fill(); d.drawPanel();
+	void d.fill(); d.drawPanel();
 	orgPropPopRender();
 }
 
@@ -1058,7 +1057,7 @@ const orgPropColToggle = async (r: { col: { id: string } | null; key: string }) 
 		// switched on draws empty until something asks for them —
 		// reported as "they don't display immediately after clicking
 		// word counts", which is exactly what it was.
-			d.draw(); void d.fill(); d.drawPanel();
+			void d.fill(); d.drawPanel();
 		// AFTER THE REDRAW, because the header does not exist until
 		// `drawPanel` has built it and a scroll aimed at nothing does
 		// nothing.

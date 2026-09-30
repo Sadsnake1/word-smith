@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 573;
+	--ws-stylesheet-version: 574;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -14684,6 +14684,11 @@ body:where(.ws-line-hl) .markdown-source-view.mod-cm6 .cm-content .cm-active.cm-
 
 /* ── Dim the unfocused ────────────────────────────────────────────────────── */
 body:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { opacity: var(--ws-dim-opacity); transition: opacity 0.15s ease; }
+/* NOT ANIMATED ON iOS: a line fading is a compositing layer made and torn
+   down beside the caret, and WebKit moves the caret's selection views when
+   the layer that holds the caret changes. Outranks the rule above:
+   (0,2,1) against (0,1,1). */
+body.ws-ios:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { transition: none; }
 
 /* ── Word classes and writing checks ──────────────────────────────────────
    One painter for both groups. Colour is the only difference between a

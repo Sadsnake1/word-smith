@@ -11,6 +11,11 @@ import { ARROW_STYLES, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, 
 import type WordSmith from './plugin';
 import type { EditorView } from '@codemirror/view';
 
+// How long typing must pause before an edit's Typewriter scroll runs on iOS:
+// long enough that the scroll never shares a commit with the edit, short
+// enough that the line settles while the writer is still looking at it.
+export const WS_TYPEWRITER_IOS_PAUSE_MS = 400;
+
 export const focusMethods = {
 
 	// Where the chrome starts: the top of whatever opaque thing occupies the
@@ -1321,25 +1326,42 @@ export const focusMethods = {
 		if (cm) this.typewriterRequest(cm);
 	},
 
-	// NEVER INSIDE A KEYSTROKE (issue #22, A506). With Typewriter on, a reader's
-	// Backspace on iOS brought the keyboard up in capitals; with it off it did
-	// not. This used to run straight from `editor-change` and again from the
-	// document's keyup, reading the caret there and then, and it scrolls the
-	// editor by script whenever the caret changes line — a Backspace that lets
-	// a word back onto the line above does. Now it waits for the next animation
-	// frame: the keystroke's own task is over by then, iOS has finished with
-	// it, and the frame has not been painted yet, so the text never shows in
-	// the wrong place. Not a CodeMirror measure request: Obsidian's editor
-	// forces CodeMirror's measure in a microtask after every edit (its list
-	// indentation reads `coordsAtPos`, measured), so a request would be
-	// answered inside the keystroke all the same. By the frame, that measure
-	// has run and reading the caret measures nothing. One frame, one read: a
-	// burst of keys before it asks once.
-	// (It read `.cm-active-line` first, a class Obsidian never puts on a line
-	// — the caret's own line was always what it went by, and still is.)
-	typewriterRequest(this: WordSmith, cm: EditorView) {
+	// NEVER INSIDE A KEYSTROKE. The scroll is read and written in the next
+	// animation frame, not in the key event: the frame has not been painted
+	// yet, so the text never shows in the wrong place. Not a CodeMirror
+	// measure request, because Obsidian's editor forces CodeMirror's measure in
+	// a microtask after every edit (its list indentation reads `coordsAtPos`),
+	// so a request would be answered inside the keystroke all the same. By the
+	// frame that measure has run, and reading the caret measures nothing. One
+	// frame, one read: a burst of keys before it asks once.
+	//
+	// ON iOS, AN EDIT'S SCROLL WAITS FOR A PAUSE IN TYPING. After an edit made
+	// by the on-screen keyboard, WebKit sends the keyboard the full editing
+	// state (the characters around the caret, the caret's rect) with the next
+	// layer-tree commit, and that commit is built after the frame's callbacks
+	// run. A scroll written in that frame reaches the keyboard in the same
+	// commit as the edit, the caret seen a line further than the edit moved
+	// it, and the keyboard turns its shift on after a Backspace. A scroll a
+	// pause later arrives in a commit of its own. Caret moves that are not
+	// edits (a tap, an arrow key) still scroll in the next frame.
+	typewriterRequest(this: WordSmith, cm: EditorView, cause: 'edit' | 'move' = 'move') {
 		if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
 		if (!this.isEditorInScope(cm)) return;
+		if (cause === 'edit' && this.isIosApp()) {
+			const win = cm.dom.ownerDocument.defaultView || window;
+			this._twIdleView = cm;
+			if (this._twIdle != null) win.clearTimeout(this._twIdle);
+			this._twIdle = win.setTimeout(() => {
+				this._twIdle = null;
+				const v = this._twIdleView;
+				this._twIdleView = null;
+				if (!v || !v.dom.isConnected) return;
+				// a word still being composed (dictation, a keyboard that marks
+				// text) is still an edit in progress
+				this.typewriterRequest(v, v.composing ? 'edit' : 'move');
+			}, WS_TYPEWRITER_IOS_PAUSE_MS);
+			return;
+		}
 		this._twView = cm;
 		if (this._twFrame != null) return;
 		const win = cm.dom.ownerDocument.defaultView || window;
@@ -1576,6 +1598,16 @@ export const focusMethods = {
 			if (Platform && typeof Platform.isMobile === 'boolean') return Platform.isMobile;
 		} catch (_) { wsCatch('isMobileApp: if (Platform && typeof Platform.isMobile === \'boolean\') return …', _); }
 		try { return !!(document.body && document.body.classList.contains('is-mobile')); }
+		catch { return false; }
+	},
+
+	// iPhone or iPad, by the same two routes: the app's `Platform`, then the
+	// body class Obsidian sets there.
+	isIosApp(this: WordSmith) {
+		try {
+			if (Platform && typeof Platform.isIosApp === 'boolean') return Platform.isIosApp;
+		} catch (_) { wsCatch('isIosApp: Platform.isIosApp', _); }
+		try { return !!(document.body && document.body.classList.contains('is-ios')); }
 		catch { return false; }
 	},
 

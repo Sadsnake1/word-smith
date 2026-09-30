@@ -63,6 +63,16 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 	const spaceDeco = Decoration.mark({ class: 'ws-ws-space' });
 	const tabDeco   = Decoration.mark({ class: 'ws-ws-tab' });
 
+	// WHETHER THE WRITER IS IN THIS EDITOR. CodeMirror's `hasFocus` also asks
+	// `document.hasFocus()`, and on iOS nothing promises that stays true
+	// through the keyboard's own edit; one false reading would take the
+	// dimming off every line at once and put it back on the next update. On
+	// iOS the question is only whether the editor's content is the active
+	// element.
+	const ownsFocus = (view: EditorView) => plugin.isIosApp()
+		? !!view.root && view.root.activeElement === view.contentDOM
+		: view.hasFocus;
+
 	// ── Focus dimming ─────────────────────────────────────────────────────
 	const dimPlugin = ViewPlugin.fromClass(class {
 		decorations: DecorationSet;
@@ -80,7 +90,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// all. Alt-tabbing away used to leave the whole note dimmed
 			// around a cursor nobody was at; the plugin already rebuilds
 			// on focusChanged, so this clears cleanly both ways.
-			if (!view.hasFocus) return Decoration.none;
+			if (!ownsFocus(view)) return Decoration.none;
 			const doc  = view.state.doc;
 			const head = view.state.selection.main.head;
 			const cur  = doc.lineAt(head);
@@ -518,10 +528,14 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 	// reading the DOM rather than guessing at vim internals keeps this
 	// working whatever creates the panel.
 	const panelWatcher = cm.ViewPlugin.fromClass(class {
-		constructor(view: EditorView) { this.sync(view); }
-		update(u: ViewUpdate) { this.sync(u.view); }
+		constructor(view: EditorView) { this.sync(view, true); }
+		// A keystroke or a caret move is not a reason to re-measure the
+		// window: only the panel opening or closing, or the editor's own size
+		// changing without an edit (a sidebar, a font, a line that grew a row
+		// once it was measured).
+		update(u: ViewUpdate) { this.sync(u.view, u.geometryChanged && !u.docChanged); }
 		destroy() { document.body.classList.remove('ws-vim-panel-open'); }
-		sync(view: EditorView) {
+		sync(view: EditorView, resized: boolean) {
 			let open = false, panel: Element | null = null;
 			try { panel = view.dom.querySelector('.cm-panels-bottom'); open = !!panel; } catch (_) { wsCatch('buildEditorExtensions / sync: panel = view.dom.querySelector(\'.cm-panels-bottom\');', _); }
 			document.body.classList.toggle('ws-vim-panel-open', open);
@@ -536,7 +550,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// (see stampMaskPositions). The rAF defer means the old order
 			// happened to work, but geometry that depends on which side
 			// of a scheduling call an assignment falls on is a trap.
-			if (open !== plugin._vimPanelOpen) {
+			const turned = open !== plugin._vimPanelOpen;
+			if (turned) {
 				plugin._vimPanelOpen = open;
 				// ── AND THE GAP MOVES WITH IT ──────────────────────
 				//
@@ -559,7 +574,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// What sits at the bottom of the window just changed, so the
 			// mask geometry that stops at the bar's top edge has to be
 			// recomputed either way — opening AND closing.
-			plugin.scheduleMaskPosition();
+			if (turned || resized) plugin.scheduleMaskPosition();
 			if (!open) return;
 			// Measured AFTER layout — panels open through a state effect,
 			// so this update can run before the fixed positioning has
@@ -833,17 +848,21 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	}, { decorations: v => v.decorations });
 
-	// ── Typewriter (issue #22, A506) ──────────────────────────────────────
+	// ── Typewriter ────────────────────────────────────────────────────────
 	// The editor the writer is in asks for the scroll on its own edits and
-	// caret moves — typed, deleted, undone, an arrow, a Vim motion — and asks
-	// CodeMirror for it rather than doing it (typewriterRequest). A pointer's
-	// selection is left to mouseup, so a drag never scrolls under the pointer.
+	// caret moves — typed, deleted, undone, an arrow, a Vim motion — and says
+	// which it was: on iOS an edit's scroll waits for a pause in typing
+	// (typewriterRequest). A pointer's selection is left to mouseup, so a drag
+	// never scrolls under the pointer. On iOS a Backspace arrives as
+	// `delete.backward` (CodeMirror replays the key after the native
+	// deletion), a typed letter or a QuickType pick as `input.type`.
 	const typewriterPlugin = ViewPlugin.fromClass(class {
 		update(u: ViewUpdate) {
 			if (!u.docChanged && !u.selectionSet) return;
-			if (!u.view.hasFocus) return;
+			if (!ownsFocus(u.view)) return;
 			if (!u.docChanged && u.transactions.some((tr) => tr.isUserEvent('select.pointer'))) return;
-			plugin.typewriterRequest(u.view);
+			const edit = u.docChanged && u.transactions.some((tr) => tr.isUserEvent('input') || tr.isUserEvent('delete'));
+			plugin.typewriterRequest(u.view, edit ? 'edit' : 'move');
 		}
 	});
 

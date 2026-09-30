@@ -45,7 +45,6 @@ export interface WsOrgBarSaid { msg: string; until: number }
 export interface WsOrgCtxOwn {
 	orgBarSaid: WsOrgBarSaid | null;
 	readonly colTextish: (col: { id: string; user?: boolean }) => boolean;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly fill: () => Promise<void>;
 	readonly openRow: (it: { kind: string; path: string }, ev?: WsModEvent) => void;

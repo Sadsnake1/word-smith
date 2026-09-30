@@ -36,7 +36,6 @@ import type { WordSmithSettings } from '../core/settings';
 // closure local the window has not typed yet (3 of 8).
 export interface OrgColsDeps {
 	plugin: WordSmith;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly fill: () => Promise<void>;
 	readonly liveFiles: () => string[];
@@ -451,7 +450,7 @@ const addProp = async (info: WsPropItem) => {
 	// this rebuilds the band from a column list that has never heard
 	// of the column just added.
 	rebuildCols();
-	d.draw(); void d.fill(); d.drawPanel();
+	void d.fill(); d.drawPanel();
 };
 // ── AND THE PICKER, WHICH IS A MODAL WHERE THERE CAN BE ONE ─────────
 //
@@ -496,7 +495,7 @@ const setPropType = async (key: string, type: string) => {
 	// again rather than merely repainted: a checkbox column draws a
 	// box and a text one draws words.
 	rebuildCols();
-	d.draw(); void d.fill(); d.drawPanel();
+	void d.fill(); d.drawPanel();
 };
 const askPropType = (ev2: MouseEvent, done: (type: string) => void) => {
 	// A BUILD WITHOUT `Menu` STILL ADDS THE PROPERTY. Refusing to add

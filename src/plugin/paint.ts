@@ -85,7 +85,7 @@ export const paintMethods = {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
-			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-margin-nums',
+			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-ios', 'ws-margin-nums',
 			'ws-masks-active', 'ws-retrobar-active', 'ws-pos-dim', 'ws-ck-dim', 'ws-hemingway-active',
 			'ws-line-limit', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
 				'ws-bar-hidden', 'ws-bar-anim', 'ws-bar-peek', 'ws-titlebar-match', 'ws-drag-ok'
@@ -233,6 +233,8 @@ export const paintMethods = {
 		// the last line can rise to 30%, both impossible before.
 		const twOn = scoped && !!this.opt('enableTypewriter');
 		body.classList.toggle('ws-typewriter', twOn);
+		// the plugin's own word for iOS, for the rules that differ there
+		body.classList.toggle('ws-ios', this.isIosApp());
 		if (twOn) {
 			const pct = this.typewriterAnchorRatio() * 100;
 			document.documentElement.style.setProperty('--ws-tw-pad-top',    pct + 'vh');

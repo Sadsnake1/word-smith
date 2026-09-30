@@ -599,7 +599,7 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 					ctx.colOff.add(col.id);
 					s.uniColsOff = Array.from<string>(ctx.colOff);
 					await plugin.saveSettings();
-					ctx.draw(); void fill(); ctx.drawPanel();
+					void fill(); ctx.drawPanel();
 				}));
 			// RIGHT UNDER IT: the same act the Properties panel's row calls — one
 			// fit, two doors — with the panel row's own words.
@@ -2317,7 +2317,7 @@ export const organizerWindowMethods = {
 			scopes: () => exportScopes(),
 			scope: () => exportScope(),
 			select: (p) => { orgSelect(p); },
-			redraw: () => { draw(); drawPanel(); },
+			redraw: () => { drawPanel(); },
 			said: (m) => said(m),
 			// ON SCREEN, NOT MERELY ON THE EXPORT TAB. A docked pane left on Export
 			// and put behind another tab, or in a collapsed sidebar, would keep the
@@ -2331,7 +2331,6 @@ export const organizerWindowMethods = {
 		// organizer-shape.ts reads this closure through the names below.
 		const orgShape = wsOrgShapeMake({
 			plugin: this,
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get fill() { return fill; },
 			get s() { return s; },
@@ -2409,7 +2408,6 @@ export const organizerWindowMethods = {
 		// organizer-scope.ts reads this closure through the names below.
 		const orgScope = wsOrgScopeMake({
 			plugin: this,
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get folderOf() { return folderOf; },
 			get keyOf() { return keyOf; },
@@ -2428,7 +2426,6 @@ export const organizerWindowMethods = {
 				orgScope.orgDrawTimer = null;
 				if (tab !== 'organizer') return;
 				try { pruneUserCols(); } catch (_) { wsCatch('orgIndexChanged: pruneUserCols();', _); }
-				draw();
 				drawPanel();
 			}, 150);
 		});
@@ -2648,7 +2645,6 @@ export const organizerWindowMethods = {
 				// changes nothing — no jump, no mark outside the pane.
 				if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
 				orgFollow({ kind: 'file', path: String(p) }, true);
-				draw();
 				drawPanel();
 				// THE READER FOLLOWS TOO: click a ticked file in Obsidian's tree and the
 				// reader goes to it.
@@ -2694,7 +2690,6 @@ export const organizerWindowMethods = {
 			get SORTS() { return orgCols.SORTS; },
 			get addProp() { return addProp; },
 			get colOff() { return colOff; },
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get fill() { return fill; },
 			get liveFiles() { return liveFiles; },
@@ -2721,7 +2716,6 @@ export const organizerWindowMethods = {
 		// organizer-cols.ts reads this closure through the names below.
 		const orgCols = wsOrgColsMake({
 			plugin: this,
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get fill() { return fill; },
 			get liveFiles() { return liveFiles; },
@@ -2742,7 +2736,6 @@ export const organizerWindowMethods = {
 		const folderOf = orgFiles.folderOf;
 		const nameOf = orgFiles.nameOf;
 		const liveFiles = orgFiles.liveFiles;
-		let draw = () => {};
 		let fill = async () => {};
 		let drawPanel = () => {};
 
@@ -2787,7 +2780,6 @@ export const organizerWindowMethods = {
 			get orgFolder() { return orgFolder; },
 			get orgUnder() { return orgUnder; },
 			get zoomTag() { return zoomTag; },
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 		});
 		const { drawTabs, tabSet, drawSubject, said } = chrome;
@@ -2847,7 +2839,6 @@ export const organizerWindowMethods = {
 			// a name the context has before anything is said.
 			orgBarSaid: null,
 			get colTextish() { return colTextish; },
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get fill() { return fill; },
 			get openRow() { return openRow; },
@@ -2976,7 +2967,7 @@ export const organizerWindowMethods = {
 		// `orgDrawHistory`); the window hands them what they read.
 		const drawExport = () => this.orgDrawExport({ panel, tab: () => tab, ticks: () => orgTicks.current(),
 			tickAll: (on: boolean) => orgTicks.setAll(on),
-			draw: () => draw(), drawPanel: () => drawPanel(), exportFiles, exportScope, exportScopes, loadTicks,
+			drawPanel: () => drawPanel(), exportFiles, exportScope, exportScopes, loadTicks,
 			setExportOpts: (o: WsExportPanelHandle | null) => { exportOpts = o; } });
 		const drawHistory = (rows: { kind: string; path: string }[]) => this.orgDrawHistory({ panel, tab: () => tab, drawPanel: () => drawPanel(), histState }, rows);
 
@@ -2997,7 +2988,6 @@ export const organizerWindowMethods = {
 		// organizer-keys.ts reads this closure through the names below.
 		const orgKeys = wsOrgKeysMake({
 			plugin: this,
-			get draw() { return draw; },
 			get drawPanel() { return drawPanel; },
 			get exportScope() { return exportScope; },
 			get folderOf() { return folderOf; },
@@ -3081,7 +3071,6 @@ export const organizerWindowMethods = {
 		// here and dropped in `onClose`, so a window that has been shut is not
 		// still being redrawn for the rest of the session.
 		const stopWatching = this.onTreeOrderChange(() => {
-			draw();
 			void fill();
 			// The Organizer's table IS the order too: a drag in either pane, in
 			// Obsidian's explorer, or an edit to the order file must move the rows
@@ -3195,7 +3184,6 @@ export const organizerWindowMethods = {
 		// on any tab — `openManuscriptModal({tab})`, the palette, the bar — and
 		// a control drawn only by the handler is a control that is wrong for
 		// every entry that does not go through it.
-		draw();
 		void fill();
 		drawPanel();
 		// The opening mark is brought ON SCREEN — a selection the writer
@@ -3355,7 +3343,6 @@ export const organizerWindowMethods = {
 
 	async orgDrawExport(this: WordSmith, ctx: WsOrgExportCtx) {
 		const { panel, exportFiles, exportScope, loadTicks } = ctx;
-		const draw = () => ctx.draw();
 		const drawPanel = () => ctx.drawPanel();
 		// ── ONE LIST, AND THE PANE COUNTS THE ONE THE BUTTON COMPILES ───
 		//
@@ -3376,7 +3363,7 @@ export const organizerWindowMethods = {
 			tickAll: (on: boolean) => ctx.tickAll(on),
 			// A TAB DOES NOT CLOSE ITSELF after a compile: the writer is standing
 			// in their manuscript and has somewhere to go back to.
-			onDone: () => { draw(); drawPanel(); }
+			onDone: () => { drawPanel(); }
 		});
 		// THE COUNT BESIDE THE BUTTON, because it is the fact that matters. The
 		// act row (`.ws-export-top`) is built first, so the count is put INTO
@@ -3419,10 +3406,6 @@ export const organizerWindowMethods = {
 		// the pane to find. `repaint` runs the sweep once the options exist.
 		// Guarded, because a future caller may not return one.
 		try { if (actHandle && actHandle.repaint) actHandle.repaint(); } catch (_) { wsCatch('orgDrawExport: if (actHandle && actHandle.repaint) actHandle.repaint();', _); }
-		// The tree grows its boxes when this tab comes up, and loses them
-		// when it goes. Drawn after the panel so a slow store read cannot
-		// leave the tree showing boxes it has no ticks for.
-		draw();
 	},
 
 	orgDrawHistory(this: WordSmith, ctx: WsOrgHistoryCtx, rows: { kind: string; path: string }[]) {

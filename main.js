@@ -4204,7 +4204,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 573;
+var WS_STYLESHEET_VERSION = 574;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4220,7 +4220,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.8";
+var WS_PLUGIN_VERSION = "1.6.9";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -7957,7 +7957,7 @@ var paintMethods = {
     }
   },
   clearAllBodyState() {
-    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
+    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-ios", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
     document.body.removeAttribute("data-zen-hide-inline-title");
     document.body.removeAttribute("data-zen-focused-file");
     const mainTb = document.querySelector(".titlebar.ws-main-titlebar");
@@ -8037,6 +8037,7 @@ var paintMethods = {
     body.classList.toggle("ws-justify", scoped && this.textOpt("justifyText", false));
     const twOn = scoped && !!this.opt("enableTypewriter");
     body.classList.toggle("ws-typewriter", twOn);
+    body.classList.toggle("ws-ios", this.isIosApp());
     if (twOn) {
       const pct = this.typewriterAnchorRatio() * 100;
       document.documentElement.style.setProperty("--ws-tw-pad-top", pct + "vh");
@@ -8297,6 +8298,7 @@ function wsEditorExtensions(plugin, cm) {
   const dimText = Decoration2.mark({ class: "ws-dim-text" });
   const spaceDeco = Decoration2.mark({ class: "ws-ws-space" });
   const tabDeco = Decoration2.mark({ class: "ws-ws-tab" });
+  const ownsFocus = (view) => plugin.isIosApp() ? !!view.root && view.root.activeElement === view.contentDOM : view.hasFocus;
   const dimPlugin = ViewPlugin2.fromClass(class {
     constructor(view) {
       this.decorations = this.build(view);
@@ -8312,7 +8314,7 @@ function wsEditorExtensions(plugin, cm) {
         return Decoration2.none;
       if (!plugin.isEditorInScope(view))
         return Decoration2.none;
-      if (!view.hasFocus)
+      if (!ownsFocus(view))
         return Decoration2.none;
       const doc = view.state.doc;
       const head = view.state.selection.main.head;
@@ -8681,15 +8683,15 @@ function wsEditorExtensions(plugin, cm) {
   }, { decorations: (v) => v.decorations });
   const panelWatcher = cm.ViewPlugin.fromClass(class {
     constructor(view) {
-      this.sync(view);
+      this.sync(view, true);
     }
     update(u) {
-      this.sync(u.view);
+      this.sync(u.view, u.geometryChanged && !u.docChanged);
     }
     destroy() {
       document.body.classList.remove("ws-vim-panel-open");
     }
-    sync(view) {
+    sync(view, resized) {
       let open = false, panel = null;
       try {
         panel = view.dom.querySelector(".cm-panels-bottom");
@@ -8698,7 +8700,8 @@ function wsEditorExtensions(plugin, cm) {
         wsCatch("buildEditorExtensions / sync: panel = view.dom.querySelector('.cm-panels-bottom');", _);
       }
       document.body.classList.toggle("ws-vim-panel-open", open);
-      if (open !== plugin._vimPanelOpen) {
+      const turned = open !== plugin._vimPanelOpen;
+      if (turned) {
         plugin._vimPanelOpen = open;
         try {
           document.documentElement.style.setProperty("--ws-vim-gutter", plugin.vimGutterHeight() + "px");
@@ -8707,7 +8710,8 @@ function wsEditorExtensions(plugin, cm) {
         }
         plugin.updateRetroStatusBar();
       }
-      plugin.scheduleMaskPosition();
+      if (turned || resized)
+        plugin.scheduleMaskPosition();
       if (!open)
         return;
       window.requestAnimationFrame(() => {
@@ -8885,11 +8889,12 @@ function wsEditorExtensions(plugin, cm) {
     update(u) {
       if (!u.docChanged && !u.selectionSet)
         return;
-      if (!u.view.hasFocus)
+      if (!ownsFocus(u.view))
         return;
       if (!u.docChanged && u.transactions.some((tr) => tr.isUserEvent("select.pointer")))
         return;
-      plugin.typewriterRequest(u.view);
+      const edit = u.docChanged && u.transactions.some((tr) => tr.isUserEvent("input") || tr.isUserEvent("delete"));
+      plugin.typewriterRequest(u.view, edit ? "edit" : "move");
     }
   });
   return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
@@ -9305,6 +9310,7 @@ var editorMethods = {
   }
 };
 var import_obsidian4 = require("obsidian");
+var WS_TYPEWRITER_IOS_PAUSE_MS = 400;
 var focusMethods = {
   chromeFloorY() {
     let limit = 0;
@@ -10207,11 +10213,26 @@ var focusMethods = {
     if (cm)
       this.typewriterRequest(cm);
   },
-  typewriterRequest(cm) {
+  typewriterRequest(cm, cause = "move") {
     if (!this.settings.pluginEnabled || !this.settings.enableTypewriter)
       return;
     if (!this.isEditorInScope(cm))
       return;
+    if (cause === "edit" && this.isIosApp()) {
+      const win2 = cm.dom.ownerDocument.defaultView || window;
+      this._twIdleView = cm;
+      if (this._twIdle != null)
+        win2.clearTimeout(this._twIdle);
+      this._twIdle = win2.setTimeout(() => {
+        this._twIdle = null;
+        const v = this._twIdleView;
+        this._twIdleView = null;
+        if (!v || !v.dom.isConnected)
+          return;
+        this.typewriterRequest(v, v.composing ? "edit" : "move");
+      }, WS_TYPEWRITER_IOS_PAUSE_MS);
+      return;
+    }
     this._twView = cm;
     if (this._twFrame != null)
       return;
@@ -10368,6 +10389,19 @@ var focusMethods = {
     }
     try {
       return !!(document.body && document.body.classList.contains("is-mobile"));
+    } catch {
+      return false;
+    }
+  },
+  isIosApp() {
+    try {
+      if (import_obsidian4.Platform && typeof import_obsidian4.Platform.isIosApp === "boolean")
+        return import_obsidian4.Platform.isIosApp;
+    } catch (_) {
+      wsCatch("isIosApp: Platform.isIosApp", _);
+    }
+    try {
+      return !!(document.body && document.body.classList.contains("is-ios"));
     } catch {
       return false;
     }
@@ -12930,7 +12964,6 @@ var wsOrgChromeMake = (d) => {
     }
     said("");
     d.drawPanel();
-    d.draw();
     return true;
   };
   const drawSubject = () => {
@@ -13335,7 +13368,6 @@ var wsOrgColsMake = (d) => {
     d.s.uniColsOff = Array.from(colOff);
     await d.plugin.saveSettings();
     rebuildCols();
-    d.draw();
     void d.fill();
     d.drawPanel();
   };
@@ -13366,7 +13398,6 @@ var wsOrgColsMake = (d) => {
     d.s.uniUserCols = list;
     await d.plugin.saveSettings();
     rebuildCols();
-    d.draw();
     void d.fill();
     d.drawPanel();
   };
@@ -13982,7 +14013,6 @@ var wsOrgKeysMake = (d) => {
       d.sel.clear();
       d.orgSel.lastPicked = null;
       d.orgSel.cursorDrives = false;
-      d.draw();
       d.drawPanel();
       return true;
     }
@@ -14327,7 +14357,6 @@ async function wsOrgPropMoveTo(a, moved, target) {
   const rest = (Array.isArray(d.s.uniColOrder) ? d.s.uniColOrder : []).filter((id) => keep.indexOf(id) === -1 && ids.indexOf(id) === -1);
   d.s.uniColOrder = keep.concat(rest);
   await d.plugin.saveSettings();
-  d.draw();
   void d.fill();
   d.drawPanel();
   orgPropPopRender();
@@ -14934,7 +14963,6 @@ var wsOrgPropsMake = (d) => {
         d.colOff.add(r.col.id);
       d.s.uniColsOff = Array.from(d.colOff);
       await d.plugin.saveSettings();
-      d.draw();
       void d.fill();
       d.drawPanel();
       if (turningOn)
@@ -15692,7 +15720,6 @@ var wsOrgScopeMake = (d) => {
     d.s.organizerFolder = d.orgFolder;
     d.plugin.saveSettings().catch(() => {
     });
-    d.draw();
     d.drawPanel();
   };
   let orgNote = "";
@@ -15720,7 +15747,6 @@ var wsOrgScopeMake = (d) => {
     d.orgSel.cursor = d.keyOf(it);
     d.orgSel.cursorDrives = true;
     orgFollow(it, false, markOnly);
-    d.draw();
     d.drawPanel();
   };
   let orgDrawTimer = null;
@@ -15847,7 +15873,6 @@ var wsOrgShapeMake = (d) => {
   const setShape = async (v) => {
     d.s.uniShow = v === "files" || v === "folders" ? v : "all";
     await d.plugin.saveSettings(true);
-    d.draw();
     void d.fill();
     try {
       d.drawPanel();
@@ -15876,7 +15901,6 @@ var wsOrgShapeMake = (d) => {
     const setAnd = (list) => {
       d.plugin.settings.uniTypes = list;
       void d.plugin.saveSettings(true);
-      d.draw();
       void d.fill();
       try {
         d.drawPanel();
@@ -17059,7 +17083,6 @@ function wsOrgDrawHeads(plugin, a) {
         ctx.colOff.add(col.id);
         s.uniColsOff = Array.from(ctx.colOff);
         await plugin.saveSettings();
-        ctx.draw();
         void fill();
         ctx.drawPanel();
       }));
@@ -18280,7 +18303,6 @@ var organizerWindowMethods = {
         orgSelect(p);
       },
       redraw: () => {
-        draw();
         drawPanel();
       },
       said: (m) => said(m),
@@ -18290,9 +18312,6 @@ var organizerWindowMethods = {
     const loadTicks = orgTicks.load;
     const orgShape = wsOrgShapeMake({
       plugin: this,
-      get draw() {
-        return draw;
-      },
       get drawPanel() {
         return drawPanel;
       },
@@ -18342,9 +18361,6 @@ var organizerWindowMethods = {
     };
     const orgScope = wsOrgScopeMake({
       plugin: this,
-      get draw() {
-        return draw;
-      },
       get drawPanel() {
         return drawPanel;
       },
@@ -18386,7 +18402,6 @@ var organizerWindowMethods = {
         } catch (_) {
           wsCatch("orgIndexChanged: pruneUserCols();", _);
         }
-        draw();
         drawPanel();
       }, 150);
     });
@@ -18729,7 +18744,6 @@ var organizerWindowMethods = {
         if (s.organizerPinned && !orgScope.orgScopeHolds(String(p)))
           return;
         orgFollow({ kind: "file", path: String(p) }, true);
-        draw();
         drawPanel();
         if (exportOpts && exportOpts.jumpTo && tab === "export") {
           try {
@@ -18768,9 +18782,6 @@ var organizerWindowMethods = {
       },
       get colOff() {
         return colOff;
-      },
-      get draw() {
-        return draw;
       },
       get drawPanel() {
         return drawPanel;
@@ -18823,9 +18834,6 @@ var organizerWindowMethods = {
     const orgFieldEditor = orgProps.orgFieldEditor;
     const orgCols = wsOrgColsMake({
       plugin: this,
-      get draw() {
-        return draw;
-      },
       get drawPanel() {
         return drawPanel;
       },
@@ -18864,8 +18872,6 @@ var organizerWindowMethods = {
     const folderOf = orgFiles.folderOf;
     const nameOf = orgFiles.nameOf;
     const liveFiles = orgFiles.liveFiles;
-    let draw = () => {
-    };
     let fill = async () => {
     };
     let drawPanel = () => {
@@ -18923,9 +18929,6 @@ var organizerWindowMethods = {
       get zoomTag() {
         return zoomTag;
       },
-      get draw() {
-        return draw;
-      },
       get drawPanel() {
         return drawPanel;
       }
@@ -18963,9 +18966,6 @@ var organizerWindowMethods = {
       orgBarSaid: null,
       get colTextish() {
         return colTextish;
-      },
-      get draw() {
-        return draw;
       },
       get drawPanel() {
         return drawPanel;
@@ -19066,7 +19066,6 @@ var organizerWindowMethods = {
       tab: () => tab,
       ticks: () => orgTicks.current(),
       tickAll: (on) => orgTicks.setAll(on),
-      draw: () => draw(),
       drawPanel: () => drawPanel(),
       exportFiles,
       exportScope,
@@ -19083,9 +19082,6 @@ var organizerWindowMethods = {
     };
     const orgKeys = wsOrgKeysMake({
       plugin: this,
-      get draw() {
-        return draw;
-      },
       get drawPanel() {
         return drawPanel;
       },
@@ -19226,7 +19222,6 @@ var organizerWindowMethods = {
       wsCatch("openManuscriptModal: const ew = ownerWin();", _);
     }
     const stopWatching = this.onTreeOrderChange(() => {
-      draw();
       void fill();
       if (tab === "organizer")
         drawPanel();
@@ -19321,7 +19316,6 @@ var organizerWindowMethods = {
       }
     }
     drawTabs();
-    draw();
     void fill();
     drawPanel();
     if (orgScope.orgNote) {
@@ -19415,7 +19409,6 @@ var organizerWindowMethods = {
   },
   async orgDrawExport(ctx) {
     const { panel, exportFiles, exportScope, loadTicks } = ctx;
-    const draw = () => ctx.draw();
     const drawPanel = () => ctx.drawPanel();
     const exportGoing = () => {
       const ticks = ctx.ticks();
@@ -19433,7 +19426,6 @@ var organizerWindowMethods = {
       total: () => exportFiles().length,
       tickAll: (on) => ctx.tickAll(on),
       onDone: () => {
-        draw();
         drawPanel();
       }
     });
@@ -19459,7 +19451,6 @@ var organizerWindowMethods = {
     } catch (_) {
       wsCatch("orgDrawExport: if (actHandle && actHandle.repaint) actHandle.repaint();", _);
     }
-    draw();
   },
   orgDrawHistory(ctx, rows) {
     const { panel, histState } = ctx;
@@ -33179,6 +33170,8 @@ function wsFieldsReset(plugin) {
   plugin._selectionRaf = null;
   plugin._twFrame = null;
   plugin._twView = null;
+  plugin._twIdle = null;
+  plugin._twIdleView = null;
   plugin._reviving = null;
   plugin._themeObserver = null;
 }
@@ -33901,6 +33894,11 @@ var WordSmith = class extends import_obsidian23.Plugin {
     return m;
   }
   onunload() {
+    if (this._twIdle != null) {
+      window.clearTimeout(this._twIdle);
+      this._twIdle = null;
+      this._twIdleView = null;
+    }
     try {
       if (this._settingsTab)
         this._settingsTab.teardown();

@@ -39,7 +39,6 @@ import type { wsOrgSelMake } from './organizer-sel';
 // closure local the window has not typed yet (17 of 25).
 export interface OrgKeysDeps {
 	plugin: WordSmith;
-	readonly draw: () => void;
 	readonly drawPanel: () => void;
 	readonly exportScope: () => string;
 	readonly folderOf: (path: string) => string;
@@ -186,7 +185,6 @@ const escapeLadder = (ev: KeyboardEvent) => {
 		// to be resting against would be a different note's report
 		// arriving unasked.
 		d.orgSel.cursorDrives = false;
-		d.draw();
 		d.drawPanel();
 		return true;
 	}
