@@ -1627,7 +1627,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Highlight opacity', desc: 'How strong the tint is.', control: { type: 'slider', key: 'lineHighlightOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.highlightCurrentLine) },
 				{ name: 'Dim unfocused text', desc: 'Everything but the paragraph or sentence you are in fades.', control: { type: 'toggle', key: 'dimUnfocusedEnabled' }, visible: tw },
 				{ name: 'Focus area', desc: 'What stays lit.', control: { type: 'dropdown', key: 'dimFocusMode', options: { paragraph: 'Paragraph', sentence: 'Sentence' } }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
-				{ name: 'Dim opacity', desc: 'How far the rest fades.', control: { type: 'slider', key: 'dimOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
+				{ name: 'Dim opacity', desc: 'How much of the rest still shows. Lower is fainter; at 1 nothing fades.', control: { type: 'slider', key: 'dimOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
 				this.hotkeysRow(['toggle-typewriter']),
 			], this.railed('focus', 'typewriter')),
 			this.section('Hemingway', [

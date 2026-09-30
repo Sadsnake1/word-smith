@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 574;
+	--ws-stylesheet-version: 575;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -10452,6 +10452,24 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 }
 .ws-uni-panel.ws-org-host.is-namedrag::after {
 	border-left-color: var(--interactive-accent);
+}
+/* ── NAME ALONE: THE CELLS DRAW THE EDGE ──────────────────────────────
+
+   With no column ticked the Name cells are the table's corner cells,
+   rounded top and bottom, and the seam is a straight line at their right
+   edge as tall as the table: it ran past both curves. It stands down, and
+   the Name cells wear the border every other column wears, which follows
+   the radius. The grip comes one pixel in so its hover line, a border at
+   its right edge, lands on that border, and a drag turns it to the accent
+   as the seam would have turned. */
+.ws-uni-panel.ws-org-host.ws-org-namealone::after { display: none; }
+.ws-org-table.is-namealone thead th.ws-org-name,
+.ws-org-table.is-namealone tbody td.ws-org-name {
+	border-right: 1px solid var(--background-modifier-border);
+}
+.ws-uni-panel.ws-org-host.ws-org-namealone > .ws-org-namegrip { --ws-org-gripback: 7px; }
+.ws-uni-panel.ws-org-host.ws-org-namealone.is-namedrag .ws-org-table.is-namealone .ws-org-name {
+	border-right-color: var(--interactive-accent);
 }
 /* ── THE AUTORESIZE SWITCH (A27, writer 2026-08-31) ────────────────────
 

@@ -199,6 +199,8 @@ export interface WsLegacySettings {
 	powerlineTextLight1?: never; powerlineTextLight2?: never; powerlineTextLight3?: never; powerlineTextLight4?: never;
 	retroCustomColors?: never; retroDarkBgColor?: never; retroDarkTextColor?: never;
 	retroLightBgColor?: never; retroLightTextColor?: never; goalTarget?: never; goalLabelMode?: never;
+	// the markers' second switch, which only the bar's picker could see
+	showHiddenMarkers?: never;
 }
 
 export type WordSmithSettings = typeof DEFAULT_SETTINGS & WsLazySettings & WsLegacySettings;

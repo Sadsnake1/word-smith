@@ -2248,7 +2248,7 @@ export const barMethods = {
 	// the picker toggles which invisibles are drawn either way.
 	buildMarkersIndicator(this: WordSmith) {
 		const s = this.settings;
-		const any = this.markerOpt('showHiddenMarkers', false) &&
+		const any = !!s.markersEnabled &&
 			(s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 		return this.buildBarButton(
 			'ws-barbtn-markers' + (any ? '' : ' is-off'),
@@ -2275,11 +2275,10 @@ export const barMethods = {
 		const items = defs.map(d => ({
 			label: d.label,
 			sub:   true,
-			on: () => !!(this.markerOpt('showHiddenMarkers', false) && s[d.key]),
+			on: () => !!(s.markersEnabled && s[d.key]),
 			onClick: async () => {
 				s[d.key] = !s[d.key];
 				if (s[d.key]) {
-					s.showHiddenMarkers = true;
 					// Turning a marker on from the bar has to turn the tab that
 					// owns it on too, or the click sets a flag and nothing
 					// appears. It is the MARKERS tab now, not Misc — the old
@@ -2288,7 +2287,6 @@ export const barMethods = {
 					// narrow a writer's column irreversibly.
 					s.markersEnabled = true;
 				}
-				else if (!defs.some(x => s[x.key])) s.showHiddenMarkers = false;
 				await this.saveSettings(true);
 			}
 		}));

@@ -31,6 +31,7 @@ export interface OrgWritesDeps {
 	readonly orgHistOn: (paths: string[], what: string) => string;
 	readonly orgHistPush: (entry: WsOrgJournalEntry) => void;
 	readonly orgPropValue: (path: string, key: string) => unknown;
+	readonly orgHeldAdd: (paths: string[], key: string) => void;
 }
 
 export const wsOrgWritesMake = (d: OrgWritesDeps) => {
@@ -148,6 +149,8 @@ const orgPropListSet = async (path: string, key: string, list: unknown, before: 
 			await orgPropWriteOne(p, key, next, false);
 			n++;
 		}
+		// the other rows, repainted even while the edited row's box is open
+		if (writes.length > 1) d.orgHeldAdd(writes.slice(1).map((w) => w[0]), String(key));
 	}
 	if (n > 1) d.orgBulkSay(n, 'Property set');
 	d.orgHistPush({

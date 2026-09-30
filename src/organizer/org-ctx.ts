@@ -46,6 +46,10 @@ export interface WsOrgCtxOwn {
 	orgBarSaid: WsOrgBarSaid | null;
 	readonly colTextish: (col: { id: string; user?: boolean }) => boolean;
 	readonly drawPanel: () => void;
+	// THE OTHER ROWS A BULK LIST EDIT WROTE while an editor holds the pane:
+	// path -> the keys written. The held draw repaints their cells in place;
+	// the next full draw clears it.
+	readonly orgHeld: Map<string, Set<string>>;
 	readonly fill: () => Promise<void>;
 	readonly openRow: (it: { kind: string; path: string }, ev?: WsModEvent) => void;
 	readonly orgFolder: string;

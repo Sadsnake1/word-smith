@@ -199,10 +199,9 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 		build(view: EditorView) {
 			const s = plugin.settings;
-			// Through textOpt, not off `s` directly: the hidden markers are
-			// a Text Options setting, and reading the raw value here would
-			// keep drawing them after that tab's master switch is off.
-			if (!s.pluginEnabled || !plugin.markerOpt('showHiddenMarkers', false)) return Decoration.none;
+			// ONE SWITCH: "Show hidden markers" (`markersEnabled`), then each
+			// mark its own below.
+			if (!s.pluginEnabled || !s.markersEnabled) return Decoration.none;
 			if (!plugin.isEditorInScope(view)) return Decoration.none;
 			const showSp  = s.markSpaces, showTab = s.markTabs;
 			const showPar = s.markParagraphs, showEol = s.markEndOfLines;
@@ -651,8 +650,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		read() {
 			const view = this.view;
 			const s = plugin.settings;
-			if (!s.pluginEnabled || !plugin.markerOpt('showHiddenMarkers', false)
-				|| !s.markBlankLines) return null;
+			if (!s.pluginEnabled || !s.markersEnabled || !s.markBlankLines) return null;
 			if (!plugin.isEditorInScope(view)) return null;
 			const scRect  = view.scrollDOM.getBoundingClientRect();
 			const cRect   = view.contentDOM.getBoundingClientRect();

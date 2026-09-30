@@ -4856,7 +4856,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 574;
+export const WS_STYLESHEET_VERSION = 575;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -4894,7 +4894,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.6.9';
+export const WS_PLUGIN_VERSION = '1.7.0';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6107,7 +6107,6 @@ export const DEFAULT_SETTINGS = {
 	limitLineLength:          false,
 	maxLineChars:             64,
 	justifyText:              true,
-	showHiddenMarkers:        true,
 	// PARAGRAPH NUMBERS, in the left margin, off by default. PROSE
 	// paragraphs only: not list items, not tasks, not headings, callouts,
 	// quotes, tables or code. A manuscript's paragraphs are the unit an
@@ -6526,7 +6525,7 @@ export const BAR_KEYS_INERT = new Set([
 // Every settings key retired from DEFAULT_SETTINGS and deleted on load
 // (A508): the retired bar keys, and the vault-wide goal and its label
 // mode, which nothing has read since targets moved to the structure file.
-export const WS_RETIRED_KEYS: string[] = [...BAR_KEYS_INERT, 'goalTarget', 'goalLabelMode'];
+export const WS_RETIRED_KEYS: string[] = [...BAR_KEYS_INERT, 'goalTarget', 'goalLabelMode', 'showHiddenMarkers'];
 
 // The keys a preset or a share code should actually carry.
 export const BAR_KEYS_LIVE = BAR_KEYS.filter(k => !BAR_KEYS_INERT.has(k));

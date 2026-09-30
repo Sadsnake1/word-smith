@@ -937,9 +937,12 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	// under the old arrangement keeps them on under the new one.
 	// Without this the fix would read to an existing writer as "the
 	// update turned my markers off" — a worse bug than the one it
-	// fixes.
-	if (plugin.settings.markersEnabled !== true
-		&& plugin.settings.showHiddenMarkers && plugin.settings.miscEnabled) {
+	// fixes. ASKED OF THE FILE, so it decides once: asked of the merged
+	// settings it turned the markers back on at every start for a writer
+	// who had switched them off while Text Options was on.
+	const rawM = plugin._rawData || {};
+	if (rawM.markersEnabled === undefined
+		&& rawM.showHiddenMarkers === true && rawM.miscEnabled === true) {
 		plugin.settings.markersEnabled = true;
 		void plugin.saveSettings();
 	}
@@ -3587,14 +3590,6 @@ export default class WordSmith extends Plugin {
 	textOpt(key: WsNumberKey, whenOff: number): number;
 	textOpt(key: WsBoolKey | WsNumberKey, whenOff: boolean | number): boolean | number {
 		if (!this.layoutOn()) return whenOff;
-		const v = this.settings[key];
-		return v === undefined ? whenOff : v;
-	}
-
-	// The markers' own gate. Separate from textOpt on purpose: a switch
-	// that turns on a marker must not be able to turn on a line-length cap.
-	markerOpt(key: WsBoolKey, whenOff: boolean): boolean {
-		if (!this.settings.markersEnabled) return whenOff;
 		const v = this.settings[key];
 		return v === undefined ? whenOff : v;
 	}

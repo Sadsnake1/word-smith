@@ -4204,7 +4204,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 574;
+var WS_STYLESHEET_VERSION = 575;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4220,7 +4220,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.6.9";
+var WS_PLUGIN_VERSION = "1.7.0";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -4750,7 +4750,6 @@ var DEFAULT_SETTINGS = {
   limitLineLength: false,
   maxLineChars: 64,
   justifyText: true,
-  showHiddenMarkers: true,
   paragraphNumbers: false,
   markSpaces: false,
   markersEnabled: false,
@@ -4950,7 +4949,7 @@ var BAR_KEYS_INERT = /* @__PURE__ */ new Set([
   "statusBarRows",
   "powerlineSepWidth"
 ]);
-var WS_RETIRED_KEYS = [...BAR_KEYS_INERT, "goalTarget", "goalLabelMode"];
+var WS_RETIRED_KEYS = [...BAR_KEYS_INERT, "goalTarget", "goalLabelMode", "showHiddenMarkers"];
 var BAR_KEYS_LIVE = BAR_KEYS.filter((k) => !BAR_KEYS_INERT.has(k));
 var BAR_SHARE_VERSION = "1";
 function barEnc(s) {
@@ -6836,7 +6835,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Highlight opacity", desc: "How strong the tint is.", control: { type: "slider", key: "lineHighlightOpacity", min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.highlightCurrentLine) },
         { name: "Dim unfocused text", desc: "Everything but the paragraph or sentence you are in fades.", control: { type: "toggle", key: "dimUnfocusedEnabled" }, visible: tw },
         { name: "Focus area", desc: "What stays lit.", control: { type: "dropdown", key: "dimFocusMode", options: { paragraph: "Paragraph", sentence: "Sentence" } }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
-        { name: "Dim opacity", desc: "How far the rest fades.", control: { type: "slider", key: "dimOpacity", min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
+        { name: "Dim opacity", desc: "How much of the rest still shows. Lower is fainter; at 1 nothing fades.", control: { type: "slider", key: "dimOpacity", min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
         this.hotkeysRow(["toggle-typewriter"])
       ], this.railed("focus", "typewriter")),
       this.section("Hemingway", [
@@ -8409,7 +8408,7 @@ function wsEditorExtensions(plugin, cm) {
     }
     build(view) {
       const s = plugin.settings;
-      if (!s.pluginEnabled || !plugin.markerOpt("showHiddenMarkers", false))
+      if (!s.pluginEnabled || !s.markersEnabled)
         return Decoration2.none;
       if (!plugin.isEditorInScope(view))
         return Decoration2.none;
@@ -8753,7 +8752,7 @@ function wsEditorExtensions(plugin, cm) {
     read() {
       const view = this.view;
       const s = plugin.settings;
-      if (!s.pluginEnabled || !plugin.markerOpt("showHiddenMarkers", false) || !s.markBlankLines)
+      if (!s.pluginEnabled || !s.markersEnabled || !s.markBlankLines)
         return null;
       if (!plugin.isEditorInScope(view))
         return null;
@@ -16559,6 +16558,8 @@ var wsOrgWritesMake = (d) => {
         await orgPropWriteOne(p, key, next, false);
         n++;
       }
+      if (writes.length > 1)
+        d.orgHeldAdd(writes.slice(1).map((w) => w[0]), String(key));
     }
     if (n > 1)
       d.orgBulkSay(n, "Property set");
@@ -18478,8 +18479,16 @@ var organizerWindowMethods = {
     const orgHistRun = orgJournal.run;
     const orgHistApi = orgJournal.api;
     const orgHistOn = orgJournal.on;
+    const orgHeld = /* @__PURE__ */ new Map();
     const orgWrites = wsOrgWritesMake({
       plugin: this,
+      orgHeldAdd: (paths, key) => {
+        for (const p of paths) {
+          const ks = orgHeld.get(p) || /* @__PURE__ */ new Set();
+          ks.add(key);
+          orgHeld.set(p, ks);
+        }
+      },
       get orgBulkPaths() {
         return orgBulkPaths;
       },
@@ -18964,6 +18973,7 @@ var organizerWindowMethods = {
     this._orgSubjectRows = () => subjectRows();
     const tableCtx = wsCtxLend({
       orgBarSaid: null,
+      orgHeld,
       get colTextish() {
         return colTextish;
       },
@@ -19478,13 +19488,32 @@ var organizerWindowMethods = {
   orgTableMake(ctx) {
     const s = ctx.s;
     const fill = () => ctx.fill();
+    const orgRepaintHeld = () => {
+      for (const [path, keys] of ctx.orgHeld) {
+        if (!keys.has("tags"))
+          continue;
+        const tr = Array.from(ctx.panel.querySelectorAll("tr.ws-org-row")).find((r) => r.getAttribute("data-path") === path);
+        const old = tr ? tr.querySelector('td[data-col="tags"]') : null;
+        if (!tr || !old || old.querySelector(".ws-org-editor"))
+          continue;
+        const td = tr.createEl("td", { cls: old.className, attr: { "data-col": "tags" } });
+        const style = old.getAttribute("style");
+        if (style)
+          td.setAttribute("style", style);
+        const cut = path.lastIndexOf("/");
+        ctx.orgTagsCell(td, { path, parent: cut === -1 ? "" : path.slice(0, cut), kind: "file", group: "", depth: 0, rel: "", idx: 0 });
+        old.replaceWith(td);
+      }
+    };
     const drawOrg = () => {
       ctx.orgFilePathCache = null;
       ctx.orgColCeilReset();
       if (ctx.orgEditGuard) {
         ctx.orgRedrawPending = true;
+        orgRepaintHeld();
         return;
       }
+      ctx.orgHeld.clear();
       const orgKeepScroll = ctx.orgScrollTop;
       const orgKeepScrollX = ctx.orgScrollLeft || 0;
       void this.orgIndexEnsure();
@@ -19798,6 +19827,9 @@ var organizerWindowMethods = {
       }, { passive: true });
       const table = wrap.createEl("table", { cls: "ws-org-table" });
       ctx.orgNameStamp(table);
+      const nameAlone = cols.length === 0;
+      table.toggleClass("is-namealone", nameAlone);
+      ctx.panel.toggleClass("ws-org-namealone", nameAlone);
       if (nums) {
         table.addClass("has-num");
         table.style.setProperty("--ws-org-numw", "calc(" + Math.max(1, numW) + "ch + 8px)");
@@ -24155,7 +24187,7 @@ var barMethods = {
   },
   buildMarkersIndicator() {
     const s = this.settings;
-    const any = this.markerOpt("showHiddenMarkers", false) && (s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
+    const any = !!s.markersEnabled && (s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
     return this.buildBarButton("ws-barbtn-markers" + (any ? "" : " is-off"), (node) => this.barTokenPaint(node, "markers", "Markers"), any ? "Hidden markers — click to change" : "Hidden markers are off", (anchor) => this.openMarkersPicker(anchor));
   },
   markersPickerItems() {
@@ -24170,14 +24202,12 @@ var barMethods = {
     const items = defs.map((d) => ({
       label: d.label,
       sub: true,
-      on: () => !!(this.markerOpt("showHiddenMarkers", false) && s[d.key]),
+      on: () => !!(s.markersEnabled && s[d.key]),
       onClick: async () => {
         s[d.key] = !s[d.key];
         if (s[d.key]) {
-          s.showHiddenMarkers = true;
           s.markersEnabled = true;
-        } else if (!defs.some((x) => s[x.key]))
-          s.showHiddenMarkers = false;
+        }
         await this.saveSettings(true);
       }
     }));
@@ -33628,7 +33658,8 @@ function wsOnLayoutReady(plugin) {
         void plugin.reviveMenuPanel();
     });
   }
-  if (plugin.settings.markersEnabled !== true && plugin.settings.showHiddenMarkers && plugin.settings.miscEnabled) {
+  const rawM = plugin._rawData || {};
+  if (rawM.markersEnabled === void 0 && rawM.showHiddenMarkers === true && rawM.miscEnabled === true) {
     plugin.settings.markersEnabled = true;
     void plugin.saveSettings();
   }
@@ -34690,12 +34721,6 @@ var WordSmith = class extends import_obsidian23.Plugin {
   }
   textOpt(key, whenOff) {
     if (!this.layoutOn())
-      return whenOff;
-    const v = this.settings[key];
-    return v === void 0 ? whenOff : v;
-  }
-  markerOpt(key, whenOff) {
-    if (!this.settings.markersEnabled)
       return whenOff;
     const v = this.settings[key];
     return v === void 0 ? whenOff : v;

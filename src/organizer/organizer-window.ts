@@ -2502,8 +2502,12 @@ export const organizerWindowMethods = {
 		const orgHistApi = orgJournal.api;
 		const orgHistOn = orgJournal.on;
 		// organizer-writes.ts reads this closure through the names below.
+		const orgHeld = new Map<string, Set<string>>();
 		const orgWrites = wsOrgWritesMake({
 			plugin: this,
+			orgHeldAdd: (paths: string[], key: string) => {
+				for (const p of paths) { const ks = orgHeld.get(p) || new Set<string>(); ks.add(key); orgHeld.set(p, ks); }
+			},
 			get orgBulkPaths() { return orgBulkPaths; },
 			get orgBulkSay() { return orgBulkSay; },
 			get orgHistOn() { return orgHistOn; },
@@ -2838,6 +2842,7 @@ export const organizerWindowMethods = {
 			// table's bar; a property from the start, so a name the table reads is
 			// a name the context has before anything is said.
 			orgBarSaid: null,
+			orgHeld,
 			get colTextish() { return colTextish; },
 			get drawPanel() { return drawPanel; },
 			get fill() { return fill; },
@@ -3461,6 +3466,29 @@ export const organizerWindowMethods = {
 		// the order, and both cannot hold. Everything is drawn from the INDEX
 		// and the stores; the fold state and the tree's DOM do not exist on
 		// this side of the window.
+		// ── WHILE AN EDITOR HOLDS THE PANE, THE OTHER ROWS STILL SHOW A BULK EDIT ──
+		//
+		// A tag typed into a box on one of several selected rows is written to
+		// all of them, but the pane is not rebuilt while the box has the caret,
+		// so the other rows went on showing their old tags until the box was
+		// left, and a bulk edit read as one that had not happened. Their Tags
+		// cells are rebuilt in place instead, from the index as it now stands;
+		// the row being typed in is never touched.
+		const orgRepaintHeld = () => {
+			for (const [path, keys] of ctx.orgHeld) {
+				if (!keys.has('tags')) continue;
+				const tr = Array.from(ctx.panel.querySelectorAll('tr.ws-org-row')).find((r) => r.getAttribute('data-path') === path);
+				const old = tr ? tr.querySelector('td[data-col="tags"]') : null;
+				if (!tr || !old || old.querySelector('.ws-org-editor')) continue;
+				// made on the row and moved into the old cell's place by `replaceWith`
+				const td = tr.createEl('td', { cls: old.className, attr: { 'data-col': 'tags' } });
+				const style = old.getAttribute('style');
+				if (style) td.setAttribute('style', style);
+				const cut = path.lastIndexOf('/');
+				ctx.orgTagsCell(td, { path, parent: cut === -1 ? '' : path.slice(0, cut), kind: 'file', group: '', depth: 0, rel: '', idx: 0 });
+				old.replaceWith(td);
+			}
+		};
 		const drawOrg = () => {
 			// THE SCAN IS ONE DRAW OLD AT MOST — see `orgAllFilePaths`.
 			ctx.orgFilePathCache = null;
@@ -3471,7 +3499,8 @@ export const organizerWindowMethods = {
 			// THE EDIT-GUARD'S TEETH: while an editor holds focus, the pane
 			// is not rebuilt — the redraw waits for the edit to end. This is
 			// the one gate every repaint passes, so no caller can forget it.
-			if (ctx.orgEditGuard) { ctx.orgRedrawPending = true; return; }
+			if (ctx.orgEditGuard) { ctx.orgRedrawPending = true; orgRepaintHeld(); return; }
+			ctx.orgHeld.clear();
 			// ── AND WHERE THE WRITER WAS LOOKING ─────────────────
 			//
 			// THE SCROLLER IS BUILT FRESH EVERY DRAW. `.ws-org-panel` is
@@ -3978,6 +4007,13 @@ export const organizerWindowMethods = {
 			// in step.
 			const table = wrap.createEl('table', { cls: 'ws-org-table' });
 			ctx.orgNameStamp(table);
+			// NAME ALONE: with no column ticked the Name cells are the table's
+			// rounded corner cells, and the seam, a straight line down the host at
+			// their right edge, would run past both curves. The stylesheet hands
+			// that edge to the cells' own border, as it does for the last column.
+			const nameAlone = cols.length === 0;
+			table.toggleClass('is-namealone', nameAlone);
+			ctx.panel.toggleClass('ws-org-namealone', nameAlone);
 			if (nums) {
 				table.addClass('has-num');
 				table.style.setProperty('--ws-org-numw', 'calc(' + Math.max(1, numW) + 'ch + 8px)');
