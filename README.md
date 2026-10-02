@@ -163,7 +163,7 @@ Read more about [history and the report](docs/history-and-report.md).
 
 Filler words, passive voice and doubled words get an underline. 
 
-No model, no network, no verdicts. Offline and based on regex rules and a small dictionary inside Word-Smith.
+No model, no network, no verdicts. Offline and based on some regex rules and a small dictionary inside Word-Smith.
 
 [The menu](docs/commands-and-menu.md). More like the PowaaahMenu. Any Obsidian command can go in. Yes, you read it right. ANY Obsidian command!
 
@@ -173,7 +173,7 @@ Plus typography, text options, Vim niceties and word counts, flags and targets i
 
 No account. No cloud. No subscription. No network calls, no telemetry, no dependencies.
 
-Your history, targets and order are plain notes in your vault, readable in any editor, yours to delete, your sto protect(yes, do backups regulary, you don't want that Magnum Opus lost, because your laptop got a bit wonky).
+Your history, targets and order are plain notes in your vault, readable in any editor, **yours to delete**, and **also yours to protect**(with great power comes great...you know the rest!)
 
 Read more about [privacy and your files](docs/privacy.md).
 
