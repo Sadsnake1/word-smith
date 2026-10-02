@@ -66,7 +66,7 @@ Simple to use, vastly useful for any domain of work. Want a task manager? Easy. 
 
 Did I just remake Obsidian's Bases? Kinda, but no. Bases is for .md notes. The Organizer takes EVERYYYY filetype in your vault. Think of Directory Opus, but in Obsidian.
 
-How does it work? Simple. For the non-markdown files, it just writes the metadata into the ws-strucutre.md file that lives in your Vault. So don't lose that file!
+How does it work? Simple. For the non-markdown files, it just writes the metadata into the `ws-structure.md` file that lives in your Vault. So don't lose that file!
 
 **The Organizer at work:**
 
@@ -173,7 +173,7 @@ Plus typography, text options, Vim niceties and word counts, flags and targets i
 
 No account. No cloud. No subscription. No network calls, no telemetry, no dependencies.
 
-Your history, targets and order are plain notes in your vault, readable in any editor, yours to delete, your to protect(yes, do backups regulary, you don't want that Magnum Opus lost, because your laptop got a bit wonky).
+Your history, targets and order are plain notes in your vault, readable in any editor, yours to delete, your sto protect(yes, do backups regulary, you don't want that Magnum Opus lost, because your laptop got a bit wonky).
 
 Read more about [privacy and your files](docs/privacy.md).
 
@@ -209,7 +209,7 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 
 If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). 
 
-Regarding bugs, tell me your OS(pleeease), whether is desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
+Regarding bugs, tell me your OS(pleeease), whether it's desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
 
 Free and MIT. Thanks to everyone on r/ObsidianMD who reported bugs and sent ideas. Cheers!
 
