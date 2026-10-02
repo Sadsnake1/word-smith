@@ -203,7 +203,9 @@ Word-Smith pairs nicely with my other baby, [Cursor-Smith](https://github.com/Sa
 
 ## Questions, ideas, bugs
 
-If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). Tell me your OS(pleeease), whether is desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
+If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). 
+
+Regarding bugs, tell me your OS(pleeease), whether is desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
 
 Free and MIT. Thanks to everyone on r/ObsidianMD who reported bugs and sent ideas. Cheers!
 
