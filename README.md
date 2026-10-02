@@ -215,7 +215,7 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 [Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
 
-## Special thanks
+## Special thanks(must be read with Dumbledore's voice)
 
 To [Protesilaos Stavrou](https://github.com/protesilaos), for his perfectly balanced [Modus themes](https://github.com/protesilaos/modus-themes).
 
