@@ -18,11 +18,11 @@
 
 
 
-Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there.
+Lightweight, free, and working within the Vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there. 
 
 Every feature has its own toggle, so take what you like and leave the rest off. Works with Obsidian 1.13.7 and newer, desktop and mobile.
 
-**A minute with Word-Smith:**
+**A minute with Word-Smith(more like 17s):**
 
 https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
