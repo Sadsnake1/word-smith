@@ -179,9 +179,12 @@ Read more about [privacy and your files](docs/privacy.md).
 
 > [!NOTE]
 > Your notes, your files, your writings don't depend on Word-Smith at all.
+> 
 > Word-Smith is just a fancy layer on top of Obsidian's robustness and plain, future-proof Markdown files.
 >
-> If you ever uninstall Word-Smith, everything you wrote stays exactly where it is. Word-Smith keeps its three files (`ws-structure.md`, `ws-history.md` and `ws-settings.md`) in the `Word-Smith` folder of your vault (you can even move the Word-Smith folder, hide it in another folder like `Archive`, it does not need to stay in the Vault's root), and the cool part is, they are plain Markdown files too. So, if you ever come back to use Word-Smith and those 3 files are still there, Word-Smith will pick everything up from where you left it!
+> If you ever uninstall Word-Smith, everything you wrote stays exactly where it is. Word-Smith keeps its three files (`ws-structure.md`, `ws-history.md` and `ws-settings.md`) in the `Word-Smith` folder inside your Vault (and you can even move this Word-Smith folder, hide it in another folder like `Archive`, if you'd like, it does not need to stay in the Vault's root). And the cool part is, these three files are plain Markdown files too.
+>
+> So, if you ever come back to use Word-Smith and those 3 files are still there, Word-Smith will pick everything up from where you left it!
 
 ## Install
 
