@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no 01 - Preface haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with an icon and a color of your own choosing. Watch a folder add itself up, and a Total row at the foot add up the lot.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no more "001-Preface" haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with an icon and a color of your own choosing. Watch a folder add itself up, and a Total row at the foot add up the lot.
 
 <div align="center">
 <img width="1537" height="921" alt="word-smith-organizer" src="https://github.com/user-attachments/assets/3d786856-a032-4f6d-b934-3505b735504a" />
