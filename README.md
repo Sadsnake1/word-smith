@@ -36,19 +36,19 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no `01 - Opening` haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with a shape and a color of your own. Watch a folder add itself up, and a Total row at the foot add up the lot.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no 01 - Preface haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with an icon and a color of your own choosing. Watch a folder add itself up, and a Total row at the foot add up the lot.
 
 <div align="center">
 <img width="1537" height="921" alt="word-smith-organizer" src="https://github.com/user-attachments/assets/3d786856-a032-4f6d-b934-3505b735504a" />
 </div>
 
-Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. Readings the frontmatter can't give you sit beside them: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
+Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. And even more proprieties outside the frontmatter scope: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
 
-Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, a search box above the tabs, and your sort and filter come back after a restart. It follows the note you open; pin it and it stays on your scenes wherever you go.
+Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, and your sort and filter come back after a restart. Also, the Organizer follows the note you open; you can pin it and it stays on your scenes wherever you go in the file tree.
 
-It isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work.
+BEST part is that it isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work. Want a task manager? Easy. Just toggle on the tasks column. Sky is the limit!
 
-Did I just build Bases? Kinda, but no. Bases is for notes. The Organizer takes every file in your vault, and adds order, targets, flags, task counts and a compiler on top.
+Did I just remake Obsidian's Bases? Kinda, but no. Bases is for notes. The Organizer takes EVERY file in your vault, and adds order, targets, flags, task counts and a compiler on top of them. Think of Directory Opus, but in Obsidian.
 
 **The Organizer at work:**
 
@@ -58,7 +58,7 @@ Read more about [the Organizer](docs/organizer.md).
 
 ### Writing modes
 
-Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Horrible, but it works.
+Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a first draft can only go forward. Painful, but it works!
 
 <table>
   <tr>
@@ -71,7 +71,7 @@ Read more about [writing modes](docs/writing-modes.md).
 
 ### Themes
 
-Themes repaint the whole workspace, dark and light. Editor, sidebars and panels all follow.
+Themes repaint the whole workspace, dark and light. Editor, sidebars and panels all follow the color schemes. Even your text cursor!
 
 <table>
   <tr>
