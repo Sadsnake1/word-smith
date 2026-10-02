@@ -18,11 +18,15 @@
 
 
 
-Lightweight, free, and working within the Vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there. 
+Lightweight, free, and working within the Vault you already have. No project wizard, no special "book folder", no AI or telemetry near your texts.
 
-Every feature has its own toggle, so take what you like and leave the rest off. Works with Obsidian 1.13.7 and newer, desktop and mobile.
+Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there. 
 
-**A minute with Word-Smith(more like 17s):**
+Every feature has its own toggle, so take what you like and leave the rest off. 
+
+Works with Obsidian 1.13.7 and newer, desktop and mobile.
+
+**A minute with Word-Smith(more like 17s -will post a proper video Soon!):**
 
 https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
@@ -36,19 +40,33 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
 
-Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. No renaming, no more "001-Preface" haunting your filenames forever. Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with an icon and a color of your own choosing. Watch a folder add itself up, and a Total row at the foot add up the lot.
+Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. 
+
+No more renaming, no more "001-Preface" haunting your filenames forever. 
+
+Filterable, sortable, searchable. Set a target on a note, a chapter or the whole book. Flag what still needs a pass, with an icon and a color of your own choosing. Folders sums the proprieties up, and a Total row at the bottom, because it's a table. And a table needs a Total row!
 
 <div align="center">
 <img width="1537" height="921" alt="word-smith-organizer" src="https://github.com/user-attachments/assets/3d786856-a032-4f6d-b934-3505b735504a" />
 </div>
 
-Every property in your frontmatter can be a column, edited right in the cell with Obsidian's own editors: tags are pills, a checkbox is a toggle, a date gets a picker. And even more proprieties outside the frontmatter scope: word count, target, flag, reading grade, paragraphs, tasks, backlinks, outgoing links, footnotes, created, modified. Turn on the ones you want.
+Every property(frontmatter) can be a column, that you can edit right in the cell: tags are pills, a checkbox is a toggle, a date gets a picker. 
 
-Ctrl-click a few rows and edit them all at once. Every change is one step back with Ctrl+Z, and Redo puts it right again. Row numbers if you like them, and your sort and filter come back after a restart. Also, the Organizer follows the note you open; you can pin it and it stays on your scenes wherever you go in the file tree.
+And even more proprieties outside the Obsidian's scope: Word count, Target, Flag, Reading Grade, Paragraphs, Tasks, Backlinks, Outgoing links, Footnotes, Created, Modified time. Turn on the ones you want.
 
-BEST part is that it isn't only for notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. Simple to use, vastly useful for any domain of work. Want a task manager? Easy. Just toggle on the tasks column. Sky is the limit!
+Ctrl-click a few rows and edit them all at once. Bulk edit can even help you clean your metadata, so you don't have "Synopsis", "synopsis" and "Description" all over your files.
 
-Did I just remake Obsidian's Bases? Kinda, but no. Bases is for notes. The Organizer takes EVERY file in your vault, and adds order, targets, flags, task counts and a compiler on top of them. Think of Directory Opus, but in Obsidian.
+Every change is one step back with a Ctrl+Z. Add Row numbers if you like, and your sort and filters are saved, even after a restart. 
+
+Also, the Organizer follows the note you open, but you can Pin it down and it stays put wherever you go in the file tree.
+
+BEST part is that it isn't only for .md notes. Tag a PDF. Put a checkbox on a spreadsheet. Give a book cover a description. You can even build an e-book database with it, real epub files and all. 
+
+Simple to use, vastly useful for any domain of work. Want a task manager? Easy. Just toggle on the tasks column. Sky is the limit!
+
+Did I just remake Obsidian's Bases? Kinda, but no. Bases is for .md notes. The Organizer takes EVERYYYY filetype in your vault. Think of Directory Opus, but in Obsidian.
+
+How does it work? Simple. For the non-markdown files, it just writes the metadata into the ws-strucutre.md file that lives in your Vault. So don't lose that file!
 
 **The Organizer at work:**
 
@@ -71,7 +89,7 @@ Read more about [writing modes](docs/writing-modes.md).
 
 ### Themes
 
-Themes repaint the whole workspace, dark and light. Editor, sidebars and panels all follow the color schemes. Even your text cursor!
+Themes repaint the whole workspace, dark and light. Editor, sidebars and panels all follow the color schemes. Even your text cursor! Yes, even THAT swooshy cursor too! 
 
 <table>
   <tr>
@@ -90,7 +108,11 @@ Read more about [themes](docs/themes.md).
 
 ### The powerline bar
 
-A status bar you build yourself. You write it as text, and the punctuation you type between {tokens} becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
+A status bar you build yourself. You write it as text, and the punctuation you type between {tokens} becomes the shape you get.
+
+Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each powerline token-button can be an icon, a word, or both.
+
+Three shipped bars to start from, and a share code to trade yours with a friend.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1393" alt="A short bar with a few colors" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
@@ -103,9 +125,11 @@ Read more about [the powerline bar](docs/powerline.md).
 
 ### Export
 
-PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is written, laid out to the submission standard.
+PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is exported, laid out to the 12pt, double spacing manuscript standard.
 
-The tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript. Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox. Easy! And it exports the file in you Vault with a timestamp so you don't have to rename things: TheBook-final-final-v3.docx
+The Export's tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript. 
+
+Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox. Easy! And it exports the file in you Vault with a timestamp so you don't have to rename things like "TheBook-final-final-v7.docx"
 
 <table>
   <tr>
@@ -118,7 +142,7 @@ Read more about [Export](docs/export.md).
 
 ### Writing history and the report
 
-More of a writing log for word counts. A day spent hacking away is still a day's work, and it won't break your writing streak.
+More like a writing log. A day spent hacking away is still a day's work, and it won't break your writing streak. 
 
 <table>
   <tr>
@@ -127,13 +151,19 @@ More of a writing log for word counts. A day spent hacking away is still a day's
   </tr>
 </table>
 
-The Writing Report shows a note, a folder or a selection its numbers: words, target, characters, syllables, sentences, paragraphs, pages, reading time and grade. Under them, every word you used, the Word Frequency. Common words stay out until you tick them in.
+The Writing Report shows a note, a folder or a selection its numbers: Word count, target, characters, syllables(clearly useless, but it makes the popup pretty), sentences, paragraphs, pages, reading time and reading grade.
+
+Under them, every single word you used, the Word Frequency menu. Common words stay out until you tick them in.
 
 Read more about [history and the report](docs/history-and-report.md).
 
 ### And the rest
 
-[Prose checks and parts-of-speech coloring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in color, the way a code editor shows you structure. Too many adverbs reads as a rash(Thank you, Mr. Stephen King!). Filler words, passive voice and doubled words get an underline. No model, no network, no verdicts. Offline and based on regex rules and a small dictionary inside Word-Smith.
+[Prose checks and parts-of-speech coloring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in color, the way a code editor shows you structure. Too many adverbs reads as a rash(Thank you, Mr. Stephen King!).
+
+Filler words, passive voice and doubled words get an underline. 
+
+No model, no network, no verdicts. Offline and based on regex rules and a small dictionary inside Word-Smith.
 
 [The menu](docs/commands-and-menu.md). More like the PowaaahMenu. Any Obsidian command can go in. Yes, you read it right. ANY Obsidian command!
 
@@ -141,7 +171,11 @@ Plus typography, text options, Vim niceties and word counts, flags and targets i
 
 ## Local, and only local
 
-No account. No cloud. No subscription. No network calls, no telemetry, no dependencies. Your history, targets and order are plain notes in your vault, readable in any editor, yours to delete. Read more about [privacy and your files](docs/privacy.md).
+No account. No cloud. No subscription. No network calls, no telemetry, no dependencies.
+
+Your history, targets and order are plain notes in your vault, readable in any editor, yours to delete, your to protect(yes, do backups regulary, you don't want that Magnum Opus lost, because your laptop got a bit wonky).
+
+Read more about [privacy and your files](docs/privacy.md).
 
 ## Install
 
