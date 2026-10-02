@@ -217,6 +217,8 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 
 ## Special thanks *(must be read with Dumbledore's voice)*
 
+To my friend, [Max Shippee](https://amzn.eu/d/05LdTy5z), actor and author, for narrating this video! His voice brought Word-Smith to life in a way I never could have imagined.
+
 To [Protesilaos Stavrou](https://github.com/protesilaos), for his perfectly balanced [Modus themes](https://github.com/protesilaos/modus-themes).
 
 To the [r/ObsidianMD](https://www.reddit.com/r/ObsidianMD/) community, for every bug report, idea and kind word. Word-Smith is better because of you.
