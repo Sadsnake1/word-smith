@@ -214,6 +214,14 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 
 [Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
+
+## Special thanks
+
+To [Protesilaos Stavrou](https://github.com/protesilaos), for his perfectly balanced [Modus themes](https://github.com/protesilaos/modus-themes).
+
+To the [r/ObsidianMD](https://www.reddit.com/r/ObsidianMD/) community, for every bug report, idea and kind word. Word-Smith is better because of you.
+
+
 ## Questions, ideas, bugs
 
 If you have a question, a cool idea/feature or found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues) or on Reddit at `u/No_Ratio_2483`. 
