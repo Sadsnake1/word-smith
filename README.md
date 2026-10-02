@@ -99,7 +99,7 @@ Themes repaint the whole workspace, dark and light. Editor, sidebars and panels 
   </tr>
 </table>
 
-<sub>The same vault, two schemes.</sub>
+<sub>The same vault, two colorschemes.</sub>
 
 **Modes and themes, switched while writing:**
 
@@ -134,8 +134,8 @@ Title page, running header, table of contents, footnotes, comments and highlight
 
 <table>
   <tr>
-    <td width="50%"><img width="1537" height="921" alt="word-smith-export" src="https://github.com/user-attachments/assets/005921ed-12a0-479d-b712-e8c0bee60307" /><br><sub>The export window: what goes in, and the pages as they will print.</sub></td>
-    <td width="50%"><img width="1537" height="921" alt="word-smith-expanded" src="https://github.com/user-attachments/assets/30caf043-0e73-4b11-9dc2-963db54ef1c3" /><br><sub>The same manuscript, every section opened.</sub></td>
+    <td width="50%"><img width="1537" height="921" alt="word-smith-export" src="https://github.com/user-attachments/assets/005921ed-12a0-479d-b712-e8c0bee60307" /><br><sub>The Export window</sub></td>
+    <td width="50%"><img width="1537" height="921" alt="word-smith-expanded" src="https://github.com/user-attachments/assets/30caf043-0e73-4b11-9dc2-963db54ef1c3" /><br><sub>The Expanded view. Click on a paragraph and it opened the note write there. (good for quick last-minute edits) </sub></td>
   </tr>
 </table>
 
@@ -148,7 +148,7 @@ More like a writing log. A day spent hacking away is still a day's work(wise wor
 <table>
   <tr>
     <td width="50%"><img width="1537" height="921" alt="word-smith-history-2" src="https://github.com/user-attachments/assets/5a43cc1e-7a06-4cc9-b164-906321c974d5" /><br><sub>The whole year, at a glance.</sub></td>
-    <td width="50%"><img width="1537" height="921" alt="word-smith-history-1" src="https://github.com/user-attachments/assets/560768d8-8a38-4e18-8cb1-cd733e7c8189" /><br><sub>Day by day, added above, cut below.</sub></td>
+    <td width="50%"><img width="1537" height="921" alt="word-smith-history-1" src="https://github.com/user-attachments/assets/560768d8-8a38-4e18-8cb1-cd733e7c8189" /><br><sub>Daily view.</sub></td>
   </tr>
 </table>
 
@@ -216,7 +216,7 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 
 ## Questions, ideas, bugs
 
-If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). 
+If you have a question, a cool idea/feature or found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues) or on Reddit at `u/No_Ratio_2483`. 
 
 Regarding bugs, tell me your OS(pleeease), whether it's desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
 
