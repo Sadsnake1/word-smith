@@ -108,11 +108,11 @@ Read more about [themes](docs/themes.md).
 
 ### The powerline bar
 
-A status bar you build yourself. You write it as text, and the punctuation you type between {tokens} becomes the shape you get.
+A status bar you "code" yourself. You write it as text, and the punctuation you type between {tokens} becomes the shape you get. You'll love it! I think...
 
-Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each powerline token-button can be an icon, a word, or both.
+Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each powerline token-button can be tweaked.
 
-Three shipped bars to start from, and a share code to trade yours with a friend.
+Three shipped bars to start from, and share codes to trade your creations with your friends.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1393" alt="A short bar with a few colors" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
@@ -129,7 +129,7 @@ PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your pap
 
 The Export's tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript. 
 
-Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox. Easy! And it exports the file in you Vault with a timestamp so you don't have to rename things like "TheBook-final-final-v7.docx"
+Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox. Easy! And it exports the file in your Vault with a timestamp, so you don't have to rename things like "TheBook-final-final-v7.docx"
 
 <table>
   <tr>
@@ -142,7 +142,7 @@ Read more about [Export](docs/export.md).
 
 ### Writing history and the report
 
-More like a writing log. A day spent hacking away is still a day's work, and it won't break your writing streak. 
+More like a writing log. A day spent hacking away is still a day's work(wise words!), and it won't break your writing streak. 
 
 <table>
   <tr>
