@@ -195,7 +195,11 @@ Desktop, tablet and phone. The Organizer wants a bigger screen, though it pinche
 
 ## And a fancier cursor
 
-Word-Smith pairs nicely with my other baby, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret(I call it a cursor, because I'm old and I can do anything). BRAGGING TIME: Cursor-Smith is The most advanced cursor engine out there (maybe, who knows?). You get cursor types, thickness, effects, smooth movement, motion smears, fire trails, fireworks, blinking options. The whole lot. What else? Sharing codes, presets so you can try them fast, typewriter effects and sounds, color by speed and mooore. It's too much, it's over the top, it's Cuuuursor-Smiiiith(cringe)! Forge your own cursor, text warrior!
+Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret(I call it a cursor, because I'm old and I can do anything).
+
+BRAGGING TIME: Cursor-Smith is The most advanced cursor engine out there (maybe, who knows?). You get cursor types, thickness, effects, smooth movement, motion smears, fire trails, fireworks, blinking options. The whole lot.
+
+What else? Sharing codes, presets so you can try them fast, typewriter effects and sounds, color by speed and mooore. It's clearly too much, it's over the top, it's Cuuuursor-Smiiiith(cringe)!
 
 ## Docs
 
