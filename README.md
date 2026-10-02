@@ -52,7 +52,7 @@ Filterable, sortable, searchable. Set a target on a note, a chapter or the whole
 
 Every property(frontmatter) can be a column, that you can edit right in the cell: tags are pills, a checkbox is a toggle, a date gets a picker. 
 
-And even more proprieties outside the Obsidian's scope: Word count, Target, Flag, Reading Grade, Paragraphs, Tasks, Backlinks, Outgoing links, Footnotes, Created, Modified time. Turn on the ones you want.
+And even more proprieties outside the Obsidian's metadata: Word count, Target, Flag, Reading Grade, Paragraphs, Tasks, Backlinks, Outgoing links, Footnotes, Created, Modified time. Turn on the ones you want.
 
 Ctrl-click a few rows and edit them all at once. Bulk edit can even help you clean your metadata, so you don't have "Synopsis", "synopsis" and "Description" all over your files.
 
