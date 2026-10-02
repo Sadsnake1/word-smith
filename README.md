@@ -20,7 +20,7 @@
 
 Lightweight, free, and working within the vault you already have. No project wizard, no special "book folder", no AI near your text. Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there.
 
-Everything has its own toggle, so take what you like and leave the rest off. Works with Obsidian 1.13.7 and newer, desktop and mobile.
+Every feature has its own toggle, so take what you like and leave the rest off. Works with Obsidian 1.13.7 and newer, desktop and mobile.
 
 **A minute with Word-Smith:**
 
@@ -90,7 +90,7 @@ Read more about [themes](docs/themes.md).
 
 ### The powerline bar
 
-A status bar you build yourself. You write it as text, and the punctuation you type between tokens becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
+A status bar you build yourself. You write it as text, and the punctuation you type between {tokens} becomes the shape you get. Words, characters, reading time, tasks, properties, backlinks, the note's flag, the time, the battery, and a button for every menu. Each button can be an icon, a word, or both. Three shipped bars to start from, and a share code to trade yours with a friend.
 
 <img width="1858" alt="A minimal powerline bar" src="https://github.com/user-attachments/assets/cadd2b38-a1f9-45f6-bad8-5a81ec4292a7" />
 <img width="1393" alt="A short bar with a few colors" src="https://github.com/user-attachments/assets/e3a8de69-0445-4e88-9bc8-03a14899b3ca" />
@@ -105,7 +105,7 @@ Read more about [the powerline bar](docs/powerline.md).
 
 PDF, docx, md, html, plus a fast print preview. Tick what goes in, pick your paper, and see the pages before a single file is written, laid out to the submission standard.
 
-The tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript; a folder with only some of its notes in shows a half tick. Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox.
+The tick boxes live in Obsidian's own file tree. Tick a note or a whole folder from anywhere in the vault and it joins the manuscript. Title page, running header, table of contents, footnotes, comments and highlights are each a checkbox. Easy! And it exports the file in you Vault with a timestamp so you don't have to rename things: TheBook-final-final-v3.docx
 
 <table>
   <tr>
@@ -118,7 +118,7 @@ Read more about [Export](docs/export.md).
 
 ### Writing history and the report
 
-Words you added rise from the center line. Words you cut fall below it. A day spent cutting is still a day's work, and it won't break your streak.
+More of a writing log for word counts. A day spent hacking away is still a day's work, and it won't break your writing streak.
 
 <table>
   <tr>
@@ -127,17 +127,17 @@ Words you added rise from the center line. Words you cut fall below it. A day sp
   </tr>
 </table>
 
-The Writing Report gives a note, a folder or a selection its numbers: words against target, characters, syllables, sentences, paragraphs, pages, reading time and grade. Under them, every word you used, how often, and its share drawn as a bar. Common words stay out until you tick them in.
+The Writing Report shows a note, a folder or a selection its numbers: words, target, characters, syllables, sentences, paragraphs, pages, reading time and grade. Under them, every word you used, the Word Frequency. Common words stay out until you tick them in.
 
 Read more about [history and the report](docs/history-and-report.md).
 
 ### And the rest
 
-[Prose checks and parts-of-speech coloring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in color, the way a code editor shows you structure. Too many adverbs reads as a rash. Filler, passive voice and doubled words get an underline. No model, no network, no verdicts.
+[Prose checks and parts-of-speech coloring](docs/syntax-and-prose.md). Nouns, verbs and adjectives in color, the way a code editor shows you structure. Too many adverbs reads as a rash(Thank you, Mr. Stephen King!). Filler words, passive voice and doubled words get an underline. No model, no network, no verdicts. Offline and based on regex rules and a small dictionary inside Word-Smith.
 
-[The menu](docs/commands-and-menu.md). Everything you change while writing, in one keyboard-driven pop-up. Any Obsidian command can go in it, other plugins included.
+[The menu](docs/commands-and-menu.md). More like the PowaaahMenu. Any Obsidian command can go in. Yes, you read it right. ANY Obsidian command!
 
-Plus typography, text options, Vim niceties and word counts, flags and targets in Obsidian's own file tree.
+Plus typography, text options, Vim niceties and word counts, flags and targets in Obsidian's own file tree for a quick glance and back to work!
 
 ## Local, and only local
 
@@ -145,23 +145,23 @@ No account. No cloud. No subscription. No network calls, no telemetry, no depend
 
 ## Install
 
-**Settings → Community plugins → Browse**, search **Word-Smith**, install, enable.
+**Settings → Community plugins → Browse**, search **Word-Smith**, install, enable. That's it! Even a writer could do it!
 
 Needs Obsidian 1.13.7 or newer. Built and tested on the 1.13.7 installer; installers before 1.9 are refused at start, because Obsidian froze on enable in every one reported. Settings → General shows both numbers, and [troubleshooting](docs/troubleshooting.md) says what to do about an old installer.
 
-Desktop, tablet and phone. The Organizer wants a bigger screen, though it pinches to zoom on a phone.
+Desktop, tablet and phone. The Organizer wants a bigger screen, though it pinches(like a crab...) to zoom on a phone. 
 
 ## Five minutes in
 
-1. Run **Open the Organizer** from the command palette, then click a folder in Obsidian's file tree. That's your work, as a table.
+1. **Open the Organizer** from the Word-Smith's menu or the pane , then click a folder in Obsidian's file tree.
 2. Press **Properties**, add a column, click a cell to edit it. Ctrl-click two rows and set a flag on both.
 3. **Settings → Word-Smith → Powerline**. Try a shipped bar before writing your own.
-4. Turn on **Zen** and **Letter box**. Write something.
-5. Switch on **History** last. It counts from the day you turn it on.
+4. Turn on **Zen** and **Letter box**. Write something. 
+5. AAAAAND DON'T FORGET TO Switch on **History**. It counts from the day you turn it on!
 
 ## And a fancier cursor
 
-Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret. The most advanced cursor engine out there (maybe): cursor types, thickness, effects, smooth movement, motion smears, sharing codes, and presets so you can try them fast.
+Word-Smith pairs nicely with my other baby, [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith), if you want a fancier text caret(I call it a cursor, because I'm old and I can do anything). BRAGGING TIME: Cursor-Smith is The most advanced cursor engine out there (maybe, who knows?). You get cursor types, thickness, effects, smooth movement, motion smears, fire trails, fireworks, blinking options. The whole lot. What else? Sharing codes, presets so you can try them fast, typewriter effects and sounds, color by speed and mooore. It's too much, it's over the top, it's Cuuuursor-Smiiiith(cringe)! Forge your own cursor, text warrior!
 
 ## Docs
 
@@ -169,7 +169,7 @@ Word-Smith pairs nicely with my other plugin, [Cursor-Smith](https://github.com/
 
 ## Questions, ideas, bugs
 
-If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). Tell me your OS, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can.
+If you have a question, a cool idea or you found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues). Tell me your OS(pleeease), whether is desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies too!
 
 Free and MIT. Thanks to everyone on r/ObsidianMD who reported bugs and sent ideas. Cheers!
 
