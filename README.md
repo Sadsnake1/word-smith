@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
 
 ### The Organizer
 
-The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla.
+The big boy. The end-all-be-all outliner-database-metadata manager. The Outliner-zilla. The Master-Table. The Organizer!
 
 Drag and drop to sort, and the order sticks: in your file tree, in the table, and in the finished manuscript. One order, three places. 
 
