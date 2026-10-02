@@ -80,8 +80,8 @@ Zen, Letter box, Typewriter, and Hemingway mode, which locks your backspace so a
 
 <table>
   <tr>
-    <td width="50%"><img width="1543" height="925" alt="word-zen" src="https://github.com/user-attachments/assets/3a0701c1-ae64-4ce8-959f-bc8d73df2675" /><br><sub>Zen. The interface goes away, a piece at a time.</sub></td>
-    <td width="50%"><img width="1543" height="925" alt="Word-Smith Letterbox" src="https://github.com/user-attachments/assets/37a536cf-3dd4-4d9f-88a0-bbb3c52a8409" /><br><sub>The letter box. Only the part you're working on.</sub></td>
+    <td width="50%"><img width="1543" height="925" alt="word-zen" src="https://github.com/user-attachments/assets/3a0701c1-ae64-4ce8-959f-bc8d73df2675" /><br><sub>Zen. The interface goes away, one a piece at a time. (hopefully not all of it XD)</sub></td>
+    <td width="50%"><img width="1543" height="925" alt="Word-Smith Letterbox" src="https://github.com/user-attachments/assets/37a536cf-3dd4-4d9f-88a0-bbb3c52a8409" /><br><sub>The letter box. Horse blinders, but for writers</sub></td>
   </tr>
 </table>
 
