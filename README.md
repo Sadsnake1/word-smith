@@ -8,8 +8,9 @@
 
   <h1>Word-Smith</h1>
 
-  <p><strong>Write. Organize. Export.</strong><br>
-  The ultimate writing suite for Obsidian. Built for desktop &amp; mobile.</p>
+ <p><strong>Write. Organize. Export.</strong><br>
+  Dedicated Writing Studio for Obsidian.<br>
+  Built for desktop &amp; mobile.</p>
 
   <img width="1918" height="1017" alt="Word-Smith" src="https://github.com/user-attachments/assets/27f36063-743b-4fff-8150-5bd523b91f07" />
 
