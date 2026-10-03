@@ -219,7 +219,7 @@ What else? Sharing codes, presets so you can try them fast, typewriter effects a
 [Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
 
-## Special thanks *(must be read with Dumbledore's voice)*
+## Special thanks *(must be read in Dumbledore's voice)*
 
 To my friend, [Max Shippee](https://www.imdb.com/name/nm0794137/), actor and author, for narrating the YouTube video! His voice brought Word-Smith to life in a way I never could have imagined.
 
