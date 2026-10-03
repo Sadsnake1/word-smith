@@ -85,6 +85,7 @@ export const paintMethods = {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
+			'ws-zen-hide-window-title',
 			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-ios', 'ws-margin-nums',
 			'ws-masks-active', 'ws-retrobar-active', 'ws-pos-dim', 'ws-ck-dim', 'ws-hemingway-active',
 			'ws-line-limit', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
@@ -200,6 +201,7 @@ export const paintMethods = {
 		// the zen-mode toggle's value, or vice versa).
 		const hideNativeStatusBar = this.shouldHideNativeStatusBar();
 		body.classList.toggle('zenmode-active',             zen);
+		body.classList.toggle('ws-zen-hide-window-title',   zen && this.settings.zenHideWindowTitle);
 		body.classList.toggle('zenmode-hide-properties',    zen && this.settings.hideProperties);
 		body.classList.toggle('zenmode-hide-status-bar',    hideNativeStatusBar);
 		body.classList.toggle('zenmode-hide-scroll-bar',    this.shouldHideScrollBar());

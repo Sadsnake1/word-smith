@@ -5797,6 +5797,7 @@ export const DEFAULT_SETTINGS = {
 	rightSidebar:             true,
 	hideProperties:           true,
 	hideInlineTitle:          true,
+	zenHideWindowTitle:       false,
 	hideStatusBar:            true,
 	hideLinkedMentions:       true,
 	hideScrollBar:            true,

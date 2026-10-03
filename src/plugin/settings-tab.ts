@@ -1577,9 +1577,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Sections', [this.railRow('focus', RAIL)]),
 			this.section('Zen', [
 				{ name: 'Zen', desc: 'Clears the workspace down to the words until you leave.', control: { type: 'toggle', key: 'zenEnabled' } },
-				this.alertRow('Panes, ribbon and title are hidden while Zen is on. Escape or the Powermenu brings them back.', zen),
+				this.alertRow('Zen hides workspace controls according to the options below. Escape or the Powermenu brings them back.', zen),
 				{ name: 'Full screen', desc: 'The window goes full screen with Zen.', control: { type: 'toggle', key: 'fullscreen' }, visible: zen },
 				{ name: 'Match the title bar', desc: 'The title bar takes the page’s color.', control: { type: 'toggle', key: 'zenTitlebarMatch' }, visible: zen },
+				{ name: 'Hide window title', desc: 'Hides the text at the top of the main window during Zen. Window buttons remain visible.', control: { type: 'toggle', key: 'zenHideWindowTitle' }, visible: all(zen, () => !Platform.isMobile) },
 				{ name: 'Focused file mode', desc: 'Only the note you are in stays open.', control: { type: 'toggle', key: 'focusedFileMode' }, visible: zen },
 				{ name: 'Hide properties', desc: 'Properties and frontmatter, in Zen.', control: { type: 'toggle', key: 'hideProperties' }, visible: zen },
 				{ name: 'Hide the inline title', desc: 'The note’s title above the text.', control: { type: 'toggle', key: 'hideInlineTitle' }, visible: zen },

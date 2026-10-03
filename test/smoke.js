@@ -100,6 +100,10 @@ for (const [js, css] of [['main.js', 'styles.css'], ['build/main.js', 'build/sty
 // output, byte for byte. Anything but a comment or its whitespace removed,
 // added or changed would show here.
 (async () => {
+	const zenWindowTitle = require('./zen-window-title');
+	for (const js of ['main.js', 'build/main.js']) {
+		await zenWindowTitle(require(path.join(ROOT, js)).default, (what, got, want) => is(js + ': ' + what, got, want));
+	}
 	const esbuild = require('esbuild');
 	const min = async (code, loader) => (await esbuild.transform(code, { loader, minifyWhitespace: true, minifySyntax: true, minifyIdentifiers: false, legalComments: 'none', charset: 'utf8' })).code;
 	// the ONE file: what the release attaches is what the build wrote
