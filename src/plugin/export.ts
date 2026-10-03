@@ -9,7 +9,7 @@ import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection } from '../core/settings';
 import { wsUnderIndex } from '../organizer/org-index';
-import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsInlineRuns, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsInlineRuns, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WsModEvent } from './plugin';
 
@@ -1191,12 +1191,12 @@ export const exportMethods = {
 	// folders are the ones the tree shows ticked — every note under them
 	// going out; the notes are the ticked notes. No folder ticked, no
 	// folder figure.
-	exportFiguresText(this: WordSmith, fileCount: number, words: number, folderCount: number) {
+	exportFiguresText(this: WordSmith, fileCount: number, words: number | null, folderCount: number) {
 		const folders = typeof folderCount === 'number' && folderCount > 0
 			? folderCount.toLocaleString() + (folderCount === 1 ? ' folder' : ' folders') + ' \u00b7 '
 			: '';
 		return folders + fileCount.toLocaleString() + (fileCount === 1 ? ' note' : ' notes')
-			+ ' \u00b7 ' + words.toLocaleString() + ' words';
+			+ (words == null ? '' : ' \u00b7 ' + words.toLocaleString() + ' words');
 	},
 
 	// The folders the tree shows ticked: every note under them is going out.
@@ -3209,6 +3209,12 @@ export const exportMethods = {
 		// to go somewhere. Replaced on every recompile: an older one points
 		// into a document that has been written over.
 		let prevHandle: HTMLElement | null = null;
+		// A LONG MANUSCRIPT IS PREVIEWED WHEN ASKED. `previewAsked` makes the next
+		// refresh an ask (the notice's button, the foot's refresh); `drawnListSig` is
+		// the notes and options the preview on screen was drawn from, so a click that
+		// changes neither leaves it alone instead of compiling it again.
+		let previewAsked = false;
+		let drawnListSig: string | null = null;
 		// ── THE PREVIEW'S OWN CONTROLS MUST NOT RECOMPILE IT ──────────────
 		//
 		// The refresh is hung on delegated `change`/`click`/`input` listeners
@@ -3261,6 +3267,37 @@ export const exportMethods = {
 					// figures over an empty column.
 					prevSig = null;
 					prevHandle = null;
+					drawnListSig = null;
+					return;
+				}
+				const asked = previewAsked;
+				previewAsked = false;
+				let listSig: string | null = null;
+				try { listSig = JSON.stringify(o) + '\u0002' + picked.map((f) => f.path).join('\u0001'); } catch { listSig = null; }
+				const bytes = picked.reduce((n, f) => n + ((f && f.stat && f.stat.size) || 0), 0);
+				if (bytes > WS_EXPORT_PREVIEW_AUTO_BYTES && !asked) {
+					// the preview on screen is of these notes and these options: leave it
+					if (prevHandle && listSig !== null && listSig === drawnListSig) return;
+					try {
+						const actRow0 = into.querySelector('.ws-export-top');
+						if (actRow0) {
+							const stale = actRow0.querySelector('.ws-export-prevhead');
+							if (stale) stale.remove();
+							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
+							head0.createSpan({ text: this.exportFiguresText(picked.length, null,
+								typeof ctx.folders === 'function' ? ctx.folders() : 0) });
+							const go0 = actRow0.querySelector('.ws-export-go');
+							if (go0) actRow0.insertBefore(head0, go0);
+							this.exportTickAllSay(actRow0, picked.length,
+								typeof ctx.total === 'function' ? ctx.total() : 0);
+						}
+					} catch (_) { wsCatch('buildExportOptions / refreshPreview: the long manuscript\'s figures', _); }
+					prevCol.empty();
+					const wait0 = prevCol.createDiv({ cls: 'ws-export-prevnone ws-export-prevbig' });
+					wait0.createDiv({ text: picked.length.toLocaleString() + ' notes ticked. A preview this long holds Obsidian while it is drawn, so it is drawn when you ask.' });
+					const ask = wait0.createEl('button', { cls: 'ws-export-mini', text: 'Show the preview' });
+					ask.addEventListener('click', () => { previewAsked = true; refreshPreview(); });
+					prevSig = null; prevHandle = null; drawnListSig = null;
 					return;
 				}
 				let secs = [];
@@ -3336,7 +3373,8 @@ export const exportMethods = {
 					// THE FOOT'S REFRESH: the same recompile, asked for by hand.
 					// `refreshPreview` excuses the foot's clicks, so this is the one way a
 					// press there reaches it.
-					() => refreshPreview());
+					() => { previewAsked = true; refreshPreview(); });
+				drawnListSig = listSig;
 				try { if (split._wsFit) split._wsFit(); } catch (_) { wsCatch('buildExportOptions / refreshPreview: split._wsFit();', _); }
 			}, 220);
 		};

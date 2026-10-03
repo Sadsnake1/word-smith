@@ -114,7 +114,11 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 			const applied = plugin.exportApplyRemembered(list, remembered);
 			ticks = applied.chosen;
 		} else {
-			ticks = new Set(list.map(f => f.path));
+			// NOTHING REMEMBERED, NOTHING TICKED. The Export tab gathers the whole
+			// vault, so "every note" was every note in it: a big vault opened
+			// Export on thousands of pages, and the preview held Obsidian while it
+			// laid them out. What goes out is what the writer ticks.
+			ticks = new Set<string>();
 		}
 		ticksFor = cacheKey;
 		try { plugin.orgTicksSchedule(); } catch (_) { wsCatch('loadTicks: this.orgTicksSchedule();', _); }

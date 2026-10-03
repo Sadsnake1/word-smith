@@ -4119,6 +4119,7 @@ var wsSvgInto = (el, markup) => {
 };
 var wsObsidianSvg = (px) => '<svg class="svg-icon ws-obsidian-mark" viewBox="0 0 512 512" width="' + px + '" height="' + px + '" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + WS_OBSIDIAN_PATH + '"/></svg>';
 var WS_EXPORT_FOLDER_HEADINGS_DEFAULT = false;
+var WS_EXPORT_PREVIEW_AUTO_BYTES = 1e6;
 function wsExportRoot(paths, scope) {
   const list = (paths || []).filter(Boolean).map(String);
   if (!list.length)
@@ -4204,7 +4205,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 575;
+var WS_STYLESHEET_VERSION = 576;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4220,7 +4221,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.0";
+var WS_PLUGIN_VERSION = "1.7.1";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -16071,7 +16072,7 @@ var wsOrgTicksMake = (d) => {
       const applied = plugin.exportApplyRemembered(list, remembered);
       ticks = applied.chosen;
     } else {
-      ticks = new Set(list.map((f) => f.path));
+      ticks = /* @__PURE__ */ new Set();
     }
     ticksFor = cacheKey;
     try {
@@ -29578,7 +29579,7 @@ var exportMethods = {
   },
   exportFiguresText(fileCount, words, folderCount) {
     const folders = typeof folderCount === "number" && folderCount > 0 ? folderCount.toLocaleString() + (folderCount === 1 ? " folder" : " folders") + " · " : "";
-    return folders + fileCount.toLocaleString() + (fileCount === 1 ? " note" : " notes") + " · " + words.toLocaleString() + " words";
+    return folders + fileCount.toLocaleString() + (fileCount === 1 ? " note" : " notes") + (words == null ? "" : " · " + words.toLocaleString() + " words");
   },
   exportFoldersTicked(files, ticks) {
     if (!ticks)
@@ -30730,6 +30731,8 @@ var exportMethods = {
     let prevRun = 0;
     let prevSig = null;
     let prevHandle = null;
+    let previewAsked = false;
+    let drawnListSig = null;
     const refreshPreview = (ev) => {
       try {
         const t = wsElOf(ev && ev.target);
@@ -30775,6 +30778,48 @@ var exportMethods = {
           });
           prevSig = null;
           prevHandle = null;
+          drawnListSig = null;
+          return;
+        }
+        const asked = previewAsked;
+        previewAsked = false;
+        let listSig = null;
+        try {
+          listSig = JSON.stringify(o) + "" + picked.map((f) => f.path).join("");
+        } catch {
+          listSig = null;
+        }
+        const bytes = picked.reduce((n, f) => n + (f && f.stat && f.stat.size || 0), 0);
+        if (bytes > WS_EXPORT_PREVIEW_AUTO_BYTES && !asked) {
+          if (prevHandle && listSig !== null && listSig === drawnListSig)
+            return;
+          try {
+            const actRow0 = into.querySelector(".ws-export-top");
+            if (actRow0) {
+              const stale = actRow0.querySelector(".ws-export-prevhead");
+              if (stale)
+                stale.remove();
+              const head0 = actRow0.createDiv({ cls: "ws-export-prevhead" });
+              head0.createSpan({ text: this.exportFiguresText(picked.length, null, typeof ctx.folders === "function" ? ctx.folders() : 0) });
+              const go0 = actRow0.querySelector(".ws-export-go");
+              if (go0)
+                actRow0.insertBefore(head0, go0);
+              this.exportTickAllSay(actRow0, picked.length, typeof ctx.total === "function" ? ctx.total() : 0);
+            }
+          } catch (_) {
+            wsCatch("buildExportOptions / refreshPreview: the long manuscript's figures", _);
+          }
+          prevCol.empty();
+          const wait0 = prevCol.createDiv({ cls: "ws-export-prevnone ws-export-prevbig" });
+          wait0.createDiv({ text: picked.length.toLocaleString() + " notes ticked. A preview this long holds Obsidian while it is drawn, so it is drawn when you ask." });
+          const ask = wait0.createEl("button", { cls: "ws-export-mini", text: "Show the preview" });
+          ask.addEventListener("click", () => {
+            previewAsked = true;
+            refreshPreview();
+          });
+          prevSig = null;
+          prevHandle = null;
+          drawnListSig = null;
           return;
         }
         let secs = [];
@@ -30823,7 +30868,11 @@ var exportMethods = {
             old.remove();
         }
         this.exportTickAllSay(actRow, picked.length, typeof ctx.total === "function" ? ctx.total() : 0);
-        prevHandle = this.exportPreviewInto(prevCol, secs, this.exportOptsFor(ctx.scope(), o, words), picked.length, words, null, actRow || null, typeof ctx.folders === "function" ? ctx.folders() : 0, () => refreshPreview());
+        prevHandle = this.exportPreviewInto(prevCol, secs, this.exportOptsFor(ctx.scope(), o, words), picked.length, words, null, actRow || null, typeof ctx.folders === "function" ? ctx.folders() : 0, () => {
+          previewAsked = true;
+          refreshPreview();
+        });
+        drawnListSig = listSig;
         try {
           if (split._wsFit)
             split._wsFit();

@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 575;
+	--ws-stylesheet-version: 576;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;

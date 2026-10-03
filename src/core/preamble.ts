@@ -4666,6 +4666,13 @@ export const wsObsidianSvg = (px: number) => '<svg class="svg-icon ws-obsidian-m
 //
 // OFF, because it changes the shape of every existing export.
 export const WS_EXPORT_FOLDER_HEADINGS_DEFAULT = false;
+// THE EXPORT PREVIEW DRAWS ITSELF UP TO THIS MUCH TEXT: the bytes of the ticked
+// notes, read off `stat.size` before any file is read. The preview lays every
+// page out at once and holds the window while it does, about 7.5 ms per
+// thousand words on a desktop (0.8 s for a 106,000-word novel, 3.3 s for
+// 425,000); a note runs near 5.7 bytes a word, so this is about 175,000 words,
+// a little over a second. Past it the preview waits to be asked.
+export const WS_EXPORT_PREVIEW_AUTO_BYTES = 1000000;
 
 // ── WHERE THE BOOK STARTS, so a folder every file shares is not a
 // heading. A manuscript kept entirely in `Book/` would otherwise open
@@ -4856,7 +4863,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 575;
+export const WS_STYLESHEET_VERSION = 576;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -4894,7 +4901,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.0';
+export const WS_PLUGIN_VERSION = '1.7.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
