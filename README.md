@@ -27,9 +27,13 @@ Every feature has its own toggle, so take what you like and leave the rest off.
 
 Works with Obsidian 1.13.7 and newer, desktop and mobile.
 
-**A minute with Word-Smith(more like 17s -will post a proper video Soon!):**
-
-https://github.com/user-attachments/assets/b89e078d-add8-49f5-8ded-e802816a2b9c
+<div align="center">
+  <a href="https://youtu.be/HLq91cDWx0s">
+    <img src="https://img.youtube.com/vi/HLq91cDWx0s/maxresdefault.jpg" alt="Watch the Word-Smith walkthrough on YouTube" width="720">
+  </a>
+  <br>
+  <sub>▶ Watch the full walkthrough on YouTube</sub>
+</div>
 
 ## Contents
 
