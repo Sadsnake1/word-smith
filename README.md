@@ -59,7 +59,7 @@ Every property(frontmatter) can be a column, that you can edit right in the cell
 
 And even more proprieties outside the Obsidian's metadata: Word count, Target, Flag, Reading Grade, Paragraphs, Tasks, Backlinks, Outgoing links, Footnotes, Created, Modified time. Turn on the ones you want.
 
-Ctrl-click a few rows and edit them all at once. Bulk edit can even help you clean your metadata, so you don't have "Synopsis", "synopsis" and "Description" all over your frontmatter.
+Ctrl-click a few rows and edit them all at once. Bulk edit can even help you clean your metadata, so you don't have tags like "Alice", "alice" and "Aliice" all over your frontmatter.
 
 Every change is one step back with a Ctrl+Z. Add Row numbers if you like, and your sort and filters are saved, even after a restart. 
 
