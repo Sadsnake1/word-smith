@@ -452,6 +452,12 @@ body.cursor-smith-torch-active.ws-torch-whole.zenmode-active .workspace-tab-head
    transparent, pointer-inert, no-drag strip — which is exactly "cannot
    drag the settings window". A class set on one document's element can't
    travel, so every rule in this block stays in the main window. */
+/* Only the main window's title text. Removing our class yields to the
+   theme or another plugin; never force a title hidden elsewhere visible. */
+body:not(.is-mobile).zenmode-active.ws-zen-hide-window-title .titlebar.ws-main-titlebar .titlebar-text {
+	visibility: hidden;
+}
+
 body:not(.is-mobile).zenmode-active .titlebar.ws-main-titlebar {
 	display: block; position: fixed; top: 0;
 	left: 0; width: 100%;

@@ -8,6 +8,8 @@ Each one is its own switch. Turn on one, or all of them.
 
 Zen is a list of things to hide, not one big switch. Properties, the inline title, Obsidian's status bar, linked mentions, the scroll bar, the ribbon, the powerline bar. Each has its own toggle. Plus full screen, focused file mode (close every other pane), and a title bar painted to match the editor. Zen means whatever you decide it means.
 
+**Hide window title** hides the centered title text in the main window during Zen. It is on by default, and keeps the window buttons and drag area. A previously saved choice to turn it off is preserved. It is separate from **Hide the inline title**, which hides the note title above the text, and **Match the title bar**, which changes its color. It requires Obsidian's desktop frame; native OS title bars and mobile are unaffected. Settings and pop-out window titles are unaffected too. Theme and Powerline presets leave this preference alone. Leaving Zen or disabling this option removes only Word-Smith's hiding effect, so a title hidden by your theme or another plugin stays hidden.
+
 `Escape` leaves it. In Vim's insert, visual and replace modes, escape means back to normal first, so it costs one extra press.
 
 Zen hides the powerline bar by default, and it comes back on hover. Move the pointer to the bottom of the window and it slides up for a moment. Set the linger to 0 and it stays gone.

@@ -4627,6 +4627,7 @@ var DEFAULT_SETTINGS = {
   rightSidebar: true,
   hideProperties: true,
   hideInlineTitle: true,
+  zenHideWindowTitle: true,
   hideStatusBar: true,
   hideLinkedMentions: true,
   hideScrollBar: true,
@@ -6772,9 +6773,10 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.section("Sections", [this.railRow("focus", RAIL)]),
       this.section("Zen", [
         { name: "Zen", desc: "Clears the workspace down to the words until you leave.", control: { type: "toggle", key: "zenEnabled" } },
-        this.alertRow("Panes, ribbon and title are hidden while Zen is on. Escape or the Powermenu brings them back.", zen),
+        this.alertRow("Zen hides workspace controls according to the options below. Escape or the Powermenu brings them back.", zen),
         { name: "Full screen", desc: "The window goes full screen with Zen.", control: { type: "toggle", key: "fullscreen" }, visible: zen },
         { name: "Match the title bar", desc: "The title bar takes the page’s color.", control: { type: "toggle", key: "zenTitlebarMatch" }, visible: zen },
+        { name: "Hide window title", desc: "Hides the text at the top of the main window during Zen. Window buttons remain visible.", control: { type: "toggle", key: "zenHideWindowTitle" }, visible: all(zen, () => !import_obsidian2.Platform.isMobile) },
         { name: "Focused file mode", desc: "Only the note you are in stays open.", control: { type: "toggle", key: "focusedFileMode" }, visible: zen },
         { name: "Hide properties", desc: "Properties and frontmatter, in Zen.", control: { type: "toggle", key: "hideProperties" }, visible: zen },
         { name: "Hide the inline title", desc: "The note’s title above the text.", control: { type: "toggle", key: "hideInlineTitle" }, visible: zen },
@@ -7956,7 +7958,7 @@ var paintMethods = {
     }
   },
   clearAllBodyState() {
-    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-ios", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
+    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "ws-zen-hide-window-title", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-ios", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
     document.body.removeAttribute("data-zen-hide-inline-title");
     document.body.removeAttribute("data-zen-focused-file");
     const mainTb = document.querySelector(".titlebar.ws-main-titlebar");
@@ -8024,6 +8026,7 @@ var paintMethods = {
     const scoped = this.isActiveFileInScope();
     const hideNativeStatusBar = this.shouldHideNativeStatusBar();
     body.classList.toggle("zenmode-active", zen);
+    body.classList.toggle("ws-zen-hide-window-title", zen && this.settings.zenHideWindowTitle);
     body.classList.toggle("zenmode-hide-properties", zen && this.settings.hideProperties);
     body.classList.toggle("zenmode-hide-status-bar", hideNativeStatusBar);
     body.classList.toggle("zenmode-hide-scroll-bar", this.shouldHideScrollBar());
