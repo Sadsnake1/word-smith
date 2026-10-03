@@ -10,7 +10,11 @@ module.exports = async (WordSmith, is) => {
 		plugin[name] = () => {};
 	}
 	await plugin.loadSettings();
-	is('an existing vault defaults to keeping the window title', plugin.settings.zenHideWindowTitle, false);
+	is('a vault without a saved choice defaults to hiding the window title in Zen', plugin.settings.zenHideWindowTitle, true);
+	plugin.settings.zenHideWindowTitle = false;
+	await plugin.saveSettings();
+	await plugin.loadSettings();
+	is('a saved choice to keep the title survives the default change', plugin.settings.zenHideWindowTitle, false);
 	plugin.settings.zenHideWindowTitle = true;
 	await plugin.saveSettings();
 	await plugin.loadSettings();

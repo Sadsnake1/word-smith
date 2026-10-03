@@ -4627,7 +4627,7 @@ var DEFAULT_SETTINGS = {
   rightSidebar: true,
   hideProperties: true,
   hideInlineTitle: true,
-  zenHideWindowTitle: false,
+  zenHideWindowTitle: true,
   hideStatusBar: true,
   hideLinkedMentions: true,
   hideScrollBar: true,
