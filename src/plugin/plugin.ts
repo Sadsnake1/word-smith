@@ -160,6 +160,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._hemFlashTimer   = null;   // clears the blocked-key flash class
 	plugin._scopeGen        = 0;      // bumped on file/layout change; keys the per-editor scope cache
 	plugin._lastScopeInScope = null;  // last known scope state of the active file
+	plugin._lastPaneScope   = null;   // 'any:anyTw' of the panes on screen, as last stamped
 
 	// ── Scroll / resize handlers ──────────────────────────────────────────
 	plugin.currentScroller  = null;
@@ -1641,6 +1642,7 @@ export default class WordSmith extends Plugin {
 	// paint.ts
 	declare setWindowControlColours: PaintMethods["setWindowControlColours"];
 	declare clearAllBodyState: PaintMethods["clearAllBodyState"];
+	declare stampPaneScope: PaintMethods["stampPaneScope"];
 	declare applyTorchVars: PaintMethods["applyTorchVars"];
 	declare applyBodyClasses: PaintMethods["applyBodyClasses"];
 	declare chromeProps: PaintMethods["chromeProps"];
@@ -1733,6 +1735,7 @@ export default class WordSmith extends Plugin {
 	_isTogglingZen: boolean;
 	_lastMdView: MarkdownView;
 	_lastScopeInScope: boolean | null;
+	_lastPaneScope: string | null;
 	_lastTypo: { from: number; to: number; caret: number; glyph: string; original: string; time: number } | null;
 	_lastZoom: number;
 	_linkGen: number;
@@ -3884,7 +3887,11 @@ export default class WordSmith extends Plugin {
 		this._scopeGen++;
 		if (!this.settings.pluginEnabled) return;
 		const inScope = this.isActiveFileInScope();
-		if (inScope === this._lastScopeInScope) return;
+		// The panes are stamped on every change (a note opened in one, a pane
+		// closed); the body follows only when what they add up to has moved.
+		const before = this._lastPaneScope;
+		const panes = this.stampPaneScope();
+		if (inScope === this._lastScopeInScope && panes.any + ':' + panes.anyTw === before) return;
 		this._lastScopeInScope = inScope;
 		this.applyBodyClasses();
 		this.reconfigureEditors();

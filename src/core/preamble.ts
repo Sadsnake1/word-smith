@@ -3439,6 +3439,184 @@ export function wsTable(rows: string[][]) {
 		+ '</w:tblBorders></w:tblPr>' + grid + body + '</w:tbl>';
 }
 
+// A CALLOUT'S FIRST LINE: `> [!kind] Title`, the fold marks (+ or -) read past.
+export function wsCalloutHead(line: string): { kind: string; title: string } | null {
+	const m = /^\s*(?:>\s?)+\[!([^\]\s]+)\][+-]?\s*(.*)$/.exec(line);
+	return m ? { kind: m[1].toLowerCase(), title: m[2].trim() } : null;
+}
+// What a callout is called when it has no title of its own: its kind, capitalized.
+export function wsCalloutTitle(head: { kind: string; title: string }) {
+	return head.title || (head.kind.charAt(0).toUpperCase() + head.kind.slice(1));
+}
+// THE CALLOUTS OUT OF A NOTE, for the Markdown target with "Callouts" off: each
+// from its first line to the last `>` line under it.
+export function wsDropCallouts(md: string) {
+	const lines = md.split('\n');
+	const out: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		if (wsCalloutHead(lines[i])) { while (i + 1 < lines.length && /^\s*>/.test(lines[i + 1])) i++; continue; }
+		out.push(lines[i]);
+	}
+	return out.join('\n');
+}
+// A $$ MATH BLOCK, from the line at `i`: on one line, or over several. No
+// formula renderer travels with a manuscript, so the text is set apart as
+// written, in monospace, like code. `end` is the block's last line.
+export function wsMathBlock(lines: string[], i: number) {
+	const t = lines[i].trim();
+	if (t.length > 4 && /^\$\$[\s\S]*\$\$$/.test(t)) return { text: t.slice(2, -2).trim(), end: i };
+	const buf: string[] = [];
+	if (t.slice(2).trim()) buf.push(t.slice(2).trim());
+	let j = i + 1;
+	for (; j < lines.length; j++) {
+		const mt = lines[j].trim();
+		if (/\$\$$/.test(mt)) { if (mt.slice(0, -2).trim()) buf.push(mt.slice(0, -2).trim()); break; }
+		buf.push(lines[j]);
+	}
+	return { text: buf.join('\n').trim(), end: Math.min(j, lines.length - 1) };
+}
+// A TABLE ROW'S CELLS. A PIPE CAN BE IN A CELL, written `\\|` — which is how
+// anyone writes a table containing a pipe, and splitting on every pipe turned
+// one two-column row into three ragged ones with a stray backslash. Split on
+// UNESCAPED pipes only, then unescape what is left. The .docx and the page
+// both read rows through this.
+export function wsTableCells(row: string) {
+	const t2 = row.trim().replace(/^\||\|$/g, '');
+	const out2: string[] = [];
+	let cur = '';
+	for (let k = 0; k < t2.length; k++) {
+		const ch = t2.charAt(k);
+		if (ch === '\\' && t2.charAt(k + 1) === '|') { cur += '|'; k++; continue; }
+		if (ch === '|') { out2.push(cur.trim()); cur = ''; continue; }
+		cur += ch;
+	}
+	out2.push(cur.trim());
+	return out2;
+}
+
+// ── THE PAGE A NOTE'S BODY BECOMES: the .html, the PDF and the preview ──────
+// The block walk the .docx has below, for the page, pushed onto the caller's
+// `parts`: a --- that opens a page closes the caller's section and asks
+// whether it stands at the top of one. Quotes, lists, tasks (boxes, no
+// switch), tables, code and math come out as themselves, as they do in the
+// .docx; a callout only with "Callouts" kept, as a quote under its title in
+// bold, its [!kind] tag never printed.
+export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, parts: string[]) {
+	const esc = (t: string) => String(t == null ? '' : t)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	const runsHtml = (text: string) => wsInlineRuns(text, o).map((r) => {
+		let x = esc(r.text);
+		if (r.bold) x = '<strong>' + x + '</strong>';
+		if (r.ital) x = '<em>' + x + '</em>';
+		// <mark>, which is what the element is FOR, and which prints and reads as
+		// the yellow the .docx sets.
+		if (r.high) x = '<mark>' + x + '</mark>';
+		return x;
+	}).join('');
+	const lines = md.replace(/\r\n?/g, '\n').split('\n');
+	let inComment = false;
+	let firstPara = true;
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const t = line.trim();
+		if (!t) continue;   // …and the same in the printed target.
+		// A COMMENT BLOCK — opened on its own line, closed lines later, and
+		// therefore invisible to the inline stripper, which is why one used to
+		// leak into the manuscript a line at a time. Set apart when kept, so a
+		// note to self can never be mistaken for prose.
+		if (inComment) {
+			if (/%%\s*$/.test(t)) inComment = false;
+			if (o.keepComments) {
+				const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
+				if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
+			}
+			continue;
+		}
+		if (/^%%/.test(t)) {
+			const oneLine = /^%%.*%%\s*$/.test(t);
+			if (!oneLine) inComment = true;
+			if (o.keepComments) {
+				const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
+				if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
+			}
+			firstPara = true;
+			continue;
+		}
+		// CODE, kept exactly: monospace, its line breaks, no curly quotes.
+		const fence = t.match(/^(`{3,}|~{3,})/);
+		if (fence) {
+			const ch = fence[1].charAt(0);
+			const buf: string[] = [];
+			for (i++; i < lines.length; i++) {
+				const ft = lines[i].trim();
+				if (ft.charAt(0) === ch && new RegExp('^' + ch + '{3,}').test(ft)) break;
+				buf.push(lines[i]);
+			}
+			parts.push('<pre class="code">' + esc(buf.join('\n')) + '</pre>');
+			continue;
+		}
+		if (/^\$\$/.test(t)) {
+			const mb = wsMathBlock(lines, i);
+			i = mb.end;
+			parts.push('<pre class="math">' + esc(mb.text) + '</pre>');
+			continue;
+		}
+		// A TABLE: its head row, its body rows.
+		if (/^\|/.test(t) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1].trim())) {
+			const head = wsTableCells(t);
+			const body: string[][] = [];
+			for (i += 2; i < lines.length && /^\|/.test(lines[i].trim()); i++) body.push(wsTableCells(lines[i]));
+			i--;
+			parts.push('<table class="tbl"><thead><tr>' + head.map((c) => '<th>' + runsHtml(c) + '</th>').join('')
+				+ '</tr></thead><tbody>' + body.map((r) => '<tr>' + r.map((c) => '<td>' + runsHtml(c) + '</td>').join('') + '</tr>').join('')
+				+ '</tbody></table>');
+			firstPara = true;
+			continue;
+		}
+		if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+			// --- STARTS A NEW PAGE when asked; *** and ___ stay scene breaks. Not
+			// at the top of a section: that is a page start already.
+			if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
+				if (!/^<section /.test(parts[parts.length - 1])) parts.push('</section>', pageOpen);
+				firstPara = true; continue;
+			}
+			parts.push('<p class="div">' + esc(o.divider == null ? '#' : o.divider) + '</p>');
+			firstPara = true; continue;
+		}
+		const h = t.match(/^(#{1,6})\s+(.*)$/);
+		if (h) {
+			if (o.keepHeadings !== false) {
+				parts.push('<h' + Math.min(3, h[1].length) + '>' + esc(h[2])
+					+ '</h' + Math.min(3, h[1].length) + '>');
+			}
+			firstPara = true; continue;
+		}
+		// QUOTES, AND CALLOUTS: a run of `>` lines, the marks taken off.
+		if (/^>/.test(t)) {
+			const ch = wsCalloutHead(t);
+			const block: string[] = [];
+			for (; i < lines.length && /^>/.test(lines[i].trim()); i++) block.push(lines[i].trim().replace(/^(>\s?)+/, '').trim());
+			i--;
+			const body = (ch ? block.slice(1) : block).filter(Boolean).map((b) => '<p>' + runsHtml(b) + '</p>').join('');
+			if (!ch) parts.push('<blockquote>' + body + '</blockquote>');
+			else if (o.keepCallouts) parts.push('<blockquote class="callout"><p class="ctitle"><strong>' + runsHtml(wsCalloutTitle(ch)) + '</strong></p>' + body + '</blockquote>');
+			continue;
+		}
+		// LISTS AND TASKS: a line each, its marker in the text and its depth in
+		// the class, as the .docx sets them; a task is a box, open or ticked.
+		const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+		if (li) {
+			const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, '    ').length / 2));
+			const task = /^\[([ xX])\]\s+(.*)$/.exec(li[3]);
+			const mark = task ? (task[1] === ' ' ? '\u2610 ' : '\u2611 ') : (/^\d/.test(li[2]) ? li[2] + ' ' : '\u2022 ');
+			parts.push('<p class="li l' + depth + '">' + esc(mark) + runsHtml(task ? task[2] : li[3]) + '</p>');
+			continue;
+		}
+		parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(t) + '</p>');
+		firstPara = false;
+	}
+}
+
 // Block walk: markdown → an array of OOXML blocks. Footnotes are COLLECTED
 // rather than embedded — a real Word footnote needs its own part, a
 // content-type entry, a relationship and matching ids, and an id mismatch is
@@ -3545,6 +3723,14 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 			continue;
 		}
 
+		// MATH: set apart as written, in monospace, like code (wsMathBlock).
+		if (/^\$\$/.test(t)) {
+			const mb = wsMathBlock(lines, i);
+			i = mb.end;
+			for (const ml of mb.text.split('\n')) out.push(wsPara([{ text: ml, mono: true }], 'WsCode', { noIndent: true }));
+			continue;
+		}
+
 		// A table: header, separator, body.
 		if (/^\|/.test(t) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1].trim())) {
 			// A PIPE CAN BE IN A CELL, written `\\|` — which is how anyone
@@ -3552,19 +3738,7 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 			// pipe turned one two-column row into three ragged ones with
 			// a stray backslash. Split on UNESCAPED pipes only, then
 			// unescape what is left.
-			const cellsOf = (row: string) => {
-				const t2 = row.trim().replace(/^\||\|$/g, '');
-				const out2 = [];
-				let cur = '';
-				for (let k = 0; k < t2.length; k++) {
-					const ch = t2.charAt(k);
-					if (ch === '\\' && t2.charAt(k + 1) === '|') { cur += '|'; k++; continue; }
-					if (ch === '|') { out2.push(cur.trim()); cur = ''; continue; }
-					cur += ch;
-				}
-				out2.push(cur.trim());
-				return out2;
-			};
+			const cellsOf = wsTableCells;
 			const rows = [cellsOf(t)];
 			i += 2;
 			for (; i < lines.length && /^\|/.test(lines[i].trim()); i++) rows.push(cellsOf(lines[i]));
@@ -3601,7 +3775,23 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 			continue;
 		}
 
-		const quote = t.match(/^>\s?(.*)$/);
+		// A CALLOUT: `> [!kind] Title` and the `>` lines under it. Out unless
+		// "Callouts" is kept; kept, a quote under its title in bold, the [!kind]
+		// tag never printed.
+		const callout = wsCalloutHead(t);
+		if (callout) {
+			const body: string[] = [];
+			for (i++; i < lines.length && /^\s*>/.test(lines[i]); i++) body.push(lines[i].trim().replace(/^(>\s?)+/, '').trim());
+			i--;
+			if (o.keepCallouts) {
+				out.push(wsPara(wsInlineRuns(wsCalloutTitle(callout), o).map((r) => Object.assign({}, r, { bold: true })), 'WsQuote', { noIndent: true }));
+				for (const b of body) if (b) out.push(wsPara(wsInlineRuns(b, o), 'WsQuote', { noIndent: true }));
+				firstPara = true;
+			}
+			continue;
+		}
+
+		const quote = t.match(/^(?:>\s?)+(.*)$/);
 		if (quote) {
 			out.push(wsPara(wsInlineRuns(quote[1], o), 'WsQuote', { noIndent: true }));
 			continue;
@@ -3614,8 +3804,10 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 		const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
 		if (li) {
 			const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, '    ').length / 2));
-			const mark = /^\d/.test(li[2]) ? li[2] + ' ' : '\u2022 ';
-			out.push(wsPara(wsInlineRuns(mark + li[3], o), 'WsList' + depth, { noIndent: true }));
+			// a task is a box, open or ticked: always printed, never a switch
+			const task = /^\[([ xX])\]\s+(.*)$/.exec(li[3]);
+			const mark = task ? (task[1] === ' ' ? '\u2610 ' : '\u2611 ') : (/^\d/.test(li[2]) ? li[2] + ' ' : '\u2022 ');
+			out.push(wsPara(wsInlineRuns(mark + (task ? task[2] : li[3]), o), 'WsList' + depth, { noIndent: true }));
 			continue;
 		}
 
@@ -4939,7 +5131,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.3';
+export const WS_PLUGIN_VERSION = '1.7.4';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

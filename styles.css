@@ -710,7 +710,7 @@ body:not(.is-mobile) .cm-editor .cm-panels.cm-panels-bottom * {
 
 /* Only while the padding is actually being applied: deriving a line width
    from an inset that is not on screen widens the measure by a phantom. */
-body.zenmode-active.ws-text-pad {
+body.zenmode-active.ws-text-pad .ws-scoped {
 	--file-line-width: calc(100vw - (var(--ws-editor-padding-h) * 2));
 }
 
@@ -732,7 +732,7 @@ body.zenmode-active.ws-text-pad {
    LAST line can rise to 30%. Both were impossible before. The two variables
    are stamped by applyBodyClasses and swept on disable; the fallbacks keep
    a half-applied state harmless rather than wrong. */
-body.ws-typewriter .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
+body.ws-typewriter .ws-scoped-tw .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
 	padding-top:    var(--ws-tw-pad-top, 50vh);
 	padding-bottom: var(--ws-tw-pad-bottom, 50vh);
 }
@@ -787,8 +787,12 @@ body.ws-masks-active:not(.zenmode-active) .markdown-source-view.mod-cm6 .cm-edit
    behind, and turning Text Options off left whatever the default was. Neither
    switch could reach it. Off now means the plugin is not touching your
    padding at all and Obsidian's own margins apply. */
-body.ws-text-pad .markdown-source-view.mod-cm6 .cm-content,
-body.ws-text-pad .markdown-reading-view .markdown-preview-sizer {
+/* AND THE NOTE'S PANE: `.ws-scoped` is stamped on each markdown pane whose
+   note is in scope (stampPaneScope). Every rule that lays a note out asks for
+   it beside the body's class, so a reference note open beside the manuscript
+   keeps its own layout whichever of the two has the focus. */
+body.ws-text-pad .ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-text-pad .ws-scoped .markdown-reading-view .markdown-preview-sizer {
 	padding-inline-start: var(--ws-editor-padding-h);
 	padding-inline-end:   var(--ws-editor-padding-h);
 }
@@ -993,8 +997,8 @@ body.ws-rtl .ws-invisible { padding-left: 0; padding-inline-start: 2px; }
 
 /* Justified RTL wants its last line at the right, which is what `start`
    means once direction is set. */
-body.ws-rtl.ws-justify .markdown-source-view.mod-cm6 .cm-content,
-body.ws-rtl.ws-justify .markdown-reading-view .markdown-preview-sizer {
+body.ws-rtl.ws-justify .ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-rtl.ws-justify .ws-scoped .markdown-reading-view .markdown-preview-sizer {
 	text-align-last: start;
 }
 
@@ -3657,20 +3661,14 @@ body.ws-vim-panel-open .ws-status-bar {
 	transition: background-color 0.12s ease;
 }
 
-/* Hover speaks through weight, not a highlight pill. The width shift that
-   bold brings is deliberate — it is the hover effect. Drawn glyphs have no
-   weight, so their strokes thicken to match. */
+/* Hover speaks through the accent alone: the same ink the pressable text
+   runs take (`.ws-tokact:hover`), on the word and on a drawn icon alike,
+   since the svg strokes currentColor. Never through weight: bold is wider,
+   so a word that turned bold under the pointer nudged every token after it
+   a few pixels, and a drawn glyph that thickened to match was the same
+   jolt in a stroke. Nothing here may change a token's size. */
 .ws-goal.is-clickable:hover,
-.ws-barbtn.is-clickable:hover {
-	font-weight: 700;
-	/* AND THE ACCENT (A402, writer 2026-09-14: "make the clickable tokens on
-	   hover accented in color") — the same ink the pressable text runs take
-	   (`.ws-tokact:hover`), on the word and on a drawn icon alike, since
-	   the svg strokes currentColor. */
-	color: var(--interactive-accent, currentColor);
-}
-
-.ws-barbtn.is-clickable:hover .ws-mode-stroke { stroke-width: 2.7; }
+.ws-barbtn.is-clickable:hover { color: var(--interactive-accent, currentColor); }
 
 /* =========================================================================
    "WS" ribbon badge — toggles the entire plugin on/off
@@ -5557,18 +5555,18 @@ body.ws-margin-nums {
    set it to 0 and the text steps in far enough for the numbers to exist.
    The floor is the gap plus two columns — room for "99" and the space
    before it. */
-body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-content,
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer {
+body.ws-margin-nums .ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer {
 	padding-inline-start: max(
 		var(--ws-editor-padding-h, 0px),
 		calc(var(--ws-num-gap, 4ch) + 2ch)
 	);
 }
 
-body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum] {
+body.ws-margin-nums .ws-scoped .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum] {
 	position: relative;
 }
-body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::after {   /* ::after since A460: ::before is the indent's spacer */
+body.ws-margin-nums .ws-scoped .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::after {   /* ::after since A460: ::before is the indent's spacer */
 	content: attr(data-ws-pnum);
 	position: absolute;
 	right: 100%;
@@ -5587,16 +5585,16 @@ body.ws-margin-nums .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::after 
    filtering the regex does in the editor: a list item's paragraph is inside
    <li>, a callout's inside .callout, a quote's inside <blockquote>, so none
    of them are direct children and none of them are counted. */
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer {
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer {
 	counter-reset: ws-para;
 }
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > p,
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p {
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > p,
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > div > p {
 	counter-increment: ws-para;
 	position: relative;
 }
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > p::after,
-body.ws-margin-nums .markdown-reading-view .markdown-preview-sizer > div > p::after {
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > p::after,
+body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > div > p::after {
 	content: counter(ws-para);
 	position: absolute;
 	right: 100%;
@@ -14658,22 +14656,22 @@ body.ws-masks-active .cm-editor .cm-panels.cm-panels-bottom input {
    mode that is set, so the caret waits where the text will start instead
    of jumping 4em with the first letter. Its own class: it is a paragraph
    to nothing else. */
-body.ws-para-indent .markdown-source-view.mod-cm6 .cm-content .ws-para-pending::before,
-body.ws-para-indent:where(.ws-para-single) .markdown-source-view.mod-cm6 .cm-content .ws-para-line::before,
-body.ws-para-indent:where(:not(.ws-para-single)) .markdown-source-view.mod-cm6 .cm-content .ws-para-first::before,
-body.ws-para-indent:where(.ws-para-single) .markdown-reading-view .markdown-preview-view p::before,
-body.ws-para-indent:where(:not(.ws-para-single)) .markdown-reading-view .markdown-preview-view p + p::before { content: ''; display: inline-block; width: var(--ws-para-indent); }
+body.ws-para-indent .ws-scoped .markdown-source-view.mod-cm6 .cm-content .ws-para-pending::before,
+body.ws-para-indent:where(.ws-para-single) .ws-scoped .markdown-source-view.mod-cm6 .cm-content .ws-para-line::before,
+body.ws-para-indent:where(:not(.ws-para-single)) .ws-scoped .markdown-source-view.mod-cm6 .cm-content .ws-para-first::before,
+body.ws-para-indent:where(.ws-para-single) .ws-scoped .markdown-reading-view .markdown-preview-view p::before,
+body.ws-para-indent:where(:not(.ws-para-single)) .ws-scoped .markdown-reading-view .markdown-preview-view p + p::before { content: ''; display: inline-block; width: var(--ws-para-indent); }
 /* Reading view renders list items, quotes, callouts and table cells as <p>
    too, so the rules above catch them. Rather than a fragile :not() chain,
    indent every paragraph and then take it back from the containers where it
    does not belong. These outrank the rules above on element count alone —
    one more descendant each — and on order at a tie. */
-body.ws-para-indent .markdown-reading-view .markdown-preview-view li p::before,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view blockquote p::before,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view td p::before,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view th p::before,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view .callout p::before,
-body.ws-para-indent .markdown-reading-view .markdown-preview-view figcaption::before { content: none; }
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view li p::before,
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view blockquote p::before,
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view td p::before,
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view th p::before,
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view .callout p::before,
+body.ws-para-indent .ws-scoped .markdown-reading-view .markdown-preview-view figcaption::before { content: none; }
 
 /* ── The editor font ──────────────────────────────────────────────────────
    The full chain plus the leading body class outranks the theme rules that
@@ -14682,8 +14680,8 @@ body.ws-para-indent .markdown-reading-view .markdown-preview-view figcaption::be
    uninstalled, or arrive from another machine's settings, and without this
    the browser drops to its default rather than to what the vault would
    otherwise use. */
-body.ws-font-active .markdown-source-view.mod-cm6 .cm-content,
-body.ws-font-active .markdown-reading-view .markdown-preview-view { font-family: var(--ws-font), var(--font-text); }
+body.ws-font-active .ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-font-active .ws-scoped .markdown-reading-view .markdown-preview-view { font-family: var(--ws-font), var(--font-text); }
 
 /* ── The line limit ───────────────────────────────────────────────────────
    --ws-line-measure is calc(Nch + the padding twice), from applyStyleProps.
@@ -14691,8 +14689,8 @@ body.ws-font-active .markdown-reading-view .markdown-preview-view { font-family:
    — which would leave the winner decided by order, and that is not
    guaranteed. Leading with body. adds an element to the count and settles
    it. */
-body.ws-line-limit .markdown-source-view.mod-cm6 .cm-content { max-width: var(--ws-line-measure); margin-inline: auto; }
-body.ws-line-limit .markdown-reading-view .markdown-preview-view { max-width: var(--ws-line-measure); margin-inline: auto; }
+body.ws-line-limit .ws-scoped .markdown-source-view.mod-cm6 .cm-content { max-width: var(--ws-line-measure); margin-inline: auto; }
+body.ws-line-limit .ws-scoped .markdown-reading-view .markdown-preview-view { max-width: var(--ws-line-measure); margin-inline: auto; }
 
 /* ── Page mode ─────────────────────────────────────────────────────────────
    The text column drawn as a page: a contour (the pickers' own, 0.5px of the
@@ -14725,20 +14723,20 @@ body.theme-dark.ws-page {
 	--ws-page-ground: color-mix(in srgb, var(--background-primary) 75%, #000);
 	--ws-page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px rgba(0, 0, 0, 0.35);
 }
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] {
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped {
 	--ws-page-gap: 28px;
 	--ws-page-pad: 40px;
 }
-body.is-phone.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] {
+body.is-phone.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped {
 	--ws-page-gap: 8px;
 	--ws-page-pad: 16px;
 }
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller,
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view {
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-scroller,
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view {
 	background-color: var(--ws-page-ground);
 }
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
 	box-sizing: border-box;
 	width: calc(100% - 2 * var(--ws-page-gap));
 	min-height: calc(100% - 2 * var(--ws-page-gap));
@@ -14748,18 +14746,18 @@ body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-r
 	border: 0.5px solid var(--ws-page-contour);
 	box-shadow: var(--ws-page-shadow);
 }
-body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-content {
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-content {
 	padding-inline: 0;
 	max-width: none;
 }
-body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
-body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
 	max-width: var(--ws-line-measure);
 }
-body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view {
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view {
 	max-width: none;
 }
-body.ws-font-active.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer {
+body.ws-font-active.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer {
 	font-family: var(--ws-font), var(--font-text);
 }
 /* the chrome on the ground: the plinth under the bar, the matched title bar */
@@ -14798,8 +14796,8 @@ body:not(.is-mobile).zenmode-active.ws-page .titlebar.ws-main-titlebar {
    Source: skip code blocks and table cells; .cm-line chained through
    .cm-content wins over theme styles without the important flag in most cases.
    Reading view: paragraphs and list items. */
-.ws-justify .cm-content .cm-line { text-align: justify; text-align-last: left; }
-.ws-justify .markdown-preview-view p, .ws-justify .markdown-preview-view li { text-align: justify; }
+.ws-justify .ws-scoped .cm-content .cm-line { text-align: justify; text-align-last: left; }
+.ws-justify .ws-scoped .markdown-preview-view p, .ws-justify .ws-scoped .markdown-preview-view li { text-align: justify; }
 
 /* ── Line spacing ─────────────────────────────────────────────────────────
    Off at the theme's own 1.5 (no class), so the theme decides there. A bare

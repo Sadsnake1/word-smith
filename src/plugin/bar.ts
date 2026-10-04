@@ -8,7 +8,7 @@
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf } from '../core/preamble';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -1464,9 +1464,19 @@ export const barMethods = {
 
 		// Dismissal tests containment rather than relying on stopPropagation,
 		// so a stray listener elsewhere cannot leave the popup stuck open.
+		//
+		// A PRESS ON THE BUTTON THAT OPENED IT closes it and goes no further.
+		// This listener runs first, in the capture phase, so without the stop
+		// the same press went on to the button and opened the popup again. The
+		// button is known by its kind, not by its node: the bar is drawn again
+		// on every edit and every toggle in the popup, so the node that opened
+		// it may be gone by the second press.
+		const kind = Array.from(anchorEl.classList).find(c => c.startsWith('ws-barbtn-')) || '';
+		const isOpener = (el: Element | null) => !!el && (kind ? !!el.closest('.ws-barbtn.' + kind) : anchorEl.contains(el));
 		const dismiss = (e: Event) => {
 			if (pop.contains && e && pop.contains(wsNodeOf(e.target))) return;
 			this.closeBarPicker();
+			if (isOpener(wsElOf(e.target))) { e.preventDefault(); e.stopPropagation(); }
 		};
 		this._barPickerDismiss = dismiss;
 		window.setTimeout(() => {

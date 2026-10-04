@@ -32,7 +32,7 @@ export interface WsExportOpts {
 	// switches
 	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean;
 	dashPageBreak?: boolean;
-	keepImages?: boolean; dropImages?: boolean; keepFrontmatter?: boolean; keepComments?: boolean;
+	keepImages?: boolean; dropImages?: boolean; keepFrontmatter?: boolean; keepComments?: boolean; keepCallouts?: boolean;
 	keepHeadings?: boolean; wordCountOnTitle?: boolean; roundWordCount?: boolean; pageNumbers?: boolean;
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;
 	doubleSpaced?: boolean; toc?: boolean; runningHeaderOn?: boolean; sectionTitles?: boolean; previewDark?: boolean;

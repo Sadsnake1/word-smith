@@ -6,7 +6,7 @@
 // as before, from any file. `this` is the plugin.
 
 import type { WsCursorSmithPlugin, WsElectronWindow } from '../core/settings';
-import { BAR_DIRECTIVE_BG, DEFAULT_SETTINGS, PL_SEP_ASPECT, STYLE_CLASSES, STYLE_KINDS, STYLE_PROPS, readBarDirective, wsCatch } from '../core/preamble';
+import { BAR_DIRECTIVE_BG, DEFAULT_SETTINGS, PL_SEP_ASPECT, STYLE_CLASSES, STYLE_KINDS, STYLE_PROPS, readBarDirective, wsCatch, wsElShown } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const paintMethods = {
@@ -161,6 +161,14 @@ export const paintMethods = {
 		this._barReserve = null;
 		document.querySelectorAll('.ws-bar-overlap')
 			.forEach(el => el.classList.remove('ws-bar-overlap'));
+		// The panes' scope is a class on each pane, out of the body list's reach.
+		try {
+			this.app.workspace.iterateAllLeaves(leaf => {
+				const el = leaf && leaf.view && leaf.view.containerEl;
+				if (el && el.classList) el.classList.remove('ws-scoped', 'ws-scoped-tw');
+			});
+		} catch (_) { wsCatch('clearAllBodyState: the panes\' scope', _); }
+		this._lastPaneScope = null;
 	},
 
 	// ── THE TORCH'S DARKNESS ON OUR OWN CHROME (the contract with Cursor-Smith) ──
@@ -196,6 +204,41 @@ export const paintMethods = {
 		body.classList.toggle('ws-torch-whole', on && !spare);
 	},
 
+	// ── EACH PANE ITS OWN SCOPE ─────────────────────────────────────────────
+	// The layout (margins, line length, page, font, indent, numbers, justify,
+	// Typewriter's padding) belongs to the note, so it lives on the note's pane:
+	// `ws-scoped` on every markdown pane whose note is in scope, `ws-scoped-tw`
+	// where that note has Typewriter too. The sheet's rules want the body's
+	// class (the feature is on) AND the pane's. Asked of the active note alone,
+	// a manuscript beside a reference note was laid out again in both panes on
+	// every click between them, and the reference lost its place each time.
+	// The answer: whether any pane on screen in this window is in scope, and
+	// any with Typewriter, which is what the body's classes are gated on.
+	stampPaneScope(this: WordSmith) {
+		const on = !!this.settings.pluginEnabled;
+		let any = false, anyTw = false;
+		try {
+			this.app.workspace.iterateAllLeaves(leaf => {
+				const view = leaf && leaf.view;
+				const el = view && view.containerEl;
+				if (!el || !el.classList) return;
+				const isNote = !!view.getViewType && view.getViewType() === 'markdown';
+				const file = (isNote && view.file) || null;
+				const scoped = on && isNote && this.isFileInScope(file);
+				const tw = scoped && !!this.optFor(file, 'enableTypewriter');
+				el.classList.toggle('ws-scoped', scoped);
+				el.classList.toggle('ws-scoped-tw', tw);
+				// A background tab, a collapsed sidebar or a pop-out window is not
+				// on this window's screen, and this window's chrome does not follow it.
+				if (!scoped || el.ownerDocument !== document || !wsElShown(leaf.containerEl)) return;
+				any = true;
+				if (tw) anyTw = true;
+			});
+		} catch (_) { wsCatch('stampPaneScope: this.app.workspace.iterateAllLeaves(leaf =>', _); }
+		this._lastPaneScope = any + ':' + anyTw;
+		return { any, anyTw };
+	},
+
 	applyBodyClasses(this: WordSmith) {
 		this.applyTorchVars();
 		// The live colour scheme, refreshed on every pass so a theme picked in
@@ -208,6 +251,10 @@ export const paintMethods = {
 		// Zen's own chrome is intentionally not scoped (see the Scope section
 		// above); everything below it that touches the text is.
 		const scoped = this.isActiveFileInScope();
+		// THE NOTE'S OWN LAYOUT is gated per pane (stampPaneScope above): on while
+		// a pane on screen holds a note in scope, whichever pane has the focus.
+		const panes = this.stampPaneScope();
+		const laid = panes.any;
 		// The retro bar visually replaces the native status bar, so it always
 		// hides it while active — independent of the separate "hide native
 		// status bar in zen mode" toggle below. These used to share a single
@@ -225,17 +272,17 @@ export const paintMethods = {
 		// The horizontal padding is applied by an otherwise unscoped rule, so
 		// this class is what makes both kill switches able to reach it — the
 		// plugin's own, and Text Options' (with its "Only in Zen", A481).
-		body.classList.toggle('ws-text-pad',                scoped && this.layoutOn());
-		body.classList.toggle('ws-para-indent',             scoped && this.textOpt('enableParagraphIndent', false));
+		body.classList.toggle('ws-text-pad',                laid && this.layoutOn());
+		body.classList.toggle('ws-para-indent',             laid && this.textOpt('enableParagraphIndent', false));
 		// One class for either kind of margin number: the CSS reserves the
 		// room once, so turning both on does not indent the text twice.
 		// THROUGH THE GATE (A481): a Layout row, and it had been read raw —
 		// the master off hid its switch and left the numbers on.
-		body.classList.toggle('ws-margin-nums', scoped && this.textOpt('paragraphNumbers', false));
+		body.classList.toggle('ws-margin-nums', laid && this.textOpt('paragraphNumbers', false));
 		// THE BAR IN THE INTERFACE FONT: the sheet's rule on this class beats
 		// the font the token chose. Not scoped: the bar is one bar in every note.
 		body.classList.toggle('ws-bar-ui-font', !!this.settings.statusBarUiFont);
-		body.classList.toggle('ws-justify',                 scoped && this.textOpt('justifyText', false));
+		body.classList.toggle('ws-justify',                 laid && this.textOpt('justifyText', false));
 		// TYPEWRITER OWNS ITS OWN SCROLL PADDING. The 50vh top/bottom inset
 		// used to hang off `.zenmode-active`, which had it exactly backwards
 		// on both sides: in typewriter WITHOUT zen there was no padding, so
@@ -248,7 +295,7 @@ export const paintMethods = {
 		// Derived from the anchor rather than fixed at 50/50, which is what
 		// makes the setting real: at 30% the first line can sit 30% down and
 		// the last line can rise to 30%, both impossible before.
-		const twOn = scoped && !!this.opt('enableTypewriter');
+		const twOn = panes.anyTw;
 		body.classList.toggle('ws-typewriter', twOn);
 		// the plugin's own word for iOS, for the rules that differ there
 		body.classList.toggle('ws-ios', this.isIosApp());
@@ -262,8 +309,8 @@ export const paintMethods = {
 		}
 		// PAGE MODE: the column below, drawn as a page (the sheet's rules read
 		// this class and the two above it).
-		body.classList.toggle('ws-page',                    scoped && this.textOpt('pageView', false));
-		body.classList.toggle('ws-line-limit',              scoped && this.textOpt('limitLineLength', false));
+		body.classList.toggle('ws-page',                    laid && this.textOpt('pageView', false));
+		body.classList.toggle('ws-line-limit',              laid && this.textOpt('limitLineLength', false));
 		body.classList.toggle('ws-rtl',                     this.isRightToLeft());
 		// The slide transition only exists while the bar is actually
 		// moving. Left on permanently, `transition: transform` promotes
@@ -289,8 +336,11 @@ export const paintMethods = {
 		// the page (setWindowControlColours picks the ground when the page is on).
 		this.setWindowControlColours(matchBar || body.classList.contains('ws-page'));
 		body.classList.toggle('ws-masks-active',            scoped && this.letterboxActive());
-		body.classList.toggle('ws-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
-		body.classList.toggle('ws-ck-dim',                  scoped && this.settings.checksEnabled && this.settings.checkDimOthers);
+		// The dimming's rules reach only lines an in-scope editor marked, so they
+		// follow the panes too: a click into a reference note does not wash the
+		// manuscript beside it back to full ink.
+		body.classList.toggle('ws-pos-dim',                 laid && this.settings.posEnabled && this.settings.posDimOthers);
+		body.classList.toggle('ws-ck-dim',                  laid && this.settings.checksEnabled && this.settings.checkDimOthers);
 		body.classList.toggle('ws-hemingway-active',        scoped && this.settings.hemingwayEnabled);
 		if (zen) {
 			body.setAttribute('data-zen-hide-inline-title', String(this.settings.hideInlineTitle));

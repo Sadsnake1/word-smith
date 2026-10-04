@@ -9,7 +9,7 @@ import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection } from '../core/settings';
 import { wsUnderIndex } from '../organizer/org-index';
-import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsInlineRuns, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WsModEvent } from './plugin';
 
@@ -792,13 +792,30 @@ export const exportMethods = {
 			order.push(r.path);
 			if (r.on) chosen.add(r.path);
 		}
+		// NEW SINCE LAST TIME: IN WHERE THE MANUSCRIPT IS. A scene written today
+		// and silently left out of tonight's export is the worse mistake, so it
+		// joins its folder; but the export gathers the whole vault, and "every
+		// new note is in" put today's journal entry into the book. A new note is
+		// in when the nearest folder above it that holds remembered notes has one
+		// of them ticked. At the vault's top only the top's own notes count, or
+		// one ticked book would claim every new top-level note.
+		const dirOf = (p: string) => { const k = p.lastIndexOf('/'); return k === -1 ? '' : p.slice(0, k); };
+		const inFolder = new Map<string, boolean>();   // a folder with remembered notes under it → any ticked
+		for (const p of seen) {
+			const on = chosen.has(String(p));
+			let d = dirOf(String(p));
+			if (!d) { inFolder.set('', !!inFolder.get('') || on); continue; }
+			for (; d; d = dirOf(d)) inFolder.set(d, !!inFolder.get(d) || on);
+		}
+		const joins = (p: string) => {
+			for (let d = dirOf(p); d; d = dirOf(d)) { const v = inFolder.get(d); if (v !== undefined) return v; }
+			return !!inFolder.get('');
+		};
 		for (const f of files) {
 			if (seen.has(f.path)) continue;
 			seen.add(f.path);
 			order.push(f.path);
-			// New since last time: IN by default. A scene written today and
-			// silently left out of tonight's export is the worse mistake.
-			chosen.add(f.path);
+			if (joins(f.path)) chosen.add(f.path);
 		}
 		return { order, chosen };
 	},
@@ -1070,6 +1087,8 @@ export const exportMethods = {
 				md = md.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
 			}
 			if (!o.keepComments) md = md.replace(/%%[\s\S]*?%%/g, '');
+			// CALLOUTS travel only when kept; kept, as written (this target is Markdown).
+			if (!o.keepCallouts && /\[!/.test(md)) md = wsDropCallouts(md);
 			// AND THE NOTE'S OWN HEADINGS MOVE DOWN UNDER THE FOLDER'S. See
 			// `wsDemoteHeadings`: a scene opening `# The Sea` under a folder
 			// heading `# Chapter 1` would outrank the chapter it is in.
@@ -1128,6 +1147,7 @@ export const exportMethods = {
 		o.dropImages = !o.keepImages;
 		dflt('keepFrontmatter', false);
 		dflt('keepComments', false);
+		dflt('keepCallouts', false);
 		// The two merged controls read from the booleans they write, so a
 		// vault that predates them opens on whatever it already had.
 		if (!o.joinMode) o.joinMode = o.pageBreaks ? 'page' : (o.starBetween ? 'divider' : 'run');
@@ -2215,64 +2235,7 @@ export const exportMethods = {
 				// decision the .docx makes.
 				if (o.keepFrontmatter) parts.push('<pre class="fm">' + esc(fm[0].trim()) + '</pre>');
 			}
-			let inComment = false;
-			let firstPara = true;
-			for (const line of md.replace(/\r\n?/g, '\n').split('\n')) {
-				const t = line.trim();
-				if (!t) continue;   // …and the same in the printed target.
-				// A COMMENT BLOCK — opened on its own line, closed lines
-				// later, and therefore invisible to the inline stripper,
-				// which is why one used to leak into the manuscript a line
-				// at a time. Set apart when kept, so a note to self can
-				// never be mistaken for prose.
-				if (inComment) {
-					if (/%%\s*$/.test(t)) inComment = false;
-					if (o.keepComments) {
-						const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
-						if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
-					}
-					continue;
-				}
-				if (/^%%/.test(t)) {
-					const oneLine = /^%%.*%%\s*$/.test(t);
-					if (!oneLine) inComment = true;
-					if (o.keepComments) {
-						const inner = t.replace(/^%%/, '').replace(/%%\s*$/, '').trim();
-						if (inner) parts.push('<p class="cmt">' + esc(inner) + '</p>');
-					}
-					firstPara = true;
-					continue;
-				}
-				if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
-					// --- STARTS A NEW PAGE when asked (A502); *** and ___ stay scene
-					// breaks. Not at the top of a section: that is a page start already.
-					if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
-						if (!/^<section /.test(parts[parts.length - 1])) parts.push('</section>', pageOpen);
-						firstPara = true; continue;
-					}
-					parts.push('<p class="div">' + esc(o.divider == null ? '#' : o.divider) + '</p>');
-					firstPara = true; continue;
-				}
-				const h = t.match(/^(#{1,6})\s+(.*)$/);
-				if (h) {
-					if (o.keepHeadings !== false) {
-						parts.push('<h' + Math.min(3, h[1].length) + '>' + esc(h[2])
-							+ '</h' + Math.min(3, h[1].length) + '>');
-					}
-					firstPara = true; continue;
-				}
-				const runs = wsInlineRuns(t, o).map(r => {
-					let x = esc(r.text);
-					if (r.bold) x = '<strong>' + x + '</strong>';
-					if (r.ital) x = '<em>' + x + '</em>';
-					// <mark>, which is what the element is FOR, and which
-					// prints and reads as the yellow the .docx sets.
-					if (r.high) x = '<mark>' + x + '</mark>';
-					return x;
-				}).join('');
-				parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runs + '</p>');
-				firstPara = false;
-			}
+			wsHtmlBlocks(md, o, pageOpen, parts);
 			// a --- with nothing after it opens no empty page
 			if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === '</section>') parts.length -= 2;
 			parts.push('</section>');
@@ -2598,6 +2561,20 @@ export const exportMethods = {
 			+ 'p.cmt { text-indent: 0; font-style: italic; color: #555;'
 			+ ' border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }'
 			+ 'p.div { text-align: center; margin: 1em 0; }'
+			// THE BLOCKS (wsHtmlBlocks): a quote set in from both sides, a callout
+			// the same with a rule beside it, list lines by their depth, code and math
+			// in monospace, a table ruled.
+			+ 'blockquote { margin: 0.6em 0.5in; padding: 0; }'
+			+ 'blockquote p { text-indent: 0; margin: 0 0 0.3em; }'
+			+ 'blockquote.callout { border-left: 2px solid #bbb; padding-left: 10px; margin-left: 0.4in; }'
+			+ 'html.is-dark blockquote.callout { border-left-color: #55565a; }'
+			+ 'p.li { text-indent: 0; margin: 0 0 0.2em 0.25in; }'
+			+ 'p.li.l1 { margin-left: 0.5in; } p.li.l2 { margin-left: 0.75in; } p.li.l3 { margin-left: 1in; }'
+			+ 'pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace;'
+			+ ' font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }'
+			+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; }'
+			+ 'table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }'
+			+ 'html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }'
 			+ 'h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }'
 			// THE SAME SIZES THE FILE USES, from the same helper — see
 			// `wsHeadSizeEm`. These were 1.5em / 1.15em / 1em, which matched the
@@ -4051,6 +4028,9 @@ export const exportMethods = {
 					'Your %% notes to self %%, kept where they sit and set apart '
 					+ 'from the prose so a query to yourself cannot be read as a '
 					+ 'sentence.'],
+				['keepCallouts', 'Callouts',
+					'Your > [!note] boxes, printed as a quote under their title. Off by '
+					+ 'default, because a callout is usually a note to self.'],
 				['keepImages', 'Image placeholders',
 					'[Image: cover.png] where a picture sits. The picture itself '
 					+ 'is not embedded \u2014 this is a mark that something belongs '

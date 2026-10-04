@@ -790,7 +790,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 		build(view: EditorView) {
 			const b = new RangeSetBuilder<Decoration>();
-			if (!plugin.textOpt('paragraphNumbers', false) || !plugin.isActiveFileInScope()) {
+			if (!plugin.textOpt('paragraphNumbers', false) || !plugin.isEditorInScope(view)) {
 				return b.finish();
 			}
 			const doc = view.state.doc;

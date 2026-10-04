@@ -1305,7 +1305,7 @@ export const focusMethods = {
 	// can change per note, and so has to be re-applied on every file switch
 	// rather than only on a settings change.
 	applyEditorFont(this: WordSmith) {
-		const font = this.settings.pluginEnabled && this.isActiveFileInScope()
+		const font = this.settings.pluginEnabled && this.stampPaneScope().any
 			? String(this.opt('editorFont') || '')
 			: '';
 		if (font) document.body.style.setProperty('--ws-font', font);

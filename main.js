@@ -2786,6 +2786,181 @@ function wsTable(rows) {
   }).join("") + "</w:tr>").join("");
   return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblBorders>' + ["top", "left", "bottom", "right", "insideH", "insideV"].map((k) => "<w:" + k + ' w:val="single" w:sz="4" w:color="auto"/>').join("") + "</w:tblBorders></w:tblPr>" + grid + body + "</w:tbl>";
 }
+function wsCalloutHead(line) {
+  const m = /^\s*(?:>\s?)+\[!([^\]\s]+)\][+-]?\s*(.*)$/.exec(line);
+  return m ? { kind: m[1].toLowerCase(), title: m[2].trim() } : null;
+}
+function wsCalloutTitle(head) {
+  return head.title || head.kind.charAt(0).toUpperCase() + head.kind.slice(1);
+}
+function wsDropCallouts(md) {
+  const lines = md.split("\n");
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (wsCalloutHead(lines[i])) {
+      while (i + 1 < lines.length && /^\s*>/.test(lines[i + 1]))
+        i++;
+      continue;
+    }
+    out.push(lines[i]);
+  }
+  return out.join("\n");
+}
+function wsMathBlock(lines, i) {
+  const t = lines[i].trim();
+  if (t.length > 4 && /^\$\$[\s\S]*\$\$$/.test(t))
+    return { text: t.slice(2, -2).trim(), end: i };
+  const buf = [];
+  if (t.slice(2).trim())
+    buf.push(t.slice(2).trim());
+  let j = i + 1;
+  for (; j < lines.length; j++) {
+    const mt = lines[j].trim();
+    if (/\$\$$/.test(mt)) {
+      if (mt.slice(0, -2).trim())
+        buf.push(mt.slice(0, -2).trim());
+      break;
+    }
+    buf.push(lines[j]);
+  }
+  return { text: buf.join("\n").trim(), end: Math.min(j, lines.length - 1) };
+}
+function wsTableCells(row) {
+  const t2 = row.trim().replace(/^\||\|$/g, "");
+  const out2 = [];
+  let cur = "";
+  for (let k = 0; k < t2.length; k++) {
+    const ch = t2.charAt(k);
+    if (ch === "\\" && t2.charAt(k + 1) === "|") {
+      cur += "|";
+      k++;
+      continue;
+    }
+    if (ch === "|") {
+      out2.push(cur.trim());
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out2.push(cur.trim());
+  return out2;
+}
+function wsHtmlBlocks(md, o, pageOpen, parts) {
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const runsHtml = (text) => wsInlineRuns(text, o).map((r) => {
+    let x = esc(r.text);
+    if (r.bold)
+      x = "<strong>" + x + "</strong>";
+    if (r.ital)
+      x = "<em>" + x + "</em>";
+    if (r.high)
+      x = "<mark>" + x + "</mark>";
+    return x;
+  }).join("");
+  const lines = md.replace(/\r\n?/g, "\n").split("\n");
+  let inComment = false;
+  let firstPara = true;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const t = line.trim();
+    if (!t)
+      continue;
+    if (inComment) {
+      if (/%%\s*$/.test(t))
+        inComment = false;
+      if (o.keepComments) {
+        const inner = t.replace(/^%%/, "").replace(/%%\s*$/, "").trim();
+        if (inner)
+          parts.push('<p class="cmt">' + esc(inner) + "</p>");
+      }
+      continue;
+    }
+    if (/^%%/.test(t)) {
+      const oneLine = /^%%.*%%\s*$/.test(t);
+      if (!oneLine)
+        inComment = true;
+      if (o.keepComments) {
+        const inner = t.replace(/^%%/, "").replace(/%%\s*$/, "").trim();
+        if (inner)
+          parts.push('<p class="cmt">' + esc(inner) + "</p>");
+      }
+      firstPara = true;
+      continue;
+    }
+    const fence = t.match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      const ch = fence[1].charAt(0);
+      const buf = [];
+      for (i++; i < lines.length; i++) {
+        const ft = lines[i].trim();
+        if (ft.charAt(0) === ch && new RegExp("^" + ch + "{3,}").test(ft))
+          break;
+        buf.push(lines[i]);
+      }
+      parts.push('<pre class="code">' + esc(buf.join("\n")) + "</pre>");
+      continue;
+    }
+    if (/^\$\$/.test(t)) {
+      const mb = wsMathBlock(lines, i);
+      i = mb.end;
+      parts.push('<pre class="math">' + esc(mb.text) + "</pre>");
+      continue;
+    }
+    if (/^\|/.test(t) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1].trim())) {
+      const head = wsTableCells(t);
+      const body = [];
+      for (i += 2; i < lines.length && /^\|/.test(lines[i].trim()); i++)
+        body.push(wsTableCells(lines[i]));
+      i--;
+      parts.push('<table class="tbl"><thead><tr>' + head.map((c) => "<th>" + runsHtml(c) + "</th>").join("") + "</tr></thead><tbody>" + body.map((r) => "<tr>" + r.map((c) => "<td>" + runsHtml(c) + "</td>").join("") + "</tr>").join("") + "</tbody></table>");
+      firstPara = true;
+      continue;
+    }
+    if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
+      if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
+        if (!/^<section /.test(parts[parts.length - 1]))
+          parts.push("</section>", pageOpen);
+        firstPara = true;
+        continue;
+      }
+      parts.push('<p class="div">' + esc(o.divider == null ? "#" : o.divider) + "</p>");
+      firstPara = true;
+      continue;
+    }
+    const h = t.match(/^(#{1,6})\s+(.*)$/);
+    if (h) {
+      if (o.keepHeadings !== false) {
+        parts.push("<h" + Math.min(3, h[1].length) + ">" + esc(h[2]) + "</h" + Math.min(3, h[1].length) + ">");
+      }
+      firstPara = true;
+      continue;
+    }
+    if (/^>/.test(t)) {
+      const ch = wsCalloutHead(t);
+      const block = [];
+      for (; i < lines.length && /^>/.test(lines[i].trim()); i++)
+        block.push(lines[i].trim().replace(/^(>\s?)+/, "").trim());
+      i--;
+      const body = (ch ? block.slice(1) : block).filter(Boolean).map((b) => "<p>" + runsHtml(b) + "</p>").join("");
+      if (!ch)
+        parts.push("<blockquote>" + body + "</blockquote>");
+      else if (o.keepCallouts)
+        parts.push('<blockquote class="callout"><p class="ctitle"><strong>' + runsHtml(wsCalloutTitle(ch)) + "</strong></p>" + body + "</blockquote>");
+      continue;
+    }
+    const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+    if (li) {
+      const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2));
+      const task = /^\[([ xX])\]\s+(.*)$/.exec(li[3]);
+      const mark = task ? task[1] === " " ? "☐ " : "☑ " : /^\d/.test(li[2]) ? li[2] + " " : "• ";
+      parts.push('<p class="li l' + depth + '">' + esc(mark) + runsHtml(task ? task[2] : li[3]) + "</p>");
+      continue;
+    }
+    parts.push("<p" + (firstPara ? ' class="first"' : "") + ">" + runsHtml(t) + "</p>");
+    firstPara = false;
+  }
+}
 function wsBlocksFromMarkdown(md, opts) {
   const o = opts || {};
   const lines = String(md == null ? "" : md).replace(/\r\n?/g, "\n").split("\n");
@@ -2855,28 +3030,15 @@ function wsBlocksFromMarkdown(md, opts) {
         out.push(wsPara([{ text: b, mono: true }], "WsCode", { noIndent: true }));
       continue;
     }
+    if (/^\$\$/.test(t)) {
+      const mb = wsMathBlock(lines, i);
+      i = mb.end;
+      for (const ml of mb.text.split("\n"))
+        out.push(wsPara([{ text: ml, mono: true }], "WsCode", { noIndent: true }));
+      continue;
+    }
     if (/^\|/.test(t) && i + 1 < lines.length && /^\|[\s:|-]+\|?\s*$/.test(lines[i + 1].trim())) {
-      const cellsOf = (row) => {
-        const t2 = row.trim().replace(/^\||\|$/g, "");
-        const out2 = [];
-        let cur = "";
-        for (let k = 0; k < t2.length; k++) {
-          const ch = t2.charAt(k);
-          if (ch === "\\" && t2.charAt(k + 1) === "|") {
-            cur += "|";
-            k++;
-            continue;
-          }
-          if (ch === "|") {
-            out2.push(cur.trim());
-            cur = "";
-            continue;
-          }
-          cur += ch;
-        }
-        out2.push(cur.trim());
-        return out2;
-      };
+      const cellsOf = wsTableCells;
       const rows = [cellsOf(t)];
       i += 2;
       for (; i < lines.length && /^\|/.test(lines[i].trim()); i++)
@@ -2906,7 +3068,22 @@ function wsBlocksFromMarkdown(md, opts) {
       firstPara = true;
       continue;
     }
-    const quote = t.match(/^>\s?(.*)$/);
+    const callout = wsCalloutHead(t);
+    if (callout) {
+      const body = [];
+      for (i++; i < lines.length && /^\s*>/.test(lines[i]); i++)
+        body.push(lines[i].trim().replace(/^(>\s?)+/, "").trim());
+      i--;
+      if (o.keepCallouts) {
+        out.push(wsPara(wsInlineRuns(wsCalloutTitle(callout), o).map((r) => Object.assign({}, r, { bold: true })), "WsQuote", { noIndent: true }));
+        for (const b of body)
+          if (b)
+            out.push(wsPara(wsInlineRuns(b, o), "WsQuote", { noIndent: true }));
+        firstPara = true;
+      }
+      continue;
+    }
+    const quote = t.match(/^(?:>\s?)+(.*)$/);
     if (quote) {
       out.push(wsPara(wsInlineRuns(quote[1], o), "WsQuote", { noIndent: true }));
       continue;
@@ -2914,8 +3091,9 @@ function wsBlocksFromMarkdown(md, opts) {
     const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
     if (li) {
       const depth = Math.min(3, Math.floor(li[1].replace(/\t/g, "    ").length / 2));
-      const mark = /^\d/.test(li[2]) ? li[2] + " " : "• ";
-      out.push(wsPara(wsInlineRuns(mark + li[3], o), "WsList" + depth, { noIndent: true }));
+      const task = /^\[([ xX])\]\s+(.*)$/.exec(li[3]);
+      const mark = task ? task[1] === " " ? "☐ " : "☑ " : /^\d/.test(li[2]) ? li[2] + " " : "• ";
+      out.push(wsPara(wsInlineRuns(mark + (task ? task[2] : li[3]), o), "WsList" + depth, { noIndent: true }));
       continue;
     }
     const runs = [];
@@ -4295,7 +4473,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.3";
+var WS_PLUGIN_VERSION = "1.7.4";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -8085,6 +8263,16 @@ var paintMethods = {
     }
     this._barReserve = null;
     document.querySelectorAll(".ws-bar-overlap").forEach((el) => el.classList.remove("ws-bar-overlap"));
+    try {
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        const el = leaf && leaf.view && leaf.view.containerEl;
+        if (el && el.classList)
+          el.classList.remove("ws-scoped", "ws-scoped-tw");
+      });
+    } catch (_) {
+      wsCatch("clearAllBodyState: the panes' scope", _);
+    }
+    this._lastPaneScope = null;
   },
   applyTorchVars() {
     const body = document.body;
@@ -8111,6 +8299,33 @@ var paintMethods = {
     }
     body.classList.toggle("ws-torch-whole", on && !spare);
   },
+  stampPaneScope() {
+    const on = !!this.settings.pluginEnabled;
+    let any = false, anyTw = false;
+    try {
+      this.app.workspace.iterateAllLeaves((leaf) => {
+        const view = leaf && leaf.view;
+        const el = view && view.containerEl;
+        if (!el || !el.classList)
+          return;
+        const isNote = !!view.getViewType && view.getViewType() === "markdown";
+        const file = isNote && view.file || null;
+        const scoped = on && isNote && this.isFileInScope(file);
+        const tw = scoped && !!this.optFor(file, "enableTypewriter");
+        el.classList.toggle("ws-scoped", scoped);
+        el.classList.toggle("ws-scoped-tw", tw);
+        if (!scoped || el.ownerDocument !== document || !wsElShown(leaf.containerEl))
+          return;
+        any = true;
+        if (tw)
+          anyTw = true;
+      });
+    } catch (_) {
+      wsCatch("stampPaneScope: this.app.workspace.iterateAllLeaves(leaf =>", _);
+    }
+    this._lastPaneScope = any + ":" + anyTw;
+    return { any, anyTw };
+  },
   applyBodyClasses() {
     this.applyTorchVars();
     this.applyThemeClass();
@@ -8118,6 +8333,8 @@ var paintMethods = {
     const body = document.body;
     const zen = this.zenActive();
     const scoped = this.isActiveFileInScope();
+    const panes = this.stampPaneScope();
+    const laid = panes.any;
     const hideNativeStatusBar = this.shouldHideNativeStatusBar();
     body.classList.toggle("zenmode-active", zen);
     body.classList.toggle("ws-zen-hide-window-title", zen && this.settings.zenHideWindowTitle);
@@ -8126,12 +8343,12 @@ var paintMethods = {
     body.classList.toggle("zenmode-hide-scroll-bar", this.shouldHideScrollBar());
     body.classList.toggle("zenmode-hide-linked-mentions", zen && this.settings.hideLinkedMentions);
     body.classList.toggle("zenmode-hide-ribbon", zen && this.settings.hideRibbon);
-    body.classList.toggle("ws-text-pad", scoped && this.layoutOn());
-    body.classList.toggle("ws-para-indent", scoped && this.textOpt("enableParagraphIndent", false));
-    body.classList.toggle("ws-margin-nums", scoped && this.textOpt("paragraphNumbers", false));
+    body.classList.toggle("ws-text-pad", laid && this.layoutOn());
+    body.classList.toggle("ws-para-indent", laid && this.textOpt("enableParagraphIndent", false));
+    body.classList.toggle("ws-margin-nums", laid && this.textOpt("paragraphNumbers", false));
     body.classList.toggle("ws-bar-ui-font", !!this.settings.statusBarUiFont);
-    body.classList.toggle("ws-justify", scoped && this.textOpt("justifyText", false));
-    const twOn = scoped && !!this.opt("enableTypewriter");
+    body.classList.toggle("ws-justify", laid && this.textOpt("justifyText", false));
+    const twOn = panes.anyTw;
     body.classList.toggle("ws-typewriter", twOn);
     body.classList.toggle("ws-ios", this.isIosApp());
     if (twOn) {
@@ -8142,8 +8359,8 @@ var paintMethods = {
       document.documentElement.style.removeProperty("--ws-tw-pad-top");
       document.documentElement.style.removeProperty("--ws-tw-pad-bottom");
     }
-    body.classList.toggle("ws-page", scoped && this.textOpt("pageView", false));
-    body.classList.toggle("ws-line-limit", scoped && this.textOpt("limitLineLength", false));
+    body.classList.toggle("ws-page", laid && this.textOpt("pageView", false));
+    body.classList.toggle("ws-line-limit", laid && this.textOpt("limitLineLength", false));
     body.classList.toggle("ws-rtl", this.isRightToLeft());
     const hideBar = this.barIsHidden();
     if (body.classList.contains("ws-bar-hidden") !== hideBar) {
@@ -8157,8 +8374,8 @@ var paintMethods = {
     body.classList.toggle("ws-titlebar-match", matchBar);
     this.setWindowControlColours(matchBar || body.classList.contains("ws-page"));
     body.classList.toggle("ws-masks-active", scoped && this.letterboxActive());
-    body.classList.toggle("ws-pos-dim", scoped && this.settings.posEnabled && this.settings.posDimOthers);
-    body.classList.toggle("ws-ck-dim", scoped && this.settings.checksEnabled && this.settings.checkDimOthers);
+    body.classList.toggle("ws-pos-dim", laid && this.settings.posEnabled && this.settings.posDimOthers);
+    body.classList.toggle("ws-ck-dim", laid && this.settings.checksEnabled && this.settings.checkDimOthers);
     body.classList.toggle("ws-hemingway-active", scoped && this.settings.hemingwayEnabled);
     if (zen) {
       body.setAttribute("data-zen-hide-inline-title", String(this.settings.hideInlineTitle));
@@ -8937,7 +9154,7 @@ function wsEditorExtensions(plugin, cm) {
     }
     build(view) {
       const b = new RangeSetBuilder2();
-      if (!plugin.textOpt("paragraphNumbers", false) || !plugin.isActiveFileInScope()) {
+      if (!plugin.textOpt("paragraphNumbers", false) || !plugin.isEditorInScope(view)) {
         return b.finish();
       }
       const doc = view.state.doc;
@@ -10305,7 +10522,7 @@ var focusMethods = {
     return this._sysFontsQ;
   },
   applyEditorFont() {
-    const font = this.settings.pluginEnabled && this.isActiveFileInScope() ? String(this.opt("editorFont") || "") : "";
+    const font = this.settings.pluginEnabled && this.stampPaneScope().any ? String(this.opt("editorFont") || "") : "";
     if (font)
       document.body.style.setProperty("--ws-font", font);
     else
@@ -23733,10 +23950,16 @@ var barMethods = {
     left = Math.max(6, Math.min(left, window.innerWidth - r.width - 6));
     pop.style.left = left + "px";
     pop.style.bottom = window.innerHeight - a.top + 6 + "px";
+    const kind = Array.from(anchorEl.classList).find((c) => c.startsWith("ws-barbtn-")) || "";
+    const isOpener = (el) => !!el && (kind ? !!el.closest(".ws-barbtn." + kind) : anchorEl.contains(el));
     const dismiss = (e) => {
       if (pop.contains && e && pop.contains(wsNodeOf(e.target)))
         return;
       this.closeBarPicker();
+      if (isOpener(wsElOf(e.target))) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     };
     this._barPickerDismiss = dismiss;
     window.setTimeout(() => {
@@ -29440,12 +29663,36 @@ var exportMethods = {
       if (r.on)
         chosen.add(r.path);
     }
+    const dirOf = (p) => {
+      const k = p.lastIndexOf("/");
+      return k === -1 ? "" : p.slice(0, k);
+    };
+    const inFolder = /* @__PURE__ */ new Map();
+    for (const p of seen) {
+      const on = chosen.has(String(p));
+      let d = dirOf(String(p));
+      if (!d) {
+        inFolder.set("", !!inFolder.get("") || on);
+        continue;
+      }
+      for (; d; d = dirOf(d))
+        inFolder.set(d, !!inFolder.get(d) || on);
+    }
+    const joins = (p) => {
+      for (let d = dirOf(p); d; d = dirOf(d)) {
+        const v = inFolder.get(d);
+        if (v !== void 0)
+          return v;
+      }
+      return !!inFolder.get("");
+    };
     for (const f of files) {
       if (seen.has(f.path))
         continue;
       seen.add(f.path);
       order.push(f.path);
-      chosen.add(f.path);
+      if (joins(f.path))
+        chosen.add(f.path);
     }
     return { order, chosen };
   },
@@ -29608,6 +29855,8 @@ var exportMethods = {
       }
       if (!o.keepComments)
         md = md.replace(/%%[\s\S]*?%%/g, "");
+      if (!o.keepCallouts && /\[!/.test(md))
+        md = wsDropCallouts(md);
       if (o.folderHeadings)
         md = wsDemoteHeadings(md, sec.depth || 0);
       parts.push(md.trim());
@@ -29641,6 +29890,7 @@ var exportMethods = {
     o.dropImages = !o.keepImages;
     dflt("keepFrontmatter", false);
     dflt("keepComments", false);
+    dflt("keepCallouts", false);
     if (!o.joinMode)
       o.joinMode = o.pageBreaks ? "page" : o.starBetween ? "divider" : "run";
     if (!o.chapterTitles) {
@@ -30399,66 +30649,7 @@ var exportMethods = {
         if (o.keepFrontmatter)
           parts.push('<pre class="fm">' + esc(fm[0].trim()) + "</pre>");
       }
-      let inComment = false;
-      let firstPara = true;
-      for (const line of md.replace(/\r\n?/g, "\n").split("\n")) {
-        const t = line.trim();
-        if (!t)
-          continue;
-        if (inComment) {
-          if (/%%\s*$/.test(t))
-            inComment = false;
-          if (o.keepComments) {
-            const inner = t.replace(/^%%/, "").replace(/%%\s*$/, "").trim();
-            if (inner)
-              parts.push('<p class="cmt">' + esc(inner) + "</p>");
-          }
-          continue;
-        }
-        if (/^%%/.test(t)) {
-          const oneLine = /^%%.*%%\s*$/.test(t);
-          if (!oneLine)
-            inComment = true;
-          if (o.keepComments) {
-            const inner = t.replace(/^%%/, "").replace(/%%\s*$/, "").trim();
-            if (inner)
-              parts.push('<p class="cmt">' + esc(inner) + "</p>");
-          }
-          firstPara = true;
-          continue;
-        }
-        if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) {
-          if (o.dashPageBreak && /^(-\s*){3,}$/.test(t)) {
-            if (!/^<section /.test(parts[parts.length - 1]))
-              parts.push("</section>", pageOpen);
-            firstPara = true;
-            continue;
-          }
-          parts.push('<p class="div">' + esc(o.divider == null ? "#" : o.divider) + "</p>");
-          firstPara = true;
-          continue;
-        }
-        const h = t.match(/^(#{1,6})\s+(.*)$/);
-        if (h) {
-          if (o.keepHeadings !== false) {
-            parts.push("<h" + Math.min(3, h[1].length) + ">" + esc(h[2]) + "</h" + Math.min(3, h[1].length) + ">");
-          }
-          firstPara = true;
-          continue;
-        }
-        const runs = wsInlineRuns(t, o).map((r) => {
-          let x = esc(r.text);
-          if (r.bold)
-            x = "<strong>" + x + "</strong>";
-          if (r.ital)
-            x = "<em>" + x + "</em>";
-          if (r.high)
-            x = "<mark>" + x + "</mark>";
-          return x;
-        }).join("");
-        parts.push("<p" + (firstPara ? ' class="first"' : "") + ">" + runs + "</p>");
-        firstPara = false;
-      }
+      wsHtmlBlocks(md, o, pageOpen, parts);
       if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === "</section>")
         parts.length -= 2;
       parts.push("</section>");
@@ -30479,7 +30670,7 @@ var exportMethods = {
     const cw = "calc(" + pw + " - 2 * " + pm + ")";
     const ch = "calc(" + ph + " - 2 * " + pm + ")";
     const pgap = o.indent === false ? "0.5em" : "0";
-    return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(o.title || "Manuscript") + "</title><style>@page { size: " + pw + " " + ph + "; margin: " + pm + ";" + (head ? ' @top-right { content: "' + head + ' " counter(page); }' : "") + " }:root { color-scheme: light; }html { background: " + (forScreen ? wsHostTint() : "#fff") + "; }" + (forScreen ? "html.is-flow .is-here { background: rgba(127, 127, 127, 0.14); box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.14); border-radius: 2px; }" : "") + "body { margin: 0; padding: " + (forScreen ? "18px 0" : "0") + "; font-family: " + font + ", Times, serif; font-size: " + pt + "pt; line-height: " + lineH + "; color: #111; }.page, .run { background: #fff; }" + (head && forScreen ? ".hdr { position: absolute; top: calc(" + pm + " / 2); right: " + pm + "; font-size: 0.9em; color: inherit; }" : "") + (forScreen ? ":root { --sheet-gap: 18px; }.stack { position: relative; width: " + pw + "; margin: 0 auto; }.sheet { position: absolute; left: 0; top: 0; box-sizing: border-box; width: " + pw + "; height: " + ph + "; padding: " + pm + "; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }.hdr { position: absolute; }.flow { height: 100%; column-width: " + cw + "; column-gap: " + pm + "; column-fill: auto; overflow: hidden; }.page, .run { background: none; box-shadow: none; width: auto; margin: 0; padding: 0; min-height: 0; }.page { break-before: column; }.page:first-child { break-before: avoid; }.tp { height: " + ch + "; }html.is-flow .stack { width: auto; height: auto !important; }html.is-flow .sheet[data-pooled] { display: none; }html.is-flow .sheet { position: static; width: auto; height: auto; margin: 0; padding: 0; box-shadow: none; min-height: 100vh; }html.is-flow .hdr { display: none; }html.is-flow .flow { height: auto; columns: auto; overflow: visible; max-width: 68ch; margin: 0 auto; padding: " + pm + ' 24px; }html.is-flow .page { break-before: auto; }html.is-flow section + section { margin-top: 4em; }html.is-flow section + section::before { content: ""; display: block; border-top: 2px dashed currentColor; opacity: 0.28; margin: 0 0 3.2em; }html.is-flow section > p:first-child { text-indent: 0; }html.is-flow .tp { height: auto; padding: 2em 0 3em; }@media print { html, html.is-dark { background: #fff; color-scheme: light; } html.is-dark body { color: #111; } html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #fff; } body { padding: 0; } .stack { width: auto; height: auto !important; } .sheet { position: static; width: auto; height: auto;   padding: 0; margin: 0; box-shadow: none; } .hdr { display: none; } .flow { height: auto; overflow: visible; columns: auto; } .tp { height: auto; } .page, .run { width: auto; margin: 0; padding: 0;   min-height: 0; box-shadow: none; } .page { page-break-before: always; break-before: page; } .page:first-child { page-break-before: avoid;   break-before: avoid; }}' : ".page { page-break-before: always; } .page:first-child { page-break-before: avoid; }") + "p { margin: 0 0 " + pgap + " 0; text-indent: " + (o.indent === false ? "0" : "0.5in") + ";" + (o.justify ? " text-align: justify;" : "") + " orphans: 2; widows: 2; }p.first, p.div { text-indent: 0; }html.is-dark { color-scheme: dark; background: #17181b; }html.is-dark body { color: #dcdcdc; }html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #212327; }html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }html.is-dark a { color: #9cc4ff; }pre.fm { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8em; line-height: 1.35; white-space: pre-wrap; color: #444; border-left: 2px solid #bbb; padding-left: 8px; margin: 0 0 1em; }p.cmt { text-indent: 0; font-style: italic; color: #555; border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }p.div { text-align: center; margin: 1em 0; }h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }h1, h2 { font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; }h3, h4, h5, h6 { font-size: " + wsHeadSizeEm(o, 3).toFixed(4) + "em; }.tp .tpinner h1 { font-size: 1em; }.tp .tpinner p { text-indent: 0; }.tp { display: flex; flex-direction: column; justify-content: center; }.tp .tpinner { text-align: center; }.tp .tpinner > * { margin-top: 0; margin-bottom: 0; }.folderhead.is-tight { margin-bottom: 0; }.folderhead.is-tight + h1, .folderhead.is-tight + h2, .folderhead.is-tight + h3, .folderhead.is-tight + h4, .folderhead.is-tight + h5, .folderhead.is-tight + h6 { margin-top: 0; }.folderhead { margin: 0 0 1em; text-align: center; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; page-break-after: avoid; }ol.toc { list-style: none; padding: 0; }ol.toc a { color: inherit; text-decoration: none; }ol.toc li.l1 { padding-left: 1.5em; }ol.toc li.l2 { padding-left: 3em; }ol.toc li.l3 { padding-left: 4.5em; }ol.toc li.l4 { padding-left: 6em; }ol.toc li.l5 { padding-left: 7.5em; }</style></head><body>" + (forScreen ? '<div class="stack"><div class="sheet"><div class="hdr"></div><div class="flow">' + parts.join("\n") + "</div></div></div>" : parts.join("\n")) + "</body></html>";
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(o.title || "Manuscript") + "</title><style>@page { size: " + pw + " " + ph + "; margin: " + pm + ";" + (head ? ' @top-right { content: "' + head + ' " counter(page); }' : "") + " }:root { color-scheme: light; }html { background: " + (forScreen ? wsHostTint() : "#fff") + "; }" + (forScreen ? "html.is-flow .is-here { background: rgba(127, 127, 127, 0.14); box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.14); border-radius: 2px; }" : "") + "body { margin: 0; padding: " + (forScreen ? "18px 0" : "0") + "; font-family: " + font + ", Times, serif; font-size: " + pt + "pt; line-height: " + lineH + "; color: #111; }.page, .run { background: #fff; }" + (head && forScreen ? ".hdr { position: absolute; top: calc(" + pm + " / 2); right: " + pm + "; font-size: 0.9em; color: inherit; }" : "") + (forScreen ? ":root { --sheet-gap: 18px; }.stack { position: relative; width: " + pw + "; margin: 0 auto; }.sheet { position: absolute; left: 0; top: 0; box-sizing: border-box; width: " + pw + "; height: " + ph + "; padding: " + pm + "; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }.hdr { position: absolute; }.flow { height: 100%; column-width: " + cw + "; column-gap: " + pm + "; column-fill: auto; overflow: hidden; }.page, .run { background: none; box-shadow: none; width: auto; margin: 0; padding: 0; min-height: 0; }.page { break-before: column; }.page:first-child { break-before: avoid; }.tp { height: " + ch + "; }html.is-flow .stack { width: auto; height: auto !important; }html.is-flow .sheet[data-pooled] { display: none; }html.is-flow .sheet { position: static; width: auto; height: auto; margin: 0; padding: 0; box-shadow: none; min-height: 100vh; }html.is-flow .hdr { display: none; }html.is-flow .flow { height: auto; columns: auto; overflow: visible; max-width: 68ch; margin: 0 auto; padding: " + pm + ' 24px; }html.is-flow .page { break-before: auto; }html.is-flow section + section { margin-top: 4em; }html.is-flow section + section::before { content: ""; display: block; border-top: 2px dashed currentColor; opacity: 0.28; margin: 0 0 3.2em; }html.is-flow section > p:first-child { text-indent: 0; }html.is-flow .tp { height: auto; padding: 2em 0 3em; }@media print { html, html.is-dark { background: #fff; color-scheme: light; } html.is-dark body { color: #111; } html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #fff; } body { padding: 0; } .stack { width: auto; height: auto !important; } .sheet { position: static; width: auto; height: auto;   padding: 0; margin: 0; box-shadow: none; } .hdr { display: none; } .flow { height: auto; overflow: visible; columns: auto; } .tp { height: auto; } .page, .run { width: auto; margin: 0; padding: 0;   min-height: 0; box-shadow: none; } .page { page-break-before: always; break-before: page; } .page:first-child { page-break-before: avoid;   break-before: avoid; }}' : ".page { page-break-before: always; } .page:first-child { page-break-before: avoid; }") + "p { margin: 0 0 " + pgap + " 0; text-indent: " + (o.indent === false ? "0" : "0.5in") + ";" + (o.justify ? " text-align: justify;" : "") + " orphans: 2; widows: 2; }p.first, p.div { text-indent: 0; }html.is-dark { color-scheme: dark; background: #17181b; }html.is-dark body { color: #dcdcdc; }html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #212327; }html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }html.is-dark a { color: #9cc4ff; }pre.fm { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8em; line-height: 1.35; white-space: pre-wrap; color: #444; border-left: 2px solid #bbb; padding-left: 8px; margin: 0 0 1em; }p.cmt { text-indent: 0; font-style: italic; color: #555; border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }p.div { text-align: center; margin: 1em 0; }blockquote { margin: 0.6em 0.5in; padding: 0; }blockquote p { text-indent: 0; margin: 0 0 0.3em; }blockquote.callout { border-left: 2px solid #bbb; padding-left: 10px; margin-left: 0.4in; }html.is-dark blockquote.callout { border-left-color: #55565a; }p.li { text-indent: 0; margin: 0 0 0.2em 0.25in; }p.li.l1 { margin-left: 0.5in; } p.li.l2 { margin-left: 0.75in; } p.li.l3 { margin-left: 1in; }pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }table.tbl { border-collapse: collapse; margin: 0.8em auto; }table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }h1, h2 { font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; }h3, h4, h5, h6 { font-size: " + wsHeadSizeEm(o, 3).toFixed(4) + "em; }.tp .tpinner h1 { font-size: 1em; }.tp .tpinner p { text-indent: 0; }.tp { display: flex; flex-direction: column; justify-content: center; }.tp .tpinner { text-align: center; }.tp .tpinner > * { margin-top: 0; margin-bottom: 0; }.folderhead.is-tight { margin-bottom: 0; }.folderhead.is-tight + h1, .folderhead.is-tight + h2, .folderhead.is-tight + h3, .folderhead.is-tight + h4, .folderhead.is-tight + h5, .folderhead.is-tight + h6 { margin-top: 0; }.folderhead { margin: 0 0 1em; text-align: center; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; page-break-after: avoid; }ol.toc { list-style: none; padding: 0; }ol.toc a { color: inherit; text-decoration: none; }ol.toc li.l1 { padding-left: 1.5em; }ol.toc li.l2 { padding-left: 3em; }ol.toc li.l3 { padding-left: 4.5em; }ol.toc li.l4 { padding-left: 6em; }ol.toc li.l5 { padding-left: 7.5em; }</style></head><body>" + (forScreen ? '<div class="stack"><div class="sheet"><div class="hdr"></div><div class="flow">' + parts.join("\n") + "</div></div></div>" : parts.join("\n")) + "</body></html>";
   },
   exportDefaultScope() {
     try {
@@ -31353,6 +31544,11 @@ var exportMethods = {
             "keepComments",
             "Comments",
             "Your %% notes to self %%, kept where they sit and set apart from the prose so a query to yourself cannot be read as a sentence."
+          ],
+          [
+            "keepCallouts",
+            "Callouts",
+            "Your > [!note] boxes, printed as a quote under their title. Off by default, because a callout is usually a note to self."
           ],
           [
             "keepImages",
@@ -33336,6 +33532,7 @@ function wsFieldsReset(plugin) {
   plugin._hemFlashTimer = null;
   plugin._scopeGen = 0;
   plugin._lastScopeInScope = null;
+  plugin._lastPaneScope = null;
   plugin.currentScroller = null;
   plugin.scrollHandler = null;
   plugin.windowResizeHandler = null;
@@ -35093,7 +35290,9 @@ var WordSmith = class extends import_obsidian24.Plugin {
     if (!this.settings.pluginEnabled)
       return;
     const inScope = this.isActiveFileInScope();
-    if (inScope === this._lastScopeInScope)
+    const before = this._lastPaneScope;
+    const panes = this.stampPaneScope();
+    if (inScope === this._lastScopeInScope && panes.any + ":" + panes.anyTw === before)
       return;
     this._lastScopeInScope = inScope;
     this.applyBodyClasses();
