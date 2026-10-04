@@ -214,6 +214,9 @@ BRAGGING TIME: Cursor-Smith is The most advanced cursor engine out there (maybe,
 
 What else? Sharing codes, presets so you can try them fast, typewriter effects and sounds, color by speed and mooore. It's clearly too much, it's over the top, it's Cuuuursor-Smiiiith(cringe)!
 
+## Workspace showcase
+Made a writing space you love? Share a screenshot and your bar's share code in the [Workspace Showcase](https://github.com/Sadsnake1/word-smith/issues/26).
+
 ## Docs
 
 [Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
