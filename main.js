@@ -4295,7 +4295,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.2";
+var WS_PLUGIN_VERSION = "1.7.3";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -34276,6 +34276,39 @@ var WordSmith = class extends import_obsidian24.Plugin {
       }
     }
     return { changed, keys: keys.length };
+  }
+  async onExternalSettingsChange() {
+    const live = this.settings;
+    const bag2 = wsBag(live);
+    const session = {};
+    for (const k of WS_SESSION_KEYS)
+      if (Object.prototype.hasOwnProperty.call(bag2, k))
+        session[k] = bag2[k];
+    try {
+      await this.loadSettings();
+    } catch (e) {
+      this.settings = live;
+      wsCatch("onExternalSettingsChange: loadSettings", e);
+      return;
+    }
+    const fresh = wsBag(this.settings);
+    for (const k of Object.keys(bag2))
+      if (!(k in fresh))
+        delete bag2[k];
+    Object.assign(bag2, fresh, session);
+    this.settings = live;
+    try {
+      this.refresh();
+    } catch (e) {
+      wsCatch("onExternalSettingsChange: refresh", e);
+    }
+    const tab = this._settingsTab;
+    try {
+      if (tab && tab.containerEl && tab.containerEl.isConnected)
+        tab.update();
+    } catch (e) {
+      wsCatch("onExternalSettingsChange: the settings page", e);
+    }
   }
   async loadSettings() {
     const raw = await this.loadData() || {};

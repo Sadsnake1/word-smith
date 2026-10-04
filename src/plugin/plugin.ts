@@ -2500,6 +2500,38 @@ export default class WordSmith extends Plugin {
 		return { changed, keys: keys.length };
 	}
 
+	// ── SETTINGS THAT ARRIVE FROM ANOTHER DEVICE ────────────────────────
+	//
+	// Obsidian calls this when data.json changes under the running plugin:
+	// Obsidian Sync bringing another device's settings, or any tool that
+	// rewrites the file. Without it the plugin kept its copy in memory and
+	// wrote it back at its next save, and Sync carried that back: the other
+	// device's change undone, in both directions.
+	//
+	// THE SAME LOAD AS AT START, so every repair, migration and retirement
+	// applies to what arrived, then the same refresh a settings change takes.
+	// NOTHING IS WRITTEN: loadSettings writes nothing, and a write here would
+	// go back to the device that sent it. INTO THE SAME OBJECT: windows hold
+	// `plugin.settings`, and a new object would leave them writing into one
+	// nothing saves. This window's session view is kept. A file that cannot
+	// be read mid-sync leaves everything as it was.
+	async onExternalSettingsChange() {
+		const live = this.settings;
+		const bag = wsBag(live);
+		const session: Record<string, unknown> = {};
+		for (const k of WS_SESSION_KEYS) if (Object.prototype.hasOwnProperty.call(bag, k)) session[k] = bag[k];
+		try { await this.loadSettings(); }
+		catch (e) { this.settings = live; wsCatch('onExternalSettingsChange: loadSettings', e); return; }
+		const fresh = wsBag(this.settings);
+		for (const k of Object.keys(bag)) if (!(k in fresh)) delete bag[k];
+		Object.assign(bag, fresh, session);
+		this.settings = live;
+		try { this.refresh(); } catch (e) { wsCatch('onExternalSettingsChange: refresh', e); }
+		const tab = this._settingsTab;
+		try { if (tab && tab.containerEl && tab.containerEl.isConnected) tab.update(); }
+		catch (e) { wsCatch('onExternalSettingsChange: the settings page', e); }
+	}
+
 	async loadSettings() {
 		// The RAW file is kept alongside the merged copy: a migration that
 		// asks "did this vault ever have an opinion about X" cannot ask the
