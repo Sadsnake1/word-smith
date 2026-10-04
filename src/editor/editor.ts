@@ -9,7 +9,8 @@ import type { EditorView, KeyBinding } from '@codemirror/view';
 import type { TransactionSpec } from '@codemirror/state';
 import { wsEditorExtensions } from './editor-extensions';
 import { WS_INTERNALS } from '../core/obsidian-internals';
-import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsBag, wsVimOf } from '../core/preamble';
+import { Platform } from 'obsidian';
+import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsBag, wsVimOf, wsSentenceStart } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 
 export const editorMethods = {
@@ -217,6 +218,18 @@ export const editorMethods = {
 				}
 				this.applyTypography(view, from, to, text, text, glyph, tail);
 				return true;
+			}
+			// CAPITALIZE SENTENCES, desktop only: a phone's keyboard capitalizes
+			// already, and a second capitalizer there would fight its shift state.
+			// The capital is its own step, like every substitution here, so Ctrl+Z
+			// or Backspace gives the small letter back.
+			if (s.typoCapitalize && !Platform.isMobile && from === to && /^\p{Ll}$/u.test(text)
+				&& wsSentenceStart(before, line.number > 1 ? doc.line(line.number - 1).text : null)) {
+				const up = text.toUpperCase();
+				if (up.length === 1 && up !== text) {
+					this.applyTypography(view, from, to, text, text, up);
+					return true;
+				}
 			}
 			return false;
 		});

@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 576;
+	--ws-stylesheet-version: 577;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -497,7 +497,14 @@ body:not(.is-mobile).zenmode-active:not(.ws-overlay-open) .titlebar.ws-main-titl
 	-webkit-app-region: drag;
 }
 
-body:not(.is-mobile).zenmode-active .titlebar.ws-main-titlebar * { -webkit-app-region: no-drag; }
+/* THE WINDOW'S BUTTONS KEEP THEIR CLICKS, AND ONLY THEY. A no-drag on every
+   child of the bar reached the frame's title text too, which Obsidian's own
+   frame lays across the whole bar, after the bar in the DOM. Drag regions
+   resolve in DOM order, the last element winning, so the text's no-drag took
+   the whole strip and the window could not be dragged in Zen. The region does
+   not inherit: the other children declare nothing and the bar's own gated
+   region holds over them, as it does outside Zen. */
+body:not(.is-mobile).zenmode-active .titlebar.ws-main-titlebar .titlebar-button { -webkit-app-region: no-drag; }
 
 /* Belt and braces: the window controls sit above the masks whatever the
    frame calls its container this release. Cheap, and it costs nothing on a
@@ -14686,6 +14693,106 @@ body.ws-font-active .markdown-reading-view .markdown-preview-view { font-family:
    it. */
 body.ws-line-limit .markdown-source-view.mod-cm6 .cm-content { max-width: var(--ws-line-measure); margin-inline: auto; }
 body.ws-line-limit .markdown-reading-view .markdown-preview-view { max-width: var(--ws-line-measure); margin-inline: auto; }
+
+/* ── Page mode ─────────────────────────────────────────────────────────────
+   The text column drawn as a page: a contour (the pickers' own, 0.5px of the
+   text at 15%) and a soft shadow round it, the ground around it a shade
+   darker. NO WIDTH OF ITS OWN: the page is the column the Layout already
+   makes (the horizontal padding, the line length, or Obsidian's readable
+   line length), so the writer sizes it with the rows they already know.
+
+   THE SIZER IS THE PAGE, so the title and the properties sit on it. That
+   moves the two things the column is made of from the content to the sizer
+   while the page is on: the padding (so the title gets the margin the text
+   has) and the line length (--ws-line-measure, whose ch is read in the
+   editor's own face: see the ws-font-active rule).
+
+   ONLY A NOTE IN THE MAIN AREA: a note in a sidebar, a hover popover, a
+   canvas card and an embed keep their own layout, and the reading view is
+   matched by its direct children so an embedded note is never a page.
+
+   THE COLORS ARE SET ON BODY, so the chrome outside the note can wear the
+   ground: the plinth under the bar, and the title bar Zen matches to the
+   page (the native window buttons take it from setWindowControlColours).
+   Left on the page's own color, they stood out as bands of it over the
+   darker ground. */
+body.ws-page {
+	--ws-page-ground: color-mix(in srgb, var(--background-primary) 94%, #000);
+	--ws-page-contour: color-mix(in srgb, var(--text-normal) 15%, transparent);
+	--ws-page-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+body.theme-dark.ws-page {
+	--ws-page-ground: color-mix(in srgb, var(--background-primary) 75%, #000);
+	--ws-page-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 28px rgba(0, 0, 0, 0.35);
+}
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] {
+	--ws-page-gap: 28px;
+	--ws-page-pad: 40px;
+}
+body.is-phone.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] {
+	--ws-page-gap: 8px;
+	--ws-page-pad: 16px;
+}
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller,
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view {
+	background-color: var(--ws-page-ground);
+}
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
+	box-sizing: border-box;
+	width: calc(100% - 2 * var(--ws-page-gap));
+	min-height: calc(100% - 2 * var(--ws-page-gap));
+	margin: var(--ws-page-gap) auto;
+	padding: var(--ws-page-pad) var(--ws-editor-padding-h);
+	background-color: var(--background-primary);
+	border: 0.5px solid var(--ws-page-contour);
+	box-shadow: var(--ws-page-shadow);
+}
+body.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-content {
+	padding-inline: 0;
+	max-width: none;
+}
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
+	max-width: var(--ws-line-measure);
+}
+body.ws-line-limit.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-reading-view > .markdown-preview-view {
+	max-width: none;
+}
+body.ws-font-active.ws-page .mod-root .workspace-leaf-content[data-type="markdown"] .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer {
+	font-family: var(--ws-font), var(--font-text);
+}
+/* the chrome on the ground: the plinth under the bar, the matched title bar */
+body.ws-page .ws-bar-plinth {
+	background-color: var(--ws-page-ground);
+}
+body.ws-titlebar-match.ws-page {
+	--titlebar-background: var(--ws-page-ground);
+	--titlebar-background-focused: var(--ws-page-ground);
+}
+body.ws-titlebar-match.ws-page .titlebar {
+	background: var(--ws-page-ground);
+}
+/* THE TITLE BAR WEARS THE GROUND, in Zen and out of it. A theme writes
+   --titlebar-background inline on body as the page's color, which a sheet
+   cannot outrank, and in Zen the strip is see-through over a body of the
+   page's color; so the strip itself is painted. */
+body.ws-page .titlebar,
+body.ws-page .titlebar-button-container {
+	background-color: var(--ws-page-ground);
+}
+body:not(.is-mobile).zenmode-active.ws-page .titlebar.ws-main-titlebar {
+	background: var(--ws-page-ground);
+}
+/* the ground's color resolved for the native window buttons, read and removed
+   at once by setWindowControlColours */
+.ws-page-ground-probe {
+	position: fixed;
+	width: 0;
+	height: 0;
+	pointer-events: none;
+	background-color: var(--ws-page-ground);
+}
 
 /* ── Justify ───────────────────────────────────────────────────────────────
    Source: skip code blocks and table cells; .cm-line chained through

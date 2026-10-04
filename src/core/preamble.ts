@@ -2057,6 +2057,44 @@ export const TYPO_MAX_LOOKBACK = TYPO_RULES.reduce((n, r) => Math.max(n, r.text.
 // what makes don't come out as don\u2019t with no apostrophe special case.
 export const TYPO_OPENS_AFTER = /[\s([{<\u2018\u201c\u2013\u2014\u2026-]/;
 
+// ── A SENTENCE STARTS HERE ("Capitalize sentences") ───────────────────
+// Read from the line's text before the caret and the line above it (null on
+// the first line). A sentence starts at the start of a line, past its block
+// markers (quote marks, a bullet or number, a task box, a heading's hashes)
+// and any opening quotes, unless the line above runs on without ending a
+// sentence; and after `.`, `!` or `?`, the closing marks after them, a space
+// and any opening marks. NOT after an ellipsis, which trails; not after an
+// initial, a dotted abbreviation or a common one; not after `?` or `!` closed
+// by a quote mark, where a dialogue tag goes on in lower case ("Really?" she
+// asked); not in a table row or inside a link.
+const WS_ABBREVIATIONS = new Set(['mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'prof', 'vs', 'etc', 'fig', 'vol', 'cf', 'ca', 'approx',
+	'gen', 'col', 'lt', 'sgt', 'capt', 'rev', 'mt', 'ft', 'inc', 'ltd', 'co', 'dept', 'jan', 'feb', 'apr', 'jun', 'jul', 'aug', 'sep',
+	'sept', 'oct', 'nov', 'dec']);
+export function wsSentenceStart(before: string, prevLine: string | null): boolean {
+	if (/^\s*\|/.test(before)) return false;
+	if (before.lastIndexOf('[[') > before.lastIndexOf(']]')) return false;
+	if (/\]\([^)]*$/.test(before)) return false;
+	const m = /^(\s*(?:>\s?)*)(\s*(?:[-*+]\s+(?:\[.\]\s+)?|\d+[.)]\s+|#{1,6}\s+))?/.exec(before);
+	const lead = m ? m[0] : '';
+	const rest = before.slice(lead.length);
+	if (/^["'\u201c\u2018([]*$/.test(rest)) {
+		if (m && m[2]) return true;
+		if (prevLine === null) return true;
+		const p = prevLine.replace(/\s+$/, '').replace(/^\s*(?:>\s?)*/, '');
+		if (p === '' || /^#{1,6}\s/.test(p) || /^(?:-{3,}|\*{3,}|_{3,})$/.test(p)) return true;
+		return /[.!?]["'\u201d\u2019)\]]*$/.test(p);
+	}
+	const t = /(\S*?)([.!?]+)(["'\u201d\u2019)\]]*)\s+["'\u201c\u2018([]*$/.exec(rest);
+	if (!t) return false;
+	if (/\.\./.test(t[2])) return false;
+	if (/["'\u201d\u2019]/.test(t[3]) && !/\./.test(t[2])) return false;
+	if (t[2] === '.') {
+		const w = t[1].replace(/^["'\u201c\u2018([]+/, '');
+		if (/^\p{L}$/u.test(w) || w.indexOf('.') !== -1 || WS_ABBREVIATIONS.has(w.toLowerCase())) return false;
+	}
+	return true;
+}
+
 // ── Non-prose line scanning ──────────────────────────────────────────────────
 
 // Line numbers (1-based) that are not prose: YAML frontmatter, fenced code
@@ -4863,7 +4901,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 576;
+export const WS_STYLESHEET_VERSION = 577;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -4901,7 +4939,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.1';
+export const WS_PLUGIN_VERSION = '1.7.2';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6097,6 +6135,10 @@ export const DEFAULT_SETTINGS = {
 	// book page in Zen, Obsidian's own page out of it. Read through
 	// `layoutOn`, never directly.
 	layoutZenOnly:            false,
+	// PAGE MODE: the text column drawn as a page, a contour on a darker
+	// ground, as wide as the padding and line length make it. A Layout row,
+	// read through `textOpt`.
+	pageView:                 false,
 
 	// ── Text options ──────────────────────────────────────────────────────────
 	enableParagraphIndent:    false,
@@ -6223,6 +6265,7 @@ export const DEFAULT_SETTINGS = {
 	typoComparisons:          false,
 	typoGuillemets:           false,
 	typoFractions:            true,
+	typoCapitalize:           false,
 
 	// ── Sidebar word counts ───────────────────────────────────────────────────
 	// Quick panels. Off by default: they add two commands, and a palette

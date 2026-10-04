@@ -1580,7 +1580,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.alertRow('Zen hides workspace controls according to the options below. Escape or the Powermenu brings them back.', zen),
 				{ name: 'Full screen', desc: 'The window goes full screen with Zen.', control: { type: 'toggle', key: 'fullscreen' }, visible: zen },
 				{ name: 'Match the title bar', desc: 'The title bar takes the page’s color.', control: { type: 'toggle', key: 'zenTitlebarMatch' }, visible: zen },
-				{ name: 'Hide window title', desc: 'Hides the text at the top of the main window during Zen. Window buttons remain visible.', control: { type: 'toggle', key: 'zenHideWindowTitle' }, visible: all(zen, () => !Platform.isMobile) },
+				{ name: 'Hide window title', desc: 'The text at the top of the window.', control: { type: 'toggle', key: 'zenHideWindowTitle' }, visible: all(zen, () => !Platform.isMobile) },
 				{ name: 'Focused file mode', desc: 'Only the note you are in stays open.', control: { type: 'toggle', key: 'focusedFileMode' }, visible: zen },
 				{ name: 'Hide properties', desc: 'Properties and frontmatter, in Zen.', control: { type: 'toggle', key: 'hideProperties' }, visible: zen },
 				{ name: 'Hide the inline title', desc: 'The note’s title above the text.', control: { type: 'toggle', key: 'hideInlineTitle' }, visible: zen },
@@ -1758,21 +1758,29 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const text: Pred = () => !!s.miscEnabled;
 		const menuIcon = (id: string) => (el: HTMLElement) => { this.plugin.menuDrawIcon(el, id); };
 		const RAIL: RailEntry[] = [
-			{ key: 'markers', name: 'Markers', icon: 'pilcrow', on: marks, draw: menuIcon('markers') },
-			{ key: 'typography', name: 'Typography', icon: 'quote', on: ty },
 			{ key: 'layout', name: 'Layout', icon: 'align-left', on: text },
+			{ key: 'typography', name: 'Typography', icon: 'quote', on: ty },
+			{ key: 'markers', name: 'Markers', icon: 'pilcrow', on: marks, draw: menuIcon('markers') },
 		];
 		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name); return names.length ? names.join(' · ') : 'Off'; };
-		return this.page('Text', 'type', 'Hidden markers, typography, layout.', [
+		return this.page('Text', 'type', 'Layout, typography, hidden markers.', [
 			this.section('Sections', [this.railRow('text', RAIL)]),
-			this.section('Markers', [
-				{ name: 'Show hidden markers', desc: 'Draws the characters you cannot normally see. Your text is untouched.', control: { type: 'toggle', key: 'markersEnabled' } },
-				{ name: 'Tabs', desc: 'Shown as →', control: { type: 'toggle', key: 'markTabs' }, visible: marks },
-				{ name: 'Spaces', desc: 'Shown as ·', control: { type: 'toggle', key: 'markSpaces' }, visible: marks },
-				{ name: 'End of lines', desc: 'Shown as ↵', control: { type: 'toggle', key: 'markEndOfLines' }, visible: marks },
-				{ name: 'Paragraphs', desc: 'Shown as ¶', control: { type: 'toggle', key: 'markParagraphs' }, visible: marks },
-				{ name: 'End of buffer', desc: 'Tildes down the empty space after your last line.', control: { type: 'toggle', key: 'markBlankLines' }, visible: marks },
-			], this.railed('text', 'markers')),
+			this.section('Layout', [
+				{ name: 'Text options', desc: 'Margins, indents, line length and spacing, justification.', control: { type: 'toggle', key: 'miscEnabled' } },
+				{ name: 'Only in Zen', desc: 'The layout turns on with Zen and off when you leave it.', control: { type: 'toggle', key: 'layoutZenOnly' }, visible: text },
+				{ name: 'Page mode', desc: 'Your text as a page, outlined on a darker ground.', control: { type: 'toggle', key: 'pageView' }, visible: text },
+				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
+				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does. Reading view only.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
+				{ name: 'Indent trigger', desc: 'What starts a paragraph in your writing: a blank line, or every new line.',
+					control: { type: 'dropdown', key: 'paragraphIndentMode', options: { double: 'A blank line (double Enter)', single: 'Every line (single Enter)' } }, visible: all(text, () => !!s.enableParagraphIndent) },
+				{ name: 'Indent size', desc: 'In em.', control: { type: 'slider', key: 'paragraphIndentEm', min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
+				{ name: 'Limit line length', desc: 'Wraps the text at a number of characters.', control: { type: 'toggle', key: 'limitLineLength' }, visible: text },
+				{ name: 'Characters per line', desc: '20 to 200; 64 suits prose.', control: { type: 'number', key: 'maxLineChars', min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
+				{ name: 'Line spacing', desc: '0.8 to 4.', control: { type: 'number', key: 'lineSpacing', min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
+				{ name: 'Justify text', desc: 'Straight edges on both sides.', control: { type: 'toggle', key: 'justifyText' }, visible: text },
+				{ name: 'Paragraph numbers', desc: 'Numbers in the left margin, on prose paragraphs only; in reading view too.', control: { type: 'toggle', key: 'paragraphNumbers' }, visible: text },
+				this.hotkeysRow(['toggle-page-view']),
+			], this.railed('text', 'layout')),
 			this.section('Typography', [
 				{ name: 'Typography', desc: 'Turns what you type into the proper characters as you go.', control: { type: 'toggle', key: 'typographyEnabled' } },
 				this.alertRow('Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.', ty),
@@ -1789,21 +1797,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Comparisons', desc: '<= ≤, >= ≥, /= ≠', control: { type: 'toggle', key: 'typoComparisons' }, visible: ty },
 				{ name: 'Guillemets', desc: '<< « and >> »', control: { type: 'toggle', key: 'typoGuillemets' }, visible: ty },
 				{ name: 'Fractions', desc: '1/2 ½, 3/4 ¾, and the rest.', control: { type: 'toggle', key: 'typoFractions' }, visible: ty },
+				{ name: 'Capitalize sentences', desc: 'The first letter of a sentence becomes a capital.', control: { type: 'toggle', key: 'typoCapitalize' }, visible: all(ty, () => !Platform.isMobile) },
 			], this.railed('text', 'typography')),
-			this.section('Layout', [
-				{ name: 'Text options', desc: 'Margins, indents, line length and spacing, justification.', control: { type: 'toggle', key: 'miscEnabled' } },
-				{ name: 'Only in Zen', desc: 'The layout turns on with Zen and off when you leave it.', control: { type: 'toggle', key: 'layoutZenOnly' }, visible: text },
-				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
-				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does. Reading view only.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
-				{ name: 'Indent trigger', desc: 'What starts a paragraph in your writing: a blank line, or every new line.',
-					control: { type: 'dropdown', key: 'paragraphIndentMode', options: { double: 'A blank line (double Enter)', single: 'Every line (single Enter)' } }, visible: all(text, () => !!s.enableParagraphIndent) },
-				{ name: 'Indent size', desc: 'In em.', control: { type: 'slider', key: 'paragraphIndentEm', min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
-				{ name: 'Limit line length', desc: 'Wraps the text at a number of characters.', control: { type: 'toggle', key: 'limitLineLength' }, visible: text },
-				{ name: 'Characters per line', desc: '20 to 200; 64 suits prose.', control: { type: 'number', key: 'maxLineChars', min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
-				{ name: 'Line spacing', desc: '0.8 to 4.', control: { type: 'number', key: 'lineSpacing', min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
-				{ name: 'Justify text', desc: 'Straight edges on both sides.', control: { type: 'toggle', key: 'justifyText' }, visible: text },
-				{ name: 'Paragraph numbers', desc: 'Numbers in the left margin, on prose paragraphs only; in reading view too.', control: { type: 'toggle', key: 'paragraphNumbers' }, visible: text },
-			], this.railed('text', 'layout')),
+			this.section('Markers', [
+				{ name: 'Show hidden markers', desc: 'Draws the characters you cannot normally see. Your text is untouched.', control: { type: 'toggle', key: 'markersEnabled' } },
+				{ name: 'Tabs', desc: 'Shown as →', control: { type: 'toggle', key: 'markTabs' }, visible: marks },
+				{ name: 'Spaces', desc: 'Shown as ·', control: { type: 'toggle', key: 'markSpaces' }, visible: marks },
+				{ name: 'End of lines', desc: 'Shown as ↵', control: { type: 'toggle', key: 'markEndOfLines' }, visible: marks },
+				{ name: 'Paragraphs', desc: 'Shown as ¶', control: { type: 'toggle', key: 'markParagraphs' }, visible: marks },
+				{ name: 'End of buffer', desc: 'Tildes down the empty space after your last line.', control: { type: 'toggle', key: 'markBlankLines' }, visible: marks },
+			], this.railed('text', 'markers')),
 		], value, on);
 	}
 
@@ -2125,5 +2128,5 @@ const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
 	'checkFillerSoft', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgFolderIcons',
-	'layoutZenOnly',
+	'layoutZenOnly', 'pageView',
 ]);

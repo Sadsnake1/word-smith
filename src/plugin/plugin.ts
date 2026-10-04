@@ -340,6 +340,22 @@ export function wsRegisterCommands(plugin: WordSmith) {
 	featureToggle('toggle-prose-checks', 'Toggle prose checks',
 		'checksEnabled', 'Prose checks');
 
+	// PAGE MODE IS A LAYOUT ROW: with Text options off it would flip a key
+	// nothing reads, so it says why instead.
+	plugin.addCommand({
+		id: 'toggle-page-view',
+		name: 'Toggle page mode',
+		callback: async () => {
+			if (!plugin.settings.miscEnabled) {
+				new Notice('Word-Smith: page mode is one of the text options. Switch them on first, in the settings.', 6000);
+				return;
+			}
+			plugin.settings.pageView = !plugin.settings.pageView;
+			await plugin.saveSettings(true);
+			new Notice('Word-Smith: Page mode' + (plugin.settings.pageView ? ' on.' : ' off.'));
+		}
+	});
+
 	// Zen is not a plain flag — it collapses sidebars, hides chrome and
 	// records what to put back — so it routes through its own method
 	// rather than being flipped here.

@@ -15,6 +15,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Toggle Hemingway mode | |
 | Toggle syntax highlighting | |
 | Toggle prose checks | |
+| Toggle page mode | Part of Text options: switch those on first, under **Text → Layout** |
 | Toggle the powerline bar | Slides it away without switching it off |
 | Cycle powerline presets | Steps through your saved bars |
 | Show the writing report | |
@@ -64,7 +65,7 @@ One switch at the top turns everything on or off. Under it, nine pages; each ope
 | **Themes** | The switch and the scheme shelf, then the options |
 | **Focus** | Zen, Letter box, Typewriter, Hemingway; each with its switch, a warning card under the ones that change the editor, and its hotkeys |
 | **Prose** | Syntax (parts of speech in color) and Checks |
-| **Text** | Markers, Typography, Layout (line width, indents, spacing, justification) |
+| **Text** | Layout (page mode, line width, indents, spacing, justification), Typography, Markers |
 | **Manuscript** | Organizer (the target column, date format, your flags and their shapes), File tree (custom order, counts, flags, icons in Obsidian's explorer), History |
 | **Navigation** | Quick panels, quick cycle, Vim motions |
 | **Vault** | Where it applies (every note, some folders, or all but some), your settings as text (copy, paste, undo), a repair, the files the plugin keeps, where to add more fonts |

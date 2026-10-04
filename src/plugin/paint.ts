@@ -68,8 +68,23 @@ export const paintMethods = {
 				this._wcoWas = { color: pick('--titlebar-background', '#1e1e1e'),
 					symbolColor: pick('--text-muted', '#888888') };
 			}
+			// PAGE MODE: the buttons stand on the ground around the page, not on
+			// the page. The ground is a color-mix, which the overlay cannot read,
+			// so it is resolved through an element: Chromium answers rgb() or
+			// color(srgb …), and the overlay is handed hex.
+			let ground: string | null = null;
+			if (document.body.classList.contains('ws-page')) {
+				const probe = document.body.createDiv({ cls: 'ws-page-ground-probe' });
+				const c = getComputedStyle(probe).backgroundColor || '';
+				probe.remove();
+				const hex = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+				const rgb = /^rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/.exec(c);
+				const srgb = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c);
+				if (rgb) ground = '#' + hex(+rgb[1]) + hex(+rgb[2]) + hex(+rgb[3]);
+				else if (srgb) ground = '#' + hex(+srgb[1] * 255) + hex(+srgb[2] * 255) + hex(+srgb[3] * 255);
+			}
 			win.setTitleBarOverlay({
-				color:       pick('--background-primary', '#1e1e1e'),
+				color:       ground || pick('--background-primary', '#1e1e1e'),
 				symbolColor: pick('--text-muted', '#888888')
 			});
 			return true;
@@ -88,7 +103,7 @@ export const paintMethods = {
 			'ws-zen-hide-window-title',
 			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-ios', 'ws-margin-nums',
 			'ws-masks-active', 'ws-retrobar-active', 'ws-pos-dim', 'ws-ck-dim', 'ws-hemingway-active',
-			'ws-line-limit', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
+			'ws-line-limit', 'ws-page', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
 				'ws-bar-hidden', 'ws-bar-anim', 'ws-bar-peek', 'ws-titlebar-match', 'ws-drag-ok'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
@@ -245,6 +260,9 @@ export const paintMethods = {
 			document.documentElement.style.removeProperty('--ws-tw-pad-top');
 			document.documentElement.style.removeProperty('--ws-tw-pad-bottom');
 		}
+		// PAGE MODE: the column below, drawn as a page (the sheet's rules read
+		// this class and the two above it).
+		body.classList.toggle('ws-page',                    scoped && this.textOpt('pageView', false));
 		body.classList.toggle('ws-line-limit',              scoped && this.textOpt('limitLineLength', false));
 		body.classList.toggle('ws-rtl',                     this.isRightToLeft());
 		// The slide transition only exists while the bar is actually
@@ -267,7 +285,9 @@ export const paintMethods = {
 		// Electron's and have to be asked. Called on every pass rather than
 		// only on the transition, because a theme change repaints the page
 		// underneath them and leaves the overlay on the old colour.
-		this.setWindowControlColours(matchBar);
+		// …and in page mode, Zen or not: the buttons stand on the ground around
+		// the page (setWindowControlColours picks the ground when the page is on).
+		this.setWindowControlColours(matchBar || body.classList.contains('ws-page'));
 		body.classList.toggle('ws-masks-active',            scoped && this.letterboxActive());
 		body.classList.toggle('ws-pos-dim',                 scoped && this.settings.posEnabled && this.settings.posDimOthers);
 		body.classList.toggle('ws-ck-dim',                  scoped && this.settings.checksEnabled && this.settings.checkDimOthers);

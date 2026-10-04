@@ -20,7 +20,7 @@ __export(main_exports, {
   default: () => WordSmith
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian23 = require("obsidian");
+var import_obsidian24 = require("obsidian");
 var WS_INTERNALS = [
   {
     id: "explorerSort",
@@ -1702,6 +1702,80 @@ var TYPO_RULES = [
 TYPO_RULES.sort((a, b) => b.text.length - a.text.length);
 var TYPO_MAX_LOOKBACK = TYPO_RULES.reduce((n, r) => Math.max(n, r.text.length), 0);
 var TYPO_OPENS_AFTER = /[\s([{<\u2018\u201c\u2013\u2014\u2026-]/;
+var WS_ABBREVIATIONS = /* @__PURE__ */ new Set([
+  "mr",
+  "mrs",
+  "ms",
+  "dr",
+  "st",
+  "jr",
+  "sr",
+  "prof",
+  "vs",
+  "etc",
+  "fig",
+  "vol",
+  "cf",
+  "ca",
+  "approx",
+  "gen",
+  "col",
+  "lt",
+  "sgt",
+  "capt",
+  "rev",
+  "mt",
+  "ft",
+  "inc",
+  "ltd",
+  "co",
+  "dept",
+  "jan",
+  "feb",
+  "apr",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "sept",
+  "oct",
+  "nov",
+  "dec"
+]);
+function wsSentenceStart(before, prevLine) {
+  if (/^\s*\|/.test(before))
+    return false;
+  if (before.lastIndexOf("[[") > before.lastIndexOf("]]"))
+    return false;
+  if (/\]\([^)]*$/.test(before))
+    return false;
+  const m = /^(\s*(?:>\s?)*)(\s*(?:[-*+]\s+(?:\[.\]\s+)?|\d+[.)]\s+|#{1,6}\s+))?/.exec(before);
+  const lead = m ? m[0] : "";
+  const rest = before.slice(lead.length);
+  if (/^["'\u201c\u2018([]*$/.test(rest)) {
+    if (m && m[2])
+      return true;
+    if (prevLine === null)
+      return true;
+    const p = prevLine.replace(/\s+$/, "").replace(/^\s*(?:>\s?)*/, "");
+    if (p === "" || /^#{1,6}\s/.test(p) || /^(?:-{3,}|\*{3,}|_{3,})$/.test(p))
+      return true;
+    return /[.!?]["'\u201d\u2019)\]]*$/.test(p);
+  }
+  const t = /(\S*?)([.!?]+)(["'\u201d\u2019)\]]*)\s+["'\u201c\u2018([]*$/.exec(rest);
+  if (!t)
+    return false;
+  if (/\.\./.test(t[2]))
+    return false;
+  if (/["'\u201d\u2019]/.test(t[3]) && !/\./.test(t[2]))
+    return false;
+  if (t[2] === ".") {
+    const w = t[1].replace(/^["'\u201c\u2018([]+/, "");
+    if (/^\p{L}$/u.test(w) || w.indexOf(".") !== -1 || WS_ABBREVIATIONS.has(w.toLowerCase()))
+      return false;
+  }
+  return true;
+}
 function scanNonProseLines(lines) {
   const set = /* @__PURE__ */ new Set();
   let inFence = false, fenceChar = "", inFront = false, inMath = false;
@@ -4205,7 +4279,7 @@ function wsTaskSay(done, all2) {
 function wsSortArrow(dir) {
   return dir === "desc" ? " ↓" : " ↑";
 }
-var WS_STYLESHEET_VERSION = 576;
+var WS_STYLESHEET_VERSION = 577;
 var WS_INSTALLER_REFUSE = 1009;
 var WS_INSTALLER_REFUSE_TEXT = "1.9";
 var WS_INSTALLER_WARN = 1013;
@@ -4221,7 +4295,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.1";
+var WS_PLUGIN_VERSION = "1.7.2";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -4743,6 +4817,7 @@ var DEFAULT_SETTINGS = {
   lineLightColor: "#030303",
   miscEnabled: false,
   layoutZenOnly: false,
+  pageView: false,
   enableParagraphIndent: false,
   paragraphIndentEm: 4,
   paragraphIndentMode: "single",
@@ -4823,6 +4898,7 @@ var DEFAULT_SETTINGS = {
   typoComparisons: false,
   typoGuillemets: false,
   typoFractions: true,
+  typoCapitalize: false,
   quickExplorer: false,
   quickOutline: false,
   quickCycle: false,
@@ -6777,7 +6853,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         this.alertRow("Zen hides workspace controls according to the options below. Escape or the Powermenu brings them back.", zen),
         { name: "Full screen", desc: "The window goes full screen with Zen.", control: { type: "toggle", key: "fullscreen" }, visible: zen },
         { name: "Match the title bar", desc: "The title bar takes the page’s color.", control: { type: "toggle", key: "zenTitlebarMatch" }, visible: zen },
-        { name: "Hide window title", desc: "Hides the text at the top of the main window during Zen. Window buttons remain visible.", control: { type: "toggle", key: "zenHideWindowTitle" }, visible: all(zen, () => !import_obsidian2.Platform.isMobile) },
+        { name: "Hide window title", desc: "The text at the top of the window.", control: { type: "toggle", key: "zenHideWindowTitle" }, visible: all(zen, () => !import_obsidian2.Platform.isMobile) },
         { name: "Focused file mode", desc: "Only the note you are in stays open.", control: { type: "toggle", key: "focusedFileMode" }, visible: zen },
         { name: "Hide properties", desc: "Properties and frontmatter, in Zen.", control: { type: "toggle", key: "hideProperties" }, visible: zen },
         { name: "Hide the inline title", desc: "The note’s title above the text.", control: { type: "toggle", key: "hideInlineTitle" }, visible: zen },
@@ -6974,24 +7050,36 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.plugin.menuDrawIcon(el, id);
     };
     const RAIL = [
-      { key: "markers", name: "Markers", icon: "pilcrow", on: marks, draw: menuIcon("markers") },
+      { key: "layout", name: "Layout", icon: "align-left", on: text },
       { key: "typography", name: "Typography", icon: "quote", on: ty },
-      { key: "layout", name: "Layout", icon: "align-left", on: text }
+      { key: "markers", name: "Markers", icon: "pilcrow", on: marks, draw: menuIcon("markers") }
     ];
     const value = () => {
       const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name);
       return names.length ? names.join(" · ") : "Off";
     };
-    return this.page("Text", "type", "Hidden markers, typography, layout.", [
+    return this.page("Text", "type", "Layout, typography, hidden markers.", [
       this.section("Sections", [this.railRow("text", RAIL)]),
-      this.section("Markers", [
-        { name: "Show hidden markers", desc: "Draws the characters you cannot normally see. Your text is untouched.", control: { type: "toggle", key: "markersEnabled" } },
-        { name: "Tabs", desc: "Shown as →", control: { type: "toggle", key: "markTabs" }, visible: marks },
-        { name: "Spaces", desc: "Shown as ·", control: { type: "toggle", key: "markSpaces" }, visible: marks },
-        { name: "End of lines", desc: "Shown as ↵", control: { type: "toggle", key: "markEndOfLines" }, visible: marks },
-        { name: "Paragraphs", desc: "Shown as ¶", control: { type: "toggle", key: "markParagraphs" }, visible: marks },
-        { name: "End of buffer", desc: "Tildes down the empty space after your last line.", control: { type: "toggle", key: "markBlankLines" }, visible: marks }
-      ], this.railed("text", "markers")),
+      this.section("Layout", [
+        { name: "Text options", desc: "Margins, indents, line length and spacing, justification.", control: { type: "toggle", key: "miscEnabled" } },
+        { name: "Only in Zen", desc: "The layout turns on with Zen and off when you leave it.", control: { type: "toggle", key: "layoutZenOnly" }, visible: text },
+        { name: "Page mode", desc: "Your text as a page, outlined on a darker ground.", control: { type: "toggle", key: "pageView" }, visible: text },
+        { name: "Horizontal padding", desc: "Pixels between the text and the pane’s edges, in and out of Zen.", control: { type: "slider", key: "editorPaddingH", min: 0, max: 400, step: 10 }, visible: text },
+        { name: "Paragraph indent", desc: "The first line of each paragraph set in, as a book does. Reading view only.", control: { type: "toggle", key: "enableParagraphIndent" }, visible: text },
+        {
+          name: "Indent trigger",
+          desc: "What starts a paragraph in your writing: a blank line, or every new line.",
+          control: { type: "dropdown", key: "paragraphIndentMode", options: { double: "A blank line (double Enter)", single: "Every line (single Enter)" } },
+          visible: all(text, () => !!s.enableParagraphIndent)
+        },
+        { name: "Indent size", desc: "In em.", control: { type: "slider", key: "paragraphIndentEm", min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
+        { name: "Limit line length", desc: "Wraps the text at a number of characters.", control: { type: "toggle", key: "limitLineLength" }, visible: text },
+        { name: "Characters per line", desc: "20 to 200; 64 suits prose.", control: { type: "number", key: "maxLineChars", min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
+        { name: "Line spacing", desc: "0.8 to 4.", control: { type: "number", key: "lineSpacing", min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
+        { name: "Justify text", desc: "Straight edges on both sides.", control: { type: "toggle", key: "justifyText" }, visible: text },
+        { name: "Paragraph numbers", desc: "Numbers in the left margin, on prose paragraphs only; in reading view too.", control: { type: "toggle", key: "paragraphNumbers" }, visible: text },
+        this.hotkeysRow(["toggle-page-view"])
+      ], this.railed("text", "layout")),
       this.section("Typography", [
         { name: "Typography", desc: "Turns what you type into the proper characters as you go.", control: { type: "toggle", key: "typographyEnabled" } },
         this.alertRow("Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.", ty),
@@ -7007,26 +7095,17 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Arrows", desc: "-> →, <- ←, => ⇒", control: { type: "toggle", key: "typoArrows" }, visible: ty },
         { name: "Comparisons", desc: "<= ≤, >= ≥, /= ≠", control: { type: "toggle", key: "typoComparisons" }, visible: ty },
         { name: "Guillemets", desc: "<< « and >> »", control: { type: "toggle", key: "typoGuillemets" }, visible: ty },
-        { name: "Fractions", desc: "1/2 ½, 3/4 ¾, and the rest.", control: { type: "toggle", key: "typoFractions" }, visible: ty }
+        { name: "Fractions", desc: "1/2 ½, 3/4 ¾, and the rest.", control: { type: "toggle", key: "typoFractions" }, visible: ty },
+        { name: "Capitalize sentences", desc: "The first letter of a sentence becomes a capital.", control: { type: "toggle", key: "typoCapitalize" }, visible: all(ty, () => !import_obsidian2.Platform.isMobile) }
       ], this.railed("text", "typography")),
-      this.section("Layout", [
-        { name: "Text options", desc: "Margins, indents, line length and spacing, justification.", control: { type: "toggle", key: "miscEnabled" } },
-        { name: "Only in Zen", desc: "The layout turns on with Zen and off when you leave it.", control: { type: "toggle", key: "layoutZenOnly" }, visible: text },
-        { name: "Horizontal padding", desc: "Pixels between the text and the pane’s edges, in and out of Zen.", control: { type: "slider", key: "editorPaddingH", min: 0, max: 400, step: 10 }, visible: text },
-        { name: "Paragraph indent", desc: "The first line of each paragraph set in, as a book does. Reading view only.", control: { type: "toggle", key: "enableParagraphIndent" }, visible: text },
-        {
-          name: "Indent trigger",
-          desc: "What starts a paragraph in your writing: a blank line, or every new line.",
-          control: { type: "dropdown", key: "paragraphIndentMode", options: { double: "A blank line (double Enter)", single: "Every line (single Enter)" } },
-          visible: all(text, () => !!s.enableParagraphIndent)
-        },
-        { name: "Indent size", desc: "In em.", control: { type: "slider", key: "paragraphIndentEm", min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
-        { name: "Limit line length", desc: "Wraps the text at a number of characters.", control: { type: "toggle", key: "limitLineLength" }, visible: text },
-        { name: "Characters per line", desc: "20 to 200; 64 suits prose.", control: { type: "number", key: "maxLineChars", min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
-        { name: "Line spacing", desc: "0.8 to 4.", control: { type: "number", key: "lineSpacing", min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
-        { name: "Justify text", desc: "Straight edges on both sides.", control: { type: "toggle", key: "justifyText" }, visible: text },
-        { name: "Paragraph numbers", desc: "Numbers in the left margin, on prose paragraphs only; in reading view too.", control: { type: "toggle", key: "paragraphNumbers" }, visible: text }
-      ], this.railed("text", "layout"))
+      this.section("Markers", [
+        { name: "Show hidden markers", desc: "Draws the characters you cannot normally see. Your text is untouched.", control: { type: "toggle", key: "markersEnabled" } },
+        { name: "Tabs", desc: "Shown as →", control: { type: "toggle", key: "markTabs" }, visible: marks },
+        { name: "Spaces", desc: "Shown as ·", control: { type: "toggle", key: "markSpaces" }, visible: marks },
+        { name: "End of lines", desc: "Shown as ↵", control: { type: "toggle", key: "markEndOfLines" }, visible: marks },
+        { name: "Paragraphs", desc: "Shown as ¶", control: { type: "toggle", key: "markParagraphs" }, visible: marks },
+        { name: "End of buffer", desc: "Tildes down the empty space after your last line.", control: { type: "toggle", key: "markBlankLines" }, visible: marks }
+      ], this.railed("text", "markers"))
     ], value, on);
   }
   renderCategory(st, onKey, colorKey) {
@@ -7472,7 +7551,8 @@ var SAVE_NOW = /* @__PURE__ */ new Set([
   "typographyEnabled",
   "orgTargetShow",
   "orgFolderIcons",
-  "layoutZenOnly"
+  "layoutZenOnly",
+  "pageView"
 ]);
 var import_obsidian3 = require("obsidian");
 var diagnosticsMethods = {
@@ -7949,8 +8029,21 @@ var paintMethods = {
           symbolColor: pick("--text-muted", "#888888")
         };
       }
+      let ground = null;
+      if (document.body.classList.contains("ws-page")) {
+        const probe = document.body.createDiv({ cls: "ws-page-ground-probe" });
+        const c = getComputedStyle(probe).backgroundColor || "";
+        probe.remove();
+        const hex = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+        const rgb = /^rgba?\((\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/.exec(c);
+        const srgb = /^color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/.exec(c);
+        if (rgb)
+          ground = "#" + hex(+rgb[1]) + hex(+rgb[2]) + hex(+rgb[3]);
+        else if (srgb)
+          ground = "#" + hex(+srgb[1] * 255) + hex(+srgb[2] * 255) + hex(+srgb[3] * 255);
+      }
       win.setTitleBarOverlay({
-        color: pick("--background-primary", "#1e1e1e"),
+        color: ground || pick("--background-primary", "#1e1e1e"),
         symbolColor: pick("--text-muted", "#888888")
       });
       return true;
@@ -7959,7 +8052,7 @@ var paintMethods = {
     }
   },
   clearAllBodyState() {
-    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "ws-zen-hide-window-title", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-ios", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
+    document.body.classList.remove("zenmode-active", "zenmode-hide-properties", "zenmode-hide-status-bar", "zenmode-hide-scroll-bar", "zenmode-hide-title-bar", "zenmode-hide-ribbon", "ws-zen-hide-window-title", "zenmode-hide-linked-mentions", "ws-text-pad", "ws-para-indent", "ws-justify", "ws-typewriter", "ws-ios", "ws-margin-nums", "ws-masks-active", "ws-retrobar-active", "ws-pos-dim", "ws-ck-dim", "ws-hemingway-active", "ws-line-limit", "ws-page", "ws-editor-focused", "ws-font-active", "ws-rtl", "ws-vim-panel-open", "ws-bar-hidden", "ws-bar-anim", "ws-bar-peek", "ws-titlebar-match", "ws-drag-ok");
     document.body.removeAttribute("data-zen-hide-inline-title");
     document.body.removeAttribute("data-zen-focused-file");
     const mainTb = document.querySelector(".titlebar.ws-main-titlebar");
@@ -8049,6 +8142,7 @@ var paintMethods = {
       document.documentElement.style.removeProperty("--ws-tw-pad-top");
       document.documentElement.style.removeProperty("--ws-tw-pad-bottom");
     }
+    body.classList.toggle("ws-page", scoped && this.textOpt("pageView", false));
     body.classList.toggle("ws-line-limit", scoped && this.textOpt("limitLineLength", false));
     body.classList.toggle("ws-rtl", this.isRightToLeft());
     const hideBar = this.barIsHidden();
@@ -8061,7 +8155,7 @@ var paintMethods = {
     this.syncBarPeekState();
     const matchBar = zen && this.settings.zenTitlebarMatch;
     body.classList.toggle("ws-titlebar-match", matchBar);
-    this.setWindowControlColours(matchBar);
+    this.setWindowControlColours(matchBar || body.classList.contains("ws-page"));
     body.classList.toggle("ws-masks-active", scoped && this.letterboxActive());
     body.classList.toggle("ws-pos-dim", scoped && this.settings.posEnabled && this.settings.posDimOthers);
     body.classList.toggle("ws-ck-dim", scoped && this.settings.checksEnabled && this.settings.checkDimOthers);
@@ -8902,6 +8996,7 @@ function wsEditorExtensions(plugin, cm) {
   });
   return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
 }
+var import_obsidian4 = require("obsidian");
 var editorMethods = {
   reconfigureEditors() {
     if (CM && this.editorExtensions) {
@@ -9006,6 +9101,13 @@ var editorMethods = {
         }
         this.applyTypography(view, from, to, text, text, glyph, tail);
         return true;
+      }
+      if (s.typoCapitalize && !import_obsidian4.Platform.isMobile && from === to && /^\p{Ll}$/u.test(text) && wsSentenceStart(before, line.number > 1 ? doc.line(line.number - 1).text : null)) {
+        const up = text.toUpperCase();
+        if (up.length === 1 && up !== text) {
+          this.applyTypography(view, from, to, text, text, up);
+          return true;
+        }
       }
       return false;
     });
@@ -9312,7 +9414,7 @@ var editorMethods = {
     return true;
   }
 };
-var import_obsidian4 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var WS_TYPEWRITER_IOS_PAUSE_MS = 400;
 var focusMethods = {
   chromeFloorY() {
@@ -10059,7 +10161,7 @@ var focusMethods = {
   },
   isReadingView() {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
       if (!view)
         return false;
       const mode = view.getMode ? view.getMode() : null;
@@ -10211,7 +10313,7 @@ var focusMethods = {
     document.body.classList.toggle("ws-font-active", !!font);
   },
   typewriterScroll() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     const cm = view && view.editor && view.editor.cm;
     if (cm)
       this.typewriterRequest(cm);
@@ -10273,7 +10375,7 @@ var focusMethods = {
       return false;
     this._hemSaid = true;
     try {
-      new import_obsidian4.Notice("Word-Smith: Hemingway mode is on — " + (what || "that key") + " is blocked while it is. Settings → Hemingway to change what it blocks.", 8e3);
+      new import_obsidian5.Notice("Word-Smith: Hemingway mode is on — " + (what || "that key") + " is blocked while it is. Settings → Hemingway to change what it blocks.", 8e3);
     } catch (_) {
       wsCatch("hemingwaySay: new Notice('Word-Smith: Hemingway mode is on — ' + (what || 'that …", _);
     }
@@ -10299,7 +10401,7 @@ var focusMethods = {
     }
     if (!this.letterboxActive())
       return;
-    if (!this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView))
+    if (!this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView))
       return;
     this.maskTopEl = document.body.createDiv({ cls: ["ws-mask", "ws-mask-top"] });
     this.maskBottomEl = document.body.createDiv({ cls: ["ws-mask", "ws-mask-bottom"] });
@@ -10385,8 +10487,8 @@ var focusMethods = {
   },
   isMobileApp() {
     try {
-      if (import_obsidian4.Platform && typeof import_obsidian4.Platform.isMobile === "boolean")
-        return import_obsidian4.Platform.isMobile;
+      if (import_obsidian5.Platform && typeof import_obsidian5.Platform.isMobile === "boolean")
+        return import_obsidian5.Platform.isMobile;
     } catch (_) {
       wsCatch("isMobileApp: if (Platform && typeof Platform.isMobile === 'boolean') return …", _);
     }
@@ -10398,8 +10500,8 @@ var focusMethods = {
   },
   isIosApp() {
     try {
-      if (import_obsidian4.Platform && typeof import_obsidian4.Platform.isIosApp === "boolean")
-        return import_obsidian4.Platform.isIosApp;
+      if (import_obsidian5.Platform && typeof import_obsidian5.Platform.isIosApp === "boolean")
+        return import_obsidian5.Platform.isIosApp;
     } catch (_) {
       wsCatch("isIosApp: Platform.isIosApp", _);
     }
@@ -10775,7 +10877,7 @@ var focusMethods = {
     this.removeMaskElements();
   },
   getActiveScroller() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian4.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
     if (!view)
       return null;
     return view.contentEl.querySelector(".cm-scroller") || view.contentEl.querySelector(".markdown-preview-view") || null;
@@ -10834,7 +10936,7 @@ var focusMethods = {
     this.windowResizeHandler = null;
   }
 };
-var import_obsidian5 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 var wsPlain = (v) => {
   if (v == null)
     return "";
@@ -11310,7 +11412,7 @@ var treeMethods = {
   },
   confirmDelete(file) {
     return new Promise((resolve) => {
-      if (!file || !import_obsidian5.Modal) {
+      if (!file || !import_obsidian6.Modal) {
         resolve(false);
         return;
       }
@@ -11841,8 +11943,8 @@ var treeMethods = {
       if (on) {
         const tick = item.createDiv({ cls: "menu-item-icon mod-checked" });
         try {
-          if (import_obsidian5.setIcon)
-            (0, import_obsidian5.setIcon)(tick, "check");
+          if (import_obsidian6.setIcon)
+            (0, import_obsidian6.setIcon)(tick, "check");
         } catch {
           tick.setText("✓");
         }
@@ -12173,7 +12275,7 @@ var treeMethods = {
           wsCatch("scheduleExplorerPatch: this.detachExplorerObserver();", _);
         }
         try {
-          new import_obsidian5.Notice("Word-Smith: the file tree kept asking to be redrawn, so its counts and marks are paused. Reopen the pane to try again, or switch them off in Settings → File tree.", 15e3);
+          new import_obsidian6.Notice("Word-Smith: the file tree kept asking to be redrawn, so its counts and marks are paused. Reopen the pane to try again, or switch them off in Settings → File tree.", 15e3);
         } catch (_) {
           wsCatch("scheduleExplorerPatch: new Notice('Word-Smith: the file tree kept asking to be '", _);
         }
@@ -12545,8 +12647,8 @@ var treeMethods = {
       this.wordCountCache.clear();
   }
 };
-var import_obsidian16 = require("obsidian");
-var import_obsidian6 = require("obsidian");
+var import_obsidian17 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 var wsOrgCellsMake = (d) => {
   const orgCanHoldProps = (path) => {
     const p = String(path || "");
@@ -12563,7 +12665,7 @@ var wsOrgCellsMake = (d) => {
   const orgPropRefuse = (path) => {
     const ext = String(path || "").split(".").pop();
     try {
-      new import_obsidian6.Notice("Word-Smith: a ." + ext + " cannot hold properties — they live in a note’s frontmatter.");
+      new import_obsidian7.Notice("Word-Smith: a ." + ext + " cannot hold properties — they live in a note’s frontmatter.");
     } catch (_) {
       wsCatch("openManuscriptModal / orgPropRefuse: new Notice('Word-Smith: a .' + ext + ' cannot hold properties — they live in a …", _);
     }
@@ -12639,7 +12741,7 @@ var wsOrgCellsMake = (d) => {
       if (!canGoal) {
         const ext = String(row.path || "").split(".").pop();
         try {
-          new import_obsidian6.Notice("Word-Smith: a ." + ext + " has no word count, so a target has nothing to measure.");
+          new import_obsidian7.Notice("Word-Smith: a ." + ext + " has no word count, so a target has nothing to measure.");
         } catch (_) {
           wsCatch("openManuscriptModal / orgGoalCell: new Notice('Word-Smith: a .' + ext + ' has no word count, so a target has nothing …", _);
         }
@@ -12790,8 +12892,8 @@ var wsOrgCellsMake = (d) => {
       const remove = opt.remove;
       const x = pill.createEl("button", { cls: "multi-select-pill-remove-button ws-org-chipx" });
       try {
-        if (import_obsidian6.setIcon)
-          (0, import_obsidian6.setIcon)(x, "x");
+        if (import_obsidian7.setIcon)
+          (0, import_obsidian7.setIcon)(x, "x");
       } catch (_) {
         wsCatch("orgTagPill: setIcon(x, x)", _);
       }
@@ -12835,7 +12937,7 @@ var wsOrgCellsMake = (d) => {
   };
   return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
 };
-var import_obsidian7 = require("obsidian");
+var import_obsidian8 = require("obsidian");
 var wsOrgChromeMake = (d) => {
   const plugin = d.plugin;
   const glyph = (el, names, fallback) => {
@@ -12843,8 +12945,8 @@ var wsOrgChromeMake = (d) => {
     for (const n of names) {
       el.textContent = "";
       try {
-        if (import_obsidian7.setIcon)
-          (0, import_obsidian7.setIcon)(el, n);
+        if (import_obsidian8.setIcon)
+          (0, import_obsidian8.setIcon)(el, n);
       } catch (_) {
         wsCatch("orgChrome / glyph: if (setIcon) setIcon(el, n);", _);
       }
@@ -12923,8 +13025,8 @@ var wsOrgChromeMake = (d) => {
         for (const n of plugin.menuIconAlts(t.icon)) {
           g.textContent = "";
           try {
-            if (import_obsidian7.setIcon)
-              (0, import_obsidian7.setIcon)(g, n);
+            if (import_obsidian8.setIcon)
+              (0, import_obsidian8.setIcon)(g, n);
           } catch (_) {
             wsCatch("orgChrome / drawTabs: if (setIcon) setIcon(g, n);", _);
           }
@@ -13017,7 +13119,7 @@ var wsOrgChromeMake = (d) => {
         }
       });
       pin.title = pin.getAttribute("aria-label") || "";
-      (0, import_obsidian7.setIcon)(pin, on ? "pin" : "pin-off");
+      (0, import_obsidian8.setIcon)(pin, on ? "pin" : "pin-off");
       pin.addEventListener("click", () => {
         s.organizerPinned = !s.organizerPinned;
         void plugin.saveSettings();
@@ -13144,7 +13246,7 @@ var wsOrgChipsMake = (d) => {
   };
   return { orgChipHit, orgPropKeys };
 };
-var import_obsidian8 = require("obsidian");
+var import_obsidian9 = require("obsidian");
 var wsOrgColsMake = (d) => {
   const colDefs = () => [
     { id: "goal", label: "Target", def: 116, min: 78 },
@@ -13405,7 +13507,7 @@ var wsOrgColsMake = (d) => {
     d.drawPanel();
   };
   const askPropType = (ev2, done) => {
-    if (!import_obsidian8.Menu) {
+    if (!import_obsidian9.Menu) {
       done("");
       return;
     }
@@ -13481,7 +13583,7 @@ var wsOrgColsMake = (d) => {
     }
     if (!found.length) {
       try {
-        new import_obsidian8.Notice("Word-Smith: no properties in these notes.");
+        new import_obsidian9.Notice("Word-Smith: no properties in these notes.");
       } catch (_) {
         wsCatch("openManuscriptModal / pickProp: new Notice('Word-Smith: no properties in these notes.');", _);
       }
@@ -13683,7 +13785,7 @@ var wsOrgFilesMake = (d) => {
     orgCellHint = v;
   } };
 };
-var import_obsidian9 = require("obsidian");
+var import_obsidian10 = require("obsidian");
 var wsOrgFlagsMake = (d) => {
   const orgFlagApply = async (pairs) => {
     for (const [p, v] of pairs) {
@@ -13827,8 +13929,8 @@ var wsOrgFlagsMake = (d) => {
     });
     const more = td.createSpan({ cls: "ws-org-flagmore" });
     try {
-      if (import_obsidian9.setIcon)
-        (0, import_obsidian9.setIcon)(more, "chevron-down");
+      if (import_obsidian10.setIcon)
+        (0, import_obsidian10.setIcon)(more, "chevron-down");
     } catch (_) {
       wsCatch("orgFlagCell: setIcon(more, chevron-down);", _);
     }
@@ -14061,7 +14163,7 @@ var wsOrgKeysMake = (d) => {
   }
   return { onEscape };
 };
-var import_obsidian10 = require("obsidian");
+var import_obsidian11 = require("obsidian");
 var wsOrgLensMake = (d) => {
   let orgLens = { sort: null, chips: [] };
   const orgLensOn = () => !!(orgLens.sort || orgLens.chips.some((c) => !c.off));
@@ -14098,7 +14200,7 @@ var wsOrgLensMake = (d) => {
     }
     if (!vals.length) {
       try {
-        new import_obsidian10.Notice("Word-Smith: no values for " + key + ".");
+        new import_obsidian11.Notice("Word-Smith: no values for " + key + ".");
       } catch (_) {
         wsCatch("openManuscriptModal / orgFilterByKey: new Notice('Word-Smith: no values for ' + key);", _);
       }
@@ -14145,15 +14247,15 @@ var wsOrgLensMake = (d) => {
     orgLens = v;
   } };
 };
-var import_obsidian11 = require("obsidian");
+var import_obsidian12 = require("obsidian");
 var wsOrgModeMake = (d) => {
   const orgChevron = (into, open) => {
     const el = into.createSpan({
       cls: "ws-org-twist tree-item-icon collapse-icon nav-folder-collapse-indicator" + (open ? " is-open" : " is-collapsed")
     });
     try {
-      if (import_obsidian11.setIcon)
-        (0, import_obsidian11.setIcon)(el, "right-triangle");
+      if (import_obsidian12.setIcon)
+        (0, import_obsidian12.setIcon)(el, "right-triangle");
     } catch (_) {
       wsCatch("openManuscriptModal / orgChevron: if (setIcon) setIcon(el, 'right-triangle');", _);
     }
@@ -14166,13 +14268,13 @@ var wsOrgModeMake = (d) => {
   d.plugin._orgOpen = () => Array.from(d.orgOpen);
   return { orgChevron };
 };
-var import_obsidian12 = require("obsidian");
+var import_obsidian13 = require("obsidian");
 var wsOrgNavMake = (d) => {
   let stopWidth = () => {
   };
   let stopNav = () => {
   };
-  if (d.host.kind === "leaf" && typeof import_obsidian12.Platform !== "undefined" && import_obsidian12.Platform && import_obsidian12.Platform.isMobile) {
+  if (d.host.kind === "leaf" && typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isMobile) {
     const navStamp = () => {
       try {
         const kbh = parseFloat(getComputedStyle(document.body).getPropertyValue("--keyboard-height")) || 0;
@@ -14293,7 +14395,7 @@ var wsOrgNavMake = (d) => {
     stopNav = v;
   } };
 };
-var import_obsidian13 = require("obsidian");
+var import_obsidian14 = require("obsidian");
 function wsOrgPropPanelRows(a) {
   const { d, orgPropRowId, orgPropsByUse } = a;
   const rows = [];
@@ -14411,8 +14513,8 @@ function wsOrgPropPopRender(a) {
     for (const n2 of ["grip-vertical", "grip", "more-vertical"]) {
       grip.textContent = "";
       try {
-        if (import_obsidian13.setIcon)
-          (0, import_obsidian13.setIcon)(grip, n2);
+        if (import_obsidian14.setIcon)
+          (0, import_obsidian14.setIcon)(grip, n2);
       } catch (_) {
         wsCatch("openManuscriptModal / orgPropPopRender: if (setIcon) setIcon(grip, n2);", _);
       }
@@ -14465,8 +14567,8 @@ function wsOrgPropPopRender(a) {
       try {
         const cid = r.col.id;
         const def = d.SORTS.filter((sd) => sd.id === cid)[0];
-        if (def && def.icon && import_obsidian13.setIcon) {
-          (0, import_obsidian13.setIcon)(ic, def.icon);
+        if (def && def.icon && import_obsidian14.setIcon) {
+          (0, import_obsidian14.setIcon)(ic, def.icon);
           if (ic.childElementCount > 0)
             ic.dataset.icon = def.icon;
         }
@@ -14510,7 +14612,7 @@ function wsOrgPropSubOpen(a, anchor, door) {
       }
     });
   }
-  if (typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone)
+  if (typeof import_obsidian14.Platform !== "undefined" && import_obsidian14.Platform && import_obsidian14.Platform.isPhone)
     return sub;
   try {
     const r = anchor.getBoundingClientRect();
@@ -14554,8 +14656,8 @@ function wsOrgPropPopOpen(a, anchor) {
     for (const n of ["move-horizontal", "unfold-horizontal", "maximize-2"]) {
       g.textContent = "";
       try {
-        if (import_obsidian13.setIcon)
-          (0, import_obsidian13.setIcon)(g, n);
+        if (import_obsidian14.setIcon)
+          (0, import_obsidian14.setIcon)(g, n);
       } catch (_) {
         wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
       }
@@ -14579,8 +14681,8 @@ function wsOrgPropPopOpen(a, anchor) {
       for (const n of door.icons) {
         g.textContent = "";
         try {
-          if (import_obsidian13.setIcon)
-            (0, import_obsidian13.setIcon)(g, n);
+          if (import_obsidian14.setIcon)
+            (0, import_obsidian14.setIcon)(g, n);
         } catch (_) {
           wsCatch("openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);", _);
         }
@@ -14610,7 +14712,7 @@ function wsOrgPropPopOpen(a, anchor) {
     });
   }
   orgPropPopRender();
-  const phoneSheet = !!(typeof import_obsidian13.Platform !== "undefined" && import_obsidian13.Platform && import_obsidian13.Platform.isPhone);
+  const phoneSheet = !!(typeof import_obsidian14.Platform !== "undefined" && import_obsidian14.Platform && import_obsidian14.Platform.isPhone);
   if (!phoneSheet)
     try {
       const r = anchor.getBoundingClientRect();
@@ -14775,7 +14877,7 @@ function wsOrgFieldEditor(a, card, path, key, isDraft) {
         const val = isTagField ? tagClean(typed) : typed;
         if (isTagField && (!val || /^\p{N}/u.test(val))) {
           try {
-            new import_obsidian13.Notice(val ? "Word-Smith: a tag cannot start with a number — Obsidian will not index “" + val + "”." : "Word-Smith: that is not a tag Obsidian can index.");
+            new import_obsidian14.Notice(val ? "Word-Smith: a tag cannot start with a number — Obsidian will not index “" + val + "”." : "Word-Smith: that is not a tag Obsidian can index.");
           } catch (_) {
             wsCatch("openManuscriptModal / orgFieldEditor: new Notice(val ? 'Word-Smith: a tag cannot start with a number — Obsidian '", _);
           }
@@ -15090,8 +15192,8 @@ var wsOrgPropsMake = (d) => {
     for (const n of names) {
       g.textContent = "";
       try {
-        if (import_obsidian13.setIcon)
-          (0, import_obsidian13.setIcon)(g, n);
+        if (import_obsidian14.setIcon)
+          (0, import_obsidian14.setIcon)(g, n);
       } catch (_) {
         wsCatch("openManuscriptModal / orgPropIcon: if (setIcon) setIcon(g, n);", _);
       }
@@ -15120,7 +15222,7 @@ var wsOrgPropsMake = (d) => {
     st.orgFieldEscape = v;
   } };
 };
-var import_obsidian14 = require("obsidian");
+var import_obsidian15 = require("obsidian");
 var wsOrgReadingsMake = (d) => {
   const orgColRaw = (col, path) => {
     const r = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
@@ -15160,7 +15262,7 @@ var wsOrgReadingsMake = (d) => {
           return r[want];
         try {
           const f2 = d.plugin.app.vault.getAbstractFileByPath(String(path || ""));
-          if (f2 instanceof import_obsidian14.TFile && f2.stat && f2.stat[want])
+          if (f2 instanceof import_obsidian15.TFile && f2.stat && f2.stat[want])
             return f2.stat[want];
         } catch (_) {
           wsCatch("openManuscriptModal / orgColRaw: const f2 = this.app.vault.getAbstractFileByPath(String(path || ''));", _);
@@ -15763,7 +15865,7 @@ var wsOrgScopeMake = (d) => {
     orgDrawTimer = v;
   } };
 };
-var import_obsidian15 = require("obsidian");
+var import_obsidian16 = require("obsidian");
 var wsOrgSelMake = (d) => {
   const sel = /* @__PURE__ */ new Map();
   const keyOf = (it) => it.kind + "\0" + it.path;
@@ -15795,7 +15897,7 @@ var wsOrgSelMake = (d) => {
   };
   const orgBulkOn = () => {
     try {
-      if (import_obsidian15.Platform && import_obsidian15.Platform.isMobile)
+      if (import_obsidian16.Platform && import_obsidian16.Platform.isMobile)
         return false;
     } catch (_) {
       wsCatch("orgBulkOn: Platform.isMobile", _);
@@ -15815,7 +15917,7 @@ var wsOrgSelMake = (d) => {
     if (n < 2)
       return;
     try {
-      new import_obsidian15.Notice("Word-Smith: " + what + " on " + n + " notes.");
+      new import_obsidian16.Notice("Word-Smith: " + what + " on " + n + " notes.");
     } catch (_) {
       wsCatch("orgBulkSay: new Notice", _);
     }
@@ -16803,7 +16905,7 @@ function wsOrgFilterMenu(plugin, a, ev) {
       }
       if (!tags.length) {
         try {
-          new import_obsidian16.Notice("Word-Smith: no tags in these notes.");
+          new import_obsidian17.Notice("Word-Smith: no tags in these notes.");
         } catch (_) {
           wsCatch("orgTableMake / drawOrg: new Notice('Word-Smith: no tags in these notes.');", _);
         }
@@ -16847,7 +16949,7 @@ function wsOrgFilterMenu(plugin, a, ev) {
       const keys = ctx.orgPropKeys(at);
       if (!keys.length) {
         try {
-          new import_obsidian16.Notice("Word-Smith: no properties in these notes.");
+          new import_obsidian17.Notice("Word-Smith: no properties in these notes.");
         } catch (_) {
           wsCatch("orgTableMake / askEmpty: new Notice('Word-Smith: no properties in these notes.');", _);
         }
@@ -16883,7 +16985,7 @@ function wsOrgFilterMenu(plugin, a, ev) {
       const keys = ctx.orgPropKeys(at);
       if (!keys.length) {
         try {
-          new import_obsidian16.Notice("Word-Smith: no properties in these notes.");
+          new import_obsidian17.Notice("Word-Smith: no properties in these notes.");
         } catch (_) {
           wsCatch("orgTableMake / drawOrg: new Notice('Word-Smith: no properties in these notes.');", _);
         }
@@ -17572,7 +17674,7 @@ var organizerWindowMethods = {
       const cache = this.app.metadataCache && this.app.metadataCache.getFileCache(f);
       if (!cache)
         return [];
-      const all2 = typeof import_obsidian16.getAllTags === "function" ? (0, import_obsidian16.getAllTags)(cache) : null;
+      const all2 = typeof import_obsidian17.getAllTags === "function" ? (0, import_obsidian17.getAllTags)(cache) : null;
       if (Array.isArray(all2))
         return all2;
       const out = [];
@@ -18243,7 +18345,7 @@ var organizerWindowMethods = {
         return fallback;
       }
     };
-    const narrow = !!(import_obsidian16.Platform && import_obsidian16.Platform.isMobile);
+    const narrow = !!(import_obsidian17.Platform && import_obsidian17.Platform.isMobile);
     if (narrow)
       host.rootEl.addClass("is-narrow");
     const orgNav = wsOrgNavMake({
@@ -19197,7 +19299,7 @@ var organizerWindowMethods = {
     const orgHistMine = () => {
       try {
         if (host.kind === "leaf" && host.view && host.view.leaf && this.app.workspace) {
-          return this.app.workspace.getActiveViewOfType(import_obsidian16.ItemView) === host.view;
+          return this.app.workspace.getActiveViewOfType(import_obsidian17.ItemView) === host.view;
         }
       } catch (_) {
         wsCatch("orgHistMine: this.app.workspace.getActiveViewOfType(ItemView) === host.view", _);
@@ -19352,8 +19454,8 @@ var organizerWindowMethods = {
     for (const n of open ? ["folder-open", "folder"] : ["folder-closed", "folder"]) {
       ic.textContent = "";
       try {
-        if (import_obsidian16.setIcon)
-          (0, import_obsidian16.setIcon)(ic, n);
+        if (import_obsidian17.setIcon)
+          (0, import_obsidian17.setIcon)(ic, n);
       } catch (_) {
         wsCatch("orgFolderIcon: if (setIcon) setIcon(ic, n);", _);
       }
@@ -19398,8 +19500,8 @@ var organizerWindowMethods = {
     for (const n of names) {
       kindIc.textContent = "";
       try {
-        if (import_obsidian16.setIcon)
-          (0, import_obsidian16.setIcon)(kindIc, n);
+        if (import_obsidian17.setIcon)
+          (0, import_obsidian17.setIcon)(kindIc, n);
       } catch (_) {
         wsCatch("orgKindIcon: if (setIcon) setIcon(kindIc, n);", _);
       }
@@ -19640,8 +19742,8 @@ var organizerWindowMethods = {
       const lensIcon = (btn, names) => {
         for (const n of names) {
           try {
-            if (import_obsidian16.setIcon)
-              (0, import_obsidian16.setIcon)(btn, n);
+            if (import_obsidian17.setIcon)
+              (0, import_obsidian17.setIcon)(btn, n);
           } catch (_) {
             wsCatch("orgTableMake / lensIcon: if (setIcon) setIcon(btn, n);", _);
           }
@@ -20506,7 +20608,7 @@ var organizerWindowMethods = {
     return leaf;
   }
 };
-var import_obsidian17 = require("obsidian");
+var import_obsidian18 = require("obsidian");
 function wsJarAuroraCell(a, u, v, t, ph, fire) {
   const { dir, p1, p2, p3, quant, quantA, rot, spread } = a;
   const T = t * 0.42;
@@ -22377,7 +22479,7 @@ var reportMethods = {
     };
     const orbPress = (p, now) => wsJarOrbPress({ CELL, DROPS_MAX, ORB_BITE, ORB_SPIN_CAP, POKES_MAX, cols, drops, h, hueNow, kick, liq, orb, pokes }, p, now);
     const bite = (ev) => wsJarBite({ CELL, DROPS_MAX, POKES_MAX, S_SPLASH, WAVES_MAX, agitNow, cols, drops, full, h, hueNow, kick, liq, pointAt, pokes, stageStart, w, waveAmp, waves }, ev);
-    if (!(import_obsidian17.Platform && import_obsidian17.Platform.isMobile) && !reduce) {
+    if (!(import_obsidian18.Platform && import_obsidian18.Platform.isMobile) && !reduce) {
       wrap.addEventListener("pointerdown", (ev) => {
         const p = pointAt(ev);
         const now = performance.now();
@@ -22463,7 +22565,7 @@ var reportMethods = {
   registerGoalStates() {
     if (!this._goalStates)
       this._goalStates = [];
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian17.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian18.MarkdownView);
     const fpath = view && view.file ? view.file.path : null;
     const ftarget = fpath ? this.fileGoalFor(fpath) : 0;
     if (fpath && ftarget) {
@@ -22553,7 +22655,7 @@ var reportMethods = {
     }
   },
   openReportModal(at) {
-    if (!import_obsidian17.Modal)
+    if (!import_obsidian18.Modal)
       return;
     const modal = this.wsModal();
     if (!modal)
@@ -22899,7 +23001,7 @@ var reportMethods = {
     return sum;
   }
 };
-var import_obsidian18 = require("obsidian");
+var import_obsidian19 = require("obsidian");
 var barMethods = {
   barGeometry() {
     const L = [];
@@ -23054,17 +23156,17 @@ var barMethods = {
     const presets = this.getBarPresets();
     const names = Object.keys(presets);
     if (!names.length) {
-      new import_obsidian18.Notice("Word-Smith: no bar presets saved yet.");
+      new import_obsidian19.Notice("Word-Smith: no bar presets saved yet.");
       return;
     }
     if (!this.settings.enableRetroStatus) {
-      new import_obsidian18.Notice("Word-Smith: the Powerline bar is off.");
+      new import_obsidian19.Notice("Word-Smith: the Powerline bar is off.");
       return;
     }
     const at = names.indexOf(this._activeBarPreset);
     const next = names[(at + direction + names.length) % names.length];
     await this.loadBarPreset(next);
-    new import_obsidian18.Notice("Word-Smith: bar preset " + next + ".");
+    new import_obsidian19.Notice("Word-Smith: bar preset " + next + ".");
   },
   async deleteBarPreset(name) {
     delete this.getBarPresets()[name];
@@ -23372,7 +23474,7 @@ var barMethods = {
   retroBarActive() {
     if (!this.settings.enableRetroStatus)
       return false;
-    if (typeof import_obsidian18.Platform !== "undefined" && import_obsidian18.Platform && import_obsidian18.Platform.isPhone && !this.settings.retroBarOnPhone)
+    if (typeof import_obsidian19.Platform !== "undefined" && import_obsidian19.Platform && import_obsidian19.Platform.isPhone && !this.settings.retroBarOnPhone)
       return false;
     if (this.wsOwnViewActive())
       return false;
@@ -23710,8 +23812,8 @@ var barMethods = {
       for (const n of alts) {
         node.textContent = "";
         try {
-          if (typeof import_obsidian18.setIcon === "function")
-            (0, import_obsidian18.setIcon)(node, n);
+          if (typeof import_obsidian19.setIcon === "function")
+            (0, import_obsidian19.setIcon)(node, n);
         } catch (_) {
           wsCatch("barTokenPaint: setIcon(node, n);", _);
         }
@@ -23880,8 +23982,8 @@ var barMethods = {
       const ic = createSpan();
       ic.className = "ws-bartok-ic";
       try {
-        if (typeof import_obsidian18.setIcon === "function")
-          (0, import_obsidian18.setIcon)(ic, this.barTokenIconName(id));
+        if (typeof import_obsidian19.setIcon === "function")
+          (0, import_obsidian19.setIcon)(ic, this.barTokenIconName(id));
       } catch (_) {
         wsCatch("barCountPaint: setIcon(ic, …)", _);
       }
@@ -23995,8 +24097,8 @@ var barMethods = {
       const find = crumbs.createEl("button", { cls: "ws-crumb ws-crumb-find" });
       find.title = "Search for a folder or a note";
       try {
-        if (import_obsidian18.setIcon)
-          (0, import_obsidian18.setIcon)(find, "search");
+        if (import_obsidian19.setIcon)
+          (0, import_obsidian19.setIcon)(find, "search");
       } catch {
         find.setText("⌕");
       }
@@ -24412,7 +24514,7 @@ var barMethods = {
         return "";
       if (this._vimPanelOpen || !this.editorHasFocus())
         return "command";
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian18.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian19.MarkdownView);
       const cm6 = view && view.editor && view.editor.cm;
       const cm5 = cm6 && cm6.cm;
       const vim = cm5 && cm5.state && cm5.state.vim;
@@ -24450,7 +24552,7 @@ var barMethods = {
         return "";
       if (this._vimPanelOpen || !this.editorHasFocus())
         return L("Command", "-- COMMAND --");
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian18.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian19.MarkdownView);
       const cm6 = view && view.editor && view.editor.cm;
       const cm5 = cm6 && cm6.cm;
       const vim = cm5 && cm5.state && cm5.state.vim;
@@ -24496,7 +24598,7 @@ var barMethods = {
       return;
     this._goalStates = [];
     this._themeSurfaceCache = null;
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian18.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian19.MarkdownView);
     const now = /* @__PURE__ */ new Date();
     let stats = null, totalWC = 0, charCount = 0, displayWC = 0, displayCC = 0;
     if (view) {
@@ -25225,7 +25327,7 @@ var barMethods = {
   },
   headingCrumbCount() {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian18.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian19.MarkdownView);
       if (!view)
         return 0;
       return this.headingTrail(view).filter(Boolean).length;
@@ -25397,7 +25499,7 @@ var barMethods = {
     }
   }
 };
-var import_obsidian19 = require("obsidian");
+var import_obsidian20 = require("obsidian");
 var menuMethods = {
   menuDrawIcon(el, rowId) {
     const glyph = this.menuIconFor(rowId) || (this.menuIsCommand(rowId) ? "terminal" : "");
@@ -25408,8 +25510,8 @@ var menuMethods = {
     for (const n of this.menuIconAlts(glyph)) {
       g.textContent = "";
       try {
-        if (import_obsidian19.setIcon)
-          (0, import_obsidian19.setIcon)(g, n);
+        if (import_obsidian20.setIcon)
+          (0, import_obsidian20.setIcon)(g, n);
       } catch (_) {
         wsCatch("menuDrawIcon: if (setIcon) setIcon(g, n);", _);
       }
@@ -26396,7 +26498,7 @@ var menuMethods = {
     return modal;
   }
 };
-var import_obsidian20 = require("obsidian");
+var import_obsidian21 = require("obsidian");
 var storesMethods = {
   goalsFilePath() {
     return this.storeResolve(this.settings.goalsPath, "ws-goals.md");
@@ -26633,7 +26735,7 @@ var storesMethods = {
     this._storeFailSaid[subject] = true;
     const why = e instanceof Error && e.message ? String(e.message) : wsStr(e);
     try {
-      new import_obsidian20.Notice("Word-Smith: could not " + subject + (why ? " — " + why : "") + (tail ? ". " + tail : "."), 12e3);
+      new import_obsidian21.Notice("Word-Smith: could not " + subject + (why ? " — " + why : "") + (tail ? ". " + tail : "."), 12e3);
     } catch (_) {
       wsCatch("storeWriteFailed: new Notice('Word-Smith: could not ' + subject", _);
     }
@@ -28718,7 +28820,7 @@ var themesMethods = {
     return this.isDarkTheme() ? theme.dark : theme.light;
   }
 };
-var import_obsidian21 = require("obsidian");
+var import_obsidian22 = require("obsidian");
 function wsPreviewMetrics(a) {
   const { docOf } = a;
   const doc = docOf();
@@ -29792,7 +29894,7 @@ var exportMethods = {
     }
     try {
       if (!view)
-        view = this.app.workspace.getActiveViewOfType(import_obsidian21.MarkdownView);
+        view = this.app.workspace.getActiveViewOfType(import_obsidian22.MarkdownView);
       const ed = view && view.editor;
       if (!ed || !snippet)
         return true;
@@ -31296,7 +31398,7 @@ var exportMethods = {
   },
   async runExport(kind, scope, files, o, progress) {
     if (!files.length) {
-      new import_obsidian21.Notice("Word-Smith: nothing selected to export.");
+      new import_obsidian22.Notice("Word-Smith: nothing selected to export.");
       return;
     }
     const sections = await this.exportSections(files, o, progress ? (d, t) => progress.show(d, t, "Reading") : null, scope);
@@ -31332,7 +31434,7 @@ var exportMethods = {
         const name2 = into(this.exportFileName(scope, "md"));
         await this.app.vault.create(name2, this.exportToMarkdown(sections, opt));
         this.exportRemember(scope, kind, opt, files.length, name2);
-        new import_obsidian21.Notice("Word-Smith: exported " + name2);
+        new import_obsidian22.Notice("Word-Smith: exported " + name2);
         return;
       }
       if (kind === "pdf") {
@@ -31344,11 +31446,11 @@ var exportMethods = {
             throw new Error("the engine returned nothing");
           await this.app.vault.createBinary(pdfName, bytes2.buffer);
           this.exportRemember(scope, kind, opt, files.length, pdfName);
-          new import_obsidian21.Notice("Word-Smith: exported " + pdfName);
+          new import_obsidian22.Notice("Word-Smith: exported " + pdfName);
           return;
         } catch (e) {
           console.error("Word-Smith: PDF export failed", e);
-          new import_obsidian21.Notice("Word-Smith: could not make a PDF — " + wsErrMsg(e) + ". Nothing was written.");
+          new import_obsidian22.Notice("Word-Smith: could not make a PDF — " + wsErrMsg(e) + ". Nothing was written.");
           return;
         }
       }
@@ -31356,17 +31458,17 @@ var exportMethods = {
         const htmlName = into(this.exportFileName(scope, "html"));
         await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
         this.exportRemember(scope, kind, opt, files.length, htmlName);
-        new import_obsidian21.Notice("Word-Smith: exported " + htmlName);
+        new import_obsidian22.Notice("Word-Smith: exported " + htmlName);
         return;
       }
       const bytes = wsBuildDocx(sections, opt);
       const name = into(this.exportFileName(scope, "docx"));
       await this.app.vault.createBinary(name, bytes.buffer);
       this.exportRemember(scope, kind, opt, files.length, name);
-      new import_obsidian21.Notice("Word-Smith: exported " + name);
+      new import_obsidian22.Notice("Word-Smith: exported " + name);
     } catch (e) {
       console.error("Word-Smith export failed", e);
-      new import_obsidian21.Notice("Word-Smith: export failed — " + wsErrMsg(e));
+      new import_obsidian22.Notice("Word-Smith: export failed — " + wsErrMsg(e));
     }
   },
   exportPdfOptions(o) {
@@ -31388,9 +31490,9 @@ var exportMethods = {
   },
   exportPdfAvailable() {
     try {
-      if (import_obsidian21.Platform && import_obsidian21.Platform.isMobile)
+      if (import_obsidian22.Platform && import_obsidian22.Platform.isMobile)
         return false;
-      if (import_obsidian21.Platform && import_obsidian21.Platform.isDesktopApp === false)
+      if (import_obsidian22.Platform && import_obsidian22.Platform.isDesktopApp === false)
         return false;
     } catch (_) {
       wsCatch("exportPdfAvailable: if (Platform && Platform.isMobile) return false;", _);
@@ -31463,7 +31565,7 @@ var exportMethods = {
     });
   }
 };
-var import_obsidian22 = require("obsidian");
+var import_obsidian23 = require("obsidian");
 var historyMethods = {
   historyLongDate(key) {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ""));
@@ -31572,7 +31674,7 @@ var historyMethods = {
   async historyFindFile() {
     const vault = this.app.vault;
     const check = async (file) => {
-      if (!file || !(file instanceof import_obsidian22.TFile))
+      if (!file || !(file instanceof import_obsidian23.TFile))
         return false;
       try {
         return this.historyIsStoreFile(await vault.cachedRead(file));
@@ -31658,7 +31760,7 @@ var historyMethods = {
         await this.saveSettings();
         if (moved) {
           await this.historyWrite(true);
-          new import_obsidian22.Notice("Word-Smith: moved " + moved + " day" + (moved === 1 ? "" : "s") + " of writing history into " + (this._historyPath || this.historyDefaultPath()) + ".");
+          new import_obsidian23.Notice("Word-Smith: moved " + moved + " day" + (moved === 1 ? "" : "s") + " of writing history into " + (this._historyPath || this.historyDefaultPath()) + ".");
         }
       }
       const keys = Object.keys(h.days).sort();
@@ -31699,7 +31801,7 @@ var historyMethods = {
       if (!this._historyReady)
         await this.historyLoad();
       const file = this.app.vault.getAbstractFileByPath(path);
-      if (!file || !(file instanceof import_obsidian22.TFile))
+      if (!file || !(file instanceof import_obsidian23.TFile))
         return;
       if (path === this._historyPath)
         return;
@@ -32111,7 +32213,7 @@ var historyMethods = {
     this._historyWriting = true;
     try {
       let file = this.app.vault.getAbstractFileByPath(this._historyPath || "");
-      if (!file || !(file instanceof import_obsidian22.TFile))
+      if (!file || !(file instanceof import_obsidian23.TFile))
         file = await this.historyFindFile();
       if (file) {
         this._historyPath = file.path;
@@ -32129,7 +32231,7 @@ var historyMethods = {
       if (!seenAny.length)
         return false;
       if (this.settings.historySeen) {
-        new import_obsidian22.Notice("Word-Smith: could not find ws-history.md, so nothing was written. It has been moved or renamed — open it once, or set its path in Settings, and the record will carry on. A new one has NOT been made.");
+        new import_obsidian23.Notice("Word-Smith: could not find ws-history.md, so nothing was written. It has been moved or renamed — open it once, or set its path in Settings, and the record will carry on. A new one has NOT been made.");
         return false;
       }
       const path = this.historyDefaultPath();
@@ -32150,7 +32252,7 @@ var historyMethods = {
       await this.historyMarkSeen();
       return true;
     } catch (e) {
-      new import_obsidian22.Notice("Word-Smith: could not write the writing history — " + wsErrMsg(e));
+      new import_obsidian23.Notice("Word-Smith: could not write the writing history — " + wsErrMsg(e));
       return false;
     } finally {
       this._historyWriting = false;
@@ -32171,7 +32273,7 @@ var historyMethods = {
         return;
       if (!file || !file.path || !/\.md$/i.test(file.path))
         return;
-      if (!(file instanceof import_obsidian22.TFile))
+      if (!(file instanceof import_obsidian23.TFile))
         return;
       if (this._historyDirtyAt)
         return;
@@ -32607,8 +32709,8 @@ var historyMethods = {
         for (const nm of names) {
           b.textContent = "";
           try {
-            if (import_obsidian22.setIcon)
-              (0, import_obsidian22.setIcon)(b, nm);
+            if (import_obsidian23.setIcon)
+              (0, import_obsidian23.setIcon)(b, nm);
           } catch (_) {
             wsCatch("renderHistoryTab / stepArrow: if (setIcon) setIcon(b, nm);", _);
           }
@@ -33263,7 +33365,7 @@ function wsRegisterCommands(plugin) {
     name: "Repair the display (draw everything again)",
     callback: () => {
       plugin.repairDisplay();
-      new import_obsidian23.Notice("Word-Smith: repaired.", 4e3);
+      new import_obsidian24.Notice("Word-Smith: repaired.", 4e3);
     }
   });
   plugin.addCommand({
@@ -33272,9 +33374,9 @@ function wsRegisterCommands(plugin) {
     callback: async () => {
       try {
         await navigator.clipboard.writeText(plugin.settingsCopyText());
-        new import_obsidian23.Notice("Word-Smith: settings copied.", 4e3);
+        new import_obsidian24.Notice("Word-Smith: settings copied.", 4e3);
       } catch {
-        new import_obsidian23.Notice("Word-Smith: could not reach the clipboard.", 6e3);
+        new import_obsidian24.Notice("Word-Smith: could not reach the clipboard.", 6e3);
       }
     }
   });
@@ -33286,11 +33388,11 @@ function wsRegisterCommands(plugin) {
       try {
         text = await navigator.clipboard.readText();
       } catch {
-        new import_obsidian23.Notice("Word-Smith: could not read the clipboard.", 6e3);
+        new import_obsidian24.Notice("Word-Smith: could not read the clipboard.", 6e3);
         return;
       }
       const r = await plugin.settingsPasteText(text);
-      new import_obsidian23.Notice("Word-Smith: " + (r.error !== void 0 ? r.error : r.applied + " setting(s) pasted" + (r.repaired.length ? ", " + r.repaired.length + " reset" : "") + "."), 8e3);
+      new import_obsidian24.Notice("Word-Smith: " + (r.error !== void 0 ? r.error : r.applied + " setting(s) pasted" + (r.repaired.length ? ", " + r.repaired.length + " reset" : "") + "."), 8e3);
     }
   });
   plugin.addCommand({
@@ -33311,14 +33413,14 @@ function wsRegisterCommands(plugin) {
       }
       try {
         await navigator.clipboard.writeText(text);
-        new import_obsidian23.Notice("Word-Smith: diagnostics copied. Paste them into the issue.", 6e3);
+        new import_obsidian24.Notice("Word-Smith: diagnostics copied. Paste them into the issue.", 6e3);
       } catch {
         try {
           console.warn(text);
         } catch (_e) {
           wsCatch("onload / callback: console.warn(text);", _e);
         }
-        new import_obsidian23.Notice("Word-Smith: could not reach the clipboard — the diagnostics are in the developer console instead.", 8e3);
+        new import_obsidian24.Notice("Word-Smith: could not reach the clipboard — the diagnostics are in the developer console instead.", 8e3);
       }
     }
   });
@@ -33342,7 +33444,7 @@ function wsRegisterCommands(plugin) {
     id: "toggle-retro-bar",
     name: "Toggle the Powerline bar",
     checkCallback: (checking) => {
-      if (typeof import_obsidian23.Platform !== "undefined" && import_obsidian23.Platform && import_obsidian23.Platform.isPhone && !plugin.settings.retroBarOnPhone)
+      if (typeof import_obsidian24.Platform !== "undefined" && import_obsidian24.Platform && import_obsidian24.Platform.isPhone && !plugin.settings.retroBarOnPhone)
         return false;
       if (!checking) {
         plugin.settings.enableRetroStatus = !plugin.settings.enableRetroStatus;
@@ -33370,7 +33472,7 @@ function wsRegisterCommands(plugin) {
       callback: async () => {
         plugin.settings[key] = !plugin.settings[key];
         await plugin.saveSettings(true);
-        new import_obsidian23.Notice("Word-Smith: " + label + (plugin.settings[key] ? " on." : " off."));
+        new import_obsidian24.Notice("Word-Smith: " + label + (plugin.settings[key] ? " on." : " off."));
       }
     });
   };
@@ -33379,6 +33481,19 @@ function wsRegisterCommands(plugin) {
   featureToggle("toggle-hemingway", "Toggle Hemingway mode", "hemingwayEnabled", "Hemingway mode");
   featureToggle("toggle-syntax", "Toggle syntax highlighting", "posEnabled", "Syntax highlighting");
   featureToggle("toggle-prose-checks", "Toggle prose checks", "checksEnabled", "Prose checks");
+  plugin.addCommand({
+    id: "toggle-page-view",
+    name: "Toggle page mode",
+    callback: async () => {
+      if (!plugin.settings.miscEnabled) {
+        new import_obsidian24.Notice("Word-Smith: page mode is one of the text options. Switch them on first, in the settings.", 6e3);
+        return;
+      }
+      plugin.settings.pageView = !plugin.settings.pageView;
+      await plugin.saveSettings(true);
+      new import_obsidian24.Notice("Word-Smith: Page mode" + (plugin.settings.pageView ? " on." : " off."));
+    }
+  });
   plugin.addCommand({
     id: "toggle-zen",
     name: "Toggle zen mode",
@@ -33438,8 +33553,8 @@ function wsRegisterCommands(plugin) {
     });
   }
   try {
-    if (import_obsidian23.addIcon)
-      (0, import_obsidian23.addIcon)(WS_ICON, WS_ICON_SVG);
+    if (import_obsidian24.addIcon)
+      (0, import_obsidian24.addIcon)(WS_ICON, WS_ICON_SVG);
   } catch (_) {
     wsCatch("onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);", _);
   }
@@ -33733,7 +33848,7 @@ function wsOnLayoutReady(plugin) {
   if (plugin.settings.historyTracking)
     void plugin.historyLoad();
 }
-var WordSmith = class extends import_obsidian23.Plugin {
+var WordSmith = class extends import_obsidian24.Plugin {
   registerDomEvent(el, type, cb, opts) {
     const w = wsGuard(cb, "a " + type + " handler");
     if (typeof super.registerDomEvent === "function") {
@@ -33807,7 +33922,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
         })();
       });
       frag.appendChild(b);
-      new import_obsidian23.Notice(frag, 2e4);
+      new import_obsidian24.Notice(frag, 2e4);
     } catch (_) {
       wsCatch("guardNotice: frag = createFragment();", _);
     }
@@ -33878,7 +33993,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
       if (v.kind === "warn" && this.settings.oldInstallerSaid !== v.major) {
         this.settings.oldInstallerSaid = v.major || 0;
         void this.saveSettings(true);
-        new import_obsidian23.Notice(v.text, 3e4);
+        new import_obsidian24.Notice(v.text, 3e4);
       }
     } catch (_) {
       wsCatch("onload: const v = this.installerVerdict(this.installerVersion());", _);
@@ -33888,7 +34003,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
       this._startBlocked = blocked;
       this.startGuardEnd();
       try {
-        new import_obsidian23.Notice(blocked.text, 3e4);
+        new import_obsidian24.Notice(blocked.text, 3e4);
       } catch (_) {
         wsCatch("onload: new Notice(this._startBlocked.text, 30000);", _);
       }
@@ -33958,9 +34073,9 @@ var WordSmith = class extends import_obsidian23.Plugin {
     this.app.workspace.onLayoutReady(() => wsOnLayoutReady(this));
   }
   wsModal() {
-    if (!import_obsidian23.Modal)
+    if (!import_obsidian24.Modal)
       return null;
-    const m = new import_obsidian23.Modal(this.app);
+    const m = new import_obsidian24.Modal(this.app);
     if (!this._openModals)
       this._openModals = /* @__PURE__ */ new Set();
     this._openModals.add(m);
@@ -34653,8 +34768,8 @@ var WordSmith = class extends import_obsidian23.Plugin {
     const badge = el.createSpan({ cls: "ws-ribbon-badge" });
     let iconSet = false;
     try {
-      if (import_obsidian23.setIcon) {
-        (0, import_obsidian23.setIcon)(badge, WS_ICON);
+      if (import_obsidian24.setIcon) {
+        (0, import_obsidian24.setIcon)(badge, WS_ICON);
         iconSet = !!badge.querySelector("svg");
       }
     } catch (_) {
@@ -34760,7 +34875,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
     return this.settings[key];
   }
   opt(key) {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(import_obsidian24.MarkdownView);
     return this.optFor(view ? view.file : null, key);
   }
   optForView(cmView, key) {
@@ -34779,7 +34894,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
   }
   isRightToLeft() {
     try {
-      const view = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+      const view = this.app.workspace.getActiveViewOfType(import_obsidian24.MarkdownView);
       if (view && view.editor && view.editor.cm && view.editor.cm.contentDOM) {
         const dir = view.editor.cm.contentDOM.getAttribute("dir");
         if (dir)
@@ -34798,7 +34913,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
   isNoteSurfaceActive() {
     try {
       const ws = this.app.workspace;
-      if (ws.getActiveViewOfType && ws.getActiveViewOfType(import_obsidian23.MarkdownView))
+      if (ws.getActiveViewOfType && ws.getActiveViewOfType(import_obsidian24.MarkdownView))
         return true;
       let leaf = null;
       try {
@@ -34965,7 +35080,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
   }
   rememberActiveMarkdown() {
     try {
-      const v = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+      const v = this.app.workspace.getActiveViewOfType(import_obsidian24.MarkdownView);
       if (v && v.file)
         this._lastMdView = v;
     } catch (_) {
@@ -34974,7 +35089,7 @@ var WordSmith = class extends import_obsidian23.Plugin {
   }
   activeMarkdownView() {
     try {
-      const v = this.app.workspace.getActiveViewOfType(import_obsidian23.MarkdownView);
+      const v = this.app.workspace.getActiveViewOfType(import_obsidian24.MarkdownView);
       if (v && v.file) {
         this._lastMdView = v;
         return v;
@@ -35005,11 +35120,11 @@ var WordSmith = class extends import_obsidian23.Plugin {
     }
   }
   registerWsIcon() {
-    if (!import_obsidian23.addIcon || this._wsIconDone)
+    if (!import_obsidian24.addIcon || this._wsIconDone)
       return;
     this._wsIconDone = true;
     try {
-      (0, import_obsidian23.addIcon)(WS_ICON, `<text x="50" y="76" text-anchor="middle" fill="currentColor" font-size="84" font-weight="500" font-family="'Iowan Old Style', Georgia, 'Times New Roman', 'Liberation Serif', serif">W</text>`);
+      (0, import_obsidian24.addIcon)(WS_ICON, `<text x="50" y="76" text-anchor="middle" fill="currentColor" font-size="84" font-weight="500" font-family="'Iowan Old Style', Georgia, 'Times New Roman', 'Liberation Serif', serif">W</text>`);
     } catch (_) {
       wsCatch("registerWsIcon: addIcon(WS_ICON,", _);
     }

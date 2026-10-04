@@ -26,7 +26,7 @@ import {
 	wsBuildDocx, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
-	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES,
+	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart,
 } from './core/preamble';
 
 export default Object.assign(WordSmith, {
@@ -59,4 +59,6 @@ export default Object.assign(WordSmith, {
 	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
 	// the export's tick memory and the preview's size, driven by the big-vault suite (A516)
 	wsOrgTicksMake, WS_EXPORT_PREVIEW_AUTO_BYTES,
+	// the sentence rule, for the capitalize suite (A519)
+	wsSentenceStart,
 });
