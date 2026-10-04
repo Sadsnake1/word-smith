@@ -2017,6 +2017,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.subheadRow('Backup and repair'),
 				{ name: 'As text', desc: 'Copy every setting as JSON, paste a copy back, or undo the last paste or reset.', render: (st) => this.renderSettingsText(st) },
 				this.buttonRow('Repair the display', 'Draws every surface again from the settings as they are.', 'Repair', () => { plugin.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }),
+				this.buttonRow('Clean up the custom order file', 'Takes out entries for files and folders that are gone. Run it once the vault is fully synced.', 'Clean up', () => { void plugin.structureCleanUpSay(); }),
 				{ name: 'Keep a copy of my settings in the vault', desc: 'A readable copy, read back only after a reinstall. Editing it changes nothing.',
 					control: { type: 'toggle', key: 'settingsMirror', defaultValue: true } },
 				// no hotkeys card here: the four commands stay under Settings → Hotkeys

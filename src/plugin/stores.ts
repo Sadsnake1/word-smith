@@ -1816,6 +1816,64 @@ export const storesMethods = {
 		}
 	},
 
+	// ── CLEAN UP: EVERY ENTRY WHOSE FILE OR FOLDER IS GONE ───────────────
+	//
+	// The delete handler forgets a path when Obsidian reports it, and Obsidian
+	// reports only what happens while it is running: a folder deleted in the
+	// system's file manager with the vault closed leaves its rows, its order
+	// sections and its targets in the file for good. This takes them out ON
+	// THE WRITER'S WORD, never by itself: with Sync a device can open before
+	// every note has arrived, and a sweep at start would throw away the order
+	// of notes still on their way.
+	//
+	// The file's path rows, and the path-keyed maps in settings its goals and
+	// colors sections are written from. Not `columns:`, whose rows are
+	// property names; not the history, which keeps a deleted note's words on
+	// purpose. Answers how many entries went, or null when the Organizer is
+	// off and its file is not this plugin's to touch.
+	async structureCleanUp(this: WordSmith) {
+		if (this.settings.organizerOn === false) return null;
+		await this.structureRead();
+		const store = this.structureStore();
+		const vault = this.app.vault;
+		// the root is written `/` (and keyed `` in the colors): always there
+		const here = (p: string) => !p || p === '/' || !!vault.getAbstractFileByPath(p);
+		// A gone folder's `order:` section holds only paths under it, so it
+		// empties with them, and an empty section is not written.
+		let gone = 0;
+		for (const scope of Object.keys(store)) {
+			if (scope.indexOf('columns: ') === 0) continue;
+			const rows = store[scope] || [];
+			const keep = rows.filter((r) => here(r.path));
+			if (keep.length !== rows.length) { gone += rows.length - keep.length; store[scope] = keep; }
+		}
+		let maps = false;
+		for (const which of this.goalPathStores()) {
+			const map = this.settings[which];
+			if (!map || typeof map !== 'object') continue;
+			for (const key of Object.keys(map)) {
+				if (here(key)) continue;
+				delete map[key];
+				maps = true;
+			}
+		}
+		if (!gone && !maps) return 0;
+		if (maps) await this.saveSettings(true);
+		await this.structureQueue(() => this.structureLand());
+		this.treeOrderChanged();
+		return gone;
+	},
+
+	// The button and the command: the Clean up, said in a notice.
+	async structureCleanUpSay(this: WordSmith) {
+		let n: number | null = 0;
+		try { n = await this.structureCleanUp(); }
+		catch (e) { this.storeWriteFailed(WS_WRITE.forget, e, 'The file still holds paths that have gone.'); return; }
+		new Notice('Word-Smith: ' + (n === null ? 'the Organizer is off, so its file is left alone.'
+			: n ? 'took out ' + n + (n === 1 ? ' entry' : ' entries') + ' for files and folders that are gone.'
+			: 'nothing to clean up. Every entry points to something in the vault.'), 6000);
+	},
+
 	
 	// ── PROPERTIES FOR FILES THAT CANNOT HOLD THEM ────────────────────
 	//
@@ -2140,14 +2198,20 @@ export const storesMethods = {
 	// switched this on pays one path comparison per file save.
 	treeOrderAdopt(this: WordSmith, file: TAbstractFile) {
 		if (!file || !file.path) return;
-		// The explorer patch is one reason to care; an open Manuscript window
-		// is another, and it does not need the Misc switch to be on.
-		if (!this.explorerSortWanted()
-			&& !(this._treeOrderWatchers && this._treeOrderWatchers.size)) return;
 		let mine = false;
 		try { mine = file.path === this.structurePathNow() || file.path === this._structFoundAt; }
 		catch { return; }
 		if (!mine) return;
+		// READ BACK WHATEVER IS SWITCHED ON; REDRAW WHERE A TREE SHOWS IT. The
+		// explorer's order and an open Organizer are the two that draw from the
+		// store, and this used to return at the door without one of them: the
+		// session's copy stayed in memory, and lines a writer had taken out by
+		// hand were written straight back by the next flag, tick or drag.
+		// Nothing held and nothing drawing: the first read will read the file
+		// as it is by then.
+		const redraw = this.explorerSortWanted()
+			|| !!(this._treeOrderWatchers && this._treeOrderWatchers.size);
+		if (!redraw && !this.structureCached()) return;
 		// SWAPPED, NOT DROPPED. Every write to the order file fires this same
 		// modify event, INCLUDING our own; setting `_structStore = null` and
 		// re-reading would leave the parsed store null for a fraction of a
@@ -2178,8 +2242,32 @@ export const storesMethods = {
 		void (async () => {
 			await this.structureReload();
 			if (this._structText === was) return;
-			this.treeOrderChanged();
+			// …AND THE TARGETS, FLAGS, COLORS AND COLUMNS IN IT. Settings holds
+			// those and writes them into the file, reading the file only at
+			// startup; a target taken out by hand came back with the next target
+			// anybody set.
+			this.structureAdoptSettings();
+			if (redraw) this.treeOrderChanged();
 		})();
+	},
+
+	// THE FILE WINS, as it does at startup (`goalsFileLoad`), kind by kind: a
+	// kind of section the file does not carry leaves settings as they are.
+	// Saved only when what settings hold has moved, so the echo of a write
+	// that changed nothing saves nothing.
+	structureAdoptSettings(this: WordSmith) {
+		const store = this.structureStore();
+		const goals = this.goalsStoreAdopt(store);
+		const colors = this.colorsStoreAdopt(store);
+		const ucols = this.userColsStoreAdopt(store);
+		if (goals) { this.settings.fileGoals = goals.fileGoals; this.settings.fileStatus = goals.fileStatus || {}; }
+		if (colors) this.settings.folderColors = colors;
+		if (ucols) this.settings.uniUserCols = ucols;
+		const sig = this.goalsSignature();
+		if ((!goals && !colors && !ucols) || sig === this._goalsSig) return false;
+		this._goalsSig = sig;
+		void this.saveSettings(true);
+		return true;
 	},
 
 	// Re-read the store from disk, replacing the parsed copy only once the new

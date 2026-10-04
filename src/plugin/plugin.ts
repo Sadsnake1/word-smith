@@ -221,6 +221,11 @@ export function wsRegisterCommands(plugin: WordSmith) {
 		callback: () => { plugin.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }
 	});
 	plugin.addCommand({
+		id: 'clean-up-order-file',
+		name: 'Clean up the custom order file (entries for files that are gone)',
+		callback: () => { void plugin.structureCleanUpSay(); }
+	});
+	plugin.addCommand({
 		id: 'copy-settings',
 		name: 'Copy your settings as text',
 		callback: async () => {
@@ -1176,6 +1181,9 @@ export default class WordSmith extends Plugin {
 	declare structureFind: StoresMethods["structureFind"];
 	declare structureStore: StoresMethods["structureStore"];
 	declare structureCached: StoresMethods["structureCached"];
+	declare structureAdoptSettings: StoresMethods["structureAdoptSettings"];
+	declare structureCleanUp: StoresMethods["structureCleanUp"];
+	declare structureCleanUpSay: StoresMethods["structureCleanUpSay"];
 	declare structureRepair: StoresMethods["structureRepair"];
 	declare vaultReady: StoresMethods["vaultReady"];
 	declare structureRead: StoresMethods["structureRead"];

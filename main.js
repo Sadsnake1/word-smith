@@ -4473,7 +4473,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.4";
+var WS_PLUGIN_VERSION = "1.7.5";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -7533,6 +7533,9 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         this.buttonRow("Repair the display", "Draws every surface again from the settings as they are.", "Repair", () => {
           plugin.repairDisplay();
           new import_obsidian2.Notice("Word-Smith: repaired.", 4e3);
+        }),
+        this.buttonRow("Clean up the custom order file", "Takes out entries for files and folders that are gone. Run it once the vault is fully synced.", "Clean up", () => {
+          void plugin.structureCleanUpSay();
         }),
         {
           name: "Keep a copy of my settings in the vault",
@@ -27899,6 +27902,54 @@ var storesMethods = {
       this.storeWriteFailed(WS_WRITE.forget, e, "The list still holds a path that has gone.");
     }
   },
+  async structureCleanUp() {
+    if (this.settings.organizerOn === false)
+      return null;
+    await this.structureRead();
+    const store = this.structureStore();
+    const vault = this.app.vault;
+    const here = (p) => !p || p === "/" || !!vault.getAbstractFileByPath(p);
+    let gone = 0;
+    for (const scope of Object.keys(store)) {
+      if (scope.indexOf("columns: ") === 0)
+        continue;
+      const rows = store[scope] || [];
+      const keep = rows.filter((r) => here(r.path));
+      if (keep.length !== rows.length) {
+        gone += rows.length - keep.length;
+        store[scope] = keep;
+      }
+    }
+    let maps = false;
+    for (const which of this.goalPathStores()) {
+      const map = this.settings[which];
+      if (!map || typeof map !== "object")
+        continue;
+      for (const key of Object.keys(map)) {
+        if (here(key))
+          continue;
+        delete map[key];
+        maps = true;
+      }
+    }
+    if (!gone && !maps)
+      return 0;
+    if (maps)
+      await this.saveSettings(true);
+    await this.structureQueue(() => this.structureLand());
+    this.treeOrderChanged();
+    return gone;
+  },
+  async structureCleanUpSay() {
+    let n = 0;
+    try {
+      n = await this.structureCleanUp();
+    } catch (e) {
+      this.storeWriteFailed(WS_WRITE.forget, e, "The file still holds paths that have gone.");
+      return;
+    }
+    new import_obsidian21.Notice("Word-Smith: " + (n === null ? "the Organizer is off, so its file is left alone." : n ? "took out " + n + (n === 1 ? " entry" : " entries") + " for files and folders that are gone." : "nothing to clean up. Every entry points to something in the vault."), 6e3);
+  },
   propStoreHolds(path) {
     const p = String(path || "");
     return !!p && !/\.md$/i.test(p);
@@ -28138,8 +28189,6 @@ var storesMethods = {
   treeOrderAdopt(file) {
     if (!file || !file.path)
       return;
-    if (!this.explorerSortWanted() && !(this._treeOrderWatchers && this._treeOrderWatchers.size))
-      return;
     let mine = false;
     try {
       mine = file.path === this.structurePathNow() || file.path === this._structFoundAt;
@@ -28148,13 +28197,38 @@ var storesMethods = {
     }
     if (!mine)
       return;
+    const redraw = this.explorerSortWanted() || !!(this._treeOrderWatchers && this._treeOrderWatchers.size);
+    if (!redraw && !this.structureCached())
+      return;
     const was = this._structText;
     void (async () => {
       await this.structureReload();
       if (this._structText === was)
         return;
-      this.treeOrderChanged();
+      this.structureAdoptSettings();
+      if (redraw)
+        this.treeOrderChanged();
     })();
+  },
+  structureAdoptSettings() {
+    const store = this.structureStore();
+    const goals = this.goalsStoreAdopt(store);
+    const colors = this.colorsStoreAdopt(store);
+    const ucols = this.userColsStoreAdopt(store);
+    if (goals) {
+      this.settings.fileGoals = goals.fileGoals;
+      this.settings.fileStatus = goals.fileStatus || {};
+    }
+    if (colors)
+      this.settings.folderColors = colors;
+    if (ucols)
+      this.settings.uniUserCols = ucols;
+    const sig = this.goalsSignature();
+    if (!goals && !colors && !ucols || sig === this._goalsSig)
+      return false;
+    this._goalsSig = sig;
+    void this.saveSettings(true);
+    return true;
   },
   async structureReload() {
     let text = "";
@@ -33563,6 +33637,13 @@ function wsRegisterCommands(plugin) {
     callback: () => {
       plugin.repairDisplay();
       new import_obsidian24.Notice("Word-Smith: repaired.", 4e3);
+    }
+  });
+  plugin.addCommand({
+    id: "clean-up-order-file",
+    name: "Clean up the custom order file (entries for files that are gone)",
+    callback: () => {
+      void plugin.structureCleanUpSay();
     }
   });
   plugin.addCommand({
