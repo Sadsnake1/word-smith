@@ -9,7 +9,7 @@ import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection } from '../core/settings';
 import { wsUnderIndex } from '../organizer/org-index';
-import { WS_FRAME_SHELL, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WsModEvent } from './plugin';
 
@@ -1089,6 +1089,8 @@ export const exportMethods = {
 			if (!o.keepComments) md = md.replace(/%%[\s\S]*?%%/g, '');
 			// CALLOUTS travel only when kept; kept, as written (this target is Markdown).
 			if (!o.keepCallouts && /\[!/.test(md)) md = wsDropCallouts(md);
+			// TAGS stay in the note; off, they leave the manuscript too.
+			if (o.keepTags === false) md = wsDropTags(md);
 			// AND THE NOTE'S OWN HEADINGS MOVE DOWN UNDER THE FOLDER'S. See
 			// `wsDemoteHeadings`: a scene opening `# The Sea` under a folder
 			// heading `# Chapter 1` would outrank the chapter it is in.
@@ -1148,6 +1150,8 @@ export const exportMethods = {
 		dflt('keepFrontmatter', false);
 		dflt('keepComments', false);
 		dflt('keepCallouts', false);
+		// ON, because tags always printed: off is a writer's choice, never a surprise
+		dflt('keepTags', true);
 		// The two merged controls read from the booleans they write, so a
 		// vault that predates them opens on whatever it already had.
 		if (!o.joinMode) o.joinMode = o.pageBreaks ? 'page' : (o.starBetween ? 'divider' : 'run');
@@ -2587,11 +2591,12 @@ export const exportMethods = {
 			// THE SAME SIZES THE FILE USES, from the same helper — see
 			// `wsHeadSizeEm`. These were 1.5em / 1.15em / 1em, which matched the
 			// .docx at exactly one level out of three.
-			+ 'h1, h2 { font-size: ' + wsHeadSizeEm(o, 1).toFixed(4) + 'em; }'
-			+ 'h3, h4, h5, h6 { font-size: ' + wsHeadSizeEm(o, 3).toFixed(4) + 'em; }'
-			// AND THE TITLE PAGE IS THE BODY SIZE IN BOLD, because `WsTitle`
-			// carries no size of its own and inherits the document default.
-			+ '.tp .tpinner h1 { font-size: 1em; }'
+			+ 'h1, h2 { font-size: ' + wsHeadSizeEm(1).toFixed(4) + 'em; }'
+			+ 'h3, h4, h5, h6 { font-size: ' + wsHeadSizeEm(3).toFixed(4) + 'em; }'
+			// AND THE TITLE PAGE'S TITLE IS ONE AND A HALF TIMES THE BODY, as the
+			// .docx sets its run (`WS_TITLE_SIZE_EM`); the name and the count under it
+			// stay the body size.
+			+ '.tp .tpinner h1 { font-size: ' + WS_TITLE_SIZE_EM + 'em; }'
 			// AND NO FIRST-LINE INDENT ON THE TITLE PAGE. `text-align: center`
 			// centres the LINE BOX; `text-indent` moves the first line inside it,
 			// so the base rule's half-inch indent pushed the author and the word
@@ -2629,8 +2634,8 @@ export const exportMethods = {
 			// beat the helper by specificity and the preview would differ from the
 			// file). It sits at the top of its chapter's page, not on a sheet of
 			// its own. 1em BELOW, WHICH IS WHAT THE .docx LEAVES: `WsHeading*`
-			// carries `w:before="240"` — 240 twips is 12pt, exactly 1em of a 12pt
-			// body. AND NOTHING AT ALL WHEN A HEADING FOLLOWS — BOTH SIDES, because
+			// carries one line of the text above it (`w:before`, the body's size
+			// in twips). AND NOTHING AT ALL WHEN A HEADING FOLLOWS — BOTH SIDES, because
 			// adjacent margins collapse to the LARGER: zeroing only the folder's
 			// would leave the heading's own top margin and read as no change.
 			+ '.folderhead.is-tight { margin-bottom: 0; }'
@@ -2640,7 +2645,7 @@ export const exportMethods = {
 			+ ' { margin-top: 0; }'
 			+ '.folderhead { margin: 0 0 1em; text-align: center;'
 			+ ' font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;'
-			+ ' font-size: ' + wsHeadSizeEm(o, 1).toFixed(4) + 'em;'
+			+ ' font-size: ' + wsHeadSizeEm(1).toFixed(4) + 'em;'
 			+ ' page-break-after: avoid; }'
 			+ 'ol.toc { list-style: none; padding: 0; }'
 			+ 'ol.toc a { color: inherit; text-decoration: none; }'
@@ -3691,8 +3696,9 @@ export const exportMethods = {
 			});
 			return sel;
 		};
-		const textOpt = (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string) => {
-			const row = parent.createDiv({ cls: 'ws-export-opt ws-export-textrow' });
+		const textOpt = (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string, inRow?: boolean) => {
+			const row = parent.createDiv({ cls: 'ws-export-opt ws-export-textrow'
+				+ (inRow ? ' is-inrow' : '') });
 			row.createSpan({ cls: 'ws-export-optname', text: label });
 			const inp = row.createEl('input', { cls: 'ws-export-text' });
 			inp.type = 'text'; inp.value = o[key] || ''; inp.placeholder = ph || '';
@@ -3724,16 +3730,21 @@ export const exportMethods = {
 			// NAMED: the groups divide the column, and a group that does not say
 			// what it is divides nothing.
 			const grp = optGroup('Manuscript');
+			// TITLE AND AUTHOR SHARE A LINE, the pair's shape: two short answers,
+			// and the line they each had alone was the pane's height in a
+			// window that had to scroll. Under a narrow column the pair is one
+			// column again.
+			const who = grp.createDiv({ cls: 'ws-export-pair' });
 			// TITLE, and the folder's name is what it falls back to rather
 			// than a switch saying so. "Use the folder name" as a toggle
 			// would be a control for the case where the writer has
 			// nothing to say — an empty box already means that, and it
 			// shows what it will use in the placeholder, so the default
 			// is visible instead of merely documented.
-			const ti = textOpt(grp, 'titleText', 'Title',
-				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || 'Untitled');
+			const ti = textOpt(who, 'titleText', 'Title',
+				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || 'Untitled', undefined, true);
 			ti.addClass('ws-export-wideinput');
-			const au = textOpt(grp, 'author', 'Author', 'A. Writer');
+			const au = textOpt(who, 'author', 'Author', 'A. Writer', undefined, true);
 			au.addClass('ws-export-wideinput');
 		}
 
@@ -3797,10 +3808,10 @@ export const exportMethods = {
 			// next, and whether a folder announces itself — where Front matter is
 			// what is printed BEFORE the book.
 			const structGrp = optGroup('Structure');
-			// ONE COLUMN IN HERE. The two-column grid is right for a bank of short
-			// switches; this group holds a two-control ROW and one long label,
-			// which a half-width cell cut short with the other half empty beside
-			// it.
+			// The pair spans the group; the two switches under it share a line,
+			// each in the half the select above it has. MARKED, because their
+			// names are the longest here and a narrow column gives them the
+			// whole line before it does any other group's.
 			structGrp.addClass('is-structure');
 			const pair = structGrp.createDiv({ cls: 'ws-export-pair' });
 			// ── AND A PAGELESS FORMAT IS NOT OFFERED A PAGE ─────────────
@@ -3959,7 +3970,13 @@ export const exportMethods = {
 				// item is the chosen one.
 				{ id: '12', label: '12 pt', hint: 'The manuscript standard.' },
 				{ id: '13', label: '13 pt' },
-				{ id: '14', label: '14 pt' }
+				{ id: '14', label: '14 pt' },
+				// PAST 14, A READING COPY: 16 and 18 are large print, 20 and 24 for
+				// tired eyes or a tablet held at arm's length. Steps, not a number box.
+				{ id: '16', label: '16 pt' },
+				{ id: '18', label: '18 pt' },
+				{ id: '20', label: '20 pt' },
+				{ id: '24', label: '24 pt' }
 			], () => { o.pt = parseInt(String(o.pt), 10) || 12; void this.saveSettings(); }, true);
 			// THREE ANSWERS, where a boolean could only give two. Double is
 			// what a submission expects and stays the default; single is
@@ -4027,6 +4044,8 @@ export const exportMethods = {
 			// there is one somewhere else. THE HINTS are each switch's own title,
 			// which is where every other switch on this pane keeps its explanation.
 			const grp = optGroup('Also include');
+			// Marked so a wide column lays these seven three or four across.
+			grp.addClass('is-also');
 			const ALSO: [WsExportBoolKey, string, string][] = [
 				['keepFrontmatter', 'Properties',
 					'The --- block at the top of a note: status, tags, dates. '
@@ -4039,6 +4058,10 @@ export const exportMethods = {
 				['keepCallouts', 'Callouts',
 					'Your > [!note] boxes, printed as a quote under their title. Off by '
 					+ 'default, because a callout is usually a note to self.'],
+				// ON, like Footnotes: tags always printed. Off keeps them in the note only.
+				['keepTags', 'Tags',
+					'Your #tags in the text. Off takes them out of the manuscript; your '
+					+ 'notes keep them.'],
 				['keepImages', 'Image placeholders',
 					'[Image: cover.png] where a picture sits. The picture itself '
 					+ 'is not embedded \u2014 this is a mark that something belongs '

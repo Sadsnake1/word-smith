@@ -24,8 +24,8 @@ Everything else is a switch:
 
 - **Front matter**: title page (with the word count, rounded if you like), running header, table of contents with working links.
 - **Structure**: each file starts a new page, follows a divider, or runs straight on. Insert the file's name, the note's own heading, or nothing. Folder names as headings. **--- starts a new page**: a line of three dashes in a note breaks the page there, while `***` and `___` stay scene breaks (Word, PDF and web page).
-- **Typesetting**: paper, font, size (10 to 14pt), spacing, indents, curly quotes.
-- **Also include**: properties, `%%` comments, `==highlights==`, image placeholders, footnotes as endnotes. All off by default.
+- **Typesetting**: paper, font, size (10 to 24pt: past 14 is a large-print reading copy, with headings that grow with the text), spacing, indents, curly quotes.
+- **Also include**: properties, `%%` comments, callouts, `#tags`, `==highlights==`, image placeholders, footnotes as endnotes. Tags and footnotes are on by default, the rest off. Turn Tags off to keep your tags in your notes and out of the manuscript.
 
 Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a novel is actually printed at: trade paperback, digest and mass market. Margins scale with the paper.
 

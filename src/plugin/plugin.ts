@@ -499,7 +499,9 @@ export function wsWireWorkspace(plugin: WordSmith) {
 	plugin.onAppEvent(plugin.app.workspace, 'editor-change', () => {
 		// (No Typewriter here, A506: an edit asks from inside the editor,
 		// for the frame after the keystroke — see typewriterRequest.)
-		plugin.updateRetroStatusBar();
+		// ONLY IF IT CHANGED: a keystroke that leaves the bar's text as it was
+		// rebuilds and measures nothing.
+		plugin.updateRetroStatusBar(true);
 	});
 	plugin.onAppEvent(plugin.app.workspace, 'resize', () => {
 		plugin.scheduleMaskPosition();
@@ -564,6 +566,9 @@ export function wsWireWorkspace(plugin: WordSmith) {
 		plugin.rememberActiveMarkdown();
 	});
 	plugin.onAppEvent(plugin.app.workspace, 'css-change', () => {
+		// A theme's stylesheet can move the bar's color with nothing on <body>
+		// changing: the remembered read goes.
+		plugin._barColorKey = null;
 		plugin.barThemeOnCssChange();
 		// A THEME SWITCH IS WHEN THE OTHER COLOUR BECOMES THE RIGHT ONE.
 		// Without this, a writer moving from dark to light keeps flags
@@ -587,9 +592,13 @@ export function wsWireWorkspace(plugin: WordSmith) {
 function wsWireDocument(plugin: WordSmith) {
 	// NO TYPEWRITER ON A KEY (issue #22, A506): a key that moves the caret
 	// moves it through the editor, which asks for the scroll itself.
+	// ONLY IF IT CHANGED, here and on a selection change and a click: every
+	// keystroke fires all three beside the edit, and each rebuilt a bar whose
+	// text had not moved. A key that does move it ({vim}, {ln:col}, a
+	// selection's {words}) still rebuilds.
 	plugin.registerDomEvent(document, 'keyup', (evt: KeyboardEvent) => {
 		plugin.updateModifierState(evt);
-		plugin.updateRetroStatusBar();
+		plugin.updateRetroStatusBar(true);
 	});
 	// Peeking at a hidden bar. Deliberately the whole handler: everything
 	// it could need is precomputed by syncBarPeekState, so a pointer move
@@ -601,7 +610,7 @@ function wsWireDocument(plugin: WordSmith) {
 	// A click's caret is scrolled to on the way UP, not as it lands: a drag
 	// that selects must not have the text moved out from under the pointer.
 	plugin.registerDomEvent(document, 'mouseup', () => {
-		plugin.updateRetroStatusBar();
+		plugin.updateRetroStatusBar(true);
 		plugin.typewriterScroll();
 	});
 	// Live selection word count. selectionchange fires only when the
@@ -613,7 +622,7 @@ function wsWireDocument(plugin: WordSmith) {
 		if (plugin._selectionRaf) return;
 		plugin._selectionRaf = window.requestAnimationFrame(() => {
 			plugin._selectionRaf = null;
-			plugin.updateRetroStatusBar();
+			plugin.updateRetroStatusBar(true);
 		});
 	});
 	// Escape exits zen mode (from new zen plugin — respects vim mode and excalidraw)
@@ -1395,6 +1404,7 @@ export default class WordSmith extends Plugin {
 	declare requestBarRebuild: BarMethods["requestBarRebuild"];
 	declare scheduleFit: BarMethods["scheduleFit"];
 	declare fitStatusBarText: BarMethods["fitStatusBarText"];
+	declare fitAfterLayout: BarMethods["fitAfterLayout"];
 	declare stampBarReserve: BarMethods["stampBarReserve"];
 	declare clearBarBounds: BarMethods["clearBarBounds"];
 	declare stampBarBounds: BarMethods["stampBarBounds"];
@@ -1566,6 +1576,9 @@ export default class WordSmith extends Plugin {
 	declare caretMargin: FocusMethods["caretMargin"];
 	declare caretFloorY: FocusMethods["caretFloorY"];
 	declare caretCeilingY: FocusMethods["caretCeilingY"];
+	declare chromeCeilingY: FocusMethods["chromeCeilingY"];
+	declare mainTitlebarEl: FocusMethods["mainTitlebarEl"];
+	declare pageModeShown: FocusMethods["pageModeShown"];
 	declare maskEdge: FocusMethods["maskEdge"];
 	declare tagMainTitlebar: FocusMethods["tagMainTitlebar"];
 	declare shouldHideScrollBar: FocusMethods["shouldHideScrollBar"];
@@ -1694,7 +1707,14 @@ export default class WordSmith extends Plugin {
 	_backlinkCache: { path: string; gen: number; text: string } | null;
 	_barAnimT: number;
 	_barBoundsCleared: boolean;
+	_barBoundsDirty: boolean;
 	_barBoundsEl: HTMLDivElement | null;
+	_barColorCache: string | null;
+	_barColorKey: string | null;
+	_barRenderSig: string | null;
+	_barRootObserved: Element | null;
+	_barRootRO: ResizeObserver | null;
+	_fitRO: ResizeObserver | null;
 	_barBoundsL: number | null;
 	_barBoundsW: number | null;
 	_barBoxHeight: number;
@@ -2403,6 +2423,8 @@ export default class WordSmith extends Plugin {
 		// Clean up theme observer
 		if (this._themeObserver) { this._themeObserver.disconnect(); this._themeObserver = null; }
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
+		if (this._fitRO) { this._fitRO.disconnect(); this._fitRO = null; }
+		if (this._barRootRO) { this._barRootRO.disconnect(); this._barRootRO = null; }
 		// Abort an in-flight mask drag (its move/up listeners would otherwise
 		// outlive the plugin)
 		if (this._activeDragCleanup) this._activeDragCleanup();
@@ -3396,6 +3418,11 @@ export default class WordSmith extends Plugin {
 		this._paraCache = null;
 		this._docStatsCache = null;
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
+		// The bar's two observers: the fit's, and the root split's for its bounds.
+		if (this._fitRO) { this._fitRO.disconnect(); this._fitRO = null; }
+		if (this._barRootRO) { this._barRootRO.disconnect(); this._barRootRO = null; }
+		this._barRootObserved = null;
+		this._barRenderSig = null;
 		// Strip all body classes and attributes
 		this.clearAllBodyState();
 		// Vim maps live on a global adapter, not in our extensions, so they

@@ -2020,6 +2020,9 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	color: var(--interactive-accent, currentColor);
 	box-shadow: inset 0 -1px 0 0 currentColor;
 }
+/* The filename takes the accent alone: an underline under a path read as a
+   link, and the writer asked it gone. */
+.ws-tokact.is-file:hover { box-shadow: none; }
 
 /* The font button previews the chosen face; weight stays the bar's own —
    every button reads identically, and off-state is a fade, nothing more. */
@@ -6418,27 +6421,6 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
    ask, so the rule changed nothing and a rule that changes nothing is
    one somebody later reads as load-bearing. `is-on` is still SET — the
    probe holds it, and `aria-pressed` rides with it. */
-/* ── THE LABEL TRACK IS SIZED FOR THIS ZONE, NOT FOR A WHOLE PANE ──────
-
-   Writer: “everything is crammed there”. MEASURED after the split filled
-   the panel: the options zone is 417px and the grid resolved to
-   330px + 77px — the label track took four fifths and left the controls a
-   sliver, so a font named “Times New Roman” hung 18px past its cell.
-
-   22rem WAS RIGHT FOR THE OLD SHAPE, where the options had the pane to
-   themselves. Half the zone, capped, is the version that survives a column
-   this width — and `minmax(0, 1fr)` on the control track, so a long
-   option name shrinks its own cell rather than the one beside it. */
-/* (0,3,0) AND NOT (0,2,0). The first version of this rule was
-   `.ws-export-optside .ws-export-opts`, which TIES with
-   `.ws-export-right .ws-export-opts` — and that one sits two thousand lines
-   lower, so source order gave it the win and the measurement came back
-   unchanged at 330px + 77px. Sixth tie of this kind in this stylesheet.
-   `.ws-export-right` is INSIDE the option side, so naming both wins on
-   weight rather than on position. */
-.ws-export-optside .ws-export-right .ws-export-opts {
-	grid-template-columns: minmax(0, 14rem) minmax(0, 1fr);
-}
 /* AND A CONTROL SHRINKS TO ITS CELL. A `select` is sized by its widest
    OPTION unless told otherwise, so “Times New Roman” hung 18px past its
    cell however the tracks were divided — the grid was never the whole
@@ -8280,25 +8262,63 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 	min-width: 4.2em;
 }
 
-/* ── STRUCTURE IS ONE COLUMN WIDE (writer, 2026-09-02) ───────────────
+/* ── THE SWITCHES FOLLOW THE COLUMN THEY ARE IN (A542) ──────────────────
 
-   "the folder names as headin... is cut and it has enough room."
+   Writer, 2026-10-06: "will the export look okay on smaller screens. will
+   it look ok on bigger screens? ... on my screen i need to scroll down".
+   MEASURED at 100% in a 1171 x 705 pane: the options ran 70px past its
+   foot, with nine rows of switches, two of them a label alone on a line,
+   and Also include four rows deep in two columns.
 
-   IT DID HAVE ROOM — just not in its own cell. The options are a
-   two-column grid and that is right for a bank of short switches, but this
-   group holds a two-control row and one long label, so the label sat in a
-   half-width cell with the other half empty and ellipsised at 22rem.
+   THE COLUMN IS ITS OWN CONTAINER. The panel's width answers for the
+   preview and the options at once, so an options column narrowed by the
+   preview beside it never knew it was narrow. The counts below ask the
+   column.
 
-   THE CAP STAYS FOR EVERY OTHER GROUP. `max-width: min(22rem, 100%)` is
-   what stops a lone switch stretching the width of the pane, which is a
-   real thing it would otherwise do. What changes is the number of columns
-   under this one eyebrow. */
-.ws-export-right .ws-export-opts.is-structure {
-	grid-template-columns: 1fr;
+   HALVES, THE PAIR'S. Every group is two equal columns, the tracks the
+   Each file / Insert heading pair and the paper rows already draw on, so a
+   switch in the second column starts where the second select does (a 14rem
+   first track put them 84px apart). The two Structure switches share a line:
+   a half is 297px at the writer's size and the longer needs 216.
+
+   ALSO INCLUDE GOES THREE ACROSS, THEN FOUR. Its longest name, "Image
+   placeholders", needs 173px with its box: three fit from 539px, four from
+   722px. The steps sit a little past both.
+
+   NARROW, ONE COLUMN, IN THE ORDER THE NAMES RUN OUT OF ROOM, each step
+   measured in the showcase. The paper rows first: "US Letter — 8.5 × 11 in"
+   and its label need a 262px half, 534 for two. Then the pairs, whose
+   longest default ("The note's own" beside "Insert heading") needs 248, 506
+   for two. Then Structure, whose "Folder names as headings" needs 216 of a
+   half; the rest last, under 400px, where "Round the word count" (187)
+   would be cut. Taller, never cut. */
+.ws-export-optside { container: ws-opts / inline-size; }
+.ws-export-optside .ws-export-right .ws-export-opts {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.ws-export-right .ws-export-opts.is-structure > .ws-export-toggle {
-	max-width: 100%;
+@container ws-opts (min-width: 560px) {
+	.ws-export-optside .ws-export-right .ws-export-opts.is-also { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+@container ws-opts (min-width: 750px) {
+	.ws-export-optside .ws-export-right .ws-export-opts.is-also { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container ws-opts (max-width: 549px) {
+	.ws-export-optside .ws-export-opts .ws-export-trio { grid-template-columns: minmax(0, 1fr); }
+}
+@container ws-opts (max-width: 519px) {
+	.ws-export-optside .ws-export-opts .ws-export-pair { grid-template-columns: minmax(0, 1fr); }
+}
+@container ws-opts (max-width: 449px) {
+	.ws-export-optside .ws-export-right .ws-export-opts.is-structure { grid-template-columns: minmax(0, 1fr); }
+}
+@container ws-opts (max-width: 399px) {
+	.ws-export-optside .ws-export-right .ws-export-opts { grid-template-columns: minmax(0, 1fr); }
+}
+/* A SWITCH'S BOX IS THE INTERFACE'S SIZE. Obsidian sizes every checkbox by
+   `--checkbox-size`, which is the EDITOR's text size: 27px in the showcase,
+   so each row stood 33px tall beside a 12px label. Here it is the
+   interface's medium step, the size of the words it sits with. */
+.ws-export-opts { --checkbox-size: var(--font-ui-medium); }
 
 @container ws-panel (max-width: 560px) {
 	.ws-export-right .ws-export-opts { grid-template-columns: 1fr; }
@@ -8368,6 +8388,12 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 .ws-export-top .ws-export-into {
 	flex: 1 1 100%;
 	max-width: 54.5%;
+	/* AND THE REST OF ITS LINE (A542). The cap above also capped the size the
+	   row wraps by, so in a pane wide enough for 54.5% beside the format and
+	   the count, the field stayed on the FIRST line, where the risen preview
+	   covered 511px of it. The margin is the other 45.5%: the field's outer
+	   box is the whole line, so the line is always its own. */
+	margin-right: 45.5%;
 	/* ORDER 4, NOT 1. Preview and the Export button already carry order 2
 	   and 3, so an order of 1 put the destination ABOVE them and the row
 	   became three lines: format and count, then the field, then the two
@@ -9345,13 +9371,28 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
    under Obsidian’s floating back arrow (A293). It wears the tab strip’s button costume
    (`ws-export-mini`), a size smaller and muted, because it is a fact about
    the window before it is a control. */
-.ws-uni-subject .ws-uni-zoomtag { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; }
+.ws-uni-subject .ws-uni-zoomtag,
+.ws-export-top .ws-uni-zoomtag { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+/* THE LENS BEFORE THE FIGURE (A544, writer 2026-10-06: "add an icon for it
+   lens with + or - in it like on chrome"). The text's own size, so the
+   figure is no taller than the line it sits in (A293); the svg is sized
+   directly as well as through `--icon-size`, whatever class drew it. */
+.ws-uni-zoomtag .ws-uni-zoomlens { display: inline-flex; --icon-size: 1em; }
+.ws-uni-zoomtag .ws-uni-zoomlens svg { width: 1em; height: 1em; }
+.ws-uni-zoomtag .ws-uni-zoomlens:empty { display: none; }
+/* ON EXPORT, IN THE ACT ROW (A543, writer 2026-10-06: "in export there is no
+   zoom box with 80% ... like organizer and history have"). That tab puts its
+   subject line away, so the figure stands after the counts and before the
+   button, in the same costume. ORDER 2: the counts are drawn again on every
+   refresh, before the button, and the button is 3. */
+.ws-export-top .ws-uni-zoomtag { order: 2; }
 /* AND NO TALLER THAN ITS LINE (A293; writer 2026-09-11: “the zoom resets
    button i think it adds padding to the top”). It wore the tab button’s
    28px, and on a narrow window the 44px finger floor — in a row of 20px
    text, so the subject row grew and everything under it moved down.
    Written at (0,4,0) to outrank that floor. */
-.ws-uni-modal .ws-uni-subject .ws-export-mini.ws-uni-zoomtag { min-height: 0; height: auto; padding: 0 6px; line-height: inherit; border: 0; box-shadow: none; }
+.ws-uni-modal .ws-uni-subject .ws-export-mini.ws-uni-zoomtag,
+.ws-uni-modal .ws-export-top .ws-export-mini.ws-uni-zoomtag { min-height: 0; height: auto; padding: 0 6px; line-height: inherit; border: 0; box-shadow: none; }
 /* TOMBSTONE: `.ws-org-nofm`, the "N of M shown" in the heading, and the
    " · " that joined it to the clear link. Both went into the chip row on
    2026-09-01 — "i want the lens to be displayed in only on place not

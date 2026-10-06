@@ -85,8 +85,38 @@ export const focusMethods = {
 	// up there, so this is the margin alone — which is still worth having,
 	// because in zen the editor runs to the top of the window.
 	caretCeilingY(this: WordSmith) {
+		return this.chromeCeilingY() + this.caretMargin();
+	},
+
+	// THE TOP OF THE CHROME: the letter box's top mask and, in page mode, the
+	// window's own title bar where it lies over the writing. On Obsidian 1.14's
+	// installer Zen keeps the strip that holds the window's buttons, fixed, over
+	// an editor that runs to the top of the window, and a caret held only off the
+	// window's edge went up into it. A title bar the layout puts ABOVE the editor
+	// asks for nothing: the caret's margin is the overlap (the caret's floor in
+	// editor-extensions), and there is none.
+	chromeCeilingY(this: WordSmith) {
 		const mask = this.maskEdge(this.maskTopEl, 'bottom');
-		return (mask != null && mask > 0 ? mask : 0) + this.caretMargin();
+		let y = mask != null && mask > 0 ? mask : 0;
+		if (!this.pageModeShown()) return y;
+		try {
+			const tb = this.mainTitlebarEl();
+			const shown = !!tb && (typeof tb.checkVisibility !== 'function'
+				|| tb.checkVisibility({ opacityProperty: true, visibilityProperty: true }));
+			const r = shown && tb ? tb.getBoundingClientRect() : null;
+			if (r && r.height > 0 && r.bottom > y) y = r.bottom;
+		} catch { /* not laid out: the mask or the window's edge will do */ }
+		return y;
+	},
+
+	// The main window's title bar (stamped by tagMainTitlebar), and whether a page
+	// is drawn: the body's class, which is what the sheet reads.
+	mainTitlebarEl(this: WordSmith): HTMLElement | null {
+		return document.querySelector<HTMLElement>('.titlebar.ws-main-titlebar') || document.querySelector<HTMLElement>('.titlebar');
+	},
+
+	pageModeShown(this: WordSmith) {
+		try { return !!document.body && document.body.classList.contains('ws-page'); } catch { return false; }
 	},
 
 	// One edge of a mask, or null when it is absent, off or unmeasured.
@@ -1727,9 +1757,10 @@ export const focusMethods = {
 	},
 
 	stampMaskPositions(this: WordSmith) {
-		// The bar's horizontal bounds follow the editor area, and this is
-		// the pass that already runs whenever that geometry can change.
-		this.stampBarBounds();
+		// The bar's horizontal bounds follow the editor area. Measured only
+		// when they can have moved (see stampBarBounds: the root split is
+		// watched), like the bar update does.
+		if (this._barBoundsDirty !== false || this._barBoundsEl !== this.retroStatusBarEl) this.stampBarBounds();
 		// THE REMEMBERED NOTE, not the focused one. This bailed whenever
 		// `getActiveViewOfType` came back empty — which is exactly what it
 		// does while focus sits in the docked panel. So toggling the

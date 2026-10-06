@@ -9,7 +9,7 @@ import { MarkdownView, TFile, Modal, Platform } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
 import type { Text as CmText } from '@codemirror/state';
 import type { WsTextStats } from '../core/settings';
-import { CJK_CHAR, READ_WPM, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
+import { CJK_CHAR, READ_WPM, wsPagesOf, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WsInkDrop, WsInkBubble, WsInkWave, WsInkOrb } from './plugin';
 
@@ -2755,8 +2755,8 @@ export const reportMethods = {
 			sentences,
 			paragraphs,
 			lines:      lineCount,
-			// The manuscript convention: 250 words to a page.
-			pages:      base.words ? Math.max(1, Math.round(base.words / 250)) : 0,
+			// The manuscript convention, the one the Organizer's Pages reads too.
+			pages:      wsPagesOf(base.words),
 			grade:      fkGrade(base.words, sentences, syllables)
 		};
 	},
@@ -3200,7 +3200,7 @@ export const reportMethods = {
 			total.paragraphs += stats.paragraphs;
 			total.lines      += stats.lines || 0;
 		}
-		total.pages = total.words ? Math.max(1, Math.round(total.words / 250)) : 0;
+		total.pages = wsPagesOf(total.words);
 		total.grade = fkGrade(total.words, total.sentences, total.syllables);
 		// NULL WHEN THERE ARE NONE, not `0/0`. A folder with no boxes in it has
 		// no answer to "how many are left", and the cell shows nothing — the
@@ -4876,7 +4876,7 @@ export const reportMethods = {
 			total.paragraphs      += stats.paragraphs || 0;
 			total.lines           += stats.lines || 0;
 		}
-		total.pages = total.words ? Math.max(1, Math.round(total.words / 250)) : 0;
+		total.pages = wsPagesOf(total.words);
 		total.grade = fkGrade(total.words, total.sentences, total.syllables);
 		return total;
 	},

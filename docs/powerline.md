@@ -21,7 +21,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{target}` | How far the note is toward its target, `43%` or `2,145/5,000` (pick one under **Powerline → Tokens**). Set a target in the Organizer. Nothing when there is none |
 | `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
-| `{time}` `{clock}` | The time, written or drawn as a dial |
+| `{time}` `{clock}` | The time, written or drawn as a dial. `{time}` reads `14:05` or `2:05 PM` (pick one under **Powerline → Tokens**) |
 | `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts, joined however you like |
 | `{battery}` `{caps}` `{num}` | Battery; caps and num lock, only when on |
 | `{vim}` | Which Vim mode you're in |

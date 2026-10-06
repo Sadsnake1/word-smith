@@ -35,7 +35,7 @@ import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
 import type { WsOrgColAgg } from './organizer-readings';
-import { WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
@@ -2915,6 +2915,10 @@ export const organizerWindowMethods = {
 			// NOT ON EXPORT: the tree beside it says where you are; the act row
 			// says what is going out.
 			subject.toggleClass('is-gone', tab === 'export');
+			// …SO ON EXPORT THE ZOOM FIGURE RIDES THE ACT ROW, the line that tab
+			// always shows, handed over once the row is drawn (below). Every
+			// other tab keeps it on the subject line.
+			if (tab !== 'export') orgZoom.zoomHost = subject;
 			// The new Organizer draws its own pane and asks nothing async.
 			if (tab === 'organizer') { drawOrg(); return; }
 			const rows = subjectRows();
@@ -2950,7 +2954,14 @@ export const organizerWindowMethods = {
 			// that is no longer on screen.
 			exportOpts = null;
 			panel.textContent = '';
-			if (tab === 'export') { void drawExport(); return; }
+			if (tab === 'export') {
+				void (async () => {
+					await drawExport();
+					const act = panel.querySelector<HTMLElement>('.ws-export-top');
+					if (tab === 'export' && act) { orgZoom.zoomHost = act; zoomTag(); }
+				})();
+				return;
+			}
 			drawHistory(rows);
 			void gen;
 		};
@@ -3852,8 +3863,8 @@ export const organizerWindowMethods = {
 					});
 					return paint;
 				};
-				const paintUndo = histBtn('undo', ['undo-2', 'undo', 'corner-up-left'], 'Ctrl+Z');
-				const paintRedo = histBtn('redo', ['redo-2', 'redo', 'corner-up-right'], 'Ctrl+Shift+Z');
+				const paintUndo = histBtn('undo', ['undo-2', 'undo', 'corner-up-left'], wsModKeyName() + '+Z');
+				const paintRedo = histBtn('redo', ['redo-2', 'redo', 'corner-up-right'], wsModKeyName() + '+Shift+Z');
 				ctx.orgHistPaint = () => { paintUndo(); paintRedo(); };
 				// THE WORD BESIDE THEM. One slot: what the journal just did, for six
 				// seconds, and otherwise how many rows the selection holds when it

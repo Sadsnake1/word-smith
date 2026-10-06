@@ -18,7 +18,7 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 
 ## The table
 
-Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
+Readings the frontmatter can't give you: word count, target, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
 - **Filter** is a text search plus chips: pick a property, pick a value. Chips stack. No query language. The same button picks which kinds of file show up. The search box sits above the tabs, so it's there on Export and History too.
@@ -29,9 +29,9 @@ Readings the frontmatter can't give you: word count, target, flag, reading grade
 
 ## Bulk edit and undo
 
-Ctrl (or Cmd) click gathers note rows into a selection, Shift click takes the range, a plain click or Escape lets it go. The bar says how many you hold. A flag, a target or a property set on one of them lands on all of them, and a list edit is a difference: adding a tag adds it, removing a tag removes only that one, and nothing else in those notes moves. Bulk edit is desktop only.
+Ctrl-click gathers note rows into a selection (Cmd-click on a Mac, where Ctrl-click is the right click and opens the menu), Shift click takes the range, a plain click or Escape lets it go. The bar says how many you hold. A flag, a target or a property set on one of them lands on all of them, and a list edit is a difference: adding a tag adds it, removing a tag removes only that one, and nothing else in those notes moves. Bulk edit is desktop only.
 
-Every act the Organizer writes is one step back: a flag, a target, a property, a rename, a bulk edit as one step. Ctrl+Z and Ctrl+Shift+Z while the pane has the focus, or the two buttons beside Collapse all. Undo says what it undid, right there beside the buttons.
+Every act the Organizer writes is one step back: a flag, a target, a property, a rename, a bulk edit as one step. Ctrl+Z and Ctrl+Shift+Z (Cmd on a Mac) while the pane has the focus, or the two buttons beside Collapse all. Undo says what it undid, right there beside the buttons.
 
 ## Properties
 

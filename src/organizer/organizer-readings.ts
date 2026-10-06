@@ -3,7 +3,7 @@
 
 import { TFile } from 'obsidian';
 
-import { wsCatch, wsListOf, wsStr, wsTaskSay, wsTasksOf } from '../core/preamble';
+import { wsCatch, wsListOf, wsPagesOf, wsStr, wsTaskSay, wsTasksOf } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 
 // ════════════════════════════════════════════════════════════════════════
@@ -65,6 +65,9 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 		// writer asked for it in those terms. `left` answered the same
 		// question as its two parents in the same unit.
 		case 'read': return r ? r.words : null;
+		// PAGES ARE WORDS TOO, said at 250 to a page (`wsPagesOf`), so a folder
+		// sums the words and turns the total into pages once.
+		case 'pages': return r ? r.words : null;
 		// ── WHAT KIND OF FILE IT IS ──────────────────────────
 		//
 		// FROM THE PATH, not from the index: the index is a reading
@@ -208,6 +211,7 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		// THE PLUGIN'S ONE READING OF A DURATION, shared with the
 		// Powerline bar and the report. `v` is the note's words.
 		case 'read': return d.plugin.formatReadTime(Number(v) || 0);
+		case 'pages': return wsPagesOf(Number(v) || 0).toLocaleString();
 		// THE TARGET SAYS HOW FAR ALONG IT IS, not just what it is —
 		// see `orgTargetSay`, which is the one writer of that.
 		case 'goal':
@@ -307,6 +311,9 @@ const ORG_AGG: Record<string, string> = {
 	// BECAUSE A FOLDER IS NOT A FILE: it has no kind, and the default would
 	// print the note count in a column of words like "md" and "xlsx".
 	read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
+	// PAGES SUM AS WORDS, and the total is said as pages once: three
+	// one-page scenes of 80 words are one page, not three.
+	pages: 'sum',
 	// ── AND THE SIZES ────────────────────────────────────────
 	//
 	// All SUM, and each for the reason `read` sums rather than by default:
@@ -445,6 +452,7 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			// because the ARITHMETIC is a plain sum — it is only the saying of it
 			// that differs.
 			if (col.id === 'read') return { text: d.plugin.formatReadTime(sum) };
+			if (col.id === 'pages') return { text: wsPagesOf(sum).toLocaleString(), title: 'About ' + wsPagesOf(sum).toLocaleString() + (wsPagesOf(sum) === 1 ? ' page' : ' pages') + ', at 250 words a page' };
 			// A FOLDER'S TARGET READS LIKE ITS NOTES': the words of its targeted
 			// notes over their targets, said the way the setting says a note's
 			// (`orgTargetSay`: a percentage, or the two numbers) and wearing the

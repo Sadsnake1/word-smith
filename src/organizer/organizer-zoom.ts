@@ -1,6 +1,6 @@
 // Word-Smith — organizer-zoom: Ctrl+wheel, two fingers, and the way back.
 
-import { wsCatch } from '../core/preamble';
+import { wsCatch, wsIconInto } from '../core/preamble';
 import type { WsSession } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 
@@ -65,7 +65,20 @@ const zoomTag = () => {
 		t.setAttribute('aria-label', 'Zoom back to 100%');
 		t.addEventListener('click', (ev: Event) => { ev.stopPropagation(); d.ses.zoom = 1; zoomApply(); });
 	}
-	t.setText(Math.round(z * 100) + '%');
+	// THE LENS, CHROME'S: a magnifier with a minus while the pane is smaller
+	// than 100%, a plus while larger, before the figure. Grey beside a grey
+	// word count, the figure alone read as part of the count; the lens says
+	// at a glance which way the pane went, the figure how far.
+	const lens = z < 1 ? 'zoom-out' : 'zoom-in';
+	let ic = t.querySelector<HTMLElement>('.ws-uni-zoomlens');
+	if (!ic || ic.dataset.icon !== lens) {
+		t.empty();
+		ic = t.createSpan({ cls: 'ws-uni-zoomlens' });
+		wsIconInto(ic, [lens], '');
+		t.createSpan({ cls: 'ws-uni-zoomnum' });
+	}
+	const num = t.querySelector('.ws-uni-zoomnum');
+	if (num) num.setText(Math.round(z * 100) + '%');
 };
 const zoomApply = () => {
 	try { d.body.style.setProperty('--ws-uni-zoom', String(d.ses.zoom || 1)); } catch (_) { wsCatch('zoomApply: body.style.setProperty', _); }
@@ -109,5 +122,14 @@ d.body.addEventListener('touchmove', (ev: TouchEvent) => {
 d.body.addEventListener('touchend', (ev: TouchEvent) => { if (ev.touches.length < 2) pinch = null; }, { passive: true });
 d.body.addEventListener('touchcancel', () => { pinch = null; }, { passive: true });
 d.plugin._orgZoom = () => d.ses.zoom || 1;
-	return { zoomTag, get zoomHost() { return zoomHost; }, set zoomHost(v) { zoomHost = v; }, get orgGripDrag() { return orgGripDrag; }, set orgGripDrag(v) { orgGripDrag = v; } };
+	// A NEW HOST TAKES THE FIGURE WITH IT: one figure per window, never a
+	// stale one left in the row it moved from.
+	const zoomHostSet = (v: HTMLElement | null) => {
+		if (zoomHost && zoomHost !== v) {
+			const old = zoomHost.querySelector('.ws-uni-zoomtag');
+			if (old) old.remove();
+		}
+		zoomHost = v;
+	};
+	return { zoomTag, get zoomHost() { return zoomHost; }, set zoomHost(v) { zoomHostSet(v); }, get orgGripDrag() { return orgGripDrag; }, set orgGripDrag(v) { orgGripDrag = v; } };
 };

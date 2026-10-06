@@ -1311,6 +1311,12 @@ export const barMethods = {
 	// padding again — same output as the two inline padStarts it replaces.
 	formatTime(this: WordSmith, now: Date) {
 		const p = this.dateParts(now);
+		// 12 HOURS, asked for by a reader: 2:05 PM, no leading zero, midnight and
+		// noon both 12.
+		if (this.settings.timeTokenFormat === '12h') {
+			const h = now.getHours();
+			return String(h % 12 || 12) + ':' + p.mi + ' ' + (h < 12 ? 'AM' : 'PM');
+		}
 		return p.hh + ':' + p.mi;
 	},
 
@@ -2640,14 +2646,11 @@ export const barMethods = {
 		return this.orgTargetSay(words, this.fileGoalFor(path), s.targetTokenFormat === 'ratio' ? 'ratio' : 'percent');
 	},
 
-	updateRetroStatusBar(this: WordSmith) {
+	// `onlyIfChanged` is the keystroke's door (the editor-change handler): a
+	// bar whose text and state are the ones already on screen is left alone,
+	// see THE SAME BAR IS NOT BUILT TWICE below. Every other caller rebuilds.
+	updateRetroStatusBar(this: WordSmith, onlyIfChanged?: boolean) {
 		if (!this.retroStatusBarEl) return;
-		this._goalStates = [];
-		// One repaint, one read of each theme surface. Dropped here rather
-		// than invalidated on theme change: the bar repaints every second for
-		// the clock anyway, so a per-pass cache is both cheaper and incapable
-		// of going stale across a theme switch.
-		this._themeSurfaceCache = null;
 
 		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 		const now  = new Date();
@@ -2781,6 +2784,34 @@ export const barMethods = {
 
 		const rows = this.getStatusRows();
 
+		// ── THE SAME BAR IS NOT BUILT TWICE ─────────────────────────────
+		//
+		// Every keystroke came through here and rebuilt the whole row, then
+		// measured it: the root split's rectangle and every piece of the row,
+		// two forced layouts a frame while typing, about 3.7 ms of a phone's
+		// frame (measured with the CPU slowed to a Galaxy A26's).
+		// Most keystrokes change nothing the bar says: the same words, the same
+		// file, the same time. Everything the build reads is in this key (the
+		// formats, every token's text, the count, the minute for the drawn
+		// clock, the window's state classes, the fit's latches), so a key that
+		// matches is the bar already on screen. Read before anything is written.
+		// ONLY THE TOKENS THE ROWS USE: every token is worked out above, and two
+		// that move on every keystroke ({chars}, {ln:col}) are in the map
+		// whether or not the bar shows them, so a key over the whole map never
+		// matched.
+		const fmtText = JSON.stringify(rows).toLowerCase();
+		const usedSubs = Object.keys(subs).filter((k) => fmtText.indexOf(k.toLowerCase()) !== -1).map((k) => k + '=' + subs[k]);
+		const sig = JSON.stringify([rows, usedSubs, totalWC, now.getHours(), now.getMinutes(),
+			document.body.className, this._fitShortenFile, this._fitShortenHead || 0,
+			this.snappedRowHeight()]);
+		if (onlyIfChanged && sig === this._barRenderSig && this.retroStatusBarEl.childElementCount > 0) return;
+		this._barRenderSig = sig;
+		this._goalStates = [];
+		// One repaint, one read of each theme surface. Dropped here rather
+		// than invalidated on theme change: a per-pass cache is cheaper and
+		// cannot go stale across a theme switch.
+		this._themeSurfaceCache = null;
+
 		// A palette or :vim bar directive is restamped on EVERY repaint —
 		// :vim follows the live mode, and the numeric slots follow a theme
 		// flip that may land between applyCssVariables runs. It has to
@@ -2820,11 +2851,26 @@ export const barMethods = {
 		// the bar's own, read back rather than assumed: the bar may be on the
 		// theme colours or on the retro custom pair, and a hardcoded guess
 		// would leave a visible step at every cap.
+		// READ ONCE PER LOOK, NOT PER KEYSTROKE: a computed style is a style
+		// recalculation forced on the spot. The color can only move with the
+		// window's classes (theme, modes), the variables stamped on <body> (the
+		// directive above writes there), the bar's own classes, or a theme's
+		// stylesheet (`css-change` drops the key). NOT the bar's inline style:
+		// it carries its bounds, its font size and the rules' variables, none
+		// of which paint the background, and the bounds land after this read.
 		let barColor = 'transparent';
-		try {
-			const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;
-			if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') barColor = c;
-		} catch (_) { wsCatch('updateRetroStatusBar: const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;', _); }
+		const colorKey = document.body.className + '\u0001' + (document.body.getAttribute('style') || '')
+			+ '\u0001' + this.retroStatusBarEl.className;
+		if (this._barColorKey === colorKey && this._barColorCache) {
+			barColor = this._barColorCache;
+		} else {
+			try {
+				const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;
+				if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') barColor = c;
+			} catch (_) { wsCatch('updateRetroStatusBar: const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;', _); }
+			this._barColorKey = colorKey;
+			this._barColorCache = barColor;
+		}
 		// Spacer tokens. Every distinct {s+} written anywhere in the bar gets
 		// an entry, so the existing substitution machinery does the work and
 		// they behave like any other token — including taking a :N colour,
@@ -2892,8 +2938,33 @@ export const barMethods = {
 		// (e.g. when a sidebar is open and the note pane narrows).
 		// The mask pass is not the only trigger: it is gated on masks being
 		// active, and the bar has to stay inside the panes regardless.
-		this.stampBarBounds();
-		this.scheduleFit();
+		// THE BOUNDS ONLY WHEN THEY CAN HAVE MOVED: a new bar element, or the
+		// root split resized since they were stamped (`_barRootRO`). Measuring
+		// the split right after the rebuild forced a layout on every keystroke.
+		if (this._barBoundsEl !== this.retroStatusBarEl || this._barBoundsDirty !== false) this.stampBarBounds();
+		this.fitAfterLayout();
+	},
+
+	// ── THE FIT AFTER THE BROWSER'S OWN LAYOUT ─────────────────────────────
+	//
+	// A ResizeObserver hears a newly built row once the browser has laid it
+	// out and BEFORE it paints, so the fit still lands in the same frame as
+	// the rebuild (no over-full row on screen for a frame, which is what the
+	// microtask in `scheduleFit` exists for) and its measures read a layout
+	// that is already clean instead of forcing one. One observation per
+	// build, let go once heard. Where there is no ResizeObserver, the
+	// microtask.
+	fitAfterLayout(this: WordSmith) {
+		const rows = this._statusRowEls || [];
+		if (typeof ResizeObserver === 'undefined' || !rows.length) { this.scheduleFit(); return; }
+		if (!this._fitRO) {
+			this._fitRO = new ResizeObserver(() => {
+				if (this._fitRO) this._fitRO.disconnect();
+				try { this.fitStatusBarText(); } catch (_) { wsCatch('fitAfterLayout: this.fitStatusBarText();', _); }
+			});
+		}
+		this._fitRO.disconnect();
+		for (const r of rows) this._fitRO.observe(r);
 	},
 
 	powerlineColors(this: WordSmith) {
@@ -4253,7 +4324,8 @@ export const barMethods = {
 					if (!p2.act) { t.appendChild(document.createTextNode(p2.text)); continue; }
 					const spec = TOKEN_ACTS[p2.act];
 					const a = createSpan();
-					a.className = 'ws-tokact';
+					// the filename marked: it takes no underline under the pointer
+					a.className = 'ws-tokact' + (p2.act === '{file}' ? ' is-file' : '');
 					a.textContent = p2.text;
 					a.setAttribute('title', spec.tip);
 					// MOUSEDOWN, NOT CLICK, and the bar had this written down
@@ -4369,9 +4441,12 @@ export const barMethods = {
 		// or, following the note, whatever the editor is at right now,
 		// Ctrl+scroll included — is the size the bar uses; if the content will
 		// not fit at that size, content goes.
-		el.style.fontSize = this.settings.statusBarFontFollowNote
+		// Written only when it differs: a style write, even of the same value,
+		// would make the fit's first measure below force a layout.
+		const fontSize = this.settings.statusBarFontFollowNote
 			? 'var(--font-text-size, 16px)'
 			: (this.settings.statusBarFontSize || 13) + 'px';
+		if (el.style.fontSize !== fontSize) el.style.fontSize = fontSize;
 		this.fitStatusBar();
 	},
 
@@ -4563,6 +4638,27 @@ export const barMethods = {
 			return;
 		}
 		this._stampZoom = z;
+		// ── AND WATCHED FROM HERE ON ─────────────────────────────────────
+		//
+		// The split resizing (the window, a sidebar opened or dragged, the
+		// ribbon, a zoom step) is what moves these bounds, so it is what marks
+		// them stale; a bar update re-measures only then. The observer's own
+		// call lands after layout, where this read costs nothing extra.
+		if (root && typeof ResizeObserver !== 'undefined' && this._barRootObserved !== root) {
+			if (!this._barRootRO) {
+				this._barRootRO = new ResizeObserver(() => {
+					this._barBoundsDirty = true;
+					try { this.stampBarBounds(); } catch (_) { wsCatch('stampBarBounds: the root split resized', _); }
+				});
+			}
+			this._barRootRO.disconnect();
+			this._barRootRO.observe(root);
+			this._barRootObserved = root;
+		}
+		// FRESH ONLY WHILE SOMETHING IS WATCHING: with no observer on this
+		// split, nothing would ever mark them stale, so they stay stale and
+		// every caller measures, as before.
+		this._barBoundsDirty = !(this._barRootRO && this._barRootObserved === root);
 		const left  = Math.round(r.left);
 		const width = Math.round(r.width);
 

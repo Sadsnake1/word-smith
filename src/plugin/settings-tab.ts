@@ -72,6 +72,7 @@ import {
 	barPresetWithDefaults,
 	wsCatch,
 	wsFlagSvg,
+	wsModKeyName,
 	wsSvgInto,
 } from '../core/preamble';
 import type WordSmith from './plugin';
@@ -1095,6 +1096,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: '{file}', desc: 'The note’s name, with or without its folders.', control: { type: 'dropdown', key: 'fileTokenFormat', options: { path: 'Full path', name: 'File name only' } } },
 				{ name: '{flag}', desc: 'The flag’s icon, its name, or both.', control: { type: 'dropdown', key: 'flagTokenFormat', options: { icon: 'Icon', name: 'Name', both: 'Icon and name' } } },
 				{ name: '{target}', desc: 'The note’s progress toward its target.', control: { type: 'dropdown', key: 'targetTokenFormat', options: { percent: 'Percentage (43%)', ratio: 'Words and target (2,145/5,000)' } } },
+				{ name: '{time}', desc: 'The time, in 24 or 12 hours.', control: { type: 'dropdown', key: 'timeTokenFormat', options: { '24h': '24-hour (14:05)', '12h': '12-hour (2:05 PM)' } } },
 				{ name: '{font}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'fontTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				{ name: '{markers}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'markersTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				tokenFormat('{mode}', 'modes', 'Modes', 'The menu’s icon, the word, or both.'),
@@ -1299,7 +1301,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		N(g, 'Seven palette colors, a dark set and a light set, under Colors. A token with no color lies flush with the bar.');
 		g = G('Misc', 'more-horizontal');
 		SUB('Time and date');
-		L(['{time}'], 'The time, written.');
+		L(['{time}'], 'The time, written: 14:05, or 2:05 PM in 12 hours (Tokens).');
 		L(['{clock}'], 'The time, drawn as a dial.');
 		L(['{dd}', '{mm}', '{yyyy}', '{yy}'], 'Date parts, joined however you like: {dd}/{mm}/{yy}.');
 		SUB('The machine');
@@ -1595,7 +1597,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Hide the Powerline bar', desc: 'The bar too, in Zen.', control: { type: 'toggle', key: 'zenHideBar' }, visible: zen },
 				{ name: 'Bring it back on hover', desc: 'Milliseconds it stays after the pointer leaves; 0 never brings it back.',
 					control: { type: 'slider', key: 'barPeekMs', min: 0, max: 6000, step: 250 }, visible: all(zen, () => !!s.zenHideBar) },
-				{ name: 'Breathing room', desc: 'Pixels the caret keeps clear of the bar and the letter box, in and out of Zen.',
+				{ name: 'Breathing room', desc: 'Pixels the caret keeps clear of the bar, the letter box and, in page mode, the title bar.',
 					control: { type: 'slider', key: 'caretMarginPx', min: 0, max: 120, step: 2 }, visible: zen },
 				{ name: 'Escape exits Zen', desc: 'One key out.', control: { type: 'toggle', key: 'zenEscExits' }, visible: zen },
 				this.hotkeysRow(['toggle-zen']),
@@ -1873,8 +1875,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// two cards at the foot: what the window can do that no control on this
 				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
 				// wheel; two fingers on a phone)
-				this.noteRow('Ctrl-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
-				this.noteRow('Ctrl + scroll zooms the window (Cmd on a Mac); on a phone, pinch with two fingers.', org),
+				this.noteRow(wsModKeyName() + '-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
+				this.noteRow(wsModKeyName() + ' + scroll zooms the window; on a phone, pinch with two fingers.', org),
 			], this.railed('manuscript', 'organizer')),
 			this.section('File tree', [
 				{ name: 'Word counts', desc: 'Next to each note, added up for folders.', control: { type: 'toggle', key: 'enableFileTreeCounts' } },
@@ -2102,6 +2104,7 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	fileTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	flagTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	targetTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
+	timeTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	fontTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	markersTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	barThemeEnabled: (tab) => { tab.plugin.applyThemeClass(); tab.plugin.applyThemeVars(); void tab.plugin.barThemeCursorSync(); },

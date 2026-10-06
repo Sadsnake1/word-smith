@@ -3017,6 +3017,13 @@ export const WS_FRAME_SHELL = '<!DOCTYPE html><html><head></head><body></body></
 // than throwing, so the names are tried in order, the one that drew is
 // recorded on the element (`data-icon`), and the glyph is the fallback
 // when none did.
+// THE MODIFIER, NAMED AS THIS MACHINE NAMES IT. On a Mac, Ctrl-click is the
+// right click (the browser sends a context menu and no click), so a sentence
+// that says Ctrl-click sends a Mac writer to the wrong menu; Cmd is the Mac's
+// gathering and shortcut key, and the code already takes either.
+export function wsModKeyName(): string {
+	try { return Platform && Platform.isMacOS ? 'Cmd' : 'Ctrl'; } catch { return 'Ctrl'; }
+}
 export function wsIconInto(el: HTMLElement, names: string[], glyph: string): string {
 	for (const nm of names) {
 		el.textContent = '';
@@ -3050,19 +3057,17 @@ export function wsFormatHasPages(id: string) {
 	return id === 'docx' || id === 'pdf' || id === 'html';
 }
 
-// HOW BIG A HEADING IS, ONCE, FOR BOTH READERS. The style table sets
-// `w:sz` to `half + 4` for levels 1-2 and `half + 2` below, where
-// `half` is the body size in half-points — so at 12pt the file has 14pt
-// and 13pt headings — and `WsTitle` carries no `w:sz` at all, so in
-// Word it is the body size in bold. A preview stylesheet that guessed
-// 1.5em / 1.15em / 1em matched the file at one level out of three.
-// Returned as a MULTIPLE of the body size, because that is the one form
-// both can use: the docx multiplies it back into half-points, the
-// stylesheet writes it as `em`.
-export function wsHeadSizeEm(o: WsExportOpts | null | undefined, n: number) {
-	const half = Math.round(((o && o.pt) || 12) * 2);
-	if (!(half > 0)) return 1;
-	return (half + (n <= 2 ? 4 : 2)) / half;
+// HOW BIG A HEADING IS, ONCE, FOR BOTH READERS: 14 to every 12 of the text
+// for levels 1-2, 13 to every 12 below, so a 12pt manuscript has 14pt and
+// 13pt headings and a 24pt reading copy 28pt and 26pt. A MULTIPLE, not a
+// fixed step over the text: two points over 24 is a heading nobody sees.
+// `WsTitle` carries no `w:sz` at all: the title's own run sets its size
+// (`wsTitleHalfPoints`). Both readers take the multiple: the docx turns it
+// back into half-points, the stylesheet writes it as `em`.
+export const WS_HEAD_EM_TOP = 14 / 12;
+export const WS_HEAD_EM_SUB = 13 / 12;
+export function wsHeadSizeEm(n: number) {
+	return n <= 2 ? WS_HEAD_EM_TOP : WS_HEAD_EM_SUB;
 }
 
 
@@ -3330,7 +3335,15 @@ export function wsJoinMark(o: WsExportOpts | null | undefined) {
 }
 
 // a run of a paragraph: text and how it is set
-export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; hl?: string; sup?: boolean; mono?: boolean }
+export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; hl?: string; sup?: boolean; mono?: boolean; sz?: number }
+// THE TITLE PAGE'S TITLE, one and a half times the body size, bold. A MULTIPLE,
+// as `wsHeadSizeEm` is, so both readers take it from here: the .docx turns it
+// into half-points on the title's run, the page writes it as em. Bigger than
+// the chapter heading under it (the body plus 2pt), which it opens the book above.
+export const WS_TITLE_SIZE_EM = 1.5;
+export function wsTitleHalfPoints(o: WsExportOpts | null | undefined) {
+	return Math.round(((o && o.pt) || 12) * 2 * WS_TITLE_SIZE_EM);
+}
 // ── OBSIDIAN 1.14'S HIGHLIGHT COLORS ───────────────────────────────────
 // `==\u{1F534}words==` is a red highlight: ONE emoji straight after the `==`,
 // a circle or a square, as 1.14.4's own parser reads it, and nothing after
@@ -3440,6 +3453,7 @@ export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean
 		const rpr = [];
 		if (r.bold) rpr.push('<w:b/>');
 		if (r.ital) rpr.push('<w:i/>');
+		if (r.sz) rpr.push('<w:sz w:val="' + r.sz + '"/><w:szCs w:val="' + r.sz + '"/>');
 		if (r.sup)  rpr.push('<w:vertAlign w:val="superscript"/>');
 		if (r.mono) rpr.push('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>');
 		// Word's own highlight, not a shaded background: it is what the
@@ -3496,6 +3510,36 @@ export function wsDropCallouts(md: string) {
 	}
 	return out.join('\n');
 }
+// THE NOTE'S #TAGS OUT OF ITS TEXT, for an export with "Tags" off: a reader keeps
+// them in the note (they help with the sequels) and not in the Word document. A
+// tag is Obsidian's: a # at a line's start or after a space, then letters, digits,
+// _ - / with at least one that is not a digit, so #3 is not one. Left alone: the
+// properties block (Properties decides it), a code fence, a $$ block, `inline
+// code`. A tag takes the space before it; a line that held only tags goes too.
+export const WS_TAG_RE = /(^|\s)#(?=[\p{L}\p{N}_\-/]*[\p{L}_\-/])[\p{L}\p{N}_\-/]+/gu;
+export function wsDropTags(md: string) {
+	const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+	const out: string[] = [];
+	let i = 0;
+	if (/^---\s*$/.test(lines[0] || '')) {
+		const end = lines.findIndex((l, k) => k > 0 && /^---\s*$/.test(l));
+		for (; end > 0 && i <= end; i++) out.push(lines[i]);
+	}
+	let fence = false, math = false;
+	for (; i < lines.length; i++) {
+		const line = lines[i];
+		const t = line.trim();
+		if (/^(```|~~~)/.test(t)) { fence = !fence; out.push(line); continue; }
+		if (!fence && t === '$$') { math = !math; out.push(line); continue; }
+		if (fence || math) { out.push(line); continue; }
+		let kept = line.split(/(`[^`]*`)/).map((seg, k) => (k % 2 ? seg : seg.replace(WS_TAG_RE, ''))).join('');
+		if (kept === line) { out.push(line); continue; }
+		if (!kept.trim()) continue;
+		if (!/^\s/.test(line)) kept = kept.replace(/^\s+/, '');
+		out.push(kept);
+	}
+	return out.join('\n');
+}
 // A $$ MATH BLOCK, from the line at `i`: on one line, or over several. No
 // formula renderer travels with a manuscript, so the text is set apart as
 // written, in monospace, like code. `end` is the block's last line.
@@ -3539,6 +3583,7 @@ export function wsTableCells(row: string) {
 // .docx; a callout only with "Callouts" kept, as a quote under its title in
 // bold, its [!kind] tag never printed.
 export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, parts: string[]) {
+	if (o.keepTags === false) md = wsDropTags(md);
 	const esc = (t: string) => String(t == null ? '' : t)
 		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	const runsHtml = (text: string) => wsInlineRuns(text, o).map((r) => {
@@ -3669,7 +3714,8 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 	// in prose (the lines are trimmed), and NOT harmless inside a code
 	// fence, which is kept verbatim: the CR would travel into the .docx and
 	// Word would draw it.
-	const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
+	const text = o.keepTags === false ? wsDropTags(String(md == null ? '' : md)) : String(md == null ? '' : md);
+	const lines = text.replace(/\r\n?/g, '\n').split('\n');
 	const out: string[] = [];
 	const notes = [];
 	let i = 0;
@@ -3970,11 +4016,13 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		// style name — a custom style without one is invisible to it, and
 		// the field comes back "no table of contents entries found",
 		// which reads as a broken document rather than a missing setting.
+		// ONE LINE OF THE TEXT ABOVE A HEADING, at any size: `half` half-points
+		// is `half * 10` twips, 240 at 12pt, which is the 1em the page leaves.
 		+ [1,2,3,4,5,6].map(n => st('WsHeading' + n, 'heading ' + n,
 			spacing + '<w:keepNext/><w:outlineLvl w:val="' + (n - 1) + '"/>'
 			+ '<w:jc w:val="' + (n <= 2 ? 'center' : 'left') + '"/>'
-			+ '<w:spacing w:before="240" w:line="' + line + '" w:lineRule="auto"/>',
-			'<w:b/><w:sz w:val="' + Math.round(wsHeadSizeEm(o, n) * half) + '"/>')).join('')
+			+ '<w:spacing w:before="' + half * 10 + '" w:line="' + line + '" w:lineRule="auto"/>',
+			'<w:b/><w:sz w:val="' + Math.round(wsHeadSizeEm(n) * half) + '"/>')).join('')
 		+ '</w:styles>';
 }
 
@@ -4015,7 +4063,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// lines down to it cannot centre — 27 text lines less a 4-line block
 		// leaves 23, an odd number — so the title page is its own SECTION and
 		// Word centres it.
-		body.push(wsPara([{ text: t, bold: true }], 'WsTitle', { noIndent: true, align: 'center' }));
+		body.push(wsPara([{ text: t, bold: true, sz: wsTitleHalfPoints(o) }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.author) body.push(wsPara([{ text: 'by ' + o.author }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.wordCount != null && o.wordCountOnTitle !== false) {
 			// NO BLANK LINE BEFORE THE COUNT: the preview's markup is three
@@ -4291,6 +4339,18 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 // Organizer's column all divide by it, so the plugin never answers "how
 // long is this to read" two ways on two surfaces a writer can see at once.
 export const READ_WPM = 238;
+
+// ── WORDS TO A PAGE ─────────────────────────────────────────────────────
+//
+// The manuscript convention, 250 words to a page of 12pt double-spaced type.
+// ROUGH ON PURPOSE: the true count belongs to the paper, the size and the
+// spacing, which only Export knows, and its preview counts real pages. THE ONE
+// CONSTANT: the report's Pages and the Organizer's column both read it. A note
+// with any words is a page at least.
+export const WS_WORDS_PER_PAGE = 250;
+export function wsPagesOf(words: number) {
+	return words > 0 ? Math.max(1, Math.round(words / WS_WORDS_PER_PAGE)) : 0;
+}
 
 // How many addressable colours each row offers. Backgrounds carry the
 // palette, so there are more of them; text on a coloured block only needs a
@@ -5168,7 +5228,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.6';
+export const WS_PLUGIN_VERSION = '1.7.7';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6188,6 +6248,7 @@ export const DEFAULT_SETTINGS = {
 	],
 	fileTokenFormat:          'path',     // 'path' (~/folder/name) | 'name' (basename only)
 	targetTokenFormat:        'percent',  // {target}: 'percent' (43%) | 'ratio' (2,145/5,000)
+	timeTokenFormat:          '24h',      // {time}: '24h' (14:05) | '12h' (2:05 PM)
 	// 'icon' (the silhouette alone) | 'name' (the word alone, for a bar in a
 	// face where an inline SVG sits badly) | 'both'.
 	//
@@ -6760,7 +6821,9 @@ export const BAR_KEYS = [
 	// APPENDED: the bar in the interface font.
 	'statusBarUiFont',
 	// APPENDED: how {target} says the note's target.
-	'targetTokenFormat'
+	'targetTokenFormat',
+	// APPENDED: {time} in 24 or 12 hours.
+	'timeTokenFormat'
 ];
 
 // The keys above that no longer DO anything.
@@ -7042,6 +7105,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"barTokenIcons": {"history":"icon","export":"icon","organizer":"icon","powermenu":"icon","report":"both","modes":"both","syntax":"both","prose":"both"},
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
+		"timeTokenFormat": "24h",
 	},
 	"Code": {
 		"statusRows": [{"left":":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}","center":"","right":"{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5"}],
@@ -7096,6 +7160,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"barTokenIcons": {},
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
+		"timeTokenFormat": "24h",
 	},
 	// ── TWO MORE, DIFFERENT FROM THE TWO. FADE is built on the {g} runs —
 	// three fades a row, a warm seven-colour palette, mode colours on, no
@@ -7156,6 +7221,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"barTokenIcons": {},
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
+		"timeTokenFormat": "24h",
 	},
 };
 

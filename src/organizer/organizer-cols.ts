@@ -119,6 +119,9 @@ const colDefs = (): WsOrgCol[] => [
 	// asked for, and both are in the fresh-vault off-list. A vault that
 	// has already shaped that list gets them ON (the `created` precedent).
 	{ id: 'read',     label: 'Read time', def: 84, min: 56 },
+	// A ROUGH PAGE COUNT, 250 words to a page (`wsPagesOf`): Export's preview
+	// counts real pages for the paper and the type; this is the quick answer.
+	{ id: 'pages',    label: 'Pages',    def: 60, min: 44 },
 	{ id: 'ftype',    label: 'Type',     def: 62, min: 40 },
 	// ── WHO POINTS HERE ──────────────────────────────────────────
 	//
@@ -132,8 +135,7 @@ const colDefs = (): WsOrgCol[] => [
 	{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
 	// ── FOUR MORE READINGS ────────────────────────────────────────
 	//
-	// No pages column: a page is an invented 250-words-a-page convention on
-	// a row. LINKS IS A COUNT, NOT A LIST: Backlinks is the list — it
+	// LINKS IS A COUNT, NOT A LIST: Backlinks is the list — it
 	// answers "who points here", which is a question about other notes and
 	// wants their names; "how many does this one point at" is a size. THE
 	// CHARACTER COLUMNS ARE TWO COLUMNS because they are two numbers. Wide
@@ -171,7 +173,7 @@ if (!Array.isArray(d.s.uniColsOff)) {
 	// whose writer has already shaped this list gets it ON, which is who
 	// asked for the column.
 	d.s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
-		'tags', 'created', 'read', 'ftype', 'backlinks', 'outlinks', 'footnotes',
+		'tags', 'created', 'read', 'pages', 'ftype', 'backlinks', 'outlinks', 'footnotes',
 		// A COLUMN COSTS EVERY ROW IN THE VAULT, which is the note a few
 		// lines down. Four more readings that wait to be asked for; a
 		// vault that has already shaped this list gets them ON, which is
@@ -294,6 +296,7 @@ const BUILTIN_SORTS = [
 	{ id: 'modified', label: 'Last modified', icon: 'clock' },
 	{ id: 'paras',    label: 'Paragraphs', icon: 'pilcrow' },
 	{ id: 'read',     label: 'Read time',  icon: 'timer' },
+	{ id: 'pages',    label: 'Pages',      icon: 'files' },
 	{ id: 'ftype',    label: 'Type',       icon: 'file-type' },
 	{ id: 'backlinks', label: 'Backlinks', icon: 'link' },
 	{ id: 'outlinks',  label: 'Outgoing links', icon: 'external-link' },
