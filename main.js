@@ -4567,7 +4567,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.7";
+var WS_PLUGIN_VERSION = "1.7.8";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -13290,6 +13290,16 @@ var wsOrgCellsMake = (d) => {
   return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
 };
 var import_obsidian8 = require("obsidian");
+function wsOrgCountsLine(agg, others) {
+  if (!agg || !agg.files)
+    return "";
+  let line = agg.words.toLocaleString() + " words · " + agg.files.toLocaleString() + " notes";
+  if (others)
+    line += " · " + others.toLocaleString() + (others === 1 ? " other file" : " other files");
+  if (agg.tasksAll)
+    line += " · " + agg.tasksDone + "/" + agg.tasksAll + " tasks";
+  return line;
+}
 var wsOrgChromeMake = (d) => {
   const plugin = d.plugin;
   const glyph = (el, names, fallback) => {
@@ -13479,14 +13489,9 @@ var wsOrgChromeMake = (d) => {
       });
     }
     const agg = note ? plugin._orgIndex ? wsOrgAgg(plugin._orgIndex, [note]) : null : plugin.orgAggUnder(at);
-    if (agg && agg.files) {
-      let line = agg.words.toLocaleString() + " words · " + agg.files.toLocaleString() + " notes";
+    if (d.tab !== "organizer" && agg && agg.files) {
       const others = note ? 0 : Math.max(0, d.orgUnder(at).length - agg.files);
-      if (others)
-        line += " · " + others.toLocaleString() + (others === 1 ? " other file" : " other files");
-      if (agg.tasksAll)
-        line += " · " + agg.tasksDone + "/" + agg.tasksAll + " tasks";
-      subject.createSpan({ cls: "ws-org-agg", text: line });
+      subject.createSpan({ cls: "ws-org-agg", text: wsOrgCountsLine(agg, others) });
     }
     d.zoomTag();
   };
@@ -17589,10 +17594,11 @@ function wsOrgDrawHeads(plugin, a) {
     });
   }
 }
-function wsOrgDrawTotal(a) {
+function wsOrgDrawRoot(plugin, a) {
   const { at, cols, ctx, orgLensEmptied, tbody, wrap } = a;
   if (!orgLensEmptied) {
-    const subj = tbody.createEl("tr", { cls: "ws-org-subrow is-total" });
+    const isRoot = !!at;
+    const subj = tbody.createEl("tr", { cls: "ws-org-subrow " + (isRoot ? "is-root" : "is-total") });
     subj.remove();
     const std = subj.createEl("td", { cls: "ws-org-name" });
     const box = std.createDiv({ cls: "ws-org-subject-in" });
@@ -17601,8 +17607,35 @@ function wsOrgDrawTotal(a) {
     } catch (_) {
       wsCatch("orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });", _);
     }
-    box.createSpan({ cls: "ws-org-subjectname", text: "Total" });
-    std.title = at ? "Everything under " + ctx.nameOf(at) : "Everything in the vault";
+    const rootName = isRoot ? ctx.nameOf(at) : "Total";
+    if (isRoot) {
+      const rootOpen = !(ctx.ses && ctx.ses.rootShut);
+      const twist = ctx.orgChevron(box, rootOpen);
+      twist.title = rootOpen ? "Fold everything under this folder" : "Unfold everything under this folder";
+      twist.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (ctx.ses)
+          ctx.ses.rootShut = rootOpen;
+        ctx.drawPanel();
+      });
+      plugin.orgFolderIcon(box, at, rootOpen);
+      subj.addEventListener("contextmenu", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const menu = wsMenu();
+        plugin.outlinerRowMenu(menu, { path: at, kind: "folder" }, ctx.orgMenuCtx);
+        try {
+          menu.showAtMouseEvent(ev);
+        } catch (_) {
+          wsCatch("wsOrgDrawRoot: menu.showAtMouseEvent(ev);", _);
+        }
+      });
+    }
+    box.createSpan({ cls: "ws-org-subjectname", text: rootName });
+    const under0 = ctx.orgUnder(at);
+    const agg0 = plugin.orgAggUnder(at);
+    const counts = wsOrgCountsLine(agg0, agg0 ? Math.max(0, under0.length - agg0.files) : 0);
+    std.title = (isRoot ? "Everything under " + rootName : "Everything in the vault") + (counts ? ": " + counts : "");
     const subUnder = ctx.orgUnder(at);
     const aggInto = (td, agg) => {
       if (!agg)
@@ -17634,11 +17667,11 @@ function wsOrgDrawTotal(a) {
         aggInto(td, agg);
     }
     subj.createEl("td", { cls: "ws-org-pickcell" });
-    ctx.orgTotalRow = subj;
+    ctx.orgRootRow = subj;
   }
 }
 function wsOrgDrawRows(plugin, a) {
-  const { cols, ctx, lensed, nums, rows, tbody, wrap } = a;
+  const { cols, ctx, lensed, nums, rooted, rows, tbody, wrap } = a;
   let prevRuled = true;
   for (const row of rows) {
     const isFolder = row.kind === "folder";
@@ -17655,7 +17688,7 @@ function wsOrgDrawRows(plugin, a) {
     }
     const nameIn = nameTd.createDiv({ cls: "ws-org-namein" });
     try {
-      nameTd.style.setProperty("--ws-org-depth", String(lensed ? 0 : row.depth || 0));
+      nameTd.style.setProperty("--ws-org-depth", String((rooted ? 1 : 0) + (lensed ? 0 : row.depth || 0)));
     } catch (_) {
       wsCatch("orgTableMake / drawOrg: nameTd.style.setProperty('--ws-org-depth',", _);
     }
@@ -18627,18 +18660,21 @@ var organizerWindowMethods = {
   orgKnownProps() {
     const seen = /* @__PURE__ */ new Map();
     try {
-      const mt = this.app.metadataTypeManager;
-      const all2 = mt && mt.properties;
-      if (all2) {
-        for (const k of Object.keys(all2)) {
-          const name = all2[k] && all2[k].name || k;
-          if (!seen.has(String(name).toLowerCase())) {
-            seen.set(String(name).toLowerCase(), String(name));
-          }
+      const files = this.app.vault.getMarkdownFiles ? this.app.vault.getMarkdownFiles() : [];
+      for (const f of files) {
+        const cache = this.app.metadataCache && this.app.metadataCache.getFileCache(f);
+        const fm = cache && cache.frontmatter;
+        if (!fm)
+          continue;
+        for (const k of Object.keys(fm)) {
+          if (k === "position")
+            continue;
+          if (!seen.has(k.toLowerCase()))
+            seen.set(k.toLowerCase(), k);
         }
       }
     } catch (_) {
-      wsCatch("orgKnownProps: const mt = this.app.metadataTypeManager;", _);
+      wsCatch("orgKnownProps: the notes’ frontmatter", _);
     }
     if (this._orgIndex) {
       for (const r of this._orgIndex.values()) {
@@ -20425,7 +20461,13 @@ var organizerWindowMethods = {
       }
       ctx.orgLastGrouping = lensed;
       const orgLensEmptied = !rows.length && !!list.length;
-      wsOrgDrawTotal({ at, cols, ctx, orgLensEmptied, tbody, wrap });
+      wsOrgDrawRoot(this, { at, cols, ctx, orgLensEmptied, tbody, wrap });
+      const rooted = !!ctx.orgRootRow && ctx.orgRootRow.classList.contains("is-root");
+      if (ctx.orgRootRow && rooted) {
+        ctx.orgRootRow.classList.add("is-ruled");
+        tbody.appendChild(ctx.orgRootRow);
+        ctx.orgRootRow = null;
+      }
       ctx.orgSelPaint = (body) => {
         for (const tr0 of Array.from(body.querySelectorAll("tr.ws-org-row"))) {
           const p = tr0.getAttribute("data-path") || "";
@@ -20444,14 +20486,15 @@ var organizerWindowMethods = {
           wsCatch("orgSelPaint: ctx.orgBarSayPaint();", _);
         }
       };
-      const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rows, tbody, wrap });
-      if (ctx.orgTotalRow) {
+      const rootShut = rooted && !orgLensEmptied && !!(ctx.ses && ctx.ses.rootShut);
+      const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rooted, rows: rootShut ? [] : rows, tbody, wrap });
+      if (ctx.orgRootRow) {
         if (prevRuled)
-          ctx.orgTotalRow.classList.add("is-ruled");
-        tbody.appendChild(ctx.orgTotalRow);
-        ctx.orgTotalRow = null;
+          ctx.orgRootRow.classList.add("is-ruled");
+        tbody.appendChild(ctx.orgRootRow);
+        ctx.orgRootRow = null;
       }
-      if (orgLensEmptied || !rows.length) {
+      if (!rootShut && (orgLensEmptied || !rows.length)) {
         const tr0 = tbody.createEl("tr", { cls: "ws-org-row is-empty" });
         const td0 = tr0.createEl("td");
         td0.setAttribute("colspan", String(colspan));

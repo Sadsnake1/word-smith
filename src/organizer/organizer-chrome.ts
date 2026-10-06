@@ -12,6 +12,19 @@ import type { WsSession } from '../core/preamble';
 import type { WsHost } from '../core/settings';
 import type WordSmith from '../plugin/plugin';
 
+// THE COUNTS, SAID ONCE: the subject line (History) and the Organizer's root
+// row, on its hover, read them from here. `others` is the files under the
+// place that are not notes: the table lists a .pdf or a .xlsx among the
+// notes, so "24 notes" over twenty-seven rows would read as a count that is
+// wrong.
+export function wsOrgCountsLine(agg: { words: number; files: number; tasksAll: number; tasksDone: number } | null, others: number): string {
+	if (!agg || !agg.files) return '';
+	let line = agg.words.toLocaleString() + ' words \u00b7 ' + agg.files.toLocaleString() + ' notes';
+	if (others) line += ' \u00b7 ' + others.toLocaleString() + (others === 1 ? ' other file' : ' other files');
+	if (agg.tasksAll) line += ' \u00b7 ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
+	return line;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // THE CHROME — what frames the three panes, whichever tab is up
 // ═══════════════════════════════════════════════════════════════════
@@ -291,17 +304,12 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		const agg = note
 			? (plugin._orgIndex ? wsOrgAgg(plugin._orgIndex, [note]) : null)
 			: plugin.orgAggUnder(at);
-		if (agg && agg.files) {
-			let line = agg.words.toLocaleString() + ' words · '
-				+ agg.files.toLocaleString() + ' notes';
-			// AND THE FILES THAT ARE NOT NOTES: the table lists a .pdf or a .xlsx
-			// among the notes, so "24 notes" over twenty-seven rows reads as a count
-			// that is wrong. The rows under the place less the notes the index knows
-			// are the files.
+		// NOT ON THE ORGANIZER: its root row says these figures, pinned at the
+		// head of the table, and the line keeps its crumbs for getting around.
+		if (d.tab !== 'organizer' && agg && agg.files) {
+			// The rows under the place less the notes the index knows are the files.
 			const others = note ? 0 : Math.max(0, d.orgUnder(at).length - agg.files);
-			if (others) line += ' · ' + others.toLocaleString() + (others === 1 ? ' other file' : ' other files');
-			if (agg.tasksAll) line += ' · ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
-			subject.createSpan({ cls: 'ws-org-agg', text: line });
+			subject.createSpan({ cls: 'ws-org-agg', text: wsOrgCountsLine(agg, others) });
 		}
 		d.zoomTag();
 	};

@@ -2925,6 +2925,10 @@ export const WS_SESSION_KEYS = ['historyView', 'historySeries', 'historyCalMetri
 export interface WsSession {
 	tab: string | null; cursor: string | null; lens: { sort: WsLensSort | null; chips: WsLensChip[] } | null; panel: boolean | null;
 	scroll: number; folder: string | null; treeShown: boolean; zoom: number;
+	// the Organizer's root row folded shut: a way of looking, so the session's
+	// and never saved (a table that reopened on its root row alone would read
+	// as an empty folder)
+	rootShut?: boolean;
 	// the export reader's place: flowing or paged, its zoom, its scroll, the paragraph at the top
 	flow?: boolean; flowZoom?: number; flowScroll?: number; flowTop?: { idx: number; off: number } | null;
 }
@@ -5228,7 +5232,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.7';
+export const WS_PLUGIN_VERSION = '1.7.8';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

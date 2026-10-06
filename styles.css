@@ -11676,14 +11676,8 @@ td.is-prop { cursor: pointer; }
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 	padding-block: 4px;
-	/* THE FOLDER ROWS' GROUND (A387, writer 2026-09-13: "a total row at the
-	   bottom of the table (with the color of a folder row)"); the accent
-	   tint was the subject row's, and the subject row is gone.
-	   NOT STICKY (A388, writer 2026-09-14: "it's the total row, i don't want
-	   it stickied"). TOMBSTONE: `position: sticky; bottom: 0; z-index: 2`.
-	   Stuck at the foot it lay under the last rows' own sticky name cells,
-	   which stack above it, and read as a row stuck at the bottom wearing
-	   the wrong figures. It is the last row now, and scrolls with the rest. */
+	/* THE FOLDER ROWS' GROUND (A387, writer 2026-09-13: "with the color of a
+	   folder row"), kept by the root row that replaced the Total row (A549). */
 	background-color: var(--background-secondary);
 	border-top: 1px solid var(--background-modifier-border);
 	/* THE FOLDER ROWS' RULE UNDER IT TOO (A370, writer 2026-09-13: "add a
@@ -11697,9 +11691,25 @@ td.is-prop { cursor: pointer; }
    draw stamps `is-ruled` and the Total row draws no top rule of its own —
    the same reading A386 makes for a folder row under a folder row. */
 .ws-org-table .ws-org-subrow.is-ruled td { border-top: 0; }
-/* THE WORD IN THE MIDDLE OF ITS CELL (A388, writer: "center total in it's
-   cell"): the name cell's indent is for rows with a chevron; this one has
-   none, so the padding is even and the cell, a flex row, centres its one word. */
+/* ── THE ROOT ROW STAYS IN VIEW (A549) ─────────────────────────────────
+
+   Writer, 2026-10-06: "we need to bring back root folders rows on top,
+   instead of the total", and pinned: "yes". Every cell pinned under the
+   column headings, whose height the draw measures into --ws-org-headh (the
+   same number the Name grip stands on); the name cell above the rows' own
+   pinned name cells, as the heading's is, so a row scrolling under it
+   cannot show through.
+
+   THE ROW IS PINNED, NOT ITS CELLS: measured in the vault, cells marked
+   sticky in a body row scrolled away with it (144 to 85 over a 60px
+   scroll) while the row itself held at 144. Inside it the name cell, pinned
+   at the left with the rows' own z-index, already paints over its own
+   figures as the table scrolls sideways; no rule of its own is needed. */
+.ws-org-table .ws-org-subrow.is-root { position: sticky; top: var(--ws-org-headh, 0px); z-index: 2; }
+/* THE VAULT'S TOTAL ROW, at the foot and not pinned (A388, writer 2026-09-14:
+   "i don't want it stickied"; kept at the vault on 2026-10-06: "remove the root
+   vault row and add the total row"): the word in the middle of its cell, which
+   has no chevron to indent for. */
 .ws-org-table .ws-org-subrow.is-total td.ws-org-name { padding-inline: 4px; justify-content: center; }
 /* ── AND A CONTOUR ROUND THE ROW UNDER THE POINTER ────────────────────
 

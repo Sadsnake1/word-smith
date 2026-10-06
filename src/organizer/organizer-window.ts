@@ -10,7 +10,7 @@ import type { Events, WorkspaceLeaf, TAbstractFile, Modifier, KeymapEventListene
 import type { WsFlagDef, WsHost, WsFileLike, WsOrgDoor, WordSmithSettings } from '../core/settings';
 import { wsCountFootnotes, wsOrgAgg, wsOrgCounts, wsOrgDistinct, wsOrgIndex, wsOrgPathsUnder, wsOrgPut, wsOrgRemove, wsOrgRename, wsOrgStale } from './org-index';
 import { wsOrgCellsMake } from './organizer-cells';
-import { wsOrgChromeMake } from './organizer-chrome';
+import { wsOrgChromeMake, wsOrgCountsLine } from './organizer-chrome';
 import { wsOrgChipsMake } from './organizer-chips';
 import { wsOrgColsMake, type WsOrgCol } from './organizer-cols';
 import { wsOrgDragMake } from './organizer-drag';
@@ -616,23 +616,56 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 	}
 }
 
-// THE TOTAL ROW at the foot (lifted out of drawOrg, A488).
-function wsOrgDrawTotal(a: { at: string; cols: WsOrgCol[]; ctx: WsOrgCtx; orgLensEmptied: boolean; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
+// THE ROOT ROW at the head of the table, or at the vault the Total row at its
+// foot (lifted out of drawOrg).
+function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx: WsOrgCtx; orgLensEmptied: boolean; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
 	const { at, cols, ctx, orgLensEmptied, tbody, wrap } = a;
 	if (!orgLensEmptied) {
-		// A TOTAL ROW AT THE FOOT, NOT A SUBJECT ROW AT THE HEAD: the
-		// aggregates over what is shown, the flags' pairs, the mark cell
-		// `orgRepaintFlagCell` redraws — built here and appended after the
-		// rows, and it says Total. The folder's name and glyph are the subject
-		// line's; the fold-all is the bar's Collapse all.
-		const subj = tbody.createEl('tr', { cls: 'ws-org-subrow is-total' });
+		// A FOLDER YOU OPENED IS THE FIRST ROW: its glyph, its name and its
+		// figures (everything under it, read from the index), the rows under it
+		// one step in. Pinned under the column headings, so the figures stay in
+		// view however far the table scrolls. Its menu is the folder's own.
+		//
+		// THE VAULT IS NOT A ROW: opened on the whole vault, the same figures
+		// stand in a Total row at the foot, as they did before the root row came
+		// back, and the rows stand at the edge with nothing to hang from.
+		const isRoot = !!at;
+		const subj = tbody.createEl('tr', { cls: 'ws-org-subrow ' + (isRoot ? 'is-root' : 'is-total') });
 		subj.remove();
 		const std = subj.createEl('td', { cls: 'ws-org-name' });
 		const box = std.createDiv({ cls: 'ws-org-subject-in' });
 		try { std.setCssProps({ '--ws-org-depth': '0' }); }
 		catch (_) { wsCatch('orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });', _); }
-		box.createSpan({ cls: 'ws-org-subjectname', text: 'Total' });
-		std.title = at ? 'Everything under ' + ctx.nameOf(at) : 'Everything in the vault';
+		const rootName = isRoot ? ctx.nameOf(at) : 'Total';
+		if (isRoot) {
+			// ITS CHEVRON FOLDS THE WHOLE TABLE UNDER IT, as a folder row's folds
+			// its own: shut, only this row and its figures stay. The session holds
+			// it (`ses.rootShut`), so a fresh window opens with everything shown.
+			const rootOpen = !(ctx.ses && ctx.ses.rootShut);
+			const twist = ctx.orgChevron(box, rootOpen);
+			twist.title = rootOpen ? 'Fold everything under this folder' : 'Unfold everything under this folder';
+			twist.addEventListener('click', (ev: Event) => {
+				ev.stopPropagation();
+				if (ctx.ses) ctx.ses.rootShut = rootOpen;
+				ctx.drawPanel();
+			});
+			// The folder's own glyph, open or shut with its chevron, in its colour.
+			plugin.orgFolderIcon(box, at, rootOpen);
+			subj.addEventListener('contextmenu', (ev: MouseEvent) => {
+				ev.preventDefault();
+				ev.stopPropagation();
+				const menu = wsMenu();
+				plugin.outlinerRowMenu(menu, { path: at, kind: 'folder' }, ctx.orgMenuCtx);
+				try { menu.showAtMouseEvent(ev); } catch (_) { wsCatch('wsOrgDrawRoot: menu.showAtMouseEvent(ev);', _); }
+			});
+		}
+		box.createSpan({ cls: 'ws-org-subjectname', text: rootName });
+		// THE COUNTS THE PATH LINE CARRIED, on the hover: the notes, the other
+		// files beside them, the tasks.
+		const under0 = ctx.orgUnder(at);
+		const agg0 = plugin.orgAggUnder(at);
+		const counts = wsOrgCountsLine(agg0, agg0 ? Math.max(0, under0.length - agg0.files) : 0);
+		std.title = (isRoot ? 'Everything under ' + rootName : 'Everything in the vault') + (counts ? ': ' + counts : '');
 		const subUnder = ctx.orgUnder(at);
 		// ONE DRAWER FOR AN AGGREGATE, the total row's and the folder rows'
 		// alike: text for most, and for the Flag column a number and the
@@ -673,13 +706,13 @@ function wsOrgDrawTotal(a: { at: string; cols: WsOrgCol[]; ctx: WsOrgCtx; orgLen
 		// other row emits, for the same reason. In Outline the subject
 		// spans instead, exactly as the rows under it do.
 		subj.createEl('td', { cls: 'ws-org-pickcell' });
-		ctx.orgTotalRow = subj;
+		ctx.orgRootRow = subj;
 	}
 }
 
 // THE ROWS: one <tr> per file or folder (lifted out of drawOrg, A488).
-function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; lensed: boolean; nums: Map<string, string> | null; rows: WsOrgRow[]; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
-	const { cols, ctx, lensed, nums, rows, tbody, wrap } = a;
+function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; lensed: boolean; nums: Map<string, string> | null; rooted: boolean; rows: WsOrgRow[]; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
+	const { cols, ctx, lensed, nums, rooted, rows, tbody, wrap } = a;
 	let prevRuled = true;
 	for (const row of rows) {
 		const isFolder = row.kind === 'folder';
@@ -724,9 +757,12 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		// row is depth 0. A lens draws no folder rows, so the guide lines a
 		// depth would draw point at rows that are not on screen: under a
 		// lens every row is at 0.
+		// ONE STEP IN, UNDER A FOLDER'S ROOT ROW: every row drawn sits under it,
+		// a lensed row too, so its guide leads back to it. At the vault there is
+		// no root row, and the top level stands at the edge.
 		try {
 			nameTd.style.setProperty('--ws-org-depth',
-				String(lensed ? 0 : (row.depth || 0)));
+				String((rooted ? 1 : 0) + (lensed ? 0 : (row.depth || 0))));
 		} catch (_) { wsCatch('orgTableMake / drawOrg: nameTd.style.setProperty(\'--ws-org-depth\',', _); }
 		// A FOLDER'S CHEVRON IS ITS DOOR. Every control needs a visible one,
 		// and folding is the only thing here that has no other way in.
@@ -2071,22 +2107,30 @@ export const organizerWindowMethods = {
 		return done(wsStr(raw).trim(), true);
 	},
 
-	// Every property name the vault knows — the registry first (it holds
-	// names from notes this index may exclude), the index as the fallback.
+	// Every property name a note in the vault CARRIES: the notes' own
+	// frontmatter, read from the metadata cache (so a note this index excludes
+	// still names its keys), and the index's rows.
+	//
+	// NOT OBSIDIAN'S REGISTRY (`metadataTypeManager.properties`): it keeps a
+	// property after its last note lets it go, until the app restarts.
+	// Measured: a property deleted from its only note, then the note deleted,
+	// and the registry still named it, so a deleted property stayed in the
+	// Properties panel until a restart.
 	orgKnownProps(this: WordSmith) {
 		const seen = new Map<string, string>();
 		try {
-			const mt = this.app.metadataTypeManager;
-			const all = mt && mt.properties;
-			if (all) {
-				for (const k of Object.keys(all)) {
-					const name = (all[k] && all[k].name) || k;
-					if (!seen.has(String(name).toLowerCase())) {
-						seen.set(String(name).toLowerCase(), String(name));
-					}
+			const files = this.app.vault.getMarkdownFiles ? this.app.vault.getMarkdownFiles() : [];
+			for (const f of files) {
+				const cache = this.app.metadataCache && this.app.metadataCache.getFileCache(f);
+				const fm = cache && cache.frontmatter;
+				if (!fm) continue;
+				for (const k of Object.keys(fm)) {
+					// Obsidian's own bookkeeping, never the writer's.
+					if (k === 'position') continue;
+					if (!seen.has(k.toLowerCase())) seen.set(k.toLowerCase(), k);
 				}
 			}
-		} catch (_) { wsCatch('orgKnownProps: const mt = this.app.metadataTypeManager;', _); }
+		} catch (_) { wsCatch('orgKnownProps: the notes’ frontmatter', _); }
 		if (this._orgIndex) {
 			for (const r of this._orgIndex.values()) {
 				if (!r || !r.props) continue;
@@ -4243,7 +4287,15 @@ export const organizerWindowMethods = {
 			// ONE WRITER: the empty-state block below asks the same question to
 			// choose its own words, and reads this rather than repeating the terms.
 			const orgLensEmptied = !rows.length && !!list.length;
-			wsOrgDrawTotal({ at, cols, ctx, orgLensEmptied, tbody, wrap });
+			wsOrgDrawRoot(this, { at, cols, ctx, orgLensEmptied, tbody, wrap });
+			// A FOLDER'S ROOT ROW, FIRST: the header's rule is the line over it.
+			// (The vault's Total row waits for the foot, below.)
+			const rooted = !!ctx.orgRootRow && ctx.orgRootRow.classList.contains('is-root');
+			if (ctx.orgRootRow && rooted) {
+				ctx.orgRootRow.classList.add('is-ruled');
+				tbody.appendChild(ctx.orgRootRow);
+				ctx.orgRootRow = null;
+			}
 			// THE SELECTION'S TINT, repainted in place on a modified click: a full
 			// redraw for a class on a row would rebuild the table for every
 			// Ctrl-click of a long selection.
@@ -4263,14 +4315,18 @@ export const organizerWindowMethods = {
 			// under itself (a folder row), which would make two. The draw knows the
 			// order; the sheet does not. The first row has the header's rule over
 			// it.
-			const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rows, tbody, wrap });
-			// THE TOTAL ROW, LAST. Under a folder row it is stamped `is-ruled` and
-			// draws no top rule of its own: the folder row's bottom rule is the
-			// line between them.
-			if (ctx.orgTotalRow) {
-				if (prevRuled) ctx.orgTotalRow.classList.add('is-ruled');
-				tbody.appendChild(ctx.orgTotalRow);
-				ctx.orgTotalRow = null;
+			// THE ROOT ROW FOLDED SHUT draws nothing under it, and says nothing
+			// about it either: its chevron is the way back, and "no notes under
+			// this folder" would be untrue.
+			const rootShut = rooted && !orgLensEmptied && !!(ctx.ses && ctx.ses.rootShut);
+			const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rooted, rows: rootShut ? [] : rows, tbody, wrap });
+			// THE VAULT'S TOTAL ROW, LAST. Under a folder row it is stamped
+			// `is-ruled` and draws no top rule of its own: the folder row's bottom
+			// rule is the line between them.
+			if (ctx.orgRootRow) {
+				if (prevRuled) ctx.orgRootRow.classList.add('is-ruled');
+				tbody.appendChild(ctx.orgRootRow);
+				ctx.orgRootRow = null;
 			}
 			// A FOLD IS NOT AN EMPTY RESULT. "Nothing passes the lens — clear it"
 			// whenever there are no rows and the list is not empty would be a LIE
@@ -4278,7 +4334,7 @@ export const organizerWindowMethods = {
 			// nothing. SAME QUESTION, ONE WRITER: `orgLensEmptied` decides, and
 			// the `if` one line down reads `list.length` to choose between the two
 			// sentences.
-			if (orgLensEmptied || !rows.length) {
+			if (!rootShut && (orgLensEmptied || !rows.length)) {
 				// A DEAD END MUST SPEAK AND OFFER THE WAY OUT — the clearing is a
 				// BUTTON here, not a sentence about one.
 				const tr0 = tbody.createEl('tr', { cls: 'ws-org-row is-empty' });

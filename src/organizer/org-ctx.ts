@@ -72,7 +72,7 @@ export interface WsOrgCtxOwn {
 	orgBarSayPaint?: () => void;
 	orgHistPaint?: () => void;
 	orgAggInto?: (td: HTMLElement, agg: WsOrgColAgg) => void;
-	orgTotalRow?: HTMLTableRowElement | null;
+	orgRootRow?: HTMLTableRowElement | null;
 	orgSelPaint?: (body: HTMLElement) => void;
 }
 
