@@ -32,7 +32,7 @@ Works with Obsidian 1.13.7 and newer, desktop and mobile.
     <img src="https://img.youtube.com/vi/HLq91cDWx0s/maxresdefault.jpg" alt="Watch the Word-Smith walkthrough on YouTube" width="720">
   </a>
   <br>
-  <sub>▶ Watch the full walkthrough on YouTube</sub>
+  <sub>▶ Watch a quick walkthrough on YouTube</sub>
 </div>
 
 ## Contents
