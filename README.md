@@ -25,7 +25,7 @@ Your book lives wherever you put it, your chapters are whatever files you like, 
 
 Every feature has its own toggle, so take what you like and leave the rest off. 
 
-Works with Obsidian 1.13.7 and newer, desktop and mobile.
+Works with Obsidian 1.13.7 (installer version 1.13.7+) and newer, desktop and mobile.
 
 <div align="center">
   <a href="https://youtu.be/HLq91cDWx0s">
