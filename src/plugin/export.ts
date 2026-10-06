@@ -2551,6 +2551,14 @@ export const exportMethods = {
 			+ 'html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }'
 			+ 'html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }'
 			+ 'html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }'
+			// Obsidian 1.14's highlight colors: the .docx's tints on paper
+			// (WS_HL_DOCX), the same hues deeper on the dark page
+			+ 'mark.hl-red { background: #f8c1c8; } mark.hl-orange { background: #f9d6b2; }'
+			+ ' mark.hl-green { background: #b5eaca; } mark.hl-blue { background: #b5d3f5; }'
+			+ ' mark.hl-purple { background: #d6cbfa; }'
+			+ 'html.is-dark mark.hl-red { background: #672832; } html.is-dark mark.hl-orange { background: #684019; }'
+			+ ' html.is-dark mark.hl-green { background: #185835; } html.is-dark mark.hl-blue { background: #183d67; }'
+			+ ' html.is-dark mark.hl-purple { background: #3f336d; }'
 			+ 'html.is-dark a { color: #9cc4ff; }'
 			// The two things that only appear when a writer asks for them,
 			// and both are set so they cannot be mistaken for the prose

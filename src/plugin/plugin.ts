@@ -1379,6 +1379,13 @@ export default class WordSmith extends Plugin {
 	declare themeSurfaceColor: BarMethods["themeSurfaceColor"];
 	declare colorProbeEl: BarMethods["colorProbeEl"];
 	declare cursorSmithSettings: BarMethods["cursorSmithSettings"];
+	declare cursorSmithPlugin: BarMethods["cursorSmithPlugin"];
+	declare cursorPresetNames: BarMethods["cursorPresetNames"];
+	declare cursorsPickerItems: BarMethods["cursorsPickerItems"];
+	declare cursorLoadPreset: BarMethods["cursorLoadPreset"];
+	declare openCursorsPicker: BarMethods["openCursorsPicker"];
+	declare buildCursorsIndicator: BarMethods["buildCursorsIndicator"];
+	declare buildDarkLightIndicator: BarMethods["buildDarkLightIndicator"];
 	declare cursorSmithVimColor: BarMethods["cursorSmithVimColor"];
 	declare vimModeColor: BarMethods["vimModeColor"];
 	declare cursorColor: BarMethods["cursorColor"];
@@ -2602,6 +2609,17 @@ export default class WordSmith extends Plugin {
 			this.settings.letterboxCustomColors = ['arrowDarkColor', 'arrowLightColor',
 				'lineDarkColor', 'lineLightColor']
 				.some(k => raw[k] !== undefined && raw[k] !== wsBag(DEFAULT_SETTINGS)[k]);
+		}
+		// ── CURSORS UNDER THEME, ONCE ─────────────────────────────────────
+		// The menu's Cursors row is new, and an order a writer saved before it
+		// existed would take it under its last row (`menuLayout` appends what an
+		// order does not name). It goes under Theme, where the shipped order has
+		// it. Decided by the saved order not naming it, so this happens once: the
+		// next save names it, and wherever a writer drags it after that is theirs.
+		if (Array.isArray(raw.menuOrder) && !raw.menuOrder.includes('cursors')) {
+			const order = this.settings.menuOrder;
+			const at = Array.isArray(order) ? order.indexOf('theme') : -1;
+			if (at !== -1) order.splice(at + 1, 0, 'cursors');
 		}
 		// `barThemeLight` lived one unreleased day; a vault that ran that build
 		// carries it.

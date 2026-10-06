@@ -1101,6 +1101,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				tokenFormat('{syntax}', 'syntax', 'Syntax', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{prose}', 'prose', 'Prose', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{theme}', 'theme', 'Theme', 'The menu’s icon, the word, or both.'),
+				tokenFormat('{darklight}', 'darklight', 'Dark', 'The moon or the sun, the word, or both.'),
+				tokenFormat('{cursors}', 'cursors', 'Cursors', 'The text cursor, the word, or both.'),
 				tokenFormat('{report}', 'report', 'Report', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{history}', 'history', 'History', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{export}', 'export', 'Export', 'The menu’s icon, the word, or both.'),
@@ -1253,6 +1255,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		g = G('Buttons', 'mouse-pointer-click');
 		SUB('Pickers');
 		L(['{syntax}', '{prose}', '{markers}', '{font}', '{theme}'], 'Each opens its picker, right on the bar.');
+		L(['{cursors}'], 'Cursor-Smith’s presets, by name. Pick one to load it.');
+		L(['{darklight}'], 'Switches Obsidian between dark and light.');
 		SUB('Panes and the menu');
 		L(['{report}', '{history}', '{export}', '{organizer}'], 'Each opens that pane; the Organizer on the tab you arrange it in.');
 		L(['{powermenu}'], 'Opens the Powermenu, the menu of everything.');

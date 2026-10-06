@@ -338,7 +338,9 @@ body.ws-titlebar-match {
    theme could then not override.
 
    NOTE, and it is the important one: with the frame style set to HIDDEN,
-   these buttons are not DOM at all. They are Electron's own overlay,
+   on installers before 1.14, these buttons are not DOM at all (the 1.14
+   installer draws them in the page; see the rule after this block). They
+   were Electron's own overlay,
    painted natively over the top-right of the window, and no stylesheet
    can touch them — that case is handled by setWindowControlColours() in
    main.js, which asks Electron to repaint. If the strip is still grey
@@ -357,6 +359,19 @@ body.ws-titlebar-match .app-container > .titlebar {
    rather than behind each button. */
 body.ws-titlebar-match .titlebar {
 	background: var(--background-primary);
+}
+/* THE 1.14 INSTALLER DRAWS THE THREE BUTTONS IN THE PAGE (it has no Electron
+   overlay: "Titlebar overlay is not enabled"), in
+   `.titlebar-button-container.mod-right`, under its own
+   `.is-hidden-frameless:not(.is-fullscreen).is-focused` rule (five classes)
+   in the title bar's color, which a theme writes inline on body. The match
+   outranks it, body plus five: see-through over the matched bar in Zen, the
+   page's ground when page mode is on too. */
+body.ws-titlebar-match.is-hidden-frameless:not(.is-fullscreen) .titlebar-button-container.mod-right {
+	background-color: transparent;
+}
+body.ws-titlebar-match.ws-page.is-hidden-frameless:not(.is-fullscreen) .titlebar-button-container.mod-right {
+	background-color: var(--ws-page-ground);
 }
 /* Hover stays, in the theme's own hover colour rather than the system's
    grey, so it belongs to the same window as everything else. */
@@ -2099,6 +2114,11 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	flex: none;
 	background: currentColor;
 }
+
+/* A scheme's swatch is a square; a prose check's is the thick line it
+   underlines with, at the ball's width plus a little so it reads as a line. */
+.ws-picker-dot.is-square { border-radius: 2px; }
+.ws-picker-dot.is-line { width: 14px; height: 4px; border-radius: 2px; }
 
 /* SHRINK, THEN ELLIPSIS — the same lesson as the panel's menu label, in
    the other list. `flex: 1 1 auto` lets the label GROW but a flex item

@@ -28,6 +28,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Quick outline | |
 | Quick cycle: jump left / right / up / down | Also **Misc**. No default keys |
 | Repair the display | If something looks wrong after a theme or plugin change |
+| Clean up the custom order file | Takes out the entries for files and folders no longer in the vault. Also a button on the Vault page |
 | Copy your settings as text | To keep, or to paste into another vault |
 | Paste settings from the clipboard | Replaces everything. **Undo** on the Vault page puts them back |
 | Copy diagnostics for a bug report | Versions, vault size, load times, and any errors this session. Add your installer version from Settings → General |
@@ -36,7 +37,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 
 <img width="1920" alt="The Word-Smith menu" src="https://github.com/user-attachments/assets/c851d326-50d3-46da-afa9-51f63204e275" />
 
-One pop-up for everything you change while writing: modes, syntax, prose checks, markers, font, theme, light and dark. Report, History and Export at the foot of it.
+One pop-up for everything you change while writing: modes, syntax, prose checks, markers, font, theme, your cursor presets when [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) is installed, light and dark. Report, History and Export at the foot of it.
 
 Any command can live in it. Add rows for any Obsidian command, other plugins included, and lay them out how you like. Bind the menu to one key and it becomes a which-key for your whole setup.
 

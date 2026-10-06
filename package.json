@@ -1,6 +1,6 @@
 {
   "name": "word-smith",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "Distraction-free writing suite for Obsidian.",
   "private": true,
   "main": "main.js",

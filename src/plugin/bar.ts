@@ -7,8 +7,8 @@
 
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
-import type { WordSmithSettings, WsBoolKey, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf, wsElOf } from '../core/preamble';
+import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -1404,18 +1404,7 @@ export const barMethods = {
 			// Only colour-bearing rows get a swatch. A hollow ring beside
 			// "Spaces" said nothing except that a circle could have gone
 			// there; without one the whole popup collapses to labels.
-			if (item.color) {
-				const dot = createSpan();
-				dot.className = 'ws-picker-dot';
-				// 'currentColor' means "whatever this row is drawn in",
-				// which is already the stylesheet's default for the dot —
-				// so it is a request for a ball, not for a colour, and
-				// writing it inline would be a second copy of that default.
-				// It also keeps fading with the row when the check is off,
-				// which a fixed value does not.
-				if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
-				row.appendChild(dot);
-			}
+			wsPickerSwatch(row, item);
 
 			if (item.icon) {
 				const ic = item.icon();
@@ -1547,7 +1536,7 @@ export const barMethods = {
 		// THE TWO COUNTS DEFAULT TO THE ICON: the number with the pane's small
 		// icon after it is that number saying what it counts; the word is a
 		// choice.
-		if (id === 'properties' || id === 'backlinks') return v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon';
+		if (id === 'properties' || id === 'backlinks' || id === 'darklight' || id === 'cursors') return v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon';
 		return v === 'icon' ? 'icon' : v === 'both' ? 'both' : 'word';
 	},
 
@@ -1564,6 +1553,8 @@ export const barMethods = {
 		if (id === 'backlinks') return 'links-coming-in';
 		// the menu has no row for itself: its settings page's icon
 		if (id === 'powermenu') return 'layout-grid';
+		// the menu's Dark / Light row's moon or sun
+		if (id === 'darklight') id = 'lightdark';
 		try { return this.menuIconFor(id) || ''; } catch { return ''; }
 	},
 
@@ -2235,6 +2226,8 @@ export const barMethods = {
 			// currentColor rather than a fixed value, so the ball fades with
 			// the row when the check is off exactly as the label does.
 			color: c.swatch === 'text' ? 'currentColor' : s[c.color],
+			// the thick line a check underlines with, not a ball
+			shape: 'line' as const,
 			on:    () => !!(s.checksEnabled && s[c.key]),
 			onClick: async () => {
 				s[c.key] = !s[c.key];
@@ -2760,6 +2753,8 @@ export const barMethods = {
 			'{writechecks}': '\x00WRITECHECKS\x00',
 			'{font}':      '\x00FONT\x00',
 			'{theme}':     '\x00THEME\x00',
+			'{darklight}': '\x00DARKLIGHT\x00',
+			'{cursors}':   '\x00CURSORS\x00',
 			'{report}':    '\x00REPORT\x00',
 			'{history}':   '\x00HISTORY\x00',
 			'{export}':    '\x00EXPORT\x00',
@@ -3604,6 +3599,85 @@ export const barMethods = {
 	// loaded plugin whose settings carry a vimModes map and a colorDark, a
 	// combination nothing else has. Ids mentioning "cursor" are preferred so
 	// the search is stable if something else ever matches.
+	// ── CURSOR-SMITH'S PRESETS ──────────────────────────────────────────────
+	// The writer's other plugin keeps a library of named looks. Word-Smith lists
+	// them, in the menu's Cursors drawer and the {cursors} picker, and loads one
+	// through Cursor-Smith's own door, `loadUserPreset`. Found by its id: the
+	// library is its API, not a shape of its settings.
+	cursorSmithPlugin(this: WordSmith): WsCursorSmithPlugin | null {
+		try {
+			const reg = this.app && this.app.plugins && this.app.plugins.plugins;
+			return (reg && reg['cursor-smith'] as WsCursorSmithPlugin | undefined) || null;
+		} catch { return null; }
+	},
+
+	cursorPresetNames(this: WordSmith): string[] {
+		const cs = this.cursorSmithPlugin();
+		if (!cs || typeof cs.getUserPresets !== 'function') return [];
+		try { return Object.keys(cs.getUserPresets() || {}); } catch { return []; }
+	},
+
+	// One row per preset, the one Cursor-Smith last loaded ticked. A list with
+	// nothing in it says why, rather than drawing an empty drawer.
+	cursorsPickerItems(this: WordSmith): WsMenuPickItem[] {
+		const names = this.cursorPresetNames();
+		if (!names.length) {
+			return [{ label: this.cursorSmithPlugin() ? 'No presets saved in Cursor-Smith' : 'Cursor-Smith is not installed',
+				on: () => false, onClick: async () => {} }];
+		}
+		return names.map((name) => ({
+			label: name,
+			on: () => { const cs = this.cursorSmithPlugin(); return !!cs && cs._activePresetName === name; },
+			onClick: async () => { await this.cursorLoadPreset(name); }
+		}));
+	},
+
+	// Loaded as Cursor-Smith's own palette command loads one: the preset, then the
+	// name it shows as active, then its settings page told. A SCHEME THAT DRESSES
+	// THE CARET goes on dressing it: the preset is now the writer's own look, so
+	// the stash is let go and the next dress takes the preset's colors as what
+	// taking the dress off gives back.
+	async cursorLoadPreset(this: WordSmith, name: string) {
+		const cs = this.cursorSmithPlugin();
+		if (!cs || typeof cs.loadUserPreset !== 'function') return false;
+		try {
+			await cs.loadUserPreset(name);
+			cs._activePresetName = name;
+			cs._pendingPresetName = name;
+			if (typeof cs.refreshSettingTab === 'function') cs.refreshSettingTab();
+		} catch (e) { wsCatch('cursorLoadPreset: cs.loadUserPreset(name)', e); return false; }
+		if (this.settings.barThemeCursorDressed) {
+			this.settings.barThemeCursorStash = null;
+			try { await this.barThemeCursorSync(); } catch (e) { wsCatch('cursorLoadPreset: barThemeCursorSync()', e); }
+			await this.saveSettings();
+		}
+		return true;
+	},
+
+	openCursorsPicker(this: WordSmith, anchor: HTMLElement) {
+		this.openPickerLive(anchor, this.cursorsPickerItems(), 'choose');
+	},
+
+	// {cursors}: the presets, on the bar. Off-looking, and saying why, without
+	// Cursor-Smith.
+	buildCursorsIndicator(this: WordSmith) {
+		const there = !!this.cursorSmithPlugin();
+		return this.buildBarButton('ws-barbtn-cursors' + (there ? '' : ' is-off'),
+			(node: HTMLElement) => this.barTokenPaint(node, 'cursors', 'Cursors'),
+			there ? 'Cursor-Smith presets \u2014 click to choose' : 'Cursor-Smith is not installed',
+			(anchor: HTMLElement) => this.openCursorsPicker(anchor));
+	},
+
+	// {darklight}: the menu's Dark / Light row on the bar, its moon or sun and
+	// its press. The mode is Obsidian's, so the app's own css-change redraws it.
+	buildDarkLightIndicator(this: WordSmith) {
+		const word = this.isDarkTheme() ? 'Dark' : 'Light';
+		return this.buildBarButton('ws-barbtn-darklight',
+			(node: HTMLElement) => this.barTokenPaint(node, 'darklight', word),
+			word + ' \u2014 click to switch',
+			() => this.barSetColorMode(!this.isDarkTheme()));
+	},
+
 	cursorSmithSettings(this: WordSmith): WsCursorSmithSettings | null {
 		try {
 			const reg = this.app.plugins && this.app.plugins.plugins;
@@ -4103,6 +4177,8 @@ export const barMethods = {
 			WRITECHECKS: () => this.buildWriteChecksIndicator(),
 			FONT:     () => this.buildFontIndicator(),
 			THEME:    () => this.buildThemeIndicator(),
+			DARKLIGHT: () => this.buildDarkLightIndicator(),
+			CURSORS:  () => this.buildCursorsIndicator(),
 			REPORT:   () => this.buildReportIndicator(),
 			HISTORY:  () => this.buildHistoryIndicator(),
 			EXPORT:   () => this.buildExportIndicator(),

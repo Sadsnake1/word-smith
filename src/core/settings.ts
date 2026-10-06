@@ -135,7 +135,12 @@ export interface WsCursorSmithLook { colorDark?: string; colorLight?: string; [e
 export interface WsCursorSmithSettings extends WsCursorSmithLook { vimModeEnabled?: boolean; vimModes?: Record<string, WsCursorSmithLook | undefined>; [extra: string]: unknown }
 // Cursor-Smith as the plugin registry holds it: its settings, its save, and the
 // flag its own settings tab sets while it swaps them
-export interface WsCursorSmithPlugin { settings?: WsCursorSmithSettings; look?: WsCursorSmithLook; saveSettings?: () => Promise<void>; _settingsSwapped?: boolean; [extra: string]: unknown }
+export interface WsCursorSmithPlugin { settings?: WsCursorSmithSettings; look?: WsCursorSmithLook; saveSettings?: () => Promise<void>; _settingsSwapped?: boolean;
+	// its preset library (Cursor-Smith 1.7): the names, loading one, and the name it
+	// last loaded (in memory only; unknown after a restart)
+	getUserPresets?: () => Record<string, unknown>; loadUserPreset?: (name: string) => Promise<void>;
+	refreshSettingTab?: () => void; _activePresetName?: string; _pendingPresetName?: string;
+	[extra: string]: unknown }
 // One item of a drawer: its label, whether it is on, what a tap does, and
 // (some) an icon, a key or id, a note for the tooltip.
 export interface WsMenuPickItem {
@@ -148,6 +153,9 @@ export interface WsMenuPickItem {
 	note?: string;
 	// the theme and font drawers: a swatch and the face the label is set in
 	color?: string;
+	// the swatch's shape when it is not a ball: a scheme is a square, a prose
+	// check the thick line it underlines with
+	shape?: 'square' | 'line';
 	font?: string;
 	// the modes picker: a row that hangs under the one above it
 	sub?: boolean;

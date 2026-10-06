@@ -246,6 +246,17 @@ export const WS_ICON = 'word-smith-w';
 // element has it (a hidden tab, a collapsed sidebar); an element without
 // it is taken as shown — a stub's elements, and a modal's.
 export const wsElShown = (el: { isShown?: () => boolean } | null | undefined) => (!el || typeof el.isShown !== 'function') ? true : !!el.isShown();
+// A PICKER ROW'S SWATCH, from one maker for the five places a row is drawn
+// (the bar's popup, the menu's drawers, the finder's results in the pop-up and
+// the pane): a ball, or the item's own shape. Only a row with a color has one.
+// 'currentColor' asks for a swatch in the row's own ink, which is the sheet's
+// default, so it is not written inline, and it fades with the row.
+export function wsPickerSwatch(row: HTMLElement, item: WsMenuPickItem) {
+	if (!item.color) return null;
+	const dot = row.createSpan({ cls: 'ws-picker-dot' + (item.shape ? ' is-' + item.shape : '') });
+	if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
+	return dot;
+}
 
 export const WS_RIBBON_TITLE = 'Open the Word-Smith menu';
 export const WS_ICON_SVG =
@@ -581,10 +592,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 				cls: 'tree-item-self is-clickable nav-file-title'
 					+ ' ws-menu-sub ws-picker-row' + (isOn ? '' : ' is-off')
 			});
-			if (item.color) {
-				const dot = sub.createSpan({ cls: 'ws-picker-dot' });
-				if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
-			}
+			wsPickerSwatch(sub, item);
 			if (item.icon) {
 				const ic = item.icon();
 				ic.classList.add('ws-picker-icon');
@@ -952,10 +960,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 					cls: 'ws-menu-sub ws-picker-row ws-menu-result'
 						+ (h.kind === 'item' && !isOn ? ' is-off' : '')
 				});
-				if (h.kind === 'item' && h.item.color) {
-					const dot = sub.createSpan({ cls: 'ws-picker-dot' });
-					if (h.item.color !== 'currentColor') dot.style.backgroundColor = h.item.color;
-				}
+				if (h.kind === 'item') wsPickerSwatch(sub, h.item);
 				sub.createSpan({ cls: 'ws-picker-label',
 					text: h.kind === 'row' ? h.label : h.item.label });
 				if (h.kind === 'item') sub.createSpan({ cls: 'ws-menu-in', text: h.from });
@@ -3325,7 +3330,26 @@ export function wsJoinMark(o: WsExportOpts | null | undefined) {
 }
 
 // a run of a paragraph: text and how it is set
-export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; sup?: boolean; mono?: boolean }
+export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; hl?: string; sup?: boolean; mono?: boolean }
+// ── OBSIDIAN 1.14'S HIGHLIGHT COLORS ───────────────────────────────────
+// `==\u{1F534}words==` is a red highlight: ONE emoji straight after the `==`,
+// a circle or a square, as 1.14.4's own parser reads it, and nothing after
+// it is taken, a space included. The emoji names the color and is never text.
+export const WS_HL_EMOJI: Record<string, string> = {
+	'\u{1F534}': 'red', '\u{1F7E5}': 'red', '\u{1F7E0}': 'orange', '\u{1F7E7}': 'orange',
+	'\u{1F7E1}': 'yellow', '\u{1F7E8}': 'yellow', '\u{1F7E2}': 'green', '\u{1F7E9}': 'green',
+	'\u{1F535}': 'blue', '\u{1F7E6}': 'blue', '\u{1F7E3}': 'purple', '\u{1F7EA}': 'purple'
+};
+// The .docx shades a colored highlight in a light tint of Obsidian's own color,
+// so black type stays readable on paper; yellow is Word's own highlight, as a
+// plain one is. The page wears the same tints (exportToHtml's sheet).
+export const WS_HL_DOCX: Record<string, string> = { red: 'F8C1C8', orange: 'F9D6B2', green: 'B5EACA', blue: 'B5D3F5', purple: 'D6CBFA' };
+export function wsHighlightColorAt(text: string, at: number) {
+	const cp = text.codePointAt(at);
+	const ch = cp === undefined ? '' : String.fromCodePoint(cp);
+	const color = WS_HL_EMOJI[ch] || '';
+	return { color, length: color ? ch.length : 0 };
+}
 export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 	const o = opts || {};
 	let t = String(text == null ? '' : text);
@@ -3379,13 +3403,24 @@ export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 	// usually a note to self about the prose rather than part of it.
 	const runs: WsRun[] = [];
 	const re = /(\*\*\*|\*\*|\*|==)/g;
-	let bold = false, ital = false, high = false, last = 0, m;
-	const push = (text: string) => { if (text) runs.push({ text, bold, ital, high: high && !!o.highlights }); };
+	let bold = false, ital = false, high = false, hl = '', last = 0, m;
+	const push = (text: string) => {
+		if (!text) return;
+		const run: WsRun = { text, bold, ital, high: high && !!o.highlights };
+		if (run.high && hl && hl !== 'yellow') run.hl = hl;
+		runs.push(run);
+	};
 	while ((m = re.exec(t)) !== null) {
 		if (m.index > last) push(t.slice(last, m.index));
 		if (m[1] === '***') { bold = !bold; ital = !ital; }
 		else if (m[1] === '**') bold = !bold;
-		else if (m[1] === '==') high = !high;
+		else if (m[1] === '==') {
+			high = !high;
+			hl = '';
+			// the color emoji that opens a highlight goes, whether or not the
+			// highlight itself is printed
+			if (high) { const c = wsHighlightColorAt(t, re.lastIndex); if (c.color) { hl = c.color; re.lastIndex += c.length; } }
+		}
 		else ital = !ital;
 		last = re.lastIndex;
 	}
@@ -3410,7 +3445,9 @@ export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean
 		// Word's own highlight, not a shaded background: it is what the
 		// yellow pen in Word's toolbar writes, so a reader can clear it
 		// with the same button rather than hunting through styles.
-		if (r.high) rpr.push('<w:highlight w:val="yellow"/>');
+		if (r.high) rpr.push(r.hl && WS_HL_DOCX[r.hl]
+			? '<w:shd w:val="clear" w:color="auto" w:fill="' + WS_HL_DOCX[r.hl] + '"/>'
+			: '<w:highlight w:val="yellow"/>');
 		return '<w:r>' + (rpr.length ? '<w:rPr>' + rpr.join('') + '</w:rPr>' : '')
 			// xml:space, or Word eats the spaces at either end of a run and
 			// "**bold** word" comes out as "boldword".
@@ -3510,7 +3547,7 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, part
 		if (r.ital) x = '<em>' + x + '</em>';
 		// <mark>, which is what the element is FOR, and which prints and reads as
 		// the yellow the .docx sets.
-		if (r.high) x = '<mark>' + x + '</mark>';
+		if (r.high) x = (r.hl ? '<mark class="hl-' + r.hl + '">' : '<mark>') + x + '</mark>';
 		return x;
 	}).join('');
 	const lines = md.replace(/\r\n?/g, '\n').split('\n');
@@ -5131,7 +5168,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.5';
+export const WS_PLUGIN_VERSION = '1.7.6';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

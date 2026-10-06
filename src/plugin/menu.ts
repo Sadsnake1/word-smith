@@ -8,7 +8,7 @@
 import { setIcon } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WsMenuRowSpec, WsOpenedPanel, WsMenuPickItem } from '../core/settings';
-import { MENU_MAX_COLS, MENU_RULE_STYLES, WS_MENU_ESC, WS_MENU_VIEW, WsMenuView, barMenuFuzzy, wsCatch, wsMenuSearchInto } from '../core/preamble';
+import { MENU_MAX_COLS, MENU_RULE_STYLES, WS_MENU_ESC, WS_MENU_VIEW, WsMenuView, barMenuFuzzy, wsCatch, wsMenuSearchInto, wsPickerSwatch } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const menuMethods = {
@@ -140,6 +140,8 @@ export const menuMethods = {
 			{ id: 'lightdark',    name: 'Light / Dark',
 			  icon: () => (this.isDarkTheme() ? 'moon' : 'sun') },
 			{ id: 'theme',    name: 'Theme',         icon: 'palette' },
+			// Cursor-Smith's presets: the text caret
+			{ id: 'cursors',  name: 'Cursors',       icon: 'text-cursor' },
 			{ id: 'report',    name: 'Report',       icon: 'bar-chart-2' },
 			{ id: 'history',    name: 'History',     icon: 'history' },
 			// THE THIRD PLACE a row has to be named. `menuRowSpecs` makes it
@@ -183,7 +185,10 @@ export const menuMethods = {
 			// chain behind it, because a build whose Lucide lacks the bare name
 			// must still draw something rather than nothing.
 			'terminal': ['terminal', 'terminal-square', 'square-terminal',
-				'chevron-right-circle']
+				'chevron-right-circle'],
+			// `text-cursor` is Lucide's I-beam; the input-box form and a capital
+			// stand behind it for a build that lacks it
+			'text-cursor': ['text-cursor', 'text-cursor-input', 'type']
 		};
 		return ALTS[name] || [name];
 	},
@@ -218,13 +223,21 @@ export const menuMethods = {
 		// Markers, Theme | Light / Dark — a rule, Report | History, Organizer |
 		// Export. The pairs are `menuJoined`'s default; this is the order.
 		const def = ['search', 'modes', 'syntax', 'prose', 'font', 'markers',
-			'theme', 'lightdark', 'rule-1', 'report', 'history', 'organizer',
+			'theme', 'cursors', 'lightdark', 'rule-1', 'report', 'history', 'organizer',
 			'export'];
 		const out: string[] = [];
 		for (const id of (this.settings.menuOrder || [])) {
 			if (!out.includes(id)) out.push(id);
 		}
-		for (const id of def) if (!out.includes(id)) out.push(id);
+		// A SHIPPED RULE A SAVED ORDER DOES NOT NAME WAS DELETED. Every write of the
+		// order is the whole layout, so an order without it had it taken out (or
+		// was saved before it shipped); appending it again put a deleted divider
+		// back under the last row. A vault with no saved order still gets it.
+		const saved = (this.settings.menuOrder || []).length > 0;
+		for (const id of def) {
+			if (out.includes(id) || (saved && /^rule-\d+$/.test(id))) continue;
+			out.push(id);
+		}
 		return out;
 	},
 
@@ -233,7 +246,9 @@ export const menuMethods = {
 		// THE ORGANIZER'S SWITCH: off, its row is not among the visible ones —
 		// the panel, the bands and the pop-up all draw from this list, and the
 		// Menu tab keeps naming the card, so nothing wears a raw id.
-		return this.menuLayout().filter(id => !hidden.has(id) && (id !== 'organizer' || this.settings.organizerOn !== false));
+		// AND CURSOR-SMITH'S PRESETS only while it is there to load them.
+		return this.menuLayout().filter(id => !hidden.has(id) && (id !== 'organizer' || this.settings.organizerOn !== false)
+			&& (id !== 'cursors' || !!this.cursorSmithPlugin()));
 	},
 
 	// Drag semantics, verbatim from barThemeMove: position IS priority, and
@@ -498,6 +513,9 @@ export const menuMethods = {
 			toggle: () => this.barSetColorMode(!this.isDarkTheme())
 		},
 		{ id: 'theme',   label: 'Theme',   items: () => this.themesPickerItems(), count: false },
+		// CURSOR-SMITH'S PRESETS, by name, the active one beside the row. Shown only
+		// while Cursor-Smith is installed (menuVisibleLayout).
+		{ id: 'cursors', label: 'Cursors', items: () => this.cursorsPickerItems(), count: false },
 		// These OPEN something rather than setting it — a different
 		// kind of act, still centred (is-wide) so the pair reads as a
 		// footer. The divider that used to be Report's own flag is a
@@ -868,10 +886,7 @@ export const menuMethods = {
 						cls: 'ws-menu-sub ws-picker-row ws-menu-result'
 							+ (h.kind === 'item' && !isOn ? ' is-off' : '')
 					});
-					if (h.kind === 'item' && h.item.color) {
-						const dot = sub.createSpan({ cls: 'ws-picker-dot' });
-						if (h.item.color !== 'currentColor') dot.style.backgroundColor = h.item.color;
-					}
+					if (h.kind === 'item') wsPickerSwatch(sub, h.item);
 					sub.createSpan({ cls: 'ws-picker-label',
 						text: h.kind === 'row' ? h.row : h.item.label });
 					if (h.kind === 'item') sub.createSpan({ cls: 'ws-menu-in', text: h.row });
@@ -974,10 +989,7 @@ export const menuMethods = {
 						// Parked either way: the container is built and
 						// placed once, after the loop.
 						drawers.push(sub);
-						if (item.color) {
-							const dot = sub.createSpan({ cls: 'ws-picker-dot' });
-							if (item.color !== 'currentColor') dot.style.backgroundColor = item.color;
-						}
+						wsPickerSwatch(sub, item);
 						if (item.icon) {
 							const ic = item.icon();
 							ic.classList.add('ws-picker-icon');

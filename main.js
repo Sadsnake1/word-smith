@@ -279,6 +279,14 @@ var WS_PANE_NAMES = { organizer: "Organizer", export: "Export", history: "Histor
 var WS_PANE_ICONS = { organizer: "list-tree", export: "file-output", history: "history" };
 var WS_ICON = "word-smith-w";
 var wsElShown = (el) => !el || typeof el.isShown !== "function" ? true : !!el.isShown();
+function wsPickerSwatch(row, item) {
+  if (!item.color)
+    return null;
+  const dot = row.createSpan({ cls: "ws-picker-dot" + (item.shape ? " is-" + item.shape : "") });
+  if (item.color !== "currentColor")
+    dot.style.backgroundColor = item.color;
+  return dot;
+}
 var WS_RIBBON_TITLE = "Open the Word-Smith menu";
 var WS_ICON_SVG = '<g fill="none" stroke="currentColor" stroke-width="9" stroke-linecap="square" stroke-linejoin="miter"><path d="M18 26 L34 74 L50 38 L66 74 L82 26" /><path d="M8 26 H28" /><path d="M72 26 H92" /></g>';
 var WsOutlinerView = import_obsidian.ItemView ? class extends import_obsidian.ItemView {
@@ -536,11 +544,7 @@ var WsMenuView = import_obsidian.ItemView ? class extends import_obsidian.ItemVi
       const sub = kid.createDiv({
         cls: "tree-item-self is-clickable nav-file-title ws-menu-sub ws-picker-row" + (isOn ? "" : " is-off")
       });
-      if (item.color) {
-        const dot = sub.createSpan({ cls: "ws-picker-dot" });
-        if (item.color !== "currentColor")
-          dot.style.backgroundColor = item.color;
-      }
+      wsPickerSwatch(sub, item);
       if (item.icon) {
         const ic = item.icon();
         ic.classList.add("ws-picker-icon");
@@ -809,11 +813,8 @@ var WsMenuView = import_obsidian.ItemView ? class extends import_obsidian.ItemVi
         const sub = list.createDiv({
           cls: "ws-menu-sub ws-picker-row ws-menu-result" + (h.kind === "item" && !isOn ? " is-off" : "")
         });
-        if (h.kind === "item" && h.item.color) {
-          const dot = sub.createSpan({ cls: "ws-picker-dot" });
-          if (h.item.color !== "currentColor")
-            dot.style.backgroundColor = h.item.color;
-        }
+        if (h.kind === "item")
+          wsPickerSwatch(sub, h.item);
         sub.createSpan({
           cls: "ws-picker-label",
           text: h.kind === "row" ? h.label : h.item.label
@@ -2704,6 +2705,27 @@ function wsJoinMark(o) {
   const oo = o || {};
   return oo.divider == null ? "#" : oo.divider;
 }
+var WS_HL_EMOJI = {
+  "🔴": "red",
+  "🟥": "red",
+  "🟠": "orange",
+  "🟧": "orange",
+  "🟡": "yellow",
+  "🟨": "yellow",
+  "🟢": "green",
+  "🟩": "green",
+  "🔵": "blue",
+  "🟦": "blue",
+  "🟣": "purple",
+  "🟪": "purple"
+};
+var WS_HL_DOCX = { red: "F8C1C8", orange: "F9D6B2", green: "B5EACA", blue: "B5D3F5", purple: "D6CBFA" };
+function wsHighlightColorAt(text, at) {
+  const cp = text.codePointAt(at);
+  const ch = cp === void 0 ? "" : String.fromCodePoint(cp);
+  const color = WS_HL_EMOJI[ch] || "";
+  return { color, length: color ? ch.length : 0 };
+}
 function wsInlineRuns(text, opts) {
   const o = opts || {};
   let t = String(text == null ? "" : text);
@@ -2723,10 +2745,14 @@ function wsInlineRuns(text, opts) {
     t = t.replace(/\[\^[^\]]*\]/g, "");
   const runs = [];
   const re = /(\*\*\*|\*\*|\*|==)/g;
-  let bold = false, ital = false, high = false, last = 0, m;
+  let bold = false, ital = false, high = false, hl = "", last = 0, m;
   const push = (text2) => {
-    if (text2)
-      runs.push({ text: text2, bold, ital, high: high && !!o.highlights });
+    if (!text2)
+      return;
+    const run = { text: text2, bold, ital, high: high && !!o.highlights };
+    if (run.high && hl && hl !== "yellow")
+      run.hl = hl;
+    runs.push(run);
   };
   while ((m = re.exec(t)) !== null) {
     if (m.index > last)
@@ -2736,9 +2762,17 @@ function wsInlineRuns(text, opts) {
       ital = !ital;
     } else if (m[1] === "**")
       bold = !bold;
-    else if (m[1] === "==")
+    else if (m[1] === "==") {
       high = !high;
-    else
+      hl = "";
+      if (high) {
+        const c = wsHighlightColorAt(t, re.lastIndex);
+        if (c.color) {
+          hl = c.color;
+          re.lastIndex += c.length;
+        }
+      }
+    } else
       ital = !ital;
     last = re.lastIndex;
   }
@@ -2768,7 +2802,7 @@ function wsPara(runs, style, opts) {
     if (r.mono)
       rpr.push('<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>');
     if (r.high)
-      rpr.push('<w:highlight w:val="yellow"/>');
+      rpr.push(r.hl && WS_HL_DOCX[r.hl] ? '<w:shd w:val="clear" w:color="auto" w:fill="' + WS_HL_DOCX[r.hl] + '"/>' : '<w:highlight w:val="yellow"/>');
     return "<w:r>" + (rpr.length ? "<w:rPr>" + rpr.join("") + "</w:rPr>" : "") + '<w:t xml:space="preserve">' + wsXml(r.text) + "</w:t></w:r>";
   }).join("");
   return "<w:p>" + (pr.length ? "<w:pPr>" + pr.join("") + "</w:pPr>" : "") + body + "</w:p>";
@@ -2855,7 +2889,7 @@ function wsHtmlBlocks(md, o, pageOpen, parts) {
     if (r.ital)
       x = "<em>" + x + "</em>";
     if (r.high)
-      x = "<mark>" + x + "</mark>";
+      x = (r.hl ? '<mark class="hl-' + r.hl + '">' : "<mark>") + x + "</mark>";
     return x;
   }).join("");
   const lines = md.replace(/\r\n?/g, "\n").split("\n");
@@ -4473,7 +4507,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.5";
+var WS_PLUGIN_VERSION = "1.7.6";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -6514,6 +6548,8 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         tokenFormat("{syntax}", "syntax", "Syntax", "The menu’s icon, the word, or both."),
         tokenFormat("{prose}", "prose", "Prose", "The menu’s icon, the word, or both."),
         tokenFormat("{theme}", "theme", "Theme", "The menu’s icon, the word, or both."),
+        tokenFormat("{darklight}", "darklight", "Dark", "The moon or the sun, the word, or both."),
+        tokenFormat("{cursors}", "cursors", "Cursors", "The text cursor, the word, or both."),
         tokenFormat("{report}", "report", "Report", "The menu’s icon, the word, or both."),
         tokenFormat("{history}", "history", "History", "The menu’s icon, the word, or both."),
         tokenFormat("{export}", "export", "Export", "The menu’s icon, the word, or both."),
@@ -6657,6 +6693,8 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
     g = G("Buttons", "mouse-pointer-click");
     SUB("Pickers");
     L(["{syntax}", "{prose}", "{markers}", "{font}", "{theme}"], "Each opens its picker, right on the bar.");
+    L(["{cursors}"], "Cursor-Smith’s presets, by name. Pick one to load it.");
+    L(["{darklight}"], "Switches Obsidian between dark and light.");
     SUB("Panes and the menu");
     L(["{report}", "{history}", "{export}", "{organizer}"], "Each opens that pane; the Organizer on the tab you arrange it in.");
     L(["{powermenu}"], "Opens the Powermenu, the menu of everything.");
@@ -23912,13 +23950,7 @@ var barMethods = {
       const row = createDiv();
       const isOn = typeof item.on === "function" ? item.on() : !!item.on;
       row.className = "ws-picker-row" + (isOn ? "" : " is-off") + (item.sub ? " is-sub" : "");
-      if (item.color) {
-        const dot = createSpan();
-        dot.className = "ws-picker-dot";
-        if (item.color !== "currentColor")
-          dot.style.backgroundColor = item.color;
-        row.appendChild(dot);
-      }
+      wsPickerSwatch(row, item);
       if (item.icon) {
         const ic = item.icon();
         ic.classList.add("ws-picker-icon");
@@ -24006,7 +24038,7 @@ var barMethods = {
       return own(s.markersTokenFormat || "glyph");
     const m = s.barTokenIcons;
     const v = m && typeof m === "object" ? m[id] : "";
-    if (id === "properties" || id === "backlinks")
+    if (id === "properties" || id === "backlinks" || id === "darklight" || id === "cursors")
       return v === "word" ? "word" : v === "both" ? "both" : "icon";
     return v === "icon" ? "icon" : v === "both" ? "both" : "word";
   },
@@ -24020,6 +24052,8 @@ var barMethods = {
       return "links-coming-in";
     if (id === "powermenu")
       return "layout-grid";
+    if (id === "darklight")
+      id = "lightdark";
     try {
       return this.menuIconFor(id) || "";
     } catch {
@@ -24502,6 +24536,7 @@ var barMethods = {
     const items = this.getWriteChecks().map((c) => ({
       label: c.label,
       color: c.swatch === "text" ? "currentColor" : s[c.color],
+      shape: "line",
       on: () => !!(s.checksEnabled && s[c.key]),
       onClick: async () => {
         s[c.key] = !s[c.key];
@@ -24876,6 +24911,8 @@ var barMethods = {
       "{writechecks}": "\0WRITECHECKS\0",
       "{font}": "\0FONT\0",
       "{theme}": "\0THEME\0",
+      "{darklight}": "\0DARKLIGHT\0",
+      "{cursors}": "\0CURSORS\0",
       "{report}": "\0REPORT\0",
       "{history}": "\0HISTORY\0",
       "{export}": "\0EXPORT\0",
@@ -25225,6 +25262,81 @@ var barMethods = {
     }
     return this._colorProbeEl;
   },
+  cursorSmithPlugin() {
+    try {
+      const reg = this.app && this.app.plugins && this.app.plugins.plugins;
+      return reg && reg["cursor-smith"] || null;
+    } catch {
+      return null;
+    }
+  },
+  cursorPresetNames() {
+    const cs = this.cursorSmithPlugin();
+    if (!cs || typeof cs.getUserPresets !== "function")
+      return [];
+    try {
+      return Object.keys(cs.getUserPresets() || {});
+    } catch {
+      return [];
+    }
+  },
+  cursorsPickerItems() {
+    const names = this.cursorPresetNames();
+    if (!names.length) {
+      return [{
+        label: this.cursorSmithPlugin() ? "No presets saved in Cursor-Smith" : "Cursor-Smith is not installed",
+        on: () => false,
+        onClick: async () => {
+        }
+      }];
+    }
+    return names.map((name) => ({
+      label: name,
+      on: () => {
+        const cs = this.cursorSmithPlugin();
+        return !!cs && cs._activePresetName === name;
+      },
+      onClick: async () => {
+        await this.cursorLoadPreset(name);
+      }
+    }));
+  },
+  async cursorLoadPreset(name) {
+    const cs = this.cursorSmithPlugin();
+    if (!cs || typeof cs.loadUserPreset !== "function")
+      return false;
+    try {
+      await cs.loadUserPreset(name);
+      cs._activePresetName = name;
+      cs._pendingPresetName = name;
+      if (typeof cs.refreshSettingTab === "function")
+        cs.refreshSettingTab();
+    } catch (e) {
+      wsCatch("cursorLoadPreset: cs.loadUserPreset(name)", e);
+      return false;
+    }
+    if (this.settings.barThemeCursorDressed) {
+      this.settings.barThemeCursorStash = null;
+      try {
+        await this.barThemeCursorSync();
+      } catch (e) {
+        wsCatch("cursorLoadPreset: barThemeCursorSync()", e);
+      }
+      await this.saveSettings();
+    }
+    return true;
+  },
+  openCursorsPicker(anchor) {
+    this.openPickerLive(anchor, this.cursorsPickerItems(), "choose");
+  },
+  buildCursorsIndicator() {
+    const there = !!this.cursorSmithPlugin();
+    return this.buildBarButton("ws-barbtn-cursors" + (there ? "" : " is-off"), (node) => this.barTokenPaint(node, "cursors", "Cursors"), there ? "Cursor-Smith presets — click to choose" : "Cursor-Smith is not installed", (anchor) => this.openCursorsPicker(anchor));
+  },
+  buildDarkLightIndicator() {
+    const word = this.isDarkTheme() ? "Dark" : "Light";
+    return this.buildBarButton("ws-barbtn-darklight", (node) => this.barTokenPaint(node, "darklight", word), word + " — click to switch", () => this.barSetColorMode(!this.isDarkTheme()));
+  },
   cursorSmithSettings() {
     try {
       const reg = this.app.plugins && this.app.plugins.plugins;
@@ -25479,6 +25591,8 @@ var barMethods = {
       WRITECHECKS: () => this.buildWriteChecksIndicator(),
       FONT: () => this.buildFontIndicator(),
       THEME: () => this.buildThemeIndicator(),
+      DARKLIGHT: () => this.buildDarkLightIndicator(),
+      CURSORS: () => this.buildCursorsIndicator(),
       REPORT: () => this.buildReportIndicator(),
       HISTORY: () => this.buildHistoryIndicator(),
       EXPORT: () => this.buildExportIndicator(),
@@ -25764,6 +25878,7 @@ var menuMethods = {
         icon: () => this.isDarkTheme() ? "moon" : "sun"
       },
       { id: "theme", name: "Theme", icon: "palette" },
+      { id: "cursors", name: "Cursors", icon: "text-cursor" },
       { id: "report", name: "Report", icon: "bar-chart-2" },
       { id: "history", name: "History", icon: "history" },
       { id: "export", name: "Export", icon: "file-output" },
@@ -25785,7 +25900,8 @@ var menuMethods = {
         "terminal-square",
         "square-terminal",
         "chevron-right-circle"
-      ]
+      ],
+      "text-cursor": ["text-cursor", "text-cursor-input", "type"]
     };
     return ALTS[name] || [name];
   },
@@ -25813,6 +25929,7 @@ var menuMethods = {
       "font",
       "markers",
       "theme",
+      "cursors",
       "lightdark",
       "rule-1",
       "report",
@@ -25825,14 +25942,17 @@ var menuMethods = {
       if (!out.includes(id))
         out.push(id);
     }
-    for (const id of def)
-      if (!out.includes(id))
-        out.push(id);
+    const saved = (this.settings.menuOrder || []).length > 0;
+    for (const id of def) {
+      if (out.includes(id) || saved && /^rule-\d+$/.test(id))
+        continue;
+      out.push(id);
+    }
     return out;
   },
   menuVisibleLayout() {
     const hidden = new Set(this.settings.menuHidden || []);
-    return this.menuLayout().filter((id) => !hidden.has(id) && (id !== "organizer" || this.settings.organizerOn !== false));
+    return this.menuLayout().filter((id) => !hidden.has(id) && (id !== "organizer" || this.settings.organizerOn !== false) && (id !== "cursors" || !!this.cursorSmithPlugin()));
   },
   menuBands() {
     const joined = new Set(this.settings.menuJoined || []);
@@ -26015,6 +26135,7 @@ var menuMethods = {
         toggle: () => this.barSetColorMode(!this.isDarkTheme())
       },
       { id: "theme", label: "Theme", items: () => this.themesPickerItems(), count: false },
+      { id: "cursors", label: "Cursors", items: () => this.cursorsPickerItems(), count: false },
       {
         id: "report",
         label: "Report",
@@ -26309,11 +26430,8 @@ var menuMethods = {
           const sub = list.createDiv({
             cls: "ws-menu-sub ws-picker-row ws-menu-result" + (h.kind === "item" && !isOn ? " is-off" : "")
           });
-          if (h.kind === "item" && h.item.color) {
-            const dot = sub.createSpan({ cls: "ws-picker-dot" });
-            if (h.item.color !== "currentColor")
-              dot.style.backgroundColor = h.item.color;
-          }
+          if (h.kind === "item")
+            wsPickerSwatch(sub, h.item);
           sub.createSpan({
             cls: "ws-picker-label",
             text: h.kind === "row" ? h.row : h.item.label
@@ -26399,11 +26517,7 @@ var menuMethods = {
                   cls: "ws-menu-sub ws-picker-row" + (isOn ? "" : " is-off")
                 });
                 drawers.push(sub);
-                if (item.color) {
-                  const dot = sub.createSpan({ cls: "ws-picker-dot" });
-                  if (item.color !== "currentColor")
-                    dot.style.backgroundColor = item.color;
-                }
+                wsPickerSwatch(sub, item);
                 if (item.icon) {
                   const ic = item.icon();
                   ic.classList.add("ws-picker-icon");
@@ -28318,6 +28432,7 @@ var themesMethods = {
       label: t.names && t.names[half] || t.name,
       note: t.note,
       color: this.barThemeHalf(t).c1,
+      shape: "square",
       swatches: ["c1", "c2", "c3", "c4", "c5", "c6", "c7"].map((k) => this.barThemeHalf(t)[k]),
       on: live === t.id,
       onClick: async () => {
@@ -30744,7 +30859,7 @@ var exportMethods = {
     const cw = "calc(" + pw + " - 2 * " + pm + ")";
     const ch = "calc(" + ph + " - 2 * " + pm + ")";
     const pgap = o.indent === false ? "0.5em" : "0";
-    return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(o.title || "Manuscript") + "</title><style>@page { size: " + pw + " " + ph + "; margin: " + pm + ";" + (head ? ' @top-right { content: "' + head + ' " counter(page); }' : "") + " }:root { color-scheme: light; }html { background: " + (forScreen ? wsHostTint() : "#fff") + "; }" + (forScreen ? "html.is-flow .is-here { background: rgba(127, 127, 127, 0.14); box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.14); border-radius: 2px; }" : "") + "body { margin: 0; padding: " + (forScreen ? "18px 0" : "0") + "; font-family: " + font + ", Times, serif; font-size: " + pt + "pt; line-height: " + lineH + "; color: #111; }.page, .run { background: #fff; }" + (head && forScreen ? ".hdr { position: absolute; top: calc(" + pm + " / 2); right: " + pm + "; font-size: 0.9em; color: inherit; }" : "") + (forScreen ? ":root { --sheet-gap: 18px; }.stack { position: relative; width: " + pw + "; margin: 0 auto; }.sheet { position: absolute; left: 0; top: 0; box-sizing: border-box; width: " + pw + "; height: " + ph + "; padding: " + pm + "; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }.hdr { position: absolute; }.flow { height: 100%; column-width: " + cw + "; column-gap: " + pm + "; column-fill: auto; overflow: hidden; }.page, .run { background: none; box-shadow: none; width: auto; margin: 0; padding: 0; min-height: 0; }.page { break-before: column; }.page:first-child { break-before: avoid; }.tp { height: " + ch + "; }html.is-flow .stack { width: auto; height: auto !important; }html.is-flow .sheet[data-pooled] { display: none; }html.is-flow .sheet { position: static; width: auto; height: auto; margin: 0; padding: 0; box-shadow: none; min-height: 100vh; }html.is-flow .hdr { display: none; }html.is-flow .flow { height: auto; columns: auto; overflow: visible; max-width: 68ch; margin: 0 auto; padding: " + pm + ' 24px; }html.is-flow .page { break-before: auto; }html.is-flow section + section { margin-top: 4em; }html.is-flow section + section::before { content: ""; display: block; border-top: 2px dashed currentColor; opacity: 0.28; margin: 0 0 3.2em; }html.is-flow section > p:first-child { text-indent: 0; }html.is-flow .tp { height: auto; padding: 2em 0 3em; }@media print { html, html.is-dark { background: #fff; color-scheme: light; } html.is-dark body { color: #111; } html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #fff; } body { padding: 0; } .stack { width: auto; height: auto !important; } .sheet { position: static; width: auto; height: auto;   padding: 0; margin: 0; box-shadow: none; } .hdr { display: none; } .flow { height: auto; overflow: visible; columns: auto; } .tp { height: auto; } .page, .run { width: auto; margin: 0; padding: 0;   min-height: 0; box-shadow: none; } .page { page-break-before: always; break-before: page; } .page:first-child { page-break-before: avoid;   break-before: avoid; }}' : ".page { page-break-before: always; } .page:first-child { page-break-before: avoid; }") + "p { margin: 0 0 " + pgap + " 0; text-indent: " + (o.indent === false ? "0" : "0.5in") + ";" + (o.justify ? " text-align: justify;" : "") + " orphans: 2; widows: 2; }p.first, p.div { text-indent: 0; }html.is-dark { color-scheme: dark; background: #17181b; }html.is-dark body { color: #dcdcdc; }html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #212327; }html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }html.is-dark a { color: #9cc4ff; }pre.fm { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8em; line-height: 1.35; white-space: pre-wrap; color: #444; border-left: 2px solid #bbb; padding-left: 8px; margin: 0 0 1em; }p.cmt { text-indent: 0; font-style: italic; color: #555; border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }p.div { text-align: center; margin: 1em 0; }blockquote { margin: 0.6em 0.5in; padding: 0; }blockquote p { text-indent: 0; margin: 0 0 0.3em; }blockquote.callout { border-left: 2px solid #bbb; padding-left: 10px; margin-left: 0.4in; }html.is-dark blockquote.callout { border-left-color: #55565a; }p.li { text-indent: 0; margin: 0 0 0.2em 0.25in; }p.li.l1 { margin-left: 0.5in; } p.li.l2 { margin-left: 0.75in; } p.li.l3 { margin-left: 1in; }pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }table.tbl { border-collapse: collapse; margin: 0.8em auto; }table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }h1, h2 { font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; }h3, h4, h5, h6 { font-size: " + wsHeadSizeEm(o, 3).toFixed(4) + "em; }.tp .tpinner h1 { font-size: 1em; }.tp .tpinner p { text-indent: 0; }.tp { display: flex; flex-direction: column; justify-content: center; }.tp .tpinner { text-align: center; }.tp .tpinner > * { margin-top: 0; margin-bottom: 0; }.folderhead.is-tight { margin-bottom: 0; }.folderhead.is-tight + h1, .folderhead.is-tight + h2, .folderhead.is-tight + h3, .folderhead.is-tight + h4, .folderhead.is-tight + h5, .folderhead.is-tight + h6 { margin-top: 0; }.folderhead { margin: 0 0 1em; text-align: center; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; page-break-after: avoid; }ol.toc { list-style: none; padding: 0; }ol.toc a { color: inherit; text-decoration: none; }ol.toc li.l1 { padding-left: 1.5em; }ol.toc li.l2 { padding-left: 3em; }ol.toc li.l3 { padding-left: 4.5em; }ol.toc li.l4 { padding-left: 6em; }ol.toc li.l5 { padding-left: 7.5em; }</style></head><body>" + (forScreen ? '<div class="stack"><div class="sheet"><div class="hdr"></div><div class="flow">' + parts.join("\n") + "</div></div></div>" : parts.join("\n")) + "</body></html>";
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(o.title || "Manuscript") + "</title><style>@page { size: " + pw + " " + ph + "; margin: " + pm + ";" + (head ? ' @top-right { content: "' + head + ' " counter(page); }' : "") + " }:root { color-scheme: light; }html { background: " + (forScreen ? wsHostTint() : "#fff") + "; }" + (forScreen ? "html.is-flow .is-here { background: rgba(127, 127, 127, 0.14); box-shadow: 0 0 0 4px rgba(127, 127, 127, 0.14); border-radius: 2px; }" : "") + "body { margin: 0; padding: " + (forScreen ? "18px 0" : "0") + "; font-family: " + font + ", Times, serif; font-size: " + pt + "pt; line-height: " + lineH + "; color: #111; }.page, .run { background: #fff; }" + (head && forScreen ? ".hdr { position: absolute; top: calc(" + pm + " / 2); right: " + pm + "; font-size: 0.9em; color: inherit; }" : "") + (forScreen ? ":root { --sheet-gap: 18px; }.stack { position: relative; width: " + pw + "; margin: 0 auto; }.sheet { position: absolute; left: 0; top: 0; box-sizing: border-box; width: " + pw + "; height: " + ph + "; padding: " + pm + "; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.45); }.hdr { position: absolute; }.flow { height: 100%; column-width: " + cw + "; column-gap: " + pm + "; column-fill: auto; overflow: hidden; }.page, .run { background: none; box-shadow: none; width: auto; margin: 0; padding: 0; min-height: 0; }.page { break-before: column; }.page:first-child { break-before: avoid; }.tp { height: " + ch + "; }html.is-flow .stack { width: auto; height: auto !important; }html.is-flow .sheet[data-pooled] { display: none; }html.is-flow .sheet { position: static; width: auto; height: auto; margin: 0; padding: 0; box-shadow: none; min-height: 100vh; }html.is-flow .hdr { display: none; }html.is-flow .flow { height: auto; columns: auto; overflow: visible; max-width: 68ch; margin: 0 auto; padding: " + pm + ' 24px; }html.is-flow .page { break-before: auto; }html.is-flow section + section { margin-top: 4em; }html.is-flow section + section::before { content: ""; display: block; border-top: 2px dashed currentColor; opacity: 0.28; margin: 0 0 3.2em; }html.is-flow section > p:first-child { text-indent: 0; }html.is-flow .tp { height: auto; padding: 2em 0 3em; }@media print { html, html.is-dark { background: #fff; color-scheme: light; } html.is-dark body { color: #111; } html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #fff; } body { padding: 0; } .stack { width: auto; height: auto !important; } .sheet { position: static; width: auto; height: auto;   padding: 0; margin: 0; box-shadow: none; } .hdr { display: none; } .flow { height: auto; overflow: visible; columns: auto; } .tp { height: auto; } .page, .run { width: auto; margin: 0; padding: 0;   min-height: 0; box-shadow: none; } .page { page-break-before: always; break-before: page; } .page:first-child { page-break-before: avoid;   break-before: avoid; }}' : ".page { page-break-before: always; } .page:first-child { page-break-before: avoid; }") + "p { margin: 0 0 " + pgap + " 0; text-indent: " + (o.indent === false ? "0" : "0.5in") + ";" + (o.justify ? " text-align: justify;" : "") + " orphans: 2; widows: 2; }p.first, p.div { text-indent: 0; }html.is-dark { color-scheme: dark; background: #17181b; }html.is-dark body { color: #dcdcdc; }html.is-dark .sheet, html.is-dark .page, html.is-dark .run { background: #212327; }html.is-dark pre.fm { color: #b9b9b9; border-left-color: #55565a; }html.is-dark p.cmt { color: #b9b9b9; border-left-color: #55565a; }html.is-dark mark { background: #6c5a1e; color: #f4f0e2; }mark.hl-red { background: #f8c1c8; } mark.hl-orange { background: #f9d6b2; } mark.hl-green { background: #b5eaca; } mark.hl-blue { background: #b5d3f5; } mark.hl-purple { background: #d6cbfa; }html.is-dark mark.hl-red { background: #672832; } html.is-dark mark.hl-orange { background: #684019; } html.is-dark mark.hl-green { background: #185835; } html.is-dark mark.hl-blue { background: #183d67; } html.is-dark mark.hl-purple { background: #3f336d; }html.is-dark a { color: #9cc4ff; }pre.fm { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8em; line-height: 1.35; white-space: pre-wrap; color: #444; border-left: 2px solid #bbb; padding-left: 8px; margin: 0 0 1em; }p.cmt { text-indent: 0; font-style: italic; color: #555; border-left: 2px solid #bbb; padding-left: 8px; margin: 0.4em 0; }p.div { text-align: center; margin: 1em 0; }blockquote { margin: 0.6em 0.5in; padding: 0; }blockquote p { text-indent: 0; margin: 0 0 0.3em; }blockquote.callout { border-left: 2px solid #bbb; padding-left: 10px; margin-left: 0.4in; }html.is-dark blockquote.callout { border-left-color: #55565a; }p.li { text-indent: 0; margin: 0 0 0.2em 0.25in; }p.li.l1 { margin-left: 0.5in; } p.li.l2 { margin-left: 0.75in; } p.li.l3 { margin-left: 1in; }pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }table.tbl { border-collapse: collapse; margin: 0.8em auto; }table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }h1, h2 { font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; }h3, h4, h5, h6 { font-size: " + wsHeadSizeEm(o, 3).toFixed(4) + "em; }.tp .tpinner h1 { font-size: 1em; }.tp .tpinner p { text-indent: 0; }.tp { display: flex; flex-direction: column; justify-content: center; }.tp .tpinner { text-align: center; }.tp .tpinner > * { margin-top: 0; margin-bottom: 0; }.folderhead.is-tight { margin-bottom: 0; }.folderhead.is-tight + h1, .folderhead.is-tight + h2, .folderhead.is-tight + h3, .folderhead.is-tight + h4, .folderhead.is-tight + h5, .folderhead.is-tight + h6 { margin-top: 0; }.folderhead { margin: 0 0 1em; text-align: center; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; font-size: " + wsHeadSizeEm(o, 1).toFixed(4) + "em; page-break-after: avoid; }ol.toc { list-style: none; padding: 0; }ol.toc a { color: inherit; text-decoration: none; }ol.toc li.l1 { padding-left: 1.5em; }ol.toc li.l2 { padding-left: 3em; }ol.toc li.l3 { padding-left: 4.5em; }ol.toc li.l4 { padding-left: 6em; }ol.toc li.l5 { padding-left: 7.5em; }</style></head><body>" + (forScreen ? '<div class="stack"><div class="sheet"><div class="hdr"></div><div class="flow">' + parts.join("\n") + "</div></div></div>" : parts.join("\n")) + "</body></html>";
   },
   exportDefaultScope() {
     try {
@@ -34610,6 +34725,12 @@ var WordSmith = class extends import_obsidian24.Plugin {
         "lineDarkColor",
         "lineLightColor"
       ].some((k) => raw[k] !== void 0 && raw[k] !== wsBag(DEFAULT_SETTINGS)[k]);
+    }
+    if (Array.isArray(raw.menuOrder) && !raw.menuOrder.includes("cursors")) {
+      const order = this.settings.menuOrder;
+      const at = Array.isArray(order) ? order.indexOf("theme") : -1;
+      if (at !== -1)
+        order.splice(at + 1, 0, "cursors");
     }
     delete this.settings.barThemeLight;
     if (!this.settings.treeOrderForcedOn) {

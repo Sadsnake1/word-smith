@@ -166,6 +166,8 @@ export const themesMethods = {
 			label: (t.names && t.names[half]) || t.name,
 			note:  t.note,
 			color: this.barThemeHalf(t).c1,
+			// a scheme is a square, set apart from the balls of the word classes
+			shape: 'square' as const,
 			swatches: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']
 				.map(k => this.barThemeHalf(t)[k]),
 			on:    live === t.id,
