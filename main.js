@@ -2313,6 +2313,15 @@ function wsSheetLift(menu) {
     wsCatch("wsSheetLift: dom.classList.add(ws-sheet);", _);
   }
 }
+function wsMenuIsNative(menu) {
+  try {
+    if (!(typeof import_obsidian.Platform !== "undefined" && import_obsidian.Platform && import_obsidian.Platform.isDesktop))
+      return false;
+    return !!(menu && menu.useNativeMenu === true);
+  } catch {
+    return false;
+  }
+}
 function wsMenu() {
   const m = new import_obsidian.Menu();
   for (const k of ["showAtPosition", "showAtMouseEvent"]) {
@@ -4567,7 +4576,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.8";
+var WS_PLUGIN_VERSION = "1.7.9";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -17915,7 +17924,34 @@ var organizerWindowMethods = {
       into.addItem((i) => i.setTitle("No flag").setChecked(!nowFlag).onClick(() => setFlag("")));
     };
     const nowColour = (this.settings.folderColors || {})[path] || "";
+    const setColour = async (id) => {
+      const all2 = Object.assign({}, this.settings.folderColors || {});
+      if (id)
+        all2[path] = id;
+      else
+        delete all2[path];
+      this.settings.folderColors = all2;
+      await this.saveSettings();
+      try {
+        void this.patchExplorerDOM();
+      } catch (_) {
+        wsCatch("fileMenuFor / colourRow: this.patchExplorerDOM();", _);
+      }
+      try {
+        this.treeOrderChanged();
+      } catch (_) {
+        wsCatch("fileMenuFor / colourRow: this.treeOrderChanged();", _);
+      }
+    };
     const colourRow = (into) => {
+      if (wsMenuIsNative(menu)) {
+        for (const c of WS_FOLDER_COLOURS) {
+          into.addItem((i) => i.setTitle(c.label).setChecked(nowColour === c.id).onClick(() => {
+            void setColour(c.id);
+          }));
+        }
+        return;
+      }
       into.addItem((i) => {
         const frag = createFragment();
         const row = createSpan();
@@ -17931,23 +17967,7 @@ var organizerWindowMethods = {
             void (async () => {
               ev2.preventDefault();
               ev2.stopPropagation();
-              const all2 = Object.assign({}, this.settings.folderColors || {});
-              if (c.id)
-                all2[path] = c.id;
-              else
-                delete all2[path];
-              this.settings.folderColors = all2;
-              await this.saveSettings();
-              try {
-                void this.patchExplorerDOM();
-              } catch (_) {
-                wsCatch("fileMenuFor / colourRow: this.patchExplorerDOM();", _);
-              }
-              try {
-                this.treeOrderChanged();
-              } catch (_) {
-                wsCatch("fileMenuFor / colourRow: this.treeOrderChanged();", _);
-              }
+              await setColour(c.id);
               try {
                 menu.hide();
               } catch (_) {
@@ -30197,11 +30217,12 @@ var exportMethods = {
       return at2 && at2.children ? f : "";
     }
   },
-  exportFileName(scopePath, ext) {
-    const base = (String(scopePath || "export").split("/").pop() || "").replace(/\.md$/, "").replace(/[\\:*?"<>|]+/g, "-").trim() || "export";
+  exportFileName(scopePath, ext, title) {
+    const named = String(title || "").trim() || (String(scopePath || "").split("/").pop() || "").replace(/\.md$/, "");
+    const base = named.replace(/[\\/:*?"<>|]+/g, "-").trim() || "export";
     const d = /* @__PURE__ */ new Date();
     const p2 = (n) => String(n).padStart(2, "0");
-    return base.replace(/[\\/:*?"<>|]/g, "-") + " " + p2(d.getHours()) + "-" + p2(d.getMinutes()) + " " + p2(d.getDate()) + "-" + p2(d.getMonth() + 1) + "-" + d.getFullYear() + "." + ext;
+    return base + " " + p2(d.getDate()) + "-" + p2(d.getMonth() + 1) + "-" + d.getFullYear() + " " + p2(d.getHours()) + "-" + p2(d.getMinutes()) + "." + ext;
   },
   async exportSections(files, opts, onStep, scope) {
     const secs = [];
@@ -32071,7 +32092,7 @@ var exportMethods = {
     const opt = this.exportOptsFor(scope, o, words);
     try {
       if (kind === "md") {
-        const name2 = into(this.exportFileName(scope, "md"));
+        const name2 = into(this.exportFileName(scope, "md", opt.title));
         await this.app.vault.create(name2, this.exportToMarkdown(sections, opt));
         this.exportRemember(scope, kind, opt, files.length, name2);
         new import_obsidian22.Notice("Word-Smith: exported " + name2);
@@ -32079,7 +32100,7 @@ var exportMethods = {
       }
       if (kind === "pdf") {
         const html = this.exportToHtml(sections, opt, false);
-        const pdfName = into(this.exportFileName(scope, "pdf"));
+        const pdfName = into(this.exportFileName(scope, "pdf", opt.title));
         try {
           const bytes2 = await this.exportPdfRender(html, opt);
           if (!bytes2 || !bytes2.length)
@@ -32095,14 +32116,14 @@ var exportMethods = {
         }
       }
       if (kind === "html") {
-        const htmlName = into(this.exportFileName(scope, "html"));
+        const htmlName = into(this.exportFileName(scope, "html", opt.title));
         await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
         this.exportRemember(scope, kind, opt, files.length, htmlName);
         new import_obsidian22.Notice("Word-Smith: exported " + htmlName);
         return;
       }
       const bytes = wsBuildDocx(sections, opt);
-      const name = into(this.exportFileName(scope, "docx"));
+      const name = into(this.exportFileName(scope, "docx", opt.title));
       await this.app.vault.createBinary(name, bytes.buffer);
       this.exportRemember(scope, kind, opt, files.length, name);
       new import_obsidian22.Notice("Word-Smith: exported " + name);

@@ -35,7 +35,7 @@ import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
 import type { WsOrgColAgg } from './organizer-readings';
-import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
@@ -1145,7 +1145,29 @@ export const organizerWindowMethods = {
 		};
 
 		const nowColour = (this.settings.folderColors || {})[path] || '';
+		const setColour = async (id: string) => {
+			const all = Object.assign({}, this.settings.folderColors || {});
+			if (id) all[path] = id; else delete all[path];
+			this.settings.folderColors = all;
+			await this.saveSettings();
+			try { void this.patchExplorerDOM(); } catch (_) { wsCatch('fileMenuFor / colourRow: this.patchExplorerDOM();', _); }
+			// …AND EVERY OTHER TREE SHOWING THIS FOLDER. The line above repaints
+			// Obsidian's explorer and nothing else; without this a colour set from
+			// the Organizer's own right-click changed the explorer behind it and not
+			// the row that had just been clicked.
+			try { this.treeOrderChanged(); } catch (_) { wsCatch('fileMenuFor / colourRow: this.treeOrderChanged();', _); }
+		};
 		const colourRow = (into: Menu) => {
+			// A NATIVE MENU GETS THE COLOURS BY NAME, one row each, the current one
+			// ticked: it would draw the balls below as one blank row that does
+			// nothing (Settings → Appearance → Native menus, on by default on a Mac).
+			if (wsMenuIsNative(menu)) {
+				for (const c of WS_FOLDER_COLOURS) {
+					into.addItem((i: MenuItem) => i.setTitle(c.label).setChecked(nowColour === c.id)
+						.onClick(() => { void setColour(c.id); }));
+				}
+				return;
+			}
 			into.addItem((i: { setTitle: (arg0: DocumentFragment) => void; }) => {
 				const frag = createFragment();
 				const row = createSpan();
@@ -1160,16 +1182,7 @@ export const organizerWindowMethods = {
 					dot.addEventListener('click', (ev2) => { void (async () => {
 						ev2.preventDefault();
 						ev2.stopPropagation();
-						const all = Object.assign({}, this.settings.folderColors || {});
-						if (c.id) all[path] = c.id; else delete all[path];
-						this.settings.folderColors = all;
-						await this.saveSettings();
-						try { void this.patchExplorerDOM(); } catch (_) { wsCatch('fileMenuFor / colourRow: this.patchExplorerDOM();', _); }
-						// …AND EVERY OTHER TREE SHOWING THIS FOLDER. The line above repaints
-						// Obsidian's explorer and nothing else; without this a colour set from
-						// the Organizer's own right-click changed the explorer behind it and not
-						// the row that had just been clicked.
-						try { this.treeOrderChanged(); } catch (_) { wsCatch('fileMenuFor / colourRow: this.treeOrderChanged();', _); }
+						await setColour(c.id);
 						try { menu.hide(); } catch (_) { wsCatch('fileMenuFor / colourRow: menu.hide();', _); }
 					})(); });
 					row.appendChild(dot);

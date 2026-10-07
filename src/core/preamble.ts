@@ -2840,6 +2840,17 @@ export function wsSheetLift(menu: Menu) {
 		window.setTimeout(() => wsSheetRecord(dom, phone, !(dom.dataset && dom.dataset.wsSelftest === '1')), 300);
 	} catch (_) { wsCatch('wsSheetLift: dom.classList.add(ws-sheet);', _); }
 }
+// A MENU THE OPERATING SYSTEM DRAWS: Obsidian's "Native menus" (Settings →
+// Appearance), on by default on a Mac. Such a menu shows each row's TEXT and
+// nothing else, and a click reaches the row, never an element inside its
+// title — so a row drawn from markup alone is a blank row that does nothing.
+// Read from the menu itself, which carries the app's choice when it is made.
+export function wsMenuIsNative(menu: unknown): boolean {
+	try {
+		if (!(typeof Platform !== 'undefined' && Platform && Platform.isDesktop)) return false;
+		return !!(menu && (menu as { useNativeMenu?: unknown }).useNativeMenu === true);
+	} catch { return false; }
+}
 export function wsMenu() {
 	const m = new Menu();
 	for (const k of ['showAtPosition', 'showAtMouseEvent'] as const) {
@@ -5232,7 +5243,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.8';
+export const WS_PLUGIN_VERSION = '1.7.9';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

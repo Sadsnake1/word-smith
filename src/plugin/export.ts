@@ -924,11 +924,16 @@ export const exportMethods = {
 		}
 	},
 
-	exportFileName(this: WordSmith, scopePath: string, ext: string) {
-		// A title can be typed with the characters a path cannot hold; the
-		// export is named after the title.
-		const base = (String(scopePath || 'export').split('/').pop() || '').replace(/\.md$/, '')
-			.replace(/[\\:*?"<>|]+/g, '-').trim() || 'export';
+	// NAMED FOR THE BOOK: the title its title page carries (the Title typed in
+	// Export, else the folder's name, else the vault's), handed in by the run.
+	// Without it an export of ticks across the vault has no folder to be named
+	// after, and every file was called "export".
+	exportFileName(this: WordSmith, scopePath: string, ext: string, title?: string) {
+		// A title can be typed with the characters a path cannot hold, a slash
+		// among them.
+		const named = String(title || '').trim()
+			|| (String(scopePath || '').split('/').pop() || '').replace(/\.md$/, '');
+		const base = named.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'export';
 		const d = new Date();
 		const p2 = (n: number) => String(n).padStart(2, '0');
 		// dd-mm-yyyy and the time, by request. The clock matters more than
@@ -937,13 +942,11 @@ export const exportMethods = {
 		// the first — `vault.create` throws on an existing path, so the
 		// export failed rather than making a second file. Minutes are
 		// enough to tell those apart and short enough to read.
-		// TIME FIRST, then the date: exports of one book cluster in a
-		// folder, and what tells two of them apart is nearly always the
-		// hour — sorting by name then puts this afternoon's attempts in
-		// the order they were made rather than scattered by day.
-		return base.replace(/[\\/:*?"<>|]/g, '-') + ' '
-			+ p2(d.getHours()) + '-' + p2(d.getMinutes()) + ' '
-			+ p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear()
+		// THE DATE FIRST, then the time, on the writer's word: the book's
+		// name, the day, the minute.
+		return base + ' '
+			+ p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear() + ' '
+			+ p2(d.getHours()) + '-' + p2(d.getMinutes())
 			+ '.' + ext;
 	},
 
@@ -4172,7 +4175,7 @@ export const exportMethods = {
 			// it is written HERE, at each success, rather than where the
 			// button is pressed.
 			if (kind === 'md') {
-				const name = into(this.exportFileName(scope, 'md'));
+				const name = into(this.exportFileName(scope, 'md', opt.title));
 				await this.app.vault.create(name, this.exportToMarkdown(sections, opt));
 				this.exportRemember(scope, kind, opt, files.length, name);
 				new Notice('Word-Smith: exported ' + name);
@@ -4186,7 +4189,7 @@ export const exportMethods = {
 				// layout of our own, which is the part that would mean owning
 				// line breaking, font metrics and font embedding.
 				const html = this.exportToHtml(sections, opt, false);
-				const pdfName = into(this.exportFileName(scope, 'pdf'));
+				const pdfName = into(this.exportFileName(scope, 'pdf', opt.title));
 				try {
 					const bytes = await this.exportPdfRender(html, opt);
 					if (!bytes || !bytes.length) throw new Error('the engine returned nothing');
@@ -4219,14 +4222,14 @@ export const exportMethods = {
 				// breaks. It also carries the @page rules, which is why
 				// printing it from any browser gives a PDF with the
 				// pagination, the margins and the running header intact.
-				const htmlName = into(this.exportFileName(scope, 'html'));
+				const htmlName = into(this.exportFileName(scope, 'html', opt.title));
 				await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
 				this.exportRemember(scope, kind, opt, files.length, htmlName);
 				new Notice('Word-Smith: exported ' + htmlName);
 				return;
 			}
 			const bytes = wsBuildDocx(sections, opt);
-			const name = into(this.exportFileName(scope, 'docx'));
+			const name = into(this.exportFileName(scope, 'docx', opt.title));
 			await this.app.vault.createBinary(name, bytes.buffer);
 			// Word is the default format, so the export a writer actually repeats
 			// is the one that most needs remembering.
