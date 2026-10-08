@@ -61,10 +61,12 @@ Seven colors, a dark set and a light set. `:N` paints the background, `;N` paint
 | `{words};vim` | Text follows your Vim mode |
 | `{file}:b1` to `:b4` | Your theme's own surfaces |
 | `{file}:bs` | The status line's own color |
-| `{file}:bc` | The caret's color, live |
+| `{file}:bc` | The caret's color, live. Glows under Cursor-Smith's torch |
 | `{file};t1` `;t2` `;t3` | Your theme's normal, muted and faint text |
 
 Leave the `;` off and the text picks itself, light or dark, so it stays readable.
+
+With Cursor-Smith's torch on, the bar darkens with the page, and a token in the caret's color stays lit and glows: `:bc` lights the whole segment and its arrows, `;bc` its text.
 
 `{g}` is a fade, one color stepping into the next. `{g}{g}{g}` is three narrow steps, `{ggg}` one wide one. Fades are the first thing dropped when the window gets narrow.
 

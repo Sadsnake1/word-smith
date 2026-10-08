@@ -207,6 +207,9 @@ function wsFieldsReset(plugin: WordSmith) {
 
 	// ── The docked menu's revival: one pass in flight at a time ──
 	plugin._reviving        = null;
+	// ── The watch on Cursor-Smith’s caret canvas, for a token in its colour ──
+	plugin._caretObs        = null;
+	plugin._caretObsEl      = null;
 
 	// ── Theme observer ────────────────────────────────────────────────────
 	plugin._themeObserver   = null;
@@ -1402,6 +1405,10 @@ export default class WordSmith extends Plugin {
 	declare cursorSmithVimColor: BarMethods["cursorSmithVimColor"];
 	declare vimModeColor: BarMethods["vimModeColor"];
 	declare cursorColor: BarMethods["cursorColor"];
+	declare markLitSlots: BarMethods["markLitSlots"];
+	declare caretLiveColor: BarMethods["caretLiveColor"];
+	declare caretLiveSync: BarMethods["caretLiveSync"];
+	declare caretLiveWatch: BarMethods["caretLiveWatch"];
 	declare renderPowerlineSection: BarMethods["renderPowerlineSection"];
 	declare renderStatusSection: BarMethods["renderStatusSection"];
 	declare headingCrumbCount: BarMethods["headingCrumbCount"];
@@ -1786,6 +1793,8 @@ export default class WordSmith extends Plugin {
 	_maskRetries: number;
 	_menuPanelRegistered: boolean;
 	_reviving: Promise<void> | null;
+	_caretObs: MutationObserver | null;
+	_caretObsEl: Element | null;
 	_mirrorFoundAt: string | null;
 	_mirrorSig: string;
 	_mirrorTimer: number | null;
@@ -2430,6 +2439,7 @@ export default class WordSmith extends Plugin {
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 		if (this._fitRO) { this._fitRO.disconnect(); this._fitRO = null; }
 		if (this._barRootRO) { this._barRootRO.disconnect(); this._barRootRO = null; }
+		if (this._caretObs) { this._caretObs.disconnect(); this._caretObs = null; this._caretObsEl = null; }
 		// Abort an in-flight mask drag (its move/up listeners would otherwise
 		// outlive the plugin)
 		if (this._activeDragCleanup) this._activeDragCleanup();
@@ -3426,6 +3436,7 @@ export default class WordSmith extends Plugin {
 		// The bar's two observers: the fit's, and the root split's for its bounds.
 		if (this._fitRO) { this._fitRO.disconnect(); this._fitRO = null; }
 		if (this._barRootRO) { this._barRootRO.disconnect(); this._barRootRO = null; }
+		if (this._caretObs) { this._caretObs.disconnect(); this._caretObs = null; this._caretObsEl = null; }
 		this._barRootObserved = null;
 		this._barRenderSig = null;
 		// Strip all body classes and attributes

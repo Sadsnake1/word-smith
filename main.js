@@ -4472,6 +4472,16 @@ var wsSvgInto = (el, markup) => {
   el.appendChild((0, import_obsidian.sanitizeHTMLToDom)(String(markup == null ? "" : markup)));
   return el;
 };
+function wsHueRotate(hex, deg) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m || !isFinite(deg))
+    return hex;
+  const n = parseInt(m[1], 16);
+  const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
+  const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  const ch = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return "#" + ch(r * (0.213 + c * 0.787 - s * 0.213) + g * (0.715 - c * 0.715 - s * 0.715) + b * (0.072 - c * 0.072 + s * 0.928)) + ch(r * (0.213 - c * 0.213 + s * 0.143) + g * (0.715 + c * 0.285 + s * 0.14) + b * (0.072 - c * 0.072 - s * 0.283)) + ch(r * (0.213 - c * 0.213 - s * 0.787) + g * (0.715 - c * 0.715 + s * 0.715) + b * (0.072 + c * 0.928 + s * 0.072));
+}
 var wsCursorMarkSeq = 0;
 function wsCursorMarkSvg(look, dark) {
   const o = look && typeof look === "object" ? look : {};
@@ -4609,7 +4619,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.8.0";
+var WS_PLUGIN_VERSION = "1.8.1";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -25260,6 +25270,7 @@ var barMethods = {
       }
     }
     const section = (fmt, side) => this.renderPowerlineSection(fmt, subs, side, rowH, barColor);
+    let barLit = false;
     for (let ri = 0; ri < rows.length; ri++) {
       const row = rows[ri];
       const rowEl = this.retroStatusBarEl.createDiv({ cls: "ws-status-row" });
@@ -25267,15 +25278,116 @@ var barMethods = {
       rowEl.createSpan({ cls: "ws-status-section ws-status-left" }).appendChild(section(left, "left"));
       rowEl.createSpan({ cls: "ws-status-section ws-status-center" }).appendChild(section(row.center, "center"));
       rowEl.createSpan({ cls: "ws-status-section ws-status-right" }).appendChild(section(row.right, "right"));
+      if (this.markLitSlots(rowEl))
+        barLit = true;
       this._statusRowEls.push(rowEl);
     }
     this.retroStatusBarEl.classList.toggle("ws-status-multirow", rows.length > 1);
+    this.retroStatusBarEl.classList.toggle("ws-pl-haslit", barLit);
     const anyGoalMet = (this._goalStates || []).some((gl) => gl.met);
     this.retroStatusBarEl.classList.toggle("ws-goal-met", anyGoalMet);
     this._goalWasMet = anyGoalMet;
     if (this._barBoundsEl !== this.retroStatusBarEl || this._barBoundsDirty !== false)
       this.stampBarBounds();
+    this.caretLiveWatch();
+    this.caretLiveSync();
     this.fitAfterLayout();
+  },
+  markLitSlots(rowEl) {
+    let any = false, light = false;
+    for (const sec of Array.from(rowEl.children)) {
+      if (!sec.classList.contains("ws-status-section"))
+        continue;
+      const has = Array.from(sec.children).some((c) => c.classList.contains("ws-pl-seg") && c.classList.contains("ws-pl-lit"));
+      sec.classList.toggle("ws-pl-haslit", has);
+      if (has)
+        any = true;
+      if (has || Array.from(sec.children).some((c) => c.classList.contains("ws-pl-lit-ink")))
+        light = true;
+    }
+    rowEl.classList.toggle("ws-pl-haslit", any);
+    rowEl.classList.toggle("ws-pl-haslight", light);
+    return any;
+  },
+  caretLiveColor() {
+    const cs = this.cursorSmithPlugin();
+    if (!cs)
+      return null;
+    const filter = typeof cs._capsFilter === "string" ? cs._capsFilter : "";
+    const m = /hue-rotate\((-?[\d.]+)deg\)/.exec(filter);
+    if (!m)
+      return null;
+    const base = this.cursorColor();
+    if (!base)
+      return null;
+    let c = base;
+    try {
+      const flipped = typeof cs._capsFlip === "function" ? cs._capsFlip.call(cs, base) : null;
+      if (typeof flipped === "string" && flipped)
+        c = flipped;
+    } catch {
+      c = base;
+    }
+    return wsHueRotate(c, Number(m[1]));
+  },
+  caretLiveSync() {
+    const bar = this.retroStatusBarEl;
+    if (!bar)
+      return;
+    const live = this.caretLiveColor();
+    for (const el of Array.from(bar.querySelectorAll(".ws-pl-seg.ws-pl-lit"))) {
+      const c = live || el.dataset.wsCaret || "";
+      if (!c)
+        continue;
+      el.style.backgroundColor = c;
+      el.style.setProperty("--ws-pl-glow", c);
+      el.style.boxShadow = "-1px 0 0 0 " + c + ", 1px 0 0 0 " + c;
+      if (el.dataset.wsInkAuto)
+        el.style.color = this.powerlineInk(c);
+    }
+    for (const el of Array.from(bar.querySelectorAll(".ws-pl-seg.ws-pl-lit-ink"))) {
+      const c = live || el.dataset.wsCaretInk || "";
+      if (c)
+        el.style.color = c;
+    }
+    for (const el of Array.from(bar.querySelectorAll(".ws-pl-litpart, .ws-pl-glowpart"))) {
+      const c = live || el.getAttribute("data-ws-caret") || "";
+      if (c)
+        el.setAttribute("fill", c);
+    }
+    for (const el of Array.from(bar.querySelectorAll("svg.ws-pl-sep.ws-pl-lit"))) {
+      const c = live || el.getAttribute("data-ws-caret") || "";
+      if (c)
+        el.style.setProperty("--ws-pl-glow", c);
+    }
+  },
+  caretLiveWatch() {
+    const cs = this.cursorSmithPlugin();
+    const cv = cs ? cs.canvas : null;
+    const canvas = cv && typeof cv.getAttribute === "function" ? cv : null;
+    const bar = this.retroStatusBarEl;
+    const want = !!canvas && !!bar && !!bar.querySelector(".ws-pl-lit, .ws-pl-lit-ink");
+    if (!want) {
+      if (this._caretObs) {
+        this._caretObs.disconnect();
+        this._caretObs = null;
+        this._caretObsEl = null;
+      }
+      return;
+    }
+    if (this._caretObsEl === canvas)
+      return;
+    if (this._caretObs)
+      this._caretObs.disconnect();
+    this._caretObs = new MutationObserver(() => {
+      try {
+        this.caretLiveSync();
+      } catch (_) {
+        wsCatch("caretLiveWatch: caretLiveSync", _);
+      }
+    });
+    this._caretObs.observe(canvas, { attributes: true, attributeFilter: ["style"] });
+    this._caretObsEl = canvas;
   },
   fitAfterLayout() {
     const rows = this._statusRowEls || [];
@@ -25511,7 +25623,11 @@ var barMethods = {
     rect.setAttribute("width", String(w + 2));
     rect.setAttribute("height", String(h + 2));
     rect.setAttribute("fill", dir === "right" ? toColor : fromColor);
-    svg.appendChild(rect);
+    const layer = createSvg("g");
+    layer.setAttribute("class", "ws-pl-layer");
+    layer.setAttribute("opacity", "0.999");
+    svg.appendChild(layer);
+    layer.appendChild(rect);
     const L = -1;
     const R = w + 1;
     const mid = h / 2;
@@ -25542,7 +25658,7 @@ var barMethods = {
     const path = createSvg("path");
     path.setAttribute("d", d);
     path.setAttribute("fill", fill);
-    svg.appendChild(path);
+    layer.appendChild(path);
     return svg;
   },
   themeSurfaceColor(varName) {
@@ -25765,6 +25881,66 @@ var barMethods = {
       return frag;
     const isFade = built.map((b) => b.seg.slot == null && /^(?:\{g+\}|\s)+$/i.test(b.seg.text));
     const segColors = built.map((b, i) => isFade[i] ? "" : this.powerlineSegColor(b.seg, i, colors, hasVim, barColor));
+    const caret = this.cursorColor();
+    const lit = built.map((b, i) => !isFade[i] && b.seg.slot === "bc" && !!caret);
+    const litSep = (sep, fromLit, toLit, litColor) => {
+      if (!fromLit && !toLit)
+        return sep;
+      sep.classList.add("ws-pl-lit");
+      const glowColor = String(litColor || "").trim();
+      if (glowColor) {
+        sep.style.setProperty("--ws-pl-glow", glowColor);
+        sep.setAttribute("data-ws-caret", glowColor);
+      }
+      const box = (sep.getAttribute("viewBox") || "").split(" ").map(Number);
+      if (box.length !== 4)
+        return sep;
+      const inBox = () => {
+        const v = createSvg("svg");
+        v.setAttribute("class", "ws-pl-inbox");
+        v.setAttribute("width", String(box[2]));
+        v.setAttribute("height", String(box[3]));
+        return v;
+      };
+      const drawing = inBox();
+      while (sep.firstChild)
+        drawing.appendChild(sep.firstChild);
+      sep.appendChild(drawing);
+      const layer = drawing.querySelector(".ws-pl-layer") || drawing;
+      if (fromLit && toLit) {
+        sep.classList.add("ws-pl-litboth");
+        return sep;
+      }
+      const shape = sep.querySelector("path");
+      if (!shape)
+        return sep;
+      const d = shape.getAttribute("d") || "";
+      const rectLessShape = "M-1,-1 H" + (box[2] + 1) + " V" + (box[3] + 1) + " H-1 Z " + d;
+      const shapeIsLit = (shape.getAttribute("fill") || "") === glowColor;
+      const litPart = shapeIsLit ? shape : sep.querySelector("rect");
+      const painted = litPart ? litPart.getAttribute("fill") || "" : "";
+      if (litPart) {
+        litPart.classList.add("ws-pl-litpart");
+        litPart.setAttribute("data-ws-caret", painted);
+      }
+      const shade = createSvg("path");
+      shade.setAttribute("class", "ws-pl-shade");
+      shade.setAttribute("fill-rule", "evenodd");
+      shade.setAttribute("d", shapeIsLit ? rectLessShape : d);
+      layer.appendChild(shade);
+      const glow = createSvg("g");
+      glow.setAttribute("class", "ws-pl-glowpart");
+      glow.setAttribute("fill", painted);
+      glow.setAttribute("data-ws-caret", painted);
+      const glowShape = createSvg("path");
+      glowShape.setAttribute("fill-rule", "evenodd");
+      glowShape.setAttribute("d", shapeIsLit ? d : rectLessShape);
+      const glowBox = inBox();
+      glowBox.appendChild(glowShape);
+      glow.appendChild(glowBox);
+      sep.appendChild(glow);
+      return sep;
+    };
     for (let r0 = 0; r0 < built.length; r0++) {
       if (!isFade[r0])
         continue;
@@ -25811,7 +25987,7 @@ var barMethods = {
     };
     for (let i = 0; i < built.length; i++) {
       if (i === 0 && (side !== "left" || parsed.lead)) {
-        frag.appendChild(markCap(this.buildPowerlineSep(barColor, edgeL(0), parsed.leadDir || "left", rowH, parsed.lead || sepsFor[0] || cap), "lead"));
+        frag.appendChild(litSep(markCap(this.buildPowerlineSep(barColor, edgeL(0), parsed.leadDir || "left", rowH, parsed.lead || sepsFor[0] || cap), "lead"), false, lit[0], edgeL(0)));
       }
       const el = createSpan();
       el.className = "ws-pl-seg" + (/^(?:\{[sg]+\}|\s)+$/i.test(built[i].seg.text) ? " ws-pl-blank" : "") + (isFade[i] ? " ws-pl-fade" : "");
@@ -25822,19 +25998,30 @@ var barMethods = {
         el.style.backgroundColor = segColors[i];
         if (built[i].seg.slot === "f")
           el.classList.add("ws-pl-flagbg");
+        if (lit[i]) {
+          el.classList.add("ws-pl-lit");
+          el.style.setProperty("--ws-pl-glow", segColors[i]);
+          el.dataset.wsCaret = segColors[i];
+          if (built[i].seg.ink == null)
+            el.dataset.wsInkAuto = "1";
+        }
         el.style.boxShadow = "-1px 0 0 0 " + segColors[i] + ", 1px 0 0 0 " + segColors[i];
         const segInk = built[i].seg.ink;
         el.style.color = segInk === "vim" ? this.vimModeColor() : segInk === "bc" ? this.cursorColor() || "" : segInk === "f" ? this.flagColor() || "" : typeof segInk === "string" && PL_THEME_INKS[segInk] ? PL_THEME_INKS[segInk] : segInk != null ? this.powerlineTextColor(Number(segInk)) : this.powerlineSegInk(built[i].seg, segColors[i], barColor);
+        if (segInk === "bc" && caret) {
+          el.classList.add("ws-pl-lit-ink");
+          el.dataset.wsCaretInk = caret;
+        }
       }
       el.appendChild(built[i].inner);
       frag.appendChild(el);
       if (i < built.length - 1) {
         const dir = side === "left" ? "right" : side === "right" ? "left" : i + 1 < pivot ? "left" : "right";
-        frag.appendChild(this.buildPowerlineSep(edgeR(i), edgeL(i + 1), dir, rowH, sepsFor[i]));
+        frag.appendChild(litSep(this.buildPowerlineSep(edgeR(i), edgeL(i + 1), dir, rowH, sepsFor[i]), lit[i], lit[i + 1], lit[i] ? edgeR(i) : edgeL(i + 1)));
       }
     }
     if (side !== "right" || parsed.tail) {
-      frag.appendChild(markCap(this.buildPowerlineSep(edgeR(built.length - 1), barColor, parsed.tailDir || "right", rowH, parsed.tail || sepsFor[sepsFor.length - 1] || cap), "tail"));
+      frag.appendChild(litSep(markCap(this.buildPowerlineSep(edgeR(built.length - 1), barColor, parsed.tailDir || "right", rowH, parsed.tail || sepsFor[sepsFor.length - 1] || cap), "tail"), lit[built.length - 1], false, edgeR(built.length - 1)));
     }
     return frag;
   },
@@ -34145,6 +34332,8 @@ function wsFieldsReset(plugin) {
   plugin._twIdle = null;
   plugin._twIdleView = null;
   plugin._reviving = null;
+  plugin._caretObs = null;
+  plugin._caretObsEl = null;
   plugin._themeObserver = null;
 }
 function wsRegisterCommands(plugin) {
@@ -34983,6 +35172,11 @@ var WordSmith = class extends import_obsidian24.Plugin {
       this._barRootRO.disconnect();
       this._barRootRO = null;
     }
+    if (this._caretObs) {
+      this._caretObs.disconnect();
+      this._caretObs = null;
+      this._caretObsEl = null;
+    }
     if (this._activeDragCleanup)
       this._activeDragCleanup();
     if (this._batteryManager && this._batteryHandler) {
@@ -35583,6 +35777,11 @@ var WordSmith = class extends import_obsidian24.Plugin {
     if (this._barRootRO) {
       this._barRootRO.disconnect();
       this._barRootRO = null;
+    }
+    if (this._caretObs) {
+      this._caretObs.disconnect();
+      this._caretObs = null;
+      this._caretObsEl = null;
     }
     this._barRootObserved = null;
     this._barRenderSig = null;

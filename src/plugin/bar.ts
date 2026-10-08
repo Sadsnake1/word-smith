@@ -8,7 +8,7 @@
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsCursorMarkSvg, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsCursorMarkSvg, wsHueRotate, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -2909,6 +2909,7 @@ export const barMethods = {
 		// which is the only thing that changed here.
 		const section = (fmt: string, side: string) =>
 			this.renderPowerlineSection(fmt, subs, side, rowH, barColor);
+		let barLit = false;
 		for (let ri = 0; ri < rows.length; ri++) {
 			const row = rows[ri];
 			const rowEl = this.retroStatusBarEl.createDiv({ cls: 'ws-status-row' });
@@ -2924,9 +2925,11 @@ export const barMethods = {
 				.appendChild(section(row.center, 'center'));
 			rowEl.createSpan({ cls: 'ws-status-section ws-status-right' })
 				.appendChild(section(row.right, 'right'));
+			if (this.markLitSlots(rowEl)) barLit = true;
 			this._statusRowEls.push(rowEl);
 		}
 		this.retroStatusBarEl.classList.toggle('ws-status-multirow', rows.length > 1);
+		this.retroStatusBarEl.classList.toggle('ws-pl-haslit', barLit);
 
 		// Flash the bar when any registered goal is met (if enabled).
 		const anyGoalMet = (this._goalStates || []).some((gl) => gl.met);
@@ -2942,7 +2945,100 @@ export const barMethods = {
 		// root split resized since they were stamped (`_barRootRO`). Measuring
 		// the split right after the rebuild forced a layout on every keystroke.
 		if (this._barBoundsEl !== this.retroStatusBarEl || this._barBoundsDirty !== false) this.stampBarBounds();
+		this.caretLiveWatch();
+		this.caretLiveSync();
 		this.fitAfterLayout();
+	},
+
+	// A slot holding a lit box says so (`ws-pl-haslit`), and so does its row:
+	// under the torch the sheet lets the glow out past their edges, which clip
+	// otherwise. The bar is marked from the answer, by its painter.
+	markLitSlots(this: WordSmith, rowEl: Element): boolean {
+		let any = false, light = false;
+		for (const sec of Array.from(rowEl.children)) {
+			if (!sec.classList.contains('ws-status-section')) continue;
+			const has = Array.from(sec.children).some((c) => c.classList.contains('ws-pl-seg') && c.classList.contains('ws-pl-lit'));
+			sec.classList.toggle('ws-pl-haslit', has);
+			if (has) any = true;
+			if (has || Array.from(sec.children).some((c) => c.classList.contains('ws-pl-lit-ink'))) light = true;
+		}
+		rowEl.classList.toggle('ws-pl-haslit', any);
+		// any light at all, a ;bc ink too: a row after the first fades, and under
+		// the torch fades round its lights instead of over them
+		rowEl.classList.toggle('ws-pl-haslight', light);
+		return any;
+	},
+
+	// ── THE CARET'S COLOR AS CURSOR-SMITH PAINTS IT THIS MOMENT ─────────────
+	// Its flip (Invert colors: Shift and Caps Lock; a delete) does not change
+	// the caret's settings: the caret is drawn in `_capsFlip(color)` and its
+	// canvas turned by a `hue-rotate()` filter, eased over a few frames. A
+	// token in the caret's colour follows by the same two steps; null when
+	// nothing is flipped, and the token keeps the colour it was painted.
+	caretLiveColor(this: WordSmith): string | null {
+		const cs = this.cursorSmithPlugin();
+		if (!cs) return null;
+		const filter = typeof cs._capsFilter === 'string' ? cs._capsFilter : '';
+		const m = /hue-rotate\((-?[\d.]+)deg\)/.exec(filter);
+		if (!m) return null;
+		const base = this.cursorColor();
+		if (!base) return null;
+		let c = base;
+		try {
+			const flipped: unknown = typeof cs._capsFlip === 'function' ? (cs._capsFlip as (h: string) => unknown).call(cs, base) : null;
+			if (typeof flipped === 'string' && flipped) c = flipped;
+		} catch { c = base; }
+		return wsHueRotate(c, Number(m[1]));
+	},
+
+	// The pieces in the caret's colour, repainted: a :bc box (and its glow, its
+	// seam and, where it chose its own, its ink), a ;bc ink, an arrow's lit part
+	// and its glow.
+	caretLiveSync(this: WordSmith) {
+		const bar = this.retroStatusBarEl;
+		if (!bar) return;
+		const live = this.caretLiveColor();
+		for (const el of Array.from(bar.querySelectorAll<HTMLElement>('.ws-pl-seg.ws-pl-lit'))) {
+			const c = live || el.dataset.wsCaret || '';
+			if (!c) continue;
+			el.style.backgroundColor = c;
+			el.style.setProperty('--ws-pl-glow', c);
+			el.style.boxShadow = '-1px 0 0 0 ' + c + ', 1px 0 0 0 ' + c;
+			if (el.dataset.wsInkAuto) el.style.color = this.powerlineInk(c);
+		}
+		for (const el of Array.from(bar.querySelectorAll<HTMLElement>('.ws-pl-seg.ws-pl-lit-ink'))) {
+			const c = live || el.dataset.wsCaretInk || '';
+			if (c) el.style.color = c;
+		}
+		for (const el of Array.from(bar.querySelectorAll('.ws-pl-litpart, .ws-pl-glowpart'))) {
+			const c = live || el.getAttribute('data-ws-caret') || '';
+			if (c) el.setAttribute('fill', c);
+		}
+		for (const el of Array.from(bar.querySelectorAll<SVGSVGElement>('svg.ws-pl-sep.ws-pl-lit'))) {
+			const c = live || el.getAttribute('data-ws-caret') || '';
+			if (c) el.style.setProperty('--ws-pl-glow', c);
+		}
+	},
+
+	// WATCHED, NOT POLLED: Cursor-Smith writes the filter on its canvas's own
+	// style on every eased step of the flip and clears it at the end, so one
+	// observer on that attribute hears each step. Only while the bar holds a
+	// token in the caret's colour; moved when Cursor-Smith builds a new canvas.
+	caretLiveWatch(this: WordSmith) {
+		const cs = this.cursorSmithPlugin();
+		const cv = cs ? cs.canvas : null;
+		const canvas = cv && typeof (cv as Element).getAttribute === 'function' ? cv as Element : null;
+		const bar = this.retroStatusBarEl;
+		const want = !!canvas && !!bar && !!bar.querySelector('.ws-pl-lit, .ws-pl-lit-ink');
+		if (!want) {
+			if (this._caretObs) { this._caretObs.disconnect(); this._caretObs = null; this._caretObsEl = null; }
+			return;
+		}
+		if (this._caretObsEl === canvas) return;
+		if (this._caretObs) this._caretObs.disconnect();
+		this._caretObs = new MutationObserver(() => { try { this.caretLiveSync(); } catch (_) { wsCatch('caretLiveWatch: caretLiveSync', _); } });
+		this._caretObs.observe(canvas, { attributes: true, attributeFilter: ['style'] });
+		this._caretObsEl = canvas;
 	},
 
 	// ── THE FIT AFTER THE BROWSER'S OWN LAYOUT ─────────────────────────────
@@ -3456,7 +3552,19 @@ export const barMethods = {
 		rect.setAttribute('width', String(w + 2));
 		rect.setAttribute('height', String(h + 2));
 		rect.setAttribute('fill', dir === 'right' ? toColor : fromColor);
-		svg.appendChild(rect);
+		// ONE LAYER, CUT ONCE (the writer, 2026-10-08: "fix the arrows and the
+		// tokens that are not perfectly displayed, because of pixel issues"): the
+		// svg cuts each drawing in it at its edge on its own, so at a fractional
+		// device pixel the rect showed through the shape's half-covered edge
+		// pixel, a seam a pixel wide down the joint of a box and its arrow
+		// (53/58/67 between two 63/69/80, at 1.25, 1.37 and 1.5 times). A group
+		// a hair short of opaque is drawn whole, then cut; an isolation group is
+		// not enough (measured).
+		const layer = createSvg('g');
+		layer.setAttribute('class', 'ws-pl-layer');
+		layer.setAttribute('opacity', '0.999');
+		svg.appendChild(layer);
+		layer.appendChild(rect);
 
 		// The shape's FLAT side must start outside the viewBox.
 		//
@@ -3578,7 +3686,7 @@ export const barMethods = {
 		const path = createSvg('path');
 		path.setAttribute('d', d);
 		path.setAttribute('fill', fill);
-		svg.appendChild(path);
+		layer.appendChild(path);
 		return svg;
 	},
 
@@ -3938,6 +4046,71 @@ export const barMethods = {
 		// auto walk stays positional, exactly as before.
 		const segColors = built.map((b, i) =>
 			isFade[i] ? '' : this.powerlineSegColor(b.seg, i, colors, hasVim, barColor));
+		// A SEGMENT IN THE CARET'S COLOR IS A LIGHT under Cursor-Smith's torch: a
+		// `:bc` box that took the caret's color (null falls flush, and is no light)
+		// is marked here, and so are the arrows either side of it; the sheet lifts
+		// them above the torch's wash and lets them glow, only while the torch is on.
+		const caret = this.cursorColor();
+		const lit = built.map((b, i) => !isFade[i] && b.seg.slot === 'bc' && !!caret);
+		// An arrow is ONE drawing in two colours (a backing rect and a shape), so a
+		// lit one rises whole and the half that is the darkened neighbour's carries
+		// a shade: that half drawn again in the wash's colour, shown only under the
+		// torch, so it is exactly as dark as the wash would have made it.
+		// The arrow glows as its box does, in the caret's colour (the flip repaints
+		// it): a lit arrow whole, and of a half-lit one the lit half, drawn once
+		// more ABOVE the shade, since the shade would cover a glow cast by the lit
+		// part itself inside the arrow. THE LIGHT LEAVES THE ARROW'S BOX, ITS
+		// DRAWING DOES NOT: every drawing bleeds a unit past the box, which the
+		// arrow cut off itself until it opened for the glow; a nested viewport
+		// the arrow's size cuts it there again (the sheet may not clip), and a
+		// GROUP around the copy's own viewport casts the glow past that cut.
+		const litSep = (sep: SVGSVGElement, fromLit: boolean, toLit: boolean, litColor: string) => {
+			if (!fromLit && !toLit) return sep;
+			sep.classList.add('ws-pl-lit');
+			const glowColor = String(litColor || '').trim();
+			if (glowColor) { sep.style.setProperty('--ws-pl-glow', glowColor); sep.setAttribute('data-ws-caret', glowColor); }
+			const box = (sep.getAttribute('viewBox') || '').split(' ').map(Number);
+			if (box.length !== 4) return sep;
+			const inBox = () => {
+				const v = createSvg('svg');
+				v.setAttribute('class', 'ws-pl-inbox');
+				v.setAttribute('width', String(box[2]));
+				v.setAttribute('height', String(box[3]));
+				return v;
+			};
+			// the arrow's one layer, as built (buildPowerlineSep: cut once, whole,
+			// or the backing seams through), moved into the viewport
+			const drawing = inBox();
+			while (sep.firstChild) drawing.appendChild(sep.firstChild);
+			sep.appendChild(drawing);
+			const layer = drawing.querySelector('.ws-pl-layer') || drawing;
+			if (fromLit && toLit) { sep.classList.add('ws-pl-litboth'); return sep; }
+			const shape = sep.querySelector('path');
+			if (!shape) return sep;
+			const d = shape.getAttribute('d') || '';
+			const rectLessShape = 'M-1,-1 H' + (box[2] + 1) + ' V' + (box[3] + 1) + ' H-1 Z ' + d;
+			const shapeIsLit = (shape.getAttribute('fill') || '') === glowColor;
+			const litPart = shapeIsLit ? shape : sep.querySelector('rect');
+			const painted = litPart ? litPart.getAttribute('fill') || '' : '';
+			if (litPart) { litPart.classList.add('ws-pl-litpart'); litPart.setAttribute('data-ws-caret', painted); }
+			const shade = createSvg('path');
+			shade.setAttribute('class', 'ws-pl-shade');
+			shade.setAttribute('fill-rule', 'evenodd');
+			shade.setAttribute('d', shapeIsLit ? rectLessShape : d);
+			layer.appendChild(shade);
+			const glow = createSvg('g');
+			glow.setAttribute('class', 'ws-pl-glowpart');
+			glow.setAttribute('fill', painted);
+			glow.setAttribute('data-ws-caret', painted);
+			const glowShape = createSvg('path');
+			glowShape.setAttribute('fill-rule', 'evenodd');
+			glowShape.setAttribute('d', shapeIsLit ? d : rectLessShape);
+			const glowBox = inBox();
+			glowBox.appendChild(glowShape);
+			glow.appendChild(glowBox);
+			sep.appendChild(glow);
+			return sep;
+		};
 
 		// CONSECUTIVE fades are one gradient RUN. The writer reaches this by
 		// putting dividers between {g} tokens — {g}>{g}>{g} parses as three
@@ -4028,9 +4201,9 @@ export const barMethods = {
 				// Against a fade the cap blends with the OUTERMOST band —
 				// which sits close to the bar's own colour, so a cap on a
 				// fade-out is as quiet as the fade it stands on.
-				frag.appendChild(markCap(this.buildPowerlineSep(barColor, edgeL(0),
+				frag.appendChild(litSep(markCap(this.buildPowerlineSep(barColor, edgeL(0),
 					parsed.leadDir || 'left', rowH,
-					parsed.lead || sepsFor[0] || cap), 'lead'));
+					parsed.lead || sepsFor[0] || cap), 'lead'), false, lit[0], edgeL(0)));
 			}
 			const el = createSpan();
 			// A segment holding nothing but spacers is a rule, not a label:
@@ -4058,6 +4231,12 @@ export const barMethods = {
 			// it reads as a hole punched in the paint rather than a flag
 			// that failed to draw.
 			if (built[i].seg.slot === 'f') el.classList.add('ws-pl-flagbg');
+			if (lit[i]) {
+				el.classList.add('ws-pl-lit');
+				el.style.setProperty('--ws-pl-glow', segColors[i]);
+				el.dataset.wsCaret = segColors[i];
+				if (built[i].seg.ink == null) el.dataset.wsInkAuto = '1';
+			}
 			// Bleed the segment's own colour one pixel left and right.
 			//
 			// Segment widths depend on their TEXT, so they are fractional —
@@ -4092,6 +4271,8 @@ export const barMethods = {
 				: (typeof segInk === 'string' && PL_THEME_INKS[segInk]) ? PL_THEME_INKS[segInk]
 				: segInk != null ? this.powerlineTextColor(Number(segInk))
 				: this.powerlineSegInk(built[i].seg, segColors[i], barColor);
+			// ;bc: the caret-colored ink is the light, and only the ink rises and glows.
+			if (segInk === 'bc' && caret) { el.classList.add('ws-pl-lit-ink'); el.dataset.wsCaretInk = caret; }
 			}
 			el.appendChild(built[i].inner);
 			frag.appendChild(el);
@@ -4104,13 +4285,13 @@ export const barMethods = {
 				// each side, which is a colour a real box is wearing. A |
 				// stays invisible, so a flat fade is written with pipes and
 				// a sawtooth one with arrows — the divider says which.
-				frag.appendChild(this.buildPowerlineSep(edgeR(i), edgeL(i + 1), dir, rowH, sepsFor[i]));
+				frag.appendChild(litSep(this.buildPowerlineSep(edgeR(i), edgeL(i + 1), dir, rowH, sepsFor[i]), lit[i], lit[i + 1], lit[i] ? edgeR(i) : edgeL(i + 1)));
 			}
 		}
 		if (side !== 'right' || parsed.tail) {
-			frag.appendChild(markCap(this.buildPowerlineSep(edgeR(built.length - 1), barColor,
+			frag.appendChild(litSep(markCap(this.buildPowerlineSep(edgeR(built.length - 1), barColor,
 				parsed.tailDir || 'right', rowH,
-				parsed.tail || sepsFor[sepsFor.length - 1] || cap), 'tail'));
+				parsed.tail || sepsFor[sepsFor.length - 1] || cap), 'tail'), lit[built.length - 1], false, edgeR(built.length - 1)));
 		}
 		return frag;
 	},

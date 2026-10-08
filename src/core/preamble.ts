@@ -4994,6 +4994,24 @@ export const wsSvgInto = (el: Element, markup: string) => {
 	el.appendChild(sanitizeHTMLToDom(String(markup == null ? '' : markup)));
 	return el;
 };
+// A COLOR TURNED ROUND THE WHEEL as CSS's `hue-rotate()` turns it: the filter's
+// own matrix, on the 0-255 channels (Cursor-Smith turns its caret canvas with
+// that filter while its colors are flipped, and a token in the caret's color
+// has to land on the same color). Hex in, hex out; anything unparseable back
+// unchanged.
+export function wsHueRotate(hex: string, deg: number): string {
+	const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+	if (!m || !isFinite(deg)) return hex;
+	const n = parseInt(m[1], 16);
+	const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+	const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+	const ch = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+	return '#'
+		+ ch(r * (0.213 + c * 0.787 - s * 0.213) + g * (0.715 - c * 0.715 - s * 0.715) + b * (0.072 - c * 0.072 + s * 0.928))
+		+ ch(r * (0.213 - c * 0.213 + s * 0.143) + g * (0.715 + c * 0.285 + s * 0.140) + b * (0.072 - c * 0.072 - s * 0.283))
+		+ ch(r * (0.213 - c * 0.213 - s * 0.787) + g * (0.715 - c * 0.715 + s * 0.715) + b * (0.072 + c * 0.928 + s * 0.072));
+}
+
 // A CURSOR-SMITH PRESET, DRAWN: its caret's shape in its own color, the mark
 // beside its name in the Cursors lists. Box (filled, or an outline when it is
 // hollow), Line or Underline, in the dark or the light color for the mode on
@@ -5285,7 +5303,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.0';
+export const WS_PLUGIN_VERSION = '1.8.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

@@ -27,7 +27,7 @@ import {
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart,
-	wsCursorMarkSvg,
+	wsCursorMarkSvg, wsHueRotate,
 } from './core/preamble';
 
 export default Object.assign(WordSmith, {
@@ -64,4 +64,6 @@ export default Object.assign(WordSmith, {
 	wsSentenceStart,
 	// a Cursor-Smith preset drawn beside its name in the Cursors lists
 	wsCursorMarkSvg,
+	// the colour a hue-rotate() filter turns, for a token following Cursor-Smith’s flip
+	wsHueRotate,
 });

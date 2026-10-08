@@ -414,6 +414,89 @@ body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar.ws-status-bar::b
 	background: var(--ws-torch-wash);
 	pointer-events: none;
 }
+/* A TOKEN IN THE CARET'S COLOR IS A LIGHT (the writer, 2026-10-08: ":bc or ;bc
+   to make the token glow too if the torch effect is on"): a `:bc` segment and
+   the arrows beside it rise above the wash, lit, and glow in the caret's color
+   onto the darkened segments either side; a `;bc` segment's ink rises and
+   glows, its box left darkened. Above the wash's 9 in the bar's own stack. */
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-seg.ws-pl-lit,
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-lit {
+	position: relative;
+	z-index: 10;
+}
+/* …and a lit arrow a step above its lit box, as every arrow stands above its
+   boxes with the torch off (.ws-pl-sep's own z-index: "or the overlap eats
+   the point"). Level with the box, the later of the two won, and a lit
+   token's two sides differed by up to 3px a row (the writer, 2026-10-08:
+   "Still some inconsistencies with left and right pointy things"). The box
+   laid over the arrow out of it instead left its own square corners standing
+   where the point's edges should run on into the box's (the writer: "like if
+   the arrow is inside the square not like a pointy end to a label"). */
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-lit {
+	z-index: 11;
+}
+/* THE GLOW, ONE SOFT LAYER (the writer, 2026-10-08: "make the glow subtler,
+   it's too strong"; it was two full-strength layers, 4px under 10px; then "add
+   a bit more glow", from 6px at 50%): its reach and strength set here once,
+   for a box, an arrow and a ;bc ink alike. */
+body.cursor-smith-torch-active {
+	--ws-pl-glow-blur: 7px;
+	--ws-pl-glow-mix: 65%;
+}
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-seg.ws-pl-lit {
+	filter: drop-shadow(0 0 var(--ws-pl-glow-blur) color-mix(in srgb, var(--ws-pl-glow) var(--ws-pl-glow-mix), transparent));
+}
+/* …and its slot lets the light out (the writer, 2026-10-08: "only ;bc works.
+   :bc on a token don't glow"): a slot clips at its edges, and a lit box alone
+   in its slot, `<{ss}{words}:bc words`, had nowhere to cast its glow. Only
+   under the torch. */
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-status-section.ws-pl-haslit {
+	overflow: visible;
+}
+/* …and so do its row and the bar (the writer, 2026-10-08: "the glow is under
+   the token"): a box as tall as the bar met the bar's own edges, and its glow
+   showed only beside the arrow. Up over the note now, not while the bar is
+   hidden away: from below the window's foot it would rise into view alone. */
+body.cursor-smith-torch-active.ws-editor-focused:not(.ws-bar-hidden) .ws-status-bar.ws-pl-haslit,
+body.cursor-smith-torch-active.ws-editor-focused:not(.ws-bar-hidden) .ws-status-bar .ws-status-row.ws-pl-haslit,
+body.cursor-smith-torch-active.ws-editor-focused.ws-bar-peek .ws-status-bar.ws-pl-haslit,
+body.cursor-smith-torch-active.ws-editor-focused.ws-bar-peek .ws-status-bar .ws-status-row.ws-pl-haslit {
+	overflow: visible;
+}
+/* the neighbour's half of a lit arrow, washed by hand: hidden until the torch */
+.ws-pl-sep .ws-pl-shade { display: none; }
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-lit .ws-pl-shade {
+	display: inline;
+	fill: var(--ws-torch-wash);
+}
+/* …and the arrow glows with its box (the writer, 2026-10-08: "The arrow doesn't
+   have the glow"): an arrow lit whole casts it itself; a half-lit one from its
+   lit half drawn again over the shade, which would cover a glow cast beneath it.
+   Out of the arrow's own box, which clips at its edges otherwise. */
+.ws-pl-sep .ws-pl-glowpart { display: none; }
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-lit {
+	overflow: visible;
+}
+/* …but only the LIGHT leaves it (the writer, 2026-10-08: "there are some glowy
+   pixels above the token"): every drawing in an arrow bleeds a unit past its
+   box, which the box's own clip took off; opened for the glow, a wave's lit
+   bleed stood a solid sliver above the bar. The painter draws a lit arrow in
+   viewports its own size, nested, which cut it there again; the glow, cast by
+   the group around its copy's viewport, is not cut. Held hidden here as well,
+   whatever a theme says of svg. */
+.ws-pl-sep .ws-pl-inbox { overflow: hidden; }
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-lit .ws-pl-glowpart {
+	display: inline;
+	filter: drop-shadow(0 0 var(--ws-pl-glow-blur) color-mix(in srgb, var(--ws-pl-glow) var(--ws-pl-glow-mix), transparent));
+}
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-sep.ws-pl-litboth {
+	filter: drop-shadow(0 0 var(--ws-pl-glow-blur) color-mix(in srgb, var(--ws-pl-glow) var(--ws-pl-glow-mix), transparent));
+}
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar .ws-pl-seg.ws-pl-lit-ink .ws-pl-inner {
+	position: relative;
+	z-index: 10;
+	filter: drop-shadow(0 0 calc(var(--ws-pl-glow-blur) / 2) color-mix(in srgb, currentColor var(--ws-pl-glow-mix), transparent));
+}
 /* the bands: the wash over their surface; the arrows: faded by the same amount */
 body.cursor-smith-torch-active.ws-masks-active.ws-editor-focused .ws-mask.ws-mask {
 	background-image: linear-gradient(var(--ws-torch-wash), var(--ws-torch-wash));
@@ -1359,8 +1442,19 @@ body.ws-bar-anim .ws-status-bar {
 /* Rows after the first are supporting information — the file name and goal
    belong on row one. Fading them keeps the bar from reading as three equally
    loud things competing for the same glance. */
+.ws-status-bar.ws-status-multirow { --ws-row-fade: 0.72; }
 .ws-status-bar.ws-status-multirow .ws-status-row + .ws-status-row {
-	opacity: 0.72;
+	opacity: var(--ws-row-fade);
+}
+/* …and a light in such a row stays a light (found by the glow matrix,
+   2026-10-08): the fade makes the row its own stack, which held a :bc box or a
+   ;bc ink under the bar's torch wash however high it rose inside the row. Under
+   the torch a row holding one fades its other pieces one by one instead. */
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar.ws-status-multirow .ws-status-row + .ws-status-row.ws-pl-haslight {
+	opacity: 1;
+}
+body.cursor-smith-torch-active.ws-editor-focused .ws-status-bar.ws-status-multirow .ws-status-row + .ws-status-row.ws-pl-haslight > .ws-status-section > :not(.ws-pl-lit):not(.ws-pl-lit-ink) {
+	opacity: var(--ws-row-fade);
 }
 
 /* `flex: 0 1 auto`, not `1 1 0`. Equal thirds capped every section at a
@@ -1571,9 +1665,15 @@ body.ws-bar-anim .ws-status-bar {
 	   promoted layer blends against the layer stack instead of its parent.
 	   A stacking context costs nothing and blends normally. The overlap
 	   stays invisible for the reason it always was — the colour on each
-	   side of a separator IS the colour of the segment it overlaps. */
+	   side of a separator IS the colour of the segment it overlaps.
+
+	   2, A STEP ABOVE A BLANK SLIVER (below, at 1): level with it, DOM order
+	   decided, and the sliver's square corner stood over the arrow before it
+	   while the arrow after it ran over the sliver — the two sides of one
+	   token drawn two ways (the writer, 2026-10-08: "like if the arrow is
+	   inside the square not like a pointy end to a label"). */
 	position: relative;
-	z-index: 1;
+	z-index: 2;
 	/* NO translateZ here, deliberately. It was added to force whole-pixel
 	   rasterisation and it made things worse: promoting each separator to
 	   its own compositor layer means its edge pixels blend against whatever
@@ -1741,8 +1841,8 @@ body.ws-bar-anim .ws-status-bar {
    later), while one at a group's end kept its full box and both bleeds —
    measured in the field as 4px and 1px from the same {s}:N. Raised, every
    sliver is its own box plus its own ±1px bleed, wherever it stands; the
-   separators sit at the same level and DOM order still lets a drawn
-   boundary win where they meet. */
+   separators stand a step higher (2), so an arrow runs on over the sliver's
+   edge on either side alike. */
 .ws-status-bar .ws-pl-seg.ws-pl-blank {
 	position: relative;
 	z-index: 1;
