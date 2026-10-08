@@ -837,6 +837,8 @@ export function wsWireVault(plugin: WordSmith) {
 		plugin.treeShapeChanged();
 		// A new row in Obsidian's tree gets its export tick.
 		plugin.orgTicksSchedule();
+		// A note made empty starts its history at zero, so its first words count.
+		plugin.historyNoteCreated(file);
 		if (plugin._historyPath || !plugin.settings.historyTracking) return;
 		void plugin.historyAdopt(file);
 	});
@@ -1025,6 +1027,8 @@ export default class WordSmith extends Plugin {
 	declare historyNoteChange: HistoryMethods["historyNoteChange"];
 	declare historyCapture: HistoryMethods["historyCapture"];
 	declare historyRecord: HistoryMethods["historyRecord"];
+	declare historyNoteCreated: HistoryMethods["historyNoteCreated"];
+	declare historyHold: HistoryMethods["historyHold"];
 	declare historyQueueSave: HistoryMethods["historyQueueSave"];
 	declare historyFlush: HistoryMethods["historyFlush"];
 	declare historyRenamePath: HistoryMethods["historyRenamePath"];
@@ -1766,6 +1770,7 @@ export default class WordSmith extends Plugin {
 	_historyReady: boolean;
 	_historySaveTimer: number | null;
 	_historyTimers: Map<string, number>;
+	_historyHeld: Map<string, { n: number; undo: number[]; redo: number[] }> | null;
 	_historyWriting: boolean;
 	_isTogglingZen: boolean;
 	_lastMdView: MarkdownView;
@@ -3905,7 +3910,7 @@ export default class WordSmith extends Plugin {
 	// Which file a given CodeMirror view is showing. Needed because split
 	// panes can hold one in-scope and one out-of-scope note at the same time,
 	// and the decorations have to follow their own editor, not the active one.
-	getFileForEditorView(cmView: EditorView&{ cm?: WsCm5Facade; }) {
+	getFileForEditorView(cmView: EditorView&{ cm?: WsCm5Facade; }): TFile | null {
 		let found: TFile | null = null;
 		try {
 			this.app.workspace.iterateAllLeaves(leaf => {

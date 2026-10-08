@@ -1945,6 +1945,18 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	height: 1.15em;
 	flex: none;
 }
+/* A CURSOR-SMITH PRESET'S CARET beside its name, in its own colors, centered
+   in the icon's square at the height of a caret on the line. A row that is not
+   the loaded preset fades with its mark, as the Theme list's swatches do. */
+.ws-cursor-markbox {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+.ws-cursor-markbox .ws-cursor-mark {
+	width: auto;
+	height: 1em;
+}
 
 .ws-mode-shape {
 	fill: none;
@@ -14869,6 +14881,12 @@ body:not(.is-mobile).zenmode-active.ws-page .titlebar.ws-main-titlebar {
    Reading view: paragraphs and list items. */
 .ws-justify .ws-scoped .cm-content .cm-line { text-align: justify; text-align-last: left; }
 .ws-justify .ws-scoped .markdown-preview-view p, .ws-justify .ws-scoped .markdown-preview-view li { text-align: justify; }
+/* CENTER HEADINGS (Layout): the editor's heading lines (Obsidian marks them
+   `HyperMD-header`) and the reading view's h1 to h6, in a note in scope. One
+   class more than Justify's line rule, so a centered heading stays centered
+   with Justify on, its last line too. */
+.ws-center-headings .ws-scoped .cm-content .cm-line.HyperMD-header { text-align: center; text-align-last: center; }
+.ws-center-headings .ws-scoped .markdown-preview-view :is(h1, h2, h3, h4, h5, h6) { text-align: center; }
 
 /* ── Line spacing ─────────────────────────────────────────────────────────
    Off at the theme's own 1.5 (no class), so the theme decides there. A bare

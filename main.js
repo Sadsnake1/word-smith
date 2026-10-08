@@ -4472,6 +4472,39 @@ var wsSvgInto = (el, markup) => {
   el.appendChild((0, import_obsidian.sanitizeHTMLToDom)(String(markup == null ? "" : markup)));
   return el;
 };
+var wsCursorMarkSeq = 0;
+function wsCursorMarkSvg(look, dark) {
+  const o = look && typeof look === "object" ? look : {};
+  const hex = (v) => typeof v === "string" && /^#[0-9a-f]{3,8}$/i.test(v.trim()) ? v.trim() : "";
+  const style = (typeof o.cursorStyle === "string" && o.cursorStyle ? o.cursorStyle : "Line").toLowerCase();
+  const stops = [];
+  const n = Math.max(0, Math.min(4, Number(o.gradientCount) || 0));
+  if (o.gradientEnabled === true) {
+    for (let i = 1; i <= n; i++) {
+      const c = hex(o[(dark ? "gradientDark" : "gradientLight") + i]);
+      if (c)
+        stops.push(c);
+    }
+  }
+  let paint = hex(dark ? o.colorDark : o.colorLight) || "currentColor";
+  let defs = "";
+  if (stops.length >= 2) {
+    const id = "ws-cursormark-" + ++wsCursorMarkSeq;
+    const across = style === "underline";
+    defs = '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="' + (across ? 1 : 0) + '" y2="' + (across ? 0 : 1) + '">' + stops.map((c, i) => '<stop offset="' + i / (stops.length - 1) + '" stop-color="' + c + '"/>').join("") + "</linearGradient></defs>";
+    paint = "url(#" + id + ")";
+  }
+  let shape;
+  if (style === "box") {
+    shape = o.boxHollow === true ? '<rect x="1.75" y="1.75" width="6.5" height="10.5" fill="none" stroke="' + paint + '" stroke-width="1.5"/>' : '<rect x="1" y="1" width="8" height="12" fill="' + paint + '"/>';
+  } else if (style === "underline") {
+    shape = '<rect x="1" y="11" width="8" height="2" fill="' + paint + '"/>';
+  } else {
+    const w = Math.max(1.5, Math.min(3, Number(o.caretWidthPx) || 2));
+    shape = '<rect x="' + (5 - w / 2) + '" y="1" width="' + w + '" height="12" fill="' + paint + '"/>';
+  }
+  return '<svg class="ws-cursor-mark is-' + (style === "box" || style === "underline" ? style : "line") + '" viewBox="0 0 10 14" aria-hidden="true">' + defs + shape + "</svg>";
+}
 var wsObsidianSvg = (px) => '<svg class="svg-icon ws-obsidian-mark" viewBox="0 0 512 512" width="' + px + '" height="' + px + '" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + WS_OBSIDIAN_PATH + '"/></svg>';
 var WS_EXPORT_FOLDER_HEADINGS_DEFAULT = false;
 var WS_EXPORT_PREVIEW_AUTO_BYTES = 1e6;
@@ -4576,7 +4609,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.7.9";
+var WS_PLUGIN_VERSION = "1.8.0";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -5109,6 +5142,7 @@ var DEFAULT_SETTINGS = {
   limitLineLength: false,
   maxLineChars: 64,
   justifyText: true,
+  centerHeadings: false,
   paragraphNumbers: false,
   markSpaces: false,
   markersEnabled: false,
@@ -5219,6 +5253,7 @@ var DEFAULT_SETTINGS = {
   historySeries: null,
   historyFilePath: "Word-Smith/ws-history.md",
   historyPerFile: true,
+  historyCountPasted: false,
   historyBaselines: null
 };
 var BAR_KEYS = [
@@ -7368,10 +7403,12 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         { name: "Characters per line", desc: "20 to 200; 64 suits prose.", control: { type: "number", key: "maxLineChars", min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
         { name: "Line spacing", desc: "0.8 to 4.", control: { type: "number", key: "lineSpacing", min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
         { name: "Justify text", desc: "Straight edges on both sides.", control: { type: "toggle", key: "justifyText" }, visible: text },
+        { name: "Center headings", desc: "Headings in the middle of the line, in reading view too.", control: { type: "toggle", key: "centerHeadings" }, visible: text },
         { name: "Paragraph numbers", desc: "Numbers in the left margin, on prose paragraphs only; in reading view too.", control: { type: "toggle", key: "paragraphNumbers" }, visible: text },
         this.hotkeysRow(["toggle-page-view"])
       ], this.railed("text", "layout")),
       this.section("Typography", [
+        { name: "More fonts", desc: "Obsidian’s own font list; add one under Settings → Appearance → Text font.", render: (st) => this.infoInto(st) },
         { name: "Typography", desc: "Turns what you type into the proper characters as you go.", control: { type: "toggle", key: "typographyEnabled" } },
         this.alertRow("Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.", ty),
         { name: "Curly quotes", desc: "Straight quotes turn curly as you type.", control: { type: "toggle", key: "typoSmartQuotes" }, visible: ty },
@@ -7508,6 +7545,7 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
         }),
         { name: "Track writing history", desc: "Counts only, never your words; wherever Word-Smith applies.", control: { type: "toggle", key: "historyTracking" } },
         { name: "Remember which notes", desc: "A rename or a move takes its history along.", control: { type: "toggle", key: "historyPerFile" }, visible: hist },
+        { name: "Count pasted text", desc: "Off, pasted and cut text are left out, so moving text never counts as writing.", control: { type: "toggle", key: "historyCountPasted" }, visible: hist },
         rendered({ name: "Never counted", desc: "Folders and notes left out of the history and every folder total.", render: (st) => this.renderPaths(st, "countExclude", "Add a folder or note", "Never count…", false), visible: hist }, ["countExclude"]),
         { name: "Delete all history", desc: "Every day on record. No second copy, no undo.", render: (st) => this.renderHistoryDelete(st), visible: hist },
         this.hotkeysRow(["open-history"])
@@ -7665,7 +7703,6 @@ var WordSmithSettingTab = class _WordSmithSettingTab extends import_obsidian2.Pl
       this.section("Notes", [
         this.subheadRow("Good to know"),
         { name: "Read your book back", desc: "In the Export pane, press Expand and click a paragraph: its note opens beside the reader, caret on it.", render: (st) => this.infoInto(st) },
-        { name: "More fonts", desc: "Obsidian’s own font list; add one under Settings → Appearance → Text font.", render: (st) => this.infoInto(st) },
         { name: "Frontmatter overrides", desc: "A note’s frontmatter overrides these settings, just for that note.", render: (st) => {
           this.infoInto(st);
           this.renderFrontmatterHelp(st);
@@ -8467,6 +8504,7 @@ var paintMethods = {
     body.classList.toggle("ws-margin-nums", laid && this.textOpt("paragraphNumbers", false));
     body.classList.toggle("ws-bar-ui-font", !!this.settings.statusBarUiFont);
     body.classList.toggle("ws-justify", laid && this.textOpt("justifyText", false));
+    body.classList.toggle("ws-center-headings", laid && this.textOpt("centerHeadings", false));
     const twOn = panes.anyTw;
     body.classList.toggle("ws-typewriter", twOn);
     body.classList.toggle("ws-ios", this.isIosApp());
@@ -9330,7 +9368,35 @@ function wsEditorExtensions(plugin, cm) {
       plugin.typewriterRequest(u.view, edit ? "edit" : "move");
     }
   });
-  return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
+  const historyHoldPlugin = ViewPlugin2.fromClass(class {
+    update(u) {
+      if (!u.docChanged)
+        return;
+      const s = plugin.settings;
+      if (!s.historyTracking || s.historyCountPasted === true)
+        return;
+      for (const tr of u.transactions) {
+        if (!tr.docChanged)
+          continue;
+        const kind = tr.isUserEvent("input.paste") || tr.isUserEvent("input.drop") || tr.isUserEvent("delete.cut") ? "move" : tr.isUserEvent("undo") ? "undo" : tr.isUserEvent("redo") ? "redo" : "";
+        if (!kind)
+          continue;
+        let added = 0, taken = 0;
+        tr.changes.iterChanges((fromA, toA, _fromB, _toB, ins) => {
+          if (toA > fromA)
+            taken += plugin.countWords(tr.startState.sliceDoc(fromA, toA));
+          if (ins.length)
+            added += plugin.countWords(ins.toString());
+        });
+        if (added === taken)
+          continue;
+        const file = plugin.getFileForEditorView(u.view);
+        if (file)
+          plugin.historyHold(file.path, added - taken, kind);
+      }
+    }
+  });
+  return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin].concat(plugin.buildHemingwayExtensions()).concat(plugin.buildTypographyExtension()).concat(plugin.buildTypographyRevertKeymap());
 }
 var import_obsidian4 = require("obsidian");
 var editorMethods = {
@@ -25533,8 +25599,21 @@ var barMethods = {
         }
       }];
     }
+    let looks = {};
+    try {
+      const cs = this.cursorSmithPlugin();
+      looks = cs && typeof cs.getUserPresets === "function" && cs.getUserPresets() || {};
+    } catch {
+      looks = {};
+    }
+    const dark = this.isDarkTheme();
     return names.map((name) => ({
       label: name,
+      icon: () => {
+        const box = createSpan({ cls: "ws-cursor-markbox" });
+        wsSvgInto(box, wsCursorMarkSvg(looks[name], dark));
+        return box;
+      },
       on: () => {
         const cs = this.cursorSmithPlugin();
         return !!cs && cs._activePresetName === name;
@@ -32482,6 +32561,47 @@ var historyMethods = {
     } catch {
     }
   },
+  historyNoteCreated(file) {
+    if (!this.settings.historyTracking)
+      return;
+    if (!(file instanceof import_obsidian23.TFile) || !/\.md$/i.test(file.path))
+      return;
+    if (!file.stat || file.stat.size !== 0)
+      return;
+    if (file.path === this._historyPath || !this.isFileCounted(file))
+      return;
+    const base = this.historyBaselines();
+    if (Object.prototype.hasOwnProperty.call(base, file.path))
+      return;
+    base[file.path] = 0;
+  },
+  historyHold(path, net, kind) {
+    if (!path || !net)
+      return;
+    if (!this._historyHeld)
+      this._historyHeld = /* @__PURE__ */ new Map();
+    const st = this._historyHeld.get(path) || { n: 0, undo: [], redo: [] };
+    if (kind === "move") {
+      st.n += net;
+      st.undo.push(net);
+      if (st.undo.length > 20)
+        st.undo.shift();
+      st.redo.length = 0;
+    } else if (kind === "undo") {
+      if (st.undo[st.undo.length - 1] !== -net)
+        return;
+      st.n += net;
+      st.redo.push(-net);
+      st.undo.pop();
+    } else {
+      if (st.redo[st.redo.length - 1] !== net)
+        return;
+      st.n += net;
+      st.undo.push(net);
+      st.redo.pop();
+    }
+    this._historyHeld.set(path, st);
+  },
   historyRecord(path, count) {
     const h = this.historyEnsure();
     const base = this.historyBaselines();
@@ -32490,11 +32610,17 @@ var historyMethods = {
     const had = Object.prototype.hasOwnProperty.call(base, path);
     const prev = had ? base[path] : 0;
     base[path] = count;
+    const hs = this._historyHeld && this._historyHeld.get(String(path));
+    const held = hs ? hs.n : 0;
+    if (hs)
+      hs.n = 0;
     if (!had) {
       this.historyQueueSave(rolled);
       return;
     }
-    const delta = count - prev;
+    let delta = count - prev;
+    if (held && this.settings.historyCountPasted !== true)
+      delta -= held;
     if (delta === 0) {
       if (rolled)
         this.historyQueueSave(true);
@@ -34413,6 +34539,7 @@ function wsWireVault(plugin) {
   plugin.onAppEvent(plugin.app.vault, "create", (file) => {
     plugin.treeShapeChanged();
     plugin.orgTicksSchedule();
+    plugin.historyNoteCreated(file);
     if (plugin._historyPath || !plugin.settings.historyTracking)
       return;
     void plugin.historyAdopt(file);

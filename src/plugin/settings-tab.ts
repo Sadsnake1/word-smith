@@ -1784,10 +1784,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Characters per line', desc: '20 to 200; 64 suits prose.', control: { type: 'number', key: 'maxLineChars', min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
 				{ name: 'Line spacing', desc: '0.8 to 4.', control: { type: 'number', key: 'lineSpacing', min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
 				{ name: 'Justify text', desc: 'Straight edges on both sides.', control: { type: 'toggle', key: 'justifyText' }, visible: text },
+				{ name: 'Center headings', desc: 'Headings in the middle of the line, in reading view too.', control: { type: 'toggle', key: 'centerHeadings' }, visible: text },
 				{ name: 'Paragraph numbers', desc: 'Numbers in the left margin, on prose paragraphs only; in reading view too.', control: { type: 'toggle', key: 'paragraphNumbers' }, visible: text },
 				this.hotkeysRow(['toggle-page-view']),
 			], this.railed('text', 'layout')),
 			this.section('Typography', [
+				{ name: 'More fonts', desc: 'Obsidian’s own font list; add one under Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
 				{ name: 'Typography', desc: 'Turns what you type into the proper characters as you go.', control: { type: 'toggle', key: 'typographyEnabled' } },
 				this.alertRow('Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.', ty),
 				{ name: 'Curly quotes', desc: 'Straight quotes turn curly as you type.', control: { type: 'toggle', key: 'typoSmartQuotes' }, visible: ty },
@@ -1891,6 +1893,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.buttonRow('Writing history', 'Day by day, month by month, or year by year.', 'Open', () => { void this.plugin.openHistoryModal(); }),
 				{ name: 'Track writing history', desc: 'Counts only, never your words; wherever Word-Smith applies.', control: { type: 'toggle', key: 'historyTracking' } },
 				{ name: 'Remember which notes', desc: 'A rename or a move takes its history along.', control: { type: 'toggle', key: 'historyPerFile' }, visible: hist },
+				{ name: 'Count pasted text', desc: 'Off, pasted and cut text are left out, so moving text never counts as writing.', control: { type: 'toggle', key: 'historyCountPasted' }, visible: hist },
 				rendered({ name: 'Never counted', desc: 'Folders and notes left out of the history and every folder total.', render: (st) => this.renderPaths(st, 'countExclude', 'Add a folder or note', 'Never count…', false), visible: hist }, ['countExclude']),
 				{ name: 'Delete all history', desc: 'Every day on record. No second copy, no undo.', render: (st) => this.renderHistoryDelete(st), visible: hist },
 				this.hotkeysRow(['open-history']),
@@ -2037,7 +2040,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Notes', [
 				this.subheadRow('Good to know'),
 				{ name: 'Read your book back', desc: 'In the Export pane, press Expand and click a paragraph: its note opens beside the reader, caret on it.', render: (st) => this.infoInto(st) },
-				{ name: 'More fonts', desc: 'Obsidian’s own font list; add one under Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
 				{ name: 'Frontmatter overrides', desc: 'A note’s frontmatter overrides these settings, just for that note.', render: (st) => { this.infoInto(st); this.renderFrontmatterHelp(st); } },
 			]),
 		], () => {

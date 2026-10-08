@@ -27,6 +27,7 @@ import {
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart,
+	wsCursorMarkSvg,
 } from './core/preamble';
 
 export default Object.assign(WordSmith, {
@@ -61,4 +62,6 @@ export default Object.assign(WordSmith, {
 	wsOrgTicksMake, WS_EXPORT_PREVIEW_AUTO_BYTES,
 	// the sentence rule, for the capitalize suite (A519)
 	wsSentenceStart,
+	// a Cursor-Smith preset drawn beside its name in the Cursors lists
+	wsCursorMarkSvg,
 });

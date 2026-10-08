@@ -4994,6 +4994,48 @@ export const wsSvgInto = (el: Element, markup: string) => {
 	el.appendChild(sanitizeHTMLToDom(String(markup == null ? '' : markup)));
 	return el;
 };
+// A CURSOR-SMITH PRESET, DRAWN: its caret's shape in its own color, the mark
+// beside its name in the Cursors lists. Box (filled, or an outline when it is
+// hollow), Line or Underline, in the dark or the light color for the mode on
+// screen, along its gradient when it has one. Only a hex code is let into the
+// markup; anything else draws in the row's own ink.
+let wsCursorMarkSeq = 0;
+export function wsCursorMarkSvg(look: unknown, dark: boolean): string {
+	const o = (look && typeof look === 'object') ? look as Record<string, unknown> : {};
+	const hex = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v.trim())) ? v.trim() : '';
+	const style = (typeof o.cursorStyle === 'string' && o.cursorStyle ? o.cursorStyle : 'Line').toLowerCase();
+	const stops: string[] = [];
+	const n = Math.max(0, Math.min(4, Number(o.gradientCount) || 0));
+	if (o.gradientEnabled === true) {
+		for (let i = 1; i <= n; i++) {
+			const c = hex(o[(dark ? 'gradientDark' : 'gradientLight') + i]);
+			if (c) stops.push(c);
+		}
+	}
+	let paint = hex(dark ? o.colorDark : o.colorLight) || 'currentColor';
+	let defs = '';
+	if (stops.length >= 2) {
+		const id = 'ws-cursormark-' + (++wsCursorMarkSeq);
+		// along the caret: down a Line or a Box, across an Underline
+		const across = style === 'underline';
+		defs = '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="' + (across ? 1 : 0) + '" y2="' + (across ? 0 : 1) + '">'
+			+ stops.map((c, i) => '<stop offset="' + (i / (stops.length - 1)) + '" stop-color="' + c + '"/>').join('')
+			+ '</linearGradient></defs>';
+		paint = 'url(#' + id + ')';
+	}
+	let shape: string;
+	if (style === 'box') {
+		shape = o.boxHollow === true
+			? '<rect x="1.75" y="1.75" width="6.5" height="10.5" fill="none" stroke="' + paint + '" stroke-width="1.5"/>'
+			: '<rect x="1" y="1" width="8" height="12" fill="' + paint + '"/>';
+	} else if (style === 'underline') {
+		shape = '<rect x="1" y="11" width="8" height="2" fill="' + paint + '"/>';
+	} else {
+		const w = Math.max(1.5, Math.min(3, Number(o.caretWidthPx) || 2));
+		shape = '<rect x="' + (5 - w / 2) + '" y="1" width="' + w + '" height="12" fill="' + paint + '"/>';
+	}
+	return '<svg class="ws-cursor-mark is-' + (style === 'box' || style === 'underline' ? style : 'line') + '" viewBox="0 0 10 14" aria-hidden="true">' + defs + shape + '</svg>';
+}
 export const wsObsidianSvg = (px: number) => '<svg class="svg-icon ws-obsidian-mark" '
 	+ 'viewBox="0 0 512 512" width="' + px + '" height="' + px + '" '
 	+ 'fill="none" stroke="currentColor" '
@@ -5243,7 +5285,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.7.9';
+export const WS_PLUGIN_VERSION = '1.8.0';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6462,6 +6504,9 @@ export const DEFAULT_SETTINGS = {
 	limitLineLength:          false,
 	maxLineChars:             64,
 	justifyText:              true,
+	// HEADINGS IN THE MIDDLE OF THE LINE, a Layout row, off by default: the
+	// editor's heading lines and the reading view's, in a note in scope.
+	centerHeadings:           false,
 	// PARAGRAPH NUMBERS, in the left margin, off by default. PROSE
 	// paragraphs only: not list items, not tasks, not headings, callouts,
 	// quotes, tables or code. A manuscript's paragraphs are the unit an
@@ -6735,6 +6780,9 @@ export const DEFAULT_SETTINGS = {
 	// it is what makes the file grow with the notes you touch rather than only
 	// with the days you write.
 	historyPerFile:           true,
+	// Pasted and cut text left out of the history unless this is on: moving
+	// text is a cut and a paste, and neither is writing.
+	historyCountPasted:       false,
 	// The one history-adjacent thing left in data.json, and it is not history:
 	// path -> last known word count, the cache that turns a save into a delta.
 	// Worthless to a human, a kilobyte of JSON in the middle of a note if it

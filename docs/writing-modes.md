@@ -30,7 +30,7 @@ Turns what you type into the proper characters as you go: curly quotes, ellipses
 
 ## Text options and markers
 
-Text options cap the line length, indent paragraphs, set spacing, justify. **Page mode** draws your text as a page: a thin outline around it on a darker ground, as wide as your padding and line length make it. Tick **Only in Zen** and they apply only while Zen is on: a book page in Zen, Obsidian's own page out of it. Markers draw the spaces, tabs and line breaks you normally can't see.
+Text options cap the line length, indent paragraphs, set spacing, justify, and center headings. **Page mode** draws your text as a page: a thin outline around it on a darker ground, as wide as your padding and line length make it. Tick **Only in Zen** and they apply only while Zen is on: a book page in Zen, Obsidian's own page out of it. Markers draw the spaces, tabs and line breaks you normally can't see.
 
 ## Fonts
 

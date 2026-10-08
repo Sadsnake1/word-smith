@@ -23,7 +23,7 @@ import {
 } from '../core/preamble';
 import type { WsToken } from '../core/preamble';
 import type { Decoration, DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
-import type { Range } from '@codemirror/state';
+import type { Range, Text } from '@codemirror/state';
 import type WordSmith from '../plugin/plugin';
 
 // what the tildes' measure phase hands its write phase: nothing, a hide, or
@@ -864,7 +864,35 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	});
 
-	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin]
+	// ── Pasted and cut text, for History ──────────────────────────────────
+	// A paste, a drop or a cut (and an undo or redo, which History matches to
+	// the paste or cut it reverses) is reported as the words it added or took
+	// away, so History can leave moved text out of the day's writing. Every
+	// paste route in Obsidian, the Markdown it makes of copied HTML too, comes
+	// labelled `input.paste`; a cut is `delete.cut`.
+	const historyHoldPlugin = ViewPlugin.fromClass(class {
+		update(u: ViewUpdate) {
+			if (!u.docChanged) return;
+			const s = plugin.settings;
+			if (!s.historyTracking || s.historyCountPasted === true) return;
+			for (const tr of u.transactions) {
+				if (!tr.docChanged) continue;
+				const kind = (tr.isUserEvent('input.paste') || tr.isUserEvent('input.drop') || tr.isUserEvent('delete.cut')) ? 'move'
+					: tr.isUserEvent('undo') ? 'undo' : tr.isUserEvent('redo') ? 'redo' : '';
+				if (!kind) continue;
+				let added = 0, taken = 0;
+				tr.changes.iterChanges((fromA: number, toA: number, _fromB: number, _toB: number, ins: Text) => {
+					if (toA > fromA) taken += plugin.countWords(tr.startState.sliceDoc(fromA, toA));
+					if (ins.length) added += plugin.countWords(ins.toString());
+				});
+				if (added === taken) continue;
+				const file = plugin.getFileForEditorView(u.view);
+				if (file) plugin.historyHold(file.path, added - taken, kind);
+			}
+		}
+	});
+
+	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin]
 		.concat(plugin.buildHemingwayExtensions())
 		.concat(plugin.buildTypographyExtension())
 		.concat(plugin.buildTypographyRevertKeymap());

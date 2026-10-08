@@ -346,6 +346,51 @@ export const historyMethods = {
 		} catch { /* a note deleted mid-debounce; nothing to record */ }
 	},
 
+	// A NOTE MADE EMPTY STARTS FROM NOTHING. The first look at a note only takes
+	// its weight (below), so the first words a fresh note received went
+	// uncounted: a page of handwriting pasted in from OCR counted for nothing.
+	// A note created EMPTY can have come from no other device and no other day,
+	// so it starts at zero and what goes into it is today's. A note that arrives
+	// with words in it (a sync, an import) is still only weighed.
+	historyNoteCreated(this: WordSmith, file: TAbstractFile) {
+		if (!this.settings.historyTracking) return;
+		if (!(file instanceof TFile) || !/\.md$/i.test(file.path)) return;
+		if (!file.stat || file.stat.size !== 0) return;
+		if (file.path === this._historyPath || !this.isFileCounted(file)) return;
+		const base = this.historyBaselines();
+		if (Object.prototype.hasOwnProperty.call(base, file.path)) return;
+		base[file.path] = 0;
+	},
+
+	// PASTED AND CUT TEXT, HELD OUT of the next count of its note unless the
+	// writer counts pasted text (History, "Count pasted text", off by default):
+	// moving text is a cut and a paste, and neither is writing. The editor
+	// reports each paste, drop and cut as the words it added (or took, as a
+	// negative); an undo or redo that exactly reverses the last of them in that
+	// note is held the same way, so taking a paste back is not a deletion.
+	historyHold(this: WordSmith, path: string, net: number, kind: 'move' | 'undo' | 'redo') {
+		if (!path || !net) return;
+		if (!this._historyHeld) this._historyHeld = new Map();
+		const st = this._historyHeld.get(path) || { n: 0, undo: [], redo: [] };
+		if (kind === 'move') {
+			st.n += net;
+			st.undo.push(net);
+			if (st.undo.length > 20) st.undo.shift();
+			st.redo.length = 0;
+		} else if (kind === 'undo') {
+			if (st.undo[st.undo.length - 1] !== -net) return;
+			st.n += net;
+			st.redo.push(-net);
+			st.undo.pop();
+		} else {
+			if (st.redo[st.redo.length - 1] !== net) return;
+			st.n += net;
+			st.undo.push(net);
+			st.redo.pop();
+		}
+		this._historyHeld.set(path, st);
+	},
+
 	historyRecord(this: WordSmith, path: string|number, count: number) {
 		const h    = this.historyEnsure();
 		const base = this.historyBaselines();
@@ -354,13 +399,21 @@ export const historyMethods = {
 		const had  = Object.prototype.hasOwnProperty.call(base, path);
 		const prev = had ? base[path] : 0;
 		base[path] = count;
+		// What was pasted or cut in this note since its last count, taken now
+		// whatever happens below: a count is where the held words are spent.
+		const hs = this._historyHeld && this._historyHeld.get(String(path));
+		const held = hs ? hs.n : 0;
+		if (hs) hs.n = 0;
 
 		// A file with no baseline records NOTHING — it only establishes one.
 		// This is what stops a fresh sync dump, or the first open of a
 		// five-year-old note, from arriving as today's heroic word count.
 		if (!had) { this.historyQueueSave(rolled); return; }
 
-		const delta = count - prev;
+		// Pasted words come off what was added and cut words off what was taken;
+		// what was typed or deleted beside them still counts.
+		let delta = count - prev;
+		if (held && this.settings.historyCountPasted !== true) delta -= held;
 		if (delta === 0) { if (rolled) this.historyQueueSave(true); return; }
 
 		const t = h.today;

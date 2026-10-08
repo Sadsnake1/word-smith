@@ -8,7 +8,7 @@
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsCursorMarkSvg, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -3690,14 +3690,28 @@ export const barMethods = {
 
 	// One row per preset, the one Cursor-Smith last loaded ticked. A list with
 	// nothing in it says why, rather than drawing an empty drawer.
+	// EACH NAME WEARS ITS CARET: the preset's shape in its color for the mode on
+	// screen, drawn from the preset itself, in the popup, the pane and the bar's
+	// picker alike.
 	cursorsPickerItems(this: WordSmith): WsMenuPickItem[] {
 		const names = this.cursorPresetNames();
 		if (!names.length) {
 			return [{ label: this.cursorSmithPlugin() ? 'No presets saved in Cursor-Smith' : 'Cursor-Smith is not installed',
 				on: () => false, onClick: async () => {} }];
 		}
+		let looks: Record<string, unknown> = {};
+		try {
+			const cs = this.cursorSmithPlugin();
+			looks = (cs && typeof cs.getUserPresets === 'function' && cs.getUserPresets()) || {};
+		} catch { looks = {}; }
+		const dark = this.isDarkTheme();
 		return names.map((name) => ({
 			label: name,
+			icon: () => {
+				const box = createSpan({ cls: 'ws-cursor-markbox' });
+				wsSvgInto(box, wsCursorMarkSvg(looks[name], dark));
+				return box;
+			},
 			on: () => { const cs = this.cursorSmithPlugin(); return !!cs && cs._activePresetName === name; },
 			onClick: async () => { await this.cursorLoadPreset(name); }
 		}));

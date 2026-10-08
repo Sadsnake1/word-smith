@@ -283,6 +283,7 @@ export const paintMethods = {
 		// the font the token chose. Not scoped: the bar is one bar in every note.
 		body.classList.toggle('ws-bar-ui-font', !!this.settings.statusBarUiFont);
 		body.classList.toggle('ws-justify',                 laid && this.textOpt('justifyText', false));
+		body.classList.toggle('ws-center-headings',         laid && this.textOpt('centerHeadings', false));
 		// TYPEWRITER OWNS ITS OWN SCROLL PADDING. The 50vh top/bottom inset
 		// used to hang off `.zenmode-active`, which had it exactly backwards
 		// on both sides: in typewriter WITHOUT zen there was no padding, so

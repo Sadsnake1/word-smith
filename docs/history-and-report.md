@@ -19,6 +19,8 @@ Type a note or folder name and the whole pane scopes to it. `ch3scene` finds `My
 
 Two kindnesses in the numbers. A day counts if you wrote or cut, so cutting won't break your streak. And the average divides by the days you actually wrote, so days off don't drag it down.
 
+Pasted and cut text are left out, so moving text around doesn't show as writing. If you paste in work you wrote elsewhere, say a handwritten page you scanned, turn on **Count pasted text** in the History settings and pasted words count as written. A note you create empty starts at zero, so everything you write into it counts. A note that arrives with words already in it, from a sync, an import or Make a copy, is taken as it is, not as today's writing.
+
 ## Your history is an ordinary note
 
 A table, one row per day:
