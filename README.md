@@ -233,7 +233,7 @@ To the [r/ObsidianMD](https://www.reddit.com/r/ObsidianMD/) community, for every
 
 ## Questions, ideas, bugs
 
-If you have a question, a cool idea/feature or found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues) or on Reddit at `u/No_Ratio_2483`. 
+If you have a question, a cool idea/feature or found a bug, [write it here](https://github.com/Sadsnake1/word-smith/issues).
 
 Regarding bugs, tell me your OS(pleeease), whether it's desktop, tablet or phone, your Obsidian version and your installer version (Settings → General), and send a screenshot if you can. Send some cookies and a coffee too! Cheers!
 
