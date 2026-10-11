@@ -2,29 +2,20 @@
 
 import {
 	CM,
-	FILLER_PHRASES,
-	FILLER_SOFT,
-	FILLER_STRONG,
 	findDialogue,
-	findIllusions,
-	findMisused,
-	findPassive,
-	findRepetitions,
 	isParagraphLine,
-	isVaguePronoun,
 	maskMarkup,
 	posBucket,
 	scanNonProseLines,
-	sentenceGrade,
-	splitSentences,
-	tagTokens,
-	tokenizeLine,
 	wsCatch,
 } from '../core/preamble';
 import type { WsToken } from '../core/preamble';
+import type { WsEngine } from '../core/lang-engine';
+import { Platform } from 'obsidian';
 import type { Decoration, DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
 import type { Range, Text } from '@codemirror/state';
 import type WordSmith from '../plugin/plugin';
+import { wsFindCitations, wsCiteEntryText } from '../core/citations';
 
 // what the tildes' measure phase hands its write phase: nothing, a hide, or
 // where the rows are and what face they wear
@@ -171,9 +162,13 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			add, sort: true,
 		});
 	};
+	// ONLY WHERE A TOUCH KEYBOARD IS (A623): the capitals are a touch keyboard's,
+	// and on the desktop the hold only made a line's marks trail the writing
+	// until the caret left it ("displaying laggy"). There every line is live.
+	const holds = () => !!(typeof Platform !== 'undefined' && Platform && Platform.isMobile);
 	// the update every held plugin makes: `build` is its own fresh pass
 	const holdUpdate = (inst: { decorations: DecorationSet; held: { from: number; to: number } | null }, u: ViewUpdate, build: (view: EditorView) => DecorationSet) => {
-		if (u.docChanged && typed(u)) {
+		if (u.docChanged && typed(u) && holds()) {
 			inst.held = heldLineOf(u);
 			inst.decorations = holdOver(build(u.view), inst.decorations.map(u.changes), inst.held, u);
 		} else if (u.docChanged) {
@@ -245,6 +240,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		illusion: Decoration.mark({ class: 'ws-ck-illusion' }),
 		hard:     Decoration.mark({ class: 'ws-ck-hard'     }),
 		veryhard: Decoration.mark({ class: 'ws-ck-veryhard' }),
+		short:    Decoration.mark({ class: 'ws-ck-short'    }),
+		mid:      Decoration.mark({ class: 'ws-ck-mid'      }),
 		repeat:   Decoration.mark({ class: 'ws-ck-repeat'   }),
 		misused:  Decoration.mark({ class: 'ws-ck-misused'  }),
 		pronoun:  Decoration.mark({ class: 'ws-ck-pronoun'  }),
@@ -262,6 +259,17 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		adv:  Decoration.mark({ class: 'ws-pos-adv'  }),
 		conj: Decoration.mark({ class: 'ws-pos-conj' })
 	};
+
+	// ── ONE LINE'S MARKS, REMEMBERED (A623) ──────────────────────────────
+	// A line's marks follow from its text, the switches and the language
+	// alone, so a keystroke marks the line it changed and takes every other
+	// visible line's from here. Forgotten whole when a switch or the language
+	// changes (the signature), and past 4,000 lines. Repetition spans lines,
+	// so each line keeps its words for that pass, which runs every time.
+	type WsLineMarks = { marks: [number, number, Decoration][]; tokens: WsToken[] };
+	const lineMarks = new Map<string, WsLineMarks>();
+	let lineMarksSig = '';
+	let lineMarksEngine: WsEngine | null = null;
 
 	const syntaxPlugin = ViewPlugin.fromClass(class {
 		decorations: DecorationSet;
@@ -286,16 +294,27 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				s.checkRhythm || s.checkRepetition || s.checkDialogue);
 			if (!Object.keys(posOn).some(k => posOn[k]) && !checksOn) return Decoration.none;
 			if (!plugin.isEditorInScope(view)) return Decoration.none;
+			// THE LANGUAGE'S ENGINE (A571): English's tagger and rules, or the
+			// chosen pack's; a check the pack has no words for finds nothing.
+			const E = plugin.langEngine();
 
 			const doc  = view.state.doc;
 			const skip = s.syntaxSkipCode ? plugin.getNonProseLines(doc) : null;
 			const out: Range<Decoration>[] = [];
-			const keep = (r: Range<Decoration>) => { out.push(r); };
 			// Repetition spans lines, so its tokens are collected across
 			// the whole visible range and scanned once at the end.
 			const seen: WsToken[] | null = s.checkRepetition ? [] : null;
 			// the lines that got a mark, by their start — the repetition pass adds its own at the end
 			const marked = new Set<number>();
+			// the words are read only where something reads them: Dialogue and
+			// Sentence rhythm never did, and tagged every line anyway
+			const needTokens = Object.keys(posOn).some(k => posOn[k]) || !!(checksOn && (s.checkFiller
+				|| s.checkPassive || s.checkIllusion || s.checkMisused || s.checkPronoun || s.checkRepetition));
+			const bag = s as unknown as Record<string, unknown>;
+			const sig = Object.keys(bag).filter(k => /^(pos|check)/.test(k)).sort().map(k => k + '=' + String(bag[k])).join(';');
+			if (sig !== lineMarksSig || E !== lineMarksEngine || lineMarks.size > 4000) {
+				lineMarks.clear(); lineMarksSig = sig; lineMarksEngine = E;
+			}
 
 			for (const range of view.visibleRanges) {
 				let pos = range.from;
@@ -304,62 +323,77 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					pos = line.to + 1;
 					if (skip && skip.has(line.number)) continue;
 					if (!line.text.trim()) continue;
+					let got = lineMarks.get(line.text);
+					if (!got) { got = markLine(line.text); lineMarks.set(line.text, got); }
+					const base = line.from;
+					for (const [from, to, deco] of got.marks) out.push(deco.range(base + from, base + to));
+					if (got.marks.length) marked.add(base);
+					if (seen) {
+						for (const t of got.tokens) {
+							seen.push({ lw: t.lw, w: t.w, from: base + t.from, to: base + t.to, tag: null });
+						}
+					}
+				}
+			}
 
-					const masked = maskMarkup(line.text);
-					const tokens = tagTokens(tokenizeLine(masked), masked);
-					const base   = line.from;
-					const before = out.length;
+			if (seen && seen.length) {
+				const win = s.repetitionWindow    != null ? s.repetitionWindow    : 50;
+				const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
+				for (const r of E.repetitions(seen, win, min)) {
+					out.push(checkMark.repeat.range(r.from, r.to));
+					marked.add(doc.lineAt(r.from).from);
+				}
+			}
+			for (const at of marked) out.push(markedLine.range(at));
+			return Decoration.set(out, true);
 
-					for (const t of tokens) {
-						const bucket = posBucket(t.tag || '');
-						if (bucket && posOn[bucket]) {
-							keep(posMark[bucket].range(base + t.from, base + t.to));
-						}
-					}
+			// one line's marks, at its own offsets
+			function markLine(text: string): WsLineMarks {
+				const marks: [number, number, Decoration][] = [];
+				const keep = (deco: Decoration, from: number, to: number) => { marks.push([from, to, deco]); };
+				const masked = maskMarkup(text);
+				const tokens = needTokens ? E.tag(masked) : [];
+				const base = 0;
 
-					if (!checksOn) { if (out.length > before) marked.add(base); continue; }
+				for (const t of tokens) {
+					const bucket = posBucket(t.tag || '');
+					if (bucket && posOn[bucket]) {
+						keep(posMark[bucket], base + t.from, base + t.to);
+					}
+				}
 
-					if (s.checkPassive) {
-						for (const r of findPassive(tokens)) {
-							keep(checkMark.passive.range(base + r.from, base + r.to));
-						}
+				if (!checksOn) return { marks, tokens };
+
+				if (s.checkPassive) {
+					for (const r of E.passive(tokens, masked)) {
+						keep(checkMark.passive, base + r.from, base + r.to);
 					}
-					if (s.checkIllusion) {
-						for (const r of findIllusions(tokens)) {
-							keep(checkMark.illusion.range(base + r.from, base + r.to));
-						}
+				}
+				if (s.checkIllusion) {
+					for (const r of E.illusions(tokens)) {
+						keep(checkMark.illusion, base + r.from, base + r.to);
 					}
-					if (s.checkMisused) {
-						for (const r of findMisused(tokens)) {
-							keep(checkMark.misused.range(base + r.from, base + r.to));
-						}
+				}
+				if (s.checkMisused) {
+					for (const r of E.misused(tokens, masked)) {
+						keep(checkMark.misused, base + r.from, base + r.to);
 					}
-					// Phrases first, so word hits inside a phrase can be
-					// skipped rather than double-painted at double
-					// opacity ("a lot of" already covers "lots").
-					let phraseHits: [number, number][] | null = null;
-					if (s.checkFiller) {
-						phraseHits = [];
-						FILLER_PHRASES.lastIndex = 0;
-						let m;
-						while ((m = FILLER_PHRASES.exec(masked))) {
-							phraseHits.push([m.index, m.index + m[0].length]);
-							keep(checkMark.filler.range(base + m.index, base + m.index + m[0].length));
-						}
+				}
+				// Filler: phrases first, so a word inside a phrase is
+				// not double-painted ("a lot of" already covers "lots").
+				if (s.checkFiller) {
+					for (const r of E.filler(tokens, masked, !!s.checkFillerSoft)) {
+						keep(checkMark.filler, base + r.from, base + r.to);
 					}
-					for (let ti = 0; ti < tokens.length; ti++) {
-						const t = tokens[ti];
-						if (s.checkFiller &&
-							(FILLER_STRONG.has(t.lw) || (s.checkFillerSoft && FILLER_SOFT.has(t.lw))) &&
-							!(phraseHits || []).some(pr => t.from >= pr[0] && t.to <= pr[1])) {
-							keep(checkMark.filler.range(base + t.from, base + t.to));
-						}
-						// Only sentence-initial: a pronoun mid-sentence
-						// almost always has its referent right there.
-						if (s.checkPronoun && isVaguePronoun(t, ti + 1 < tokens.length ? tokens[ti + 1] : null)) {
-							keep(checkMark.pronoun.range(base + t.from, base + t.to));
-						}
+				}
+				for (let ti = 0; ti < tokens.length; ti++) {
+					const t = tokens[ti];
+					// Only sentence-initial: a pronoun mid-sentence
+					// almost always has its referent right there.
+					if (s.checkPronoun && E.vague(t, ti + 1 < tokens.length ? tokens[ti + 1] : null)) {
+						keep(checkMark.pronoun, base + t.from, base + t.to);
 					}
+				}
 
 					// DIALOGUE. Marked on the RAW line rather than the
 					// masked one: masking replaces code, links and
@@ -373,50 +407,28 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					// CodeMirror disables a view plugin whose update
 					// throws, so turning Dialogue on switched every
 					// check and word-class colour off at once.
-					if (s.checkDialogue) {
-						for (const q of findDialogue(line.text)) {
-							out.push(checkMark.dialogue.range(base + q.from, base + q.to));
-						}
+				if (s.checkDialogue) {
+					for (const q of findDialogue(text, E.dialogue)) {
+						keep(checkMark.dialogue, base + q.from, base + q.to);
 					}
-
-					// Sentence rhythm. Always a background tint, whatever
-					// checkStyle says: a line under thirty words is
-					// noise, and the point is to see a wall of one colour.
-					if (s.checkRhythm) {
-						for (const sent of splitSentences(masked)) {
-							const st = tokenizeLine(sent.text);
-							if (st.length < 4) continue;      // fragments are not "hard"
-							const grade = sentenceGrade(st);
-							// != null, not ||: a threshold of 0 is a valid
-							// setting and `|| 10` silently discarded it.
-							const veryAt = s.checkRhythmVeryHardGrade != null ? s.checkRhythmVeryHardGrade : 14;
-							const hardAt = s.checkRhythmHardGrade     != null ? s.checkRhythmHardGrade     : 10;
-							const mark = grade >= veryAt ? checkMark.veryhard
-								: grade >= hardAt        ? checkMark.hard
-								: null;
-							if (mark) out.push(mark.range(base + sent.from, base + sent.to));
-						}
-					}
-
-					if (seen) {
-						for (const t of tokens) {
-							seen.push({ lw: t.lw, w: t.w, from: base + t.from, to: base + t.to, tag: null });
-						}
-					}
-					if (out.length > before) marked.add(base);
 				}
-			}
 
-			if (seen && seen.length) {
-				const win = s.repetitionWindow    != null ? s.repetitionWindow    : 50;
-				const min = s.repetitionMinLength != null ? s.repetitionMinLength : 5;
-				for (const r of findRepetitions(seen, win, min)) {
-					out.push(checkMark.repeat.range(r.from, r.to));
-					marked.add(doc.lineAt(r.from).from);
+				// Sentence rhythm. Always a background tint, whatever
+				// checkStyle says: a line under thirty words is
+				// noise, and the point is to see a wall of one colour.
+				if (s.checkRhythm) {
+					// BY ITS GRADE OR BY ITS LENGTH (A595, Shade by): the words counted only
+					// where they are asked, the grade only where it is
+					const byLength = s.checkRhythmBy === 'length';
+					for (const sent of E.sentences(masked)) {
+						const tint = plugin.rhythmTint(byLength ? E.wordsIn(sent.text) : 0, byLength ? null : E.sentenceGrade(sent.text));
+						const mark = tint === 'veryhard' ? checkMark.veryhard : tint === 'hard' ? checkMark.hard
+							: tint === 'short' ? checkMark.short : tint === 'mid' ? checkMark.mid : null;
+						if (mark) keep(mark, base + sent.from, base + sent.to);
+					}
 				}
+				return { marks, tokens };
 			}
-			for (const at of marked) out.push(markedLine.range(at));
-			return Decoration.set(out, true);
 		}
 	}, { decorations: v => v.decorations });
 
@@ -892,7 +904,47 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	});
 
-	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin]
+	// ── CITATIONS WHILE WRITING (A572) ────────────────────────────────────
+	//
+	// A citation marked as it is written, a bracketed key the library does not hold
+	// underlined, a citation's sources on hover as the chosen style lists them. A
+	// narrative @word is marked only when the library knows it, so a handle is left
+	// alone. Nothing with no library, or with Mark citations off.
+	const citePlugin = ViewPlugin.fromClass(class {
+		decorations: DecorationSet;
+		constructor(view: EditorView) { this.decorations = this.build(view); }
+		update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view); }
+		build(view: EditorView) {
+			const s = plugin.settings;
+			const lib = plugin.citeLibrary();
+			if (!s.pluginEnabled || !s.citeMarks || !lib.size || !plugin.isEditorInScope(view)) return Decoration.none;
+			const style = s.citeStyle || 'apa';
+			const custom = { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry };
+			const b = new RangeSetBuilder<Decoration>();
+			let done = 0;
+			for (const { from, to } of view.visibleRanges) {
+				let pos = from;
+				while (pos <= to) {
+					const line = view.state.doc.lineAt(pos);
+					pos = line.to + 1;
+					if (line.number <= done) continue;
+					done = line.number;
+					if (line.text.indexOf('@') === -1) continue;
+					for (const c of wsFindCitations(line.text)) {
+						const known = c.items.every((it) => lib.has(it.key));
+						if (c.narrative && !known) continue;
+						const title = known
+							? c.items.map((it) => { const r = lib.get(it.key); return r ? wsCiteEntryText(style, r, custom) : ''; }).join('\n')
+							: 'Not in your library: ' + c.items.filter((it) => !lib.has(it.key)).map((it) => '@' + it.key).join(', ');
+						b.add(line.from + c.from, line.from + c.to, Decoration.mark({ class: known ? 'ws-cite' : 'ws-cite ws-cite-missing', attributes: { title } }));
+					}
+				}
+			}
+			return b.finish();
+		}
+	}, { decorations: (v) => v.decorations });
+
+	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin, citePlugin]
 		.concat(plugin.buildHemingwayExtensions())
 		.concat(plugin.buildTypographyExtension())
 		.concat(plugin.buildTypographyRevertKeymap());

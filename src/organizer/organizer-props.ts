@@ -2,6 +2,7 @@
 
 import { Notice, setIcon, Platform } from 'obsidian';
 import { wsCatch, wsElOf, wsNodeOf, wsStr } from '../core/preamble';
+import { wsT, wsTq } from '../core/ui-text';
 import type { WsPropItem } from '../core/preamble';
 import type { WsOrgCol } from './organizer-cols';
 import type WordSmith from '../plugin/plugin';
@@ -214,8 +215,7 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 		}
 		if (!q && rid) {
 			grip.addClass('is-propdrag');
-			grip.title = 'Drag to reorder — this is the column order '
-				+ 'and the chip order';
+			grip.title = wsT('Drag to reorder — this is the column order and the chip order');
 			row.setAttribute('draggable', 'true');
 			row.addEventListener('dragstart', (ev: DragEvent) => {
 				st.orgPropDragId = rid;
@@ -242,8 +242,8 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 		}
 		const colOn = !!(r.col && !d.colOff.has(r.col.id));
 		tog(row, colOn, false,
-			r.col ? 'Show as a column in Table'
-				: 'Add “' + r.name + '” as a column',
+			r.col ? wsT('Show as a column in Table')
+				: wsT('Add “{name}” as a column', { name: r.name }),
 			() => orgPropColToggle(r));
 		const nm = row.createSpan({ cls: 'ws-org-pname' });
 		// ── AND A READING WEARS ITS OWN GLYPH TOO ────────────────────────
@@ -272,7 +272,7 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 			} catch (_) { wsCatch('openManuscriptModal / orgPropPopRender: const def = SORTS.filter((sd) => sd.id === r.col.id)[0];', _); }
 		}
 		nm.createSpan({ cls: 'ws-org-pnametext', text: r.name });
-		row.createSpan({ cls: 'ws-org-pkind', text: orgPropKindOf(r) });
+		row.createSpan({ cls: 'ws-org-pkind', text: wsTq(orgPropKindOf(r)) });
 		// ── AND THE DELETE, WHICH LIVES HERE ───────────────────────
 		//
 		// This is the panel that exists to answer "which properties do I
@@ -294,7 +294,7 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 	}
 	if (!drew) {
 		box.createDiv({ cls: 'ws-org-propnone',
-			text: 'No property of that name' });
+			text: wsT('No property of that name') });
 	}
 }
 
@@ -381,7 +381,7 @@ function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) =>
 		.createDiv({ cls: 'menu ws-org-proppop' });
 	const srch = pop.createEl('input', { cls: 'ws-org-propsearch' });
 	srch.type = 'text';
-	srch.placeholder = 'Search properties…';
+	srch.placeholder = wsT('Search properties…');
 	srch.value = st.orgPropPopQuery;
 	srch.addEventListener('input', () => {
 		st.orgPropPopQuery = srch.value || '';
@@ -402,9 +402,8 @@ function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) =>
 			try { if (setIcon) setIcon(g, n); } catch (_) { wsCatch('openManuscriptModal / orgPropPopOpen: if (setIcon) setIcon(g, n);', _); }
 			if (g.childElementCount > 0) { g.dataset.icon = n; break; }
 		}
-		au.createSpan({ text: 'Resize columns to fit' });
-		au.title = 'Set every column to the width of what it holds, '
-			+ 'up to six tenths of the pane. They stay draggable afterwards.';
+		au.createSpan({ text: wsT('Resize columns to fit') });
+		au.title = wsT('Set every column to the width of what it holds, up to six tenths of the pane. They stay draggable afterwards.');
 		// A BUTTON, NOT A SWITCH: play with the column sizes, then click resize
 		// columns and just that.
 		au.addEventListener('click', (ev: Event) => {
@@ -552,7 +551,7 @@ function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgProp
 		|| (Array.isArray(v) && v.some(x => x !== null && typeof x === 'object'));
 	if (complex) {
 		card.createDiv({ cls: 'ws-org-editor is-complex',
-			text: 'complex value — edit in note' });
+			text: wsT('complex value — edit in note') });
 		return null;
 	}
 	// The registry first, the VALUE AT HAND second: Obsidian's type
@@ -674,7 +673,7 @@ function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgProp
 			} catch (_) { wsCatch('openManuscriptModal / orgFieldEditor: const f2 = this.app.vault.getAbstractFileByPath(path);', _); }
 			for (const tag of bodyTags) {
 				const chip = d.orgTagPill(pillHost, tag, { intext: true });
-				chip.title = 'Written in the note itself — edit it there';
+				chip.title = wsT('Written in the note itself — edit it there');
 			}
 		}
 		const inp = wrap2.createEl('input', { cls: 'ws-org-chipval' });
@@ -728,9 +727,8 @@ function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgProp
 				// reads as broken — which is what "there is a problem with
 				// Tags" was, one fault ago.
 				try {
-					new Notice(val ? 'Word-Smith: a tag cannot start with a number — Obsidian '
-						+ 'will not index “' + val + '”.'
-						: 'Word-Smith: that is not a tag Obsidian can index.');
+					new Notice(val ? wsT('Word-Smith: a tag cannot start with a number — Obsidian will not index “{tag}”.', { tag: val })
+						: wsT('Word-Smith: that is not a tag Obsidian can index.'));
 				} catch (_) { wsCatch('openManuscriptModal / orgFieldEditor: new Notice(val ? \'Word-Smith: a tag cannot start with a number — Obsidian \'', _); }
 				return;
 			}
@@ -884,7 +882,7 @@ function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgProp
 			shown.toggleClass('is-empty', !fmt2.text);
 			shown.toggleClass('ws-org-badval', !fmt2.ok);
 			shown.title = fmt2.ok ? ''
-				: ('This is not a valid ' + type + ': ' + wsStr(raw));
+				: wsT('This is not a valid {type}: {value}', { type: wsTq(type), value: wsStr(raw) });
 		};
 		sayDay(v);
 		el2.addClass('is-editing-off');

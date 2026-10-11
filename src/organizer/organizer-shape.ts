@@ -3,6 +3,7 @@
 
 import type { Menu } from 'obsidian';
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WordSmithSettings } from '../core/settings';
 
@@ -77,12 +78,12 @@ const typeLabel = () => {
 	// THE SHAPE WINS THE LABEL when it is the narrower statement.
 	// "Folders only" and "Notes only" are what a writer will recognise
 	// as the reason a tree looks short; "1 kind" is not.
-	if (shape === 'folders') return 'Folders only';
-	if (shape === 'files' && on.size === 1 && on.has('md')) return 'Notes only';
-	if (shape === 'files') return 'Files only';
-	if (on.size >= all.length) return 'All files';
-	if (on.size === 1 && on.has('md')) return 'Notes';
-	return on.size + ' kinds';
+	if (shape === 'folders') return wsT('Folders only');
+	if (shape === 'files' && on.size === 1 && on.has('md')) return wsT('Notes only');
+	if (shape === 'files') return wsT('Files only');
+	if (on.size >= all.length) return wsT('All files');
+	if (on.size === 1 && on.has('md')) return wsT('Notes');
+	return wsT('{n} kinds', { n: on.size });
 };
 // ── THE KINDS, AS ONE BUILDER ───────────────────────────────────────
 //
@@ -132,24 +133,24 @@ const typeRows = (into: Menu) => {
 			} catch (_) { wsCatch('openManuscriptModal / pick: if (typeof i2.setChecked === \'function\') i2.setChecked(isOn);', _); }
 		});
 	};
-	pick(0, 'Everything', 'files', shape === 'all' && allOn, async () => {
+	pick(0, wsT('Everything'), 'files', shape === 'all' && allOn, async () => {
 		setAnd(groups.map(g => g.id));
 		await setShape('all');
 	});
-	pick(1, 'Notes only', 'file-text',
+	pick(1, wsT('Notes only'), 'file-text',
 		shape === 'files' && on.size === 1 && on.has('md'), async () => {
 			setAnd(['md']);
 			await setShape('files');
 		});
-	pick(2, 'Files only', 'file', shape === 'files' && allOn, async () => {
+	pick(2, wsT('Files only'), 'file', shape === 'files' && allOn, async () => {
 		setAnd(groups.map(g => g.id));
 		await setShape('files');
 	});
-	pick(3, 'Folders only', 'folder', shape === 'folders', () => setShape('folders'));
+	pick(3, wsT('Folders only'), 'folder', shape === 'folders', () => setShape('folders'));
 	into.addSeparator();
 	for (const g of groups) {
 		into.addItem((i) => {
-			i.setTitle(g.label).setIcon(g.icons[0])
+			i.setTitle(wsT(g.label)).setIcon(g.icons[0])
 				.onClick(() => {
 					const next = new Set(d.plugin.uniTypeSet());
 					if (next.has(g.id)) next.delete(g.id); else next.add(g.id);
@@ -165,7 +166,7 @@ const typeRows = (into: Menu) => {
 			// twice to be read once.
 			try {
 				if (typeof i.setChecked === 'function') i.setChecked(on.has(g.id));
-				else if (on.has(g.id)) i.setTitle('\u2713 ' + g.label);
+				else if (on.has(g.id)) i.setTitle('\u2713 ' + wsT(g.label));
 			} catch (_) { wsCatch('openManuscriptModal / typeRows: if (typeof i.setChecked === \'function\') i.setChecked(on.has(g.id));', _); }
 		});
 	}

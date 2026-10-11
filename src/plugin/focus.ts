@@ -7,7 +7,7 @@
 
 import { MarkdownView, Notice, Platform } from 'obsidian';
 import type { WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf } from 'obsidian';
-import { ARROW_STYLES, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, WS_MASK_MAX_FRAC, WS_MASK_MIN_PX, wsCatch, WS_FONT_CANDIDATES, WS_SAFE_FONTS, wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts } from '../core/preamble';
+import { ARROW_STYLES, DEFAULT_SETTINGS, WS_PEEK_DWELL_MS, WS_PEEK_EDGE_PX, WS_PEEK_LEAVE_MS, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, WS_MASK_MAX_FRAC, WS_MASK_MIN_PX, wsCatch, WS_FONT_CANDIDATES, WS_SAFE_FONTS, wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { EditorView } from '@codemirror/view';
 
@@ -117,6 +117,35 @@ export const focusMethods = {
 
 	pageModeShown(this: WordSmith) {
 		try { return !!document.body && document.body.classList.contains('ws-page'); } catch { return false; }
+	},
+
+	// PAGE MODE, SWITCHED FOR NOW. The Modes picker and the command flip the
+	// page without touching the Layout toggle, which stays the default; IN ZEN
+	// OR OUT OF IT, whatever Layout's "Only in Zen" says (A589, the writer: "I
+	// want to toggle page mode when I want, not only in zen"). The
+	// switch lives on the plugin, never in the settings (an unload saves those
+	// whole, and they sync), so it is gone when Obsidian closes; and it
+	// remembers the toggle it was set over, so the moment that toggle moves
+	// (here or synced from another device) the toggle takes over again.
+	pageViewWanted(this: WordSmith) {
+		const base = this.textOpt('pageView', false);
+		const q = this._pageQuick;
+		if (!q) return base;
+		if (q.base !== !!this.settings.pageView) { this._pageQuick = null; return base; }
+		return !!this.settings.miscEnabled && q.on;
+	},
+
+	// Flips the page for now and repaints; the answer is the new state, or
+	// null when the text options are off and a notice has said so.
+	togglePageQuick(this: WordSmith): boolean | null {
+		if (!this.settings.miscEnabled) {
+			new Notice('Word-Smith: page mode is one of the text options. Switch them on first, in the settings.', 6000);
+			return null;
+		}
+		const on = !this.pageViewWanted();
+		this._pageQuick = { on, base: !!this.settings.pageView };
+		this.refresh();
+		return on;
 	},
 
 	// One edge of a mask, or null when it is absent, off or unmeasured.
@@ -931,6 +960,88 @@ export const focusMethods = {
 		await this.revealAndFocusLeaf(leaf);
 	},
 
+	// ── ZEN'S SIDE PANES: A PEEK FROM THE EDGE (A578) ───────────────────────
+	//
+	// With the pointer resting on the window's left or right edge, that side's
+	// pane slides out; it goes again once the pointer has been away from it a
+	// moment. Only a pane a peek opened is closed by one: a pane opened by a
+	// command or the Powermenu stays. A peek writes nothing Zen keeps
+	// (`leftSidebar`/`rightSidebar` are Zen's record of the panes before it,
+	// taken on the way in), and Zen's way out ends a peek first (applyBodyClasses),
+	// so leaving puts back what was there before Zen. A pane the writer is
+	// working in (the focus inside it, a menu open) is not closed under them.
+	zenPeekMove(this: WordSmith, ev: MouseEvent) {
+		const pk = this._peek;
+		if (this._unloaded || !document.body.classList.contains('ws-zen-panes-peek')) { if (pk) this.zenPeekEnd(); return; }
+		const ws = this.app.workspace;
+		if (!ws || !ws.leftSplit || !ws.rightSplit) return;
+		if (pk && pk.open) {
+			const r = pk.split.containerEl.getBoundingClientRect();
+			const near = ev.clientX >= r.left - 6 && ev.clientX <= r.right + 6;
+			if (near) { if (pk.leave != null) { window.clearTimeout(pk.leave); pk.leave = null; } return; }
+			if (pk.leave == null) pk.leave = window.setTimeout(() => {
+				if (this._peek !== pk) return;
+				pk.leave = null;
+				if (this.zenPeekBusy(pk.split.containerEl)) return;
+				this.zenPeekEnd();
+			}, WS_PEEK_LEAVE_MS);
+			return;
+		}
+		const w = window.innerWidth;
+		// a pointer dragging (a scroll bar, a selection) is not resting on the edge
+		const side = ev.buttons ? '' : ev.clientX < WS_PEEK_EDGE_PX ? 'left' : (ev.clientX >= w - WS_PEEK_EDGE_PX ? 'right' : '');
+		if (!side) { if (pk) this.zenPeekEnd(); return; }
+		if (pk && pk.side === side) return;
+		if (pk) this.zenPeekEnd();
+		const split = side === 'left' ? ws.leftSplit : ws.rightSplit;
+		if (!split.collapsed) return;
+		const next: { side: string; split: WorkspaceSidedock; open: boolean; arm: number | null; leave: number | null } = { side, split, open: false, arm: null, leave: null };
+		next.arm = window.setTimeout(() => {
+			if (this._peek !== next || this._unloaded) return;
+			next.arm = null;
+			next.open = true;
+			try { split.expand(); } catch (_) { wsCatch('zenPeekMove: split.expand();', _); }
+		}, WS_PEEK_DWELL_MS);
+		this._peek = next;
+	},
+
+	// The writer is working in the pane: TYPING in it (a search field, a rename),
+	// or a menu or a window is open over it. Not merely the focus: a file clicked
+	// in the tree keeps it, and the pane stayed open after the pointer left (A597).
+	zenPeekBusy(this: WordSmith, paneEl: HTMLElement) {
+		try {
+			const a = document.activeElement;
+			if (a && paneEl.contains(a) && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || (a as HTMLElement).isContentEditable)) return true;
+			return !!document.querySelector('.menu, .modal-container, .suggestion-container');
+		} catch { return false; }
+	},
+
+	// THE POINTER LEFT THE WINDOW (A597): no move arrives to say it is away, so
+	// the pane a peek opened goes as if the pointer had moved off it.
+	zenPeekAway(this: WordSmith) {
+		const pk = this._peek;
+		if (!pk) return;
+		if (!pk.open) { this.zenPeekEnd(); return; }
+		if (pk.leave == null) pk.leave = window.setTimeout(() => {
+			if (this._peek !== pk) return;
+			pk.leave = null;
+			if (this.zenPeekBusy(pk.split.containerEl)) return;
+			this.zenPeekEnd();
+		}, WS_PEEK_LEAVE_MS);
+	},
+
+	// Ends a peek: a pane it opened closes, a pane it was only arming for stays
+	// as it was.
+	zenPeekEnd(this: WordSmith) {
+		const pk = this._peek;
+		this._peek = null;
+		if (!pk) return;
+		if (pk.arm != null) window.clearTimeout(pk.arm);
+		if (pk.leave != null) window.clearTimeout(pk.leave);
+		if (!pk.open) return;
+		try { if (!pk.split.collapsed) pk.split.collapse(); } catch (_) { wsCatch('zenPeekEnd: pk.split.collapse();', _); }
+	},
+
 	setSidebarVisibility(this: WordSmith) {
 		// zenOn(), not settings.zenMode. Leaving zen drops the MASTER and
 		// leaves zenMode where it was, so that raw flag does not change on
@@ -1166,12 +1277,15 @@ export const focusMethods = {
 	// Remove only mask/arrow elements (not the retro bar)
 	removeMaskElements(this: WordSmith) {
 		for (const el of [this.maskTopEl, this.maskBottomEl, this.arrowsTopEl, this.arrowsBottomEl,
-			this.maskGuardLeftEl, this.maskGuardRightEl]) {
+			this.maskGuardLeftEl, this.maskGuardRightEl, this.lbSideLeftEl, this.lbSideRightEl]) {
 			if (el) el.remove();
 		}
 		this.maskTopEl = this.maskBottomEl = this.arrowsTopEl = this.arrowsBottomEl = null;
 		this.maskGuardLeftEl = this.maskGuardRightEl = null;
+		this.lbSideLeftEl = this.lbSideRightEl = null;
+		this._lbReadoutEnd();
 		document.documentElement.setCssProps({ '--ws-scroller-pad-top': '0px', '--ws-scroller-pad-bottom': '0px' });
+		this._lbScrollPad = 0;
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 	},
 
@@ -1461,11 +1575,12 @@ export const focusMethods = {
 
 	buildMaskElements(this: WordSmith) {
 		for (const el of [this.maskTopEl, this.maskBottomEl, this.arrowsTopEl, this.arrowsBottomEl,
-			this.maskGuardLeftEl, this.maskGuardRightEl]) {
+			this.maskGuardLeftEl, this.maskGuardRightEl, this.lbSideLeftEl, this.lbSideRightEl]) {
 			if (el) el.remove();
 		}
 		this.maskTopEl = this.maskBottomEl = this.arrowsTopEl = this.arrowsBottomEl = null;
 		this.maskGuardLeftEl = this.maskGuardRightEl = null;
+		this.lbSideLeftEl = this.lbSideRightEl = null;
 		if (this.maskResizeObserver) { this.maskResizeObserver.disconnect(); this.maskResizeObserver = null; }
 
 		if (!this.letterboxActive()) return;
@@ -1501,6 +1616,9 @@ export const focusMethods = {
 		// (`.ws-mask-guard` is fixed, inert and hidden until placed —
 		// styles.css; stampMaskPositions gives it a box and the `is-placed` class.)
 		this.arrowsBottomEl = this.buildArrowLayer('bottom', chars.bottom);
+		// THE SIDES, A HANDLE EACH (A673, the writer's pick 1): the arrows alone were 10 by 13px to catch
+		this.lbSideLeftEl  = this.buildSideHandle('left');
+		this.lbSideRightEl = this.buildSideHandle('right');
 
 		const scroller = this.getActiveScroller();
 		if ('ResizeObserver' in window) {
@@ -1936,16 +2054,13 @@ export const focusMethods = {
 		// draws past it.
 		maskH = Math.max(maskH, WS_MASK_MIN_PX);
 
-		// THE INSET IS NIL WHILE THE MASKS FOLLOW THE TEXT. Matching the
-		// column already decides where the masks start and stop; an inset
-		// on top of it is a second answer to the same question, and the
-		// two fought — nudge the arrows in and the band no longer lined up
-		// with the writing it was cut to. Locked rather than hidden, so
-		// the writer's own value is kept and comes back the moment they
-		// stop matching.
-		let padH        = this.settings.maskMatchText
-			? 0
-			: (this.settings.maskPaddingH || 0);
+		// THE BAND IS THE WORDS' WIDTH, ALWAYS (A672, issue #55: a reader saw the band's sides dragged in the
+		// walkthrough and nothing else move; the writer: "make the letterbox only match the text width and with
+		// it's horizontal drag to slide the padded margins"). No inset of its own and no choice of widths: the
+		// sides' drag moves the text's margins (_startHorizontalDrag) and the band follows the words.
+		// THE MASKS ARE THE WHOLE PANE, padding and all (the writer, a shot of the Properties showing above the
+		// band in the left margin: "it does not cover", then "or is a padding issue with them"): A672 drew them
+		// the words' width too, and everything in the padding strip above and below the band showed.
 		// The arrows centre on the text, so they measure the content box.
 		// sr.width is the border box and includes the vertical scrollbar,
 		// which the text column does not — centring on it put the arrow row
@@ -1953,52 +2068,35 @@ export const focusMethods = {
 		// stay on the border box: they are a backdrop and should cover the
 		// scrollbar too.
 		const innerW    = scroller.clientWidth || sWidth;
-		// THE TEXT COLUMN, when the writer asked the masks to match it.
-		// Measured from the editor's own content element rather than from
-		// the readable-line setting, because a theme, a snippet or a
-		// per-note width can all move it — what is on screen is the only
-		// honest answer. `sizer` is the element the column's width lives
-		// on; padded, we take its offset box, unpadded its content box.
-		let matchLeft = null, matchW = null;
-		if (this.settings.maskMatchText) {
-			try {
-				const sizer = scroller.querySelector('.cm-contentContainer .cm-content')
-					|| scroller.querySelector('.cm-sizer')
-					|| scroller.querySelector('.markdown-preview-sizer');
-				if (sizer) {
-					const r = sizer.getBoundingClientRect();
-					if (r && r.width > 0) {
-						matchLeft = r.left;
-						matchW    = r.width;
-						if (!this.settings.maskMatchTextPadded) {
-							const cs = window.getComputedStyle(sizer);
-							const pl = parseFloat(cs.paddingLeft)  || 0;
-							const pr = parseFloat(cs.paddingRight) || 0;
-							matchLeft += pl;
-							matchW    -= (pl + pr);
-						}
-					}
-				}
-			} catch { matchLeft = matchW = null; }
-		}
-		// The horizontal inset is the writer's own nudge and still applies;
-		// matching the text replaces where the mask STARTS, not their say
-		// over it.
-		const baseLeft  = matchLeft != null ? matchLeft : sLeft;
-		const baseWidth = matchW    != null ? matchW    : sWidth;
-		// CLAMPED HERE TOO, not only where it is set: a value saved before
-		// this cap existed, or typed into data.json, must still draw a row
-		// the arrows fit in. The layout is the last word on what is
-		// possible; the setting only says what was asked for.
-		const padMax = Math.max(0, Math.floor((baseWidth - WS_ARROWS_MIN_W) / 2));
-		padH = Math.min(padH, padMax);
-		const arrowLeft = (matchLeft != null ? matchLeft : sLeft) + padH;
-		const arrowW    = Math.max(0, (matchW != null ? matchW : innerW) - padH * 2);
-		const arrowH    = maskH;
+		const words     = this._letterboxWords(scroller);
+		const baseLeft  = words ? words.left  : sLeft;
+		const baseWidth = words ? words.width : sWidth;
+		const arrowLeft = baseLeft;
+		const arrowW    = Math.max(0, words ? words.width : innerW);
 		const overhang  = this.settings.maskOverhang != null ? this.settings.maskOverhang : 4;
+		// WHOLE LINES IN THE BAND (A673, the writer's pick 3). MEASURED: a 474px band over 33px lines held 14.4 of
+		// them, its bottom edge cutting a line 27px in. The masks give or take under half a line so the band holds a
+		// whole number of the editor's lines; with Typewriter, which holds the caret's line still, the band also
+		// moves by under half a line (the top mask `shift` taller, the bottom as much shorter) so its edges fall
+		// between lines around it. Without Typewriter the text scrolls by any amount and no band stays on its lines.
+		// The stored height is untouched: the band is drawn to the nearest whole lines of it.
+		const lineH     = this._lbLinePx();
+		let arrowH      = maskH, shift = 0;
+		{
+			const k = Math.round((sHeight - 2 * (maskH + overhang)) / lineH);
+			const snapped = (sHeight - k * lineH) / 2 - overhang;
+			if (k >= 1 && snapped >= WS_MASK_MIN_PX && snapped <= this._maskMaxPx(sHeight)) arrowH = snapped;
+			const caret = this.settings.enableTypewriter ? this._lbCaretTop(view) : null;
+			if (caret != null) {
+				const off = (((caret - (sTop + arrowH + overhang)) % lineH) + lineH) % lineH;
+				const d = off > lineH / 2 ? off - lineH : off;
+				if (arrowH + d >= WS_MASK_MIN_PX && arrowH - d >= WS_MASK_MIN_PX) shift = d;
+			}
+		}
+		const topH = arrowH + shift, botH = arrowH - shift;
 
 		const S = (el: HTMLDivElement | null, styles: { left: string; width: string; top: string; height: string; bottom: string; }) => { if (el) Object.assign(el.style, styles); };
-		S(this.maskTopEl,    { left: baseLeft+'px', width: baseWidth+'px', top: sTop+'px', height: (arrowH+overhang)+'px', bottom:'' });
+		S(this.maskTopEl,    { left: sLeft+'px', width: sWidth+'px', top: sTop+'px', height: (topH+overhang)+'px', bottom:'' });
 		// Only the top mask can reach the window controls. Guarded twice
 		// over: null when the positioner runs for the retro bar alone, and
 		// isolated so nothing thrown in here can abort the bottom mask,
@@ -2020,8 +2118,16 @@ export const focusMethods = {
 				// The gate was never load-bearing: maskTopClip computes
 				// `h - maskTop` and returns '' when that is negative, so a
 				// mask sitting below the controls already declined to carve.
-				this.maskTopEl.style.clipPath =
-					this.maskTopClip(sLeft, sTop, sWidth, arrowH + overhang);
+				//
+				// MEASURED, NEVER CUT (issue #58, a reader on a Surface: "I can see the tiniest sliver of the
+				// document text at the top of the window where the letterbox is supposed to block"). In Zen the
+				// editor reaches the window's top edge, and the notch showed the text under the window controls,
+				// and under Obsidian's left title-bar container wherever it has a width (up to 45% of the pane).
+				// The controls need no notch: `body.ws-masks-active .titlebar…` lifts the title bar above the
+				// masks (--ws-z-titlebar over --ws-z-mask in every state) and the masks take no pointer events.
+				// The notch is still measured, for the drag-region guards below.
+				this.maskTopClip(sLeft, sTop, sWidth, topH + overhang);
+				this.maskTopEl.style.removeProperty('clip-path');
 			} catch { try { this.maskTopEl.style.removeProperty('clip-path'); } catch (__) { wsCatch('stampMaskPositions: this.maskTopEl.style.removeProperty(clip-path);', __); } }
 			// The guards follow the same notches. Viewport coordinates:
 			// they are fixed children of body, not of the mask, precisely
@@ -2056,7 +2162,7 @@ export const focusMethods = {
 			this.arrowsTopEl.classList.toggle('is-hidden', !arrowsFit);
 			this.arrowsBottomEl.classList.toggle('is-hidden', !arrowsFit);
 		} catch (_) { wsCatch('stampMaskPositions: this.arrowsTopEl.classList.toggle(\'is-hidden\', !arrowsFit);', _); }
-		S(this.arrowsTopEl,  { left: arrowLeft+'px', width: arrowW+'px', top: sTop+'px', height: arrowH+'px', bottom:'' });
+		S(this.arrowsTopEl,  { left: arrowLeft+'px', width: arrowW+'px', top: sTop+'px', height: topH+'px', bottom:'' });
 		// The bottom mask is pinned to the WINDOW EDGE, not sized to stop at
 		// the bar. Chasing the bar's top edge kept leaving a hairline
 		// however carefully it was measured and however much overlap was
@@ -2090,22 +2196,28 @@ export const focusMethods = {
 		// bottom edge, underneath an opaque bar that paints above the
 		// mask, so a rounding sliver has nowhere to show. When the panel
 		// closes it goes back to bottom: 0, where there is no edge at all.
-		const bottomMaskTop = Math.floor(sBottom - arrowH - overhang);
+		const bottomMaskTop = Math.floor(sBottom - botH - overhang);
 		// `bottom: 0` reaches the WINDOW's foot, which is only the right edge
 		// when the pane runs that far. Where the pane ends first, the band is
 		// given an explicit height and stops with it — otherwise it covers the
 		// note underneath, which is what moving the top alone did.
 		if (barMeasured && !paneFoot) {
-			S(this.maskBottomEl, { left: baseLeft+'px', width: baseWidth+'px',
+			S(this.maskBottomEl, { left: sLeft+'px', width: sWidth+'px',
 				top: bottomMaskTop+'px',
 				bottom: (this._vimPanelOpen ? this.vimGutterHeight() : 0) + 'px',
 				height: '' });
 		} else {
-			S(this.maskBottomEl, { left: baseLeft+'px', width: baseWidth+'px',
+			S(this.maskBottomEl, { left: sLeft+'px', width: sWidth+'px',
 				top: bottomMaskTop+'px',
 				height: Math.ceil(sBottom - bottomMaskTop)+'px', bottom:'' });
 		}
-		S(this.arrowsBottomEl, { left: arrowLeft+'px', width: arrowW+'px', top: (sBottom-arrowH)+'px', height: arrowH+'px', bottom:'' });
+		S(this.arrowsBottomEl, { left: arrowLeft+'px', width: arrowW+'px', top: (sBottom-botH)+'px', height: botH+'px', bottom:'' });
+		// THE SIDE HANDLES (A673): the band's height, between the two arrow rows, at the words' two edges; the
+		// sheet sets their width and puts the left one outside the words
+		const bandTop = sTop + topH, bandH = Math.max(0, sBottom - botH - bandTop);
+		for (const [el, x] of [[this.lbSideLeftEl, baseLeft], [this.lbSideRightEl, baseLeft + baseWidth]] as [HTMLDivElement | null, number][]) {
+			if (el) el.setCssStyles({ left: x + 'px', top: bandTop + 'px', height: bandH + 'px' });
+		}
 
 		// The bar is NOT stamped here. Its horizontal bounds have exactly
 		// one owner — stampBarBounds(), called at the top of this pass —
@@ -2131,10 +2243,16 @@ export const focusMethods = {
 		// zen mode — zen mode's own 50vh padding (see styles.css) already
 		// covers this and is left untouched.
 		const scrollPad = this.letterboxActive() ? Math.round(arrowH + overhang + 24) : 0;
+		const padWas    = this._lbScrollPad;
+		this._lbScrollPad = scrollPad;
 		document.documentElement.style.setProperty('--ws-scroller-pad-top',    scrollPad + 'px');
 		document.documentElement.style.setProperty('--ws-scroller-pad-bottom', scrollPad + 'px');
 
 		this._maskRaf = null;
+		// THE PADDING MOVES THE TEXT (A673): a pass that changed it lined the band up on where the caret's line WAS
+		// (MEASURED live: 295.6, then 424.6 once the padding was in); one more pass lines it up on where it is. The
+		// padding hangs on the mask's height alone, so the next pass changes nothing and asks for no other.
+		if (this.settings.enableTypewriter && padWas !== scrollPad) this.scheduleMaskPosition();
 	},
 
 	scheduleMaskPosition(this: WordSmith) {
@@ -2170,6 +2288,9 @@ export const focusMethods = {
 			e.preventDefault(); e.stopPropagation();
 			this._startVerticalDrag(e, position, line);
 		});
+		// A DOUBLE-CLICK PUTS IT BACK (A673, pick 6): the line, the band's height; the arrows, the margins
+		line.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); this._lbResetHeight(); });
+		arrows.addEventListener('dblclick', e => { e.preventDefault(); e.stopPropagation(); this._lbResetMargins(); });
 
 		arrows.addEventListener('pointerdown', e => {
 			if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -2183,7 +2304,7 @@ export const focusMethods = {
 	// events to the grabbed element, so no document-level listeners are
 	// needed — and _activeDragCleanup lets onunload abort a drag that's
 	// still in flight instead of leaking its listeners.
-	_startPointerDrag(this: WordSmith, e: PointerEvent, el: HTMLDivElement, cursor: string, onMove: (me: PointerEvent) => void) {
+	_startPointerDrag(this: WordSmith, e: PointerEvent, el: HTMLDivElement, cursor: string, onMove: (me: PointerEvent) => void, onEnd?: () => void) {
 		if (el.setPointerCapture) { try { el.setPointerCapture(e.pointerId); } catch (_) { wsCatch('_startPointerDrag: el.setPointerCapture(e.pointerId);', _); } }
 		document.body.style.cursor = cursor; document.body.addClass('ws-dragging');
 		const finish = (save: boolean) => {
@@ -2195,6 +2316,7 @@ export const focusMethods = {
 			}
 			document.body.style.removeProperty('cursor'); document.body.removeClass('ws-dragging');
 			this._activeDragCleanup = null;
+			if (onEnd) onEnd();
 			if (save) void this.saveSettings();
 		};
 		const onUp     = () => finish(true);
@@ -2225,8 +2347,11 @@ export const focusMethods = {
 
 	_startVerticalDrag(this: WordSmith, e: PointerEvent, position: string, el: HTMLDivElement) {
 		const startY = e.clientY;
-		const startH = (this.maskTopEl ? parseFloat(this.maskTopEl.style.height) : null)
-			|| (this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26);
+		// THE STORED HEIGHT, HELD BETWEEN THE WALLS (A673): the drawn mask carries its overhang, and since whole lines
+		// it is up to half a line off the stored height too, so starting from it a click that moved nothing grew the
+		// band's masks by the overhang (120 → 124, measured)
+		const startH = Math.min(this._maskMaxPx(), Math.max(WS_MASK_MIN_PX,
+			this.settings.letterboxPx != null ? this.settings.letterboxPx : (this.settings.letterboxLines || 8) * 26));
 		this._startPointerDrag(e, el, 'ns-resize', (me: MouseEvent) => {
 			const dy = me.clientY - startY;
 			// HELD BETWEEN BOTH WALLS, so the stored number and the drawn
@@ -2238,26 +2363,146 @@ export const focusMethods = {
 		});
 	},
 
-	_startHorizontalDrag(this: WordSmith, e: PointerEvent, el: HTMLDivElement) {
-		// UNDRAGGABLE WHILE THE MASKS MATCH THE TEXT. The drag writes the
-		// inset, and the inset is ignored in that mode — so the handle
-		// would move under the pointer and nothing on screen would answer,
-		// which reads as the plugin having stopped working.
-		if (this.settings.maskMatchText) return;
+	// THE WORDS' COLUMN (A672): the editor's own content element less its side padding, what the band hugs and
+	// what its sides' drag measures. Measured rather than calculated from the readable-line setting, because a
+	// theme, a snippet or a per-note width can all move it: what is on screen is the only honest answer. Null
+	// where there is nothing to measure.
+	_letterboxWords(this: WordSmith, root?: Element | null): { left: number; width: number; box: number } | null {
+		try {
+			const view = root ? null : this.activeMarkdownView();
+			const from = root || (view ? view.contentEl : null);
+			if (!from) return null;
+			const el = from.querySelector('.cm-contentContainer .cm-content')
+				|| from.querySelector('.cm-sizer')
+				|| from.querySelector('.markdown-preview-sizer');
+			if (!el) return null;
+			const r = el.getBoundingClientRect();
+			if (!r || !(r.width > 0)) return null;
+			const cs = window.getComputedStyle(el);
+			const pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+			return { left: r.left + pl, width: r.width - pl - pr, box: r.width };
+		} catch { return null; }
+	},
+
+	// THE SIDES MOVE THE TEXT'S MARGINS (A672, issue #55; the writer: "with it's horizontal drag to slide the
+	// padded margins"): a side dragged in widens both margins as far as the hand moved, out narrows them, the
+	// text and the band with it as the hand moves; the padding is Text's own Horizontal padding, which the
+	// Letter Box applies while it is on (padOn). WHILE LIMIT LINE LENGTH HOLDS THE TEXT to a count of characters
+	// the padding would move nothing, so the drag sets the count ("Drag sets the characters"), from the
+	// characters' width on screen. Held where the words keep room for the arrows, and to 0–400 (the slider's).
+	// A SIDE HANDLE SAYS WHICH SIDE IT IS (`side`: 1 the left, -1 the right, A673); the arrows go by the window's middle.
+	// THE READOUT (A673, pick 2; the writer: "with xx characters"): the line's length in characters by the pointer
+	// while the hand moves, gone when it lets go
+	_startHorizontalDrag(this: WordSmith, e: PointerEvent, el: HTMLDivElement, side?: number) {
+		const s        = this.settings;
 		const startX   = e.clientX;
-		const startPad = this.settings.maskPaddingH || 0;
-		const cx       = window.innerWidth / 2;
+		const dir      = side || (startX < window.innerWidth / 2 ? 1 : -1);
+		this._lbReadout(e.clientX, e.clientY);
+		const end      = () => this._lbReadoutEnd();
+		const words    = this._letterboxWords();
+		if (this.textOpt('limitLineLength', false)) {
+			const startChars = Math.max(20, Math.min(200, s.maxLineChars || 64));
+			const chPx = words && words.width > 0 ? words.width / startChars : 8;
+			this._startPointerDrag(e, el, 'ew-resize', (me: MouseEvent) => {
+				s.maxLineChars = Math.max(20, Math.min(200, Math.round(startChars - 2 * (me.clientX - startX) * dir / chPx)));
+				this.applyStyleProps();
+				this.scheduleMaskPosition();
+				this._lbReadout(me.clientX, me.clientY);
+			}, end);
+			return;
+		}
+		const startPad = s.editorPaddingH != null ? s.editorPaddingH : DEFAULT_SETTINGS.editorPaddingH;
+		const cap      = Math.min(400, Math.max(0, Math.floor(((words ? words.box : window.innerWidth) - WS_ARROWS_MIN_W) / 2)));
 		this._startPointerDrag(e, el, 'ew-resize', (me: MouseEvent) => {
-			const dx = me.clientX - startX;
-			// The same wall the layout enforces, so the handle stops where
-			// the drawing does rather than sliding on against a row that
-			// has already stopped narrowing.
-			const wide = (this.maskTopEl && this.maskTopEl.offsetWidth) || window.innerWidth;
-			const cap  = Math.max(0, Math.floor((wide - WS_ARROWS_MIN_W) / 2));
-			this.settings.maskPaddingH = Math.max(0,
-				Math.min(cap, Math.round(startPad + dx * (startX < cx ? 1 : -1))));
+			s.editorPaddingH = Math.max(0, Math.min(cap, Math.round(startPad + (me.clientX - startX) * dir)));
+			this.stampEditorPadding();
 			this.scheduleMaskPosition();
+			this._lbReadout(me.clientX, me.clientY);
+		}, end);
+	},
+
+	// A SIDE OF THE BAND, A HANDLE (A673, the writer's pick 1): a strip the band's height just outside the words,
+	// dragged as the arrows are; a double-click puts the margins back (pick 6)
+	buildSideHandle(this: WordSmith, side: 'left' | 'right') {
+		const el = document.body.createDiv({ cls: ['ws-lb-side', 'is-' + side] });
+		el.addEventListener('pointerdown', (e) => {
+			if (e.pointerType === 'mouse' && e.button !== 0) return;
+			e.preventDefault(); e.stopPropagation();
+			this._startHorizontalDrag(e, el, side === 'left' ? 1 : -1);
 		});
+		el.addEventListener('dblclick', (e) => { e.preventDefault(); e.stopPropagation(); this._lbResetMargins(); });
+		return el;
+	},
+
+	// THE CARET'S LINE, its top on screen (A673: what the band lines up on under Typewriter); null without one.
+	// The LINE's top, not the caret's: the caret is the letters' height, centred in a taller line (MEASURED live:
+	// lined up on the caret's own top, the band sat 3px off its lines), so the caret's middle less half a line
+	_lbCaretTop(this: WordSmith, view: MarkdownView | null): number | null {
+		try {
+			const cm = view && view.editor ? view.editor.cm : null;
+			if (!cm) return null;
+			const c = cm.coordsAtPos(cm.state.selection.main.head);
+			return c ? (c.top + c.bottom) / 2 - this._lbLinePx() / 2 : null;
+		} catch { return null; }
+	},
+
+	// A CHARACTER'S WIDTH, 1ch (the unit Characters per line counts in): a "0" in the editor's own font, measured
+	// off the page so nothing is written into the editor; 0 where it cannot be measured
+	_lbChPx(this: WordSmith): number {
+		try {
+			const view = this.activeMarkdownView();
+			const content = view ? view.contentEl.querySelector('.cm-content') : null;
+			if (!content || typeof OffscreenCanvas !== 'function') return 0;
+			const ctx = new OffscreenCanvas(1, 1).getContext('2d');
+			if (!ctx) return 0;
+			const cs = window.getComputedStyle(content);
+			ctx.font = cs.fontStyle + ' ' + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+			return ctx.measureText('0').width;
+		} catch { return 0; }
+	},
+
+	// A LINE'S HEIGHT in the editor (the band's step from the keyboard): the content's line height, 26 where it says
+	// nothing it can be read by
+	_lbLinePx(this: WordSmith): number {
+		try {
+			const view = this.activeMarkdownView();
+			const content = view ? view.contentEl.querySelector('.cm-content') : null;
+			const lh = content ? parseFloat(window.getComputedStyle(content).lineHeight) : NaN;
+			return lh > 0 ? lh : 26;
+		} catch { return 26; }
+	},
+
+	// THE LINE'S LENGTH IN CHARACTERS (A673, the writer: "with xx characters"): the count while Limit line length holds
+	// the text, otherwise the words' width over a character's
+	_lbChars(this: WordSmith): number | null {
+		if (this.textOpt('limitLineLength', false)) return Math.max(20, Math.min(200, this.settings.maxLineChars || 64));
+		const w = this._letterboxWords(), ch = this._lbChPx();
+		return w && ch > 0 ? Math.round(w.width / ch) : null;
+	},
+
+	// THE READOUT by the pointer (or wherever a command puts it): "72 characters", or what `text` says
+	_lbReadout(this: WordSmith, x: number, y: number) {
+		if (!this.lbReadoutEl) this.lbReadoutEl = document.body.createDiv({ cls: 'ws-lb-readout' });
+		const n = this._lbChars();
+		this.lbReadoutEl.setText(n ? n + ' characters' : '');
+		this.lbReadoutEl.setCssStyles({ left: (x + 14) + 'px', top: (y - 30) + 'px' });
+	},
+	_lbReadoutEnd(this: WordSmith) {
+		if (this.lbReadoutEl) { this.lbReadoutEl.remove(); this.lbReadoutEl = null; }
+	},
+
+	// A DOUBLE-CLICK PUTS IT BACK (A673, pick 6): the band's height; the margins (or, under a line limit, the count)
+	_lbResetHeight(this: WordSmith) {
+		this.settings.letterboxPx = DEFAULT_SETTINGS.letterboxPx;
+		this.scheduleMaskPosition();
+		void this.saveSettings();
+	},
+	_lbResetMargins(this: WordSmith) {
+		const s = this.settings;
+		if (this.textOpt('limitLineLength', false)) { s.maxLineChars = DEFAULT_SETTINGS.maxLineChars; this.applyStyleProps(); }
+		else { s.editorPaddingH = DEFAULT_SETTINGS.editorPaddingH; this.stampEditorPadding(); }
+		this.scheduleMaskPosition();
+		void this.saveSettings();
 	},
 
 	getArrowChars(this: WordSmith) {

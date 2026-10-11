@@ -32,13 +32,13 @@ export interface WsExportOpts {
 	// switches
 	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean;
 	dashPageBreak?: boolean;
-	keepImages?: boolean; dropImages?: boolean; keepFrontmatter?: boolean; keepComments?: boolean; keepCallouts?: boolean; keepTags?: boolean;
+	keepFrontmatter?: boolean; keepComments?: boolean; keepCallouts?: boolean; keepTags?: boolean;
 	keepHeadings?: boolean; wordCountOnTitle?: boolean; roundWordCount?: boolean; pageNumbers?: boolean;
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;
 	doubleSpaced?: boolean; toc?: boolean; runningHeaderOn?: boolean; sectionTitles?: boolean; previewDark?: boolean;
 	// words
 	author?: string; titleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
-	format?: string; chapterTitles?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
+	format?: string; footnotePlace?: string; chapterTitles?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
 	// numbers
 	pt?: number;
 	/** the last export, remembered so the panel can offer it again */
@@ -82,13 +82,22 @@ export interface WsHost {
 export interface WsTextStats {
 	words: number; chars: number; charsNoSpaces: number; charsWithSpaces: number; syllables: number; sentences: number;
 	paragraphs: number; lines: number; pages: number; grade: number;
+	/** a pack's reading sums (A571), what its grade is made of; a folder adds them up */
+	read?: Record<string, number>;
 	files?: number; tasksDone?: number; tasksAll?: number; tasks?: { done: number; all: number } | null; totalWC?: number; charCount?: number;
 }
 // What the builders receive: the window's options plus what `exportOptsFor`
 // derives at the moment of compiling — the title, the count, the header line.
-export interface WsExportRun extends WsExportOpts { title?: string; wordCount?: number; runningHeader?: string }
+/** a picture ready to travel (A568), read before the build: one per reference as written */
+export interface WsImage { name: string; alt: string; width: number | null; ext: string; mime: string; src: string; bytes: Uint8Array<ArrayBuffer> | null; w: number; h: number }
+/** what a build carries beside the options: the pictures of the note being walked, and the .docx's figure writer */
+/** …and the numbering of footnote markers, one call per marker: a number for one whose note is defined, null for one that is not */
+export interface WsExportBuild { imgs?: Map<string, WsImage> | null; docxFigure?: ((img: WsImage) => string[]) | null; noteRef?: ((label: string) => { n: number; end: boolean } | null) | null }
+export interface WsExportRun extends WsExportOpts, WsExportBuild { title?: string; wordCount?: number; runningHeader?: string }
 // One section of a compiled book: a folder heading, or a note with its text.
-export interface WsExportSection { title: string; markdown: string; path: string; depth: number; folder?: boolean }
+export interface WsExportSection { title: string; markdown: string; path: string; depth: number; folder?: boolean; images?: Map<string, WsImage>;
+	/** the list of sources at the back (A572 step 4): its heading the title, one entry a source */
+	bib?: boolean; entries?: string[] }
 export type WsExportBoolKey = KeysOf<WsExportOpts, boolean>;
 export type WsExportStringKey = KeysOf<WsExportOpts, string>;
 
@@ -145,6 +154,9 @@ export interface WsCursorSmithPlugin { settings?: WsCursorSmithSettings; look?: 
 // (some) an icon, a key or id, a note for the tooltip.
 export interface WsMenuPickItem {
 	label: string;
+	// a row whose words and glyph follow its state, redrawn on the list's every refresh (A628)
+	labelOf?: () => string;
+	iconOf?: () => Element;
 	on?: boolean | (() => boolean);
 	onClick?: () => unknown;
 	icon?: () => Element;
@@ -207,6 +219,8 @@ export interface WsLegacySettings {
 	powerlineTextLight1?: never; powerlineTextLight2?: never; powerlineTextLight3?: never; powerlineTextLight4?: never;
 	retroCustomColors?: never; retroDarkBgColor?: never; retroDarkTextColor?: never;
 	retroLightBgColor?: never; retroLightTextColor?: never; goalTarget?: never; goalLabelMode?: never;
+	// the Letter Box's own width (A672): the band is the words', its sides the text's margins
+	maskMatchText?: never; maskMatchTextPadded?: never; maskPaddingH?: never;
 	// the markers' second switch, which only the bar's picker could see
 	showHiddenMarkers?: never;
 }

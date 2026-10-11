@@ -28,7 +28,7 @@ import { FrontMatterCache } from "obsidian";
 // `grade` null where it has no sentence, `props` the frontmatter copied.
 export interface WsOrgReading {
 	words: number; paras: number; charsNoSpaces: number; charsWithSpaces: number; sentences: number; footnotes: number;
-	tasks: { all: number; done: number } | null; grade: number | null; mtime: number; ctime: number;
+	tasks: { all: number; done: number } | null; grade: number | null; vocab: number; mtime: number; ctime: number;
 	props: Record<string, unknown> | null;
 }
 export type WsOrgIndexMap = Map<string, WsOrgReading>;
@@ -62,7 +62,7 @@ export const wsCountFootnotes = (text: string) => {
 	if (inl) n += inl.length;
 	return n;
 };
-export const wsOrgPut = (ix: WsOrgIndexMap, path: string, r: { words?: number; paras?: number; charsNoSpaces?: number; charsWithSpaces?: number; sentences?: number; footnotes?: number; tasks?: { done: number; all: number; }; grade?: number; mtime?: number; ctime?: number; props?: FrontMatterCache | null; }) => {
+export const wsOrgPut = (ix: WsOrgIndexMap, path: string, r: { words?: number; paras?: number; charsNoSpaces?: number; charsWithSpaces?: number; sentences?: number; footnotes?: number; tasks?: { done: number; all: number; }; grade?: number; vocab?: number; mtime?: number; ctime?: number; props?: FrontMatterCache | null; }) => {
 	if (!ix || !path) return null;
 	const src = r || {};
 	let props: Record<string, unknown> | null = null;
@@ -91,6 +91,8 @@ export const wsOrgPut = (ix: WsOrgIndexMap, path: string, r: { words?: number; p
 			: null,
 		grade: (typeof src.grade === 'number' && isFinite(src.grade))
 			? src.grade : null,
+		// THE DIFFERENT WORDS (A681): the Report's Vocabulary for the one note, read the same way
+		vocab: Number(src.vocab) || 0,
 		mtime: Number(src.mtime) || 0,
 		// WHEN IT WAS STARTED. Kept beside mtime rather than derived: `ctime`
 		// is the vault's own stat and nothing else can reconstruct it.

@@ -1,6 +1,7 @@
 // Word-Smith — organizer-journal.
 
 import { wsCatch, wsErrMsg } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 
 // ════════════════════════════════════════════════════════════════════════
 // THE ORGANIZER'S JOURNAL — undo and redo, out of the window
@@ -50,13 +51,13 @@ export const wsOrgJournalMake = ({ paint, say, fail }: WsOrgJournalDeps) => {
 			await (dir === 'redo' ? e.redo() : e.undo());
 			to.push(e);
 			// BESIDE THE BUTTONS, NOT IN THE FOOT.
-			say((dir === 'redo' ? 'Redone: ' : 'Undone: ') + e.label);
+			say(dir === 'redo' ? wsT('Redone: {label}', { label: e.label }) : wsT('Undone: {label}', { label: e.label }));
 		} catch (err) {
 			// BACK WHERE IT CAME FROM, so a rename whose old name is taken
 			// again can be tried once the way is clear, rather than lost.
 			from.push(e);
 			wsCatch('orgHistRun: ' + dir + ' ' + e.label, err);
-			fail('Could not ' + dir + ' — ' + wsErrMsg(err));
+			fail(dir === 'redo' ? wsT('Could not redo — {error}', { error: wsErrMsg(err) }) : wsT('Could not undo — {error}', { error: wsErrMsg(err) }));
 		} finally {
 			hist.busy = false;
 			repaint();
@@ -75,7 +76,7 @@ export const wsOrgJournalMake = ({ paint, say, fail }: WsOrgJournalDeps) => {
 	// THE LABEL OF AN ACT: "Flag Draft on Chapter Two", "Target 2000 on 3 notes".
 	const on = (paths: string[], what: string) => {
 		const n = paths.length;
-		return what + (n === 1 ? ' on ' + nameOf(paths[0]) : ' on ' + n + ' notes');
+		return n === 1 ? wsT('{what} on {name}', { what, name: nameOf(paths[0]) }) : wsT('{what} on {n} notes', { what, n });
 	};
 	return { push, run, api, on, repaint };
 };

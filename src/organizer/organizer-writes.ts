@@ -2,6 +2,7 @@
 // says until it lands.
 
 import { wsCatch, wsStr } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsOrgJournalEntry } from './organizer-journal';
 
@@ -113,7 +114,7 @@ const orgPropSet = async (path: string, key: string, value: unknown) => {
 		const r = await orgPropWriteOne(p, key, value, p === path);
 		if (p === path) out = !!r;
 	}
-	if (all.length > 1) d.orgBulkSay(all.length, 'Property set');
+	if (all.length > 1) d.orgBulkSay(all.length, wsT('Property set'));
 	d.orgHistPush({
 		label: d.orgHistOn(all, String(key)),
 		undo: async () => { for (const [p, v] of before) await orgPropWriteOne(p, key, v, false); },
@@ -152,7 +153,7 @@ const orgPropListSet = async (path: string, key: string, list: unknown, before: 
 		// the other rows, repainted even while the edited row's box is open
 		if (writes.length > 1) d.orgHeldAdd(writes.slice(1).map((w) => w[0]), String(key));
 	}
-	if (n > 1) d.orgBulkSay(n, 'Property set');
+	if (n > 1) d.orgBulkSay(n, wsT('Property set'));
 	d.orgHistPush({
 		label: d.orgHistOn(writes.map((w) => w[0]), String(key)),
 		undo: async () => { for (const [p, v] of writes) await orgPropWriteOne(p, key, v, false); },

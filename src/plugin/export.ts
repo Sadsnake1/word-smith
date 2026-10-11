@@ -7,14 +7,94 @@
 
 import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
-import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection } from '../core/settings';
+import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage } from '../core/settings';
+import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
+import type { WsWheelAcc } from '../core/preamble';
+import { wsCiteMissing, wsCiteMissingText, wsCiteSections } from '../core/citations';
+import { wsT, wsUiJoin } from '../core/ui-text';
 import { wsUnderIndex } from '../organizer/org-index';
-import { WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
+
+// ── DRAWING A PICTURE (A568), with the engine Obsidian runs ─────────────
+//
+// THE LONGEST SIDE A PICTURE TRAVELS AT: 3,000 pixels is past 300 dpi across
+// any page this exports (a Letter column is 6.5 inches), and the bound on
+// what a phone holds while a book of photographs is assembled. Longer is
+// redrawn at this size; shorter travels as it is.
+const WS_IMAGE_MAX_SIDE = 3000;
+// The picture's own size, by drawing it. Null when it cannot be drawn here.
+async function wsImageSize(bytes: Uint8Array<ArrayBuffer>, mime: string): Promise<{ w: number; h: number } | null> {
+	const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
+	try {
+		const img = new Image();
+		img.src = url;
+		await img.decode();
+		const w = img.naturalWidth, h = img.naturalHeight;
+		return w > 0 && h > 0 ? { w, h } : null;
+	} catch { return null; }
+	finally { URL.revokeObjectURL(url); }
+}
+// Redrawn at a size and into a format: the bytes, or null when the engine
+// would not draw it.
+async function wsImageRedraw(bytes: Uint8Array<ArrayBuffer>, mime: string, w: number, h: number, into: string): Promise<Uint8Array<ArrayBuffer> | null> {
+	const url = URL.createObjectURL(new Blob([bytes], { type: mime || 'application/octet-stream' }));
+	try {
+		const img = new Image();
+		img.src = url;
+		await img.decode();
+		const canvas = createEl('canvas');
+		canvas.width = w; canvas.height = h;
+		const g = canvas.getContext('2d');
+		if (!g) return null;
+		// a photograph has no transparency to keep: white under it, not black
+		if (into === 'image/jpeg') { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); }
+		g.drawImage(img, 0, 0, w, h);
+		const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, into, 0.92));
+		return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+	} catch { return null; }
+	finally { URL.revokeObjectURL(url); }
+}
+// The bytes as a data address, for a document that must stand alone.
+async function wsDataUrl(bytes: Uint8Array<ArrayBuffer>, mime: string): Promise<string> {
+	const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+	return await new Promise<string>((res, rej) => {
+		const fr = new FileReader();
+		fr.onload = () => res(typeof fr.result === 'string' ? fr.result : '');
+		fr.onerror = () => rej(fr.error || new Error('the picture could not be read'));
+		fr.readAsDataURL(blob);
+	});
+}
 import type { WsModEvent } from './plugin';
 
 // the reader's page pool, measured: its document and window, the stack and the
 // first sheet, the gap, the pitch across and down, and how many pages there are
+// THE FIGURES AFTER TICK ALL (A627, the writer: "put the 1 folder 1 notes... after tick
+// button, then the export button after export as"): what is ticked, how much it comes to,
+// then the format and the button. Still before the button in the DOM, so the figures are
+// read before the act; where there is no Tick all, before the button as they were.
+function wsPlaceFigures(row: Element, head: Element) {
+	const tick = row.querySelector('.ws-export-tickall');
+	if (tick) { tick.after(head); return; }
+	const go = row.querySelector('.ws-export-go');
+	if (go) row.insertBefore(head, go);
+}
+// THE PAPER'S LINE IN THE INTERFACE'S WORDS (A695): the unit routed with the line, the size
+// as the table writes it, the name kept where it is one (A4, US Letter, Executive); the three
+// trim sizes are publishing's words rather than names, so a table may have them. In English
+// it reads exactly as WS_PAPERS writes it.
+function wsPaperLine(p: { id: string; label: string }): string {
+	const m = /^(.*) — (.*) (in|mm)$/.exec(p.label);
+	if (!m) return p.label;
+	const paper = p.id === 'trade' ? wsT('Trade paperback') : p.id === 'digest' ? wsT('Digest')
+		: p.id === 'pocket' ? wsT('Mass market') : m[1];
+	return m[3] === 'in' ? wsT('{paper} — {size} in', { paper, size: m[2] })
+		: wsT('{paper} — {size} mm', { paper, size: m[2] });
+}
+// a row of an Export list (A617, A625): its switch, name, hint and icons
+type WsPickRow = [WsExportBoolKey, string, string, string[]];
+// each list button's own saying, so a format change can have it said again (paintFmt)
+const wsPickSay = new WeakMap<HTMLElement, () => void>();
 type WsPoolMetrics = { doc: Document; win: Window; stack: HTMLElement; first: HTMLElement; gap: number; across: number; down: number; pages: number };
 
 // The preview's page metrics, read from the sheet (lifted out of exportPreviewInto, A488).
@@ -193,6 +273,12 @@ function wsPreviewFlowApply(a: { apply: () => void; docOf: () => Document | null
 	try {
 		const doc = docOf();
 		if (doc && doc.documentElement) {
+			// WHERE EACH PRINTED PAGE BEGINS (A569, look 4), read off the pages before they flow,
+			// and once more on the next frame for a document the engine had not laid out yet
+			if (pv.flow) {
+				wsPageStarts(doc);
+				try { window.requestAnimationFrame(() => { try { if (pv.flow) wsPageStarts(doc); } catch (_) { wsCatch('flowApply: page starts, next frame', _); } }); } catch (_) { wsCatch('flowApply: requestAnimationFrame', _); }
+			}
 			doc.documentElement.classList.toggle('is-flow', pv.flow);
 		}
 	} catch (_) { wsCatch('exportPreviewInto / flowApply: const doc = docOf();', _); }
@@ -261,7 +347,7 @@ function wsPreviewReadSay(plugin: WordSmith, a: { docOf: () => Document | null; 
 		// — one drawn after the map was taken — has no page, and saying a
 		// wrong one is worse than saying none.
 		pv.readPage.setText(n == null || !pagesTotal
-			? '' : ('p. ' + (n + 1) + ' of ' + pagesTotal));
+			? '' : wsT('p. {page} of {pages}', { page: n + 1, pages: pagesTotal }));
 	} catch (_) { wsCatch('exportPreviewInto / readSay: const sheet = pool[0];', _); }
 }
 
@@ -442,7 +528,7 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		// "this control only applies to a format that has pages" and is swept
 		// with `is-gone` by the format table.
 		pv.pageBox = foot.createDiv({ cls: 'ws-export-flip' });
-		pv.prevBtn = iconBtn(pv.pageBox, 'ws-export-prev', ['chevron-left'], '\u2039', 'Previous page', () => showPage(pv.pageAt - 1));
+		pv.prevBtn = iconBtn(pv.pageBox, 'ws-export-prev', ['chevron-left'], '\u2039', wsT('Previous page'), () => showPage(pv.pageAt - 1));
 		// TWO PARTS, BECAUSE ONLY ONE OF THEM IS UNCERTAIN. The page you are
 		// on is a fact; the total is an estimate, and the `~` is attached to
 		// that half alone. Splitting them is what lets the mark below sit on
@@ -465,10 +551,10 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		// pointer. ONE CLAUSE: the count is approximate; how the preview
 		// relates to the file is the mark's own business.
 		pv.pageEst.title = (o.format === 'html' || o.format === 'pdf')
-			? 'Roughly this many pages — the file breaks in near enough the '
-				+ 'same places.'
-			: 'Roughly this many pages — Word will break the .docx its own way.';
-		pv.nextBtn = iconBtn(pv.pageBox, 'ws-export-next', ['chevron-right'], '\u203a', 'Next page', () => showPage(pv.pageAt + 1));
+			? wsT('Roughly this many pages — the file breaks in near enough the same places.')
+			: o.format === 'epub' ? wsT('Roughly this many pages — an e-reader sets its own.')
+			: wsT('Roughly this many pages — Word will break the .docx its own way.');
+		pv.nextBtn = iconBtn(pv.pageBox, 'ws-export-next', ['chevron-right'], '\u203a', wsT('Next page'), () => showPage(pv.pageAt + 1));
 		const zoomBox = foot.createDiv({ cls: 'ws-export-zoom' });
 		// ── THE BUTTONS READ THE ACTIVE ZOOM ─────────────────
 		//
@@ -477,51 +563,31 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		// then never moved again. `setZoom` writes to the right number; it has
 		// to be handed the right one to start from.
 		const zoomNow = () => (pv.flow ? pv.flowZoom : pv.zoom);
-		iconBtn(zoomBox, 'ws-export-zoomout', ['zoom-out'], '\u2212', 'Zoom out', () => setZoom(zoomNow() - 0.1));
-		pv.pct = zoomBox.createSpan({ cls: 'ws-export-zoompct', text: '100%' });
-		iconBtn(zoomBox, 'ws-export-zoomin', ['zoom-in'], '+', 'Zoom in', () => setZoom(zoomNow() + 0.1));
-		// ONE CONTROL FOR THE TWO SIZES THAT MATTER: at any other size it
-		// offers Fit; fitted, it offers the printed size (100%). Two buttons
-		// said both at once, and one of them was always the size you were
-		// already at.
-		const fitBtn = zoomBox.createEl('button', { cls: 'ws-export-mini ws-export-fit' });
+		// ── ONE BUTTON AND ITS LIST (A628) ───────────────────
+		//
+		// The writer: "these buttons below needs to be simplified somehow (too
+		// many buttons)", and of three ways, "do b, but add page next, before
+		// buttons, and add the refresh button after expand". The zoom figure IS
+		// the button; its list holds what were five controls: in and out (the
+		// list stays open, so a step after a step is a press after a press),
+		// the two sizes that matter as two rows, the one you are at lit, and
+		// the dark page. FIT HAS NO PAGE TO FIT IN THE READER, so there it
+		// means life size, the writer's own point size, which the reader opens at.
+		const zb = zoomBox.createEl('button', { cls: 'ws-export-mini ws-export-zoombtn' });
+		pv.pct = zb.createSpan({ cls: 'ws-export-zoompct', text: '100%' });
+		wsIconInto(zb.createSpan({ cls: 'ws-export-pick-chev' }), ['chevron-down'], '\u25be');
+		zb.title = wsT('The zoom and the page: press for the list');
+		zb.setAttribute('aria-label', zb.title);
 		const fitted = () => !pv.flow && plugin._exportZoom == null;
-		const sayFit = () => {
-			const atFit = fitted();
-			fitBtn.setText(atFit ? '100%' : 'Fit');
-			fitBtn.title = atFit ? 'Show the page at its printed size' : 'Fit the page to the window';
-			fitBtn.setAttribute('aria-label', fitBtn.title);
-		};
-		pv.fitSay = sayFit;
-		fitBtn.addEventListener('click', () => {
-			if (fitted()) { setZoom(1); return; }
-			plugin._exportZoom = null;
-			// FIT HAS NO PAGE TO FIT IN THE READER, so it means life size —
-			// the writer's own point size at the size they chose it, which is
-			// what the reader opens at.
-			setZoom(pv.flow ? 1 : fitZoom(), false);
-		});
-		sayFit();
-		// LIGHT OR DARK, and it is a property of the READING rather than of
-		// the document: the sheet is white because paper is, which is right
-		// for proofing and is a lamp in the face for the hour before that
-		// spent reading the thing. Print resets to ink on paper regardless, so
-		// this cannot reach a file.
-		const viewBox = foot.createDiv({ cls: 'ws-export-view' });
-		const dk = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-ico ws-export-prevdark' });
-		const sayDark = () => {
-			wsIconInto(dk, pv.dark ? ['sun'] : ['moon'], pv.dark ? 'Light' : 'Dark');
-			dk.title = pv.dark ? 'Show the page as paper' : 'Dim the page for reading';
-			dk.setAttribute('aria-label', dk.title);
-			dk.setAttribute('aria-pressed', pv.dark ? 'true' : 'false');
-			dk.toggleClass('is-on', pv.dark);
-		};
-		dk.addEventListener('click', () => {
+		const printed = () => !fitted() && Math.abs(zoomNow() - 1) < 0.001;
+		// LIGHT OR DARK, a property of the READING rather than of the document:
+		// the sheet is white because paper is, right for proofing and a lamp in
+		// the face for the hour before that spent reading. Print resets to ink on
+		// paper regardless, so this cannot reach a file. Remembered on the
+		// WINDOW's options, not on this compiled copy: a reader who wants a dark
+		// page wants it next time too.
+		const toggleDark = () => {
 			pv.dark = !pv.dark;
-			// Remembered on the WINDOW's options rather than on this
-			// compiled copy, which is thrown away when the preview
-			// closes — a reader who wants a dark page wants it next
-			// time too.
 			try {
 				if (plugin.settings && plugin.settings.exportOpts) {
 					plugin.settings.exportOpts.previewDark = pv.dark;
@@ -529,9 +595,23 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 				}
 			} catch (_) { wsCatch('exportPreviewInto: if (this.settings && this.settings.exportOpts)', _); }
 			applyDark();
-			sayDark();
+		};
+		const ico = (names: string[]) => () => { const el = createSpan(); wsIconInto(el, names, '\u2022'); return el; };
+		zb.addEventListener('click', () => {
+			plugin.openPickerLive(zb, [
+				{ label: wsT('Zoom in'), icon: ico(['zoom-in']), on: () => true, onClick: () => setZoom(zoomNow() + 0.1) },
+				{ label: wsT('Zoom out'), icon: ico(['zoom-out']), on: () => true, onClick: () => setZoom(zoomNow() - 0.1) },
+				{ label: wsT('Fit to the window'), icon: ico(['shrink', 'minimize-2']), on: () => fitted(),
+					onClick: () => { plugin._exportZoom = null; setZoom(pv.flow ? 1 : fitZoom(), false); } },
+				{ label: wsT('Printed size (100%)'), icon: ico(['square-dimensions', 'scan']), on: () => printed(), onClick: () => setZoom(1) },
+				// THE ROW SAYS ITS ACT, as the button did: a moon to dim a white page, a sun to bring it back
+				{ label: pv.dark ? wsT('Light page') : wsT('Dark page'), labelOf: () => (pv.dark ? wsT('Light page') : wsT('Dark page')),
+					note: wsT('Dims the page for reading; a print is ink on paper still'),
+					icon: ico(pv.dark ? ['sun'] : ['moon']), iconOf: () => ico(pv.dark ? ['sun'] : ['moon'])(),
+					on: () => true, onClick: toggleDark },
+			], 'toggle');
 		});
-		sayDark();
+		const viewBox = foot.createDiv({ cls: 'ws-export-view' });
 
 		// ── EXPAND ─────────────────────────────────────────────────
 		//
@@ -554,8 +634,8 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		// page read-out does; picking one jumps there. Only in the reader.
 		const rfile = viewBox.createEl('select', { cls: 'ws-export-readfile dropdown is-gone' });
 		pv.readFile = rfile;
-		rfile.title = 'Go to a file \u2014 [ and ] step through them';
-		rfile.setAttribute('aria-label', 'Go to a file');
+		rfile.title = wsT('Go to a file \u2014 {prev} and {next} step through them', { prev: '[', next: ']' });
+		rfile.setAttribute('aria-label', wsT('Go to a file'));
 		rfile.addEventListener('change', () => {
 			try { jumpTo(rfile.value); } catch (_) { wsCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
 		});
@@ -569,10 +649,10 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 			// PAIRED WITH ITS OWN OTHER HALF: "Pages" named the DESTINATION while
 			// "Expand" named the ACTION, so one control said two different kinds
 			// of thing depending on which way round it was. Both are actions now.
-			expandWord.setText(pv.flow ? 'Collapse' : 'Expand');
+			expandWord.setText(pv.flow ? wsT('Collapse') : wsT('Expand'));
 			xb.title = pv.flow
-				? 'Back to the page preview'
-				: 'Read the whole thing as one text';
+				? wsT('Back to the page preview')
+				: wsT('Read the whole thing as one text');
 			xb.setAttribute('aria-label', xb.title);
 			// A TOGGLE SAYS WHICH WAY IT IS, to anything that cannot see it.
 			xb.setAttribute('aria-pressed', pv.flow ? 'true' : 'false');
@@ -591,8 +671,8 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 			// ITS WORD BESIDE ITS GLYPH, as Expand has: the two acts in the row
 			// are read, the adjustments beside them are glyphs.
 			const rf = viewBox.createEl('button', { cls: 'ws-export-mini ws-export-refresh' });
-			wsGlyphWord(rf, ['refresh-cw'], 'Refresh');
-			rf.title = 'Compile again, with what the notes say now';
+			wsGlyphWord(rf, ['refresh-cw'], wsT('Refresh'));
+			rf.title = wsT('Compile again, with what the notes say now');
 			rf.setAttribute('aria-label', rf.title);
 			rf.addEventListener('click', (ev: MouseEvent) => {
 				ev.preventDefault();
@@ -606,6 +686,498 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		// button as well as to the document.
 		if (pv.flow) flowApply();
 		apply();   // the read-outs exist now, so they can be told
+	}
+}
+
+// THE FONT FINDER: a box that searches the machine's fonts as you type (lifted out of buildExportOptions, A669).
+function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) {
+	const { o } = a;
+	const row = parent.createDiv({ cls: 'ws-export-opt ws-export-textrow ws-export-fontrow'
+		+ (inRow ? ' is-inrow' : '') });
+	row.createSpan({ cls: 'ws-export-optname', text: label });
+	const pick = row.createDiv({ cls: 'ws-export-fontpick' });
+	const inp = pick.createEl('input', { cls: 'ws-export-text ws-export-fontinput' });
+	inp.type = 'text';
+	inp.value = o[key] || '';
+	inp.placeholder = 'Times New Roman';
+	// A font name is not prose: a red underline under "Alegreya" is
+	// the editor calling a correct answer a mistake.
+	inp.setAttribute('spellcheck', 'false');
+	// ── THE CAVEAT IS NOT PART OF THE ANCHOR ────────────────────
+	//
+	// Inside the trio `pick` is 151px wide, so six lines of prose in it
+	// would make the box 126px tall — centring the LABEL halfway down its
+	// own row and dropping the results list, which is `top: 100%` of this
+	// box, a hundred pixels below the field it belongs to. SO IT GOES
+	// OUTSIDE, on its own full-width line under the trio. `pick` is the
+	// FIELD and nothing else, which is what an anchor has to be.
+	const noteHost = (inRow && parent.parentElement)
+		? parent.parentElement : pick;
+	const note = noteHost.createDiv({
+		cls: 'ws-export-fontnote' + (inRow ? ' is-wide' : '') });
+	const hits = pick.createDiv({ cls: 'ws-export-hits ws-export-fonthits' });
+	let rows: HTMLElement[] = [], found: string[] = [], sel = -1;
+	const face = (n: string) => '"' + String(n).replace(/["\\]/g, '') + '"';
+	const wear = () => {
+		const n = String(inp.value || '').trim();
+		inp.style.fontFamily = n ? face(n) : '';
+	};
+	const sayNote = () => {
+		const n = String(inp.value || '').trim();
+		note.setText(plugin.fontIsInstalled(n) ? ''
+			: wsT('Not found on this machine \u2014 it goes into the file as written, and whatever opens it will substitute.'));
+	};
+	// THE CAVEAT STANDS DOWN WHILE THE LIST IS UP. They sit on the
+	// same strip of screen now that the note has the full column
+	// width, and an open list covered the middle of its own warning.
+	// It is a statement about what has been TYPED, so it has nothing
+	// to say while a list of real families is open and the answer is
+	// still being chosen.
+	const noteShow = () => note.toggleClass('is-under',
+		hits.childElementCount > 0);
+	// ── WHERE THE LIST GOES, IN SCREEN COORDINATES ──────────────
+	//
+	// It is `position: fixed`, so it escapes `.ws-export-right`'s scroll
+	// clip — and so it has no layout parent to take its place from. Written
+	// from the field's own rect, every time anything could have moved. AND
+	// IT IS CLAMPED TO THE ROOM THERE ACTUALLY IS, then flipped above the
+	// field when there is more room up than down.
+	const placeHits = () => {
+		if (!hits.childElementCount) return;
+		const r = inp.getBoundingClientRect();
+		// CLAMPED TO THE WINDOW IT BELONGS TO, not to the screen: `position:
+		// fixed` escapes every ancestor's overflow — which is the whole point
+		// of it here — and that includes the modal's own edge. A FLOOR AND A
+		// CEILING ARE Y COORDINATES; A CAP IS A HEIGHT — `42vh` taken off a
+		// coordinate looks right only while the window starts near the top of
+		// the screen. THE FIELD'S OWN WINDOW, not the app's: in a popout
+		// `window` is still the main one, so the list would be sized against
+		// a screen the writer is not looking at
+		const host2 = inp.closest('.ws-uni-modal, .workspace-leaf-content');
+		const hb = host2 ? host2.getBoundingClientRect() : null;
+		// .
+		const fwin = (inp.ownerDocument && inp.ownerDocument.defaultView)
+			|| window;
+		const winH = fwin.innerHeight || 800;
+		const floorY = Math.min(winH, hb ? hb.bottom : Infinity);
+		const ceilY = hb ? hb.top : 0;
+		const below = floorY - r.bottom - 8;
+		const above = r.top - ceilY - 8;
+		const up = below < 160 && above > below;
+		const cap = winH * 0.42;
+		const room = Math.max(96, Math.min(up ? above : below, cap));
+		// AND IT STAYS ON THE SCREEN: on a phone the font field sits at the
+		// right edge, so width is capped to the window and the left is pulled
+		// back until the box fits, in that order.
+		const winW = fwin.innerWidth || 0;
+		let boxW = Math.max(r.width, 220);
+		if (winW > 8) boxW = Math.min(boxW, winW - 8);
+		let boxL = Math.round(r.left);
+		if (winW > 0) boxL = Math.max(4, Math.min(boxL, winW - boxW - 4));
+		hits.style.width = boxW + 'px';
+		hits.style.left = boxL + 'px';
+		hits.style.maxHeight = Math.round(room) + 'px';
+		if (up) {
+			hits.style.removeProperty('top');
+			hits.style.bottom = Math.round(winH - r.top + 2) + 'px';
+		} else {
+			hits.style.removeProperty('bottom');
+			hits.style.top = Math.round(r.bottom + 2) + 'px';
+		}
+	};
+	// A FIXED BOX DOES NOT TRAVEL WITH ITS FIELD. Scrolling the
+	// options column moves the input and leaves the list behind, so
+	// the list is re-placed on any scroll anywhere (capture, because
+	// the scroll happens on an ancestor) and on any resize, while it
+	// is open (`listen` below).
+	// ON THE FIELD'S OWN WINDOW, for the reason `placeHits` gives: a
+	// popout scrolls and resizes in its own window, and listeners on
+	// the main one would never hear it - the list would sit where it
+	// was first put while its field moved out from under it.
+	const iwin = (inp.ownerDocument && inp.ownerDocument.defaultView)
+		|| window;
+	// ONLY WHILE THE LIST IS OPEN. This row is built again on every
+	// redraw of the options and every visit to the tab, and a pair of
+	// listeners added per build and never taken off piled up on the
+	// window (two more each time, each holding a row that was gone).
+	let listening = false;
+	const listen = (on: boolean) => {
+		if (on === listening) return;
+		listening = on;
+		if (on) {
+			iwin.addEventListener('scroll', onMove, true);
+			iwin.addEventListener('resize', onMove);
+		} else {
+			iwin.removeEventListener('scroll', onMove, true);
+			iwin.removeEventListener('resize', onMove);
+		}
+	};
+	const onMove = () => { if (inp.isConnected) placeHits(); else listen(false); };
+	const close = () => {
+		hits.textContent = ''; rows = []; found = []; sel = -1;
+		listen(false);
+		noteShow();
+	};
+	const mark = () => rows.forEach((r, i) => r.classList.toggle('is-selected', i === sel));
+	const take = (name: string) => {
+		o[key] = name; inp.value = name;
+		void plugin.saveSettings(); wear(); sayNote(); close();
+	};
+	const paint = () => {
+		hits.textContent = ''; rows = []; sel = -1;
+		found = plugin.fontFinderMatches(inp.value, 40);
+		for (const name of found) {
+			const r  = hits.createDiv({ cls: 'ws-export-hit ws-export-fonthit' });
+			const nm = r.createSpan({ cls: 'ws-export-fontname', text: name });
+			nm.style.fontFamily = face(name);
+			if (name === String(o[key] || '')) {
+				r.createSpan({ cls: 'ws-export-fonttag', text: wsT('in use') });
+			}
+			const i = rows.length;
+			r.addEventListener('mouseenter', () => { sel = i; mark(); });
+			// mousedown, not click: the box blurs first, blur closes
+			// the list, and a click landing on a row that has already
+			// gone is a click that does nothing.
+			r.addEventListener('mousedown', (ev: Event) => { ev.preventDefault(); take(name); });
+			rows.push(r);
+		}
+		if (!found.length) hits.createDiv({ cls: 'ws-export-nohit', text: wsT('No font by that name.') });
+		noteShow();
+		listen(true);
+		placeHits();
+	};
+	// The real list arrives asynchronously; the box opens on whatever
+	// is known and repaints when it lands.
+	const wake = () => {
+		paint();
+		void (async () => { await plugin.ensureSystemFonts(); if (rows.length) paint(); sayNote(); })();
+	};
+	inp.addEventListener('focus', wake);
+	inp.addEventListener('input', () => { wear(); sayNote(); paint(); });
+	// Saved on change, like every other box here: a keystroke is not
+	// a decision, and blurring or pressing Enter is.
+	inp.addEventListener('change', () => {
+		o[key] = String(inp.value || '').trim();
+		void plugin.saveSettings(); wear(); sayNote();
+	});
+	inp.addEventListener('keydown', (ev: KeyboardEvent) => {
+		if (ev.key === 'Escape') { close(); return; }
+		if (!found.length) return;
+		if (ev.key === 'ArrowDown') { sel = (sel + 1) % found.length; mark(); ev.preventDefault(); }
+		else if (ev.key === 'ArrowUp') { sel = (sel - 1 + found.length) % found.length; mark(); ev.preventDefault(); }
+		else if (ev.key === 'Enter') {
+			// Enter takes the row ON SCREEN, and only if one is
+			// picked out: Enter on a name typed in full must keep
+			// that name rather than swap it for the nearest match.
+			if (sel >= 0) { take(found[sel]); ev.preventDefault(); }
+			else close();
+		}
+	});
+	// A moment, because a click on a row is a blur first.
+	inp.addEventListener('blur', () => { window.setTimeout(close, 120); });
+	wear(); sayNote();
+	return inp;
+}
+
+// FRONT MATTER AND STRUCTURE: the title page, the running header, the contents; how files and folders meet (lifted out of buildExportOptions, A669).
+function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; pickList: (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => HTMLButtonElement; redrawOpts: () => void; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; textOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string, inRow?: boolean) => HTMLInputElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
+	const { o, optGroup, pickList, redrawOpts, selOpt, textOpt, toggle } = a;
+	{
+		// The title page, the running header, the contents page, and how the
+		// word count on the title page reads. Publishing's own word for the
+		// pages before the text, which is what three of the four are; the
+		// rounding belongs here because the number it rounds is printed on
+		// the title page and nowhere else.
+		const grp = optGroup(wsT('Front matter'));
+		// ONE BUTTON AND ITS LIST since A625, the three switches its rows.
+		// "Contents page" named the paper it lands on; "Table of contents" is
+		// what the thing is called, in Word's own menus and in every book.
+		const FRONT: WsPickRow[] = [
+			['titlePage', wsT('Title page'), wsT('A page of its own at the front with the title, your name and the word count \u2014 what a submission opens with.'), ['file-type', 'file-text']],
+			// A LINE PRINTED AT THE TOP OF A PAGE: a row only where there are pages
+			// (the title page and the contents Markdown really does produce)
+			['runningHeaderOn', wsT('Running header'), wsT('Your surname, the title and the page number along the top of every page, so a printed manuscript can be put back in order.'), ['panel-top', 'arrow-up-to-line']],
+			['toc', wsT('Table of contents'), wsT('A list of the files at the front, each one a link that jumps to it.'),
+				['table-of-contents', 'list-ordered']],
+		];
+		pickList(grp, 'ws-export-front', () => FRONT.filter(([k]) => k !== 'runningHeaderOn' || wsFormatHasPages(o.format || 'docx')),
+			wsT('No front matter'), (list) => (list ? wsT('Before the text: {list}. Press for the list.', { list }) : wsT('Before the text: nothing. Press for the list.')));
+		// ONE QUESTION, THREE ANSWERS: how does one file join the next? As two
+		// booleans it allowed both at once — a page break AND a divider —
+		// which no manuscript wants. TWO ROWS THAT READ AS SENTENCES: the
+		// LABEL is a subject and the ANSWER is its predicate — "Each file —
+		// starts a new page", "Its heading — the file's name" — so both labels
+		// fit the column and both rows read left to right in one go.
+		//
+		// THE TWO OF THEM ON ONE ROW: they are one question asked twice — what
+		// separates one file from the next, and what is printed at the top of
+		// it — and `.ws-export-pair` is the trio's shape with two columns. THE
+		// LAST ARGUMENT IS LOAD-BEARING: without `true` each row spans its
+		// container, so the pair would be two stacked rows inside a new box.
+		//
+		// A GROUP OF THEIR OWN: these three decide the SHAPE of the book
+		// itself — where one file ends, what is printed at the top of the
+		// next, and whether a folder announces itself — where Front matter is
+		// what is printed BEFORE the book.
+		const structGrp = optGroup(wsT('Structure'));
+		// The pair spans the group; the two switches under it share a line,
+		// each in the half the select above it has. MARKED, because their
+		// names are the longest here and a narrow column gives them the
+		// whole line before it does any other group's.
+		structGrp.addClass('is-structure');
+		const pair = structGrp.createDiv({ cls: 'ws-export-pair' });
+		// ── AND A PAGELESS FORMAT IS NOT OFFERED A PAGE ─────────────
+		//
+		// `exportToMarkdown` reads `starBetween` and never `pageBreaks`, so
+		// for .md "starts a new page" does LITERALLY NOTHING while the other
+		// two both work. THE STORED VALUE IS LEFT ALONE and `run` is shown
+		// instead, which is also what .md actually does with `page`. Flick to
+		// Markdown and back and the Word setting is exactly where it was.
+		selOpt(pair, 'joinMode', wsT('Each file'), [
+			{ id: 'page',    label: wsT('Starts a new page'),
+				hint: wsT('Every file begins at the top of a fresh page \u2014 how a book starts a chapter, and what a submission expects.') },
+			{ id: 'divider', label: wsT('Follows a divider'),
+				hint: wsT('Files run on down the same page, with the mark below centered between them \u2014 a scene break.') },
+			{ id: 'run',     label: wsT('Runs straight on'),
+				hint: wsT('Nothing between one file and the next: the prose reads as though it were all one note.') }
+		].filter((c) => c.id !== 'page' || wsFormatHasPages(o.format || '')), () => {
+			o.pageBreaks = o.joinMode === 'page';
+			o.starBetween = o.joinMode === 'divider';
+			void plugin.saveSettings();
+			redrawOpts();
+		}, true, 'run');
+		// THE MARK, DIRECTLY UNDER THE ANSWER THAT ASKS FOR IT. It was
+		// written last in this group, so it appeared beneath the
+		// HEADING row and its caption \u2014 a box called "Divider" sitting
+		// under a sentence about chapter headings, which reads as a
+		// setting for the wrong thing entirely. A control that exists
+		// only because of another control has to sit against it.
+		//
+		// It still only exists when there IS a divider to name: a field
+		// for a mark that is switched off is a control that does
+		// nothing, sitting where a writer reads it as one that does.
+		if (o.starBetween) {
+			// INTO STRUCTURE WITH THE ROW IT ANSWERS, and AFTER "Each file": a
+			// mark box first was read as a setting for the heading above it.
+			textOpt(structGrp, 'divider', wsT('Its mark'), '#',
+				wsT('Centered on its own line between one file and the next.'));
+		}
+		// "INSERT HEADING", NOT "ITS HEADING": "its" names a heading the file
+		// already has, so "None" reads as a claim about the note rather than
+		// an instruction about the export. "Insert" says who is doing it, and
+		// then None means what it says. With the file's name on AND the note
+		// opening with its own `# Chapter One`, the title would be set twice
+		// — and a book whose notes are named for its chapters is the commonest
+		// way anyone organises one.
+		selOpt(pair, 'chapterTitles', wsT('Insert heading'), [
+			{ id: 'file', label: wsT('The file\u2019s name'),
+				hint: wsT('Each file opens with its own name as the heading. A # heading inside the note is dropped, so the title is not set twice.') },
+			{ id: 'note', label: wsT('The note\u2019s own'),
+				hint: wsT('Whatever the note already says \u2014 its # headings are kept as written, and nothing is added.') },
+			{ id: 'none', label: wsT('None'),
+				hint: wsT('No headings at all: unbroken prose, with only the dividers or page breaks above to separate the files.') }
+		], () => {
+			o.sectionTitles = o.chapterTitles === 'file';
+			o.keepHeadings = o.chapterTitles !== 'none';
+			// From the file name means the note's own heading would be
+			// the same title again: it is dropped, not printed twice.
+			if (o.chapterTitles === 'file') o.keepHeadings = false;
+			void plugin.saveSettings();
+			redrawOpts();
+		}, true);
+		// ── AND THE FOLDERS THEMSELVES CAN BE HEADINGS ──────────────────
+		//
+		// A book kept as `Section 1/Chapter 1/Some topic.md` compiles to
+		// `Section 1`, `Chapter 1`, then the prose — the chapter headings live
+		// apart from the body text, so pieces move between chapters without
+		// dragging a heading with them. DIRECTLY UNDER `Insert heading`,
+		// because the two are one question asked at two scales: that one says
+		// whether a FILE contributes a heading, this one whether the FOLDERS
+		// above it do.
+		//
+		// IT WORKS WITH ALL THREE ANSWERS. With "None" the folders are the
+		// only headings. With "The file's name" each file sits one level under
+		// its folder. With "The note's own" the note's headings are pushed
+		// down by the folder depth, or a scene's # would outrank its chapter.
+		// IN THE GROUP, NOT THE PAIR: a third child would take one of the
+		// pair's cells and leave the other empty.
+		toggle(structGrp, 'folderHeadings', wsT('Folder names as headings'),
+			wsT('A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.'));
+		// --- AS A PAGE BREAK (A502, the writer: "add another option in export
+		// that --- in markdown is a page break"). Inside a note, where "Each file"
+		// is between notes; hidden with the other page rows for Markdown.
+		toggle(structGrp, 'dashPageBreak', wsT('--- starts a new page'),
+			wsT('A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.'))
+			.addClass('ws-export-pages');
+	}
+}
+
+// TYPESETTING: paper, font, size, spacing, the indent (lifted out of buildExportOptions, A669).
+function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) => HTMLInputElement; o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
+	const { fontOpt, o, optGroup, selOpt, toggle } = a;
+	{
+		const grp = optGroup(wsT('Typesetting'));
+		// BOTH HALVES OF THE SECTION. `optGroup` makes an eyebrow and then
+		// the options box, and returns only the box — so the heading is
+		// the element immediately before it. Hiding one and not the other
+		// leaves a title over nothing, which reads as a section that
+		// failed to draw rather than one that does not apply.
+		//
+		// CHECKED BY CLASS, not taken on faith: if the shape of `optGroup`
+		// ever changes, this marks the box alone rather than hiding
+		// whatever happens to sit above it.
+		//
+		// A CLASS RATHER THAN A VARIABLE, because `paintFmt` — which does
+		// the hiding — is in another method entirely, and a name assigned
+		// across that boundary is a global, not a shared reference.
+		grp.addClass('ws-export-pages');
+		{
+			const eb = grp.previousElementSibling;
+			if (eb && eb.classList.contains('ws-export-eyebrow')) {
+				eb.addClass('ws-export-pages');
+			}
+		}
+		// PAPER FIRST, then the face it is set in. NINE SIZES, from one table
+		// (WS_PAPERS), because "A4 or not" only answers the submission
+		// question: a writer setting a proof of their own novel is working to
+		// a TRIM SIZE — 6 x 9, digest, mass market — and those are pages in
+		// their own right, not variants of Letter. The margin travels with the
+		// paper: an inch on a 5.5-inch page is a third of the sheet.
+		//
+		// A SEARCH BOX OVER THE MACHINE'S OWN FAMILIES for the font, the way
+		// Obsidian's font setting does it (see WS_SAFE_FONTS). Plain
+		// substring, not fuzzy: a font list is a thing you READ, and fuzzy
+		// matching puts "Times New Roman" three rows below something that
+		// merely contains a t, an i and an m. THE PAPER, THE FACE, THE SIZE
+		// AND THE SPACING ARE ONE QUESTION, so they are one row; the class
+		// still says trio, because it is the ROW SHAPE beside
+		// `.ws-export-pair`, the same shape for two.
+		const trio = grp.createDiv({ cls: 'ws-export-trio' });
+		// PAPER FIRST, and creation order is DOM order — the sheet is
+		// chosen before the face that is set on it, the size of that face,
+		// and the space between its lines. Reading the row left to right
+		// is reading the decisions in the order they are made.
+		selOpt(trio, 'paperId', wsT('Paper'),
+			WS_PAPERS.map(p => ({ id: p.id, label: wsPaperLine(p) })),
+			() => { o.a4 = o.paperId === 'a4'; void plugin.saveSettings(); }, true);
+		fontOpt(trio, 'font', wsT('Font'), true);
+		// SIZE, which was pinned at 12pt. That is the manuscript
+		// convention and it is still the default \u2014 but the paper is
+		// nine sizes now, and 12pt double spaced on a 6 \u00d7 9 page is
+		// about a hundred and ninety words to the page, which is a
+		// proof nobody would set on purpose.
+		// THE UNIT ROUTED, the figure as it is (A695)
+		const ptLine = (size: number) => wsT('{size} pt', { size });
+		selOpt(trio, 'pt', wsT('Size'), [
+			{ id: '10', label: ptLine(10) },
+			{ id: '11', label: ptLine(11) },
+			// THE CAPTION IS A HINT, NOT PART OF THE LABEL: spelled out in the
+			// closed box it made this the widest of the five by more than double,
+			// and it sets the width of a control that shares its line with three
+			// others. `selOpt` puts an item's hint on the row as a title when that
+			// item is the chosen one.
+			{ id: '12', label: ptLine(12), hint: wsT('The manuscript standard.') },
+			{ id: '13', label: ptLine(13) },
+			{ id: '14', label: ptLine(14) },
+			// PAST 14, A READING COPY: 16 and 18 are large print, 20 and 24 for
+			// tired eyes or a tablet held at arm's length. Steps, not a number box.
+			{ id: '16', label: ptLine(16) },
+			{ id: '18', label: ptLine(18) },
+			{ id: '20', label: ptLine(20) },
+			{ id: '24', label: ptLine(24) }
+		], () => { o.pt = parseInt(String(o.pt), 10) || 12; void plugin.saveSettings(); }, true);
+		// THREE ANSWERS, where a boolean could only give two. Double is
+		// what a submission expects and stays the default; single is
+		// closer to a finished book; one and a half is what a reader
+		// who is not an editor actually prefers, and it was the answer
+		// the switch could not give.
+		// NO CAPTIONS on this one. The other two drop-downs describe a
+		// LAYOUT — what lands on the page, which cannot be guessed from
+		// three words — and single, one and a half and double are three
+		// words everyone already knows. A line of explanation under a
+		// self-evident answer teaches a reader to stop reading the
+		// lines under the ones that are not.
+		selOpt(trio, 'lineSpacing', wsT('Spacing'), [
+			{ id: 'single',  label: wsT('Single') },
+			{ id: 'onehalf', label: wsT('One and a half') },
+			{ id: 'double',  label: wsT('spacing::Double') }
+		], () => {
+			// The boolean the builders and older vaults still read is
+			// written from the answer, in one place, on every change.
+			o.doubleSpaced = o.lineSpacing !== 'single';
+			void plugin.saveSettings();
+		}, true);
+		// INDENT PARAGRAPHS, BACK. It was removed because turning it
+		// off with double spacing on — the pairing a manuscript uses —
+		// left NO paragraph boundary at all, and the result read as a
+		// broken document rather than a styled one. The switch was
+		// never the fault; the missing second boundary was. Off now
+		// puts a half-line of air after each paragraph in all three
+		// targets (see `gap` in wsStylesXml), which is block-set prose
+		// — what a business letter, a blog post and most non-fiction
+		// use — rather than a document with its paragraph ends
+		// deleted. On by default, because the manuscript convention is
+		// still the default here.
+		toggle(grp, 'indent', wsT('Indent paragraphs'),
+			wsT('A half-inch first line on every paragraph but the first of a scene \u2014 the manuscript convention. Off sets them block style, with a space between instead.'));
+		// UNDER THE INDENT, not above the size. The two switches in this
+		// tab are the only two things here a writer flips rather than
+		// chooses from a list, and the grid lays toggles two to a row —
+		// so with one of them stranded at the top of the group and the
+		// other at the bottom, each sat alone on a line with a
+		// half-width hole beside it. Together they pair up, and the
+		// three drop-downs above them read as one run rather than as
+		// two runs with a switch wedged in the middle.
+	}
+}
+
+// ALSO INCLUDE: properties, comments, callouts, tags, highlights, footnotes (lifted out of buildExportOptions, A669).
+function wsExportOptsAlso(a: { optGroup: (label: string) => HTMLDivElement; pickList: (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => HTMLButtonElement }) {
+	const { optGroup, pickList } = a;
+	{
+		// Named "Also include", and on the pane rather than behind a button
+		// reading "0 of 5": a count is not a control — it is a promise that
+		// there is one somewhere else. THE HINTS are each switch's own title,
+		// which is where every other switch on this pane keeps its explanation.
+		const grp = optGroup(wsT('Also include'));
+		// Marked so a wide column lays these seven three or four across.
+		grp.addClass('is-also');
+		const ALSO: [WsExportBoolKey, string, string][] = [
+			['keepFrontmatter', wsT('Properties'),
+				wsT('The --- block at the top of a note: status, tags, dates. Printed verbatim in monospace, because it is data rather than prose.')],
+			['keepComments', wsT('Comments'),
+				wsT('Your %% notes to self %%, kept where they sit and set apart from the prose so a query to yourself cannot be read as a sentence.')],
+			['keepCallouts', wsT('Callouts'),
+				wsT('Your > [!note] boxes, printed as a quote under their title. Off by default, because a callout is usually a note to self.')],
+			// ON, like Footnotes: tags always printed. Off keeps them in the note only.
+			['keepTags', wsT('Tags'),
+				wsT('Your #tags in the text. Off takes them out of the manuscript; your notes keep them.')],
+			// HIGHLIGHTS is a bug fix wearing an option's clothes:
+			// `==marked==` text matched nothing in the converter, so it
+			// travelled into the manuscript as literal equals signs. The
+			// marks are consumed either way now; this decides whether the
+			// highlight survives, and off is the default because a
+			// highlight is usually a note to self about the prose.
+			['highlights', wsT('Highlights'),
+				wsT('Your ==marked== passages come through highlighted, the same yellow Word\u2019s own pen writes. Off keeps the words and drops the marks.')],
+			// THE ONE HERE THAT IS ON. Footnotes were unconditional, so
+			// absent has to mean on — which breaks this group's "off until
+			// you ask" promise. It sits here anyway: what happens to the
+			// notes in a file is the same question as what happens to its
+			// properties and its comments. Off drops the markers too,
+			// because a `[^3]` pointing at a note that is no longer in the
+			// document is worse than either having them or not.
+			['footnotes', wsT('Footnotes'),
+				wsT('Your [^1] notes: in Word at the foot of each page or at the end (Settings, Export), in a PDF and a web page at the end. Off removes both.')]
+		];
+		// ── ONE BUTTON AND ITS LIST, AN ICON FOR EACH (A617; pickList above) ──
+		const ICON: Record<string, string[]> = {
+			keepFrontmatter: ['info', 'list'], keepComments: ['message-square', 'message-circle'],
+			keepCallouts: ['quote', 'message-square-quote'], keepTags: ['tag', 'hash'],
+			highlights: ['highlighter', 'pen-line'], footnotes: ['superscript', 'list-ordered'],
+		};
+		pickList(grp, 'ws-export-also', () => ALSO.map(([key, lab, hint]): WsPickRow => [key, lab, hint, ICON[key] || ['circle']]),
+			wsT('Nothing else'), (list) => (list ? wsT('What else comes along: {list}. Press for the list.', { list }) : wsT('What else comes along: nothing. Press for the list.')));
 	}
 }
 
@@ -1025,10 +1597,106 @@ export const exportMethods = {
 		return secs;
 	},
 
+	// ── THE PICTURES, READ BEFORE THE BUILD (A568) ───────────────────────────
+	//
+	// The walkers are synchronous and reading a picture is not, so every
+	// picture the notes reference is read here first and put on its note's
+	// section, keyed by the reference as written. THREE WAYS:
+	// · 'preview' reads nothing: the frame shows the vault's own file through
+	//   its resource address, so a recompile on every switch costs no bytes.
+	// · 'page' (the web page and the PDF) carries each picture inside the
+	//   document as a data address, so the file stands alone.
+	// · 'docx' keeps the bytes for Word's media parts and the size in pixels
+	//   Word needs written down; WebP, SVG, AVIF and BMP become PNG, which
+	//   every Word reads.
+	// A picture longer than WS_IMAGE_MAX_SIDE on a side is redrawn at that
+	// size first. Each file is read once however often it appears. What cannot
+	// be found, read or drawn stays a placeholder; nothing is fetched from the
+	// web.
+	async exportImages(this: WordSmith, sections: WsExportSection[], mode: 'preview' | 'page' | 'docx') {
+		const ready = new Map<string, Omit<WsImage, 'name' | 'alt' | 'width'> | null>();
+		for (const sec of sections) {
+			if (sec.folder || !sec.markdown || sec.markdown.indexOf('![') === -1) continue;
+			const imgs = new Map<string, WsImage>();
+			const re = wsImageRefRe();
+			let m;
+			while ((m = re.exec(sec.markdown)) !== null) {
+				const raw = m[0];
+				if (imgs.has(raw)) continue;
+				const ref = wsParseImageRef(raw);
+				if (!ref || ref.remote) continue;
+				// a lookup that throws is a picture that stays the mark, never a failed export
+				let file: TFile | null = null;
+				try { file = this.app.metadataCache.getFirstLinkpathDest(ref.target, sec.path); }
+				catch (_) { wsCatch('exportImages: getFirstLinkpathDest', _); }
+				if (!file) continue;
+				let prep = ready.get(file.path);
+				if (prep === undefined) {
+					prep = mode === 'preview'
+						? { src: this.app.vault.getResourcePath(file), bytes: null, ext: file.extension.toLowerCase(), mime: '', w: 0, h: 0 }
+						: await this.exportImageRead(file, mode);
+					ready.set(file.path, prep);
+				}
+				if (!prep) continue;
+				imgs.set(raw, Object.assign({ name: file.name, alt: ref.alt, width: ref.width }, prep));
+			}
+			if (imgs.size) sec.images = imgs;
+		}
+	},
+
+	// One file, read and made ready to travel: its size measured by drawing it,
+	// redrawn when it is too long or a format Word cannot read, and for the page
+	// carried as a data address. Null when no engine here can draw it (a HEIC,
+	// a TIFF), which leaves the placeholder.
+	async exportImageRead(this: WordSmith, file: TFile, mode: 'page' | 'docx') {
+		try {
+			const ext = file.extension.toLowerCase();
+			let bytes = new Uint8Array(await this.app.vault.readBinary(file));
+			let mime = WS_IMAGE_MIME[ext] || '';
+			const size = await wsImageSize(bytes, mime);
+			if (!size) return null;
+			let w = size.w, h = size.h, outExt = ext;
+			const longest = Math.max(w, h);
+			const wordReads = ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'gif';
+			if (longest > WS_IMAGE_MAX_SIDE || (mode === 'docx' && !wordReads)) {
+				const k = Math.min(1, WS_IMAGE_MAX_SIDE / longest);
+				const photo = ext === 'jpg' || ext === 'jpeg';
+				const tw = Math.max(1, Math.round(w * k)), th = Math.max(1, Math.round(h * k));
+				const drawn = await wsImageRedraw(bytes, mime, tw, th, photo ? 'image/jpeg' : 'image/png');
+				if (!drawn) return null;
+				bytes = drawn; w = tw; h = th;
+				mime = photo ? 'image/jpeg' : 'image/png';
+				outExt = photo ? 'jpg' : 'png';
+			}
+			const src = mode === 'page' ? await wsDataUrl(bytes, mime) : '';
+			return { src, bytes: mode === 'docx' ? bytes : null, ext: outExt, mime, w, h };
+		} catch (_) { wsCatch('exportImageRead: ' + file.path, _); return null; }
+	},
+
 	// The Markdown target. Built first and kept, because it proves the join
 	// — the order, the dividers, the section titles — with nothing binary in
 	// the way, and because a writer who wants their own pipeline wants this
 	// file rather than a .docx.
+	// THE E-BOOK'S CHECK (A654): see wsEpubCheck; a check that throws is no fault of the book
+	exportEpubCheck(this: WordSmith, bytes: Uint8Array) {
+		try { return wsEpubCheck(bytes); } catch (_) { wsCatch('exportEpubCheck', _); return []; }
+	},
+
+	// an export's notice, "Word-Smith: " and the text, held `ms` long (0: Obsidian's own time)
+	exportNotice(this: WordSmith, text: string, ms: number) {
+		new Notice('Word-Smith: ' + text, ms || undefined);
+	},
+
+	// THE CITATIONS IN AN EXPORT (A572 step 4): the style and the library the settings name, over the sections
+	// (see wsCiteSections). Called after the words are counted, so the list at the back is no word of the book;
+	// a Markdown export never calls it and keeps [@key] as written.
+	// …and answers the keys the library does not hold (A670), which print as typed
+	exportCite(this: WordSmith, sections: WsExportSection[]): string[] {
+		let missing: string[] = [];
+		try { missing = wsCiteMissing(sections, this.citeLibrary()); wsCiteSections(sections, this.citer()); } catch (_) { wsCatch('exportCite', _); }
+		return missing;
+	},
+
 	exportToMarkdown(this: WordSmith, sections: WsExportSection[], o: WsExportRun) {
 		const parts = [];
 		if (o.titlePage) {
@@ -1139,17 +1807,12 @@ export const exportMethods = {
 		// and a switch nobody moves is a switch that only takes up room.
 		o.wordCountOnTitle = true;
 		o.pageNumbers = true;
-		// IMAGES: dropped by default and no longer PINNED. A manuscript
-		// does not carry pictures, embedding one needs the binary part and
-		// the EMU sizing this writer does not do, and a placeholder in the
-		// middle of prose is a line an agent reads — all still true, which
-		// is why the answer is still no by default. But a writer proofing
-		// an illustrated piece needs to see where the pictures fall, and
-		// `dropImages` is written from the switch rather than nailed shut.
-		// It is stored the way the switch reads — "include" — because a
-		// toggle labelled with a negative is a toggle people get backwards.
-		dflt('keepImages', false);
-		o.dropImages = !o.keepImages;
+		// PICTURES TRAVEL, ALWAYS (A568): a note with pictures exports with
+		// them, so the "Image placeholders" switch is gone and its keys with
+		// it. Deleted, not written back: a phone on an older version may put
+		// one back, and it reads nothing here.
+		delete bag.keepImages;
+		delete bag.dropImages;
 		dflt('keepFrontmatter', false);
 		dflt('keepComments', false);
 		dflt('keepCallouts', false);
@@ -1195,6 +1858,8 @@ export const exportMethods = {
 		o.pt = parseInt(String(o.pt), 10) || 12;
 		// Footnotes were unconditional, so absent means on.
 		dflt('footnotes', true);
+		// where Word puts them: at the foot of each page (#46), or at the end (Settings → Export)
+		dflt('footnotePlace', 'foot');
 		dflt('highlights', false);
 		// Which tab the column opens on, remembered: a writer setting up a
 		// proof is in Typesetting for six exports in a row.
@@ -1218,12 +1883,17 @@ export const exportMethods = {
 	// folders are the ones the tree shows ticked — every note under them
 	// going out; the notes are the ticked notes. No folder ticked, no
 	// folder figure.
+	// EACH FIGURE ITS OWN LINE (A695), the dot between them a mark and no word: the figure as
+	// `toLocaleString` writes it (`count`), the number itself (`n`) for a table's plural forms.
+	// "words" is one key, as the English never says "1 word" here.
 	exportFiguresText(this: WordSmith, fileCount: number, words: number | null, folderCount: number) {
 		const folders = typeof folderCount === 'number' && folderCount > 0
-			? folderCount.toLocaleString() + (folderCount === 1 ? ' folder' : ' folders') + ' \u00b7 '
+			? (folderCount === 1 ? wsT('{count} folder', { n: folderCount, count: folderCount.toLocaleString() })
+				: wsT('{count} folders', { n: folderCount, count: folderCount.toLocaleString() })) + ' \u00b7 '
 			: '';
-		return folders + fileCount.toLocaleString() + (fileCount === 1 ? ' note' : ' notes')
-			+ (words == null ? '' : ' \u00b7 ' + words.toLocaleString() + ' words');
+		return folders + (fileCount === 1 ? wsT('{count} note', { n: fileCount, count: fileCount.toLocaleString() })
+			: wsT('{count} notes', { n: fileCount, count: fileCount.toLocaleString() }))
+			+ (words == null ? '' : ' \u00b7 ' + wsT('{count} words', { n: words, count: words.toLocaleString() }));
 	},
 
 	// The folders the tree shows ticked: every note under them is going out.
@@ -1247,7 +1917,7 @@ export const exportMethods = {
 		const all = total > 0 && picked >= total;
 		// A GLYPH BEFORE THE WORD: a ticked box to tick all, an empty one to
 		// untick all — the state the press leads to, as the word says.
-		wsGlyphWord(b, all ? ['square'] : ['check-square', 'list-checks'], all ? 'Untick all' : 'Tick all');
+		wsGlyphWord(b, all ? ['square'] : ['check-square', 'list-checks'], all ? wsT('Untick all') : wsT('Tick all'));
 		b.dataset.all = all ? '1' : '0';
 	},
 
@@ -1453,8 +2123,7 @@ export const exportMethods = {
 		// so a screen reader met the button before the figures it is about to
 		// act on. Reading order is the order it is READ in.
 		if (headHost) {
-			const goBtn = headHost.querySelector('.ws-export-go');
-			if (goBtn) headHost.insertBefore(head, goBtn);
+			wsPlaceFigures(headHost, head);
 		}
 		head.createSpan({
 			text: this.exportFiguresText(fileCount, words, folderCount) });
@@ -1977,10 +2646,14 @@ export const exportMethods = {
 		// are, so the same gesture feels the same at 60% and at 200%. A fixed
 		// 0.1 is a fifth of the way at the bottom of the range and a twentieth
 		// at the top.
+		// …AND CMD ON A MAC, as the Organizer's zoom and the settings card say;
+		// a trackpad's small deltas add up to a notch first (wsWheelStep)
+		const wheelAcc: WsWheelAcc = { sum: 0, at: 0 };
 		const onWheel = (ev: WheelEvent) => {
-			if (!pv.flow || !ev || !ev.ctrlKey) return;
+			if (!pv.flow || !ev || !(ev.ctrlKey || ev.metaKey)) return;
 			try { ev.preventDefault(); } catch (_) { wsCatch('exportPreviewInto / onWheel: ev.preventDefault();', _); }
-			const dir = (ev.deltaY || 0) > 0 ? -1 : 1;
+			const dir = wsWheelStep(wheelAcc, ev.deltaY || 0, Date.now());
+			if (!dir) return;
 			setZoom(pv.flowZoom * (1 + dir * 0.1));
 		};
 		const armScroll = () => {
@@ -2061,7 +2734,7 @@ export const exportMethods = {
 			// ONE WORD, as the pane's button; a caller with a word of its own
 			// passes it as `label`. (The pane passes no `onExport`, so this button
 			// is on no screen today.)
-			wsGlyphWord(go, ['file-output', 'download'], onExport.label || 'Export');
+			wsGlyphWord(go, ['file-output', 'download'], onExport.label || wsT('Export'));
 			go.addEventListener('click', () => { void (async () => {
 					go.disabled = true;
 					// THE PREVIEW STAYS OPEN. The file is written and the
@@ -2117,6 +2790,19 @@ export const exportMethods = {
 			+ '</style></head><body><pre>' + esc(md) + '</pre></body></html>';
 	},
 
+	// AN E-BOOK (A612): the web page's document, cut into a book by `wsBuildEpub`. Its
+	// contents are the entries the web page's own Contents lists, at the same levels, and
+	// its language is the one Word-Smith reads (Prose → Language).
+	exportToEpub(this: WordSmith, sections: WsExportSection[], o: WsExportRun) {
+		const stepOf = wsTocSteps(o, sections);
+		const nav = sections.map((sec: WsExportSection, i: number) => ({ id: wsAnchorId(sec.title, i), label: sec.title || '', level: stepOf(sec) }))
+			.filter((e) => !!e.label);
+		return wsBuildEpub(this.exportToHtml(sections, o, false), {
+			title: o.title || 'Untitled', author: o.author || '', lang: this.settings.language || 'en',
+			nav, indent: o.indent !== false,
+		});
+	},
+
 	exportToHtml(this: WordSmith, sections: WsExportSection[], o: WsExportRun, forScreen: boolean) {
 		const esc = (t: string) => String(t == null ? '' : t)
 			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2130,6 +2816,8 @@ export const exportMethods = {
 		// that acts on it.
 		let pendingFolder = '';
 		let pendingBreak = false;
+		// the notes gathered for the back, in the order the text first cites them
+		const notesOut: string[] = [];
 		if (o.titlePage) {
 			parts.push('<section class="page tp"><div class="tpinner">'
 				+ '<h1>' + esc(o.title || 'Untitled') + '</h1>'
@@ -2153,7 +2841,10 @@ export const exportMethods = {
 			});
 			parts.push('</ol></section>');
 		}
+		let bibAt = -1;
 		sections.forEach((sec: WsExportSection, i: number) => {
+			// the list of sources waits for the notes (A572 step 4)
+			if (sec.bib) { bibAt = i; return; }
 			// ── A FOLDER HEADING OPENS A PAGE, AND KEEPS ITS FIRST CHAPTER ──
 			//
 			// THREE STATES, AND EACH FIXED THE LAST ONE'S REAL FAULT:
@@ -2242,7 +2933,24 @@ export const exportMethods = {
 				// decision the .docx makes.
 				if (o.keepFrontmatter) parts.push('<pre class="fm">' + esc(fm[0].trim()) + '</pre>');
 			}
+			o.imgs = sec.images || null;
+			// NOTES (#46): a marker numbered in order of first use across the
+			// book, its note gathered for the back; a label is its note's own.
+			const defs = wsNotesKept(wsFootnoteDefs(md), o);
+			const ids = new Map<string, number>();
+			o.noteRef = (label: string) => {
+				const text = defs.get(label);
+				if (text == null) return null;
+				let n = ids.get(label);
+				if (!n) {
+					n = notesOut.length + 1;
+					ids.set(label, n);
+					notesOut.push('<li id="fn-' + n + '">' + wsRunsHtml(text, Object.assign({}, o, { noteRef: null })) + '</li>');
+				}
+				return { n, end: true };
+			};
 			wsHtmlBlocks(md, o, pageOpen, parts);
+			o.noteRef = null;
 			// a --- with nothing after it opens no empty page
 			if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === '</section>') parts.length -= 2;
 			parts.push('</section>');
@@ -2257,6 +2965,19 @@ export const exportMethods = {
 			parts.push('</section>');
 			pendingFolder = '';
 			pendingBreak = false;
+		}
+		// THE NOTES, at the back on a page of their own, each where its number
+		// in the text links to (#46). A PDF keeps them here: notes at the foot of
+		// a printed page would mean laying the pages out ourselves.
+		if (notesOut.length) {
+			parts.push('<section class="page notes"><h2>Notes</h2><ol class="notes">' + notesOut.join('') + '</ol></section>');
+		}
+		// THE LIST OF SOURCES (A572 step 4), after the notes as Chicago has it: a page of its own under the style's
+		// heading, each entry hanging, its titles in italics
+		if (bibAt >= 0) {
+			const b = sections[bibAt];
+			parts.push('<section class="page bib" id="' + wsAnchorId(b.title, bibAt) + '"><h2>' + esc(b.title) + '</h2>'
+				+ (b.entries || []).map((e) => '<p class="bib">' + wsRunsHtml(e, o) + '</p>').join('') + '</section>');
 		}
 
 		// ONE LINE HEIGHT, read twice: by the body and by the title page's
@@ -2458,27 +3179,32 @@ export const exportMethods = {
 					// `fillPool` puts on every copy it makes, so the original is the one
 					// that stays.
 					+ 'html.is-flow .sheet[data-pooled] { display: none; }'
-					// THE FRAME GOES, THE PAPER STAYS. `background: none` here would make
-					// the sheet transparent over the frame's own dark ground, with #111
-					// text on it in Light — and survive in Dark by accident, where
-					// `html.is-dark .sheet` wins the tie. The sheet is the full width of
-					// the reader, so the paper becomes the ground and the colours stay
-					// exactly the ones the preview already uses.
-					+ 'html.is-flow .sheet { position: static; width: auto;'
-					+ ' height: auto; margin: 0; padding: 0;'
-					+ ' box-shadow: none; min-height: 100vh; }'
+					// ONE LONG SHEET (A569, the writer's look 4): the paper's width, its own
+					// margins and a shadow, on a darker ground, as page mode draws a note; a
+					// narrow pane narrows it rather than scrolling sideways. The paper keeps
+					// its colour (`background: none` once put #111 text on the frame's dark).
+					+ 'html.is-flow { background: #6b6e72; } html.is-dark.is-flow { background: #121315; }'
+					+ 'html.is-flow .sheet { position: static; width: ' + pw + '; max-width: calc(100% - 48px);'
+					+ ' height: auto; margin: 36px auto; padding: 0; box-sizing: border-box; min-height: 0;'
+					+ ' box-shadow: 0 1px 3px rgba(0,0,0,0.22), 0 10px 30px rgba(0,0,0,0.28); }'
 					// A RUNNING HEADER IS A PROPERTY OF A PAGE. With no pages there
 					// is nothing for it to head, and it would sit once at the top of
 					// the whole text reading as a title.
 					+ 'html.is-flow .hdr { display: none; }'
-					// THE MEASURE IS PROVISIONAL AND SAYS SO. `ch` is the advance of "0":
-					// exact in a monospace face, loose in a proportional one — 68ch is 68
-					// characters of Courier, 85 of Times, 94 of Georgia — so one cap cannot
-					// serve every face. Right for the Courier default and wide for a
-					// serif.
+					// THE PAPER'S OWN TEXT COLUMN (A569): its margins inside the sheet, so a line
+					// holds what a printed line holds
 					+ 'html.is-flow .flow { height: auto; columns: auto;'
-					+ ' overflow: visible; max-width: 68ch; margin: 0 auto;'
-					+ ' padding: ' + pm + ' 24px; }'
+					+ ' overflow: visible; max-width: none; margin: 0;'
+					+ ' padding: ' + pm + '; }'
+					// …AND WHERE EACH PRINTED PAGE BEGINS: a faint rule across the sheet and the
+					// page number under it at the right, on the block `wsPageStarts` stamped
+					// ONE RULE, NOT TWO (A618): a file that opens a printed page wears the page's
+					// rule, so the dashed one between files stands down there
+					+ 'html.is-flow section[data-ws-page-open]::before { content: none; }'
+					+ 'html.is-flow [data-ws-page]::before { content: attr(data-ws-page); display: block;'
+					+ ' text-indent: 0; text-align: right; margin: 1.2em -' + pm + ' 0.8em; padding: 3px 10px 0;'
+					+ ' border-top: 1px dashed rgba(127,127,127,0.55); color: rgba(127,127,127,0.95);'
+					+ ' font: normal 11px/1.3 ui-sans-serif, system-ui, sans-serif; }'
 					// A SECTION NO LONGER OPENS A PAGE, because there are none.
 					// `break-before` has to go here or the engine keeps a column break in
 					// a document with one column and drops everything after it.
@@ -2542,6 +3268,8 @@ export const exportMethods = {
 			// generated manuscript look generated.
 			+ ' orphans: 2; widows: 2; }'
 			+ 'p.first, p.div { text-indent: 0; }'
+			// THE LIST OF SOURCES HANGS (A572 step 4): half an inch, as the .docx does
+			+ 'section.bib p.bib { padding-left: 0.5in; text-indent: -0.5in; margin: 0 0 0.5em; }'
 			// A DARK SHEET, for reading rather than for proofing. It is not
 			// what the file looks like and it does not pretend to be — the
 			// point is the hour spent reading the preview before sending
@@ -2588,6 +3316,15 @@ export const exportMethods = {
 			+ 'pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace;'
 			+ ' font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }'
 			+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; }'
+			// A PICTURE (A568): centered on the column, its own size, never wider
+			// than the column nor taller than 85% of the page (so its caption fits
+			// under it), and never split across a page or a column.
+			+ 'figure.fig { margin: 0.8em 0; text-align: center; text-indent: 0; break-inside: avoid; page-break-inside: avoid; }'
+			+ 'figure.fig img { max-width: 100%; max-height: calc(0.85 * ' + ch + '); height: auto; }'
+			+ 'figure.fig figcaption { font-style: italic; font-size: 0.9em; margin-top: 0.3em; }'
+			// A NOTE: its number raised in the text, the notes at the back a list.
+			+ 'sup.fnref a { color: inherit; text-decoration: none; }'
+			+ 'ol.notes { padding-left: 1.6em; } ol.notes li { text-indent: 0; margin: 0 0 0.4em; font-size: 0.92em; }'
 			+ 'table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }'
 			+ 'html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }'
 			+ 'h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }'
@@ -2721,25 +3458,6 @@ export const exportMethods = {
 		} catch (_) { wsCatch('exportRemember: if (!this.settings || !this.settings.exportOpts) return;', _); }
 	},
 
-	// "just now", "2 hours ago", "yesterday". Rounded down and deliberately
-	// vague past a day: the point of the line is whether this was the run a
-	// writer half-remembers doing, and "3 days ago" answers that where a
-	// timestamp makes them do the arithmetic.
-	exportWhen(this: WordSmith, at: number | null | undefined) {
-		const ms = Date.now() - (at || 0);
-		if (!at || ms < 0) return '';
-		const min = Math.floor(ms / 60000);
-		if (min < 2) return 'just now';
-		if (min < 60) return min + ' minutes ago';
-		const hr = Math.floor(min / 60);
-		if (hr < 2) return 'an hour ago';
-		if (hr < 24) return hr + ' hours ago';
-		const d = Math.floor(hr / 24);
-		if (d < 2) return 'yesterday';
-		if (d < 31) return d + ' days ago';
-		return 'a while ago';
-	},
-
 	// TASKS IN A NOTE: `- [ ]` open, anything else in the box done.
 	//
 	// ANYTHING ELSE, deliberately. Obsidian's own tasks are `[ ]` and `[x]`,
@@ -2819,21 +3537,6 @@ export const exportMethods = {
 		return out;
 	},
 
-	exportWhenShort(this: WordSmith, at: number) {
-		if (!at) return '\u2013';
-		const ms = Date.now() - at;
-		if (ms < 0) return 'now';
-		const min = Math.floor(ms / 60000);
-		if (min < 60) return min < 2 ? 'now' : min + 'm';
-		const hr = Math.floor(min / 60);
-		if (hr < 24) return hr + 'h';
-		const d = Math.floor(hr / 24);
-		if (d < 31) return d + 'd';
-		try {
-			return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-		} catch { return d + 'd'; }
-	},
-
 	async exportFillCounts(this: WordSmith, files: TAbstractFile[], listWrap: HTMLElement, done: () => void, store: Map<string, number> | null) {
 		for (const f of files) {
 			let text = '';
@@ -2863,12 +3566,6 @@ export const exportMethods = {
 			|| 'Untitled';
 		return Object.assign({}, o, {
 			title, wordCount: words,
-			// WRITTEN HERE, not left in the stored options: the switch a
-			// writer sees says "include", the three builders ask "drop",
-			// and the one place both are true is the moment of compiling.
-			// Deriving it at the edge also means a vault saved with the
-			// old pinned value cannot contradict the switch.
-			dropImages: !o.keepImages,
 			runningHeader: o.runningHeaderOn
 				? ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /')
 				: ''
@@ -2915,6 +3612,11 @@ export const exportMethods = {
 				const z = Number(body && win.getComputedStyle(body).zoom) || 1;
 				const pr = panel.getBoundingClientRect();
 				const sr = split.getBoundingClientRect();
+				// THE RISE IS MEASURED (A635): to the act block's top, two lines now, so the page starts
+				// level with Tick all beside the options; stacked, the sheet takes the rise away whatever
+				// this says. It was a fixed 47px, the destination's one line, measured once.
+				const act = panel.querySelector<HTMLElement>('.ws-export-top');
+				if (act) split.style.setProperty('--ws-export-riseup', Math.max(0, Math.round((sr.top - act.getBoundingClientRect().top) / z)) + 'px');
 				const rise = parseFloat(win.getComputedStyle(prevCol).marginTop) || 0;
 				const padB = parseFloat(win.getComputedStyle(panel).paddingBottom) || 0;
 				const top0 = (sr.top - pr.top) / z + panel.scrollTop + rise;
@@ -2926,6 +3628,8 @@ export const exportMethods = {
 		};
 		const ro = new win.ResizeObserver(() => fit());
 		try { ro.observe(panel); ro.observe(split); } catch (_) { wsCatch('exportPrevColFit: ro.observe(panel);', _); }
+		// …and the act block, whose height is the rise (A635): a wrap there moves the split without resizing it
+		try { const act = panel.querySelector('.ws-export-top'); if (act) ro.observe(act); } catch (_) { wsCatch('exportPrevColFit: ro.observe(act);', _); }
 		// AND BY HAND after every preview (`_wsFit`): the observer answers
 		// only while the window renders — an occluded window gets no frame and
 		// no callback — and the first sync reading below can land on a pane
@@ -2943,7 +3647,7 @@ export const exportMethods = {
 		const fmt = into.createDiv({ cls: 'ws-export-fmt' });
 		// TICK ALL / UNTICK ALL, left of "Export as". Says which it will do;
 		// the figures' writer re-says it on every change of what is ticked.
-		const tickAll = fmt.createEl('button', { cls: 'ws-export-tickall ws-export-mini', text: 'Tick all' });
+		const tickAll = fmt.createEl('button', { cls: 'ws-export-tickall ws-export-mini', text: wsT('Tick all') });
 		tickAll.addEventListener('click', () => {
 			if (!ctx.tickAll) return;
 			ctx.tickAll(tickAll.dataset.all !== '1');
@@ -2951,7 +3655,7 @@ export const exportMethods = {
 		this.exportTickAllSay(into,
 			(ctx.compileList ? ctx.compileList() : []).length,
 			typeof ctx.total === 'function' ? ctx.total() : 0);
-		fmt.createSpan({ cls: 'ws-export-fmtlabel', text: 'Export as' });
+		fmt.createSpan({ cls: 'ws-export-fmtlabel', text: wsT('Export as') });
 		// FOUR FORMATS, and each one is a different question answered: Word
 		// for the person who asked for the manuscript, PDF for a page that is
 		// final, HTML for anyone with a browser, Markdown for the writer's own
@@ -2976,7 +3680,10 @@ export const exportMethods = {
 			{ id: 'docx', label: 'Word', ext: '.docx', pages: wsFormatHasPages('docx') },
 			{ id: 'pdf',  label: 'PDF',  ext: '.pdf', desktopOnly: true,
 				pages: wsFormatHasPages('pdf') },
-			{ id: 'html', label: 'Web page', ext: '.html', pages: wsFormatHasPages('html') },
+			// (Word, PDF and Markdown are names, and stay theirs; the two that are words are routed, A695)
+			{ id: 'html', label: wsT('Web page'), ext: '.html', pages: wsFormatHasPages('html') },
+			// AN E-BOOK (A612): no pages of its own, a reader sets them; a phone makes one too
+			{ id: 'epub', label: wsT('E-book'), ext: '.epub', pages: wsFormatHasPages('epub') },
 			{ id: 'md',   label: 'Markdown', ext: '.md', pages: wsFormatHasPages('md') }
 		].filter(f => !f.desktopOnly || this.exportPdfAvailable());
 		// Held so that paintFmt can put them back when "Set up again" writes
@@ -3010,6 +3717,11 @@ export const exportMethods = {
 			for (const el of Array.from<HTMLElement>(
 				scope.querySelectorAll('.ws-export-pages'))) {
 				el.toggleClass('is-gone', !f.pages);
+			}
+			// …and each list's button says again what is on: no running header where there are no pages (A625)
+			for (const el of Array.from<HTMLElement>(scope.querySelectorAll('.ws-export-picklist'))) {
+				const say = wsPickSay.get(el);
+				if (say) say();
 			}
 		};
 		// A vault whose saved format no longer exists comes back to Word
@@ -3048,8 +3760,7 @@ export const exportMethods = {
 		if (!this.exportPdfAvailable()) {
 			fmt.addClass('has-note');
 			fmt.createDiv({ cls: 'ws-export-fmtnote',
-				text: 'For a PDF, export the web page, open it in your browser '
-					+ 'and print it. Same pages, saved as PDF.' });
+				text: wsT('For a PDF, export the web page, open it in your browser and print it. Same pages, saved as PDF.') });
 		}
 		// WHAT ACTUALLY GETS COMPILED, in one place. ORDER, not the gathered
 		// list — a manual move is the whole point of the drag, and reading
@@ -3082,13 +3793,21 @@ export const exportMethods = {
 			// `into`, and a local of the same name here would shadow it — the row
 			// would try to build itself out of itself.
 			const intoRow = into.createDiv({ cls: 'ws-export-into' });
-			intoRow.createSpan({ cls: 'ws-export-fmtlabel', text: 'into' });
+			// "EXPORT AS" LEFT OF THE EXPORT BUTTON (A680, the writer, a shot with an arrow from it to the top
+			// line: "put the export as in the left of the export button"; A635 had moved it here): the first line
+			// reads Tick all, the figures, Export as and its menu, Export; this one where the file lands, and
+			// opening its line the word wears a capital
+			intoRow.createSpan({ cls: 'ws-export-fmtlabel', text: wsT('Into') });
 			const pick = intoRow.createDiv({ cls: 'ws-export-folderpick' });
+			// THE PHONE'S PDF NOTE UNDER THE LINE, a line of its own (A657: inside it, on a line that never wraps,
+			// its sentence took the room: "Export as" on two lines and a folder box of 72px on a tablet)
+			const pdfNote = fmt.querySelector('.ws-export-fmtnote');
+			if (pdfNote) into.appendChild(pdfNote);
 			const inp = pick.createEl('input', { cls: 'ws-export-text' });
 			inp.type = 'text';
 			inp.value = o.outFolder || '';
 			intoInput = inp;
-			inp.placeholder = 'Vault root';
+			inp.placeholder = wsT('Vault root');
 			const hits = pick.createDiv({ cls: 'ws-export-hits ws-export-foldhits' });
 			const paintHits = () => {
 				hits.textContent = '';
@@ -3114,7 +3833,7 @@ export const exportMethods = {
 				window.setTimeout(() => { hits.textContent = ''; }, 120);
 			});
 		}
-		runBtn('Export', o.format || 'docx');
+		runBtn(wsT('Export'), o.format || 'docx');
 		paintFmt();
 		// The progress line sits in the footer beside the button that
 		// starts the work, not over the list a writer may still be reading.
@@ -3245,15 +3964,14 @@ export const exportMethods = {
 						if (actRow0) {
 							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
 							head0.createSpan({ text: this.exportFiguresText(0, 0, 0) });
-							const go0 = actRow0.querySelector('.ws-export-go');
-							if (go0) actRow0.insertBefore(head0, go0);
+							wsPlaceFigures(actRow0, head0);
 							this.exportTickAllSay(actRow0, 0,
 								typeof ctx.total === 'function' ? ctx.total() : 0);
 						}
 					} catch (_) { wsCatch('buildExportOptions / refreshPreview: const stale = into.querySelector(\'.ws-export-top …', _); }
 					prevCol.empty();
 					prevCol.createDiv({ cls: 'ws-export-prevnone',
-						text: 'Nothing ticked yet \u2014 the preview shows what will print.' });
+						text: wsT('Nothing ticked yet \u2014 the preview shows what will print.') });
 					// THE FRAME IS GONE, SO THE SIGNATURE GOES TOO. Untick all empties the
 					// column; Tick all brings back the same set, whose signature would
 					// match the last frame's, and the early return below would re-say the
@@ -3279,16 +3997,16 @@ export const exportMethods = {
 							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
 							head0.createSpan({ text: this.exportFiguresText(picked.length, null,
 								typeof ctx.folders === 'function' ? ctx.folders() : 0) });
-							const go0 = actRow0.querySelector('.ws-export-go');
-							if (go0) actRow0.insertBefore(head0, go0);
+							wsPlaceFigures(actRow0, head0);
 							this.exportTickAllSay(actRow0, picked.length,
 								typeof ctx.total === 'function' ? ctx.total() : 0);
 						}
 					} catch (_) { wsCatch('buildExportOptions / refreshPreview: the long manuscript\'s figures', _); }
 					prevCol.empty();
 					const wait0 = prevCol.createDiv({ cls: 'ws-export-prevnone ws-export-prevbig' });
-					wait0.createDiv({ text: picked.length.toLocaleString() + ' notes ticked. A preview this long holds Obsidian while it is drawn, so it is drawn when you ask.' });
-					const ask = wait0.createEl('button', { cls: 'ws-export-mini', text: 'Show the preview' });
+					// ONE KEY, as the English has one ("notes" whatever the count); `n` lets a table give its plural forms
+					wait0.createDiv({ text: wsT('{count} notes ticked. A preview this long holds Obsidian while it is drawn, so it is drawn when you ask.', { n: picked.length, count: picked.length.toLocaleString() }) });
+					const ask = wait0.createEl('button', { cls: 'ws-export-mini', text: wsT('Show the preview') });
 					ask.addEventListener('click', () => { previewAsked = true; refreshPreview(); });
 					prevSig = null; prevHandle = null; drawnListSig = null;
 					return;
@@ -3300,13 +4018,15 @@ export const exportMethods = {
 				let scope0 = '';
 				try { scope0 = (ctx && typeof ctx.scope === 'function')
 					? ctx.scope() : ''; } catch { scope0 = ''; }
-				try { secs = await this.exportSections(picked, o, null, scope0); }
+				try { secs = await this.exportSections(picked, o, null, scope0); await this.exportImages(secs, 'preview'); }
 				catch { return; }
 				// A SLOWER RUN MUST NOT LAND ON A NEWER ONE. Two changes inside
 				// one compile and the first to finish is not the first started.
 				if (run !== prevRun) return;
 				let words = 0;
 				for (const sec of secs) words += this.countWords(sec.markdown);
+				// the citations as the export will write them, the list at the back (A572 step 4); after the count
+				this.exportCite(secs);
 				// ── THE SAME DOCUMENT IS NOT REDRAWN ─────────────────
 				//
 				// THE PROSE ITSELF, not a count of it. Lengths collide — an edit that
@@ -3442,6 +4162,39 @@ export const exportMethods = {
 			});
 			return row;
 		};
+		// ── A GROUP AS ONE BUTTON AND ITS LIST (A617 Also include, A625 Front matter) ──
+		//
+		// The writer: "the also includes in the export tab needs to be a submenu with
+		// icons for each", then "the frontmatter in export should also be a submenu".
+		// A fold was asked for once (2026-08-23) and taken back (2026-08-28): it said
+		// how many were on and nothing said WHICH. So the button names them ("Tags,
+		// Footnotes"), and a press opens the list: each row its icon and its name, lit
+		// when on, switched without the list closing, its hint on hover; the preview
+		// follows each switch. `rows` is asked at every press and every saying, so a
+		// row that does not apply (a running header where there are no pages) is in
+		// neither, and a format change has the button say it again (paintFmt).
+		const pickList = (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => {
+			const btn = grp.createEl('button', { cls: 'ws-export-mini ws-export-picklist ' + cls, attr: { type: 'button' } });
+			const say = () => {
+				btn.empty();
+				const on = rows().filter(([k]) => !!o[k]).map(([, lab]) => lab);
+				btn.createSpan({ cls: 'ws-export-pick-text', text: on.length ? wsUiJoin(on) : none });
+				wsIconInto(btn.createSpan({ cls: 'ws-export-pick-chev' }), ['chevron-down'], '\u25be');
+				// the whole sentence a caller's own (A695): "Before the text: Title page. Press for the list."
+				btn.title = what(on.length ? wsUiJoin(on) : null);
+			};
+			say();
+			wsPickSay.set(btn, say);
+			btn.addEventListener('click', () => {
+				this.openPickerLive(btn, rows().map(([key, lab, hint, icon]) => ({
+					label: lab, note: hint,
+					icon: () => { const el = createSpan(); wsIconInto(el, icon, '\u2022'); return el; },
+					on: () => !!o[key],
+					onClick: () => { o[key] = !o[key]; void this.saveSettings(); say(); refreshPreview(); },
+				})), 'toggle');
+			});
+			return btn;
+		};
 		// THE FONT BOX: type to search, click to take, and every name is set
 		// in its own face.
 		//
@@ -3455,194 +4208,7 @@ export const exportMethods = {
 		//   …AND IT SAYS SO, quietly, underneath. That is the whole argument
 		//   the fixed list was built on, kept as a warning instead of as a
 		//   wall.
-		const fontOpt = (parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) => {
-			const row = parent.createDiv({ cls: 'ws-export-opt ws-export-textrow ws-export-fontrow'
-				+ (inRow ? ' is-inrow' : '') });
-			row.createSpan({ cls: 'ws-export-optname', text: label });
-			const pick = row.createDiv({ cls: 'ws-export-fontpick' });
-			const inp = pick.createEl('input', { cls: 'ws-export-text ws-export-fontinput' });
-			inp.type = 'text';
-			inp.value = o[key] || '';
-			inp.placeholder = 'Times New Roman';
-			// A font name is not prose: a red underline under "Alegreya" is
-			// the editor calling a correct answer a mistake.
-			inp.setAttribute('spellcheck', 'false');
-			// ── THE CAVEAT IS NOT PART OF THE ANCHOR ────────────────────
-			//
-			// Inside the trio `pick` is 151px wide, so six lines of prose in it
-			// would make the box 126px tall — centring the LABEL halfway down its
-			// own row and dropping the results list, which is `top: 100%` of this
-			// box, a hundred pixels below the field it belongs to. SO IT GOES
-			// OUTSIDE, on its own full-width line under the trio. `pick` is the
-			// FIELD and nothing else, which is what an anchor has to be.
-			const noteHost = (inRow && parent.parentElement)
-				? parent.parentElement : pick;
-			const note = noteHost.createDiv({
-				cls: 'ws-export-fontnote' + (inRow ? ' is-wide' : '') });
-			const hits = pick.createDiv({ cls: 'ws-export-hits ws-export-fonthits' });
-			let rows: HTMLElement[] = [], found: string[] = [], sel = -1;
-			const face = (n: string) => '"' + String(n).replace(/["\\]/g, '') + '"';
-			const wear = () => {
-				const n = String(inp.value || '').trim();
-				inp.style.fontFamily = n ? face(n) : '';
-			};
-			const sayNote = () => {
-				const n = String(inp.value || '').trim();
-				note.setText(this.fontIsInstalled(n) ? ''
-					: 'Not found on this machine \u2014 it goes into the file as written, '
-						+ 'and whatever opens it will substitute.');
-			};
-			// THE CAVEAT STANDS DOWN WHILE THE LIST IS UP. They sit on the
-			// same strip of screen now that the note has the full column
-			// width, and an open list covered the middle of its own warning.
-			// It is a statement about what has been TYPED, so it has nothing
-			// to say while a list of real families is open and the answer is
-			// still being chosen.
-			const noteShow = () => note.toggleClass('is-under',
-				hits.childElementCount > 0);
-			// ── WHERE THE LIST GOES, IN SCREEN COORDINATES ──────────────
-			//
-			// It is `position: fixed`, so it escapes `.ws-export-right`'s scroll
-			// clip — and so it has no layout parent to take its place from. Written
-			// from the field's own rect, every time anything could have moved. AND
-			// IT IS CLAMPED TO THE ROOM THERE ACTUALLY IS, then flipped above the
-			// field when there is more room up than down.
-			const placeHits = () => {
-				if (!hits.childElementCount) return;
-				const r = inp.getBoundingClientRect();
-				// CLAMPED TO THE WINDOW IT BELONGS TO, not to the screen: `position:
-				// fixed` escapes every ancestor's overflow — which is the whole point
-				// of it here — and that includes the modal's own edge. A FLOOR AND A
-				// CEILING ARE Y COORDINATES; A CAP IS A HEIGHT — `42vh` taken off a
-				// coordinate looks right only while the window starts near the top of
-				// the screen. THE FIELD'S OWN WINDOW, not the app's: in a popout
-				// `window` is still the main one, so the list would be sized against
-				// a screen the writer is not looking at
-				const host2 = inp.closest('.ws-uni-modal, .workspace-leaf-content');
-				const hb = host2 ? host2.getBoundingClientRect() : null;
-				// .
-				const fwin = (inp.ownerDocument && inp.ownerDocument.defaultView)
-					|| window;
-				const winH = fwin.innerHeight || 800;
-				const floorY = Math.min(winH, hb ? hb.bottom : Infinity);
-				const ceilY = hb ? hb.top : 0;
-				const below = floorY - r.bottom - 8;
-				const above = r.top - ceilY - 8;
-				const up = below < 160 && above > below;
-				const cap = winH * 0.42;
-				const room = Math.max(96, Math.min(up ? above : below, cap));
-				// AND IT STAYS ON THE SCREEN: on a phone the font field sits at the
-				// right edge, so width is capped to the window and the left is pulled
-				// back until the box fits, in that order.
-				const winW = fwin.innerWidth || 0;
-				let boxW = Math.max(r.width, 220);
-				if (winW > 8) boxW = Math.min(boxW, winW - 8);
-				let boxL = Math.round(r.left);
-				if (winW > 0) boxL = Math.max(4, Math.min(boxL, winW - boxW - 4));
-				hits.style.width = boxW + 'px';
-				hits.style.left = boxL + 'px';
-				hits.style.maxHeight = Math.round(room) + 'px';
-				if (up) {
-					hits.style.removeProperty('top');
-					hits.style.bottom = Math.round(winH - r.top + 2) + 'px';
-				} else {
-					hits.style.removeProperty('bottom');
-					hits.style.top = Math.round(r.bottom + 2) + 'px';
-				}
-			};
-			// A FIXED BOX DOES NOT TRAVEL WITH ITS FIELD. Scrolling the
-			// options column moves the input and leaves the list behind, so
-			// the list is re-placed on any scroll anywhere (capture, because
-			// the scroll happens on an ancestor) and on any resize, while it
-			// is open (`listen` below).
-			// ON THE FIELD'S OWN WINDOW, for the reason `placeHits` gives: a
-			// popout scrolls and resizes in its own window, and listeners on
-			// the main one would never hear it - the list would sit where it
-			// was first put while its field moved out from under it.
-			const iwin = (inp.ownerDocument && inp.ownerDocument.defaultView)
-				|| window;
-			// ONLY WHILE THE LIST IS OPEN. This row is built again on every
-			// redraw of the options and every visit to the tab, and a pair of
-			// listeners added per build and never taken off piled up on the
-			// window (two more each time, each holding a row that was gone).
-			let listening = false;
-			const listen = (on: boolean) => {
-				if (on === listening) return;
-				listening = on;
-				if (on) {
-					iwin.addEventListener('scroll', onMove, true);
-					iwin.addEventListener('resize', onMove);
-				} else {
-					iwin.removeEventListener('scroll', onMove, true);
-					iwin.removeEventListener('resize', onMove);
-				}
-			};
-			const onMove = () => { if (inp.isConnected) placeHits(); else listen(false); };
-			const close = () => {
-				hits.textContent = ''; rows = []; found = []; sel = -1;
-				listen(false);
-				noteShow();
-			};
-			const mark = () => rows.forEach((r, i) => r.classList.toggle('is-selected', i === sel));
-			const take = (name: string) => {
-				o[key] = name; inp.value = name;
-				void this.saveSettings(); wear(); sayNote(); close();
-			};
-			const paint = () => {
-				hits.textContent = ''; rows = []; sel = -1;
-				found = this.fontFinderMatches(inp.value, 40);
-				for (const name of found) {
-					const r  = hits.createDiv({ cls: 'ws-export-hit ws-export-fonthit' });
-					const nm = r.createSpan({ cls: 'ws-export-fontname', text: name });
-					nm.style.fontFamily = face(name);
-					if (name === String(o[key] || '')) {
-						r.createSpan({ cls: 'ws-export-fonttag', text: 'in use' });
-					}
-					const i = rows.length;
-					r.addEventListener('mouseenter', () => { sel = i; mark(); });
-					// mousedown, not click: the box blurs first, blur closes
-					// the list, and a click landing on a row that has already
-					// gone is a click that does nothing.
-					r.addEventListener('mousedown', (ev: Event) => { ev.preventDefault(); take(name); });
-					rows.push(r);
-				}
-				if (!found.length) hits.createDiv({ cls: 'ws-export-nohit', text: 'No font by that name.' });
-				noteShow();
-				listen(true);
-				placeHits();
-			};
-			// The real list arrives asynchronously; the box opens on whatever
-			// is known and repaints when it lands.
-			const wake = () => {
-				paint();
-				void (async () => { await this.ensureSystemFonts(); if (rows.length) paint(); sayNote(); })();
-			};
-			inp.addEventListener('focus', wake);
-			inp.addEventListener('input', () => { wear(); sayNote(); paint(); });
-			// Saved on change, like every other box here: a keystroke is not
-			// a decision, and blurring or pressing Enter is.
-			inp.addEventListener('change', () => {
-				o[key] = String(inp.value || '').trim();
-				void this.saveSettings(); wear(); sayNote();
-			});
-			inp.addEventListener('keydown', (ev: KeyboardEvent) => {
-				if (ev.key === 'Escape') { close(); return; }
-				if (!found.length) return;
-				if (ev.key === 'ArrowDown') { sel = (sel + 1) % found.length; mark(); ev.preventDefault(); }
-				else if (ev.key === 'ArrowUp') { sel = (sel - 1 + found.length) % found.length; mark(); ev.preventDefault(); }
-				else if (ev.key === 'Enter') {
-					// Enter takes the row ON SCREEN, and only if one is
-					// picked out: Enter on a name typed in full must keep
-					// that name rather than swap it for the nearest match.
-					if (sel >= 0) { take(found[sel]); ev.preventDefault(); }
-					else close();
-				}
-			});
-			// A moment, because a click on a row is a blur first.
-			inp.addEventListener('blur', () => { window.setTimeout(close, 120); });
-			wear(); sayNote();
-			return inp;
-		};
+		const fontOpt = (parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) => wsExportFontOpt(this, { o }, parent, key, label, inRow);
 
 		// A DROP-DOWN for anything with a small fixed set of answers. Paper
 		// was two segmented buttons, which is a control shaped like a
@@ -3732,7 +4298,7 @@ export const exportMethods = {
 			optPanel = null;                      // above the tabs
 			// NAMED: the groups divide the column, and a group that does not say
 			// what it is divides nothing.
-			const grp = optGroup('Manuscript');
+			const grp = optGroup(wsT('Manuscript'));
 			// TITLE AND AUTHOR SHARE A LINE, the pair's shape: two short answers,
 			// and the line they each had alone was the pane's height in a
 			// window that had to scroll. Under a narrow column the pair is one
@@ -3744,11 +4310,12 @@ export const exportMethods = {
 			// nothing to say — an empty box already means that, and it
 			// shows what it will use in the placeholder, so the default
 			// is visible instead of merely documented.
-			const ti = textOpt(who, 'titleText', 'Title',
-				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || 'Untitled', undefined, true);
+			const ti = textOpt(who, 'titleText', wsT('Title'),
+				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || wsT('Untitled'), undefined, true);
 			ti.addClass('ws-export-wideinput');
-			const au = textOpt(who, 'author', 'Author', 'A. Writer', undefined, true);
-			au.addClass('ws-export-wideinput');
+			// DECIDED ONCE (A574): your name, curly quotes and the word count's rounding
+			// moved to Settings → Export; said here, where a writer looks for them
+			grp.createDiv({ cls: 'ws-export-moved', text: wsT('Your name, curly quotes and the word count’s rounding are set once, in Settings → Export.') });
 		}
 
 		// THE PANEL EVERYTHING BELOW DRAWS INTO. `optGroup` routes through it —
@@ -3761,274 +4328,13 @@ export const exportMethods = {
 		// a break or a mark between files. That is structure, and a writer
 		// looking for "should each chapter start a new page" looks under
 		// structure.
-		{
-			// The title page, the running header, the contents page, and how the
-			// word count on the title page reads. Publishing's own word for the
-			// pages before the text, which is what three of the four are; the
-			// rounding belongs here because the number it rounds is printed on
-			// the title page and nowhere else.
-			const grp = optGroup('Front matter');
-			toggle(grp, 'titlePage', 'Title page',
-				'A page of its own at the front with the title, your name and the '
-				+ 'word count \u2014 what a submission opens with.');
-			// A LINE PRINTED AT THE TOP OF A PAGE, so it goes with the pages.
-			// It sits in Front matter beside the title page and the contents,
-			// both of which Markdown really does produce — which is why this is
-			// marked one control at a time and not one group at a time.
-			toggle(grp, 'runningHeaderOn', 'Running header',
-				'Your surname, the title and the page number along the top of every '
-				+ 'page, so a printed manuscript can be put back in order.')
-				.addClass('ws-export-pages');
-			// "Contents page" named the paper it lands on; "Table of
-			// contents" is what the thing is called, in Word's own menus and
-			// in every book that has one.
-			// UNDER THE TITLE PAGE, because it is a line ON that page and
-			// nowhere else — a switch for something invisible until another
-			// switch is on belongs against that switch, and this window has
-			// been taught that once already by the divider box.
-			if (o.titlePage) {
-				toggle(grp, 'roundWordCount', 'Round the word count',
-					'\u201cAbout 90,000 words\u201d on the title page, which is what a '
-					+ 'publisher costing paper expects. Off prints the count exactly.');
-			}
-			toggle(grp, 'toc', 'Table of contents',
-				'A list of the files at the front, each one a link that jumps to it.');
-			// ONE QUESTION, THREE ANSWERS: how does one file join the next? As two
-			// booleans it allowed both at once — a page break AND a divider —
-			// which no manuscript wants. TWO ROWS THAT READ AS SENTENCES: the
-			// LABEL is a subject and the ANSWER is its predicate — "Each file —
-			// starts a new page", "Its heading — the file's name" — so both labels
-			// fit the column and both rows read left to right in one go.
-			//
-			// THE TWO OF THEM ON ONE ROW: they are one question asked twice — what
-			// separates one file from the next, and what is printed at the top of
-			// it — and `.ws-export-pair` is the trio's shape with two columns. THE
-			// LAST ARGUMENT IS LOAD-BEARING: without `true` each row spans its
-			// container, so the pair would be two stacked rows inside a new box.
-			//
-			// A GROUP OF THEIR OWN: these three decide the SHAPE of the book
-			// itself — where one file ends, what is printed at the top of the
-			// next, and whether a folder announces itself — where Front matter is
-			// what is printed BEFORE the book.
-			const structGrp = optGroup('Structure');
-			// The pair spans the group; the two switches under it share a line,
-			// each in the half the select above it has. MARKED, because their
-			// names are the longest here and a narrow column gives them the
-			// whole line before it does any other group's.
-			structGrp.addClass('is-structure');
-			const pair = structGrp.createDiv({ cls: 'ws-export-pair' });
-			// ── AND A PAGELESS FORMAT IS NOT OFFERED A PAGE ─────────────
-			//
-			// `exportToMarkdown` reads `starBetween` and never `pageBreaks`, so
-			// for .md "starts a new page" does LITERALLY NOTHING while the other
-			// two both work. THE STORED VALUE IS LEFT ALONE and `run` is shown
-			// instead, which is also what .md actually does with `page`. Flick to
-			// Markdown and back and the Word setting is exactly where it was.
-			selOpt(pair, 'joinMode', 'Each file', [
-				{ id: 'page',    label: 'Starts a new page',
-					hint: 'Every file begins at the top of a fresh page \u2014 how a book '
-						+ 'starts a chapter, and what a submission expects.' },
-				{ id: 'divider', label: 'Follows a divider',
-					hint: 'Files run on down the same page, with the mark below '
-						+ 'centered between them \u2014 a scene break.' },
-				{ id: 'run',     label: 'Runs straight on',
-					hint: 'Nothing between one file and the next: the prose reads as '
-						+ 'though it were all one note.' }
-			].filter((c) => c.id !== 'page' || wsFormatHasPages(o.format || '')), () => {
-				o.pageBreaks = o.joinMode === 'page';
-				o.starBetween = o.joinMode === 'divider';
-				void this.saveSettings();
-				redrawOpts();
-			}, true, 'run');
-			// THE MARK, DIRECTLY UNDER THE ANSWER THAT ASKS FOR IT. It was
-			// written last in this group, so it appeared beneath the
-			// HEADING row and its caption \u2014 a box called "Divider" sitting
-			// under a sentence about chapter headings, which reads as a
-			// setting for the wrong thing entirely. A control that exists
-			// only because of another control has to sit against it.
-			//
-			// It still only exists when there IS a divider to name: a field
-			// for a mark that is switched off is a control that does
-			// nothing, sitting where a writer reads it as one that does.
-			if (o.starBetween) {
-				// INTO STRUCTURE WITH THE ROW IT ANSWERS, and AFTER "Each file": a
-				// mark box first was read as a setting for the heading above it.
-				textOpt(structGrp, 'divider', 'Its mark', '#',
-					'Centered on its own line between one file and the next.');
-			}
-			// "INSERT HEADING", NOT "ITS HEADING": "its" names a heading the file
-			// already has, so "None" reads as a claim about the note rather than
-			// an instruction about the export. "Insert" says who is doing it, and
-			// then None means what it says. With the file's name on AND the note
-			// opening with its own `# Chapter One`, the title would be set twice
-			// — and a book whose notes are named for its chapters is the commonest
-			// way anyone organises one.
-			selOpt(pair, 'chapterTitles', 'Insert heading', [
-				{ id: 'file', label: 'The file\u2019s name',
-					hint: 'Each file opens with its own name as the heading. A '
-						+ '# heading inside the note is dropped, so the title is not '
-						+ 'set twice.' },
-				{ id: 'note', label: 'The note\u2019s own',
-					hint: 'Whatever the note already says \u2014 its # headings are kept '
-						+ 'as written, and nothing is added.' },
-				{ id: 'none', label: 'None',
-					hint: 'No headings at all: unbroken prose, with only the dividers '
-						+ 'or page breaks above to separate the files.' }
-			], () => {
-				o.sectionTitles = o.chapterTitles === 'file';
-				o.keepHeadings = o.chapterTitles !== 'none';
-				// From the file name means the note's own heading would be
-				// the same title again: it is dropped, not printed twice.
-				if (o.chapterTitles === 'file') o.keepHeadings = false;
-				void this.saveSettings();
-				redrawOpts();
-			}, true);
-			// ── AND THE FOLDERS THEMSELVES CAN BE HEADINGS ──────────────────
-			//
-			// A book kept as `Section 1/Chapter 1/Some topic.md` compiles to
-			// `Section 1`, `Chapter 1`, then the prose — the chapter headings live
-			// apart from the body text, so pieces move between chapters without
-			// dragging a heading with them. DIRECTLY UNDER `Insert heading`,
-			// because the two are one question asked at two scales: that one says
-			// whether a FILE contributes a heading, this one whether the FOLDERS
-			// above it do.
-			//
-			// IT WORKS WITH ALL THREE ANSWERS. With "None" the folders are the
-			// only headings. With "The file's name" each file sits one level under
-			// its folder. With "The note's own" the note's headings are pushed
-			// down by the folder depth, or a scene's # would outrank its chapter.
-			// IN THE GROUP, NOT THE PAIR: a third child would take one of the
-			// pair's cells and leave the other empty.
-			toggle(structGrp, 'folderHeadings', 'Folder names as headings',
-				'A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.');
-			// --- AS A PAGE BREAK (A502, the writer: "add another option in export
-			// that --- in markdown is a page break"). Inside a note, where "Each file"
-			// is between notes; hidden with the other page rows for Markdown.
-			toggle(structGrp, 'dashPageBreak', '--- starts a new page',
-				'A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.')
-				.addClass('ws-export-pages');
-		}
+		// the redraw read when it runs, not as it was at the call (lift-snapshots: a let written after)
+		wsExportOptsStructure(this, { o, optGroup, pickList, redrawOpts: () => redrawOpts(), selOpt, textOpt, toggle });
 
 		// ── The words ───────────────────────────────────────────────────
 		// …and these decide how the prose itself is set, which is the other
 		// question entirely — which is why they are the other tab.
-		{
-			const grp = optGroup('Typesetting');
-			// BOTH HALVES OF THE SECTION. `optGroup` makes an eyebrow and then
-			// the options box, and returns only the box — so the heading is
-			// the element immediately before it. Hiding one and not the other
-			// leaves a title over nothing, which reads as a section that
-			// failed to draw rather than one that does not apply.
-			//
-			// CHECKED BY CLASS, not taken on faith: if the shape of `optGroup`
-			// ever changes, this marks the box alone rather than hiding
-			// whatever happens to sit above it.
-			//
-			// A CLASS RATHER THAN A VARIABLE, because `paintFmt` — which does
-			// the hiding — is in another method entirely, and a name assigned
-			// across that boundary is a global, not a shared reference.
-			grp.addClass('ws-export-pages');
-			{
-				const eb = grp.previousElementSibling;
-				if (eb && eb.classList.contains('ws-export-eyebrow')) {
-					eb.addClass('ws-export-pages');
-				}
-			}
-			// PAPER FIRST, then the face it is set in. NINE SIZES, from one table
-			// (WS_PAPERS), because "A4 or not" only answers the submission
-			// question: a writer setting a proof of their own novel is working to
-			// a TRIM SIZE — 6 x 9, digest, mass market — and those are pages in
-			// their own right, not variants of Letter. The margin travels with the
-			// paper: an inch on a 5.5-inch page is a third of the sheet.
-			//
-			// A SEARCH BOX OVER THE MACHINE'S OWN FAMILIES for the font, the way
-			// Obsidian's font setting does it (see WS_SAFE_FONTS). Plain
-			// substring, not fuzzy: a font list is a thing you READ, and fuzzy
-			// matching puts "Times New Roman" three rows below something that
-			// merely contains a t, an i and an m. THE PAPER, THE FACE, THE SIZE
-			// AND THE SPACING ARE ONE QUESTION, so they are one row; the class
-			// still says trio, because it is the ROW SHAPE beside
-			// `.ws-export-pair`, the same shape for two.
-			const trio = grp.createDiv({ cls: 'ws-export-trio' });
-			// PAPER FIRST, and creation order is DOM order — the sheet is
-			// chosen before the face that is set on it, the size of that face,
-			// and the space between its lines. Reading the row left to right
-			// is reading the decisions in the order they are made.
-			selOpt(trio, 'paperId', 'Paper',
-				WS_PAPERS.map(p => ({ id: p.id, label: p.label })),
-				() => { o.a4 = o.paperId === 'a4'; void this.saveSettings(); }, true);
-			fontOpt(trio, 'font', 'Font', true);
-			// SIZE, which was pinned at 12pt. That is the manuscript
-			// convention and it is still the default \u2014 but the paper is
-			// nine sizes now, and 12pt double spaced on a 6 \u00d7 9 page is
-			// about a hundred and ninety words to the page, which is a
-			// proof nobody would set on purpose.
-			selOpt(trio, 'pt', 'Size', [
-				{ id: '10', label: '10 pt' },
-				{ id: '11', label: '11 pt' },
-				// THE CAPTION IS A HINT, NOT PART OF THE LABEL: spelled out in the
-				// closed box it made this the widest of the five by more than double,
-				// and it sets the width of a control that shares its line with three
-				// others. `selOpt` puts an item's hint on the row as a title when that
-				// item is the chosen one.
-				{ id: '12', label: '12 pt', hint: 'The manuscript standard.' },
-				{ id: '13', label: '13 pt' },
-				{ id: '14', label: '14 pt' },
-				// PAST 14, A READING COPY: 16 and 18 are large print, 20 and 24 for
-				// tired eyes or a tablet held at arm's length. Steps, not a number box.
-				{ id: '16', label: '16 pt' },
-				{ id: '18', label: '18 pt' },
-				{ id: '20', label: '20 pt' },
-				{ id: '24', label: '24 pt' }
-			], () => { o.pt = parseInt(String(o.pt), 10) || 12; void this.saveSettings(); }, true);
-			// THREE ANSWERS, where a boolean could only give two. Double is
-			// what a submission expects and stays the default; single is
-			// closer to a finished book; one and a half is what a reader
-			// who is not an editor actually prefers, and it was the answer
-			// the switch could not give.
-			// NO CAPTIONS on this one. The other two drop-downs describe a
-			// LAYOUT — what lands on the page, which cannot be guessed from
-			// three words — and single, one and a half and double are three
-			// words everyone already knows. A line of explanation under a
-			// self-evident answer teaches a reader to stop reading the
-			// lines under the ones that are not.
-			selOpt(trio, 'lineSpacing', 'Spacing', [
-				{ id: 'single',  label: 'Single' },
-				{ id: 'onehalf', label: 'One and a half' },
-				{ id: 'double',  label: 'Double' }
-			], () => {
-				// The boolean the builders and older vaults still read is
-				// written from the answer, in one place, on every change.
-				o.doubleSpaced = o.lineSpacing !== 'single';
-				void this.saveSettings();
-			}, true);
-			// INDENT PARAGRAPHS, BACK. It was removed because turning it
-			// off with double spacing on — the pairing a manuscript uses —
-			// left NO paragraph boundary at all, and the result read as a
-			// broken document rather than a styled one. The switch was
-			// never the fault; the missing second boundary was. Off now
-			// puts a half-line of air after each paragraph in all three
-			// targets (see `gap` in wsStylesXml), which is block-set prose
-			// — what a business letter, a blog post and most non-fiction
-			// use — rather than a document with its paragraph ends
-			// deleted. On by default, because the manuscript convention is
-			// still the default here.
-			toggle(grp, 'indent', 'Indent paragraphs',
-				'A half-inch first line on every paragraph but the first of a scene '
-				+ '\u2014 the manuscript convention. Off sets them block style, with a '
-				+ 'space between instead.');
-			// UNDER THE INDENT, not above the size. The two switches in this
-			// tab are the only two things here a writer flips rather than
-			// chooses from a list, and the grid lays toggles two to a row —
-			// so with one of them stranded at the top of the group and the
-			// other at the bottom, each sat alone on a line with a
-			// half-width hole beside it. Together they pair up, and the
-			// three drop-downs above them read as one run rather than as
-			// two runs with a switch wedged in the middle.
-			toggle(grp, 'smartQuotes', 'Curly quotes',
-				'Turns \' and " into \u2018 \u2019 \u201c \u201d as it compiles. Only in the exported '
-				+ 'file \u2014 your notes keep what you typed.');
-		}
+		wsExportOptsTypesetting(this, { fontOpt, o, optGroup, selOpt, toggle });
 
 		// ── What comes along ────────────────────────────────────────────
 		// Everything here is OFF, and everything here is something the
@@ -4041,57 +4347,7 @@ export const exportMethods = {
 		// Its own group, and named for the question rather than for the
 		// items, because what these three share is not what they ARE but
 		// that the export drops them.
-		{
-			// Named "Also include", and on the pane rather than behind a button
-			// reading "0 of 5": a count is not a control — it is a promise that
-			// there is one somewhere else. THE HINTS are each switch's own title,
-			// which is where every other switch on this pane keeps its explanation.
-			const grp = optGroup('Also include');
-			// Marked so a wide column lays these seven three or four across.
-			grp.addClass('is-also');
-			const ALSO: [WsExportBoolKey, string, string][] = [
-				['keepFrontmatter', 'Properties',
-					'The --- block at the top of a note: status, tags, dates. '
-					+ 'Printed verbatim in monospace, because it is data rather '
-					+ 'than prose.'],
-				['keepComments', 'Comments',
-					'Your %% notes to self %%, kept where they sit and set apart '
-					+ 'from the prose so a query to yourself cannot be read as a '
-					+ 'sentence.'],
-				['keepCallouts', 'Callouts',
-					'Your > [!note] boxes, printed as a quote under their title. Off by '
-					+ 'default, because a callout is usually a note to self.'],
-				// ON, like Footnotes: tags always printed. Off keeps them in the note only.
-				['keepTags', 'Tags',
-					'Your #tags in the text. Off takes them out of the manuscript; your '
-					+ 'notes keep them.'],
-				['keepImages', 'Image placeholders',
-					'[Image: cover.png] where a picture sits. The picture itself '
-					+ 'is not embedded \u2014 this is a mark that something belongs '
-					+ 'there.'],
-				// HIGHLIGHTS is a bug fix wearing an option's clothes:
-				// `==marked==` text matched nothing in the converter, so it
-				// travelled into the manuscript as literal equals signs. The
-				// marks are consumed either way now; this decides whether the
-				// highlight survives, and off is the default because a
-				// highlight is usually a note to self about the prose.
-				['highlights', 'Highlights',
-					'Your ==marked== passages come through highlighted, the same '
-					+ 'yellow Word\u2019s own pen writes. Off keeps the words and '
-					+ 'drops the marks.'],
-				// THE ONE HERE THAT IS ON. Footnotes were unconditional, so
-				// absent has to mean on — which breaks this group's "off until
-				// you ask" promise. It sits here anyway: what happens to the
-				// notes in a file is the same question as what happens to its
-				// properties and its comments. Off drops the markers too,
-				// because a `[^3]` pointing at a note that is no longer in the
-				// document is worse than either having them or not.
-				['footnotes', 'Footnotes',
-					'Your [^1] notes, gathered as endnotes at the back with their '
-					+ 'markers left in the text. Off removes both.']
-			];
-			for (const [key, lab, hint] of ALSO) toggle(grp, key, lab, hint);
-		}
+		wsExportOptsAlso({ optGroup, pickList });
 
 		// ("Save into" is in the footer,
 		// beside "Export as": where a file lands is part of the ACT of
@@ -4130,12 +4386,12 @@ export const exportMethods = {
 	},
 
 	async runExport(this: WordSmith, kind: string, scope: string, files: TFile[], o: WsExportOpts, progress: { show: (done: number, total: number, what: string) => void; hide: () => void } | null) {
-		if (!files.length) { new Notice('Word-Smith: nothing selected to export.'); return; }
+		if (!files.length) { new Notice('Word-Smith: ' + wsT('nothing selected to export.')); return; }
 		const sections = await this.exportSections(files, o,
-			progress ? (d: number, t: number) => progress.show(d, t, 'Reading') : null,
+			progress ? (d: number, t: number) => progress.show(d, t, wsT('Reading')) : null,
 			scope);
 		if (progress) {
-			progress.show(files.length, files.length, 'Building');
+			progress.show(files.length, files.length, wsT('Building'));
 			// One frame for "Building" to appear before the synchronous
 			// build blocks everything — otherwise the label changes and
 			// the UI repaints in the same moment, which is after the work.
@@ -4170,6 +4426,14 @@ export const exportMethods = {
 			return path;
 		};
 		const opt = this.exportOptsFor(scope, o, words);
+		if (kind !== 'md') {
+			// A KEY THE LIBRARY DOES NOT HOLD (A670, the writer's pick 3): MEASURED, it printed as typed
+			// ("[@nobody2020]") and its group whole with it, and nothing said so; the file is made all the same
+			const missing = this.exportCite(sections);
+			if (missing.length) this.exportNotice(wsCiteMissingText(missing, this.settings.citeLibrary || ''), 12000);
+			if (progress) progress.show(files.length, files.length, wsT('Pictures'));
+			await this.exportImages(sections, kind === 'docx' ? 'docx' : 'page');
+		}
 		try {
 			// WHAT WAS DONE, remembered — see `exportRemember` below for why
 			// it is written HERE, at each success, rather than where the
@@ -4178,7 +4442,7 @@ export const exportMethods = {
 				const name = into(this.exportFileName(scope, 'md', opt.title));
 				await this.app.vault.create(name, this.exportToMarkdown(sections, opt));
 				this.exportRemember(scope, kind, opt, files.length, name);
-				new Notice('Word-Smith: exported ' + name);
+				new Notice('Word-Smith: ' + wsT('exported {name}', { name }));
 				return;
 			}
 
@@ -4192,12 +4456,12 @@ export const exportMethods = {
 				const pdfName = into(this.exportFileName(scope, 'pdf', opt.title));
 				try {
 					const bytes = await this.exportPdfRender(html, opt);
-					if (!bytes || !bytes.length) throw new Error('the engine returned nothing');
+					if (!bytes || !bytes.length) throw new Error(wsT('the engine returned nothing'));
 					// `.buffer` is the whole file: the render resolves with a fresh
 					// `new Uint8Array(buf)`, offset 0, no pool behind it.
 					await this.app.vault.createBinary(pdfName, bytes.buffer);
 					this.exportRemember(scope, kind, opt, files.length, pdfName);
-					new Notice('Word-Smith: exported ' + pdfName);
+					new Notice('Word-Smith: ' + wsT('exported {name}', { name: pdfName }));
 					return;
 				} catch (e) {
 					// ── NO CONSOLATION FILE ─────────────────────────────────
@@ -4205,9 +4469,7 @@ export const exportMethods = {
 					// It says what went wrong and stops — it does not write the web page
 					// instead: a file nobody asked for costs more than pressing Export twice.
 					console.error('Word-Smith: PDF export failed', e);
-					new Notice('Word-Smith: could not make a PDF \u2014 '
-						+ wsErrMsg(e)
-						+ '. Nothing was written.');
+					new Notice('Word-Smith: ' + wsT('could not make a PDF \u2014 {reason}. Nothing was written.', { reason: wsErrMsg(e) }));
 					return;
 				}
 			}
@@ -4225,7 +4487,22 @@ export const exportMethods = {
 				const htmlName = into(this.exportFileName(scope, 'html', opt.title));
 				await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
 				this.exportRemember(scope, kind, opt, files.length, htmlName);
-				new Notice('Word-Smith: exported ' + htmlName);
+				new Notice('Word-Smith: ' + wsT('exported {name}', { name: htmlName }));
+				return;
+			}
+			if (kind === 'epub') {
+				const epubName = into(this.exportFileName(scope, 'epub', opt.title));
+				const book = this.exportToEpub(sections, opt);
+				await this.app.vault.createBinary(epubName, book.buffer);
+				this.exportRemember(scope, kind, opt, files.length, epubName);
+				// THE BOOK CHECKED (A654): written either way, and what a store would refuse said, the first in the
+				// notice and every one in the console
+				const wrong = this.exportEpubCheck(book);
+				if (wrong.length) console.warn('Word-Smith: the e-book ' + epubName + ' would be refused for:', wrong);
+				this.exportNotice(!wrong.length ? wsT('exported {name}', { name: epubName })
+					: wrong.length === 1 ? wsT('exported {name}, but {n} thing a store would refuse: {first}', { name: epubName, n: 1, first: wrong[0] })
+					: wsT('exported {name}, but {n} things a store would refuse: {first} (and {more} more, in the console)', { name: epubName, n: wrong.length, first: wrong[0], more: wrong.length - 1 }),
+					wrong.length ? 15000 : 0);
 				return;
 			}
 			const bytes = wsBuildDocx(sections, opt);
@@ -4234,10 +4511,10 @@ export const exportMethods = {
 			// Word is the default format, so the export a writer actually repeats
 			// is the one that most needs remembering.
 			this.exportRemember(scope, kind, opt, files.length, name);
-			new Notice('Word-Smith: exported ' + name);
+			new Notice('Word-Smith: ' + wsT('exported {name}', { name }));
 		} catch (e) {
 			console.error('Word-Smith export failed', e);
-			new Notice('Word-Smith: export failed — ' + wsErrMsg(e));
+			new Notice('Word-Smith: ' + wsT('export failed — {reason}', { reason: wsErrMsg(e) }));
 		}
 	},
 
@@ -4334,7 +4611,8 @@ export const exportMethods = {
 	// reason the writer can act on.
 	async exportPdfRender(this: WordSmith, html: string, o: WsExportRun) {
 		const view = this.exportPdfWebview();
-		if (!view) throw new Error('this build has no print engine');
+		// THE REASONS BELOW ARE THE WRITER'S TO READ: each ends up in the notice (A695)
+		if (!view) throw new Error(wsT('this build has no print engine'));
 		// HIDDEN, NOT DISPLAY:NONE. A webview that is not laid out does not
 		// render, and a page that has not rendered prints blank — so it is
 		// moved off screen at one pixel rather than removed from the flow —
@@ -4346,7 +4624,14 @@ export const exportMethods = {
 		// inside Obsidian's process.
 		view.setAttribute('nodeintegration', 'false');
 		view.setAttribute('webpreferences', 'contextIsolation=true');
-		view.setAttribute('src', 'data:text/html;charset=utf-8,' + encodeURIComponent(html));
+		// A BLANK PAGE, THE DOCUMENT WRITTEN INTO IT (A583). It used to load as one
+		// data address, and Chromium refuses an address over 2 MB: measured, the
+		// engine took 1 MB of HTML and failed at 1.9 (2.5 once encoded) with "could
+		// not be loaded for printing". A long book reached that alone, a Polish or
+		// Russian one sooner (every letter encoded six bytes long), and a single
+		// picture always. Written through the page's own script call there is no
+		// limit: 12 MB measured, and a picture inside.
+		view.setAttribute('src', 'about:blank');
 		document.body.appendChild(view);
 
 		const done = () => { try { view.remove(); } catch (_) { wsCatch('exportPdfRender: view.remove();', _); } };
@@ -4355,27 +4640,39 @@ export const exportMethods = {
 			// never loads would otherwise leave the export waiting for ever
 			// with nothing on screen to say so, and leave the element in the
 			// document for the rest of the session.
+			// A big book takes longer: twenty seconds, and two more a megabyte
+			// (12 MB measured at 15 s).
 			const bail = window.setTimeout(() => {
 				done();
-				reject(new Error('the print engine did not answer in time'));
-			}, 20000);
+				reject(new Error(wsT('the print engine did not answer in time')));
+			}, 20000 + Math.round(html.length / 524288) * 1000);
+			let written = false;
 			view.addEventListener('did-fail-load', () => {
 				window.clearTimeout(bail); done();
-				reject(new Error('the manuscript could not be loaded for printing'));
+				reject(new Error(wsT('the manuscript could not be loaded for printing')));
 			});
 			view.addEventListener('dom-ready', () => { void (async () => {
+				// the blank page's ready, once: writing the document fires it again
+				if (written) return;
+				written = true;
 				try {
+					if (typeof view.executeJavaScript !== 'function') throw new Error(wsT('the print engine cannot take a document'));
+					// THE DOCUMENT, AND ITS PICTURES DRAWN: the call answers once
+					// every picture has decoded, or failed to.
+					await view.executeJavaScript('document.open();document.write(' + JSON.stringify(html) + ');document.close();'
+						+ 'Promise.all(Array.from(document.images).map(function (i) { return i.decode().catch(function () { return null; }); }))'
+						+ '.then(function () { return document.images.length; })');
 					// AND A BEAT AFTER IT. `dom-ready` means the document
 					// exists, not that Chromium has laid it out — and printing
 					// mid-layout is the other way this returns "Printing
 					// failed". Half a second is what StoryLine settled on and
 					// it costs nothing next to a compile.
 					await new Promise((r) => window.setTimeout(r, 500));
-					if (typeof view.printToPDF !== 'function') throw new Error('the print engine has no printToPDF');
+					if (typeof view.printToPDF !== 'function') throw new Error(wsT('the print engine has no {call}', { call: 'printToPDF' }));
 					const buf = await view.printToPDF(this.exportPdfOptions(o));
 					window.clearTimeout(bail); done();
 					if (!buf || !buf.length) {
-						reject(new Error('the print engine returned nothing'));
+						reject(new Error(wsT('the print engine returned nothing')));
 						return;
 					}
 					resolve(new Uint8Array(buf));

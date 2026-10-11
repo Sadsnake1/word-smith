@@ -1,7 +1,8 @@
 // Word-Smith — organizer-zoom: Ctrl+wheel, two fingers, and the way back.
 
-import { wsCatch, wsIconInto } from '../core/preamble';
-import type { WsSession } from '../core/preamble';
+import { wsCatch, wsIconInto, wsWheelStep } from '../core/preamble';
+import { wsT } from '../core/ui-text';
+import type { WsSession, WsWheelAcc } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 
 // ════════════════════════════════════════════════════════════════════════
@@ -61,8 +62,8 @@ const zoomTag = () => {
 	if (Math.abs(z - 1) < 0.001) { if (t) t.remove(); return; }
 	if (!t) {
 		t = zoomHost.createEl('button', { cls: 'ws-export-mini ws-uni-zoomtag' });
-		t.title = 'Back to 100%';
-		t.setAttribute('aria-label', 'Zoom back to 100%');
+		t.title = wsT('Back to 100%');
+		t.setAttribute('aria-label', wsT('Zoom back to 100%'));
 		t.addEventListener('click', (ev: Event) => { ev.stopPropagation(); d.ses.zoom = 1; zoomApply(); });
 	}
 	// THE LENS, CHROME'S: a magnifier with a minus while the pane is smaller
@@ -85,10 +86,14 @@ const zoomApply = () => {
 	try { zoomTag(); } catch (_) { wsCatch('zoomApply: zoomTag();', _); }
 };
 zoomApply();
+const wheelAcc: WsWheelAcc = { sum: 0, at: 0 };
 d.body.addEventListener('wheel', (ev: WheelEvent) => {
 	if (!ev.ctrlKey && !ev.metaKey) return;
 	ev.preventDefault();
-	const step = ev.deltaY < 0 ? 0.1 : -0.1;
+	// A notch a step; a trackpad's small deltas add up to one first (wsWheelStep)
+	const s = wsWheelStep(wheelAcc, ev.deltaY, Date.now());
+	if (!s) return;
+	const step = s * 0.1;
 	d.ses.zoom = Math.min(2, Math.max(0.6, Math.round(((d.ses.zoom || 1) + step) * 10) / 10));
 	zoomApply();
 }, { passive: false });

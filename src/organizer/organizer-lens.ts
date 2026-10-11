@@ -3,6 +3,7 @@
 
 import { Notice } from 'obsidian';
 import { WsPropSuggestModal, wsCatch, wsMenu, wsStr } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type { WsSession } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
 
@@ -132,7 +133,7 @@ const orgFilterByKey = (key: string, ev: MouseEvent) => {
 	try { vals = d.plugin.orgDistinctUnder(at, key) || []; }
 	catch { vals = []; }
 	if (!vals.length) {
-		try { new Notice('Word-Smith: no values for ' + key + '.'); } catch (_) { wsCatch('openManuscriptModal / orgFilterByKey: new Notice(\'Word-Smith: no values for \' + key);', _); }
+		try { new Notice(wsT('Word-Smith: no values for {key}.', { key })); } catch (_) { wsCatch('openManuscriptModal / orgFilterByKey: new Notice(\'Word-Smith: no values for \' + key);', _); }
 		return;
 	}
 	// ── WITH HOW MANY NOTES BEHIND EACH (brief C2) ─────────────
@@ -152,7 +153,7 @@ const orgFilterByKey = (key: string, ev: MouseEvent) => {
 	if (WsPropSuggestModal) {
 		try {
 			new WsPropSuggestModal(d.plugin.app, items, take,
-				'Which value of ' + key + '?').open();
+				wsT('Which value of {key}?', { key })).open();
 			return;
 		} catch (_) { wsCatch('openManuscriptModal / orgFilterByKey: new WsPropSuggestModal(this.app, items, take,', _); }
 	}

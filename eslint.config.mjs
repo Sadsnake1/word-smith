@@ -35,7 +35,9 @@ export default defineConfig([
 			'@typescript-eslint/no-unsafe-declaration-merging': 'error',
 			'obsidianmd/ui/sentence-case': ['warn', {
 				enforceCamelCaseLower: true,
-				brands: ['Obsidian', 'Obsidian Sync', 'Obsidian Publish', 'Word-Smith', 'Cursor-Smith', 'Organizer', 'Powerline', 'Powermenu', 'Vim', 'Times New Roman', 'Misc', 'Escape', 'Enter'],
+				brands: ['Obsidian', 'Obsidian Sync', 'Obsidian Publish', 'Word-Smith', 'Cursor-Smith', 'Organizer', 'Powerline', 'Powermenu', 'Vim', 'Times New Roman', 'Misc', 'Escape', 'Enter',
+					// the two Englishes' regions (A691): the rule lowers any two-letter word, so 'English (US)' read as 'English (us)'
+					'US', 'UK'],
 			}],
 		},
 	},

@@ -8,6 +8,7 @@ import type { wsOrgRowsMake } from './organizer-rows';
 import type { wsOrgScopeMake } from './organizer-scope';
 import type { wsOrgSelMake } from './organizer-sel';
 import { wsCatch, wsObsidianSvg, wsSvgInto } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type { WsSession } from '../core/preamble';
 import type { WsHost } from '../core/settings';
 import type WordSmith from '../plugin/plugin';
@@ -17,11 +18,15 @@ import type WordSmith from '../plugin/plugin';
 // place that are not notes: the table lists a .pdf or a .xlsx among the
 // notes, so "24 notes" over twenty-seven rows would read as a count that is
 // wrong.
+// IN THE INTERFACE'S LANGUAGE (A695): each figure its own line, `{count}` the figure as it is printed and `n` the number a
+// translation's plural forms are chosen by; the English keeps its one word for every count ("1 notes" included).
 export function wsOrgCountsLine(agg: { words: number; files: number; tasksAll: number; tasksDone: number } | null, others: number): string {
 	if (!agg || !agg.files) return '';
-	let line = agg.words.toLocaleString() + ' words \u00b7 ' + agg.files.toLocaleString() + ' notes';
-	if (others) line += ' \u00b7 ' + others.toLocaleString() + (others === 1 ? ' other file' : ' other files');
-	if (agg.tasksAll) line += ' \u00b7 ' + agg.tasksDone + '/' + agg.tasksAll + ' tasks';
+	let line = wsT('{count} words', { count: agg.words.toLocaleString(), n: agg.words }) + ' \u00b7 '
+		+ wsT('{count} notes', { count: agg.files.toLocaleString(), n: agg.files });
+	if (others) line += ' \u00b7 ' + (others === 1 ? wsT('{count} other file', { count: others.toLocaleString(), n: others })
+		: wsT('{count} other files', { count: others.toLocaleString(), n: others }));
+	if (agg.tasksAll) line += ' \u00b7 ' + wsT('{done}/{all} tasks', { done: agg.tasksDone, all: agg.tasksAll, n: agg.tasksAll });
 	return line;
 }
 
@@ -101,7 +106,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		if (host.kind !== 'modal') return;
 		const frame = host.rootEl || d.tabsRow;
 		const pop = frame.createDiv({ cls: 'modal-header-button mod-raised clickable-icon ws-uni-topane' });
-		pop.title = 'Open in a pane \u2014 keeps the writing beside it';
+		pop.title = wsT('Open in a pane \u2014 keeps the writing beside it');
 		pop.setAttribute('aria-label', pop.title);
 		glyph(pop, ['picture-in-picture-2', 'app-window', 'external-link', 'panel-right'], '\u2750');
 		// THE THIRD HOST: ITS OWN OS WINDOW. Built here rather than only as a
@@ -110,7 +115,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		// read in order of how far they take you: close, then into a pane,
 		// then out into a window.
 		const popw = frame.createDiv({ cls: 'modal-header-button mod-raised clickable-icon ws-uni-topopout' });
-		popw.title = 'Open in its own window \u2014 for a second screen';
+		popw.title = wsT('Open in its own window \u2014 for a second screen');
 		popw.setAttribute('aria-label', popw.title);
 		glyph(popw, ['picture-in-picture', 'monitor', 'app-window', 'external-link', 'maximize-2'], '\u29c9');
 		// THE SHEET GOES, the same rule both doors keep: two of the same
@@ -205,7 +210,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 				// `setIcon` is absent or stubbed.
 			}
 			b.createSpan({ cls: 'ws-uni-tablabel', text: t.label });
-			if (t.id === d.tab) { b.disabled = true; b.title = 'You are looking at this'; continue; }
+			if (t.id === d.tab) { b.disabled = true; b.title = wsT('You are looking at this'); continue; }
 			b.addEventListener('click', () => tabSet(t.id));
 		}
 	};
@@ -263,7 +268,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 			const c = crumbs.createEl(current ? 'span' : 'button',
 				{ cls: 'ws-uni-crumb' + (current ? ' is-current' : '') + (path === '' ? ' is-root' : ''), text });
 			if (!current) {
-				c.title = 'Show ' + text;
+				c.title = wsT('Show {name}', { name: text });
 				c.addEventListener('click', () => { d.orgScope.orgNote = ''; d.orgScope.orgSelect(path); });
 			}
 			return c;
@@ -272,7 +277,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		// draws.
 		try { wsSvgInto(crumbs.createSpan({ cls: 'ws-uni-crumbmark' }), wsObsidianSvg(14)); }
 		catch (_) { wsCatch('drawSubject: crumbs.createSpan({ cls: ws-uni-crumbmark })', _); }
-		crumb(plugin.vaultName() || 'Vault', '', !parts.length && !note);
+		crumb(plugin.vaultName() || wsT('Vault'), '', !parts.length && !note);
 		let acc = '';
 		parts.forEach((seg, i) => {
 			crumbs.createSpan({ cls: 'ws-uni-crumbsep', text: '›' });
@@ -292,7 +297,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 			const on = !!s.organizerPinned;
 			const pin = crumbs.createEl('button', { cls: 'clickable-icon ws-org-pin' + (on ? ' is-on' : ''),
 				attr: { type: 'button', 'aria-pressed': on ? 'true' : 'false',
-					'aria-label': on ? 'Pinned: the file explorer no longer moves the Organizer. Click to release.' : 'Pin this folder: the file explorer will no longer move the Organizer.' } });
+					'aria-label': on ? wsT('Pinned: the file explorer no longer moves the Organizer. Click to release.') : wsT('Pin this folder: the file explorer will no longer move the Organizer.') } });
 			pin.title = pin.getAttribute('aria-label') || '';
 			setIcon(pin, on ? 'pin' : 'pin-off');
 			pin.addEventListener('click', () => {
@@ -348,7 +353,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		say.createSpan({ text: msg });
 		if (offer && offer.run) {
 			const b = say.createEl('button', {
-				cls: 'ws-uni-undo', text: offer.label || 'Undo' });
+				cls: 'ws-uni-undo', text: offer.label || wsT('Undo') });
 			// MOUSEDOWN, like every other pressable thing in this plugin.
 			// A repaint between press and release swallows `click`, and
 			// this line repaints on a timer.

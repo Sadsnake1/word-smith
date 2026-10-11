@@ -10,8 +10,9 @@ import type { TAbstractFile, View, MenuItem } from 'obsidian';
 import type { WordSmithSettings, WsFlagDef, WsOrgMenuCtx } from '../core/settings';
 import { wsOrgFolderWords } from '../organizer/org-index';
 import type { WsOrgIndexMap } from '../organizer/org-index';
-import { DEFAULT_SETTINGS, WS_FOLDER_COLOURS, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsFlagShapeOf, wsFlagSvg, wsManuscriptSvg, wsPassState, wsPassStorm, wsSoon, wsStatusLabel, wsSvgInto, wsTaskSay, wsIsFile, wsErrMsg, wsElOf, WS_STATE_IDS, WS_STATUSES, wsIsFolder } from '../core/preamble';
+import { DEFAULT_SETTINGS, WS_FOLDER_COLOURS, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsMenuIsNative, wsFlagShapeOf, wsFlagSvg, wsManuscriptSvg, wsPassState, wsPassStorm, wsSoon, wsStatusLabel, wsSvgInto, wsTaskSay, wsIsFile, wsErrMsg, wsElOf, WS_STATE_IDS, WS_STATUSES, wsIsFolder } from '../core/preamble';
 import type { WsExplorerItem } from '../core/obsidian-private';
+import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
 // what making a note or a folder answers: a refusal with its reason, or the
@@ -248,7 +249,7 @@ export const treeMethods = {
 		// EVERY REFUSAL SAYS WHY: a bare `false` leaves the writer to guess
 		// whether they missed the row, whether the feature is broken, or whether
 		// the plugin has an opinion they have not been told.
-		if (!af) return { ok: false, said: 'That file is no longer there.' };
+		if (!af) return { ok: false, said: wsT('That file is no longer there.') };
 		const name = String(movedPath).split('/').pop() || '';
 		const dest = intoFolder ? intoFolder + '/' + name : name;
 		if (dest === movedPath) return { ok: false, said: '' };   // already there; nothing to say
@@ -257,15 +258,14 @@ export const treeMethods = {
 		// a folder that no longer exists at any path.
 		if (af.children && (intoFolder === movedPath
 			|| String(intoFolder).indexOf(movedPath + '/') === 0)) {
-			return { ok: false, said: 'A folder cannot go inside itself.' };
+			return { ok: false, said: wsT('A folder cannot go inside itself.') };
 		}
 		// Something already there of that name. Obsidian refuses too, but it
 		// throws where a writer can only see a drag that did nothing.
 		let clash = null;
 		try { clash = vault.getAbstractFileByPath(dest); } catch (_) { wsCatch('treeMoveInto: clash = vault.getAbstractFileByPath(dest);', _); }
 		if (clash) {
-			return { ok: false, said: 'There is already something called \u201c' + name
-				+ '\u201d there, so nothing was moved.' };
+			return { ok: false, said: wsT('There is already something called \u201c{name}\u201d there, so nothing was moved.', { name }) };
 		}
 		const from = (() => {
 			const cut = String(movedPath).lastIndexOf('/');
@@ -280,8 +280,7 @@ export const treeMethods = {
 		try {
 			await this.app.fileManager.renameFile(af, dest);
 		} catch (e) {
-			return { ok: false, said: 'Could not move that \u2014 '
-				+ wsErrMsg(e) };
+			return { ok: false, said: wsT('Could not move that \u2014 {error}', { error: wsErrMsg(e) }) };
 		}
 		// THE ORDER FOLLOWS THE FILE. Both folders are rewritten: the one it
 		// left, which would otherwise keep a line for a path that is not there
@@ -377,8 +376,7 @@ export const treeMethods = {
 			// manuscript root it is not in the tree's set, and a writer who
 			// just pressed New note would watch nothing happen.
 		} catch (e) {
-			return { ok: false, said: 'Could not make that \u2014 '
-				+ wsErrMsg(e) };
+			return { ok: false, said: wsT('Could not make that \u2014 {error}', { error: wsErrMsg(e) }) };
 		}
 		await this.outlinerJoinOrder(parent, path);
 		// IT OPENS. A note made and not opened is a note the writer has to go
@@ -417,8 +415,7 @@ export const treeMethods = {
 		try {
 			await this.app.vault.createFolder(path);
 		} catch (e) {
-			return { ok: false, said: 'Could not make that \u2014 '
-				+ wsErrMsg(e) };
+			return { ok: false, said: wsT('Could not make that \u2014 {error}', { error: wsErrMsg(e) }) };
 		}
 		await this.outlinerJoinOrder(parent, path);
 		// A FOLDER DOES NOT OPEN. There is nothing in it to read, and opening
@@ -445,16 +442,16 @@ export const treeMethods = {
 			const done = (v: boolean) => { if (!answered) { answered = true; resolve(v); } };
 			const m = this.wsModal();
 			if (!m) { done(false); return; }
-			m.titleEl.setText('Delete ' + (isFolder ? 'folder' : 'file'));
+			m.titleEl.setText(isFolder ? wsT('Delete folder') : wsT('Delete file'));
 			m.contentEl.createEl('p', { text: isFolder
-				? 'Delete \u201c' + name + '\u201d and everything in it?'
-				: 'Delete \u201c' + name + '\u201d?' });
+				? wsT('Delete \u201c{name}\u201d and everything in it?', { name: String(name) })
+				: wsT('Delete \u201c{name}\u201d?', { name: String(name) }) });
 			m.contentEl.createEl('p', { cls: 'ws-settings-note', text:
-				'It goes wherever Obsidian\u2019s deleted-files setting sends things.' });
+				wsT('It goes wherever Obsidian\u2019s deleted-files setting sends things.') });
 			const row = m.contentEl.createDiv({ cls: 'ws-confirm-row' });
-			const no = row.createEl('button', { text: 'Cancel' });
+			const no = row.createEl('button', { text: wsT('Cancel') });
 			no.addEventListener('click', () => { done(false); m.close(); });
-			const yes = row.createEl('button', { cls: 'mod-warning', text: 'Delete' });
+			const yes = row.createEl('button', { cls: 'mod-warning', text: wsT('Delete') });
 			yes.addEventListener('click', () => { done(true); m.close(); });
 			// ESCAPE, THE × AND A CLICK OUTSIDE ALL MEAN NO. `onClose` is the
 			// one place all three arrive.
@@ -499,18 +496,18 @@ export const treeMethods = {
 		// with a different gesture, and it is the one act here that is hard to
 		// undo by hand.
 		if (want.indexOf('/') !== -1) {
-			return { ok: false, said: 'A name cannot contain a slash \u2014 drag the row to move it.' };
+			return { ok: false, said: wsT('A name cannot contain a slash \u2014 drag the row to move it.') };
 		}
 		const dest = (parts.dir ? parts.dir + '/' : '') + want + parts.ext;
 		if (dest === path) return { ok: false, said: '' };
 		let taken = null;
 		try { taken = this.app.vault.getAbstractFileByPath(dest); } catch (_) { wsCatch('outlinerRenameTo: taken = this.app.vault.getAbstractFileByPath(dest);', _); }
 		if (taken) {
-			return { ok: false, said: 'There is already something called \u201c' + want + '\u201d here.' };
+			return { ok: false, said: wsT('There is already something called \u201c{name}\u201d here.', { name: want }) };
 		}
 		try {
 			const f = this.app.vault.getAbstractFileByPath(path);
-			if (!f) return { ok: false, said: 'That has moved since \u2014 nothing was renamed.' };
+			if (!f) return { ok: false, said: wsT('That has moved since \u2014 nothing was renamed.') };
 			// `fileManager`, never `vault.rename`: it is what rewrites every
 			// link pointing at the note. Same rule as the move.
 			if (this.app.fileManager && this.app.fileManager.renameFile) {
@@ -519,8 +516,7 @@ export const treeMethods = {
 				await this.app.vault.rename(f, dest);
 			}
 		} catch (e) {
-			return { ok: false, said: 'Could not rename that \u2014 '
-				+ wsErrMsg(e) };
+			return { ok: false, said: wsT('Could not rename that \u2014 {error}', { error: wsErrMsg(e) }) };
 		}
 		this.treeShapeChanged();
 		return { ok: true, said: '', path: dest };
@@ -580,9 +576,9 @@ export const treeMethods = {
 				if (c.rename) c.rename({ path: r.path, kind: r.kind });
 			}, 0);
 		};
-		menu.addItem((i: MenuItem) => i.setTitle('New note').setIcon('file-text')
+		menu.addItem((i: MenuItem) => i.setTitle(wsT('New note')).setIcon('file-text')
 			.onClick(async () => { made(await this.outlinerAddNote(parent, { open: c.opens !== false })); }));
-		menu.addItem((i: MenuItem) => i.setTitle('New folder').setIcon('folder')
+		menu.addItem((i: MenuItem) => i.setTitle(wsT('New folder')).setIcon('folder')
 			.onClick(async () => { made(await this.outlinerAddFolder(parent)); }));
 		// NOTHING BELOW THIS NEEDS A ROW, so on empty space the menu stops
 		// here. A greyed-out Delete on a click that selected nothing is a
@@ -591,10 +587,10 @@ export const treeMethods = {
 		menu.addSeparator();
 
 		if (!isFolder) {
-			menu.addItem((i: MenuItem) => i.setTitle('Open').setIcon('file')
+			menu.addItem((i: MenuItem) => i.setTitle(wsT('Open')).setIcon('file')
 				.onClick(() => { try { void this.app.workspace.openLinkText(path, '', false); } catch (_) { wsCatch('outlinerRowMenu: this.app.workspace.openLinkText(path, \'\', false);', _); } }));
 			// A FOLDER CANNOT BE OPENED IN A TAB, so it is not offered one.
-			menu.addItem((i: MenuItem) => i.setTitle('Open in new tab').setIcon('lucide-file-plus')
+			menu.addItem((i: MenuItem) => i.setTitle(wsT('Open in new tab')).setIcon('lucide-file-plus')
 				.onClick(() => { try { void this.app.workspace.openLinkText(path, '', true); } catch (_) { wsCatch('outlinerRowMenu: this.app.workspace.openLinkText(path, \'\', true);', _); } }));
 		}
 		menu.addSeparator();
@@ -628,8 +624,7 @@ export const treeMethods = {
 				}
 			} catch (_) { wsCatch('outlinerRowMenu / runFileCommand: if (file && !file.children && this.app.workspace.openLinkText)', _); }
 			try { await fallback(); } catch (e) {
-				if (c.said) c.said('Could not do that \u2014 '
-					+ wsErrMsg(e), true);
+				if (c.said) c.said(wsT('Could not do that \u2014 {error}', { error: wsErrMsg(e) }), true);
 			}
 		};
 
@@ -640,9 +635,9 @@ export const treeMethods = {
 		// a writer means by "like the file explorer", and the reason to build
 		// it rather than borrow it is that the explorer's inline rename lives
 		// on ITS rows, in the sidebar, which may not even be open.
-		menu.addItem((i: MenuItem) => i.setTitle('Rename').setIcon('pencil')
+		menu.addItem((i: MenuItem) => i.setTitle(wsT('Rename')).setIcon('pencil')
 			.onClick(() => { if (c.rename) c.rename(item); }));
-		menu.addItem((i: MenuItem) => i.setTitle('Delete').setIcon('trash')
+		menu.addItem((i: MenuItem) => i.setTitle(wsT('Delete')).setIcon('trash')
 			.onClick(() => {
 				void runFileCommand('app:delete-file', async () => {
 					// THE FALLBACK ASKS TOO. A confirmation is not a nicety
@@ -686,7 +681,7 @@ export const treeMethods = {
 	// from, putting it back would be a fresh mistake wearing the word "undo".
 	async treeMoveUndo(this: WordSmith, rec: { ok: boolean; undone: boolean; dest: string; from: string; wasAt: number }) {
 		if (!rec || !rec.ok || rec.undone) {
-			return { ok: false, said: 'There is nothing to undo.' };
+			return { ok: false, said: wsT('There is nothing to undo.') };
 		}
 		// SPENT ON USE, before anything can fail. An undo offered twice is a
 		// second move — the say-line is still on screen while the first one
@@ -696,22 +691,19 @@ export const treeMethods = {
 		let af = null;
 		try { af = vault.getAbstractFileByPath(rec.dest); } catch (_) { wsCatch('treeMoveUndo: af = vault.getAbstractFileByPath(rec.dest);', _); }
 		if (!af) {
-			return { ok: false, said: 'That file has moved again since, so it '
-				+ 'was left where it is.' };
+			return { ok: false, said: wsT('That file has moved again since, so it was left where it is.') };
 		}
 		const name = String(rec.dest).split('/').pop() || '';
 		const home = rec.from ? rec.from + '/' + name : name;
 		let clash = null;
 		try { clash = vault.getAbstractFileByPath(home); } catch (_) { wsCatch('treeMoveUndo: clash = vault.getAbstractFileByPath(home);', _); }
 		if (clash) {
-			return { ok: false, said: 'There is something called \u201c' + name
-				+ '\u201d back there now, so nothing was moved.' };
+			return { ok: false, said: wsT('There is something called \u201c{name}\u201d back there now, so nothing was moved.', { name }) };
 		}
 		try {
 			await this.app.fileManager.renameFile(af, home);
 		} catch (e) {
-			return { ok: false, said: 'Could not put that back \u2014 '
-				+ wsErrMsg(e) };
+			return { ok: false, said: wsT('Could not put that back \u2014 {error}', { error: wsErrMsg(e) }) };
 		}
 		try {
 			// BACK ON THE LINE IT WAS ON. `treeOrderCurrent` answers with the
@@ -1188,6 +1180,9 @@ export const treeMethods = {
 			const said = (btn.getAttribute('aria-label') || '') + ' ' + (btn.getAttribute('title') || '');
 			// Ours carries the mark and its own label; theirs says sort.
 			if (!/sort/i.test(said) && btn.getAttribute('data-ws-sort') !== '1') return;
+			// The menu this click opens is the sort menu: said to the Menu's own
+			// show, for a menu the operating system draws (issue #56).
+			this._wsSortArmedAt = Date.now();
 			let tries = 0;
 			const look = () => {
 				const menus = document.querySelectorAll('body > .menu');
@@ -1200,6 +1195,70 @@ export const treeMethods = {
 			};
 			window.requestAnimationFrame(look);
 		}, true);
+		this.armSortMenuApi();
+	},
+
+	// THE ROW IN A MENU THE OPERATING SYSTEM DRAWS (issue #56, a reader on a new
+	// vault: "I would've expected to see the Custom sort setting in the dropdown
+	// menu, but it's not there"). With Settings → Appearance → Native menus on,
+	// on by default on a Mac, the sort menu is no element on the page, so the
+	// row above has nothing to be appended to; and once "File name (A to Z)"
+	// had turned the order off there was no way back to it from that menu. On
+	// 1.14 the menu is made by the header's own sort button (`onHeaderMenu` is
+	// an empty function there), so the row goes in through the Menu's own API,
+	// in its show, for the one menu the sort button's click just opened. A
+	// menu the page draws keeps the row above, as it always looked.
+	armSortMenuApi(this: WordSmith) {
+		if (this._wsSortShowPatched) return;
+		const P = (Menu && Menu.prototype) as unknown as Record<string, unknown> | undefined;
+		if (!P) return;
+		this._wsSortShowPatched = true;
+		const live = () => this._wsSortShowPatched;
+		const add = (m: Menu) => this.addSortMenuItem(m);
+		for (const k of ['showAtMouseEvent', 'showAtPosition']) {
+			const f = P[k];
+			if (typeof f !== 'function') continue;
+			const show = f as (...args: unknown[]) => unknown;
+			const ours = function (this: Menu, ...args: unknown[]) {
+				if (live()) {
+					try { add(this); } catch (_) { wsCatch('armSortMenuApi: add(this);', _); }
+				}
+				return show.apply(this, args);
+			};
+			P[k] = ours;
+			// Put back on unload only if nobody wrapped it after us; if someone
+			// did, ours stays in their chain as a pass-through.
+			this.register(() => {
+				this._wsSortShowPatched = false;
+				if (P[k] === ours) P[k] = show;
+			});
+		}
+	},
+
+	addSortMenuItem(this: WordSmith, menu: Menu) {
+		const armed = this._wsSortArmedAt;
+		if (!armed || Date.now() - armed > 1000) return;
+		this._wsSortArmedAt = 0;
+		if (!this.settings || !this.settings.pluginEnabled || !wsMenuIsNative(menu)) return;
+		const items = ((menu as unknown as { items?: unknown }).items);
+		const list = Array.isArray(items) ? items as unknown[] : [];
+		const titleOf = (i: unknown) => {
+			const t = (i as { titleEl?: { textContent?: string | null } }).titleEl;
+			return t && t.textContent ? t.textContent.trim() : '';
+		};
+		if (list.some((i) => titleOf(i) === 'Custom sort')) return;
+		const on = !!this.settings.treeOrder;
+		// One tick in a menu that asks one question, as the row above does.
+		if (on) for (const i of list) {
+			const set = (i as { setChecked?: unknown }).setChecked;
+			if (typeof set === 'function') { try { (set as (v: boolean) => unknown).call(i, false); } catch (_) { wsCatch('addSortMenuItem: setChecked(false)', _); } }
+		}
+		menu.addSeparator();
+		menu.addItem((i: MenuItem) => i.setTitle('Custom sort').setChecked(on).onClick(async () => {
+			this.settings.treeOrder = !this.settings.treeOrder;
+			await this.saveSettings();
+			this.patchExplorerSort();
+		}));
 	},
 
 	addSortMenuRow(this: WordSmith, menu: HTMLElement) {
@@ -1636,6 +1695,8 @@ export const treeMethods = {
 		// `wsPassStorm` inside.
 		wsSoon(() => {
 			this._patchScheduled = false;
+			// queued before an unload: the tree is Obsidian's again
+			if (this._unloaded) return;
 			// ── A STORM STOPS THE PAINTER, NOT THE APP ────────────
 			//
 			// The same trade `is-narrow` makes: a freeze becomes a missing

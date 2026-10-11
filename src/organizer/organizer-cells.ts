@@ -4,6 +4,7 @@
 import type { WsOrgRow } from './organizer-rows';
 import { Notice, setIcon } from 'obsidian';
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent } from '../plugin/plugin';
 import type { wsOrgPropsMake } from './organizer-props';
@@ -111,7 +112,7 @@ const orgCanHoldGoal = (path: string) => /\.md$/i.test(String(path || ''));
 const orgPropRefuse = (path: string) => {
 	const ext = String(path || '').split('.').pop();
 	try {
-		new Notice('Word-Smith: a .' + ext + ' cannot hold properties — they live in a note\u2019s frontmatter.');
+		new Notice(wsT('Word-Smith: a .{ext} cannot hold properties — they live in a note\u2019s frontmatter.', { ext: String(ext) }));
 	} catch (_) { wsCatch('openManuscriptModal / orgPropRefuse: new Notice(\'Word-Smith: a .\' + ext + \' cannot hold properties — they live in a …', _); }
 };
 const orgPropCell = (td: HTMLElement, row: WsOrgRow, col: { id: string; key?: string }, text: string) => {
@@ -209,14 +210,14 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	const canGoal = orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
-		td.title = text ? 'Click to change the target' : 'Click to set a target';
+		td.title = text ? wsT('Click to change the target') : wsT('Click to set a target');
 	}
 	td.addEventListener('click', (ev: Event) => {
 		ev.stopPropagation();
 		if (!canGoal) {
 			const ext = String(row.path || '').split('.').pop();
 			try {
-				new Notice('Word-Smith: a .' + ext + ' has no word count, so a target has nothing to measure.');
+				new Notice(wsT('Word-Smith: a .{ext} has no word count, so a target has nothing to measure.', { ext: String(ext) }));
 			} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: new Notice(\'Word-Smith: a .\' + ext + \' has no word count, so a target has nothing …', _); }
 			return;
 		}
@@ -255,9 +256,9 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 						await d.plugin.saveSettings(true);
 					};
 					await apply(after);
-					d.orgBulkSay(paths.length, want > 0 ? 'Target set' : 'Target cleared');
+					d.orgBulkSay(paths.length, want > 0 ? wsT('Target set') : wsT('Target cleared'));
 					d.orgHistPush({
-						label: d.orgHistOn(paths, want > 0 ? 'Target ' + want : 'Target cleared'),
+						label: d.orgHistOn(paths, want > 0 ? wsT('Target {target}', { target: want }) : wsT('Target cleared')),
 						undo: async () => { await apply(before); d.drawPanel(); },
 						redo: async () => { await apply(after); d.drawPanel(); }
 					});
@@ -314,7 +315,7 @@ const orgBackCell = (td: HTMLElement, row: WsOrgRow) => {
 			{ cls: 'ws-org-backlink', text: d.nameOf(p) });
 		a.setAttribute('role', 'link');
 		a.setAttribute('tabindex', '0');
-		a.title = 'Open ' + d.nameOf(p);
+		a.title = wsT('Open {name}', { name: d.nameOf(p) });
 		const go = (ev: Event | KeyboardEvent) => {
 			ev.stopPropagation();
 			ev.preventDefault();
@@ -348,13 +349,13 @@ const orgTagPill = (host: HTMLElement, text: string, o: { intext?: boolean; remo
 	const pill = host.createSpan({ cls: 'multi-select-pill ws-org-tagchip' + (opt.intext ? ' is-intext' : '') + (opt.remove ? ' has-x' : '') });
 	pill.setAttribute('data-property-pill-value', String(text));
 	pill.createSpan({ cls: 'multi-select-pill-content', text: String(text) });
-	if (opt.intext) pill.createSpan({ cls: 'ws-org-intext', text: 'in text' });
+	if (opt.intext) pill.createSpan({ cls: 'ws-org-intext', text: wsT('in text') });
 	if (opt.remove) {
 		const remove = opt.remove;
 		const x = pill.createEl('button', { cls: 'multi-select-pill-remove-button ws-org-chipx' });
 		try { if (setIcon) setIcon(x, 'x'); } catch (_) { wsCatch('orgTagPill: setIcon(x, x)', _); }
 		if (!x.childElementCount) x.setText('\u00d7');
-		x.title = 'Remove ' + String(text);
+		x.title = wsT('Remove {name}', { name: String(text) });
 		x.setAttribute('aria-label', x.title);
 		x.addEventListener('click', (ev: Event) => { ev.stopPropagation(); remove(); });
 	}
@@ -406,9 +407,8 @@ const orgTagsCell = (td: HTMLElement, row: WsOrgRow) => {
 	for (const t of list) {
 		const chip = orgTagPill(wrap, t.tag, { intext: t.inText });
 		chip.title = t.inText
-			? '#' + t.tag + ' — written in the note’s text, so it is '
-				+ 'edited there, not here'
-			: '#' + t.tag + ' — a frontmatter tag';
+			? wsT('#{tag} — written in the note’s text, so it is edited there, not here', { tag: t.tag })
+			: wsT('#{tag} — a frontmatter tag', { tag: t.tag });
 	}
 };
 	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };

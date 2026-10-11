@@ -8,9 +8,14 @@
 import { TFile, Notice, setIcon } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
 import { HISTORY_BAR_MAX, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg } from '../core/preamble';
+import { wsT, wsUiDate, wsUiJoin } from '../core/ui-text';
 import type WordSmith from './plugin';
 import type { WsHistoryTally, WsHistoryTabState, WsHistoryBucket, WsHistoryRecord } from './plugin';
 
+// a History bar's round tip, in screen pixels (A639)
+const WS_HIST_TIP_PX = 3;
+// the bars' readouts' ids, unique across every chart drawn (A641)
+let wsHistIds = 0;
 export const historyMethods = {
 
 	// ════════════════════════════════════════════════════════════════════════
@@ -44,7 +49,9 @@ export const historyMethods = {
 		if (!m) return String(key || '');
 		const month = HISTORY_MONTHS[parseInt(m[2], 10) - 1];
 		if (!month) return String(key);
-		return parseInt(m[3], 10) + ' ' + month + ' ' + m[1];
+		// in the interface's language (A695): the English exactly as it was, Intl's month in any other
+		return wsUiDate(parseInt(m[3], 10) + ' ' + month + ' ' + m[1],
+			new Date(+m[1], parseInt(m[2], 10) - 1, parseInt(m[3], 10)), { day: 'numeric', month: 'long', year: 'numeric' });
 	},
 
 	historyDateKey(this: WordSmith, d?: Date) {
@@ -153,7 +160,7 @@ export const historyMethods = {
 		try { await this.saveData(this.settings); }
 		catch (e) {
 			this.storeWriteFailed(WS_WRITE.settings, e,
-				'Word-Smith will look for the file again next time.');
+				wsT('Word-Smith will look for the file again next time.'));
 		}
 	},
 
@@ -286,9 +293,8 @@ export const historyMethods = {
 				await this.saveSettings();
 				if (moved) {
 					await this.historyWrite(true);
-					new Notice('Word-Smith: moved ' + moved + ' day'
-						+ (moved === 1 ? '' : 's') + ' of writing history into '
-						+ (this._historyPath || this.historyDefaultPath()) + '.');
+					new Notice(wsT(moved === 1 ? 'Word-Smith: moved {n} day of writing history into {path}.' : 'Word-Smith: moved {n} days of writing history into {path}.',
+						{ n: moved, path: this._historyPath || this.historyDefaultPath() }));
 				}
 			}
 
@@ -469,7 +475,7 @@ export const historyMethods = {
 		try { await this.saveData(this.settings); }
 		catch (e) {
 			this.storeWriteFailed(WS_WRITE.settings, e,
-				'Word-Smith will look for the file again next time.');
+				wsT('Word-Smith will look for the file again next time.'));
 		}
 		return await this.historyWrite(force);
 	},
@@ -922,10 +928,7 @@ export const historyMethods = {
 			try { seenAny = this.app.vault.getMarkdownFiles() || []; } catch (_) { wsCatch('historyWrite: seenAny = this.app.vault.getMarkdownFiles() || [];', _); }
 			if (!seenAny.length) return false;
 			if (this.settings.historySeen) {
-				new Notice('Word-Smith: could not find ws-history.md, so nothing was '
-					+ 'written. It has been moved or renamed \u2014 open it once, or set '
-					+ 'its path in Settings, and the record will carry on. A new one '
-					+ 'has NOT been made.');
+				new Notice(wsT('Word-Smith: could not find ws-history.md, so nothing was written. It has been moved or renamed \u2014 open it once, or set its path in Settings, and the record will carry on. A new one has NOT been made.'));
 				return false;
 			}
 			// Nowhere to write yet, and nowhere it could be: make it.
@@ -945,8 +948,7 @@ export const historyMethods = {
 		} catch (e) {
 			// Losing this write means losing the record, so it is said out
 			// loud rather than swallowed the way a cache write would be.
-			new Notice('Word-Smith: could not write the writing history \u2014 '
-				+ wsErrMsg(e));
+			new Notice(wsT('Word-Smith: could not write the writing history \u2014 {error}', { error: wsErrMsg(e) }));
 			return false;
 		} finally {
 			this._historyWriting = false;
@@ -1068,7 +1070,7 @@ export const historyMethods = {
 		return s.slice(0, cap - 1).trimEnd() + '\u2026';
 	},
 
-	historySvg<K extends keyof SVGElementTagNameMap>(this: WordSmith, tag: K, attrs: Record<string, string | number | undefined> | null, parent: HTMLDivElement|SVGGElement): SVGElementTagNameMap[K] {
+	historySvg<K extends keyof SVGElementTagNameMap>(this: WordSmith, tag: K, attrs: Record<string, string | number | undefined> | null, parent: HTMLElement|SVGElement): SVGElementTagNameMap[K] {
 		const e = createSvg(tag);
 		if (attrs) for (const k of Object.keys(attrs)) e.setAttribute(k, String(attrs[k]));
 		if (parent) parent.appendChild(e);
@@ -1099,22 +1101,24 @@ export const historyMethods = {
 
 		if (view === 'day') {
 			const n = daysIn(year, month);
-			out.label = HISTORY_MONTHS[month] + ' ' + year;
+			// THE DATES IN THE INTERFACE'S LANGUAGE (A695): the English exactly as it was, Intl's names in any other
+			out.label = wsUiDate(HISTORY_MONTHS[month] + ' ' + year, new Date(year, month, 1), { month: 'long', year: 'numeric' });
 			for (let d = 1; d <= n; d++) {
 				const dt  = new Date(year, month, d);
 				const key = this.historyDateKey(dt);
 				const b = blank(key, String(d));
-				b.title = HISTORY_DAYNAMES[dt.getDay()] + ' ' + d + ' '
-					+ HISTORY_MONTHS[month].slice(0, 3) + ' ' + year;
+				b.title = wsUiDate(HISTORY_DAYNAMES[dt.getDay()] + ' ' + d + ' '
+					+ HISTORY_MONTHS[month].slice(0, 3) + ' ' + year, dt, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 				add(b, days[key]);
 				out.buckets.push(b);
 			}
 		} else if (view === 'month' || view === 'cal') {
 			out.label = String(year);
 			for (let m = 0; m < 12; m++) {
+				const first = new Date(year, m, 1);
 				const b = blank(year + '-' + String(m + 1).padStart(2, '0'),
-					HISTORY_MONTHS[m].slice(0, 1));
-				b.title = HISTORY_MONTHS[m] + ' ' + year;
+					wsUiDate(HISTORY_MONTHS[m].slice(0, 1), first, { month: 'narrow' }));
+				b.title = wsUiDate(HISTORY_MONTHS[m] + ' ' + year, first, { month: 'long', year: 'numeric' });
 				b.isNow = (year === nowY && m === nowM);
 				for (let d = 1; d <= daysIn(year, m); d++) {
 					add(b, days[this.historyDateKey(new Date(year, m, d))]);
@@ -1146,15 +1150,14 @@ export const historyMethods = {
 			// answer to it. Over the days actually WRITTEN, not the days in
 			// the month: a writer who took three weeks off did not average
 			// their work across them.
-			const tail = (b.a || 0).toLocaleString() + ' added \u00b7 '
-				+ (b.r || 0).toLocaleString() + ' deleted \u00b7 '
-				+ (b.n >= 0 ? '+' : '') + (b.n || 0).toLocaleString() + ' net'
-				+ (view === 'day' ? '' : ' \u00b7 ' + b.days + ' day' + (b.days === 1 ? '' : 's') + ' written'
+			// (each figure one line, the figures a list between middle dots: A695)
+			const tail = wsT('{added} added \u00b7 {deleted} deleted \u00b7 {net} net', { added: (b.a || 0).toLocaleString(),
+					deleted: (b.r || 0).toLocaleString(), net: (b.n >= 0 ? '+' : '') + (b.n || 0).toLocaleString() })
+				+ (view === 'day' ? '' : ' \u00b7 ' + wsT(b.days === 1 ? '{count} day written' : '{count} days written', { n: b.days, count: String(b.days) })
 					+ (b.days > 0
-						? ' \u00b7 ' + Math.round((b.a || 0) / b.days).toLocaleString()
-							+ ' a day'
+						? ' \u00b7 ' + wsT('{count} a day', { n: Math.round((b.a || 0) / b.days), count: Math.round((b.a || 0) / b.days).toLocaleString() })
 						: ''));
-			b.readout = b.title + ' \u00b7 ' + ((b.a || b.r) ? tail : 'nothing written');
+			b.readout = b.title + ' \u00b7 ' + ((b.a || b.r) ? tail : wsT('nothing written'));
 			// (No `b.tip`. It floated the same numbers beside the pointer in
 			// the OS's own box — a second answer to a question the readout
 			// line had already given, in a style belonging to neither the
@@ -1291,13 +1294,12 @@ export const historyMethods = {
 		// a new one, which is why it says so.
 		if (!s.historyTracking) {
 			const off = this.historyEl('div', 'ws-report-ring-label is-muted', body);
-			this.historyEl('div', '', off, 'You\u2019re not tracking your writing yet.');
+			this.historyEl('div', '', off, wsT('You\u2019re not tracking your writing yet.'));
 			const act = this.historyEl('div', 'ws-hist-empty-act', off);
 			const go = this.historyEl('button', 'mod-cta', act,
-				'Start counting');
+				wsT('Start counting'));
 			const hint = this.historyEl('div', 'ws-report-hint', off,
-				'Counts only \u2014 never your words, and never backwards. You can '
-				+ 'switch it off again in Settings.');
+				wsT('Counts only \u2014 never your words, and never backwards. You can switch it off again in Settings.'));
 			// AND IF THERE IS ALREADY A RECORD, SAY SO. Asked after the
 			// button is drawn, never before: a render that waits on a vault
 			// read is a pane that is blank while it waits, and the answer
@@ -1307,8 +1309,7 @@ export const historyMethods = {
 				try {
 					const f = await this.historyFindFile();
 					if (!f || !hint.isConnected) return;
-					hint.textContent = 'Your record is still in ' + f.path
-						+ ' \u2014 switching this on reads it back.';
+					hint.textContent = wsT('Your record is still in {path} \u2014 switching this on reads it back.', { path: f.path });
 				} catch (_) { wsCatch('renderHistoryTab: historyFindFile()', _); }
 			})();
 			go.addEventListener('click', () => { void (async () => {
@@ -1317,7 +1318,7 @@ export const historyMethods = {
 					// the whole act again over a half-made record.
 					if (go.disabled) return;
 					go.disabled = true;
-					go.textContent = 'Starting\u2026';
+					go.textContent = wsT('Starting\u2026');
 					try { await this.historyTrackingOn(); } catch (_) { wsCatch('renderHistoryTab: await this.historyTrackingOn();', _); }
 					if (rerender) rerender();
 				})();
@@ -1346,8 +1347,8 @@ export const historyMethods = {
 		if (s.historyView !== 'cal') {
 			sinceFoot = this.historyEl('div', 'ws-report-scope ws-hist-sincefoot',
 				body, h.started
-					? '* Counting since ' + this.historyLongDate(h.started)
-					: '* Starts counting the next time you write');
+					? wsT('* Counting since {date}', { date: this.historyLongDate(h.started) })
+					: wsT('* Starts counting the next time you write'));
 		}
 		// MOVED, NOT BUILT LAST. Several paths below return early — no
 		// tracking, an empty record — and a footnote appended at the end of
@@ -1388,9 +1389,9 @@ export const historyMethods = {
 			// nothing: the tree beside this panel is the navigator
 		} else if (state.scope) {
 			const chip = this.historyEl('div', 'ws-hist-chip', row);
-			this.historyEl('span', 'ws-hist-chipname', chip, Array.isArray(state.scope) ? state.scope.join(', ') : state.scope);
+			this.historyEl('span', 'ws-hist-chipname', chip, Array.isArray(state.scope) ? wsUiJoin(state.scope) : state.scope);
 			const clear = this.historyEl('button', 'ws-hist-chipx', chip, '\u00d7');
-			clear.setAttribute('aria-label', 'Show the whole vault again');
+			clear.setAttribute('aria-label', wsT('Show the whole vault again'));
 			clear.addEventListener('click', () => {
 				state.scope = ''; state.query = '';
 				Object.assign(state, this.historyOpeningPeriod());
@@ -1399,7 +1400,7 @@ export const historyMethods = {
 		} else {
 			const input = this.historyEl('input', 'ws-hist-search', row);
 			input.setAttribute('type', 'text');
-			input.setAttribute('placeholder', 'Search a note or folder\u2026');
+			input.setAttribute('placeholder', wsT('Search a note or folder\u2026'));
 			input.value = state.query || '';
 			const list = this.historyEl('div', 'ws-hist-hits', find);
 
@@ -1431,13 +1432,13 @@ export const historyMethods = {
 				if (!q) return;
 				hits = this.historyFinderMatches(q, 8);
 				if (!hits.length) {
-					this.historyEl('div', 'ws-hist-nohit', list, 'Nothing by that name.');
+					this.historyEl('div', 'ws-hist-nohit', list, wsT('Nothing by that name.'));
 					return;
 				}
 				sel = Math.max(0, Math.min(sel, hits.length - 1));
 				hits.forEach((hit, i2) => {
 					const b = this.historyEl('button', 'ws-hist-hit-' + hit.kind + ' ws-hist-hitrow', list);
-					this.historyEl('span', 'ws-hist-hitkind', b, hit.kind === 'folder' ? 'folder' : 'note');
+					this.historyEl('span', 'ws-hist-hitkind', b, hit.kind === 'folder' ? wsT('folder') : wsT('note'));
 					this.historyEl('span', 'ws-hist-hitpath', b, hit.path);
 					b.addEventListener('click', () => pick(hit));
 					b.addEventListener('mouseenter', () => { sel = i2; mark(); });
@@ -1517,7 +1518,10 @@ export const historyMethods = {
 				crumb(noteF.path.split('/').pop() || '', noteF.path, noteF.path, ' ws-crumb-note');
 			}
 			for (const p of chain) crumb(p.split('/').pop() || '', p, p);
-			crumb('Vault', '', this.vaultWhole() + ' \u2014 everything the record holds');
+			// (vaultWhole's own words, said whole in a line of this tip's: A695)
+			const vName = this.vaultName();
+			crumb(wsT('Vault'), '', vName ? wsT('All of {vault} \u2014 everything the record holds', { vault: vName })
+				: wsT('All of the vault \u2014 everything the record holds'));
 		}
 
 		// A record that started before the per-note detail did has days that
@@ -1534,9 +1538,8 @@ export const historyMethods = {
 			const detail = Object.keys(h.paths).length + (Object.keys(h.today.by).length ? 1 : 0);
 			if (all > detail) {
 				this.historyEl('div', 'ws-hist-partial', body,
-					(all - detail) + ' earlier day' + (all - detail === 1 ? '' : 's')
-					+ ' were recorded before Word-Smith started noting which note you were in, '
-					+ 'so they cannot be shown per note. They are still in the whole-vault view.');
+					wsT(all - detail === 1 ? '{n} earlier day were recorded before Word-Smith started noting which note you were in, so they cannot be shown per note. They are still in the whole-vault view.'
+						: '{n} earlier days were recorded before Word-Smith started noting which note you were in, so they cannot be shown per note. They are still in the whole-vault view.', { n: all - detail }));
 				void attributed;
 			}
 		}
@@ -1588,70 +1591,64 @@ export const historyMethods = {
 		// no one period. Written once and used three times: it said the
 		// same thing in three places before, which is three places to
 		// forget when the wording changes.
-		const streakTip = 'Days in a row you wrote or edited \u2014 cutting counts. '
-			+ 'A missed day resets it; today doesn\u2019t count until it\u2019s over. '
-			+ 'Best run: ' + figs.longest.toLocaleString() + '.';
+		const streakTip = wsT('Days in a row you wrote or edited \u2014 cutting counts. A missed day resets it; today doesn\u2019t count until it\u2019s over. Best run: {best}.',
+			{ best: figs.longest.toLocaleString() });
+		// the streak's figure and its word in one element: the figure as it was, the plural by it
+		const streakVal = wsT(figs.current === 1 ? '{count} day' : '{count} days', { n: figs.current, count: figs.current.toLocaleString() });
 
 		if (view === 'day') {
-			cell('Words, net', signed(netSum),
-				'In ' + data.label + ' \u2014 what you wrote minus what you cut.');
-			cell('Daily average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
-				'Over the ' + activeB.length + ' day' + (activeB.length === 1 ? '' : 's')
-				+ ' you wrote \u2014 days off don\u2019t drag it down. All-time: '
-				+ figs.average.toLocaleString() + '.');
-			cell('Best day', (bestB ? (bestB.n || 0) : 0).toLocaleString(),
-				bestB ? 'The best single day in ' + data.label + ' \u2014 '
-					+ (bestB.title || bestB.key) + '. All-time: '
-					+ figs.best.toLocaleString() + '.'
-					: 'Nothing here yet.');
-			cell('Active days', activeB.length + ' of ' + data.buckets.length,
-				'Days in ' + data.label + ' you wrote or edited \u2014 cutting counts.');
-			cell('Streak', figs.current.toLocaleString()
-				+ (figs.current === 1 ? ' day' : ' days'), streakTip);
+			cell(wsT('Words, net'), signed(netSum),
+				wsT('In {period} \u2014 what you wrote minus what you cut.', { period: data.label }));
+			cell(wsT('Daily average'), (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				wsT(activeB.length === 1 ? 'Over the {n} day you wrote \u2014 days off don\u2019t drag it down. All-time: {average}.'
+					: 'Over the {n} days you wrote \u2014 days off don\u2019t drag it down. All-time: {average}.', { n: activeB.length, average: figs.average.toLocaleString() }));
+			cell(wsT('Best day'), (bestB ? (bestB.n || 0) : 0).toLocaleString(),
+				bestB ? wsT('The best single day in {period} \u2014 {day}. All-time: {best}.', { period: data.label, day: bestB.title || bestB.key, best: figs.best.toLocaleString() })
+					: wsT('Nothing here yet.'));
+			cell(wsT('Active days'), wsT('{n} of {total}', { n: activeB.length, total: data.buckets.length }),
+				wsT('Days in {period} you wrote or edited \u2014 cutting counts.', { period: data.label }));
+			cell(wsT('Streak'), streakVal, streakTip);
 		} else if (view === 'month') {
-			const bestName = bestB && bestB.title ? bestB.title.split(' ')[0].slice(0, 3) : '';
-			cell('Words, net', signed(netSum),
-				'In ' + data.label + ' \u2014 what you wrote minus what you cut.');
-			cell('Monthly average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
-				'Over the ' + activeB.length + ' month' + (activeB.length === 1 ? '' : 's')
-				+ ' of ' + data.label + ' you wrote in.');
-			cell(bestB ? 'Best month \u00b7 ' + bestName : 'Best month',
+			// THE MONTH'S SHORT NAME FROM ITS KEY, never read back off the title, which is in the interface's language
+			const bestM = bestB ? +bestB.key.slice(5, 7) - 1 : -1;
+			const bestName = bestB && bestB.title && HISTORY_MONTHS[bestM]
+				? wsUiDate(HISTORY_MONTHS[bestM].slice(0, 3), new Date(+bestB.key.slice(0, 4), bestM, 1), { month: 'short' }) : '';
+			cell(wsT('Words, net'), signed(netSum),
+				wsT('In {period} \u2014 what you wrote minus what you cut.', { period: data.label }));
+			cell(wsT('Monthly average'), (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				wsT(activeB.length === 1 ? 'Over the {n} month of {period} you wrote in.' : 'Over the {n} months of {period} you wrote in.', { n: activeB.length, period: data.label }));
+			cell(bestB ? wsT('Best month \u00b7 {month}', { month: bestName }) : wsT('Best month'),
 				(bestB ? (bestB.n || 0) : 0).toLocaleString(),
-				bestB ? 'The best month of ' + data.label + ' \u2014 ' + (bestB.title || '') + '.'
-					: 'Nothing here yet.');
-			cell('Months active', activeB.length + ' of 12',
-				'Months of ' + data.label + ' you wrote in.');
-			cell('Streak', figs.current.toLocaleString()
-				+ (figs.current === 1 ? ' day' : ' days'), streakTip);
+				bestB ? wsT('The best month of {period} \u2014 {month}.', { period: data.label, month: bestB.title || '' })
+					: wsT('Nothing here yet.'));
+			cell(wsT('Months active'), wsT('{n} of {total}', { n: activeB.length, total: 12 }),
+				wsT('Months of {period} you wrote in.', { period: data.label }));
+			cell(wsT('Streak'), streakVal, streakTip);
 		} else {
 			const bestName = bestB ? (bestB.label || bestB.key) : '';
-			cell('Words, net', signed(figs.total),
-				'Everything written, minus everything cut.');
-			cell('Yearly average', (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
-				'Over the ' + activeB.length + ' year' + (activeB.length === 1 ? '' : 's')
-				+ ' you wrote in.');
-			cell(bestB ? 'Best year \u00b7 ' + bestName : 'Best year',
+			cell(wsT('Words, net'), signed(figs.total),
+				wsT('Everything written, minus everything cut.'));
+			cell(wsT('Yearly average'), (activeB.length ? Math.round(netSum / activeB.length) : 0).toLocaleString(),
+				wsT(activeB.length === 1 ? 'Over the {n} year you wrote in.' : 'Over the {n} years you wrote in.', { n: activeB.length }));
+			cell(bestB ? wsT('Best year \u00b7 {year}', { year: bestName }) : wsT('Best year'),
 				(bestB ? (bestB.n || 0) : 0).toLocaleString(),
 				// THE DATE READS AS A DATE. This one tip printed the raw
 				// store key — "2026-05-13" — while every other date in the
 				// window goes through historyLongDate. It is the only
 				// place in the report a reader is shown the file format.
-				bestB ? 'Your best year. Best single day: ' + figs.best.toLocaleString()
-					+ (figs.bestKey ? ', on ' + this.historyLongDate(figs.bestKey) : '') + '.'
-					: 'Nothing here yet.');
-			cell('Years active', activeB.length.toLocaleString(),
-				'Years you wrote in.');
-			cell('Streak', figs.current.toLocaleString()
-				+ (figs.current === 1 ? ' day' : ' days'), streakTip);
+				bestB ? (figs.bestKey ? wsT('Your best year. Best single day: {best}, on {date}.', { best: figs.best.toLocaleString(), date: this.historyLongDate(figs.bestKey) })
+					: wsT('Your best year. Best single day: {best}.', { best: figs.best.toLocaleString() }))
+					: wsT('Nothing here yet.'));
+			cell(wsT('Years active'), activeB.length.toLocaleString(),
+				wsT('Years you wrote in.'));
+			cell(wsT('Streak'), streakVal, streakTip);
 		}
 
 		if (!figs.keys.length) {
 			const empty = this.historyEl('div', 'ws-report-ring-label is-muted ws-hist-empty', body);
-			this.historyEl('div', '', empty, 'Nothing here yet.');
+			this.historyEl('div', '', empty, wsT('Nothing here yet.'));
 			this.historyEl('div', 'ws-report-hint', empty,
-				'The chart fills in as you write. There\u2019s no way to go back and work out what '
-				+ 'you did before today \u2014 a file only knows when it was touched, not how much '
-				+ 'went into it.');
+				wsT('The chart fills in as you write. There\u2019s no way to go back and work out what you did before today \u2014 a file only knows when it was touched, not how much went into it.'));
 			placeFoot();
 			return;
 		}
@@ -1682,12 +1679,12 @@ export const historyMethods = {
 				rerender();
 			});
 		};
-		tab('day', 'Daily'); tab('month', 'Monthly'); tab('year', 'Yearly');
+		tab('day', wsT('Daily')); tab('month', wsT('Monthly')); tab('year', wsT('Yearly'));
 		// A FOURTH ZOOM, and it is a zoom: the same daily record the first
 		// tab draws as a run of bars, arranged by month and weekday
 		// instead. A bar run answers "how much, when"; a calendar answers
 		// "which days" — the shape of a habit rather than its size.
-		tab('cal', 'Calendar');
+		tab('cal', wsT('Calendar'));
 
 		// ── Period stepper — BESIDE the Yearly tab ──────────────────────────
 		// It sat at the far end of the row with the label BETWEEN the
@@ -1815,11 +1812,10 @@ export const historyMethods = {
 				rerender();
 			});
 		};
-		pill('added',   'Added',   'What you wrote, going up from the line.');
-		pill('removed', 'Deleted', 'What you cut, going down from the same line \u2014 so a hard '
-			+ 'day of editing shows up as work instead of a gap.');
-		pill('net',     'Net',     'What\u2019s left after the cutting, laid over the bars.');
-		pill('average', 'Average', 'A flat line at your average, counting only the days you wrote.');
+		pill('added',   wsT('Added'),   wsT('What you wrote, going up from the line.'));
+		pill('removed', wsT('Deleted'), wsT('What you cut, going down from the same line \u2014 so a hard day of editing shows up as work instead of a gap.'));
+		pill('net',     wsT('Net'),     wsT('What\u2019s left after the cutting, laid over the bars.'));
+		pill('average', wsT('Average'), wsT('A flat line at your average, counting only the days you wrote.'));
 		placeFoot();
 
 	},
@@ -1935,8 +1931,8 @@ export const historyMethods = {
 		// so the magnitude is formatted and the sign is put in front of it, and
 		// all three figures are punctuated by the same hand.
 		const signed = (v: number) => (v < 0 ? '\u2212' : '+') + Math.abs(v).toLocaleString();
-		const figOf = (a: number, r: number, n: number) => '+' + a.toLocaleString() + ' added \u00b7 \u2212'
-			+ r.toLocaleString() + ' cut \u00b7 ' + signed(n) + ' net';
+		const figOf = (a: number, r: number, n: number) => wsT('+{added} added \u00b7 \u2212{cut} cut \u00b7 {net} net',
+			{ added: a.toLocaleString(), cut: r.toLocaleString(), net: signed(n) });
 
 		// ── AT REST THE ROW HOLDS THE YEAR ────────────────────────────────
 		//
@@ -1950,7 +1946,7 @@ export const historyMethods = {
 		const clearRead = () => {
 			readDay.textContent = String(year);
 			readFig.textContent = figOf(yAdd, yCut, yNet) + ' \u00b7 '
-				+ yDays.toLocaleString() + (yDays === 1 ? ' day written' : ' days written');
+				+ wsT(yDays === 1 ? '{count} day written' : '{count} days written', { n: yDays, count: yDays.toLocaleString() });
 			// NOT IDLE ANY MORE, and the class goes rather than being left on a
 			// line that now carries figures: `is-idle` is faint and italic, which
 			// is how this stylesheet says "waiting for you".
@@ -1958,10 +1954,11 @@ export const historyMethods = {
 		};
 		const showRead = (k: string, rec: WsHistoryTally) => {
 			const d = new Date(k + 'T00:00:00');
-			readDay.textContent = isNaN(d.getTime()) ? k : d.toLocaleDateString(undefined,
-				{ weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+			// (the system's own date as it always was; the interface's language when it has one: A695)
+			const long: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
+			readDay.textContent = isNaN(d.getTime()) ? k : wsUiDate(d.toLocaleDateString(undefined, long), d, long);
 			readFig.classList.remove('is-idle');
-			if (!rec) { readFig.textContent = 'Nothing written'; return; }
+			if (!rec) { readFig.textContent = wsT('Nothing written'); return; }
 			readFig.textContent = figOf(rec.a || 0, rec.r || 0, rec.n || 0);
 		};
 		// ── The legend: one of three ────────────────────────────────────────
@@ -1981,7 +1978,7 @@ export const historyMethods = {
 				rerender();
 			});
 		};
-		pick('added', 'Added'); pick('removed', 'Deleted'); pick('net', 'Net');
+		pick('added', wsT('Added')); pick('removed', wsT('Deleted')); pick('net', wsT('Net'));
 
 		// ── The scale ───────────────────────────────────────────────────────
 		const mags = [];
@@ -2058,9 +2055,11 @@ export const historyMethods = {
 			// JUST THE MONTH. The year is on the stepper directly above the
 			// grid, and repeating it twelve times is twelve reminders of the
 			// one thing that cannot change while you are looking at it.
-			this.historyEl('div', 'ws-cal-name', box, MONTHS[m]);
+			// THE NAMES IN THE INTERFACE'S LANGUAGE (A695): the English as it was, Intl's month and a weekday's
+			// initial in any other (a narrow one: a column is two letters wide). 1 January 2024 was a Monday.
+			this.historyEl('div', 'ws-cal-name', box, wsUiDate(MONTHS[m], new Date(year, m, 1), { month: 'long' }));
 			const cells = this.historyEl('div', 'ws-cal-grid', box);
-			for (const w of DOW) this.historyEl('div', 'ws-cal-dow', cells, w);
+			DOW.forEach((w, i) => this.historyEl('div', 'ws-cal-dow', cells, wsUiDate(w, new Date(2024, 0, 1 + i), { weekday: 'narrow' })));
 			// getDay() is Sunday-based; shift so Monday is column one.
 			const lead = (new Date(year, m, 1).getDay() + 6) % 7;
 			for (let i = 0; i < lead; i++) this.historyEl('div', 'ws-cal-pad', cells);
@@ -2236,14 +2235,14 @@ export const historyMethods = {
 		// pointer is a value you cannot read while pointing at something else.
 		let ta = 0, tr = 0;
 		for (const b of buckets) { ta += b.a; tr += b.r; }
-		const summary = data.label + ' \u00b7 ' + ta.toLocaleString() + ' added \u00b7 '
-			+ tr.toLocaleString() + ' deleted \u00b7 ' + ((ta - tr) > 0 ? '+' : '')
-			+ (ta - tr).toLocaleString() + ' net'
+		const summary = data.label + ' \u00b7 ' + wsT('{added} added \u00b7 {deleted} deleted \u00b7 {net} net', { added: ta.toLocaleString(),
+				deleted: tr.toLocaleString(), net: ((ta - tr) > 0 ? '+' : '') + (ta - tr).toLocaleString() })
 			// `!== 0`, NOT `> 0`. A net average can be negative — this year
 			// it is — and a `> 0` test drops the clause entirely in exactly
 			// the months a writer most wants to see it.
-			+ (avg !== 0 ? ' \u00b7 averaging ' + avg.toLocaleString()
-				+ ' per active ' + (data.view === 'day' ? 'day' : data.view) : '');
+			+ (avg !== 0 ? ' \u00b7 ' + (data.view === 'day' ? wsT('averaging {average} per active day', { average: avg.toLocaleString() })
+				: data.view === 'month' ? wsT('averaging {average} per active month', { average: avg.toLocaleString() })
+					: wsT('averaging {average} per active year', { average: avg.toLocaleString() })) : '');
 		const readout = this.historyEl('div', 'ws-hist-readout', body);
 		// The line is the chart's answer, so it announces itself when it
 		// changes — which is what the tooltip used to do for a reader who
@@ -2260,6 +2259,10 @@ export const historyMethods = {
 			viewBox: '0 0 ' + W + ' ' + H, class: 'ws-hist-chart',
 			preserveAspectRatio: 'none', role: 'img'
 		}, plotWrap);
+		// THE CHART'S SIZE ON SCREEN, for a bar's round tip (A639): read once it is placed; a chart
+		// drawn before it is placed takes the viewBox's own size
+		const placed = svg.getBoundingClientRect();
+		const plotW = placed.width > 0 ? placed.width : W, plotH = placed.height > 0 ? placed.height : H;
 
 		// One background column, and only one: the bucket you are in now. A
 		// week is seven days; shading two of them because a calendar calls
@@ -2336,9 +2339,22 @@ export const historyMethods = {
 			// down); the label above says how far it really goes, and `is-over`
 			// is how the label finds its bar — the one record in the DOM that
 			// the column was cut.
-			px(g, x, top, w, h, 'ws-hist-px ' + series
-				+ ' h' + (HISTORY_HEAT - 1) + (isNow ? ' is-now' : '')
-				+ (over ? ' is-over' : ''));
+			// ROUND AT THE TIP, SQUARE ON THE LINE (A629, A639: "you rounded the bars even at the
+			// bottom of them", then of three ways "do 1"): a path, its corners quarter ellipses three
+			// PIXELS round on screen both ways (the viewBox is stretched wide, so a radius in its units
+			// came out oval), never past half a thin bar. The box it fills is kept as x, y, width and
+			// height, which a reader of the chart asks of every bar.
+			const rx = Math.min(w / 2, WS_HIST_TIP_PX * W / plotW), ry = Math.min(h, WS_HIST_TIP_PX * H / plotH);
+			const f = (n: number) => n.toFixed(2);
+			const d = down
+				? 'M' + f(x) + ' ' + f(top) + ' H' + f(x + w) + ' V' + f(top + h - ry) + ' A' + f(rx) + ' ' + f(ry) + ' 0 0 1 ' + f(x + w - rx) + ' ' + f(top + h)
+					+ ' H' + f(x + rx) + ' A' + f(rx) + ' ' + f(ry) + ' 0 0 1 ' + f(x) + ' ' + f(top + h - ry) + ' Z'
+				: 'M' + f(x) + ' ' + f(top + h) + ' V' + f(top + ry) + ' A' + f(rx) + ' ' + f(ry) + ' 0 0 1 ' + f(x + rx) + ' ' + f(top)
+					+ ' H' + f(x + w - rx) + ' A' + f(rx) + ' ' + f(ry) + ' 0 0 1 ' + f(x + w) + ' ' + f(top + ry) + ' V' + f(top + h) + ' Z';
+			this.historySvg('path', {
+				d, x: f(x), y: f(top), width: f(w), height: f(h),
+				class: 'ws-hist-px ' + series + ' h' + (HISTORY_HEAT - 1) + (isNow ? ' is-now' : '') + (over ? ' is-over' : ''),
+			}, g);
 			if (!over) return;
 			// AND ITS REAL NUMBER, above the bar going up and below the one going
 			// down — outside the plot in both cases, so it never sits on the ink it
@@ -2386,7 +2402,13 @@ export const historyMethods = {
 			// what a screen reader and a touch device had — so the numbers
 			// move to an aria-label, which those still reach and which
 			// draws nothing.
-			g.setAttribute('aria-label', b.readout || '');
+			// …AND NOT ON AN aria-label (A641): Obsidian's hover tooltip hands any element wearing one
+			// to a function that asks it isShown(), which an SVG element has not ("e.isShown is not a
+			// function" on every hover of a bar). The readout is the group's name through
+			// aria-labelledby, from a <desc> of its own, which draws nothing and shows no tooltip.
+			const did = 'ws-hist-d' + (++wsHistIds);
+			this.historySvg('desc', { id: did }, g).textContent = b.readout || '';
+			g.setAttribute('aria-labelledby', did);
 			this.historySvg('rect', {
 				x: (i * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: H,
 				class: 'ws-hist-hit'
@@ -2564,7 +2586,7 @@ export const historyMethods = {
 			// the emptiest part of the plot, and sitting above keeps the label off
 			// the dashes it names. IN THE GUTTER LAYER — see the overlabel above.
 			const lab = this.historyEl('span', 'ws-hist-avglab', plotWrap,
-				'avg. ' + Math.round(avg).toLocaleString() + ' words');
+				wsT('avg. {average} words', { n: Math.round(avg), average: Math.round(avg).toLocaleString() }));
 			lab.style.top = ((ay / H) * 100).toFixed(3) + '%';
 		}
 
@@ -2730,19 +2752,23 @@ export const historyMethods = {
 			// THE PERIOD'S OWN WORD. On Monthly a clipped bucket is a
 			// month, and calling it a day would be the same fault as the
 			// tiles' - a figure that does not say what it counts.
+			// (a line for each period and count, so each says its own word whole: A695)
 			const unit = data.view === 'day' ? 'day'
 				: (data.view === 'month' ? 'month' : 'year');
+			const one = clippedN === 1, nv = { n: clippedN };
 			const cap = this.historyEl('div', 'ws-hist-scalenote', body,
-				'scale fits ordinary ' + unit + 's \u00b7 '
-				+ clippedN + ' ' + unit + (clippedN === 1 ? '' : 's') + ' clipped');
+				unit === 'day' ? wsT(one ? 'scale fits ordinary days \u00b7 {n} day clipped' : 'scale fits ordinary days \u00b7 {n} days clipped', nv)
+					: unit === 'month' ? wsT(one ? 'scale fits ordinary months \u00b7 {n} month clipped' : 'scale fits ordinary months \u00b7 {n} months clipped', nv)
+						: wsT(one ? 'scale fits ordinary years \u00b7 {n} year clipped' : 'scale fits ordinary years \u00b7 {n} years clipped', nv));
 			// THE RULE ITSELF, on hover: a reader who wants to know WHY the
 			// tallest bar stops where it does should not have to find this
 			// brief to be told.
-			cap.setAttribute('title',
-				'The scale fits the 95th percentile of ' + data.label
-				+ ' \u2014 or three times the median, whichever is larger \u2014 so an'
-				+ ' ordinary ' + unit + ' is readable. Anything past it is drawn'
-				+ ' full height with a hatched top and its real number above.');
+			const pv = { period: data.label };
+			cap.setAttribute('title', unit === 'day'
+				? wsT('The scale fits the 95th percentile of {period} \u2014 or three times the median, whichever is larger \u2014 so an ordinary day is readable. Anything past it is drawn full height with a hatched top and its real number above.', pv)
+				: unit === 'month'
+					? wsT('The scale fits the 95th percentile of {period} \u2014 or three times the median, whichever is larger \u2014 so an ordinary month is readable. Anything past it is drawn full height with a hatched top and its real number above.', pv)
+					: wsT('The scale fits the 95th percentile of {period} \u2014 or three times the median, whichever is larger \u2014 so an ordinary year is readable. Anything past it is drawn full height with a hatched top and its real number above.', pv));
 		}
 	},
 };

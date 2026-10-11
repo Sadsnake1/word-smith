@@ -8,6 +8,7 @@ import type { WsOrgCtx } from './org-ctx';
 import type { WsOrgJournalEntry } from './organizer-journal';
 import { setIcon } from 'obsidian';
 import { WS_STATUSES, wsCatch, wsFlagSvg, wsMenu, wsStatusLabel, wsStr, wsSvgInto } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WordSmithSettings } from '../core/settings';
 
@@ -95,7 +96,7 @@ const orgFlagSet = async (row: { path: string }, id: string, cell: HTMLElement |
 	const paths = d.orgBulkPaths(row);
 	const before: [string, string][] = paths.map((p) => [p, d.s[d.statusStore()][p] || '']);
 	const after: [string, string][] = paths.map((p) => [p, id || '']);
-	d.orgBulkSay(paths.length, id ? 'Flag set' : 'Flag cleared');
+	d.orgBulkSay(paths.length, id ? wsT('Flag set') : wsT('Flag cleared'));
 	// THE NEXT DRAW IS ABOUT THIS CELL. It is a HINT and not an
 	// instruction: the draw takes it only if the row list it computes is
 	// identical to the one on screen, and rebuilds everything if a chip or
@@ -104,7 +105,7 @@ const orgFlagSet = async (row: { path: string }, id: string, cell: HTMLElement |
 	// the draw.
 	d.orgCellHint = (cell && paths.length === 1) ? { td: cell, path: row.path } : null;
 	d.orgHistPush({
-		label: d.orgHistOn(paths, id ? 'Flag ' + wsStatusLabel(id) : 'Flag cleared'),
+		label: d.orgHistOn(paths, id ? wsT('Flag {flag}', { flag: wsStatusLabel(id) }) : wsT('Flag cleared')),
 		undo: () => orgFlagApply(before),
 		redo: () => orgFlagApply(after)
 	});
@@ -129,7 +130,7 @@ const orgFlagMenu = (ev: MouseEvent, row: WsOrgRow, td: HTMLElement) => {
 		try { i.setChecked(now === id); } catch (_) { wsCatch('openManuscriptModal / row1: i.setChecked(now === id);', _); }
 		i.onClick(() => orgFlagSet(row, id, td));
 	});
-	row1('No flag', '');
+	row1(wsT('No flag'), '');
 	for (const st of WS_STATUSES) row1(st.label, st.id);
 	// DROPPED FROM THE CELL: a dropdown hangs from its control, not from
 	// wherever the pointer happened to be in it. The pointer is the
@@ -226,7 +227,7 @@ const orgFlagCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	// cell. The ring's own reasoning was about UNDOING a wrong press — a
 	// list with a tick on the current flag undoes nothing, because nothing
 	// is pressed by mistake.
-	td.title = 'Choose a flag';
+	td.title = wsT('Choose a flag');
 	td.addEventListener('click', (ev: Event) => {
 		ev.stopPropagation();
 		orgFlagMenu(ev as MouseEvent, row, td);
@@ -247,8 +248,8 @@ const orgFlagCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	const more = td.createSpan({ cls: 'ws-org-flagmore' });
 	try { if (setIcon) setIcon(more, 'chevron-down'); } catch (_) { wsCatch('orgFlagCell: setIcon(more, chevron-down);', _); }
 	if (!more.childElementCount) more.setText('\u25be');
-	more.setAttribute('aria-label', 'Choose a flag');
-	more.title = 'Choose a flag';
+	more.setAttribute('aria-label', wsT('Choose a flag'));
+	more.title = wsT('Choose a flag');
 	more.addEventListener('click', (ev: Event) => {
 		// THE CELL BELOW IT CYCLES. Without this the caret would set a
 		// flag on the way to offering the menu.

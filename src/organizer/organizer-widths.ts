@@ -1,6 +1,7 @@
 // Word-Smith — organizer-widths: what a column measures, and the grips.
 
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type { WsSession } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 import type { WordSmithSettings } from '../core/settings';
@@ -353,8 +354,7 @@ const orgColGripBind = (th: HTMLElement, col: { id: string; label: string }, hos
 	const grip = th.createDiv({ cls: 'ws-org-colgrip' });
 	orgGripHover(host);
 	grip.setAttribute('data-col', col.id);
-	grip.title = 'Drag to set how wide “' + col.label + '” is — '
-		+ 'double-click to hand it back to the table';
+	grip.title = wsT('Drag to set how wide “{name}” is — double-click to hand it back to the table', { name: col.label });
 	let from = 0, base = 0, live = 0;
 	const move = (ev: MouseEvent) => {
 		live = Math.max(ORG_COL_MIN, Math.min(orgColCeil(host),
@@ -429,8 +429,7 @@ const orgColGripBind = (th: HTMLElement, col: { id: string; label: string }, hos
 };
 const orgNameGripBind = (host: HTMLElement, th: HTMLElement, table: HTMLElement) => {
 	const grip = host.createDiv({ cls: 'ws-org-namegrip' });
-	grip.title = 'Drag to set how wide the Name column is '
-		+ '\u2014 double-click to hand it back to the table';
+	grip.title = wsT('Drag to set how wide the Name column is \u2014 double-click to hand it back to the table');
 	let from = 0, base = 0, live = 0;
 	// THE SCROLLER'S CEILING, not the host's: the host holds the grip, the
 	// scroller holds the table, and the two differ by the vertical bar and

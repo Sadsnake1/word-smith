@@ -39,6 +39,9 @@ import {
 } from '../core/preamble';
 import type { WsSession } from '../core/preamble';
 import { WordSmithSettingTab } from './settings-tab';
+import { wsIsPackPath } from '../core/language';
+import type { WsPack } from '../core/language';
+import type { WsRef } from '../core/citations';
 import { diagnosticsMethods } from './diagnostics';
 import type { DiagnosticsMethods } from './diagnostics';
 import { paintMethods } from './paint';
@@ -154,6 +157,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._lastTypo        = null;   // last typography substitution, for backspace-to-revert
 	plugin._barPicker       = null;   // open bar popup, if any
 	plugin._barPickerDismiss = null;
+	plugin._barPickerFrames = null;
 	plugin._barPickerKey    = (e) => { if (e.key === 'Escape') plugin.closeBarPicker(); };
 	plugin._vimMapped       = false;  // whether our vim motion maps are installed
 	plugin._fmCache         = {};     // path -> frontmatter overrides
@@ -349,19 +353,14 @@ export function wsRegisterCommands(plugin: WordSmith) {
 	featureToggle('toggle-prose-checks', 'Toggle prose checks',
 		'checksEnabled', 'Prose checks');
 
-	// PAGE MODE IS A LAYOUT ROW: with Text options off it would flip a key
-	// nothing reads, so it says why instead.
+	// PAGE MODE, FOR NOW: the same switch as the Modes picker's, over the
+	// Layout toggle and never written into it (togglePageQuick).
 	plugin.addCommand({
 		id: 'toggle-page-view',
 		name: 'Toggle page mode',
-		callback: async () => {
-			if (!plugin.settings.miscEnabled) {
-				new Notice('Word-Smith: page mode is one of the text options. Switch them on first, in the settings.', 6000);
-				return;
-			}
-			plugin.settings.pageView = !plugin.settings.pageView;
-			await plugin.saveSettings(true);
-			new Notice('Word-Smith: Page mode' + (plugin.settings.pageView ? ' on.' : ' off.'));
+		callback: () => {
+			const on = plugin.togglePageQuick();
+			if (on !== null) new Notice('Word-Smith: Page mode' + (on ? ' on.' : ' off.'));
 		}
 	});
 
@@ -629,6 +628,11 @@ function wsWireDocument(plugin: WordSmith) {
 		});
 	});
 	// Escape exits zen mode (from new zen plugin — respects vim mode and excalidraw)
+	// ZEN'S SIDE PANES PEEK FROM THE EDGE (A578): one listener, answering at once
+	// while the switch's class is off.
+	plugin.registerDomEvent(document, 'mousemove', (ev: MouseEvent) => plugin.zenPeekMove(ev));
+	// …and the pointer leaving the window (A597): no move says so, and a peeked pane stayed
+	plugin.registerDomEvent(document, 'mouseout', (ev: MouseEvent) => { if (!ev.relatedTarget) plugin.zenPeekAway(); });
 	plugin.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
 		plugin.updateModifierState(evt);
 		// zenActive(), not settings.zenMode: the two disagree whenever the
@@ -772,6 +776,8 @@ function wsWireDocument(plugin: WordSmith) {
 // delete, changed, resolved (lifted out of onload, A488).
 export function wsWireVault(plugin: WordSmith) {
 	plugin.onAppEvent(plugin.app.vault, 'modify', (file: TAbstractFile) => {
+		plugin.packsChanged(file && file.path);
+		plugin.citeChanged(file && file.path);
 		if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
 		plugin.scheduleExplorerPatch();
 		// Same event, one more reader. The history is debounced and gated
@@ -836,6 +842,8 @@ export function wsWireVault(plugin: WordSmith) {
 	// A store that appears in the vault — first sync of a new install, or a
 	// file the user pasted in — is picked up without being asked for.
 	plugin.onAppEvent(plugin.app.vault, 'create', (file: TAbstractFile) => {
+		plugin.packsChanged(file && file.path);
+		plugin.citeChanged(file && file.path);
 		// Every tree drawing this vault, once the vault knows about it.
 		plugin.treeShapeChanged();
 		// A new row in Obsidian's tree gets its export tick.
@@ -846,6 +854,10 @@ export function wsWireVault(plugin: WordSmith) {
 		void plugin.historyAdopt(file);
 	});
 	plugin.onAppEvent(plugin.app.vault, 'rename', (file: TAbstractFile, oldPath: string) => {
+		plugin.packsChanged(file && file.path);
+		plugin.citeChanged(file && file.path);
+		plugin.packsChanged(oldPath);
+		plugin.citeRenamed(oldPath, file.path);
 		if (plugin.wordCountCache) plugin.wordCountCache.delete(oldPath);
 		void plugin.renameScopePath(oldPath, file.path);
 		plugin.historyRenamePath(oldPath, file.path);
@@ -868,6 +880,8 @@ export function wsWireVault(plugin: WordSmith) {
 		plugin.treeShapeChanged();
 	});
 	plugin.onAppEvent(plugin.app.vault, 'delete', (file: TAbstractFile) => {
+		plugin.packsChanged(file && file.path);
+		plugin.citeChanged(file && file.path);
 		if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
 		void plugin.removeScopePath(file.path);
 		plugin.historyForgetPath(file.path);
@@ -926,6 +940,10 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	if (!plugin.settings.pluginEnabled) return;
 	const t0 = performance.now();
 	plugin.refresh();
+	// THE LANGUAGE PACKS, read after the start, never in it (A571)
+	void plugin.packsScan();
+	// THE CITATION LIBRARY, read after the start too (A572)
+	void plugin.citeLoad();
 	plugin.checkStylesheetVersion();
 	plugin.checkManifestVersion();
 	// A SECOND PASS ONCE THE STYLESHEET IS CERTAINLY UP. Everything
@@ -1082,6 +1100,8 @@ export default class WordSmith extends Plugin {
 	declare exportEnsureFolder: ExportMethods["exportEnsureFolder"];
 	declare exportFileName: ExportMethods["exportFileName"];
 	declare exportSections: ExportMethods["exportSections"];
+	declare exportImages: ExportMethods["exportImages"];
+	declare exportImageRead: ExportMethods["exportImageRead"];
 	declare exportToMarkdown: ExportMethods["exportToMarkdown"];
 	declare exportOptionDefaults: ExportMethods["exportOptionDefaults"];
 	declare openExportModal: ExportMethods["openExportModal"];
@@ -1094,13 +1114,15 @@ export default class WordSmith extends Plugin {
 	declare exportPreviewInto: ExportMethods["exportPreviewInto"];
 	declare exportPreviewMarkdown: ExportMethods["exportPreviewMarkdown"];
 	declare exportToHtml: ExportMethods["exportToHtml"];
+	declare exportToEpub: ExportMethods["exportToEpub"];
+	declare exportCite: ExportMethods["exportCite"];
+	declare exportEpubCheck: ExportMethods["exportEpubCheck"];
+	declare exportNotice: ExportMethods["exportNotice"];
 	declare exportDefaultScope: ExportMethods["exportDefaultScope"];
 	declare exportRemember: ExportMethods["exportRemember"];
-	declare exportWhen: ExportMethods["exportWhen"];
 	declare countTasks: ExportMethods["countTasks"];
 	declare tagsOf: ExportMethods["tagsOf"];
 	declare tagsWithSource: ExportMethods["tagsWithSource"];
-	declare exportWhenShort: ExportMethods["exportWhenShort"];
 	declare exportFillCounts: ExportMethods["exportFillCounts"];
 	declare exportOptsFor: ExportMethods["exportOptsFor"];
 	declare exportPrevColFit: ExportMethods["exportPrevColFit"];
@@ -1146,6 +1168,28 @@ export default class WordSmith extends Plugin {
 	declare barThemeHalf: ThemesMethods["barThemeHalf"];
 	// stores.ts
 	declare goalsFilePath: StoresMethods["goalsFilePath"];
+	declare packsScan: StoresMethods["packsScan"];
+	declare englishPack: StoresMethods["englishPack"];
+	declare uiApply: StoresMethods["uiApply"];
+	declare packsHome: StoresMethods["packsHome"];
+	declare packsChanged: StoresMethods["packsChanged"];
+	declare citeLoad: StoresMethods["citeLoad"];
+	declare citeChanged: StoresMethods["citeChanged"];
+	declare citeRenamed: StoresMethods["citeRenamed"];
+	declare citeLibrary: StoresMethods["citeLibrary"];
+	declare citer: StoresMethods["citer"];
+	declare packActive: StoresMethods["packActive"];
+	declare languageSet: StoresMethods["languageSet"];
+	declare typoLanguageMarks: StoresMethods["typoLanguageMarks"];
+	declare typoMarks: StoresMethods["typoMarks"];
+	declare rhythmTint: ReportMethods["rhythmTint"];
+	declare reportSentences: ReportMethods["reportSentences"];
+	declare reportFolderSentences: ReportMethods["reportFolderSentences"];
+	declare drawReportBars: ReportMethods["drawReportBars"];
+	declare drawReportPace: ReportMethods["drawReportPace"];
+	declare packApply: StoresMethods["packApply"];
+	declare langEngine: StoresMethods["langEngine"];
+	declare catName: StoresMethods["catName"];
 	declare goalsFileCompose: StoresMethods["goalsFileCompose"];
 	declare goalsFileParse: StoresMethods["goalsFileParse"];
 	declare goalsStoreApply: StoresMethods["goalsStoreApply"];
@@ -1398,6 +1442,8 @@ export default class WordSmith extends Plugin {
 	declare cursorSmithPlugin: BarMethods["cursorSmithPlugin"];
 	declare cursorPresetNames: BarMethods["cursorPresetNames"];
 	declare cursorsPickerItems: BarMethods["cursorsPickerItems"];
+	declare langPickerItems: BarMethods["langPickerItems"];
+	declare buildLangIndicator: BarMethods["buildLangIndicator"];
 	declare cursorLoadPreset: BarMethods["cursorLoadPreset"];
 	declare openCursorsPicker: BarMethods["openCursorsPicker"];
 	declare buildCursorsIndicator: BarMethods["buildCursorsIndicator"];
@@ -1426,6 +1472,8 @@ export default class WordSmith extends Plugin {
 	declare topWords: ReportMethods["topWords"];
 	declare wordFreqFor: ReportMethods["wordFreqFor"];
 	declare analyzeText: ReportMethods["analyzeText"];
+	declare gradeOfTotal: ReportMethods["gradeOfTotal"];
+	declare addReadSums: ReportMethods["addReadSums"];
 	declare countWords: ReportMethods["countWords"];
 	declare getDocStats: ReportMethods["getDocStats"];
 	declare getNonProseLines: ReportMethods["getNonProseLines"];
@@ -1558,6 +1606,8 @@ export default class WordSmith extends Plugin {
 	declare patchExplorerSortMenu: TreeMethods["patchExplorerSortMenu"];
 	declare attachSortMenuRow: TreeMethods["attachSortMenuRow"];
 	declare addSortMenuRow: TreeMethods["addSortMenuRow"];
+	declare armSortMenuApi: TreeMethods["armSortMenuApi"];
+	declare addSortMenuItem: TreeMethods["addSortMenuItem"];
 	declare unpatchExplorerSortMenu: TreeMethods["unpatchExplorerSortMenu"];
 	declare patchExplorerSort: TreeMethods["patchExplorerSort"];
 	declare unpatchExplorerSort: TreeMethods["unpatchExplorerSort"];
@@ -1590,6 +1640,8 @@ export default class WordSmith extends Plugin {
 	declare chromeCeilingY: FocusMethods["chromeCeilingY"];
 	declare mainTitlebarEl: FocusMethods["mainTitlebarEl"];
 	declare pageModeShown: FocusMethods["pageModeShown"];
+	declare pageViewWanted: FocusMethods["pageViewWanted"];
+	declare togglePageQuick: FocusMethods["togglePageQuick"];
 	declare maskEdge: FocusMethods["maskEdge"];
 	declare tagMainTitlebar: FocusMethods["tagMainTitlebar"];
 	declare shouldHideScrollBar: FocusMethods["shouldHideScrollBar"];
@@ -1617,6 +1669,10 @@ export default class WordSmith extends Plugin {
 	declare openSidebarPanel: FocusMethods["openSidebarPanel"];
 	declare toggleQuickPanel: FocusMethods["toggleQuickPanel"];
 	declare setSidebarVisibility: FocusMethods["setSidebarVisibility"];
+	declare zenPeekMove: FocusMethods["zenPeekMove"];
+	declare zenPeekBusy: FocusMethods["zenPeekBusy"];
+	declare zenPeekAway: FocusMethods["zenPeekAway"];
+	declare zenPeekEnd: FocusMethods["zenPeekEnd"];
 	declare syncSurfaceSidebars: FocusMethods["syncSurfaceSidebars"];
 	declare getTabContainerFromLeaf: FocusMethods["getTabContainerFromLeaf"];
 	declare revealPinnedTabIfExists: FocusMethods["revealPinnedTabIfExists"];
@@ -1654,6 +1710,16 @@ export default class WordSmith extends Plugin {
 	declare _maskMaxPx: FocusMethods["_maskMaxPx"];
 	declare _startVerticalDrag: FocusMethods["_startVerticalDrag"];
 	declare _startHorizontalDrag: FocusMethods["_startHorizontalDrag"];
+	declare _letterboxWords: FocusMethods["_letterboxWords"];
+	declare buildSideHandle: FocusMethods["buildSideHandle"];
+	declare _lbChPx: FocusMethods["_lbChPx"];
+	declare _lbLinePx: FocusMethods["_lbLinePx"];
+	declare _lbCaretTop: FocusMethods["_lbCaretTop"];
+	declare _lbChars: FocusMethods["_lbChars"];
+	declare _lbReadout: FocusMethods["_lbReadout"];
+	declare _lbReadoutEnd: FocusMethods["_lbReadoutEnd"];
+	declare _lbResetHeight: FocusMethods["_lbResetHeight"];
+	declare _lbResetMargins: FocusMethods["_lbResetMargins"];
 	declare getArrowChars: FocusMethods["getArrowChars"];
 	declare removeCustomElements: FocusMethods["removeCustomElements"];
 	declare getActiveScroller: FocusMethods["getActiveScroller"];
@@ -1687,6 +1753,7 @@ export default class WordSmith extends Plugin {
 	declare chromeProps: PaintMethods["chromeProps"];
 	declare clearChromeColors: PaintMethods["clearChromeColors"];
 	declare applyCssVariables: PaintMethods["applyCssVariables"];
+	declare stampEditorPadding: PaintMethods["stampEditorPadding"];
 	declare firstPaintable: PaintMethods["firstPaintable"];
 	declare applyStyleProps: PaintMethods["applyStyleProps"];
 	declare clearStyleProps: PaintMethods["clearStyleProps"];
@@ -1722,6 +1789,7 @@ export default class WordSmith extends Plugin {
 	_barBoundsEl: HTMLDivElement | null;
 	_barColorCache: string | null;
 	_barColorKey: string | null;
+	_pageQuick: { on: boolean; base: boolean } | null;
 	_barRenderSig: string | null;
 	_barRootObserved: Element | null;
 	_barRootRO: ResizeObserver | null;
@@ -1733,6 +1801,8 @@ export default class WordSmith extends Plugin {
 	_barPeekTimer: number | null;
 	_barPicker: HTMLDivElement | null;
 	_barPickerDismiss: ((e: Event) => void) | null;
+	// the frames the open picker listens in (A628: a press on the Export preview closes it)
+	_barPickerFrames: Document[] | null;
 	_barPickerKey: ((e: KeyboardEvent) => void) | null;
 	_barRebuilding: boolean;
 	_barReserve: number | null;
@@ -1802,6 +1872,18 @@ export default class WordSmith extends Plugin {
 	_openModals: Set<{ containerEl?: HTMLElement; close(): void }>;
 	// the settings tab, held so onunload can cut its observer
 	_settingsTab: WordSmithSettingTab | null;
+	_packs: Map<string, { path: string; pack: WsPack; dupes: string[] }> | null;
+	_packsBad: { path: string; why: string }[] | null;
+	_packsRead: boolean;
+	_packTimer: number | null;
+	_packMissingSaid: boolean;
+	/** the pack the counts were last measured in (null for English), so a change of it measures again */
+	_packWas: WsPack | null;
+	/** the citation library read (A572), what kept it from being read, a generation for the marks */
+	_citeLib: Map<string, WsRef> | null;
+	_citeLibError: string;
+	_citeGen: number;
+	_citeTimer: number | null;
 	_orgAt: () => string;
 	_orgBackMap: { gen: number; map: Map<string, string[]> } | null;
 	_orgBarSay: () => string;
@@ -1852,6 +1934,7 @@ export default class WordSmith extends Plugin {
 	_peekZoneTop: number;
 	_quickCycleHere: WorkspaceLeaf | null;
 	_quickCycleLast: Map<WorkspaceSidedock | WorkspaceMobileDrawer, WorkspaceLeaf>;
+	_peek: { side: string; split: WorkspaceSidedock; open: boolean; arm: number | null; leave: number | null } | null;
 	_rawData: Record<string, unknown> | null;
 	_readerBeside: WorkspaceLeaf | null;
 	_refreshTimer: number | null;
@@ -1867,6 +1950,7 @@ export default class WordSmith extends Plugin {
 	_sidebarsSuspended: boolean;
 	_stampZoom: number;
 	_startBlocked: { kind: string; text: string; } | null;
+	_unloaded: boolean;
 	_startTripped: boolean;
 	_statusRowEls: HTMLElement[];
 	_storeFailSaid: Record<string, boolean>;
@@ -1909,6 +1993,8 @@ export default class WordSmith extends Plugin {
 	_wsLastTotalWordCount: number;
 	_wsSession: WsSession | null;
 	_wsSortRowBound: boolean;
+	_wsSortArmedAt: number;
+	_wsSortShowPatched: boolean;
 	_wsTreeDragBound: boolean;
 	arrowsBottomEl: HTMLDivElement | null;
 	arrowsTopEl: HTMLDivElement | null;
@@ -1921,6 +2007,12 @@ export default class WordSmith extends Plugin {
 	explorerObserver: MutationObserver | null;
 	maskBottomEl: HTMLDivElement | null;
 	maskGuardLeftEl: HTMLDivElement | null;
+	// the band's two side handles and the readout a drag shows (A673)
+	lbSideLeftEl: HTMLDivElement | null;
+	lbSideRightEl: HTMLDivElement | null;
+	lbReadoutEl: HTMLDivElement | null;
+	// the scroller padding the positioner last set (A673: a pass that changes it asks for one more)
+	_lbScrollPad: number | null;
 	maskGuardRightEl: HTMLDivElement | null;
 	maskResizeObserver: ResizeObserver | null;
 	maskTopEl: HTMLDivElement | null;
@@ -2088,6 +2180,7 @@ export default class WordSmith extends Plugin {
 		// below it — three hundred assignments is not free and it is exactly
 		// the kind of thing nobody thinks to measure.
 		this.loadMark('start');
+		this._unloaded = false;
 		// THE CRASH-LOOP GUARD. A freeze at start repeats at every start until
 		// the plugin is removed by hand. A mark is written here and taken away
 		// two seconds after the first real refresh; a mark found at the NEXT
@@ -2150,6 +2243,7 @@ export default class WordSmith extends Plugin {
 			this._startBlocked = blocked;
 			this.startGuardEnd();
 			try { new Notice(blocked.text, 30000); } catch (_) { wsCatch('onload: new Notice(this._startBlocked.text, 30000);', _); }
+			try { this.uiApply(); } catch (_) { wsCatch('onload: uiApply (blocked)', _); }
 			this._settingsTab = new WordSmithSettingTab(this.app, this);
 			this.addSettingTab(this._settingsTab);
 			this.loadMark('blocked');
@@ -2196,6 +2290,8 @@ export default class WordSmith extends Plugin {
 		// read from is built from the settings, not from the source.
 		try { this.flagsApply(); } catch (_) { wsCatch('onload: this.flagsApply();', _); }
 
+		// the settings in Obsidian's language (A692), before the tab is built
+		try { this.uiApply(); } catch (_) { wsCatch('onload: uiApply', _); }
 		this._settingsTab = new WordSmithSettingTab(this.app, this);
 		this.addSettingTab(this._settingsTab);
 		this.loadMark('settings tab');
@@ -2339,6 +2435,13 @@ export default class WordSmith extends Plugin {
 		return m;
 	}
 	onunload() {
+		// FIRST: WORK QUEUED BEFORE THIS DOES NOT RUN AFTER IT. A refresh in the
+		// moment before a disable (a toggle, settings synced in) leaves a
+		// file-tree pass on a timer, and run after the cleanup below it
+		// decorated Obsidian's tree again for a plugin that was gone.
+		this._unloaded = true;
+		// a peeked pane closes, so the panes are as the writer left them
+		try { this.zenPeekEnd(); } catch (_) { wsCatch('onunload: this.zenPeekEnd();', _); }
 		// the Typewriter's pending iOS scroll has no plugin to scroll for
 		if (this._twIdle != null) { window.clearTimeout(this._twIdle); this._twIdle = null; this._twIdleView = null; }
 		// THE SETTINGS TAB'S OBSERVER: it lives for the tab's life — not
@@ -2658,6 +2761,12 @@ export default class WordSmith extends Plugin {
 			const at = Array.isArray(order) ? order.indexOf('theme') : -1;
 			if (at !== -1) order.splice(at + 1, 0, 'cursors');
 		}
+		// ── LANGUAGE UNDER PROSE, ONCE (A601): the same rule as Cursors above ──
+		if (Array.isArray(raw.menuOrder) && !raw.menuOrder.includes('lang')) {
+			const order = this.settings.menuOrder;
+			const at = Array.isArray(order) ? order.indexOf('prose') : -1;
+			if (at !== -1) order.splice(at + 1, 0, 'lang');
+		}
 		// `barThemeLight` lived one unreleased day; a vault that ran that build
 		// carries it.
 		delete this.settings.barThemeLight;
@@ -2892,6 +3001,18 @@ export default class WordSmith extends Plugin {
 		// `exportTicksAlways`: the export ticks in Obsidian's tree are on only
 		// while an Export pane is open.
 		delete this.settings.exportTicksAlways;
+		// `interfaceInPack`: the interface in a language pack's words (A586),
+		// built and taken out the same night on the writer's word; never released,
+		// but a vault that tried it saved the switch.
+		delete wsBag(this.settings).interfaceInPack;
+		// `zenPanesQuiet`: Zen's side panes hid the file tree's buttons until the
+		// pointer came (A578), taken out on the writer's word (A597) before it shipped.
+		delete wsBag(this.settings).zenPanesQuiet;
+		// `zenPanesDim`, `zenPanesPeek`, `zenPanesOver`: the side panes' ways, each
+		// its own switch (A578), one switch, Zen Sidebars, since (A604), unshipped.
+		delete wsBag(this.settings).zenPanesDim;
+		delete wsBag(this.settings).zenPanesPeek;
+		delete wsBag(this.settings).zenPanesOver;
 		// ── RETIRED IN 1.6.8 (A508) ── read by nothing, and written into every
 		// data.json by every preset applied until now: the bar's row count (it
 		// draws one), the separator's angle (a constant), the 1.2.x colours
@@ -3349,7 +3470,8 @@ export default class WordSmith extends Plugin {
 		// commands, the events and the editor extensions were registered; a
 		// refresh reached through a settings toggle would build the surfaces
 		// over a half-registered plugin. Try again is a real off-and-on.
-		if (this._startBlocked) return;
+		// Nor after an unload: a refresh queued before it has nothing to draw for.
+		if (this._startBlocked || this._unloaded) return;
 		this.updateWsRibbonState();
 		if (!this.settings.pluginEnabled) { this.disablePlugin(); this.reconfigureEditors(); return; }
 		// Back on: the ribbon returns, and the panel returns to the side it
@@ -3390,6 +3512,10 @@ export default class WordSmith extends Plugin {
 		// a writer turning it off and seeing their tree still in book order
 		// would reasonably conclude the switch does nothing.
 		this.patchExplorerSort();
+		// THE DOCKED MENU'S ROWS SAY WHAT WAS JUST CHOSEN (A609), wherever it was
+		// chosen: a language or a font picked on the bar left the pane naming the
+		// old one until the writer moved to another note. States only, 0.2 ms.
+		this.refreshMenuPanels();
 	}
 
 	disablePlugin() {
@@ -3713,6 +3839,12 @@ export default class WordSmith extends Plugin {
 		const v = this.settings[key];
 		return v === undefined ? whenOff : v;
 	}
+	// THE TEXT'S SIDE PADDING: the layout's, AND THE LETTER BOX'S WHILE IT IS ON (A672, issue #55; the writer:
+	// "with it's horizontal drag to slide the padded margins", and, asked, "Letter Box applies it"), so its
+	// sides' drag answers with Text options off or "Only in Zen" out of Zen
+	padOn(): boolean {
+		return this.layoutOn() || !!this.settings.enableLetterbox;
+	}
 
 	isRightToLeft() {
 		try {
@@ -3830,6 +3962,9 @@ export default class WordSmith extends Plugin {
 
 	isStoreFile(path: string) {
 		if (!path) return false;
+		// A LANGUAGE PACK (A571) is the plugin's own file too: visible, never
+		// the writer's writing. Known by its name, before any scan.
+		if (wsIsPackPath(path)) return true;
 		try {
 			if (path === this._historyPath) return true;
 			if (path === this.structurePathNow()) return true;
@@ -3890,6 +4025,11 @@ export default class WordSmith extends Plugin {
 		const ov = this.getOverrides(file);
 		if (ov && ov.__disabled === true)  return false;
 		if (ov && ov.__disabled === false) return true;
+		// WORD-SMITH'S OWN NOTES ARE IN SCOPE (A607, A611): a pack, ws-structure.md,
+		// the history, the settings note, whatever the path list leaves out. The bar,
+		// the marks and the note's layout come with them; counted they never are
+		// (isFileCounted asks isStoreFile first), and a pack is never retyped.
+		if (file && file.path && this.isStoreFile(file.path)) return true;
 		if (!this.hasScopeLimits()) return true;
 		const exclude = this.settings.scopeMode === 'exclude';
 		// No file at all (an empty pane, a non-markdown view): in scope only
@@ -3945,10 +4085,24 @@ export default class WordSmith extends Plugin {
 		if (cmView._wsScope && cmView._wsScope.gen === this._scopeGen) return cmView._wsScope.in;
 		// Not a note's editor at all — a canvas card, a base field — so no
 		// decoration belongs in it, whatever file the pane behind it holds.
+		// A LANGUAGE PACK IS MARKED UP like any note since A611, on the writer's word
+		// (A571 left it bare); only its typing is left alone (isEditorPack).
+		const viewFile = this.getFileForEditorView(cmView);
 		const val = this.editorViewIsNote(cmView)
-			&& this.isFileInScope(this.getFileForEditorView(cmView));
+			&& this.isFileInScope(viewFile);
 		cmView._wsScope = { gen: this._scopeGen, in: val };
 		return val;
+	}
+
+	// A LANGUAGE PACK'S EDITOR (A611): its quote marks and its words are what Word-Smith
+	// reads, so Typography and Capitalize sentences never retype them. Memoised as above.
+	isEditorPack(cmView: EditorView) {
+		if (!cmView) return false;
+		if (cmView._wsPack && cmView._wsPack.gen === this._scopeGen) return cmView._wsPack.on;
+		const f = this.getFileForEditorView(cmView);
+		const on = !!(f && wsIsPackPath(f.path));
+		cmView._wsPack = { gen: this._scopeGen, on };
+		return on;
 	}
 
 	// Called on every leaf/file change. Cheap when no limits are configured.

@@ -46,7 +46,9 @@ jobs:
             main.js
             build/styles.css
             manifest.json
+      # THE LANGUAGE PACKS GO TOO: GitHub counts a file's downloads only when a release carries it, and the
+      # README links each pack to the newest release's copy (Pack counts adds them up over every release)
       - name: Attach the assets to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name || inputs.tag }}" main.js build/styles.css manifest.json --clobber
+        run: gh release upload "${{ github.event.release.tag_name || inputs.tag }}" main.js build/styles.css manifest.json packs/ws-lang-*.md --clobber

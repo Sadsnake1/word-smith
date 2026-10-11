@@ -3,8 +3,9 @@
 
 import { FuzzySuggestModal, Menu, setIcon, Platform, ItemView, normalizePath, sanitizeHTMLToDom } from 'obsidian';
 import type { App, FileStats, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
-import type { WordSmithSettings, WsMenuRowSpec, WsMenuPickItem, WsExportOpts, WsExportRun, WsExportSection, WsHost, WsVimApi } from './settings';
+import type { WordSmithSettings, WsMenuRowSpec, WsMenuPickItem, WsExportOpts, WsExportRun, WsExportSection, WsExportBuild, WsImage, WsHost, WsVimApi } from './settings';
 import type WordSmith from '../plugin/plugin';
+import { wsT } from './ui-text';
 
 // what the property pickers list: a key and its label, how many notes carry
 // it and in how many spellings, or a row that would create it
@@ -30,7 +31,7 @@ export const STYLE_KINDS = ['text', 'highlight', 'line'];
 export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-dim-active']
 	.concat(STYLE_KINDS.map((k) => 'ws-pos-' + k), STYLE_KINDS.map((k) => 'ws-ck-' + k));
 export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line-hl-color', '--ws-dim-opacity',
-	'--ws-ck-hard-bg', '--ws-ck-veryhard-bg']
+	'--ws-ck-hard-bg', '--ws-ck-veryhard-bg', '--ws-ck-short-bg', '--ws-ck-mid-bg', '--ws-mask-opacity']
 	.concat(['noun', 'verb', 'adj', 'adv', 'conj'].flatMap((k) => ['--ws-pos-' + k + '-color', '--ws-pos-' + k + '-bg']),
 		['filler', 'passive', 'illusion', 'misused', 'pronoun', 'dialogue', 'repeat'].flatMap((k) => ['--ws-ck-' + k + '-color', '--ws-ck-' + k + '-bg']));
 
@@ -110,7 +111,7 @@ export const WsPropSuggestModal = FuzzySuggestModal ? class extends FuzzySuggest
 		this._taken = taken || items;
 		if (this.setPlaceholder) {
 			this.setPlaceholder(placeholder
-				|| 'Which property should become a column?');
+				|| wsT('Which property should become a column?'));
 		}
 	}
 	// THE CREATE ROW NAMES WHAT IS BEING TYPED, which is the difference
@@ -149,8 +150,8 @@ export const WsPropSuggestModal = FuzzySuggestModal ? class extends FuzzySuggest
 	}
 	getItemText(item: WsPropItem) {
 		if (typeof item.n !== 'number') return item.label;
-		return item.label + '  ·  ' + item.n + (item.n === 1 ? ' note' : ' notes')
-			+ ((item.spellings || 0) > 1 ? '  ·  ' + item.spellings + ' spellings' : '');
+		return item.label + '  ·  ' + (item.n === 1 ? wsT('{n} note', { n: item.n }) : wsT('{n} notes', { n: item.n }))
+			+ ((item.spellings || 0) > 1 ? '  ·  ' + wsT('{n} spellings', { n: item.spellings || 0 }) : '');
 	}
 	onChooseItem(item: WsPropItem) { this._onPick(item); }
 } : null;
@@ -290,7 +291,7 @@ export const WsOutlinerView = ItemView ? class extends ItemView {
 	// LABEL says Organizer: `WS_OUTLINER_VIEW` and every command id stay as
 	// they are — those are written into saved workspaces and into hotkeys
 	// the writer has set, and changing them drops a pane on the next restart.
-	getDisplayText() { return WS_PANE_NAMES[this.paneTab()]; }
+	getDisplayText() { return wsT(WS_PANE_NAMES[this.paneTab()]); }
 	getIcon()        { return WS_PANE_ICONS[this.paneTab()]; }
 
 	async onOpen() {
@@ -524,7 +525,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 				const its = row.items();
 				if (row.count !== false) {
 					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
-					state.textContent = on ? String(on) + ' on' : 'off';
+					state.textContent = on ? wsT('{n} on', { n: on }) : wsT('off');
 				} else {
 					const cur = its.find(i => (typeof i.on === 'function' ? i.on() : i.on));
 					if (cur) state.textContent = cur.label;
@@ -818,7 +819,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			if (row.items && row.count !== false) {
 				const its = row.items();
 				const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
-				el.createSpan({ cls: 'ws-menu-state', text: on ? String(on) + ' on' : 'off' });
+				el.createSpan({ cls: 'ws-menu-state', text: on ? wsT('{n} on', { n: on }) : wsT('off') });
 			} else if (row.items) {
 				const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
 				if (cur) el.createSpan({ cls: 'ws-menu-state', text: cur.label });
@@ -1052,12 +1053,12 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 		underneath until unto upon within without via per unlike like`);
 
 	add('CONJ', `as and but or nor yet so because although though while whereas
-		unless if when whenever wherever whether than plus versus`);
+		unless if when whenever where wherever whereby wherein whereupon whether than plus versus`);
 
 	add('AUX', `am is are was were be been being have has had having do does
 		did doing`);
 
-	add('MOD', `will would shall should can could may might must ought`);
+	add('MOD', `will would shall should can could may might must ought cannot`);
 
 	add('TO', 'to');
 
@@ -1082,7 +1083,7 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 	// Interjections take no highlight at all — "Oh dear!" is neither a
 	// noun nor anything else worth a colour.
 	add('INTJ', `oh ah aha alas hey hello ha hmm hush wow oops ouch yay
-		hurrah phew ugh er um`);
+		hurrah phew ugh er um nay yea aye`);
 
 	add('ADJ', `worth dear good bad big small large little old new young long short high
 		low great same different other own able early late main major minor
@@ -1102,6 +1103,30 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 		tidy messy odd fine keen bold quiet sweet bitter sour tough gentle
 		fierce eager weary alive alone aware alike`);
 
+	// THE COMMON ADJECTIVES (A674): a word the lexicon does not know is a noun
+	// unless its shape or its neighbours say otherwise, and a bare predicate
+	// ("am fond of", "is cruel to") or a color has neither. These are general
+	// English, the colors, the feelings and the plain qualities, not a list of
+	// the held-out set's misses.
+	add('ADJ', `red green blue yellow black white brown grey gray pink purple
+		orange golden silver pale bright dim vivid
+		happy sad glad angry afraid proud ashamed jealous anxious nervous
+		fond cruel kind unkind polite rude honest wise foolish clever stupid
+		brave cowardly lazy busy tired sick ill healthy hungry thirsty
+		pretty ugly beautiful handsome lovely charming elegant
+		wrong right correct proper fair unfair equal due
+		cheap expensive valuable precious rare frequent constant usual
+		normal curious weird unusual typical ordinary
+		huge tiny enormous immense massive slim slender broad
+		fresh stale raw ripe salty spicy mild bland
+		silly solemn severe tender
+		ample scarce abundant multiple numerous countless
+		medieval worldwide global rural urban royal holy sacred
+		visible invisible hidden secret
+		crowded noisy peaceful violent
+		wild tame savage innocent guilty
+		alert asleep awake dead`);
+
 	// Common nouns that suffix rules would otherwise mis-tag.
 	add('NOUN', `time way people man woman men women child children day year
 		work place case point group number world life hand eye head word thing
@@ -1116,6 +1141,14 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 		elephant infant merchant giant opponent component ingredient
 		event government department apartment argument statement movement
 		environment equipment treatment agreement`);
+
+	// THE SUFFIX RULES' NOUNS (A674): an -ory, -ary, -ic, -ive, -ile or -ant ending
+	// reads as an adjective ("history", "library", "music", "motive", "plant").
+	add('NOUN', `history memory theory category factory territory victory inventory
+		laboratory directory library dictionary salary summary secretary diary
+		boundary anniversary music logic topic traffic clinic critic magic fabric
+		archive detective motive incentive initiative perspective olive plant
+		profile missile reptile textile exile`);
 
 	// Base-form verbs. Many are also nouns (work, call, run, hold); context
 	// rules below demote them to NOUN after a determiner or preposition.
@@ -1146,6 +1179,16 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 		spend spends watch watches listen listens forget forgets enjoy enjoys
 		agree agrees accept accepts refuse refuses avoid avoids reduce reduces
 		improve improves replace replaces remove removes apply applies`);
+
+	// THE SUFFIX RULES' VERBS (A674): -ish, -ive, -ent, -ant, -ile, -like and -less
+	// read as adjectives, and "they finish", "we arrive", "to publish" are verbs.
+	add('VERB', `finish publish establish punish vanish polish cherish nourish
+		flourish banish abolish demolish astonish diminish furnish accomplish
+		distinguish extinguish arrive arrives survive survives achieve achieves
+		deceive deceives perceive perceives derive derives thrive thrives strive
+		strives deprive deprives revive revives drive drives dive dives invent
+		invents prevent prevents resent resents repent consent grant grants smile
+		smiles dislike dislikes bless blesses`);
 
 	// Contracted auxiliaries and modals. The tokenizer keeps apostrophes,
 	// so these arrive as single tokens and the plain forms above never
@@ -1189,7 +1232,9 @@ export const LY_NOT_ADVERB = new Set(`only family reply apply supply imply compl
 // every letter: the tagger is English, and a run of Chinese or Cyrillic
 // read as one unknown word would be coloured as a noun it knows nothing
 // about \u2014 outside the script is outside the tagger, as before.
-export const WORD_RE = /\p{Script=Latin}[\p{Script=Latin}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*%?/gu;
+// THE ORDINAL MARKS (A610): º and ª belong to their figure (1.º, 2.ª) and are never a
+// word's first letter (n.º is one word).
+export const WORD_RE = /(?![\u00ba\u00aa])\p{Script=Latin}[\p{Script=Latin}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*(?:\.?[\u00ba\u00aa])?%?/gu;
 
 // One word of a line as the checks see it: the text, lowered, its span, the
 // tag the tagger gives it, and whether it opens a sentence.
@@ -1213,9 +1258,12 @@ export function suffixTag(lw: string) {
 	if (/^\d/.test(lw)) return 'NUM';
 	if (lw.length > 3 && /ly$/.test(lw) && !LY_NOT_ADVERB.has(lw)) return 'ADV';
 	if (lw.length > 4 && /(ing)$/.test(lw)) return 'VERB';
+	// A HYPHENED -ED (A674): "dark-colored", "mass-produced", "blue-eyed" describe. After a
+	// subject it is the verb again ("she double-checked"), which the context rules settle.
+	if (lw.includes('-') && /ed$/.test(lw)) return 'ADJ';
 	if (lw.length > 3 && /(ed)$/.test(lw)) return 'VERB';
 	if (lw.length > 4 && /(est)$/.test(lw)) return 'ADJ';
-	if (lw.length > 4 && /(tion|sion|ment|ness|ity|ance|ence|ship|hood|dom|ism|ist|acy|age|ure|ery|ology|graphy|itis)$/.test(lw)) return 'NOUN';
+	if (lw.length > 4 && /(tion|sion|ment|ness|ity|ance|ence|ship|hood|dom|ism|ist|acy|age|ure|ery|ology|graphy|itis|mony)$/.test(lw)) return 'NOUN';
 	if (lw.length > 4 && /(ous|ful|less|ive|able|ible|ical|ic|ish|ary|ent|ant|ile|ory|some|like|ward|proof)$/.test(lw)) return 'ADJ';
 	if (lw.length > 4 && /(ize|ise|ate|ify|fy)$/.test(lw)) return 'VERB';
 	if (lw.length > 3 && /(er|or)$/.test(lw)) return 'NOUN';
@@ -1266,6 +1314,16 @@ export const ABBREVIATIONS = new Set(`mr mrs ms dr prof rev gen sen rep hon st m
 
 export const SUBJECT_PRONOUNS = new Set(['i', 'you', 'we', 'they', 'he', 'she', 'it', 'who']);
 
+// A674, from the held-out English (Pride and Prejudice and the "Coffee" article):
+// a word shaped like a thing ("the gentleman", "the government") is no modifier
+// even between "the" and a noun; the be-forms that hand a predicate its slot; the
+// irregular pasts that keep their verb after "which" ("which became").
+const WS_NOUN_SHAPE = /(tion|sion|ment|ness|ity|ance|ence|ship|hood|dom|ism|acy|ology|graphy|mony|[^u]man|men)$/;
+const WS_BE_FORMS = new Set(['am', 'is', 'are', 'was', 'were', 'be', 'been', 'being']);
+const WS_IRREGULAR_PAST = new Set(`went came made took saw knew thought said told gave found felt left kept
+	began held brought wrote stood heard meant met paid sat spoke lay led grew won bought sent built fell
+	became got ran`.split(/\s+/).filter(Boolean));
+
 export function tagTokens(tokens: WsToken[], text: string) {
 	// Pass 1 — lexicon, then suffix. Sentence starts use one token of
 	// lookahead: a full stop only opens a new sentence when the word before
@@ -1286,6 +1344,11 @@ export function tagTokens(tokens: WsToken[], text: string) {
 			if (cm) dyn = (cm[1] === 'll' || cm[1] === 'd') ? 'MOD' : 'AUX';
 		}
 		t.tag = lex || dyn || suffixTag(t.lw);
+		// THE PIECES OF A FIGURE OR AN ABBREVIATION (A674): "the 15th century" is a figure and its
+		// letters, "e.g." two letters with stops; none of them is a word to color.
+		const before = i > 0 ? tokens[i - 1] : null;
+		if (/^(st|nd|rd|th)$/.test(t.lw) && before && before.tag === 'NUM' && before.to === t.from) t.tag = 'NUM';
+		else if (t.lw.length === 1 && text.charAt(t.to) === '.' && (!/^[aio]$/.test(t.lw) || /\p{L}/u.test(text.charAt(t.to + 1)))) t.tag = 'ABBR';
 		// A sentence ends when the character right after this token is a
 		// terminator (the tokenizer never swallows punctuation).
 		const after = text.slice(t.to, t.to + 2);
@@ -1297,6 +1360,20 @@ export function tagTokens(tokens: WsToken[], text: string) {
 			(!nx || /^\p{Lu}/u.test(nx.w));
 	}
 
+	// Two words read together only with nothing but space between them: a comma,
+	// a dash or a bracket ends the phrase ("in popularity, coffee"). A capital
+	// mid-sentence is a name, and a name is the thing itself (A674).
+	const linked = (a: WsToken, b: WsToken) => !/\S/.test(text.slice(a.to, b.from));
+	const named = (x: WsToken) => !x.first && /^\p{Lu}/u.test(x.w);
+	// THE THING AFTER "THE" AND AN ADJECTIVE (A674): "the earliest reports", "the
+	// best works" are things, read before the adjective decides whether a noun
+	// follows it.
+	for (let i = 2; i < tokens.length; i++) {
+		const t = tokens[i], a = tokens[i - 1];
+		if (t.tag === 'VERB' && POS_LEX[t.lw] === 'VERB' && !/(ed|ing)$/.test(t.lw) && !WS_IRREGULAR_PAST.has(t.lw) &&
+			a.tag === 'ADJ' && tokens[i - 2].tag === 'DET' && linked(a, t) && linked(tokens[i - 2], a)) t.tag = 'NOUN';
+	}
+
 	// Pass 2 — context. Cheap, local, and in the order that matters:
 	// determiner/preposition demotion before infinitive promotion, so
 	// "the run" stays a noun but "to run" becomes a verb.
@@ -1305,11 +1382,25 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		const prev = i > 0 ? tokens[i - 1] : null;
 		const next = i + 1 < tokens.length ? tokens[i + 1] : null;
 
+		// A POSSESSIVE OWNS A THING (A674): "the plant's use", "her mother's love".
+		// Not a participle, which the 's of "has" brings ("John's gone").
+		if (t.tag === 'VERB' && prev && prev.tag === 'NOUN' && /'s$/.test(prev.lw) && linked(prev, t) &&
+			!/(ed|ing|en|ne|wn)$/.test(t.lw) && !WS_IRREGULAR_PAST.has(t.lw)) {
+			t.tag = 'NOUN';
+		}
+		// "WHICH BECAME" (A674): after "which" or "what" a past or a third person
+		// is the clause's verb, not a thing the word points at ("which book").
+		const relVerb = !!prev && /^(which|what|whatever|whichever)$/.test(prev.lw) &&
+			(/(ed|[^s]s)$/.test(t.lw) || WS_IRREGULAR_PAST.has(t.lw));
+		if (t.tag === 'ADJ' && t.lw.includes('-') && /ed$/.test(t.lw) && prev && prev.tag === 'PRON' && SUBJECT_PRONOUNS.has(prev.lw)) {
+			t.tag = 'VERB';
+		}
+
 		// "the work", "a call", "in place" → noun, not verb. An -ing word
 		// in the same slot is a gerund ("the meeting") unless a noun
 		// follows, which makes it a participial modifier ("the running
 		// water"). -ed words after a determiner are always modifiers.
-		if (t.tag === 'VERB' && prev && (prev.tag === 'DET' || prev.tag === 'PREP')) {
+		if (t.tag === 'VERB' && prev && (prev.tag === 'DET' || prev.tag === 'PREP') && !relVerb) {
 			// "made her feel", "let her go" — a causative verb two back
 			// means "her" is the object and this is a bare infinitive, not
 			// a possession.
@@ -1338,12 +1429,18 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		}
 		// Determiner + adjective with no noun after it → the adjective is
 		// carrying the noun slot ("the poor", "the best").
-		if (t.tag === 'ADJ' && prev && prev.tag === 'DET' && (!next || next.tag !== 'NOUN')) {
+		// "The dark one", "the red ones" (A674): "one" holds the noun's place.
+		// Nor a participle with its noun after it: "the oldest prepared foods".
+		const after = i + 2 < tokens.length ? tokens[i + 2] : null;
+		if (t.tag === 'ADJ' && prev && prev.tag === 'DET' && (!next || next.tag !== 'NOUN') &&
+			!(next && /^(one|ones)$/.test(next.lw)) &&
+			!(next && next.tag === 'VERB' && /(ed|ing)$/.test(next.lw) && after && after.tag === 'NOUN')) {
 			// leave adjectives that clearly modify something later
 			if (!next || (next.tag !== 'ADJ' && next.tag !== 'NOUN')) t.tag = 'NOUN';
 		}
 		// "to write" → infinitive.
-		if (prev && prev.tag === 'TO' && (t.tag === 'NOUN' || t.tag === 'ADJ') && POS_LEX[t.lw] !== 'NOUN') {
+		if (prev && prev.tag === 'TO' && (t.tag === 'NOUN' || t.tag === 'ADJ') && POS_LEX[t.lw] !== 'NOUN' &&
+			!/(ness|ity|hood|dom|ism|acy|ology|graphy|mony)$/.test(t.lw)) {
 			t.tag = 'VERB';
 		}
 		// Auxiliary or modal followed by a participle-shaped word → verb —
@@ -1386,7 +1483,7 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		}
 		// Coordination copies the part of speech across: in "sleepy and
 		// stupid" the second word rides on the first.
-		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && next !== undefined &&
+		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && next !== undefined && !named(t) &&
 			(prev.lw === 'and' || prev.lw === 'or' || prev.lw === 'but') &&
 			i >= 2 && tokens[i - 2].tag === 'ADJ' && (!next || next.tag !== 'NOUN')) {
 			t.tag = 'ADJ';
@@ -1399,15 +1496,28 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		// An unknown word between a determiner (or another adjective) and a
 		// noun is filling the modifier slot: "her difficult book". Limited to
 		// words the lexicon does not claim, so noun-noun compounds like "the
-		// book cover" keep both nouns.
-		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && next &&
-			(prev.tag === 'DET' || prev.tag === 'ADJ' || prev.tag === 'PREP') && next.tag === 'NOUN') {
+		// book cover" keep both nouns. NOT A PLURAL (A592): "the anvils glow"
+		// read anvils as a modifier of glow; a word in -s is the thing itself.
+		// Not across a comma, not a name, not a word shaped like a thing (A674:
+		// "in popularity, coffee", "the Kaffa region", "this gentleman dislikes").
+		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && next && !/[^s]s$/.test(t.lw) &&
+			(prev.tag === 'DET' || prev.tag === 'ADJ' || prev.tag === 'PREP') && next.tag === 'NOUN' &&
+			linked(t, next) && !named(t) && !WS_NOUN_SHAPE.test(t.lw)) {
 			t.tag = 'ADJ';
+		}
+		// THE PLURAL'S VERB (A592): after "the <plural>", an unknown word that is
+		// not itself a plural, with no noun after it to modify and no verb after
+		// it to be the subject of ("the boys club meets"), is what the plural
+		// does: "the anvils glow", "the dogs bark".
+		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && !/s$/.test(t.lw) && prev && prev.tag === 'NOUN' && /[^s']s$/.test(prev.lw) &&
+			i >= 2 && tokens[i - 2].tag === 'DET' && (!next || !/^(NOUN|ADJ|VERB|AUX|MOD)$/.test(next.tag || ''))) {
+			t.tag = 'VERB';
 		}
 		// Sentence-initial word followed by a determiner or pronoun, with no
 		// lexicon entry claiming it as a noun, is almost always an
-		// imperative verb ("Check the file", "Open your notes").
-		if (t.first && t.tag === 'NOUN' && !POS_LEX[t.lw] && next &&
+		// imperative verb ("Check the file", "Open your notes"). Not a plural
+		// (A594, English Wikipedia: "Additives such as gum are used").
+		if (t.first && t.tag === 'NOUN' && !POS_LEX[t.lw] && !/[^su]s$/.test(t.lw) && next &&
 			(next.tag === 'DET' || next.tag === 'PRON')) {
 			t.tag = 'VERB';
 		}
@@ -1427,6 +1537,34 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && prev.tag === 'VERB' && LINKING_VERBS.has(prev.lw) &&
 			(!next || (next.tag !== 'NOUN' && next.tag !== 'DET'))) {
 			t.tag = 'ADJ';
+		}
+		// A BE-FORM'S PREDICATE (A674): "am fond of", "is cruel to", "is totally
+		// wrong." An unknown word after "is" (an adverb between allowed) with
+		// nothing after it to modify describes; a word shaped like a thing does
+		// not ("was sabotage", "is surgery").
+		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && prev && !named(t) && !/[^s']s$/.test(t.lw) &&
+			!WS_NOUN_SHAPE.test(t.lw) && !/(age|ery|ist|itis)$/.test(t.lw)) {
+			const be = linked(prev, t) && (WS_BE_FORMS.has(prev.lw) || (prev.tag === 'ADV' && i >= 2 && WS_BE_FORMS.has(tokens[i - 2].lw)));
+			if (be && (!next || next.first || !linked(t, next) || !/^(NOUN|DET|ADJ|PRON|NUM|VERB)$/.test(next.tag || ''))) t.tag = 'ADJ';
+		}
+		// "SO" GRADES (A674): "so much", "so serious", "so tired" — the adverb,
+		// where "so we left" joins.
+		if (t.lw === 'so' && t.tag === 'CONJ' && next && linked(t, next) &&
+			(next.tag === 'ADJ' || next.tag === 'ADV' || /^(much|many|few|little|far|long|well|often)$/.test(next.lw) ||
+			 (next.tag === 'VERB' && !POS_LEX[next.lw] && /ed$/.test(next.lw)))) {
+			t.tag = 'ADV';
+		}
+		// WHAT A THING DOES TO ANOTHER (A674): an unknown word in -s between a
+		// singular noun and a determiner is the noun's verb: "this gentleman
+		// dislikes the amusement", "the house costs a fortune". An unknown noun the
+		// modifier rule above took for an adjective, because this word looked like
+		// its noun, is the subject again ("this farmer plows the field").
+		const subject = !!prev && (prev.tag === 'NOUN' || (prev.tag === 'ADJ' && !POS_LEX[prev.lw] &&
+			suffixTag(prev.lw) === 'NOUN' && i >= 2 && tokens[i - 2].tag === 'DET'));
+		if (t.tag === 'NOUN' && !POS_LEX[t.lw] && /[^s']s$/.test(t.lw) && prev && subject &&
+			!/s$/.test(prev.lw) && next && next.tag === 'DET' && linked(prev, t) && linked(t, next)) {
+			t.tag = 'VERB';
+			prev.tag = 'NOUN';
 		}
 		// Flat adverbs: adjective-shaped words straight after a verb are
 		// doing adverb work — "ran close by her", "went straight on" —
@@ -1639,8 +1777,24 @@ export function findIllusions(tokens: WsToken[]) {
 // check nobody could leave on. Each confusion now has a context rule and
 // fires only where the wrong half is the likely reading; the short list
 // below is the remainder that is wrong in any context.
-export const MISUSED_ALWAYS = new Set(['alot', 'irregardless', 'supposably',
-	'definately', 'seperate', 'occured', 'untill', 'recieve', 'alright']);
+// …CHECKED against published lists (A687 part 2, 2026-10-11: Grammarist, Merriam-Webster, Paul Brians, the
+// Oxford list Wikipedia keeps): "supposably" is a real word (capable of being supposed) and went; the rest
+// are misspellings every dictionary rejects, the eggcorns among them one hyphenated word ("deep-seeded" is
+// right only in sports seeding, where a writer would not hyphenate it).
+export const MISUSED_ALWAYS = new Set(['alot', 'irregardless',
+	'definately', 'seperate', 'occured', 'untill', 'recieve', 'alright',
+	'wierd', 'accomodate', 'occurence', 'tommorow', 'independant', 'arguement', 'noticable', 'millenium',
+	'existance', 'neccessary', 'embarass', 'begining', 'acheive', 'beleive', 'concious', 'freind', 'occassion',
+	'posession', 'recomend', 'refered', 'succesful', 'writting', 'garantee', 'harrass', 'liason', 'mispell',
+	'neice', 'perseverence', 'priviledge', 'rythm', 'sieze', 'suprise', 'mischievious', 'truely', 'goverment',
+	'tenderhooks', 'deep-seeded', 'shoe-in', 'doggy-dog']);
+
+// …AND THE PHRASES wrong in any context, the eggcorns (A687 part 2: Grammarist's list and its pages), matched
+// over words with only space between: "for all intensive purposes", never "intensive purposes" alone
+export const MISUSED_PHRASES = ['for all intensive purposes', 'case and point', 'one in the same', 'per say',
+	'nip it in the butt', 'free reign', 'baited breath', 'beckon call', 'mute point', "hair's breath",
+	'sneak peak', 'damp squid', 'escape goat', 'old wise tales', 'take it for granite', 'deep seeded', 'tow the line'];
+const WS_MISUSED_PHRASE_WORDS = MISUSED_PHRASES.map((p) => p.split(' '));
 
 // s-final nouns that are not plurals, so "less" before them stays legal.
 export const MASS_S_NOUNS = new Set(['news', 'means', 'series', 'species',
@@ -1654,7 +1808,10 @@ export const COMPARATIVES = new Set(['more', 'less', 'fewer', 'better', 'worse',
 	'earlier', 'later', 'longer', 'shorter', 'easier', 'harder', 'sooner',
 	'farther', 'further', 'closer', 'cheaper', 'deeper', 'wider']);
 
-export function findMisused(tokens: WsToken[]) {
+// `masked` (the line) lets a phrase be found, its words with only space between; `always` the words wrong
+// anywhere, English's own unless an English pack brings its table (wsEnglishPackEngine passes an empty set
+// and matches the pack's rows itself, so a row the writer takes out is not flagged)
+export function findMisused(tokens: WsToken[], masked?: string, always: Set<string> = MISUSED_ALWAYS, phrases: string[][] = WS_MISUSED_PHRASE_WORDS) {
 	const hits: { from: number; to: number }[] = [];
 	const flag = (a: WsToken, b?: WsToken | null) => hits.push({ from: a.from, to: (b || a).to });
 	for (let i = 0; i < tokens.length; i++) {
@@ -1663,7 +1820,12 @@ export function findMisused(tokens: WsToken[]) {
 		const n  = i + 1 < tokens.length ? tokens[i + 1] : null;
 		const lw = t.lw, nl = n ? n.lw : '', pl = p ? p.lw : '';
 
-		if (MISUSED_ALWAYS.has(lw)) { flag(t); continue; }
+		if (always.has(lw)) { flag(t); continue; }
+		if (masked !== undefined) {
+			const ph = phrases.find((w) => w[0] === lw && i + w.length <= tokens.length
+				&& w.every((x, k) => tokens[i + k].lw === x && (k === 0 || /^\s+$/.test(masked.slice(tokens[i + k - 1].to, tokens[i + k].from)))));
+			if (ph) { flag(t, tokens[i + ph.length - 1]); i += ph.length - 1; continue; }
+		}
 
 		switch (lw) {
 			// "could of", "must of" — the contraction 've misheard.
@@ -1822,7 +1984,43 @@ export function countSyllables(word: string) {
 // Sentence ranges within one line. Markdown paragraphs are normally a single
 // soft-wrapped line, so a sentence very rarely crosses a hard break; treating
 // the line as the outer bound keeps this cheap and viewport-local.
-export const SENTENCE_SPLIT = /[^.!?\u2026]+[.!?\u2026]*\s*/g;
+// …AND THE MARKS THAT CLOSE A QUOTATION STAY WITH IT (A637): "“Not I!” said the Lory" is one
+// sentence, its tag joined back by the lower case after the closer; nested closers too (’”)
+export const SENTENCE_SPLIT = /[^.!?\u2026]+[.!?\u2026]*["'\u201d\u2019\u00bb\u203a)\]]*\s*/g;
+
+// A QUOTATION OPENED PARTWAY THROUGH A SENTENCE, WHICH CARRIES ON PAST ITS CLOSER, ENDS IT NOWHERE INSIDE
+// (A642, the writer's Carroll: "…to hear the Rabbit say to itself, “Oh dear! Oh dear! I shall be late!” (when
+// she thought it over …) … under the hedge." was 29 + 2 + 110 words). True when the piece from `from` to `at`
+// holds an opener still open at `at`, with a letter or figure before it, whose closer is on this line and is
+// followed by no sentence's start. A quotation that opens the sentence ("“Hello. How are you?” she asked")
+// or ends it splits as before. Single quotes are left out: ’ is the apostrophe
+// …UP TO FORTY WORDS: over Alice the quotations held were 4 to 37 words, or 75 to 151 (a speech of a dozen
+// sentences, "I'm sure I'm not Ada", which the Report then named the longest sentence); a longer one keeps its own
+export const HELD_QUOTE_WORDS = 40;
+export const HELD_QUOTES: Record<string, string> = { '\u201c': '\u201d', '"': '"', '\u00ab': '\u00bb' };
+export function wsQuoteHolds(text: string, from: number, at: number, pairs: Record<string, string>): boolean {
+	const open: { i: number; close: string }[] = [];
+	for (let i = from; i < at; i++) {
+		const ch = text[i];
+		if (open.length && open[open.length - 1].close === ch) open.pop();
+		// a mark that both opens and closes (") opens only after a space, a bracket or a dash: in
+		// 'bendiga", escribió' it closes a quotation this line never opened
+		else if (pairs[ch] !== undefined && (pairs[ch] !== ch || i === 0 || /[\s([{\u2014\u2013-]/.test(text[i - 1]))) open.push({ i, close: pairs[ch] });
+	}
+	if (!open.length) return false;
+	// words before it, and no sentence's end between them and it (the split can carry an opener on the end of
+	// the sentence before: 。“)
+	const before = text.slice(from, open[0].i);
+	if (!/[\p{L}\p{N}]/u.test(before) || /[.!?\u2026\u3002\uff01\uff1f]["'\u201d\u2019\u00bb\u203a)\]\s]*$/.test(before)) return false;
+	const c = text.indexOf(open[0].close, at);
+	if (c < 0 || (text.slice(open[0].i, c).match(/[\p{L}\p{N}]+/gu) || []).length > HELD_QUOTE_WORDS) return false;
+	// …and after its closer the sentence goes on: no capital, a bracket's either ('“…O Mouse!” (Alice thought'),
+	// no stop ('… Qué presidente".' ends one), and a
+	// quotation that ended on its own stop goes on only into a lower-case word or a mark that continues
+	const after = text.slice(c + 1).replace(/^[\s"'\u201d\u2019\u201c\u00bb\u00ab\u203a\u2039\u300d\u300f]+/, '');
+	if (!after || /^[([]*[\p{Lu}.!?\u2026\u3002\uff01\uff1f]/u.test(after)) return false;
+	return !/[.!?\u2026\u3002\uff01\uff1f]$/.test(text.slice(from, c)) || /^[\p{Ll},;:([\u2014\u2013-]/u.test(after);
+}
 
 export function splitSentences(text: string) {
 	const out = [];
@@ -1846,8 +2044,10 @@ export function splitSentences(text: string) {
 		if (prev) {
 			const tail = text.slice(prev.from, prev.to);
 			const am   = /(\p{L}+)\.$/u.exec(tail);
+			// A FIGURE ENDS A SENTENCE (A642: "Published in 1975. It was good." was one): a decimal's second
+			// half opens with a digit and joins below; a list's number standing alone ("1.") is the one figure kept
 			const falseEnd = (am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase()))) ||
-				/\d\.$/.test(tail) || /^[\p{Ll}0-9]/u.test(raw.trim());
+				/^\d{1,3}\.$/.test(tail.trim()) || /^[\p{P}\s]*[\p{Ll}0-9]/u.test(raw.trim()) || wsQuoteHolds(text, prev.from, from, HELD_QUOTES);
 			if (falseEnd) {
 				prev.to   = to;
 				prev.text = text.slice(prev.from, to).trim();
@@ -1936,9 +2136,68 @@ export const REPORT_STOPWORDS = new Set(`the a an and or but nor if then than th
 // opens each paragraph without closing the last), but a highlight that
 // leaks down the rest of the note because a writer typed one quote mark is
 // far worse than one that stops early. The line is the unit here.
-export function findDialogue(line: string) {
+// THE LANGUAGE'S SPEECH MARKS (A610): the pairs its pack declares beside the ones
+// above (German »…«, Polish „…”, Swedish ”…”), and the dash it opens speech with.
+export interface WsDialogueMarks { pairs: Record<string, string>; dashes: string; verbs?: string[] }
+
+// SPEECH BY DASH (A610), as Spanish, Polish, the Scandinavian languages and French
+// write it: the dash that opens the paragraph opens the speech, and each dash after
+// it that stands apart (a space before it, or a space or a mark after it) turns
+// speech to narration and back. "—Hola —dijo él—. ¿Qué tal?" is "—Hola" and
+// "¿Qué tal?"; a range (1990–2000) has neither and turns nothing.
+// A TAG WITH NO SECOND DASH (A622): "– Lasă-mă în pace! zise el.", "– Hej, sa han." A
+// "!", "?", "…" or "," and then one of the language's speech verbs, the first word
+// after it or the second ("a zis", "i-a spus"), or the verb of an inversion ("dit-il",
+// "demanda-t-elle"), ends the speech at the mark. A capital after it is more speech.
+const WS_TAG_MARKS = ',!?\u2026';
+const WS_INVERTED = new Set(['il', 'elle', 'ils', 'elles', 'on', 't-il', 't-elle', 't-on', 'je', 'tu', 'nous', 'vous']);
+function wsSpeechTagAt(text: string, k: number, said: Set<string>): boolean {
+	const m = /^\s+(\p{Ll}[\p{L}\p{M}'\u2019-]*)(?:\s+([\p{L}\p{M}'\u2019-]+))?/u.exec(text.slice(k + 1, k + 80));
+	if (!m) return false;
+	const low = (w: string) => w.toLowerCase().replace(/\u2019/g, "'").normalize('NFC').replace(/\u015f/g, '\u0219').replace(/\u0163/g, '\u021b');
+	const verb = (w: string | undefined) => {
+		if (!w) return false;
+		const x = low(w).replace(/[-']+$/, '');
+		if (said.has(x)) return true;
+		const cut = x.indexOf('-');
+		return cut > 0 && WS_INVERTED.has(x.slice(cut + 1)) && said.has(x.slice(0, cut));
+	};
+	return verb(m[1]) || verb(m[2]);
+}
+function wsDashDialogue(text: string, at: number, dashes: string, verbs?: string[]) {
+	const out: { from: number; to: number }[] = [];
+	const add = (from: number, to: number) => {
+		while (from < to && /[\s.,;:]/.test(text[from])) from++;
+		while (to > from && /\s/.test(text[to - 1])) to--;
+		if (to > from) out.push({ from, to });
+	};
+	let speech = true, from = at;
+	const said = verbs && verbs.length ? new Set(verbs) : null;
+	for (let k = at + 1; k < text.length; k++) {
+		if (speech && said && WS_TAG_MARKS.indexOf(text[k]) !== -1 && wsSpeechTagAt(text, k, said)) {
+			add(from, k + 1);
+			speech = false;
+			from = k + 1;
+			continue;
+		}
+		if (dashes.indexOf(text[k]) === -1) continue;
+		const after = k + 1 < text.length ? text[k + 1] : ' ';
+		if (!/\s/.test(text[k - 1]) && !/[\s\p{P}]/u.test(after)) continue;
+		if (speech) add(from, k);
+		speech = !speech;
+		from = k + 1;
+	}
+	if (speech) add(from, text.length);
+	return out;
+}
+
+export function findDialogue(line: string, marks?: WsDialogueMarks | null) {
 	const text = String(line || '');
 	const out = [];
+	if (marks && marks.dashes) {
+		const lead = (/^[\s>]*/.exec(text) || [''])[0].length;
+		if (lead < text.length && marks.dashes.indexOf(text[lead]) !== -1) return wsDashDialogue(text, lead, marks.dashes, marks.verbs);
+	}
 	// Openers mapped to what may close them. Curly pairs are strict;
 	// straight marks close on themselves.
 	const PAIRS: Record<string, string> = {
@@ -1949,6 +2208,9 @@ export function findDialogue(line: string) {
 		// be worth recognising rather than leaving as stray text.
 		'\u00ab': '\u00bb', '\u201e': '\u201c'
 	};
+	// …and the language's own (A610): a closer added beside the usual one, so „ closes
+	// on “ in German and on ” in Polish; each opener a string of what may close it
+	if (marks) for (const o of Object.keys(marks.pairs)) if (o) PAIRS[o] = (PAIRS[o] || '') + marks.pairs[o];
 	const isWordish = (ch: string) => !!ch && /[\p{L}\p{N}]/u.test(ch);
 	let i = 0;
 	while (i < text.length) {
@@ -1962,10 +2224,10 @@ export function findDialogue(line: string) {
 		let j = -1;
 		for (let k = i + 1; k < text.length; k++) {
 			const c = text[k];
-			if (c !== close) continue;
+			if (close.indexOf(c) === -1) continue;
 			// The same positional rule at the closing end, or "it's" inside
 			// a single-quoted line would end the speech early.
-			if ((close === "'" || close === '\u2019')
+			if ((c === "'" || c === '\u2019')
 				&& isWordish(text[k - 1]) && isWordish(text[k + 1])) continue;
 			j = k;
 			break;
@@ -2075,27 +2337,43 @@ export const TYPO_OPENS_AFTER = /[\s([{<\u2018\u201c\u2013\u2014\u2026-]/;
 const WS_ABBREVIATIONS = new Set(['mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr', 'prof', 'vs', 'etc', 'fig', 'vol', 'cf', 'ca', 'approx',
 	'gen', 'col', 'lt', 'sgt', 'capt', 'rev', 'mt', 'ft', 'inc', 'ltd', 'co', 'dept', 'jan', 'feb', 'apr', 'jun', 'jul', 'aug', 'sep',
 	'sept', 'oct', 'nov', 'dec']);
-export function wsSentenceStart(before: string, prevLine: string | null): boolean {
+// THE MARKS A SENTENCE IS READ BY, as character-class bodies: what may open one (quote
+// marks, brackets), what ends one, what may close the one before, which of those are
+// quote marks (a dialogue tag goes on after them), and the abbreviations that end
+// none (with their dot; null is English's list). English's are the default; a
+// language pack hands its own (A571).
+// dash: the dialogue dash, escaped; ordinal: "3." is an ordinal there (German, Danish…) (A610)
+export interface WsSentenceMarks { open: string; end: string; close: string; quote: string; abbr: Set<string> | null; dash?: string; ordinal?: boolean }
+export const WS_SENTENCE_MARKS_EN: WsSentenceMarks = { open: '"\'\u201c\u2018([', end: '.!?', close: '"\'\u201d\u2019)\\]', quote: '"\'\u201d\u2019', abbr: null };
+export function wsSentenceStart(before: string, prevLine: string | null, marks?: WsSentenceMarks | null): boolean {
+	const k = marks || WS_SENTENCE_MARKS_EN;
 	if (/^\s*\|/.test(before)) return false;
 	if (before.lastIndexOf('[[') > before.lastIndexOf(']]')) return false;
 	if (/\]\([^)]*$/.test(before)) return false;
 	const m = /^(\s*(?:>\s?)*)(\s*(?:[-*+]\s+(?:\[.\]\s+)?|\d+[.)]\s+|#{1,6}\s+))?/.exec(before);
 	const lead = m ? m[0] : '';
 	const rest = before.slice(lead.length);
-	if (/^["'\u201c\u2018([]*$/.test(rest)) {
+	// A LINE OPENED BY THE DIALOGUE DASH opens a sentence: —¿Vienes?, – Hej (A610)
+	const dashLead = k.dash ? '(?:[' + k.dash + ']\\s?)?' : '';
+	if (new RegExp('^' + dashLead + '[' + k.open + ']*$').test(rest)) {
 		if (m && m[2]) return true;
 		if (prevLine === null) return true;
 		const p = prevLine.replace(/\s+$/, '').replace(/^\s*(?:>\s?)*/, '');
 		if (p === '' || /^#{1,6}\s/.test(p) || /^(?:-{3,}|\*{3,}|_{3,})$/.test(p)) return true;
-		return /[.!?]["'\u201d\u2019)\]]*$/.test(p);
+		return new RegExp('[' + k.end + '][' + k.close + ']*$').test(p);
 	}
-	const t = /(\S*?)([.!?]+)(["'\u201d\u2019)\]]*)\s+["'\u201c\u2018([]*$/.exec(rest);
+	const t = new RegExp('(\\S*?)([' + k.end + ']+)([' + k.close + ']*)\\s+' + (k.dash ? '([' + k.dash + ']\\s?)?' : '()') + '[' + k.open + ']*$').exec(rest);
 	if (!t) return false;
 	if (/\.\./.test(t[2])) return false;
-	if (/["'\u201d\u2019]/.test(t[3]) && !/\./.test(t[2])) return false;
+	// A DASH AFTER THE END (A610): after a full stop it opens the speech again ("Jan. — Może");
+	// after ? or ! it opens the tag, which goes on in lower case ("¿Vienes? —preguntó")
+	if (t[4] && !/\./.test(t[2])) return false;
+	if (new RegExp('[' + k.quote + ']').test(t[3]) && !/\./.test(t[2])) return false;
 	if (t[2] === '.') {
-		const w = t[1].replace(/^["'\u201c\u2018([]+/, '');
-		if (/^\p{L}$/u.test(w) || w.indexOf('.') !== -1 || WS_ABBREVIATIONS.has(w.toLowerCase())) return false;
+		const w = t[1].replace(new RegExp('^[' + k.open + ']+'), '');
+		if (/^\p{L}$/u.test(w) || w.indexOf('.') !== -1 || (k.abbr ? k.abbr.has(w.toLowerCase() + '.') : WS_ABBREVIATIONS.has(w.toLowerCase()))) return false;
+		// "am 3. Oktober": an ordinal where the language writes them so; a year ends a sentence
+		if (k.ordinal && /^\d{1,3}$/.test(w)) return false;
 	}
 	return true;
 }
@@ -2159,7 +2437,10 @@ export const CJK_CHAR = /[\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff\u
 // A word is any run starting with a letter or digit. Requiring one of those
 // is what keeps list bullets, table pipes, blockquote markers and emphasis
 // asterisks from each counting as a word.
-export const WORDISH = /[\p{L}\p{N}][\p{L}\p{N}'\u2019_-]*/gu;
+// A FIGURE IS ONE WORD (A610), its separators inside it: 1.000, 3,5, 3.14, 10:30 and
+// 1.º were two each, in every language. A word processor counts each once. A figure
+// first, then a word; NO LOOKBEHIND, which an older iPhone's Safari cannot parse (smoke).
+export const WORDISH = /\p{N}+(?:[.,:]\p{N}+)*(?:\.?[\u00ba\u00aa])?[\p{L}\p{N}'\u2019_-]*|(?![\u00ba\u00aa])\p{L}[\p{L}\p{N}'\u2019_-]*/gu;
 
 // Blanks out markup while preserving nothing but the prose. Unlike
 // maskMarkup (used for highlighting) this keeps inline code *content* — "the
@@ -2182,7 +2463,15 @@ export function maskForCounting(text: string) {
 	out = out.replace(/<[^>]+>/g, blank);                         // html tags
 	out = out.replace(/\[\^[^\]]*\]/g, blank);                    // footnote markers
 	out = out.replace(/\$[^$\n]+\$/g, blank);                     // inline math
-	return out;
+	return wsMaskCitations(out);
+}
+
+// CITATIONS ARE NOT PROSE (A572): Pandoc's [@key, p. 12] and a narrative @key blanked,
+// for the count and for the marks; an email (a letter before its @) is left as it is.
+export function wsMaskCitations(text: string) {
+	return text
+		.replace(/\[[^[\]]*?-?@[A-Za-z0-9_][^[\]]*\](?!\()/g, (m: string) => ' '.repeat(m.length))
+		.replace(/(^|[^\w@[\]`])@[A-Za-z0-9_][\w:.#$%&+?<>~/-]*/g, (m: string, pre: string) => pre + ' '.repeat(m.length - pre.length));
 }
 
 // ── Markup masking ───────────────────────────────────────────────────────────
@@ -2205,7 +2494,7 @@ export function maskMarkup(text: string) {
 	out = out.replace(/\[\^[^\]]*\]/g, blank);                    // footnotes
 	out = out.replace(/^\s{0,3}#{1,6}\s/, blank);                 // heading marker
 	out = out.replace(/\{\{[^}]*\}\}/g, blank);                   // templates
-	return out;
+	return wsMaskCitations(out);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2322,9 +2611,12 @@ export function wsUtf8(str: string) {
 }
 
 // STORE-only ZIP. Entries are { name, bytes }; the result is a Uint8Array
-// ready for vault.createBinary.
-export function wsZip(entries: { name: string; bytes: number[] }[]) {
-	const out: number[] = [];
+// ready for vault.createBinary. THE PARTS ARE COPIED, NOT PUSHED: a picture
+// makes a part megabytes long, and a byte at a time onto a plain array was a
+// number per byte in memory (A568). Every part and header is laid into one
+// buffer of the right size at the end.
+export function wsZip(entries: { name: string; bytes: number[] | Uint8Array }[]) {
+	const chunks: (number[] | Uint8Array)[] = [];
 	const central: number[][] = [];
 	const u16 = (v: number) => [v & 0xFF, (v >> 8) & 0xFF];
 	const u32 = (v: number) => [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >>> 24) & 0xFF];
@@ -2345,17 +2637,344 @@ export function wsZip(entries: { name: string; bytes: number[] }[]) {
 			u16(0), u16(0), u32(crc), u32(data.length), u32(data.length),
 			u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0),
 			u32(offset), name));
-		for (const b of local) out.push(b);
-		for (let i = 0; i < data.length; i++) out.push(data[i]);
+		chunks.push(local, data);
 		offset += local.length + data.length;
 	}
 	const cdStart = offset;
 	let cdLen = 0;
-	for (const c of central) { for (const b of c) out.push(b); cdLen += c.length; }
-	const end = ([] as number[]).concat(u32(0x06054B50), u16(0), u16(0),
-		u16(central.length), u16(central.length), u32(cdLen), u32(cdStart), u16(0));
-	for (const b of end) out.push(b);
-	return new Uint8Array(out);
+	for (const c of central) { chunks.push(c); cdLen += c.length; }
+	chunks.push(([] as number[]).concat(u32(0x06054B50), u16(0), u16(0),
+		u16(central.length), u16(central.length), u32(cdLen), u32(cdStart), u16(0)));
+	let total = 0;
+	for (const c of chunks) total += c.length;
+	const out = new Uint8Array(total);
+	let at = 0;
+	for (const c of chunks) { out.set(c, at); at += c.length; }
+	return out;
+}
+
+// ── WHERE EACH PRINTED PAGE BEGINS, FOR THE READER (A569, the writer's look 4) ──
+//
+// Read off the paged preview: every block's column is its page, so the first block of a new
+// column begins page n. STAMPED ON THE BLOCK as `data-ws-page`, which only the reader draws (a
+// faint rule and the number): no node is added and the pages are untouched. Read with the flow
+// taken off for the moment, the scroll put back; a stamp from the last reading is cleared first.
+export function wsPageStarts(doc: Document) {
+	const root = doc.documentElement;
+	const view = doc.defaultView;
+	if (!root || !view) return 0;
+	for (const el of Array.from(doc.querySelectorAll('[data-ws-page]'))) el.removeAttribute('data-ws-page');
+	for (const el of Array.from(doc.querySelectorAll('[data-ws-page-open]'))) el.removeAttribute('data-ws-page-open');
+	const flow = doc.querySelector<HTMLElement>('.sheet:not([data-pooled]) .flow');
+	if (!flow) return 0;
+	const scroller = doc.scrollingElement;
+	const top = scroller ? scroller.scrollTop : 0;
+	const was = root.classList.contains('is-flow');
+	if (was) root.classList.remove('is-flow');
+	let n = 0;
+	try {
+		const across = flow.clientWidth + (parseFloat(view.getComputedStyle(flow).columnGap) || 0);
+		if (across > 0) {
+			const origin = flow.getBoundingClientRect().left - flow.scrollLeft;
+			let seen = 0;
+			for (const sec of Array.from(flow.children)) for (const el of Array.from(sec.children)) {
+				const col = Math.floor((el.getBoundingClientRect().left - origin + 1) / across);
+				if (col > seen) {
+					el.setAttribute('data-ws-page', String(col + 1)); seen = col; n++;
+					// A FILE THAT OPENS THE PAGE (A618): its page rule is its divider, so it
+					// draws no dashed rule of its own above it
+					if (el === sec.firstElementChild) sec.setAttribute('data-ws-page-open', '');
+				}
+			}
+		}
+	} finally {
+		if (was) root.classList.add('is-flow');
+		if (scroller) scroller.scrollTop = top;
+	}
+	return n;
+}
+
+// ── AN E-BOOK (A612) ─────────────────────────────────────────────────────
+//
+// THE WEB PAGE'S DOCUMENT, CUT INTO A BOOK: the builder the preview, the .html and
+// the PDF read, so the e-book cannot drift from what the writer just looked at.
+// Each section that opens a page opens a file (a reader turns a page there too),
+// every link is told the file its anchor went to, the pictures are unpacked from
+// their data addresses into the book, and each file is written by the browser's
+// own XML serializer, which is what makes it the XHTML an EPUB must be (a <br>
+// written <br/>, every & escaped), on a phone as on the desktop. EPUB 3, with an
+// EPUB 2 table of contents beside it for older readers; a store-only zip, the
+// mimetype first and alone, as the format asks.
+export interface WsEpubNav { id: string; label: string; level: number }
+export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; modified?: string }
+
+// the picture kinds every EPUB reader is bound to show
+const WS_EPUB_IMG: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+
+// THE BOOK'S IDENTIFIER from its title and author: the same book exported twice is
+// the same book to a reader's library, which updates it rather than shelving two.
+export function wsEpubUuid(seed: string) {
+	const h = [0, 1, 2, 3].map((k) => wsCrc32(wsUtf8(k + '|' + seed)).toString(16).padStart(8, '0')).join('');
+	return h.slice(0, 8) + '-' + h.slice(8, 12) + '-4' + h.slice(13, 16) + '-'
+		+ ((parseInt(h.charAt(16), 16) & 3) | 8).toString(16) + h.slice(17, 20) + '-' + h.slice(20, 32);
+}
+
+// base64 to bytes without atob, which a build's typings may call deprecated
+const WS_B64_AT = (() => {
+	const t = new Int16Array(128).fill(-1);
+	const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+	for (let i = 0; i < 64; i++) t[a.charCodeAt(i)] = i;
+	return t;
+})();
+export function wsDataUrlBytes(url: string): { mime: string; bytes: Uint8Array } | null {
+	const m = /^data:([^;,]+)((?:;[^;,]*)*),([\s\S]*)$/.exec(url);
+	if (!m) return null;
+	try {
+		if (!/;base64/i.test(m[2])) return { mime: m[1].toLowerCase(), bytes: new Uint8Array(wsUtf8(decodeURIComponent(m[3]))) };
+		const s = m[3];
+		const out = new Uint8Array(Math.ceil(s.length * 3 / 4));
+		let o = 0, buf = 0, bits = 0;
+		for (let i = 0; i < s.length; i++) {
+			const c = s.charCodeAt(i);
+			const v = c < 128 ? WS_B64_AT[c] : -1;
+			if (v < 0) continue;
+			buf = ((buf << 6) | v) & 0xFFFFFF; bits += 6;
+			if (bits >= 8) { bits -= 8; out[o++] = (buf >> bits) & 0xFF; }
+		}
+		return { mime: m[1].toLowerCase(), bytes: out.slice(0, o) };
+	} catch { return null; }
+}
+
+// A READER'S PAGE, not a sheet: no paper, no margins, no running header, and since
+// A626 no face and no line height either ("there are font stuff like times new roman,
+// line spaces"): the reader's app sets those, and a book that names them overrides
+// the reader's choice in the apps that honor a publisher's style. The book keeps its
+// shape: the indents, the headings, the breaks.
+export function wsEpubCss(meta: WsEpubMeta) {
+	return 'body { margin: 0; }\n'
+		+ 'p { margin: ' + (meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
+		+ 'p.first, p.div, p.cmt, p.li, blockquote p, figure p, li p, td p, th p { text-indent: 0; }\n'
+		+ 'h1, h2, h3, h4, h5, h6 { text-align: center; font-weight: bold; text-indent: 0; margin: 1.5em 0 1em; page-break-after: avoid; break-after: avoid; }\n'
+		+ 'h1, h2 { font-size: 1.4em; } h3, h4, h5, h6 { font-size: 1.15em; }\n'
+		+ 'section.tp { text-align: center; padding-top: 25%; } section.tp h1 { font-size: 2em; } section.tp p { text-indent: 0; }\n'
+		+ 'p.div { text-align: center; margin: 1em 0; }\n'
+		+ 'p.cmt { font-style: italic; color: #555; }\n'
+		+ 'blockquote { margin: 0.6em 1.5em; } blockquote.callout { border-left: 2px solid #bbb; padding-left: 0.6em; margin-left: 1em; }\n'
+		+ 'p.li { margin: 0 0 0.2em 1em; } p.li.l1 { margin-left: 2em; } p.li.l2 { margin-left: 3em; } p.li.l3 { margin-left: 4em; }\n'
+		+ 'pre.code, pre.math, pre.fm { font-family: monospace; font-size: 0.85em; white-space: pre-wrap; }\n'
+		+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; } table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 6px; }\n'
+		+ 'figure.fig { margin: 0.8em 0; text-align: center; text-indent: 0; page-break-inside: avoid; break-inside: avoid; }\n'
+		+ 'figure.fig img { max-width: 100%; height: auto; } figure.fig figcaption { font-style: italic; font-size: 0.9em; }\n'
+		+ 'mark.hl-red { background: #f8c1c8; } mark.hl-orange { background: #f9d6b2; } mark.hl-green { background: #b5eaca; } mark.hl-blue { background: #b5d3f5; } mark.hl-purple { background: #d6cbfa; }\n'
+		+ 'sup.fnref a { text-decoration: none; } ol.notes li { font-size: 0.92em; margin: 0 0 0.4em; text-indent: 0; }\n'
+		+ 'p.bib { padding-left: 2em; text-indent: -2em; margin: 0 0 0.5em; }\n'
+		+ 'ol.toc { list-style: none; padding: 0; } ol.toc li.l1 { margin-left: 1.5em; } ol.toc li.l2 { margin-left: 3em; } ol.toc li.l3 { margin-left: 4.5em; }\n'
+		+ 'nav ol { list-style: none; } nav li { margin: 0.2em 0; }\n';
+}
+
+export function wsBuildEpub(html: string, meta: WsEpubMeta) {
+	const doc = new DOMParser().parseFromString(html, 'text/html');
+	const ser = new XMLSerializer();
+	const lang = meta.lang || 'en';
+	const title = meta.title || 'Untitled';
+	// THE FILES: a section that opens a page opens one; a section that runs on joins it
+	const parts: Element[][] = [];
+	for (const el of Array.from(doc.body.children)) {
+		if (/^(STYLE|SCRIPT)$/.test(el.tagName)) continue;
+		if (!parts.length || (el.tagName === 'SECTION' && el.classList.contains('page'))) parts.push([el]);
+		else parts[parts.length - 1].push(el);
+	}
+	if (!parts.length) parts.push([]);
+	// THE TITLE PAGE IS A CHAPTER TOO (A632, the writer: "the epub needs to have the title
+	// page as a chapter too"): an address of its own, first in the contents, under the title
+	const tp = doc.body.querySelector('section.tp');
+	if (tp && !tp.id) tp.id = 'ws-title-page';
+	const name = (i: number) => 'part-' + String(i + 1).padStart(3, '0') + '.xhtml';
+	const home = new Map<string, number>();
+	parts.forEach((els, i) => {
+		for (const el of els) for (const x of [el].concat(Array.from(el.querySelectorAll('[id]')))) if (x.id && !home.has(x.id)) home.set(x.id, i);
+	});
+	const media: { href: string; mime: string; bytes: Uint8Array }[] = [];
+	const unpacked = new Map<string, string>();
+	parts.forEach((els, i) => {
+		for (const el of els) {
+			// a link told the file its anchor went to; one to nothing in the book loses its address
+			for (const a of Array.from(el.querySelectorAll('a[href^="#"]'))) {
+				const id = (a.getAttribute('href') || '').slice(1);
+				const at = home.get(id);
+				if (at === undefined) a.removeAttribute('href');
+				else if (at !== i) a.setAttribute('href', name(at) + '#' + id);
+			}
+			for (const img of Array.from(el.querySelectorAll('img'))) {
+				const src = img.getAttribute('src') || '';
+				let href = unpacked.get(src);
+				if (!href) {
+					const d = /^data:/i.test(src) ? wsDataUrlBytes(src) : null;
+					const ext = d ? WS_EPUB_IMG[d.mime] : '';
+					if (!d || !ext) {
+						// a picture no reader is bound to show leaves its words, never a hole
+						img.replaceWith(doc.createTextNode('[' + (img.getAttribute('alt') || 'Image') + ']'));
+						continue;
+					}
+					href = 'images/img-' + (media.length + 1) + '.' + ext;
+					media.push({ href, mime: d.mime, bytes: d.bytes });
+					unpacked.set(src, href);
+				}
+				img.setAttribute('src', '../' + href);
+				if (!img.hasAttribute('alt')) img.setAttribute('alt', '');
+			}
+			// the notes in EPUB's own words, so a reader that knows them opens a note in place
+			for (const a of Array.from(el.querySelectorAll('sup.fnref a'))) a.setAttribute('epub:type', 'noteref');
+			for (const li of Array.from(el.querySelectorAll('ol.notes > li'))) li.setAttribute('epub:type', 'endnote');
+		}
+	});
+	const x = wsXml;
+	const page = (head: string, body: string, css: string) => '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
+		+ '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + x(lang) + '" xml:lang="' + x(lang) + '">\n'
+		+ '<head>\n<meta charset="utf-8"/>\n<title>' + x(head) + '</title>\n<link rel="stylesheet" type="text/css" href="' + css + '"/>\n</head>\n'
+		+ '<body>\n' + body + '\n</body>\n</html>\n';
+	const xmlOf = (n: Node) => ser.serializeToString(n)
+		.replace(/ xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/g, '')
+		// a control character is no XML; a tab, a line break and a return are
+		.replace(/[^\P{Cc}\t\n\r]/gu, '');
+	const files: { name: string; bytes: number[] | Uint8Array }[] = [
+		{ name: 'mimetype', bytes: wsUtf8('application/epub+zip') },
+		{ name: 'META-INF/container.xml', bytes: wsUtf8('<?xml version="1.0" encoding="utf-8"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n<rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>\n</container>\n') },
+	];
+	const texts: { name: string; bytes: number[] | Uint8Array }[] = [];
+	parts.forEach((els, i) => {
+		const h = els.map((el) => el.querySelector('h1, h2, h3, h4, h5, h6')).find((e) => !!e);
+		const head = ((h && h.textContent) || '').trim() || title;
+		texts.push({ name: 'OEBPS/text/' + name(i), bytes: wsUtf8(page(head, els.map(xmlOf).join('\n'), '../style.css')) });
+	});
+	// THE CONTENTS: the web page's own entries, nested by their levels; the first page when there are none
+	const listed = meta.nav.filter((e) => home.has(e.id));
+	const tpEntry: WsEpubNav[] = tp ? [{ id: tp.id, label: title, level: 0 }] : [];
+	const entries: WsEpubNav[] = (listed.length || tp) ? tpEntry.concat(listed) : [{ id: '', label: title, level: 0 }];
+	const hrefOf = (e: WsEpubNav) => 'text/' + name(e.id ? (home.get(e.id) ?? 0) : 0) + (e.id ? '#' + e.id : '');
+	const ol: string[] = [];
+	let depth = 0;
+	for (const e of entries) {
+		const lv = Math.min(Math.max(1, e.level + 1), depth + 1);
+		if (lv > depth) { ol.push('<ol>'); depth++; }
+		else { ol.push('</li>'); while (depth > lv) { ol.push('</ol></li>'); depth--; } }
+		ol.push('<li><a href="' + x(hrefOf(e)) + '">' + x(e.label) + '</a>');
+	}
+	ol.push('</li>');
+	while (depth > 1) { ol.push('</ol></li>'); depth--; }
+	ol.push('</ol>');
+	const uid = 'urn:uuid:' + wsEpubUuid(title + '|' + (meta.author || ''));
+	const ncx = '<?xml version="1.0" encoding="utf-8"?>\n<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">\n'
+		+ '<head><meta name="dtb:uid" content="' + x(uid) + '"/><meta name="dtb:depth" content="1"/><meta name="dtb:totalPageCount" content="0"/><meta name="dtb:maxPageNumber" content="0"/></head>\n'
+		+ '<docTitle><text>' + x(title) + '</text></docTitle>\n<navMap>\n'
+		+ entries.map((e, k) => '<navPoint id="np' + (k + 1) + '" playOrder="' + (k + 1) + '"><navLabel><text>' + x(e.label) + '</text></navLabel><content src="' + x(hrefOf(e)) + '"/></navPoint>').join('\n')
+		+ '\n</navMap>\n</ncx>\n';
+	const modified = (meta.modified || new Date().toISOString()).replace(/\.\d+Z$/, 'Z');
+	const items = ['<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>',
+		'<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>',
+		'<item id="css" href="style.css" media-type="text/css"/>']
+		.concat(parts.map((_, i) => '<item id="p' + (i + 1) + '" href="text/' + name(i) + '" media-type="application/xhtml+xml"/>'))
+		.concat(media.map((m, k) => '<item id="i' + (k + 1) + '" href="' + m.href + '" media-type="' + m.mime + '"/>'));
+	const opf = '<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid" xml:lang="' + x(lang) + '">\n'
+		+ '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+		+ '<dc:identifier id="bookid">' + x(uid) + '</dc:identifier>\n'
+		+ '<dc:title>' + x(title) + '</dc:title>\n'
+		+ (meta.author ? '<dc:creator>' + x(meta.author) + '</dc:creator>\n' : '')
+		+ '<dc:language>' + x(lang) + '</dc:language>\n'
+		+ '<meta property="dcterms:modified">' + x(modified) + '</meta>\n'
+		+ '</metadata>\n<manifest>\n' + items.join('\n') + '\n</manifest>\n'
+		+ '<spine toc="ncx">\n' + parts.map((_, i) => '<itemref idref="p' + (i + 1) + '"/>').join('\n') + '\n</spine>\n</package>\n';
+	return wsZip(files.concat([
+		{ name: 'OEBPS/content.opf', bytes: wsUtf8(opf) },
+		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>Contents</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
+		{ name: 'OEBPS/toc.ncx', bytes: wsUtf8(ncx) },
+		{ name: 'OEBPS/style.css', bytes: wsUtf8(wsEpubCss(meta)) },
+	], texts, media.map((m) => ({ name: 'OEBPS/' + m.href, bytes: m.bytes }))));
+}
+
+// ── THE E-BOOK, CHECKED AFTER IT IS BUILT (A654, the writer's pick 10) ─────────────
+//
+// What a store's checker refuses first, read back from the bytes the export is about to write: the mimetype
+// first, stored and right; the package the container names; every file the manifest lists, in the book, and no
+// manifest id twice; every reading-order entry in the manifest; one contents page; every page well-formed XHTML
+// with no id twice; every contents link (nav and toc.ncx) landing on a page and an id that are there. A list of
+// what is wrong, in words; empty, the book holds. A stored zip only, which is what wsZip writes.
+export function wsEpubCheck(bytes: Uint8Array): string[] {
+	const out: string[] = [];
+	const dec = new TextDecoder();
+	const files = new Map<string, Uint8Array>();
+	const order: { name: string; method: number }[] = [];
+	const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+	let i = 0;
+	while (i + 30 <= bytes.length && dv.getUint32(i, true) === 0x04034b50) {
+		const method = dv.getUint16(i + 8, true), size = dv.getUint32(i + 18, true), nlen = dv.getUint16(i + 26, true), xlen = dv.getUint16(i + 28, true);
+		const name = dec.decode(bytes.subarray(i + 30, i + 30 + nlen));
+		const start = i + 30 + nlen + xlen;
+		files.set(name, bytes.subarray(start, start + size));
+		order.push({ name, method });
+		i = start + size;
+	}
+	const text = (n: string) => { const b = files.get(n); return b ? dec.decode(b) : null; };
+	const xml = (n: string) => {
+		const t = text(n);
+		if (t == null) return null;
+		const d = new DOMParser().parseFromString(t, 'application/xml');
+		return d.getElementsByTagName('parsererror').length ? null : d;
+	};
+	// IN THE INTERFACE'S LANGUAGE (A695): the first of these is the Export pane's notice, which alone reads them;
+	// a file's, an id's and a format's own names are filled in as they are
+	if (!order.length || order[0].name !== 'mimetype' || order[0].method !== 0 || text('mimetype') !== 'application/epub+zip') out.push(wsT('the mimetype is not first, stored and "{type}"', { type: 'application/epub+zip' }));
+	const cont = xml('META-INF/container.xml');
+	const rf = cont ? cont.getElementsByTagName('rootfile')[0] : null;
+	const opfPath = (rf && rf.getAttribute('full-path')) || '';
+	const opf = opfPath ? xml(opfPath) : null;
+	if (!opf) { out.push(opfPath ? wsT('the package ({file}) is missing or not well formed', { file: opfPath }) : wsT('the package (none named) is missing or not well formed')); return out; }
+	const base = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+	const ids = new Set<string>();
+	let nav = '';
+	for (const it of Array.from(opf.getElementsByTagName('item'))) {
+		const id = it.getAttribute('id') || '', href = it.getAttribute('href') || '';
+		if (ids.has(id)) out.push(wsT('the manifest lists "{id}" twice', { id }));
+		ids.add(id);
+		if (!files.has(base + href)) out.push(wsT('the manifest lists {file}, which is not in the book', { file: href }));
+		if (/(^|\s)nav(\s|$)/.test(it.getAttribute('properties') || '')) nav = nav ? '\u0000' : base + href;
+	}
+	if (!nav || nav === '\u0000') out.push(nav ? wsT('more than one contents page') : wsT('no contents page'));
+	for (const ref of Array.from(opf.getElementsByTagName('itemref'))) {
+		const idref = ref.getAttribute('idref') || '';
+		if (!ids.has(idref)) out.push(wsT('the reading order names "{id}", which the manifest lacks', { id: idref }));
+	}
+	// every page well formed, no id twice in it
+	const idsIn = new Map<string, Set<string>>();
+	for (const name of Array.from(files.keys())) {
+		if (!/\.xhtml$/.test(name)) continue;
+		const d = xml(name);
+		if (!d) { out.push(wsT('{file} is not well-formed XHTML', { file: name.slice(base.length) })); continue; }
+		const seen = new Set<string>();
+		for (const el of Array.from(d.getElementsByTagName('*'))) {
+			const id = el.getAttribute('id');
+			if (!id) continue;
+			if (seen.has(id)) out.push(wsT('{file} has the id "{id}" twice', { file: name.slice(base.length), id }));
+			seen.add(id);
+		}
+		idsIn.set(name, seen);
+	}
+	// every contents link lands on a page and an id that are there
+	const land = (from: string, href: string) => {
+		const dir = from.includes('/') ? from.slice(0, from.lastIndexOf('/') + 1) : '';
+		const [file, frag] = href.split('#');
+		const full = dir + file;
+		const there = idsIn.get(full);
+		if (!there) out.push(wsT('the contents link to {link}, a page not in the book', { link: href }));
+		else if (frag && !there.has(frag)) out.push(wsT('the contents link to {link}, an id not there', { link: href }));
+	};
+	const navDoc = nav && nav !== '\u0000' ? xml(nav) : null;
+	if (navDoc) for (const a of Array.from(navDoc.getElementsByTagName('a'))) land(nav, a.getAttribute('href') || '');
+	const ncxItem = Array.from(opf.getElementsByTagName('item')).find((it) => it.getAttribute('media-type') === 'application/x-dtbncx+xml');
+	const ncxPath = ncxItem ? base + (ncxItem.getAttribute('href') || '') : '';
+	const ncx = ncxPath ? xml(ncxPath) : null;
+	if (ncx) for (const c of Array.from(ncx.getElementsByTagName('content'))) land(ncxPath, c.getAttribute('src') || '');
+	return out;
 }
 
 // A MANUSCRIPT'S WORD COUNT IS ROUNDED, and saying "about 52,437 words"
@@ -2448,6 +3067,14 @@ export function wsSoon(fn: () => void) {
 	catch { fn(); return 0; }
 }
 export const WS_STORM_MS = 3000;
+// A PEEK (A578): how long the pointer rests on the window's edge before a pane
+// slides out (a sweep across the edge opens nothing), and how long it may be
+// away from an open pane before the pane goes.
+export const WS_PEEK_DWELL_MS = 180;
+// how far in from the window's edge the pointer opens a pane (A588: three pixels
+// was a target a hand missed; the writer asked for "more room")
+export const WS_PEEK_EDGE_PX = 12;
+export const WS_PEEK_LEAVE_MS = 350;
 // 150 passes in three seconds is fifty a second sustained — past what a
 // scroll produces and short of nothing.
 export const WS_STORM_PASSES = 150;
@@ -2851,6 +3478,23 @@ export function wsMenuIsNative(menu: unknown): boolean {
 		return !!(menu && (menu as { useNativeMenu?: unknown }).useNativeMenu === true);
 	} catch { return false; }
 }
+// A WHEEL'S ZOOM STEPS (the Mac audit for issue #56, 2026-10-10). A mouse notch
+// is one step. A trackpad's pinch, and two fingers with Ctrl or Cmd held,
+// arrive as dozens of small events a gesture, and each took a whole step: one
+// movement ran the zoom to its end. Small deltas now add up to a notch's worth
+// before a step; a sideways swipe (no deltaY) is no step; a pause starts the
+// count again. +1 is in (the wheel away from you, fingers apart), -1 out.
+export interface WsWheelAcc { sum: number; at: number }
+export function wsWheelStep(acc: WsWheelAcc, deltaY: number, now: number): number {
+	if (now - acc.at > 300) acc.sum = 0;
+	acc.at = now;
+	if (Math.abs(deltaY) >= 50) { acc.sum = 0; return deltaY > 0 ? -1 : 1; }
+	acc.sum += deltaY;
+	if (Math.abs(acc.sum) < 100) return 0;
+	const step = acc.sum > 0 ? -1 : 1;
+	acc.sum = 0;
+	return step;
+}
 export function wsMenu() {
 	const m = new Menu();
 	for (const k of ['showAtPosition', 'showAtMouseEvent'] as const) {
@@ -3038,6 +3682,26 @@ export const WS_FRAME_SHELL = '<!DOCTYPE html><html><head></head><body></body></
 // gathering and shortcut key, and the code already takes either.
 export function wsModKeyName(): string {
 	try { return Platform && Platform.isMacOS ? 'Cmd' : 'Ctrl'; } catch { return 'Ctrl'; }
+}
+// THE FIRST OF SOME ICON NAMES THIS OBSIDIAN BUNDLES (A681): setIcon draws nothing for a name its Lucide
+// lacks (letters is newer than 1.14.4's set), so the names are tried once on a detached element and the
+// first that draws is kept; where none draws, or nothing can be probed, the last name stands
+const WS_ICON_PICKED = new Map<string, string>();
+export function wsIconPick(names: string[]): string {
+	const key = names.join('|');
+	const had = WS_ICON_PICKED.get(key);
+	if (had !== undefined) return had;
+	let got = names[names.length - 1] || '';
+	try {
+		const el = createDiv();
+		for (const nm of names) {
+			el.empty();
+			try { setIcon(el, nm); } catch { /* an unknown name: the next is tried */ }
+			if (el.childElementCount > 0) { got = nm; break; }
+		}
+	} catch { /* no document to probe in: the last name */ }
+	WS_ICON_PICKED.set(key, got);
+	return got;
 }
 export function wsIconInto(el: HTMLElement, names: string[], glyph: string): string {
 	for (const nm of names) {
@@ -3350,7 +4014,7 @@ export function wsJoinMark(o: WsExportOpts | null | undefined) {
 }
 
 // a run of a paragraph: text and how it is set
-export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; hl?: string; sup?: boolean; mono?: boolean; sz?: number }
+export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: boolean; hl?: string; sup?: boolean; mono?: boolean; sz?: number; note?: number; noteEnd?: boolean; noteMark?: string }
 // THE TITLE PAGE'S TITLE, one and a half times the body size, bold. A MULTIPLE,
 // as `wsHeadSizeEm` is, so both readers take it from here: the .docx turns it
 // into half-points on the title's run, the page writes it as em. Bigger than
@@ -3378,7 +4042,118 @@ export function wsHighlightColorAt(text: string, at: number) {
 	const color = WS_HL_EMOJI[ch] || '';
 	return { color, length: color ? ch.length : 0 };
 }
-export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
+// ── PICTURES (A568) ────────────────────────────────────────────────────
+//
+// A picture in a note travels into Word, the PDF and the web page as itself:
+// centered on the page's text column at its own size, never wider than the
+// column nor taller than the page, never enlarged, a width written in the
+// note (|300) kept up to the column, and its alt text, when it has one, its
+// caption. Markdown keeps the reference exactly as written. A picture that
+// cannot travel (not in the vault, on the web, inside a quote or a list) is
+// the visible placeholder, never nothing.
+//
+// Read BEFORE the build (exportImages, which is async), and handed to these
+// synchronous walkers one map per note, keyed by the reference as written:
+// the same ![[map.png]] resolves from the note it sits in.
+export const WS_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'];
+export function wsImageRefRe() { return /!\[\[([^\]]+)\]\]|!\[([^\]]*)\]\(([^)]*)\)/g; }
+// One reference read: its target, its alt text, the width the note asked for,
+// and whether it points off the vault. Null when the embed is not a picture by
+// its extension (a note, a PDF), which keeps its placeholder.
+export function wsParseImageRef(raw: string): { target: string; alt: string; width: number | null; remote: boolean } | null {
+	const m = /^!\[\[([^\]]+)\]\]$|^!\[([^\]]*)\]\(([^)]*)\)$/.exec(String(raw || '').trim());
+	if (!m) return null;
+	const size = (s: string) => { const d = /^\s*(\d+)(?:\s*x\s*\d+)?\s*$/.exec(s); return d ? Number(d[1]) : null; };
+	let target = '', alt = '', width: number | null = null;
+	if (m[1] != null) {
+		const bits = m[1].split('|');
+		target = bits[0].trim();
+		for (const piece of bits.slice(1)) {
+			const w = size(piece);
+			if (w != null) width = w;
+			else if (!alt && piece.trim()) alt = piece.trim();
+		}
+	} else {
+		const bits = String(m[2]).split('|');
+		alt = bits[0].trim();
+		for (const piece of bits.slice(1)) { const w = size(piece); if (w != null) width = w; }
+		target = String(m[3]).trim().replace(/^<(.*)>$/, '$1').replace(/\s+"[^"]*"$/, '');
+		try { target = decodeURI(target); } catch { /* kept as written */ }
+	}
+	const remote = /^[a-z][a-z0-9+.-]*:/i.test(target);
+	target = target.replace(/[#?].*$/, '');
+	const ext = (/\.([a-z0-9]+)$/i.exec(target) || ['', ''])[1].toLowerCase();
+	if (WS_IMAGE_EXTS.indexOf(ext) === -1) return null;
+	return { target, alt, width: width && width > 0 ? width : null, remote };
+}
+// One line cut at each picture that travels: the text either side and the
+// pictures in their places. Null when nothing on it travels, so the caller's
+// own paragraph stands.
+export function wsSplitFigures(line: string, imgs: Map<string, WsImage> | null | undefined): (string | WsImage)[] | null {
+	if (!imgs || !imgs.size) return null;
+	const out: (string | WsImage)[] = [];
+	const re = wsImageRefRe();
+	let last = 0, any = false, m;
+	while ((m = re.exec(line)) !== null) {
+		const img = imgs.get(m[0]);
+		if (!img) continue;
+		any = true;
+		if (m.index > last) out.push(line.slice(last, m.index));
+		out.push(img);
+		last = re.lastIndex;
+	}
+	if (!any) return null;
+	if (last < line.length) out.push(line.slice(last));
+	return out;
+}
+// The page's figure: the picture centered (the sheet's figure.fig rules cap it
+// to the column and the page), the width the note asked for, the alt text
+// under it when there is one.
+export function wsFigureHtml(img: WsImage) {
+	const attr = (s: string) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	return '<figure class="fig"><img src="' + attr(img.src) + '" alt="' + attr(img.alt) + '"'
+		+ (img.width ? ' style="width: ' + img.width + 'px"' : '') + '>'
+		+ (img.alt ? '<figcaption>' + attr(img.alt) + '</figcaption>' : '') + '</figure>';
+}
+// Word's picture: inline in its own run, its size in EMU, its file through
+// the relationship the build gave it. The id is the drawing's own, unique in
+// the document; the name is what Word shows when a reader asks.
+export function wsDocxPicture(rid: string, id: number, descr: string, cx: number, cy: number) {
+	const d = wsXml(descr);
+	return '<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+		+ '<wp:extent cx="' + cx + '" cy="' + cy + '"/><wp:effectExtent l="0" t="0" r="0" b="0"/>'
+		+ '<wp:docPr id="' + id + '" name="Picture ' + id + '" descr="' + d + '"/>'
+		+ '<wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>'
+		+ '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+		+ '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+		+ '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+		+ '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="Picture ' + id + '" descr="' + d + '"/><pic:cNvPicPr/></pic:nvPicPr>'
+		+ '<pic:blipFill><a:blip r:embed="' + rid + '"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+		+ '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>'
+		+ '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+		+ '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+}
+// The content type a picture part is filed under.
+export const WS_IMAGE_MIME: Record<string, string> = {
+	png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+	svg: 'image/svg+xml', bmp: 'image/bmp', avif: 'image/avif'
+};
+
+// MARKS THAT ARE TEXT. A backslash before \ * _ = makes it a character, as
+// Obsidian shows it, and every mark inside code is code. Each is held as a
+// private-use stand-in while the runs are cut (so no emphasis rule can see it)
+// and given back in the run's text.
+const WS_SHIELDED = '\\*_=';
+const WS_SHIELD_AT = 0xE010;
+const WS_SHIELD_RE = new RegExp('[' + String.fromCharCode(WS_SHIELD_AT) + '-' + String.fromCharCode(WS_SHIELD_AT + WS_SHIELDED.length - 1) + ']', 'g');
+function wsShieldMark(c: string) {
+	const i = WS_SHIELDED.indexOf(c);
+	return i === -1 ? c : String.fromCharCode(WS_SHIELD_AT + i);
+}
+function wsUnshield(s: string) {
+	return s.replace(WS_SHIELD_RE, (ch: string) => WS_SHIELDED.charAt(ch.charCodeAt(0) - WS_SHIELD_AT));
+}
+export function wsInlineRuns(text: string, opts?: (WsExportOpts & WsExportBuild) | null) {
 	const o = opts || {};
 	let t = String(text == null ? '' : text);
 	// CURLY QUOTES AT COMPILE TIME, never in the writer's files. Which way
@@ -3394,13 +4169,18 @@ export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 			.replace(/"/g, '\u201d');
 	}
 	// Order matters: images before links, or the image's own ](…) is eaten.
-	t = t.replace(/!\[\[([^\]]*)\]\]/g, (m: string, p1: string) => o.dropImages ? '' : '[Image: ' + p1.split('|')[0] + ']');
-	t = t.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m, alt, src) =>
-		o.dropImages ? '' : '[Image: ' + (alt || src) + ']');
+	// code first, where a backslash is a backslash; then the escapes outside it
+	t = t.replace(/`([^`]*)`/g, (m: string, c: string) => c.replace(/[\\*_=]/g, wsShieldMark));
+	t = t.replace(/\\([\\*_=])/g, (m: string, c: string) => wsShieldMark(c));
+	// A PICTURE THAT DID NOT TRAVEL is a visible mark, never nothing: one not
+	// in the vault, on the web, or inside a quote, a list or a table (only a
+	// line of prose is cut into figures). A note embedded is named the same way.
+	t = t.replace(/!\[\[([^\]]*)\]\]/g, (m: string, p1: string) => '[Image: ' + p1.split('|')[0] + ']');
+	t = t.replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m: string, alt: string, src: string) =>
+		'[Image: ' + (alt.split('|')[0] || src) + ']');
 	t = t.replace(/\[\[([^\]|]*)\|([^\]]*)\]\]/g, '$2');   // wikilink, shown text
 	t = t.replace(/\[\[([^\]]*)\]\]/g, '$1');
 	t = t.replace(/\[([^\]]*)\]\(([^)]*)\)/g, '$1');       // md link, label
-	t = t.replace(/`([^`]*)`/g, '$1');                     // code text stays
 	t = t.replace(/<[^>]+>/g, '');                         // html tags
 	// COMMENTS, unless the writer asked for them. `%%like this%%` is a note
 	// to self, and the whole point of it is that it does not travel — but
@@ -3415,12 +4195,10 @@ export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 	// definitions are dropped where they are collected; leaving `[^3]`
 	// standing in the prose would point at a note that is no longer in the
 	// document, which is worse than either having them or not.
-	if (o.footnotes === false) t = t.replace(/\[\^[^\]]*\]/g, '');
+	if (o.footnotes === false) t = t.replace(/\[\^(?!ws-cite-\d+\])[^\]]*\]/g, '');
 
-	// Split into runs on **, * and ==, keeping the text between. Underscores
-	// are deliberately NOT treated as emphasis: snake_case and file_names are
-	// far more common in a vault than _italics_, and turning half a filename
-	// italic is worse than missing an emphasis.
+	// Split into runs on **, * and ==, and on underscores where they can be
+	// emphasis (below), keeping the text between.
 	//
 	// `==` IS NEW, and fixes a leak rather than adding a flourish: highlight
 	// marks were matched by nothing here, so they travelled into the
@@ -3430,15 +4208,47 @@ export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 	// Highlights switch, and off is still the default because a highlight is
 	// usually a note to self about the prose rather than part of it.
 	const runs: WsRun[] = [];
-	const re = /(\*\*\*|\*\*|\*|==)/g;
+	const re = /(\*\*\*|\*\*|\*|==|_+)/g;
 	let bold = false, ital = false, high = false, hl = '', last = 0, m;
+	// UNDERSCORES ARE EMPHASIS AT A WORD'S EDGE, CommonMark's rule: a run opens
+	// with no letter or digit before it and no space after it, closes with no
+	// space before it and no letter or digit after it, and opens only when its
+	// closer is ahead. So _this_ and __this__ lean and bold, and snake_case,
+	// file_names and an opener with no closer stay as typed. Their own pair of
+	// switches: an underscore never closes a star, nor a star an underscore.
+	let uBold = false, uItal = false;
+	const wordy = (c: string) => !!c && /[\p{L}\p{N}]/u.test(c);
+	const blank = (c: string) => !c || /\s/.test(c);
+	const canOpen = (at: number, n: number) => !blank(t.charAt(at + n)) && !wordy(t.charAt(at - 1));
+	const canClose = (at: number, n: number) => !blank(t.charAt(at - 1)) && !wordy(t.charAt(at + n));
+	const closerAhead = (from: number, n: number) => {
+		const u = /_+/g;
+		u.lastIndex = from;
+		let k;
+		while ((k = u.exec(t)) !== null) if (k[0].length === n && canClose(k.index, n)) return true;
+		return false;
+	};
 	const push = (text: string) => {
 		if (!text) return;
-		const run: WsRun = { text, bold, ital, high: high && !!o.highlights };
+		const run: WsRun = { text: wsUnshield(text), bold: bold || uBold, ital: ital || uItal, high: high && !!o.highlights };
 		if (run.high && hl && hl !== 'yellow') run.hl = hl;
 		runs.push(run);
 	};
 	while ((m = re.exec(t)) !== null) {
+		if (m[1].charAt(0) === '_') {
+			const n = m[1].length, at = m.index;
+			const isOpen = n === 1 ? uItal : n === 2 ? uBold : (uBold && uItal);
+			const acts = n <= 3 && (isOpen
+				? canClose(at, n)
+				: !(n === 3 && (uBold || uItal)) && canOpen(at, n) && closerAhead(at + n, n));
+			// a plain underscore stays in the text the next run carries
+			if (!acts) continue;
+			if (at > last) push(t.slice(last, at));
+			if (n !== 2) uItal = !uItal;
+			if (n !== 1) uBold = !uBold;
+			last = re.lastIndex;
+			continue;
+		}
 		if (m.index > last) push(t.slice(last, m.index));
 		if (m[1] === '***') { bold = !bold; ital = !ital; }
 		else if (m[1] === '**') bold = !bold;
@@ -3453,18 +4263,64 @@ export function wsInlineRuns(text: string, opts?: WsExportOpts | null) {
 		last = re.lastIndex;
 	}
 	if (last < t.length) push(t.slice(last));
-	return runs.filter(r => r.text.length);
+	// FOOTNOTE MARKERS BECOME NOTES (#46), in every block a run is cut for:
+	// the build's numbering (`noteRef`) gives a marker whose note is defined
+	// its number, and the run carries it; one with no definition, or with no
+	// build to number it, stays its label, raised, as a superscript.
+	const out: WsRun[] = [];
+	for (const r of runs) {
+		const bits = r.text.split(/\[\^([^\]]+)\]/);
+		if (bits.length === 1) { out.push(r); continue; }
+		for (let k = 0; k < bits.length; k++) {
+			if (!bits[k]) continue;
+			if (k % 2 === 0) { out.push(Object.assign({}, r, { text: bits[k] })); continue; }
+			const num = o.noteRef ? o.noteRef(bits[k]) : null;
+			out.push(num ? Object.assign({}, r, { text: String(num.n), note: num.n, noteEnd: num.end })
+				: Object.assign({}, r, { text: bits[k], sup: true }));
+		}
+	}
+	return out.filter(r => r.text.length);
+}
+// A note's definitions, `[^label]: text` one line each, the first of a label
+// kept: what the walkers skip and the builds number.
+// A CITATION'S OWN NOTE (Chicago's notes, A572 step 4) is labelled ws-cite-N by wsCiteSections, and it travels
+// even with the footnotes switch off: that switch is about the writer's own notes, and a citation is not one
+export const WS_CITE_NOTE = /^ws-cite-\d+$/;
+// the notes an export carries: every one, or with the switch off a citation's own only
+export function wsNotesKept(defs: Map<string, string>, o: { footnotes?: boolean }) {
+	return o.footnotes !== false ? defs : new Map(Array.from(defs).filter(([k]) => WS_CITE_NOTE.test(k)));
+}
+
+export function wsFootnoteDefs(md: string | null | undefined) {
+	const defs = new Map<string, string>();
+	for (const line of String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n')) {
+		const m = /^\s*\[\^([^\]]+)\]:\s*(.*)$/.exec(line);
+		if (m && !defs.has(m[1])) defs.set(m[1], m[2]);
+	}
+	return defs;
 }
 
 // One paragraph of OOXML. `style` names a style defined in styles.xml.
-export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean; align?: string; pageBreakBefore?: boolean }) {
+export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean; align?: string; pageBreakBefore?: boolean; hanging?: boolean }) {
 	const o = opts || {};
 	const pr = [];
 	if (style) pr.push('<w:pStyle w:val="' + style + '"/>');
 	if (o.pageBreakBefore) pr.push('<w:pageBreakBefore/>');
 	if (o.align) pr.push('<w:jc w:val="' + o.align + '"/>');
-	if (o.noIndent) pr.push('<w:ind w:firstLine="0"/>');
+	// a hanging paragraph (the list of sources, A572 step 4): half an inch in, its first line out
+	if (o.hanging) pr.push('<w:ind w:left="720" w:hanging="720"/>');
+	else if (o.noIndent) pr.push('<w:ind w:firstLine="0"/>');
 	const body = (runs.length ? runs : [{ text: '' }]).map((r: WsRun) => {
+		// A NOTE'S REFERENCE in the text, and the note's own mark at its start:
+		// Word numbers both itself, from the id and the place.
+		if (r.note) {
+			const kind = r.noteEnd ? 'endnote' : 'footnote';
+			return '<w:r><w:rPr><w:rStyle w:val="' + (r.noteEnd ? 'Endnote' : 'Footnote') + 'Reference"/></w:rPr><w:' + kind + 'Reference w:id="' + r.note + '"/></w:r>';
+		}
+		if (r.noteMark) {
+			const end = r.noteMark === 'end';
+			return '<w:r><w:rPr><w:rStyle w:val="' + (end ? 'Endnote' : 'Footnote') + 'Reference"/></w:rPr><w:' + (end ? 'endnoteRef' : 'footnoteRef') + '/></w:r>';
+		}
 		const rpr = [];
 		if (r.bold) rpr.push('<w:b/>');
 		if (r.ital) rpr.push('<w:i/>');
@@ -3597,11 +4453,15 @@ export function wsTableCells(row: string) {
 // switch), tables, code and math come out as themselves, as they do in the
 // .docx; a callout only with "Callouts" kept, as a quote under its title in
 // bold, its [!kind] tag never printed.
-export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, parts: string[]) {
-	if (o.keepTags === false) md = wsDropTags(md);
+// The page's runs: emphasis, highlights, and a footnote as its number,
+// raised and linked to its note (the notes at the back carry the ids).
+export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild) {
 	const esc = (t: string) => String(t == null ? '' : t)
 		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-	const runsHtml = (text: string) => wsInlineRuns(text, o).map((r) => {
+	return wsInlineRuns(text, o).map((r) => {
+		// no id on the marker: a note cited twice would give two elements one id
+		if (r.note) return '<sup class="fnref"><a href="#fn-' + r.note + '">' + r.note + '</a></sup>';
+		if (r.sup) return '<sup>' + esc(r.text) + '</sup>';
 		let x = esc(r.text);
 		if (r.bold) x = '<strong>' + x + '</strong>';
 		if (r.ital) x = '<em>' + x + '</em>';
@@ -3610,6 +4470,12 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, part
 		if (r.high) x = (r.hl ? '<mark class="hl-' + r.hl + '">' : '<mark>') + x + '</mark>';
 		return x;
 	}).join('');
+}
+export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOpen: string, parts: string[]) {
+	if (o.keepTags === false) md = wsDropTags(md);
+	const esc = (t: string) => String(t == null ? '' : t)
+		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	const runsHtml = (text: string) => wsRunsHtml(text, o);
 	const lines = md.replace(/\r\n?/g, '\n').split('\n');
 	let inComment = false;
 	let firstPara = true;
@@ -3639,6 +4505,9 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, part
 			firstPara = true;
 			continue;
 		}
+		// A NOTE'S DEFINITION is not prose here: the build gathers it into the
+		// notes at the back, or the Footnotes switch has dropped it.
+		if (/^\[\^[^\]]+\]:/.test(t)) continue;
 		// CODE, kept exactly: monospace, its line breaks, no curly quotes.
 		const fence = t.match(/^(`{3,}|~{3,})/);
 		if (fence) {
@@ -3709,6 +4578,18 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, part
 			parts.push('<p class="li l' + depth + '">' + esc(mark) + runsHtml(task ? task[2] : li[3]) + '</p>');
 			continue;
 		}
+		// PICTURES: a line cut at each picture that travels (wsSplitFigures);
+		// the text either side stays a paragraph.
+		const figs = wsSplitFigures(t, o.imgs);
+		if (figs) {
+			for (const piece of figs) {
+				if (typeof piece !== 'string') { parts.push(wsFigureHtml(piece)); continue; }
+				if (!piece.trim()) continue;
+				parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(piece.trim()) + '</p>');
+				firstPara = false;
+			}
+			continue;
+		}
 		parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(t) + '</p>');
 		firstPara = false;
 	}
@@ -3720,7 +4601,7 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts, pageOpen: string, part
 // the kind of fault Word reports as "this file is corrupt" with no clue. What
 // a manuscript actually wants is endnotes, so the markers stay superscript in
 // the text and the definitions are gathered into a section at the end.
-export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExportOpts | null | undefined) {
+export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExportOpts & WsExportBuild) | null | undefined) {
 	const o = opts || {};
 	// LINE ENDINGS FIRST, once, for the whole document. A vault synced from
 	// Windows has CRLF in it, and splitting on 
@@ -3775,7 +4656,7 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 		// Collected, not printed here — or dropped outright when the switch
 		// says the notes are not coming. Either way the definition line
 		// never appears in the prose where it was written.
-		if (fn) { if (o.footnotes !== false) notes.push({ id: fn[1], text: fn[2] }); continue; }
+		if (fn) { if (o.footnotes !== false || WS_CITE_NOTE.test(fn[1])) notes.push({ id: fn[1], text: fn[2] }); continue; }
 
 		// A COMMENT BLOCK. wsInlineRuns handles `%%inline%%` because it can
 		// see both marks on one line; a block comment opens on its own line
@@ -3912,25 +4793,22 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: WsExpo
 		// Ordinary prose. Manuscript format indents every paragraph EXCEPT
 		// the first of a scene — that is the convention, and getting it
 		// wrong is the tell that a manuscript was machine-made.
-		const runs = [];
-		for (const r of wsInlineRuns(t, o)) {
-			// Footnote markers survive as superscript numbers.
-			const parts = String(r.text).split(/\[\^([^\]]+)\]/);
-			for (let k = 0; k < parts.length; k++) {
-				if (!parts[k]) continue;
-				if (k % 2) runs.push({ text: parts[k], sup: true });
-				// EVERY flag the run arrived with, not two of them. This
-				// rebuilt the run to hang a superscript off it and copied
-				// `bold` and `ital` by hand — so a highlight, added later
-				// and one line further up, was silently dropped on any
-				// paragraph that went through here, which is all of them.
-				// A run's properties are its own; splitting it must not
-				// edit them.
-				else runs.push(Object.assign({}, r, { text: parts[k] }));
-			}
+		// Ordinary prose, a paragraph: its runs as the parser cut them, footnote
+		// markers already notes (wsInlineRuns), every flag a run arrived with kept.
+		const prose = (text: string) => {
+			out.push(wsPara(wsInlineRuns(text, o), 'WsBody', { noIndent: firstPara === false ? false : true }));
+			firstPara = false;
+		};
+		// PICTURES: a line cut at each picture that travels (wsSplitFigures);
+		// the text either side stays prose, each picture its own centered
+		// paragraph from the build's figure writer.
+		const figs = wsSplitFigures(t, o.imgs);
+		if (!figs) { prose(t); continue; }
+		for (const piece of figs) {
+			if (typeof piece === 'string') { if (piece.trim()) prose(piece.trim()); continue; }
+			const fig = o.docxFigure ? o.docxFigure(piece) : [wsPara([{ text: '[Image: ' + piece.name + ']' }], 'WsBody', { noIndent: true })];
+			for (const x of fig) out.push(x);
 		}
-		out.push(wsPara(runs, 'WsBody', { noIndent: firstPara === false ? false : true }));
-		firstPara = false;
 	}
 	// THE BLOCK AFTER A --- OPENS THE PAGE: the break goes on that paragraph's
 	// own properties, after its style as OOXML orders them, so the page starts
@@ -4026,6 +4904,18 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		// author and the word count too; the title run sets bold: true itself.
 		// That is what the preview draws: an h1 and two ordinary paragraphs.
 		+ st('WsTitle', 'Title', spacing + '<w:jc w:val="center"/>')
+		// A PICTURE'S PARAGRAPH, centered and single spaced so the line holds the
+		// picture and nothing else; its caption under it, italic, with a line of
+		// air before the prose resumes.
+		+ st('WsFigure', 'Figure', '<w:spacing w:before="120" w:after="120" w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/><w:jc w:val="center"/>')
+		+ st('WsCaption', 'Caption', '<w:spacing w:after="240" w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/><w:jc w:val="center"/>', '<w:i/>')
+		// NOTES, under Word's own style names (footnote text, footnote reference
+		// and the endnote pair), so Word's numbering and its notes pane know
+		// them: the text single spaced, a size smaller; the reference raised.
+		+ st('FootnoteText', 'footnote text', '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/>', '<w:sz w:val="' + Math.max(16, half - 4) + '"/><w:szCs w:val="' + Math.max(16, half - 4) + '"/>')
+		+ st('EndnoteText', 'endnote text', '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/>', '<w:sz w:val="' + Math.max(16, half - 4) + '"/><w:szCs w:val="' + Math.max(16, half - 4) + '"/>')
+		+ '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
+		+ '<w:style w:type="character" w:styleId="EndnoteReference"><w:name w:val="endnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
 		// OUTLINE LEVELS, or Word's own table of contents cannot see these
 		// headings at all. A TOC field collects by outline level, not by
 		// style name — a custom style without one is invisible to it, and
@@ -4061,8 +4951,48 @@ export function wsHeaderXml(text: string, withPage: boolean) {
 // Assemble the whole package. `sections` is [{ title, markdown }].
 export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null | undefined) {
 	const o = opt || {};
+	// ── PICTURES: one part per file, its relationship, its content type ───
+	//
+	// THE SIZE, in EMU (914,400 to the inch, 635 to the twip, 9,525 to a pixel
+	// at 96 to the inch): the width the note asked for, else the picture's
+	// own; never wider than the column nor taller than 85% of the page, so a
+	// caption fits under it on the same page. A file used twice is one part.
+	const sheet = wsPaperOf(o);
+	const colW = (sheet.w - 2 * sheet.mar) * 635;
+	const colH = Math.round((sheet.h - 2 * sheet.mar) * 635 * 0.85);
+	const media: { rid: string; name: string; ext: string; bytes: Uint8Array<ArrayBuffer> }[] = [];
+	const ridOf = new Map<Uint8Array<ArrayBuffer>, string>();
+	let picId = 0;
+	o.docxFigure = (img: WsImage) => {
+		if (!img.bytes || !img.w || !img.h) return [wsPara([{ text: '[Image: ' + img.name + ']' }], 'WsBody', { noIndent: true })];
+		let rid = ridOf.get(img.bytes);
+		if (!rid) {
+			const n = media.length + 1;
+			rid = 'rIdImg' + n;
+			media.push({ rid, name: 'image' + n + '.' + img.ext, ext: img.ext, bytes: img.bytes });
+			ridOf.set(img.bytes, rid);
+		}
+		let cx = (img.width || img.w) * 9525;
+		let cy = Math.round(cx * img.h / img.w);
+		if (cx > colW) { cy = Math.round(cy * colW / cx); cx = colW; }
+		if (cy > colH) { cx = Math.round(cx * colH / cy); cy = colH; }
+		picId++;
+		const out = ['<w:p><w:pPr><w:pStyle w:val="WsFigure"/>' + (img.alt ? '<w:keepNext/>' : '') + '</w:pPr>'
+			+ wsDocxPicture(rid, picId, img.alt || img.name, cx, cy) + '</w:p>'];
+		if (img.alt) out.push(wsPara([{ text: img.alt }], 'WsCaption', { noIndent: true }));
+		return out;
+	};
 	const body = [];
-	const allNotes: { id: string; text: string; }[] = [];
+	// ── NOTES (#46): Word's own footnotes or endnotes ──────────────────────
+	//
+	// A marker whose note is defined in the same note becomes a reference, in
+	// order of first use; its note goes into footnotes.xml or endnotes.xml
+	// (the Export settings say which), and Word numbers both. A label is a
+	// note's own: two notes that both say [^1] are two notes. Ids from 1;
+	// -1 and 0 are the separators Word asks for.
+	const noteEnd = o.footnotePlace === 'end';
+	const noteXml: string[] = [];
+	const noteTag = noteEnd ? 'endnote' : 'footnote';
 	// A FOLDER HEADING HANDS ITS PAGE TO THE FILE BELOW IT. The folder
 	// heading breaks a page so it stops trailing the previous chapter — and
 	// if the FILE heading after it broke too, the folder name would get a
@@ -4154,7 +5084,10 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			+ '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>');
 	}
 
+	let bibAt = -1;
 	sections.forEach((sec, idx) => {
+		// the list of sources goes at the end (A572 step 4)
+		if (sec.bib) { bibAt = idx; return; }
 		// ── A FOLDER IS A HEADING AND NOTHING ELSE ───────────────────
 		//
 		// No divider, no page of its own, no body. It does NOT answer to
@@ -4238,21 +5171,40 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		}
 		// The note's own headings move down under the folder's — see
 		// `wsDemoteHeadings`. The other two targets do the same.
+		o.imgs = sec.images || null;
+		const defs = wsNotesKept(wsFootnoteDefs(sec.markdown), o);
+		const ids = new Map<string, number>();
+		o.noteRef = (label: string) => {
+			const text = defs.get(label);
+			if (text == null) return null;
+			let n = ids.get(label);
+			if (!n) {
+				n = noteXml.length + 1;
+				ids.set(label, n);
+				// the note's own text, its markers left as labels (a note in a note is not a note)
+				const runs = wsInlineRuns(text, Object.assign({}, o, { noteRef: null }));
+				noteXml.push('<w:' + noteTag + ' w:id="' + n + '">'
+					+ wsPara(([{ text: '', noteMark: noteEnd ? 'end' : 'foot' }, { text: ' ' }] as WsRun[]).concat(runs), noteEnd ? 'EndnoteText' : 'FootnoteText')
+					+ '</w:' + noteTag + '>');
+			}
+			return { n, end: noteEnd };
+		};
 		const built = wsBlocksFromMarkdown(
 			o.folderHeadings ? wsDemoteHeadings(sec.markdown, sec.depth || 0)
 				: sec.markdown, o);
 		for (const b of built.blocks) body.push(b);
-		for (const n of built.notes) allNotes.push(n);
 	});
-
-	if (allNotes.length) {
-		body.push(wsPara([{ text: 'Notes', bold: true }], 'WsHeading2',
-			{ noIndent: true, pageBreakBefore: true }));
-		for (const n of allNotes) {
-			body.push(wsPara(([{ text: n.id + '. ', bold: true }] as WsRun[]).concat(wsInlineRuns(n.text, o)),
-				'WsBody', { noIndent: true }));
-		}
+	o.noteRef = null;
+	// THE LIST OF SOURCES (A572 step 4): a page of its own under the style's heading, each entry hanging half an
+	// inch, its titles in italics; Word puts its endnotes, when they are endnotes, after everything
+	if (bibAt >= 0) {
+		const b = sections[bibAt];
+		if (o.toc) body.push('<w:bookmarkStart w:id="' + (bibAt + 100) + '" w:name="' + wsAnchorId(b.title, bibAt) + '"/>');
+		body.push(wsPara([{ text: b.title, bold: true }], 'WsHeading' + wsFileHeadLevel(o, b), { noIndent: true, pageBreakBefore: true }));
+		if (o.toc) body.push('<w:bookmarkEnd w:id="' + (bibAt + 100) + '"/>');
+		for (const e of b.entries || []) body.push(wsPara(wsInlineRuns(e, o), 'WsBody', { hanging: true }));
 	}
+
 
 	// THE TITLE PAGE CARRIES NO HEADER. A manuscript's running head starts
 	// on the first page of TEXT — "Surname / Title / 1" printed across the
@@ -4267,13 +5219,15 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	const wantFirst = false;   // see above: nothing left for it to arrange
 	const paper = wsPaperOf(o);
 	const wantToc = !!(o.toc && sections.length > 1);
+	const wantSettings = wantToc || noteXml.length > 0;
 	const headerRef = o.runningHeader
 		? '<w:headerReference w:type="default" r:id="rId3"/>'
 			+ (wantFirst ? '<w:headerReference w:type="first" r:id="rId4"/><w:titlePg/>' : '')
 		: '';
 	const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-		+ ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+		+ ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+		+ ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">'
 		+ '<w:body>' + body.join('')
 		// The paper, its margins and the manuscript default — Letter with
 		// an inch all round — all come out of WS_PAPERS now, because a
@@ -4289,11 +5243,13 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		+ '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
 		+ '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
 		+ '<Default Extension="xml" ContentType="application/xml"/>'
+		+ Array.from(new Set(media.map((m) => m.ext))).map((x) => '<Default Extension="' + x + '" ContentType="' + (WS_IMAGE_MIME[x] || 'image/png') + '"/>').join('')
 		+ '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
 		+ '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
 		+ (o.runningHeader ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
 		+ (wantFirst ? '<Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
-		+ (wantToc ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' : '')
+		+ (wantSettings ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' : '')
+		+ (noteXml.length ? '<Override PartName="/word/' + noteTag + 's.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.' + noteTag + 's+xml"/>' : '')
 		+ '</Types>';
 
 	const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
@@ -4306,24 +5262,37 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		+ '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
 		+ (o.runningHeader ? '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '')
 		+ (wantFirst ? '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>' : '')
-		+ (wantToc ? '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' : '')
+		+ (wantSettings ? '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' : '')
+		+ (noteXml.length ? '<Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/' + noteTag + 's" Target="' + noteTag + 's.xml"/>' : '')
+		+ media.map((m) => '<Relationship Id="' + m.rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.name + '"/>').join('')
 		+ '</Relationships>';
 
 	// The part that turns "right-click to update" into a contents page a
 	// reader never has to think about. Only shipped when there IS a field
-	// to update: a document with nothing dirty in it should not ask.
+	// to update: a document with nothing dirty in it should not ask. AND
+	// WHEN THERE ARE NOTES: it names their two separators, in the order
+	// Word's schema keeps (updateFields before footnotePr before endnotePr).
 	const settingsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
-		+ '<w:updateFields w:val="true"/></w:settings>';
+		+ (wantToc ? '<w:updateFields w:val="true"/>' : '')
+		+ (noteXml.length ? '<w:' + noteTag + 'Pr><w:' + noteTag + ' w:id="-1"/><w:' + noteTag + ' w:id="0"/></w:' + noteTag + 'Pr>' : '')
+		+ '</w:settings>';
+	// The notes' own part: the two separators Word draws above them, then the notes.
+	const sep = (id: number, el: string) => '<w:' + noteTag + ' w:type="' + el + '" w:id="' + id + '"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:' + el + '/></w:r></w:p></w:' + noteTag + '>';
+	const notesPart = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:' + noteTag + 's xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+		+ sep(-1, 'separator') + sep(0, 'continuationSeparator') + noteXml.join('')
+		+ '</w:' + noteTag + 's>';
 
-	const entries = [
+	const entries: { name: string; bytes: number[] | Uint8Array }[] = [
 		{ name: '[Content_Types].xml', bytes: wsUtf8(types) },
 		{ name: '_rels/.rels',         bytes: wsUtf8(rootRels) },
 		{ name: 'word/document.xml',   bytes: wsUtf8(doc) },
 		{ name: 'word/_rels/document.xml.rels', bytes: wsUtf8(docRels) },
 		{ name: 'word/styles.xml',     bytes: wsUtf8(wsStylesXml(o)) }
 	];
-	if (wantToc) entries.push({ name: 'word/settings.xml', bytes: wsUtf8(settingsXml) });
+	if (wantSettings) entries.push({ name: 'word/settings.xml', bytes: wsUtf8(settingsXml) });
+	if (noteXml.length) entries.push({ name: 'word/' + noteTag + 's.xml', bytes: wsUtf8(notesPart) });
 	if (o.runningHeader) {
 		entries.push({ name: 'word/header1.xml',
 			bytes: wsUtf8(wsHeaderXml(o.runningHeader, o.pageNumbers !== false)) });
@@ -4335,6 +5304,9 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// header.
 		entries.push({ name: 'word/header2.xml', bytes: wsUtf8(wsHeaderXml('', false)) });
 	}
+	for (const m of media) entries.push({ name: 'word/media/' + m.name, bytes: m.bytes });
+	o.docxFigure = null;
+	o.imgs = null;
 	return wsZip(entries);
 }
 
@@ -5303,7 +6275,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.1';
+export const WS_PLUGIN_VERSION = '1.8.2';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -5481,7 +6453,7 @@ export function wsMenuSearchInto(parent: HTMLDivElement) {
 	const wrap = parent.createDiv({ cls: 'ws-menu-searchwrap search-input-container' });
 	const inp = wrap.createEl('input', { cls: 'ws-menu-search' });
 	inp.type = 'search';
-	inp.placeholder = 'Search...';
+	inp.placeholder = wsT('Search...');
 	return inp;
 }
 
@@ -6232,6 +7204,12 @@ export const DEFAULT_SETTINGS = {
 	// whatever this says — see the keydown handler — so it costs a vim user
 	// one extra keystroke rather than a keybinding.
 	zenEscExits:              true,
+	// ZEN'S SIDE PANES (A578, desktop): the look (a shade off the note, cut
+	// straight, the icons at the foot), and four ways they behave, each its own
+	// switch under it: controls quiet until the pointer is over a pane, the
+	// panes dimmed while the caret is in the note, a peek from the window's
+	// edge, and a pane floating over the note instead of pushing it aside.
+	zenPanes:                 true,
 	// Measured height of the vim command line, so the gutter can be
 	// reserved at the right size before the first `:` of a session.
 	vimPanelHeight:           23,
@@ -6259,19 +7237,11 @@ export const DEFAULT_SETTINGS = {
 	enableLetterbox:          false,
 	letterboxLines:           8,
 	letterboxPx:              95.81700000000001,
-	maskPaddingH:             194,
-	// Whether the masks span the whole editor or only the TEXT COLUMN.
-	// Off is how it shipped: a backdrop across the pane. On, the mask ends
-	// where the writing ends, which reads as a frame around the page
-	// rather than a band across the window — and it follows the column
-	// when the readable-line width or the padding changes, without the
-	// writer re-measuring the horizontal inset by hand.
-	maskMatchText:            false,
-	// And whether "the text" includes the editor's own side padding. Off
-	// takes the column itself; on takes the column plus the space the
-	// editor leaves beside it, which is what the eye reads as the page.
-	maskMatchTextPadded:      true,
+	// THE BAND IS THE WORDS' WIDTH (A672, issue #55): maskPaddingH (the arrows' own inset), maskMatchText
+	// and maskMatchTextPadded (a choice of widths) are retired; the band's sides drag the text's margins
 	maskOverhang:             4,
+	// how solid the masks are (A673): 1 hides the lines above and below the band, lower lets them show faintly
+	maskOpacity:              1,
 	arrowStyle:               "solid-triangle",
 	arrowLineEnds:            false,     // cap each separator line with an arrow
 	customArrowTop:           "^",
@@ -6590,12 +7560,36 @@ export const DEFAULT_SETTINGS = {
 	checkRhythm:              false,
 	checkRhythmHardColor:     "#d4a017",
 	checkRhythmVeryHardColor: "#c2544d",
+	checkRhythmShortColor:    "#5aa469", // by length: the green a short sentence takes (A630)
+	checkRhythmMid:           true,      // by length: the middle (past Short up to, short of Long from) tinted too (A658)
+	checkRhythmMidColor:      "#5b8dd6", // …a blue, fainter than the other three (the writer: "use a faint blue")
 	checkRhythmHardGrade:     10,        // Flesch-Kincaid grade for "hard"
 	checkRhythmVeryHardGrade: 14,        // and for "very hard"
+	checkRhythmBy:            'grade',   // what the two tints read: 'grade' or 'length' in words (A595)
+	checkRhythmLongWords:     25,        // by length: the first tint from this many words
+	checkRhythmVeryLongWords: 40,        // and the second
+	checkRhythmShortWords:    8,         // and up to this many words, the green (A630)
 	checkRepetition:          true,
 	checkRepetitionColor:     "#4caf7d",
 	repetitionWindow:         50,        // words
 	repetitionMinLength:      5,         // ignore short words
+	// THE LANGUAGE the syntax and prose checks read (A571): 'en' is built in,
+	// any other code is a pack in the vault. Kept by its code, so a pack not
+	// yet synced in is English until it arrives, and the choice comes back with it.
+	language:                 'en',
+	// THE LANGUAGES THE SWITCHER OFFERS (A601), by code, ticked under Prose →
+	// Language: the {lang} token's picker and the menu's Language row show English,
+	// these, and the one in use.
+	languageChoices:          [] as string[],
+	// CITATIONS (A572): the library file, the style, the list's heading, a style of one's own in
+	// tokens, and the marks while writing
+	citeLibrary:              '',
+	citeStyle:                'apa',
+	citeHeading:              '',
+	citeCustomInText:         '{etal} {year}[, {page}]',
+	citeCustomAround:         'parens',
+	citeCustomEntry:          '{authors-full}. {year}. {title*}.[ {place}:][ {publisher}.]',
+	citeMarks:                true,
 	posEnabled:               false,
 	posDimOthers:             true,
 	// The Writing Checks counterpart of posDimOthers. Ships OFF where the
@@ -6627,6 +7621,8 @@ export const DEFAULT_SETTINGS = {
 	typoOpenSingle:           "\u2018",
 	typoCloseSingle:          "\u2019",
 	typoApostrophe:           "\u2019",
+	typoQuotesFromLanguage:   true,      // a language pack's own marks are typed (A615)
+	typoQuoteStyle:           'us',      // the usual marks: US “ ” outside, UK ‘ ’ outside (A694)
 	typoEllipsis:             true,
 	typoDashes:               true,
 	typoArrows:               true,
@@ -6949,7 +7945,9 @@ export const BAR_KEYS_INERT = new Set([
 // Every settings key retired from DEFAULT_SETTINGS and deleted on load
 // (A508): the retired bar keys, and the vault-wide goal and its label
 // mode, which nothing has read since targets moved to the structure file.
-export const WS_RETIRED_KEYS: string[] = [...BAR_KEYS_INERT, 'goalTarget', 'goalLabelMode', 'showHiddenMarkers'];
+// …and the Letter Box's own width (A672, issue #55): the band is the words' width, its sides the text's margins
+export const WS_RETIRED_KEYS: string[] = [...BAR_KEYS_INERT, 'goalTarget', 'goalLabelMode', 'showHiddenMarkers',
+	'maskMatchText', 'maskMatchTextPadded', 'maskPaddingH'];
 
 // The keys a preset or a share code should actually carry.
 export const BAR_KEYS_LIVE = BAR_KEYS.filter(k => !BAR_KEYS_INERT.has(k));

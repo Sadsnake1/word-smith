@@ -3,6 +3,7 @@
 
 import { wsOrgDropBefore } from './org-index';
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 
 // ════════════════════════════════════════════════════════════════════════
@@ -143,9 +144,8 @@ const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 		// stands up only while there is something to say (263).
 		if (done && !done.ok && done.said) d.said(done.said, true);
 		else if (done && done.ok) {
-			d.said('Moved “' + d.nameOf(moved) + '” into '
-				+ (parentPath ? d.nameOf(parentPath) : 'the vault root')
-				+ '.', false);
+			d.said(parentPath ? wsT('Moved “{name}” into {folder}.', { name: d.nameOf(moved), folder: d.nameOf(parentPath) })
+				: wsT('Moved “{name}” into the vault root.', { name: d.nameOf(moved) }), false);
 		}
 	})(); });
 };

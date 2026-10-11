@@ -16,6 +16,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "types": [],
     "useDefineForClassFields": false

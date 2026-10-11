@@ -9,6 +9,7 @@ import { Menu, Notice, setIcon, getAllTags, Platform, ItemView } from 'obsidian'
 import type { Events, WorkspaceLeaf, TAbstractFile, Modifier, KeymapEventListener, MenuItem } from 'obsidian';
 import type { WsFlagDef, WsHost, WsFileLike, WsOrgDoor, WordSmithSettings } from '../core/settings';
 import { wsCountFootnotes, wsOrgAgg, wsOrgCounts, wsOrgDistinct, wsOrgIndex, wsOrgPathsUnder, wsOrgPut, wsOrgRemove, wsOrgRename, wsOrgStale } from './org-index';
+import type { WsOrgIndexMap } from './org-index';
 import { wsOrgCellsMake } from './organizer-cells';
 import { wsOrgChromeMake, wsOrgCountsLine } from './organizer-chrome';
 import { wsOrgChipsMake } from './organizer-chips';
@@ -37,14 +38,27 @@ import type { WsOrgRow } from './organizer-rows';
 import type { WsOrgColAgg } from './organizer-readings';
 import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
+import { wsT, wsTq, wsUiDate } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
+
+// A SENTENCE WITH A CONTROL IN IT (A695): the line is one key, with `slot` where the button stands, so a
+// translation puts the button where its grammar wants it; this cuts it in two around the slot. The tools' echo
+// marks the whole line, so each half keeps the marks (ws-dev/ui-pseudo-panes.js reads a text node at a time).
+function wsOrgAround(line: string, slot: string): [string, string] {
+	const marked = line.startsWith('⟦') && line.endsWith('⟧');
+	const body = marked ? line.slice(1, -1) : line;
+	const at = body.indexOf(slot);
+	const a = at === -1 ? body : body.slice(0, at);
+	const b = at === -1 ? '' : body.slice(at + slot.length);
+	return marked ? [a ? '⟦' + a + '⟧' : '', b ? '⟦' + b + '⟧' : ''] : [a, b];
+}
 
 // THE SORT MENU, on the Sort button's click (lifted out of drawOrg, A488).
 function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; menuUnder: (menu: Menu, btn: HTMLElement, ev: MouseEvent) => void; s: WordSmithSettings; sortBtn: HTMLButtonElement; sortByName: boolean; sortCol: WsOrgCol | null; sortDir: string }, ev: MouseEvent) {
 	const { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir } = a;
 	const menu = wsMenu();
-	menu.addItem((i) => i.setTitle('Custom order')
+	menu.addItem((i) => i.setTitle(wsT('Custom order'))
 		.setIcon('list-ordered')
 		.setChecked(!ctx.orgLens.sort)
 		.onClick(() => ctx.orgLensSet({ sort: null })));
@@ -52,7 +66,7 @@ function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 	// reads; the same row again turns it round. Under Custom order and
 	// above the readings, because the Name is the column that is always
 	// there.
-	menu.addItem((i) => i.setTitle('Name' + (sortByName ? wsSortArrow(sortDir) : ''))
+	menu.addItem((i) => i.setTitle(wsT('Name') + (sortByName ? wsSortArrow(sortDir) : ''))
 		.setIcon('case-sensitive')
 		.setChecked(!!sortByName)
 		.onClick(() => ctx.orgLensSet({ sort: { id: 'name',
@@ -69,7 +83,7 @@ function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 	//
 	// A NEW COLUMN NEEDS NO ENTRY HERE: an unnamed id ranks last rather
 	// than throwing or vanishing.
-	const SORT_RELEVANCE = ['words', 'goal', 'tasks', 'mark',
+	const SORT_RELEVANCE = ['words', 'vocab', 'goal', 'tasks', 'mark',
 		'modified', 'created', 'grade', 'paras', 'tags'];
 	const sortRank = (c: { id: string; }) => {
 		const at = SORT_RELEVANCE.indexOf(c.id);
@@ -106,7 +120,7 @@ function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 	// numbers are about the ORDER shown, which is what this menu is for.
 	// Remembered with the table's other choices.
 	menu.addSeparator();
-	menu.addItem((i) => i.setTitle('Row numbers')
+	menu.addItem((i) => i.setTitle(wsT('Row numbers'))
 		.setIcon('hash')
 		.setChecked(!!s.uniRowNumbers)
 		.onClick(() => {
@@ -154,19 +168,19 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 	// KIND writes the store, not a chip: `uniTypes` already holds
 	// this and already draws its own chip in the bar. A second
 	// copy in the lens would be two writers of one fact.
-	group('Kind', 'shapes', (into) => ctx.typeRows(into));
+	group(wsT('Kind'), 'shapes', (into) => ctx.typeRows(into));
 
 	// TASKS is a question, not a value - there is nothing to
 	// enumerate, so the four answers are named here. They are the
 	// only axis whose reading is an OBJECT, which is why
 	// orgChipHit has to know about it.
 	// TWO ROWS: has tasks, no tasks.
-	group('Tasks', 'check-square', (into) => {
+	group(wsT('Tasks'), 'check-square', (into) => {
 		for (const t of [
-			{ id: 'any',  label: 'Has tasks' },
-			{ id: 'none', label: 'No tasks' }
+			{ id: 'any',  label: 'Has tasks', title: wsT('Has tasks') },
+			{ id: 'none', label: 'No tasks', title: wsT('No tasks') }
 		]) {
-			into.addItem((i: MenuItem) => i.setTitle(t.label)
+			into.addItem((i: MenuItem) => i.setTitle(t.title)
 				.onClick(() => addChip({ axis: 'tasks', id: t.id,
 					key: 'Tasks', value: t.label })));
 		}
@@ -182,7 +196,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 	// fragment, and no Lucide name draws these shapes, so `setIcon` is not
 	// an option here. ONE WRITER: `wsFlagSvg` is the only thing that knows
 	// what a flag looks like.
-	group('Flag', 'flag', (into: Menu) => {
+	group(wsT('Flag'), 'flag', (into: Menu) => {
 		let defs: WsFlagDef[] = [];
 		try { defs = plugin.flagDefs() || []; } catch { defs = []; }
 		const titled = (id: string, label: string) => {
@@ -205,7 +219,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 		// above it, which is the ragged column this window keeps
 		// removing. `wsFlagSvg('')` returns the outline mark, and
 		// the stylesheet's `.ws-menuflag.is-` holds the width.
-		into.addItem((i: MenuItem) => i.setTitle(titled('', 'No flag'))
+		into.addItem((i: MenuItem) => i.setTitle(titled('', wsT('No flag')))
 			.onClick(() => addChip({ axis: 'flag', id: '',
 				key: 'Flag', value: 'none' })));
 	});
@@ -215,8 +229,8 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 	// filter menu offers" - scope-scoped and commonest-first, and
 	// its counts are real, so the picker's count line is not a
 	// number nobody counted.
-	group('Tag', 'tag', (into) => {
-		into.addItem((i: MenuItem) => i.setTitle('Search tags…')
+	group(wsT('Tag'), 'tag', (into) => {
+		into.addItem((i: MenuItem) => i.setTitle(wsT('Search tags…'))
 			.onClick(() => {
 				let tags: { tag: string; n: number }[] = [];
 				try {
@@ -224,7 +238,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 						ctx.orgRowList(at, true).map((r) => r.path)) || [];
 				} catch { tags = []; }
 				if (!tags.length) {
-					try { new Notice('Word-Smith: no tags in these notes.'); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no tags in these notes.\');', _); }
+					try { new Notice(wsT('Word-Smith: no tags in these notes.')); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no tags in these notes.\');', _); }
 					return;
 				}
 				const items = tags.map(t => ({ tag: t.tag,
@@ -234,7 +248,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 				if (WsPropSuggestModal) {
 					try {
 						new WsPropSuggestModal(plugin.app, items, take,
-							'Which tag?').open();
+							wsT('Which tag?')).open();
 						return;
 					} catch (_) { wsCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items, take,', _); }
 				}
@@ -253,7 +267,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 	// enumerator rather than `propKeysInScope`, which is built for
 	// COLUMNS: it drops tags and drops keys already shown, and a
 	// writer may well want to filter on a column they can see.
-	group('Property', 'table-properties', (into: Menu) => {
+	group(wsT('Property'), 'table-properties', (into: Menu) => {
 		// ── THE TWO QUESTIONS THAT NEED NO VALUE ───────────────────
 		//
 		// They come FIRST because they are the ones a writer arrives wanting —
@@ -266,7 +280,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 		const askEmpty = (op: string) => {
 			const keys = ctx.orgPropKeys(at);
 			if (!keys.length) {
-				try { new Notice('Word-Smith: no properties in these notes.'); } catch (_) { wsCatch('orgTableMake / askEmpty: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
+				try { new Notice(wsT('Word-Smith: no properties in these notes.')); } catch (_) { wsCatch('orgTableMake / askEmpty: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
 				return;
 			}
 			const items = keys.map((k: string) => ({ key: k, label: k }));
@@ -274,8 +288,8 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 			if (WsPropSuggestModal) {
 				try {
 					new WsPropSuggestModal(plugin.app, items, take,
-						op === 'empty' ? 'Which property is empty?'
-							: 'Which property is filled in?').open();
+						op === 'empty' ? wsT('Which property is empty?')
+							: wsT('Which property is filled in?')).open();
 					return;
 				} catch (_) { wsCatch('orgTableMake / askEmpty: new WsPropSuggestModal(this.app, items, take,', _); }
 			}
@@ -286,15 +300,15 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 			try { pk2.showAtMouseEvent(ev); }
 			catch { try { pk2.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / askEmpty: pk2.showAtPosition( x: 0, y: 0 );', _e); } }
 		};
-		into.addItem((i: MenuItem) => i.setTitle('Is empty…')
+		into.addItem((i: MenuItem) => i.setTitle(wsT('Is empty…'))
 			.onClick(() => askEmpty('empty')));
-		into.addItem((i: MenuItem) => i.setTitle('Is not empty…')
+		into.addItem((i: MenuItem) => i.setTitle(wsT('Is not empty…'))
 			.onClick(() => askEmpty('filled')));
-		into.addItem((i: MenuItem) => i.setTitle('Search properties…')
+		into.addItem((i: MenuItem) => i.setTitle(wsT('Search properties…'))
 			.onClick(() => {
 				const keys = ctx.orgPropKeys(at);
 				if (!keys.length) {
-					try { new Notice('Word-Smith: no properties in these notes.'); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
+					try { new Notice(wsT('Word-Smith: no properties in these notes.')); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
 					return;
 				}
 				// `orgFilterByKey`, so the header's "Filter by this…" and this one
@@ -305,7 +319,7 @@ function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: 
 					try {
 						new WsPropSuggestModal(plugin.app, items,
 							(it) => pickValue(it.key || ''),
-							'Which property?').open();
+							wsT('Which property?')).open();
 						return;
 					} catch (_) { wsCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items,', _); }
 				}
@@ -509,7 +523,7 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 		}
 		// desc → asc → custom. A click is a LENS, so it goes through the
 		// lens's one writer.
-		th.title = 'Sort: newest-biggest first, then smallest, then the book’s order';
+		th.title = wsT('Sort: newest-biggest first, then smallest, then the book’s order');
 		th.addEventListener('click', () => {
 			// NOT THE ONE THAT ENDS A DRAG. See `orgGripReleasedAt`: the
 			// click a grip release synthesises lands here, because the
@@ -571,11 +585,11 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 			ev.stopPropagation();
 			const menu = wsMenu();
 			menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-			menu.addItem((i) => i.setTitle('Sort \u2191')
+			menu.addItem((i) => i.setTitle(wsT('Sort \u2191'))
 				.setIcon('arrow-up')
 				.onClick(() => ctx.orgLensSet({
 					sort: { id: col.id, dir: 'asc' } })));
-			menu.addItem((i) => i.setTitle('Sort \u2193')
+			menu.addItem((i) => i.setTitle(wsT('Sort \u2193'))
 				.setIcon('arrow-down')
 				.onClick(() => ctx.orgLensSet({
 					sort: { id: col.id, dir: 'desc' } })));
@@ -587,13 +601,13 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 			const fkey = col.user ? String(col.key)
 				: (col.id === 'tags' ? 'tags' : '');
 			if (fkey) {
-				menu.addItem((i) => i.setTitle('Filter by this\u2026')
+				menu.addItem((i) => i.setTitle(wsT('Filter by this\u2026'))
 					.setIcon('list-filter')
 					.onClick(() => ctx.orgFilterByKey(fkey, ev)));
 			}
 			menu.addSeparator();
 			// This plugin shows and hides columns; Obsidian deletes properties.
-			menu.addItem((i) => i.setTitle('Hide this column')
+			menu.addItem((i) => i.setTitle(wsT('Hide this column'))
 				.setIcon('eye-off')
 				.onClick(async () => {
 					ctx.colOff.add(col.id);
@@ -603,7 +617,7 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 				}));
 			// RIGHT UNDER IT: the same act the Properties panel's row calls — one
 			// fit, two doors — with the panel row's own words.
-			menu.addItem((i) => i.setTitle('Resize columns to fit')
+			menu.addItem((i) => i.setTitle(wsT('Resize columns to fit'))
 				.setIcon('move-horizontal')
 				.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
 			// WHERE DELETION LIVES NOW: a note's property is removed in
@@ -636,14 +650,14 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 		const box = std.createDiv({ cls: 'ws-org-subject-in' });
 		try { std.setCssProps({ '--ws-org-depth': '0' }); }
 		catch (_) { wsCatch('orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });', _); }
-		const rootName = isRoot ? ctx.nameOf(at) : 'Total';
+		const rootName = isRoot ? ctx.nameOf(at) : wsT('Total');
 		if (isRoot) {
 			// ITS CHEVRON FOLDS THE WHOLE TABLE UNDER IT, as a folder row's folds
 			// its own: shut, only this row and its figures stay. The session holds
 			// it (`ses.rootShut`), so a fresh window opens with everything shown.
 			const rootOpen = !(ctx.ses && ctx.ses.rootShut);
 			const twist = ctx.orgChevron(box, rootOpen);
-			twist.title = rootOpen ? 'Fold everything under this folder' : 'Unfold everything under this folder';
+			twist.title = rootOpen ? wsT('Fold everything under this folder') : wsT('Unfold everything under this folder');
 			twist.addEventListener('click', (ev: Event) => {
 				ev.stopPropagation();
 				if (ctx.ses) ctx.ses.rootShut = rootOpen;
@@ -665,7 +679,9 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 		const under0 = ctx.orgUnder(at);
 		const agg0 = plugin.orgAggUnder(at);
 		const counts = wsOrgCountsLine(agg0, agg0 ? Math.max(0, under0.length - agg0.files) : 0);
-		std.title = (isRoot ? 'Everything under ' + rootName : 'Everything in the vault') + (counts ? ': ' + counts : '');
+		std.title = isRoot
+			? (counts ? wsT('Everything under {name}: {counts}', { name: rootName, counts }) : wsT('Everything under {name}', { name: rootName }))
+			: (counts ? wsT('Everything in the vault: {counts}', { counts }) : wsT('Everything in the vault'));
 		const subUnder = ctx.orgUnder(at);
 		// ONE DRAWER FOR AN AGGREGATE, the total row's and the folder rows'
 		// alike: text for most, and for the Flag column a number and the
@@ -680,7 +696,7 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 					pair.createSpan({ cls: 'ws-org-aggflagn', text: String(f.n) });
 					const ic = pair.createSpan({ cls: 'ws-org-flagic' });
 					wsSvgInto(ic, wsFlagSvg(String(f.id), 10));
-					pair.title = f.n + (f.n === 1 ? ' file ' : ' files ') + f.label;
+					pair.title = f.n === 1 ? wsT('{n} file {flag}', { n: f.n, flag: f.label }) : wsT('{n} files {flag}', { n: f.n, flag: f.label });
 				}
 			} else {
 				td.setText(agg.text);
@@ -769,7 +785,7 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		if (isFolder) {
 			const open = ctx.orgIsOpen(row.path);
 			const twist = ctx.orgChevron(nameIn, open);
-			twist.title = open ? 'Fold this folder' : 'Unfold this folder';
+			twist.title = open ? wsT('Fold this folder') : wsT('Unfold this folder');
 			twist.addEventListener('click', (ev: Event) => {
 				ev.stopPropagation();
 				ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
@@ -865,8 +881,9 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 					plugin.dateStyle());
 				if (!fmt.ok) {
 					td.addClass('ws-org-badval');
-					td.title = 'This is not a valid ' + (plugin.orgPropType(pk) || 'value')
-						+ ': ' + wsStr(raw);
+					td.title = plugin.orgPropType(pk)
+						? wsT('This is not a valid {type}: {value}', { type: wsTq(plugin.orgPropType(pk)), value: wsStr(raw) })
+						: wsT('This is not a valid value: {value}', { value: wsStr(raw) });
 				}
 			}
 			// The mark and goal cells are CONTROLS as well as readings: the flag
@@ -933,12 +950,12 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 					bx.disabled = !canEdit;
 				}
 				td.title = !canEdit
-					? 'This kind of file cannot hold properties'
+					? wsT('This kind of file cannot hold properties')
 					: (!has
-						? 'Not set \u2014 press to add it, ticked'
+						? wsT('Not set \u2014 press to add it, ticked')
 						: (rawv === true
-							? 'Ticked \u2014 press to untick'
-							: 'Unticked \u2014 press to remove it from this file'));
+							? wsT('Ticked \u2014 press to untick')
+							: wsT('Unticked \u2014 press to remove it from this file')));
 				// THE WHOLE CELL IS THE TARGET, which is the other half
 				// of the report: a 13px box in a 24px row is a thing to
 				// aim at, and the cell is not.
@@ -1090,7 +1107,7 @@ export const organizerWindowMethods = {
 	// writer is in most of the time.
 	fileMenuReportRow(this: WordSmith, menu: Menu, path: string) {
 		if (!path) return;
-		menu.addItem((i: MenuItem) => i.setTitle('Report on this').setIcon('bar-chart-2')
+		menu.addItem((i: MenuItem) => i.setTitle(wsT('Report on this')).setIcon('bar-chart-2')
 			.onClick(() => { try { this.openReportModal(path); } catch (_) { wsCatch('fileMenuReportRow: this.openReportModal(path);', _); } }));
 	},
 
@@ -1140,7 +1157,7 @@ export const organizerWindowMethods = {
 					i.onClick(() => setFlag(st.id));
 				});
 			}
-			into.addItem((i: MenuItem) => i.setTitle('No flag').setChecked(!nowFlag)
+			into.addItem((i: MenuItem) => i.setTitle(wsT('No flag')).setChecked(!nowFlag)
 				.onClick(() => setFlag('')));
 		};
 
@@ -1163,7 +1180,7 @@ export const organizerWindowMethods = {
 			// nothing (Settings → Appearance → Native menus, on by default on a Mac).
 			if (wsMenuIsNative(menu)) {
 				for (const c of WS_FOLDER_COLOURS) {
-					into.addItem((i: MenuItem) => i.setTitle(c.label).setChecked(nowColour === c.id)
+					into.addItem((i: MenuItem) => i.setTitle(wsT(c.label)).setChecked(nowColour === c.id)
 						.onClick(() => { void setColour(c.id); }));
 				}
 				return;
@@ -1177,8 +1194,8 @@ export const organizerWindowMethods = {
 					dot.className = 'ws-folderdot' + (c.id ? '' : ' is-none')
 						+ (nowColour === c.id ? ' is-on' : '');
 					if (c.css) dot.style.backgroundColor = c.css;
-					dot.setAttribute('aria-label', c.label);
-					dot.title = c.label;
+					dot.setAttribute('aria-label', wsT(c.label));
+					dot.title = wsT(c.label);
 					dot.addEventListener('click', (ev2) => { void (async () => {
 						ev2.preventDefault();
 						ev2.stopPropagation();
@@ -1212,12 +1229,12 @@ export const organizerWindowMethods = {
 		// COLOUR IS A FOLDER'S. It is drawn on the folder glyph, and a note
 		// has none — a colour that changed nothing anybody can see is a
 		// setting that reads as broken.
-		if (isFolder) folded('Folder color', 'palette', colourRow);
+		if (isFolder) folded(wsT('Folder color'), 'palette', colourRow);
 		// AND A FLAG IS A FILE'S, the mirror of the line above it. ONE guard
 		// closes all THREE doors, because all three funnel through here: the
 		// explorer's right-click, the Organizer tree's row menu, and the
 		// table's group-header menu.
-		if (!isFolder && WS_STATUSES.length) folded('Flag', 'flag', flagRows);
+		if (!isFolder && WS_STATUSES.length) folded(wsT('Flag'), 'flag', flagRows);
 
 	},
 
@@ -1697,11 +1714,16 @@ export const organizerWindowMethods = {
 
 	// One sweep, joined if one is running: the build promise is the one every
 	// caller waits on, and the bell rings when it lands.
-	orgIndexResweep(this: WordSmith) {
-		if (this._orgIndexBuild != null) return this._orgIndexBuild;
+	// `all`: read every note again, not only the changed ones (the language
+	// changed, and every grade with it); asked while a sweep runs, it follows it.
+	orgIndexResweep(this: WordSmith, all?: boolean): Promise<WsOrgIndexMap> {
+		if (this._orgIndexBuild != null) {
+			const running = this._orgIndexBuild;
+			return all ? running.then(() => this.orgIndexResweep(true)) : running;
+		}
 		this._orgIndexBuild = (async () => {
 			try {
-				const ix = await this.orgIndexSweep();
+				const ix = await this.orgIndexSweep(all);
 				this._orgIndexRing();
 				return ix;
 			} finally { this._orgIndexBuild = null; }
@@ -1748,7 +1770,7 @@ export const organizerWindowMethods = {
 	// or excluded by a membership change) — so the sweep leaves the index
 	// EXACTLY the counted vault, whatever happened while the plugin was
 	// off. Folds, panes and tabs do not exist down here.
-	async orgIndexSweep(this: WordSmith) {
+	async orgIndexSweep(this: WordSmith, all?: boolean) {
 		const ix = this._orgIndex;
 		const files = (this.app.vault.getMarkdownFiles
 			&& this.app.vault.getMarkdownFiles()) || [];
@@ -1758,7 +1780,7 @@ export const organizerWindowMethods = {
 			if (!this.isFileCounted(f)) continue;
 			seen.add(f.path);
 			const mt = (f.stat && f.stat.mtime) || 0;
-			if (!wsOrgStale(ix, f.path, mt)) continue;
+			if (!all && !wsOrgStale(ix, f.path, mt)) continue;
 			try { await this.orgIndexRead(f); } catch (_) { wsCatch('orgIndexSweep: await this.orgIndexRead(f);', _); }
 		}
 		for (const p of Array.from(ix.keys())) {
@@ -1796,6 +1818,9 @@ export const organizerWindowMethods = {
 			// counted once each.
 			footnotes: wsCountFootnotes(text),
 			tasks: tk, grade: st.sentences ? st.grade : undefined,
+			// VOCABULARY (A681, the writer): the note's different words, by the Report's own reader, so the
+			// column and the Report's figure are one number
+			vocab: this.wordFreqInto(text, null).size,
 			mtime: (wsStatOf(f) || { mtime: 0 }).mtime || 0,
 			ctime: (wsStatOf(f) || { ctime: 0 }).ctime || 0,
 			props
@@ -1911,7 +1936,7 @@ export const organizerWindowMethods = {
 			return this.storeWriteOk(WS_WRITE.prop);
 		} catch (e) {
 			return this.storeWriteFailed(WS_WRITE.prop, e,
-				'The cell has gone back to what the note says.');
+				wsT('The cell has gone back to what the note says.'));
 		}
 	},
 
@@ -2011,7 +2036,12 @@ export const organizerWindowMethods = {
 		else if (st === 'mdy') out = two(mo + 1) + '/' + two(d) + '/' + y;
 		// 'human' AND ANYTHING UNRECOGNISED. A hand-edited data.json must not
 		// be able to make every date in the window disappear.
-		else out = d + ' ' + MONTHS[mo] + ' ' + y;
+		else {
+			// THE MONTH IN THE INTERFACE'S LANGUAGE (A695): the same day, its parts named by Intl where it is not English
+			const day = new Date(2000, 0, 1);
+			day.setFullYear(y, mo, d);
+			out = wsUiDate(d + ' ' + MONTHS[mo] + ' ' + y, day, { day: 'numeric', month: 'short', year: 'numeric' });
+		}
 		if (hh !== null && hh !== undefined) out += ' ' + two(hh) + ':' + two(mi || 0);
 		return out;
 	},
@@ -2402,13 +2432,13 @@ export const organizerWindowMethods = {
 		// writer has set, and renaming them would silently drop a pane on the
 		// next restart.
 		const TABS = [
-			{ id: 'organizer', label: 'Organizer', icon: 'list-tree', tree: 'binder' },
+			{ id: 'organizer', label: wsT('Organizer'), icon: 'list-tree', tree: 'binder' },
 			// THE EXPORT'S OWN GLYPH, the one the docked menu has always used
 			// for the same command. Two pictures for one act is how a writer
 			// learns two things instead of one; `book-open` was this window's
 			// invention and nothing else in the plugin used it.
-			{ id: 'export',   label: 'Export',    icon: 'file-output', tree: 'ticks' },
-			{ id: 'history',  label: 'History',   icon: 'history',   tree: 'slim' }
+			{ id: 'export',   label: wsT('Export'),    icon: 'file-output', tree: 'ticks' },
+			{ id: 'history',  label: wsT('History'),   icon: 'history',   tree: 'slim' }
 		// THE SWITCH: with the Organizer off the window has two tabs.
 		].filter((t) => t.id !== 'organizer' || this.settings.organizerOn !== false);
 		// AN EXPLICIT ASK WINS OVER THE MEMORY. A command that says “open on
@@ -3424,7 +3454,7 @@ export const organizerWindowMethods = {
 		// for it to drift from.
 		const exportGoing = () => { const ticks = ctx.ticks(); return exportFiles().filter(
 (			f: TAbstractFile) => ticks && ticks.has(f.path)); };
-		panel.createDiv({ cls: 'ws-report-loading', text: 'Reading\u2026' });
+		panel.createDiv({ cls: 'ws-report-loading', text: wsT('Reading\u2026') });
 		await loadTicks();
 		if (ctx.tab() !== 'export') return;
 		panel.textContent = '';
@@ -3490,7 +3520,7 @@ export const organizerWindowMethods = {
 		histState.scope = rows.map((r) => r.path);
 		try {
 			if (this.settings.historyTracking && !this._historyReady) {
-				panel.createDiv({ cls: 'ws-report-loading', text: 'Reading\u2026' });
+				panel.createDiv({ cls: 'ws-report-loading', text: wsT('Reading\u2026') });
 				void (async () => {
 					await this.historyLoad();
 					// The period, not the scope: reopening the record must
@@ -3505,8 +3535,7 @@ export const organizerWindowMethods = {
 			this.renderHistoryTab(panel, histState, () => drawPanel());
 		} catch (e) {
 			panel.textContent = '';
-			panel.createDiv({ text: 'History failed \u2014 '
-				+ wsErrMsg(e) });
+			panel.createDiv({ text: wsT('History failed \u2014 {error}', { error: wsErrMsg(e) }) });
 		}
 	},
 
@@ -3633,7 +3662,7 @@ export const organizerWindowMethods = {
 			// ask "what is the sort called" and would get nothing for it.
 			const sortByName = !sortCol && !!sort && sort.id === 'name';
 			const sortLabel = sortCol ? sortCol.label + wsSortArrow(sortDir)
-				: sortByName ? 'Name' + wsSortArrow(sortDir) : '';
+				: sortByName ? wsT('Name') + wsSortArrow(sortDir) : '';
 
 			// ── which rows the lens leaves ──────────────────────────────
 			const shown = list.filter((row: WsOrgRow) => {
@@ -3804,14 +3833,14 @@ export const organizerWindowMethods = {
 				'arrow-up-narrow-wide', 'sort-asc']);
 			// A LABEL SPAN, not `setText`: setText replaces every child, so
 			// it would take the icon straight back out again.
-			sortBtn.createSpan({ text: sortLabel ? 'Sort: ' + sortLabel : 'Sort' });
-			sortBtn.title = 'Arrange the rows by a reading — custom order is a click away';
+			sortBtn.createSpan({ text: sortLabel ? wsT('Sort: {sort}', { sort: sortLabel }) : wsT('Sort') });
+			sortBtn.title = wsT('Arrange the rows by a reading — custom order is a click away');
 			sortBtn.addEventListener('click', (ev: MouseEvent) => wsOrgSortMenu(this, { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir }, ev));
 			// ── FILTER BY ──────────────────────────────────────────────
 			const addBtn = bar.createEl('button',
 				{ cls: 'ws-export-mini ws-org-addfilter' });
 			lensIcon(addBtn, ['list-filter', 'filter', 'funnel']);
-			addBtn.createSpan({ text: 'Filter' });
+			addBtn.createSpan({ text: wsT('Filter') });
 			// ── AND HOW MANY ARE ON ────────────────────────────────
 			//
 			// The chips beside it already say WHICH filters are on; this says HOW
@@ -3823,7 +3852,7 @@ export const organizerWindowMethods = {
 				const on = ctx.orgLens.chips.filter((c) => !c.off).length;
 				if (on) addBtn.createSpan({ cls: 'ws-org-filtercount', text: String(on) });
 			}
-			addBtn.title = 'Narrow by a property — type to search the folder’s own keys';
+			addBtn.title = wsT('Narrow by a property — type to search the folder’s own keys');
 			addBtn.addEventListener('click', (ev: MouseEvent) => wsOrgFilterMenu(this, { addBtn, at, ctx, menuUnder }, ev));
 			// PROPERTIES, not Columns: the menu lists the readings AND the writer's
 			// own frontmatter keys, which is what Obsidian calls properties —
@@ -3832,7 +3861,7 @@ export const organizerWindowMethods = {
 				{ cls: 'ws-export-mini ws-org-colsbtn' });
 			lensIcon(colsBtn, ['table-properties', 'settings-2', 'list',
 				'columns-3']);
-			colsBtn.createSpan({ text: 'Properties' });
+			colsBtn.createSpan({ text: wsT('Properties') });
 			// ── AND ONE DOOR THAT SHUTS EVERYTHING ────────────────────
 			//
 			// ONE BUTTON, TWO JOBS, so its label is the only thing telling a writer
@@ -3886,8 +3915,8 @@ export const organizerWindowMethods = {
 			// the picture is the only thing on screen saying which of two jobs a
 			// click will do. An `aria-label` as well, because a button whose only
 			// text is a drawing has no name at all to a screen reader.
-			const foldSay = anyOpen ? 'Collapse all \u2014 shut every folder and card'
-				: 'Expand all \u2014 open every folder and card';
+			const foldSay = anyOpen ? wsT('Collapse all \u2014 shut every folder and card')
+				: wsT('Expand all \u2014 open every folder and card');
 			foldBtn.title = foldSay;
 			foldBtn.setAttribute('aria-label', foldSay);
 			foldBtn.addEventListener('click', (ev: Event) => {
@@ -3908,7 +3937,9 @@ export const organizerWindowMethods = {
 						const h = ctx.orgHist;
 						const has = kind === 'undo' ? h.canUndo() : h.canRedo();
 						const lab = kind === 'undo' ? h.undoLabel() : h.redoLabel();
-						const say = (has ? (kind === 'undo' ? 'Undo: ' : 'Redo: ') + lab : 'Nothing to ' + kind) + ' (' + keySay + ')';
+						const say = has
+							? (kind === 'undo' ? wsT('Undo: {label} ({key})', { label: lab, key: keySay }) : wsT('Redo: {label} ({key})', { label: lab, key: keySay }))
+							: (kind === 'undo' ? wsT('Nothing to undo ({key})', { key: keySay }) : wsT('Nothing to redo ({key})', { key: keySay }));
 						b.disabled = !has;
 						b.title = say;
 						b.setAttribute('aria-label', say);
@@ -3933,7 +3964,7 @@ export const organizerWindowMethods = {
 					const held = ctx.orgBarSaid;
 					const live = held && held.msg && Date.now() < held.until;
 					const n = ctx.orgSelCount ? ctx.orgSelCount() : 0;
-					sayEl.setText(live ? held.msg : (n >= 2 ? n + ' selected' : ''));
+					sayEl.setText(live ? held.msg : (n >= 2 ? wsT('{n} selected', { n }) : ''));
 					sayEl.toggleClass('is-sel', !live && n >= 2);
 					if (sayTimer) { window.clearTimeout(sayTimer); sayTimer = null; }
 					if (live) sayTimer = window.setTimeout(paintSay, Math.max(50, held.until - Date.now()));
@@ -3942,8 +3973,7 @@ export const organizerWindowMethods = {
 				ctx.orgBarSayPaint = paintSay;
 			}
 			// ── ONE DOOR ONTO THE PROPERTIES ────────────────────────────
-			colsBtn.title = 'Which properties this window shows — a column'
-				+ ' in the table, a field under every row in Outline';
+			colsBtn.title = wsT('Which properties this window shows — a column in the table, a field under every row in Outline');
 			// IT TOGGLES. A second press on an open panel shuts it, which is what
 			// a writer expects of a button that opened one — and what a test
 			// driving this door has to know, because re-reading the list after a
@@ -3969,7 +3999,7 @@ export const organizerWindowMethods = {
 				const b = chipHost().createEl('button', { cls: 'ws-org-chip' });
 				b.createSpan({ text: label });
 				b.createSpan({ cls: 'ws-org-chipx', text: '×' });
-				b.title = 'Remove this';
+				b.title = wsT('Remove this');
 				b.addEventListener('click', undo);
 			};
 			if (sortLabel) {
@@ -3984,8 +4014,8 @@ export const organizerWindowMethods = {
 				const tick = b.createEl('input', { cls: 'ws-org-chiptick' });
 				tick.type = 'checkbox';
 				tick.checked = !c.off;
-				tick.title = c.off ? 'Tick to apply this filter again'
-					: 'Untick to set this filter aside';
+				tick.title = c.off ? wsT('Tick to apply this filter again')
+					: wsT('Untick to set this filter aside');
 				tick.addEventListener('click', (ev: Event) => {
 					ev.stopPropagation();
 					ctx.orgLensSet({ chips: ctx.orgLens.chips.map((x) => x === c
@@ -3995,11 +4025,16 @@ export const organizerWindowMethods = {
 				// colon would be an empty-looking chip for a filter that is
 				// precisely ABOUT emptiness — unreadable, and indistinguishable
 				// from a filter whose value had been lost.
-				b.createSpan({ text: c.op === 'empty' ? c.key + ' is empty'
-					: c.op === 'filled' ? c.key + ' is not empty'
-					: c.key + ': ' + c.value });
+				// THE AXES' OWN WORDS IN THE INTERFACE'S LANGUAGE (A695); the chip itself keeps the English it was made with,
+				// the tasks' answer is matched by its id and a flag by its id, and a property's key and value are the writer's
+				const ckey = c.axis === 'tasks' ? wsT('Tasks') : c.axis === 'flag' ? wsT('Flag') : c.axis === 'tag' ? wsT('Tag') : String(c.key);
+				const cval = c.axis === 'tasks' ? (c.id === 'none' ? wsT('No tasks') : wsT('Has tasks'))
+					: (c.axis === 'flag' && !c.id) ? wsT('none') : String(c.value);
+				b.createSpan({ text: c.op === 'empty' ? wsT('{key} is empty', { key: ckey })
+					: c.op === 'filled' ? wsT('{key} is not empty', { key: ckey })
+					: wsT('{key}: {value}', { key: ckey, value: cval }) });
 				b.createSpan({ cls: 'ws-org-chipx', text: '×' });
-				b.title = 'Remove this';
+				b.title = wsT('Remove this');
 				b.addEventListener('click', () => ctx.orgLensSet({
 					chips: ctx.orgLens.chips.filter((x) => x !== c) }));
 			}
@@ -4026,9 +4061,9 @@ export const organizerWindowMethods = {
 				if (onKinds.size < allKinds.length || ctx.showShape() !== 'all') {
 					const kc = chipHost().createEl('button',
 						{ cls: 'ws-org-chip ws-org-kindchip' });
-					kc.createSpan({ text: 'kind: ' + ctx.typeLabel() });
+					kc.createSpan({ text: wsT('kind: {kinds}', { kinds: ctx.typeLabel() }) });
 					kc.createSpan({ cls: 'ws-org-chipx', text: '×' });
-					kc.title = 'Only some kinds of file are shown — press to show every kind again';
+					kc.title = wsT('Only some kinds of file are shown — press to show every kind again');
 					// BOTH STORES, as the old chip's × learnt the hard way:
 					// on "Folders only" (every kind, one shape) undoing the
 					// kinds alone changed nothing at all.
@@ -4044,11 +4079,11 @@ export const organizerWindowMethods = {
 				const tail = chipHost().createDiv({ cls: 'ws-org-chiptail' });
 				if (narrowed) {
 					tail.createSpan({ cls: 'ws-org-shownof',
-						text: noteCount(rows) + ' of ' + noteCount(list) + ' shown' });
+						text: wsT('{count} of {n} shown', { count: noteCount(rows), n: noteCount(list) }) });
 				}
 				const cl = tail.createEl('button', { cls: 'ws-org-clearlens' });
-				cl.setText('Clear all');
-				cl.title = 'Take the lens off — Escape does this too';
+				cl.setText(wsT('Clear all'));
+				cl.title = wsT('Take the lens off — Escape does this too');
 				cl.addEventListener('click', (ev: Event) => {
 					ev.stopPropagation();
 					ctx.orgLensClear();
@@ -4095,7 +4130,7 @@ export const organizerWindowMethods = {
 			// the drag, below.
 			// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
 			const nameTh = hr.createEl('th',
-				{ cls: 'ws-org-name', text: 'Name' });
+				{ cls: 'ws-org-name', text: wsT('Name') });
 			// THE HEADING SAYS # OVER THE NUMBERS, at the cell's left, where the
 			// numbers are; the word stays centred over the names.
 			if (nums) nameTh.createSpan({ cls: 'ws-org-numhead', text: '#' });
@@ -4103,7 +4138,7 @@ export const organizerWindowMethods = {
 			// A CLICK SORTS BY NAME: A to Z first — the way a name column reads —
 			// then Z to A, then the book's order; the lens's one writer, and the
 			// same guard against the click a grip release synthesises.
-			nameTh.title = 'Sort: ascending, then descending, then the book’s order';
+			nameTh.title = wsT('Sort: ascending, then descending, then the book’s order');
 			if (ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
 				nameTh.createSpan({ cls: 'ws-org-sortmark',
 					text: wsSortArrow(ctx.orgLens.sort.dir) });
@@ -4354,25 +4389,25 @@ export const organizerWindowMethods = {
 				const td0 = tr0.createEl('td');
 				td0.setAttribute('colspan', String(colspan));
 				if (list.length) {
-					td0.createSpan({ text: 'Nothing passes the lens — ' });
+					const [say0, say1] = wsOrgAround(wsT('Nothing passes the lens — {clear} to see the {n} notes here.', { n: noteCount(list) }), '{clear}');
+					if (say0) td0.createSpan({ text: say0 });
 					const b0 = td0.createEl('button', {
-						cls: 'ws-export-mini ws-org-clearempty', text: 'Clear it' });
+						cls: 'ws-export-mini ws-org-clearempty', text: wsT('Clear it') });
 					b0.addEventListener('click', (ev: Event) => {
 						ev.stopPropagation();
 						ctx.orgLensClear();
 					});
-					td0.createSpan({ text: ' to see the '
-						// `noteCount`, the strip's own counter, so this and the strip say the
-						// same number.
-						+ noteCount(list) + ' notes here.' });
+					// `noteCount`, the strip's own counter, so this and the strip say the
+					// same number.
+					if (say1) td0.createSpan({ text: say1 });
 				} else {
 					// IT NAMES WHAT IT WENT LOOKING FOR. With "Folders only" up,
 					// a scope holding no subfolder is not a scope holding no
 					// notes, and saying the second sends a writer to check the
 					// wrong thing.
 					td0.setText(shaped === 'folders'
-						? 'No folders under this folder.'
-						: 'No notes under this folder.');
+						? wsT('No folders under this folder.')
+						: wsT('No notes under this folder.'));
 				}
 			}
 			// ── THE CELL THE WRITER ACTUALLY PRESSED ────────────────────
@@ -4557,7 +4592,7 @@ export const organizerWindowMethods = {
 				// a tick brings the row in.
 				const dead = !st || !st.mine;
 				box.disabled = false;
-				box.title = dead ? 'Nothing here goes into an export' : '';
+				box.title = dead ? wsT('Nothing here goes into an export') : '';
 				box.checked = !dead && st.all;
 				box.indeterminate = !dead && st.some;
 				box.classList.toggle('is-part', !dead && st.some);
@@ -4649,10 +4684,10 @@ export const organizerWindowMethods = {
 				i.onClick(() => { void this.orgOpenAt(here, tabId, tabId === 'export' ? { note: note || undefined, only: [path] } : { note: note || undefined }); });
 			});
 		};
-		row('Organizer here', 'list-tree', 'organizer');
+		row(wsT('Organizer here'), 'list-tree', 'organizer');
 		// On notes too.
-		row('Export this', 'file-output', 'export');
-		row('History here', 'history', 'history');
+		row(wsT('Export this'), 'file-output', 'export');
+		row(wsT('History here'), 'history', 'history');
 	},
 
 	// ── THE ONE WAY IN ───────────────────────────────────────────────
@@ -4697,7 +4732,7 @@ export const organizerWindowMethods = {
 		const paths = (files || []).filter((f: TAbstractFile) => f && f.path && f.path !== '/').map((f: TAbstractFile) => f.path);
 		if (paths.length < 2) return;
 		menu.addItem((i: { setTitle: (arg0: string) => void; setIcon: (arg0: string) => void; onClick: (arg0: () => void) => void; }) => {
-			i.setTitle('Export these');
+			i.setTitle(wsT('Export these'));
 			try { if (i.setIcon) i.setIcon('file-output'); } catch (_) { wsCatch('filesMenuFor: if (i.setIcon) i.setIcon(file-output);', _); }
 			i.onClick(() => { void this.orgOpenAt('', 'export', { only: paths }); });
 		});

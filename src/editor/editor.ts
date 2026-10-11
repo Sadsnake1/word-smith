@@ -10,7 +10,8 @@ import type { TransactionSpec } from '@codemirror/state';
 import { wsEditorExtensions } from './editor-extensions';
 import { WS_INTERNALS } from '../core/obsidian-internals';
 import { Platform } from 'obsidian';
-import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsBag, wsVimOf, wsSentenceStart } from '../core/preamble';
+import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsVimOf } from '../core/preamble';
+import { wsMakeCiteSuggest } from './cite-suggest';
 import type WordSmith from '../plugin/plugin';
 
 export const editorMethods = {
@@ -57,6 +58,9 @@ export const editorMethods = {
 		this.editorExtensions = [];
 		this.editorExtensions.push(...this.buildEditorExtensions());
 		this.registerEditorExtension(this.editorExtensions);
+		// THE [@ SEARCH (A572): Word-Smith's own, over the citation library
+		const sug = wsMakeCiteSuggest(this);
+		if (sug) this.registerEditorSuggest(sug);
 	},
 
 	// Factory that creates FRESH ViewPlugin values each call. This matters:
@@ -109,6 +113,7 @@ export const editorMethods = {
 			if (text.length !== 1) return false;                 // paste, IME, multi-char
 			const s = this.settings;
 			if (!s.pluginEnabled || !this.isEditorInScope(view)) return false;
+			if (this.isEditorPack(view)) return false;
 
 			const doc  = view.state.doc;
 			const line = doc.lineAt(from);
@@ -155,14 +160,10 @@ export const editorMethods = {
 				// where the right answer is to add nothing at all.
 				if (from === to) {
 					const ahead = doc.sliceString(from, from + 1);
-					const cust  = s.typoCustomQuotes;
-					const at    = (k: string, f: string) => {
-						const v = cust ? wsBag(s)[k] : '';
-						return (typeof v === 'string' && v.length) ? v : f;
-					};
+					const tm0   = this.typoMarks();
 					const closer = text === '"'
-						? at('typoCloseDouble', '\u201d')
-						: at('typoCloseSingle', '\u2019');
+						? ((tm0 && tm0.cd) || '\u201d')
+						: ((tm0 && tm0.cs) || '\u2019');
 					if (ahead && ahead === closer) {
 						view.dispatch({
 							selection: { anchor: from + 1 },
@@ -172,11 +173,10 @@ export const editorMethods = {
 					}
 				}
 				const opens = prev === '' || TYPO_OPENS_AFTER.test(prev);
-				const custom = s.typoCustomQuotes;
-				const pick = (key: string, fallback: string) => {
-					const v = custom ? wsBag(s)[key] : '';
-					return (typeof v === 'string' && v.length) ? v : fallback;
-				};
+				// THE MARKS, the language's or the writer's own: `typoMarks` decides (A615)
+				const tm = this.typoMarks();
+				const MK: Record<string, 'od' | 'cd' | 'os' | 'cs' | 'ap'> = { typoOpenDouble: 'od', typoCloseDouble: 'cd', typoOpenSingle: 'os', typoCloseSingle: 'cs', typoApostrophe: 'ap' };
+				const pick = (key: string, fallback: string) => (tm && tm[MK[key]]) || fallback;
 				// After a letter, a single quote is either an apostrophe or the
 				// end of a quotation, and the character alone cannot say which:
 				// don't and 'b' look identical at the cursor. So look back for
@@ -224,7 +224,7 @@ export const editorMethods = {
 			// The capital is its own step, like every substitution here, so Ctrl+Z
 			// or Backspace gives the small letter back.
 			if (s.typoCapitalize && !Platform.isMobile && from === to && /^\p{Ll}$/u.test(text)
-				&& wsSentenceStart(before, line.number > 1 ? doc.line(line.number - 1).text : null)) {
+				&& this.langEngine().sentenceStart(before, line.number > 1 ? doc.line(line.number - 1).text : null)) {
 				const up = text.toUpperCase();
 				if (up.length === 1 && up !== text) {
 					this.applyTypography(view, from, to, text, text, up);
@@ -369,8 +369,24 @@ export const editorMethods = {
 			}
 		}
 
+		// THE MAC'S OWN EDITING KEYS (found auditing for issue #56): CodeMirror's
+		// standard keymap carries the Emacs keys on a Mac only, so a writer there
+		// with Backspace locked still deleted to the end of the line with Ctrl-K.
+		// Bound under `mac`, never `key`: on Windows Ctrl-K is Obsidian's "insert
+		// link", which no lock is about. Ctrl-O (a new line) is typing and stays.
+		const macKeys = new Map<string, string>();
+		const addMac = (what: string, ...ks: string[]) => ks.forEach(k => macKeys.set(k, what));
+		if (c.hemBlockBackspace) addMac('backspace', 'Ctrl-Alt-h', 'Ctrl-t');
+		if (c.hemBlockDelete)    addMac('delete', 'Ctrl-k');
+		if (c.hemBlockArrows) {
+			addMac('the arrow keys', 'Ctrl-b', 'Ctrl-f', 'Ctrl-p', 'Ctrl-n', 'Shift-Ctrl-b', 'Shift-Ctrl-f', 'Shift-Ctrl-p', 'Shift-Ctrl-n');
+			for (const dir of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']) addMac('the arrow keys', 'Ctrl-' + dir, 'Shift-Ctrl-' + dir);
+		}
+		if (c.hemBlockJumpKeys) addMac('the jump keys', 'Ctrl-a', 'Ctrl-e', 'Ctrl-v', 'Shift-Ctrl-a', 'Shift-Ctrl-e', 'Shift-Ctrl-v');
+
 		const binds: KeyBinding[] = [];
 		keys.forEach(key => binds.push({ key, run: (view: EditorView) => blocked(view, keyWhat(key)), preventDefault: true }));
+		macKeys.forEach((what, mac) => binds.push({ mac, run: (view: EditorView) => blocked(view, what), preventDefault: true }));
 
 		const handlers = EditorView ? EditorView.domEventHandlers({
 			// inputType is the honest signal: it names the *edit* rather than

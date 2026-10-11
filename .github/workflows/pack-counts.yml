@@ -1,0 +1,38 @@
+# Each language pack's version and downloads (added up over every release), kept on the `badges` branch (one commit,
+# replaced each time) for the two badges under each pack in the README. Runs once a day, when a release is
+# published, and by hand (Actions > Pack counts > Run workflow).
+name: Pack counts
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Read each pack's version and count its downloads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/pack-counts.mjs "$RUNNER_TEMP/badges"
+      - name: Put them on the badges branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$RUNNER_TEMP/badges"
+          git init -q -b badges
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -q -m "Pack download counts"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" badges

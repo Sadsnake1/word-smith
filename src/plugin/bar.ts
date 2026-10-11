@@ -9,6 +9,7 @@ import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
 import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsCursorMarkSvg, wsHueRotate, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
+import { wsT, wsUiJoin, wsUiLang } from '../core/ui-text';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -985,6 +986,7 @@ export const barMethods = {
 		// there as it does under any other view. The scope check below is the
 		// note's, as it always was.
 		if (this.wsOwnViewActive()) return false;
+		// Word-Smith's own notes keep the bar through the scope itself (A607, A611)
 		return this.isActiveFileInScope();
 	},
 
@@ -1406,6 +1408,8 @@ export const barMethods = {
 			// never faded until now.
 			const isOn = typeof item.on === 'function' ? item.on() : !!item.on;
 			row.className = 'ws-picker-row' + (isOn ? '' : ' is-off') + (item.sub ? ' is-sub' : '');
+			// a row that needs explaining says so on hover (Export's Also include, A617)
+			if (item.note) row.title = item.note;
 
 			// Only colour-bearing rows get a swatch. A hollow ring beside
 			// "Spaces" said nothing except that a circle could have gone
@@ -1474,8 +1478,17 @@ export const barMethods = {
 			if (isOpener(wsElOf(e.target))) { e.preventDefault(); e.stopPropagation(); }
 		};
 		this._barPickerDismiss = dismiss;
+		// …AND A PRESS IN A FRAME (A628, the writer: "if i click on the preview screen the modal
+		// menu does not close"): the Export preview is a document of its own, and its presses
+		// never reach this one, so every same-origin frame on screen is listened to as well
+		const frames: Document[] = [];
+		for (const fr of Array.from(document.querySelectorAll<HTMLIFrameElement>('iframe'))) {
+			try { const d = fr.contentDocument; if (d) frames.push(d); } catch { /* another origin: not ours to hear */ }
+		}
+		this._barPickerFrames = frames;
 		window.setTimeout(() => {
 			document.addEventListener('mousedown', dismiss, true);
+			for (const d of frames) d.addEventListener('mousedown', dismiss, true);
 			if (this._barPickerKey) document.addEventListener('keydown', this._barPickerKey);
 		}, 0);
 	},
@@ -1489,12 +1502,18 @@ export const barMethods = {
 		for (let i = 0; i < live.length && i < rows.length; i++) {
 			const fn = live[i].on;
 			rows[i].classList.toggle('is-off', !(typeof fn === 'function' ? fn() : fn));
+			// …and a row that says its state in words and a glyph says it again (A628)
+			const labelOf = live[i].labelOf, iconOf = live[i].iconOf;
+			if (labelOf) { const l = rows[i].querySelector('.ws-picker-label'); if (l) l.textContent = labelOf(); }
+			if (iconOf) { const old = rows[i].querySelector('.ws-picker-icon'); const ic = iconOf(); ic.classList.add('ws-picker-icon'); if (old) old.replaceWith(ic); }
 		}
 	},
 
 	closeBarPicker(this: WordSmith) {
 		if (this._barPickerDismiss) {
 			document.removeEventListener('mousedown', this._barPickerDismiss, true);
+			for (const d of this._barPickerFrames || []) d.removeEventListener('mousedown', this._barPickerDismiss, true);
+			this._barPickerFrames = null;
 			if (this._barPickerKey) document.removeEventListener('keydown', this._barPickerKey);
 			this._barPickerDismiss = null;
 		}
@@ -1621,15 +1640,15 @@ export const barMethods = {
 	// them click through the note counts first would make the token pointless.
 	buildHistoryIndicator(this: WordSmith) {
 		return this.buildBarButton('ws-barbtn-history',
-			(node: HTMLElement) => this.barTokenPaint(node, 'history', 'History'),
-			'Your writing history \u2014 click to open it',
+			(node: HTMLElement) => this.barTokenPaint(node, 'history', wsT('History')),
+			wsT('Your writing history \u2014 click to open it'),
 			() => this.openHistoryModal());
 	},
 
 	buildExportIndicator(this: WordSmith) {
 		return this.buildBarButton('ws-barbtn-export',
-			(node: HTMLElement) => this.barTokenPaint(node, 'export', 'Export'),
-			'Compile a manuscript \u2014 click to open the export window',
+			(node: HTMLElement) => this.barTokenPaint(node, 'export', wsT('Export')),
+			wsT('Compile a manuscript \u2014 click to open the export window'),
 			() => this.openExportModal());
 	},
 
@@ -1637,8 +1656,8 @@ export const barMethods = {
 	// Powermenu floating over the note.
 	buildPowermenuIndicator(this: WordSmith) {
 		return this.buildBarButton('ws-barbtn-powermenu',
-			(node: HTMLElement) => this.barTokenPaint(node, 'powermenu', 'Menu'),
-			'The Powermenu \u2014 click to open it',
+			(node: HTMLElement) => this.barTokenPaint(node, 'powermenu', wsT('Menu')),
+			wsT('The Powermenu \u2014 click to open it'),
 			() => this.openBarMenu());
 	},
 
@@ -1648,8 +1667,8 @@ export const barMethods = {
 	// and the LABEL, and both of those changed.
 	buildOutlinerIndicator(this: WordSmith) {
 		return this.buildBarButton('ws-barbtn-outliner',
-			(node: HTMLElement) => this.barTokenPaint(node, 'organizer', 'Organizer'),
-			'Arrange the manuscript \u2014 click to open the Organizer',
+			(node: HTMLElement) => this.barTokenPaint(node, 'organizer', wsT('Organizer')),
+			wsT('Arrange the manuscript \u2014 click to open the Organizer'),
 			// NO TAB: a caller that exists to open a PARTICULAR tab is asking; a
 			// caller that exists to open THE WINDOW is not, even when it names one
 			// — this one's own tooltip says which it is. A session that remembers
@@ -1708,7 +1727,7 @@ export const barMethods = {
 				// An unflagged note gets the word "flag" whatever the shape:
 				// an icon-only token would otherwise be an empty space that
 				// cannot be clicked, and the click is how a flag is set.
-				if (!now) { node.textContent = wantWord ? 'flag' : '\u2691'; }
+				if (!now) { node.textContent = wantWord ? wsT('flag') : '\u2691'; }
 				else {
 					if (wantIcon) {
 						const wrap = createSpan();
@@ -1729,9 +1748,8 @@ export const barMethods = {
 				node.classList.toggle('is-set', !!now);
 				node.classList.toggle('is-' + (now || 'unset'), true);
 			},
-			now ? 'This note is ' + wsStatusLabel(now).toLowerCase()
-					+ ' \u2014 click for the next flag'
-				: 'Flag where this note is up to \u2014 draft, revise, done',
+			now ? wsT('This note is {flag} \u2014 click for the next flag', { flag: wsStatusLabel(now).toLowerCase() })
+				: wsT('Flag where this note is up to \u2014 draft, revise, done'),
 			async () => {
 				const f = this.activeNoteFile();
 				if (!f) return;
@@ -1798,8 +1816,8 @@ export const barMethods = {
 		// number first, then the Properties pane's icon (Icon, the default),
 		// the word (Name), or both (Icon + Name).
 		return this.buildBarButton('ws-barbtn-props',
-			(node: HTMLElement) => this.barCountPaint(node, 'properties', n, n === 1 ? 'property' : 'properties'),
-			n + (n === 1 ? ' property' : ' properties') + ' \u2014 click to open the Properties pane',
+			(node: HTMLElement) => this.barCountPaint(node, 'properties', n, n === 1 ? wsT('property') : wsT('properties', { n })),
+			n === 1 ? wsT('{n} property \u2014 click to open the Properties pane', { n }) : wsT('{n} properties \u2014 click to open the Properties pane', { n }),
 			() => this.openPropertiesView());
 	},
 
@@ -1845,15 +1863,15 @@ export const barMethods = {
 		const text = this.getBacklinkCount(view);
 		const n = text === '' ? '' : Number(text) || 0;
 		return this.buildBarButton('ws-barbtn-backlinks',
-			(node: HTMLElement) => { if (text === '') { node.textContent = ''; return; } this.barCountPaint(node, 'backlinks', n, n === 1 ? 'backlink' : 'backlinks'); },
-			'Show the notes that link to this one',
+			(node: HTMLElement) => { if (text === '') { node.textContent = ''; return; } this.barCountPaint(node, 'backlinks', n, n === 1 ? wsT('backlink') : wsT('backlinks', { n: Number(n) })); },
+			wsT('Show the notes that link to this one'),
 			() => this.openSidebarPanel('backlink'));
 	},
 
 	buildReportIndicator(this: WordSmith) {
 		return this.buildBarButton('ws-barbtn-report',
-			(node: HTMLElement) => this.barTokenPaint(node, 'report', 'Report'),
-			'Word counts and more \u2014 click for the full report',
+			(node: HTMLElement) => this.barTokenPaint(node, 'report', wsT('Report')),
+			wsT('Word counts and more \u2014 click for the full report'),
 			() => this.openReportModal());
 	},
 
@@ -2023,9 +2041,9 @@ export const barMethods = {
 		// room to be a name.
 		const el = this.buildBarButton(
 			'ws-barbtn-theme' + (theme ? '' : ' is-off'),
-			(node: HTMLElement) => this.barTokenPaint(node, 'theme', 'Theme'),
-			name ? 'Theme: ' + name + ' \u2014 click to change'
-				: 'Theme \u2014 click to choose',
+			(node: HTMLElement) => this.barTokenPaint(node, 'theme', wsT('Theme')),
+			name ? wsT('Theme: {name} \u2014 click to change', { name })
+				: wsT('Theme \u2014 click to choose'),
 			(anchor2: HTMLElement) => this.openThemePicker(anchor2)
 		);
 		return el;
@@ -2040,10 +2058,10 @@ export const barMethods = {
 				// of naming it; `glyph` is the menu's font icon, and a writer can ask
 				// for the word instead (Token formats). The chosen face is applied
 				// either way.
-				this.barTokenPaint(node, 'font', 'Fonts');
+				this.barTokenPaint(node, 'font', wsT('Fonts'));
 				if (current && !node.classList.contains('is-icon')) node.style.fontFamily = current;
 			},
-			current ? 'Font: ' + current + ' \u2014 click to change' : 'Font \u2014 click to choose',
+			current ? wsT('Font: {name} \u2014 click to change', { name: current }) : wsT('Font \u2014 click to choose'),
 			(anchor: HTMLElement) => this.openFontPicker(anchor)
 		);
 		return el;
@@ -2053,7 +2071,7 @@ export const barMethods = {
 		const fonts   = this.getConfiguredFonts();
 		const current = () => this.opt('editorFont') || '';
 		const items: WsMenuPickItem[] = [{
-			label: 'Theme default',
+			label: wsT('Theme default'),
 			on: () => !current(),
 			onClick: async () => {
 				this.settings.editorFont = '';
@@ -2075,7 +2093,7 @@ export const barMethods = {
 		}
 		if (fonts.length === 0) {
 			items.push({
-				label: 'No fonts added yet',
+				label: wsT('No fonts added yet'),
 				on: () => false,
 				onClick: async () => {}
 			});
@@ -2097,13 +2115,14 @@ export const barMethods = {
 	// else. The settings keys keep their pos* names: renaming them would force
 	// a migration on every existing vault, and nobody reads data.json.
 	getSyntaxCategories(this: WordSmith): { key: WsBoolKey; color: WsStringKey; label: string }[] {
-		return [
+		// the names in the pack's language while one is in use (A600)
+		return ([
 			{ key: 'posNoun',        color: 'posNounColor',        label: 'Nouns'        },
 			{ key: 'posVerb',        color: 'posVerbColor',        label: 'Verbs'        },
 			{ key: 'posAdverb',      color: 'posAdverbColor',      label: 'Adverbs'      },
 			{ key: 'posAdjective',   color: 'posAdjectiveColor',   label: 'Adjectives'   },
 			{ key: 'posConjunction', color: 'posConjunctionColor', label: 'Conjunctions' }
-		];
+		] as { key: WsBoolKey; color: WsStringKey; label: string }[]).map((c) => ({ ...c, label: this.catName(c.label) }));
 	},
 
 	// Reads "Syntax" in the bar; the colours live in the picker, where each
@@ -2112,11 +2131,11 @@ export const barMethods = {
 		const s = this.settings;
 		const active = s.posEnabled ? this.getSyntaxCategories().filter((c) => s[c.key]) : [];
 		const title = active.length
-			? 'Syntax highlight: ' + active.map((c) => c.label.toLowerCase()).join(', ')
-			: 'Syntax highlight is off';
+			? wsT('Syntax highlight: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() ? c.label : c.label.toLowerCase()))) })
+			: wsT('Syntax highlight is off');
 		const el = this.buildBarButton(
 			'ws-barbtn-syntax' + (active.length ? '' : ' is-off'),
-			(node: HTMLElement) => this.barTokenPaint(node, 'syntax', 'Syntax'),
+			(node: HTMLElement) => this.barTokenPaint(node, 'syntax', wsT('Syntax')),
 			title,
 			(anchor: HTMLElement) => this.openSyntaxPicker(anchor)
 		);
@@ -2176,11 +2195,11 @@ export const barMethods = {
 	},
 
 	buildCapsIndicator(this: WordSmith) {
-		return this.buildKeyGlyph('Caps', 'Lock', 'Caps Lock is on');
+		return this.buildKeyGlyph('Caps', 'Lock', wsT('Caps Lock is on'));
 	},
 
 	buildNumIndicator(this: WordSmith) {
-		return this.buildKeyGlyph('Num', 'Lock', 'Num Lock is on');
+		return this.buildKeyGlyph('Num', 'Lock', wsT('Num Lock is on'));
 	},
 
 	// The writing checks get their own token, so the syntax picker can stay
@@ -2189,8 +2208,9 @@ export const barMethods = {
 		// Order here drives the picker, the bar tooltip and the settings
 		// tab, so there is one sequence to remember rather than three.
 		// The master switch stays at the foot of the picker; everything
-		// above is in reading order.
-		return [
+		// above is in reading order. The names in the pack's language while
+		// one is in use (A600).
+		return ([
 			{ key: 'checkFiller',     color: 'checkFillerColor',     label: 'Filler words'      },
 			{ key: 'checkPassive',    color: 'checkPassiveColor',    label: 'Passive voice'     },
 			{ key: 'checkPronoun',    color: 'checkPronounColor',    label: 'Loose pronouns'    },
@@ -2210,7 +2230,7 @@ export const barMethods = {
 			// own colour, so it reads as the toggle it is.
 			{ key: 'checkRhythm',     color: 'checkRhythmHardColor', label: 'Sentence rhythm',
 			  swatch: 'text' }
-		];
+		] as { key: WsBoolKey; color: WsStringKey; label: string; swatch?: string }[]).map((c) => ({ ...c, label: this.catName(c.label) }));
 	},
 
 	buildWriteChecksIndicator(this: WordSmith) {
@@ -2218,9 +2238,9 @@ export const barMethods = {
 		const active = s.checksEnabled ? this.getWriteChecks().filter((c) => s[c.key]) : [];
 		return this.buildBarButton(
 			'ws-barbtn-writechecks' + (active.length ? '' : ' is-off'),
-			(node: HTMLElement) => this.barTokenPaint(node, 'prose', 'Prose'),
-			active.length ? 'Prose checks: ' + active.map(c => c.label.toLowerCase()).join(', ')
-				: 'Prose checks are off',
+			(node: HTMLElement) => this.barTokenPaint(node, 'prose', wsT('Prose')),
+			active.length ? wsT('Prose checks: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() ? c.label : c.label.toLowerCase()))) })
+				: wsT('Prose checks are off'),
 			(anchor: HTMLElement) => this.openWriteChecksPicker(anchor)
 		);
 	},
@@ -2262,8 +2282,8 @@ export const barMethods = {
 		return this.buildBarButton(
 			'ws-barbtn-markers' + (any ? '' : ' is-off'),
 			// THE MENU'S PILCROW ICON, or the word.
-			(node: HTMLElement) => this.barTokenPaint(node, 'markers', 'Markers'),
-			any ? 'Hidden markers \u2014 click to change' : 'Hidden markers are off',
+			(node: HTMLElement) => this.barTokenPaint(node, 'markers', wsT('Markers')),
+			any ? wsT('Hidden markers \u2014 click to change') : wsT('Hidden markers are off'),
 			(anchor: HTMLElement) => this.openMarkersPicker(anchor)
 		);
 	},
@@ -2275,11 +2295,11 @@ export const barMethods = {
 		// list had no edge to read down — the marks are what the writer is
 		// scanning for and they now line up in a column.
 		const defs: { key: WsBoolKey; label: string }[] = [
-			{ key: 'markTabs',       label: '\u2192 Tabs'          },
-			{ key: 'markSpaces',     label: '\u00b7 Spaces'        },
-			{ key: 'markEndOfLines', label: '\u21b5 Line ends'     },
-			{ key: 'markParagraphs', label: '\u00b6 Paragraphs'    },
-			{ key: 'markBlankLines', label: '~ End of buffer'  }
+			{ key: 'markTabs',       label: '\u2192 ' + wsT('Tabs')          },
+			{ key: 'markSpaces',     label: '\u00b7 ' + wsT('Spaces')        },
+			{ key: 'markEndOfLines', label: '\u21b5 ' + wsT('Line ends')     },
+			{ key: 'markParagraphs', label: '\u00b6 ' + wsT('Paragraphs')    },
+			{ key: 'markBlankLines', label: '~ ' + wsT('End of buffer')  }
 		];
 		const items = defs.map(d => ({
 			label: d.label,
@@ -2362,6 +2382,13 @@ export const barMethods = {
 			el('rect', { class: 'ws-mode-shape', x: 1.6, y: 1.6,
 				width: 20.8, height: 20.8, rx: 3.4 });
 			stroke('M8.4 7 V17 M15.6 7 V17 M8.4 12 H15.6');
+		} else if (kind === 'page') {
+			// A sheet with its corner turned, nothing on it (A596: the P asked for in
+			// A590 taken off again on the writer's word).
+			// As wide as the circle and the card beside it (the writer: "fatter"). The
+			// dog-ear is the outline's own stroke, joined round, so no square cap or
+			// mitered point leaves the square the other glyphs keep to.
+			el('path', { class: 'ws-mode-shape', 'stroke-linejoin': 'round', d: 'M2.6 1.6 H15.4 L21.4 7.6 V22.4 H2.6 Z M15.4 1.6 V7.6 H21.4' });
 		} else if (kind === 'lb') {
 			// Letterbox: two close rules, arrows pressing in from above and
 			// below — the masks, in miniature.
@@ -2378,27 +2405,30 @@ export const barMethods = {
 	},
 
 	buildModeIndicator(this: WordSmith) {
-		const anyOn = this.getActiveModes().length > 0 || this.letterboxActive();
+		const anyOn = this.getActiveModes().length > 0 || this.letterboxActive() || this.pageModeShown();
 		return this.buildBarButton(
 			'ws-barbtn-modes' + (anyOn ? '' : ' is-off'),
-			(node: HTMLElement) => this.barTokenPaint(node, 'modes', 'Modes'),
-			anyOn ? 'Writing modes \u2014 click to change' : 'Writing modes are off',
+			(node: HTMLElement) => this.barTokenPaint(node, 'modes', wsT('Modes')),
+			anyOn ? wsT('Writing modes \u2014 click to change') : wsT('Writing modes are off'),
 			(anchor: HTMLElement) => this.openModesPicker(anchor)
 		);
 	},
 
 	modesPickerItems(this: WordSmith) {
 		const defs = [
-			{ key: 'lb',  label: 'Letter Box',
-			  on: () => this.letterboxActive(),
-			  onClick: async () => { await this.toggleSetting('enableLetterbox'); } },
-			{ key: 'tw',  label: 'Typewriter',
+			{ key: 'tw',  label: wsT('Typewriter'),
 			  on: () => !!this.opt('enableTypewriter') && this.isActiveFileInScope(),
 			  onClick: async () => { await this.toggleSetting('enableTypewriter'); } },
-			{ key: 'hem', label: 'Hemingway',
+			{ key: 'hem', label: wsT('Hemingway'),
 			  on: () => !!this.opt('hemingwayEnabled') && this.isActiveFileInScope(),
 			  onClick: async () => { await this.toggleSetting('hemingwayEnabled'); } },
-			{ key: 'zen', label: 'Zen',
+			{ key: 'lb',  label: wsT('Letter Box'),
+			  on: () => this.letterboxActive(),
+			  onClick: async () => { await this.toggleSetting('enableLetterbox'); } },
+			{ key: 'page', label: wsT('Page'),
+			  on: () => this.pageModeShown(),
+			  onClick: async () => { this.togglePageQuick(); } },
+			{ key: 'zen', label: wsT('Zen'),
 			  on: () => this.zenActive(),
 			  onClick: async () => { await this.toggleZenFromBar(); } }
 		];
@@ -2758,6 +2788,7 @@ export const barMethods = {
 			'{theme}':     '\x00THEME\x00',
 			'{darklight}': '\x00DARKLIGHT\x00',
 			'{cursors}':   '\x00CURSORS\x00',
+			'{lang}':      '\x00LANG\x00',
 			'{report}':    '\x00REPORT\x00',
 			'{history}':   '\x00HISTORY\x00',
 			'{export}':    '\x00EXPORT\x00',
@@ -2864,11 +2895,19 @@ export const barMethods = {
 		if (this._barColorKey === colorKey && this._barColorCache) {
 			barColor = this._barColorCache;
 		} else {
+			// NOT REMEMBERED BEFORE THE SHEET. Right after a reload the first
+			// paint can land before styles.css is applied; the unstyled bar
+			// reads transparent, and kept under the body's classes that read
+			// stood until the next class change. The sheet's own stamp says
+			// whether it is in: until it is, the next paint reads again. Read
+			// off :root, where the stamp is declared.
+			let sheetIn = false;
 			try {
 				const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;
 				if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') barColor = c;
+				sheetIn = !!getComputedStyle(document.documentElement).getPropertyValue('--ws-stylesheet-version').trim();
 			} catch (_) { wsCatch('updateRetroStatusBar: const c = getComputedStyle(this.retroStatusBarEl).backgroundColor;', _); }
-			this._barColorKey = colorKey;
+			this._barColorKey = sheetIn ? colorKey : null;
 			this._barColorCache = barColor;
 		}
 		// Spacer tokens. Every distinct {s+} written anywhere in the bar gets
@@ -3804,7 +3843,7 @@ export const barMethods = {
 	cursorsPickerItems(this: WordSmith): WsMenuPickItem[] {
 		const names = this.cursorPresetNames();
 		if (!names.length) {
-			return [{ label: this.cursorSmithPlugin() ? 'No presets saved in Cursor-Smith' : 'Cursor-Smith is not installed',
+			return [{ label: this.cursorSmithPlugin() ? wsT('No presets saved in Cursor-Smith') : wsT('Cursor-Smith is not installed'),
 				on: () => false, onClick: async () => {} }];
 		}
 		let looks: Record<string, unknown> = {};
@@ -3847,6 +3886,42 @@ export const barMethods = {
 		return true;
 	},
 
+	// THE LANGUAGES TO SWITCH BETWEEN (A601): English, every language ticked under
+	// Prose → Language whose pack is in the vault, and the one in use; the one in
+	// use lit. The same list in the {lang} picker and the menu's Language row.
+	langPickerItems(this: WordSmith): WsMenuPickItem[] {
+		const packs = this._packs || new Map<string, { path: string; pack: { name: string } }>();
+		const cur = this.settings.language || 'en';
+		const codes = ['en'];
+		for (const c of (this.settings.languageChoices || [])) if (packs.has(c) && !codes.includes(c)) codes.push(c);
+		// (English's own pack is 'en', already first: A691, one pack since A694)
+		if (!codes.includes(cur) && packs.has(cur)) codes.push(cur);
+		return codes.map((code) => {
+			const e = packs.get(code);
+			return {
+				label: code === 'en' ? wsT('English') : (e ? e.pack.name : code),
+				on: () => (this.settings.language || 'en') === code,
+				onClick: async () => {
+					await this.languageSet(code);
+					try { if (this._settingsTab && this._settingsTab.containerEl && this._settingsTab.containerEl.isConnected) this._settingsTab.update(); } catch (_) { wsCatch('langPickerItems: settings update', _); }
+				},
+			};
+		});
+	},
+
+	// {lang}: the language in use on the bar; a press picks another. ITS CODE, NOT
+	// ITS NAME (A608): En, De, Es, as short as a token sits; the name in the tip.
+	buildLangIndicator(this: WordSmith) {
+		const p = this.packActive() || this.englishPack();
+		const name = p && !/^en$/i.test(String(p.lang)) ? p.name : wsT('English');
+		const code = String((p && p.lang) || 'en').split('-')[0];
+		const word = code.charAt(0).toUpperCase() + code.slice(1).toLowerCase();
+		return this.buildBarButton('ws-barbtn-lang',
+			(node: HTMLElement) => this.barTokenPaint(node, 'lang', word),
+			wsT('Language: {name} \u2014 click to switch', { name }),
+			(anchor: HTMLElement) => this.openPickerLive(anchor, this.langPickerItems(), 'choose'));
+	},
+
 	openCursorsPicker(this: WordSmith, anchor: HTMLElement) {
 		this.openPickerLive(anchor, this.cursorsPickerItems(), 'choose');
 	},
@@ -3856,18 +3931,18 @@ export const barMethods = {
 	buildCursorsIndicator(this: WordSmith) {
 		const there = !!this.cursorSmithPlugin();
 		return this.buildBarButton('ws-barbtn-cursors' + (there ? '' : ' is-off'),
-			(node: HTMLElement) => this.barTokenPaint(node, 'cursors', 'Cursors'),
-			there ? 'Cursor-Smith presets \u2014 click to choose' : 'Cursor-Smith is not installed',
+			(node: HTMLElement) => this.barTokenPaint(node, 'cursors', wsT('Cursors')),
+			there ? wsT('Cursor-Smith presets \u2014 click to choose') : wsT('Cursor-Smith is not installed'),
 			(anchor: HTMLElement) => this.openCursorsPicker(anchor));
 	},
 
 	// {darklight}: the menu's Dark / Light row on the bar, its moon or sun and
 	// its press. The mode is Obsidian's, so the app's own css-change redraws it.
 	buildDarkLightIndicator(this: WordSmith) {
-		const word = this.isDarkTheme() ? 'Dark' : 'Light';
+		const word = this.isDarkTheme() ? wsT('Dark') : wsT('Light');
 		return this.buildBarButton('ws-barbtn-darklight',
 			(node: HTMLElement) => this.barTokenPaint(node, 'darklight', word),
-			word + ' \u2014 click to switch',
+			wsT('{word} \u2014 click to switch', { word }),
 			() => this.barSetColorMode(!this.isDarkTheme()));
 	},
 
@@ -4445,6 +4520,7 @@ export const barMethods = {
 			THEME:    () => this.buildThemeIndicator(),
 			DARKLIGHT: () => this.buildDarkLightIndicator(),
 			CURSORS:  () => this.buildCursorsIndicator(),
+			LANG:     () => this.buildLangIndicator(),
 			REPORT:   () => this.buildReportIndicator(),
 			HISTORY:  () => this.buildHistoryIndicator(),
 			EXPORT:   () => this.buildExportIndicator(),

@@ -3,6 +3,7 @@
 
 import type WordSmith from '../plugin/plugin';
 import type { wsOrgSelMake } from './organizer-sel';
+import { wsT } from '../core/ui-text';
 
 // ════════════════════════════════════════════════════════════════════════
 // THE FILES — which of the vault's files this window is about, and what
@@ -70,7 +71,7 @@ const folderOf = (path: string) => {
 	const cut = String(path).lastIndexOf('/');
 	return cut === -1 ? '' : path.slice(0, cut);
 };
-const nameOf = (path: string) => (path === '' ? 'Vault root'
+const nameOf = (path: string) => (path === '' ? wsT('Vault root')
 	: (String(path).split('/').pop() || '').replace(/\.md$/, ''));
 
 // THE CURSOR GOES TO THE NOTE IN HAND, on a first opening only. The

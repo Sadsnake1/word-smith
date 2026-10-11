@@ -9,8 +9,56 @@ import { MarkdownView, TFile, Modal, Platform } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
 import type { Text as CmText } from '@codemirror/state';
 import type { WsTextStats } from '../core/settings';
+// one sentence of the Report's bars (A593)
+export type WsReportSentence = { n: number; head: string; path: string };
+// the sentences a report reads for its face, told how far it has got; `progress` answers false to stop (A652)
+export type WsSentencesOf = (progress?: ((done: number, total: number) => boolean) | null) => Promise<WsReportSentence[]>;
+// THE PACE (A640): this many points fit the window; a longer text gets a point every WS_PACE_PER
+// sentences, WS_PACE_PX pixels a point, scrolled sideways, up to WS_PACE_MAX. LOOSER since A643 (the
+// writer, over Alice's 6,888 sentences: "the graph is to compact, loosen it a bit more so it's more
+// comfortable to click in it"): 120 / 25 / 3 made a stretch three pixels to press and a peak every
+// seven; ten pixels a stretch now, fifty of them in a 500px window
+const WS_PACE_POINTS = 50, WS_PACE_PER = 40, WS_PACE_PX = 10, WS_PACE_MAX = 1200;
+let wsPaceIds = 0;
+// the Sentence lengths tab last pressed, opened first again this session (A644): 0 Rhythm, 1 Distribution
+let wsBarsTab = 0;
+
+// A READOUT LINE UNDER A CHART (A651, the writer's pick 5): what the pointer is on, written out under the chart,
+// where the native tooltip was slow on a desktop and never showed on a phone. A touch's first tap reads a
+// target, its second does what a click does. Returns the binder for each target.
+function wsChartReadout(chart: HTMLElement, under: HTMLElement, hint: string) {
+	const line = under.createDiv({ cls: 'ws-report-readout', text: hint });
+	let armed: Element | null = null, swallow = false;
+	chart.addEventListener('pointerleave', () => { line.setText(hint); armed = null; });
+	return (target: Element, text: string, open: (() => void) | null) => {
+		target.addEventListener('pointerenter', () => { line.setText(text); });
+		target.addEventListener('pointerup', (e) => {
+			if (!('pointerType' in e) || e.pointerType !== 'touch') return;
+			line.setText(text);
+			if (armed !== target) { armed = target; swallow = true; }
+		});
+		target.addEventListener('click', () => {
+			if (swallow) { swallow = false; return; }
+			if (open) open();
+		});
+	};
+}
+// HOW LONG THEY RUN (A629): the chart's eight columns, short to long, in words
+const WS_REPORT_BUCKETS: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40], [41, Infinity]];
 import { CJK_CHAR, READ_WPM, wsPagesOf, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
+
+// THE READ TIME IN THE INTERFACE'S LANGUAGE (A695): `formatReadTime` (bar.ts) stays the one writer of the
+// figure, which the bar's {readtime} and the Organizer's column share; the Report's cell routes its words,
+// the English byte for byte what that wrote ('0 min', '<1 min', '12 min', '1h 05m')
+function wsReadTimeUi(s: string): string {
+	if (s === '<1 min') return wsT('<1 min');
+	let m = /^(\d+) min$/.exec(s);
+	if (m) return wsT('{n} min', { n: Number(m[1]) });
+	m = /^(\d+)h (\d+)m$/.exec(s);
+	return m ? wsT('{h}h {m}m', { h: m[1], m: m[2] }) : s;
+}
 import type { WsInkDrop, WsInkBubble, WsInkWave, WsInkOrb } from './plugin';
 
 // THE JAR'S FRAME, at module level since its phases are (A489): what one tick
@@ -2696,6 +2744,13 @@ export const reportMethods = {
 		for (let i = 0; i < lines.length; i++) {
 			if (!skip.has(i + 1)) kept.push(maskForCounting(lines[i]));
 		}
+		const E = this.packActive() ? this.langEngine() : null;
+		if (E && E.segmented) {
+			for (const t of E.tag(kept.join('\n').replace(/%%[\s\S]*?%%/g, ' '))) {
+				if (!/^\p{N}/u.test(t.lw)) map.set(t.lw, (map.get(t.lw) || 0) + 1);
+			}
+			return map;
+		}
 		const prose = kept.join('\n').replace(/%%[\s\S]*?%%/g, ' ').replace(CJK_CHAR, ' ');
 		for (const run of prose.match(WORDISH) || []) {
 			const w = run.toLowerCase().replace(/\u2019/g, "'").replace(/[-'_]+$/, '');
@@ -2709,8 +2764,11 @@ export const reportMethods = {
 	// `common` says otherwise; ties go alphabetically so the list is stable.
 	topWords(this: WordSmith, freq: Map<string, number>, n: number, common: boolean) {
 		const rows = [];
+		const E = this.packActive() ? this.langEngine() : null;
 		if (freq) for (const [w, c] of freq) {
-			if (!common && REPORT_STOPWORDS.has(w)) continue;
+			// a pack's function words AND English's: a note in English in a German vault
+			// listed "the" first with the box unticked (A599)
+			if (!common && (REPORT_STOPWORDS.has(w) || (E ? E.isCommon(w) : false))) continue;
 			rows.push({ w, n: c });
 		}
 		rows.sort((a, b) => b.n - a.n || (a.w < b.w ? -1 : a.w > b.w ? 1 : 0));
@@ -2732,6 +2790,9 @@ export const reportMethods = {
 		const lines = String(text || '').split('\n');
 		const skip  = scanNonProseLines(lines);
 		let sentences = 0, syllables = 0, paragraphs = 0, lineCount = 0, inPara = false;
+		// A PACK'S SENTENCES AND SUMS (A571); English's below, as they were
+		const E = this.packActive() ? this.langEngine() : null;
+		const read: Record<string, number> = {};
 		for (let i = 0; i < lines.length; i++) {
 			const raw = lines[i];
 			if (skip.has(i + 1)) { inPara = false; continue; }
@@ -2739,6 +2800,10 @@ export const reportMethods = {
 			lineCount++;
 			if (!inPara) { paragraphs++; inPara = true; }
 			const masked = maskForCounting(raw);
+			if (E) {
+				for (const sent of E.sentences(masked)) if (E.sumsInto(sent.text, read)) sentences++;
+				continue;
+			}
 			for (const sent of splitSentences(masked)) {
 				const toks = tokenizeLine(sent.text);
 				if (!toks.length) continue;
@@ -2757,8 +2822,21 @@ export const reportMethods = {
 			lines:      lineCount,
 			// The manuscript convention, the one the Organizer's Pages reads too.
 			pages:      wsPagesOf(base.words),
-			grade:      fkGrade(base.words, sentences, syllables)
+			grade:      E ? E.gradeOf(read) : fkGrade(base.words, sentences, syllables),
+			...(E ? { read, syllables: read.syllables || 0 } : {}),
 		};
+	},
+
+	// A FOLDER'S GRADE from its notes' sums: a pack's formula over what they add
+	// up to, or Flesch–Kincaid over the words, sentences and syllables.
+	gradeOfTotal(this: WordSmith, total: WsTextStats) {
+		const E = this.packActive() ? this.langEngine() : null;
+		return E ? E.gradeOf(total.read || {}) : fkGrade(total.words, total.sentences, total.syllables);
+	},
+	addReadSums(this: WordSmith, total: WsTextStats, stats: WsTextStats) {
+		if (!stats.read) return;
+		const t = total.read || (total.read = {});
+		for (const k of Object.keys(stats.read)) t[k] = (t[k] || 0) + (stats.read[k] || 0);
 	},
 
 	countWords(this: WordSmith, text: string) {
@@ -3199,9 +3277,10 @@ export const reportMethods = {
 			total.sentences  += stats.sentences;
 			total.paragraphs += stats.paragraphs;
 			total.lines      += stats.lines || 0;
+			this.addReadSums(total, stats);
 		}
 		total.pages = wsPagesOf(total.words);
-		total.grade = fkGrade(total.words, total.sentences, total.syllables);
+		total.grade = this.gradeOfTotal(total);
 		// NULL WHEN THERE ARE NONE, not `0/0`. A folder with no boxes in it has
 		// no answer to "how many are left", and the cell shows nothing — the
 		// same rule every other reading in the band follows.
@@ -4410,7 +4489,7 @@ export const reportMethods = {
 		// each time you looked at a different tab and back, which reads as
 		// a glitch rather than as a thing that was dealt you.
 		this._auroraSeed = Math.random();
-		modal.titleEl.setText('Writing report');
+		modal.titleEl.setText(wsT('Writing report'));
 		modal.modalEl.addClass('ws-report-modal');
 
 		const view       = this.activeMarkdownView();
@@ -4471,7 +4550,7 @@ export const reportMethods = {
 
 		const render = async () => { try {
 			body.empty();
-			body.createDiv({ cls: 'ws-report-loading', text: 'Reading\u2026' });
+			body.createDiv({ cls: 'ws-report-loading', text: wsT('Reading\u2026') });
 
 			// ── The finder ──────────────────────────────────────────────
 			// One text box that can point the whole window at any note or
@@ -4497,7 +4576,7 @@ export const reportMethods = {
 					// is named for the note, not for the folder it was opened on.
 					current: active === 'folder' ? folderSel
 						: (repFile ? repFile.path : ''),
-					placeholder: 'Search for a folder or a note\u2026',
+					placeholder: wsT('Search for a folder or a note\u2026'),
 					onPick: (path: string, kind: string) => {
 						if (kind === 'file') {
 							const f = this.app.vault.getAbstractFileByPath(path);
@@ -4511,6 +4590,8 @@ export const reportMethods = {
 				});
 			};
 			let stats: WsTextStats | null = null, target = 0, freq: Map<string, number> | null = null;
+			// THE SENTENCES, read only when the bars are asked for (A593)
+			let sentencesOf: WsSentencesOf | null = null;
 			if (active === 'note') {
 				if (!repFile) {
 					// No note, but never a dead end: the finder is the
@@ -4526,14 +4607,15 @@ export const reportMethods = {
 					// folder above" named crumbs that are not there when nothing is
 					// open, and "a row in the Organizer" a window most readers of this
 					// sentence have not opened yet.
-					body.createDiv({ text: 'No note open \u2014 open one and ask again, '
-						+ 'or right-click a note or a folder in the file explorer and choose \u201cReport on this\u201d.' });
+					body.createDiv({ text: wsT('No note open \u2014 open one and ask again, or right-click a note or a folder in the file explorer and choose \u201cReport on this\u201d.') });
 					return;
 				}
 				let text = '';
 				try { text = await this.app.vault.cachedRead(repFile); } catch (_) { wsCatch('openReportModal / render: text = await plugin.app.vault.cachedRead(repFile);', _); }
 				stats  = this.analyzeText(text);
 				freq   = this.wordFreqInto(text, new Map<string, number>());
+				const notePath = repFile.path, noteText = text;
+				sentencesOf = () => Promise.resolve(this.reportSentences(noteText, notePath));
 				// The file's own goal, not the vault-wide writing goal — those
 				// are different numbers and showing one under the other's name
 				// made the ring meaningless.
@@ -4541,6 +4623,8 @@ export const reportMethods = {
 			} else {
 				stats  = await this.analyzeFolder(folderSel);
 				freq   = await this.wordFreqFor(this.filesInFolder(folderSel, true).filter((f) => this.isFileCounted(f)));
+				const folderFiles = this.filesInFolder(folderSel, true).filter((f) => this.isFileCounted(f));
+				sentencesOf = (progress) => this.reportFolderSentences(folderFiles, progress);
 				// A FOLDER IS THE SUM OF ITS NOTES; there is no typed number.
 				target = this.folderTargetRollup(folderSel).value;
 			}
@@ -4568,8 +4652,8 @@ export const reportMethods = {
 			} else {
 				const none = ringWrap.createDiv({ cls: 'ws-report-ring-label is-muted' });
 				none.createDiv({
-					text: active === 'note' ? 'No goal set for this note yet.'
-						: 'No goal set for this folder yet.'
+					text: active === 'note' ? wsT('No goal set for this note yet.')
+						: wsT('No goal set for this folder yet.')
 				});
 				// POINTED AT THE WINDOW, not at a settings pane: sending a writer to
 				// Settings to type a number into a list of paths is sending them past
@@ -4579,19 +4663,18 @@ export const reportMethods = {
 				// next time something moves.
 				none.createDiv({
 					cls: 'ws-report-hint',
-					text: 'Set one in the Organizer \u2014 in the table, on the '
-						+ 'Target column.'
+					text: wsT('Set one in the Organizer \u2014 in the table, on the Target column.')
 				});
 			}
 
-			this.buildReportFigures(body, stats, target, freq);
+			this.buildReportFigures(body, stats, target, freq, sentencesOf);
 
 		} catch (e) {
 			// An async renderer swallows its own exceptions; without this the
 			// modal just sat on "Reading\u2026" forever — which is exactly how the
 			// missing celebrate() presented.
 			body.empty();
-			body.createDiv({ text: 'Report failed \u2014 ' + wsErrMsg(e) });
+			body.createDiv({ text: wsT('Report failed \u2014 {error}', { error: wsErrMsg(e) }) });
 		} };
 		void render();
 		// THE FOOT IS FOR FIGURES: it was cleared on purpose and is spoken for.
@@ -4615,7 +4698,7 @@ export const reportMethods = {
 	// It takes STATS, not a note: what it draws is true of one file, of a
 	// folder, and of a selection of both summed together, which is what lets
 	// the same grid answer for a tree row and for the whole vault.
-	buildReportFigures(this: WordSmith, into: HTMLDivElement, stats: WsTextStats, target: number, freq: Map<string, number> | null) {
+	buildReportFigures(this: WordSmith, into: HTMLDivElement, stats: WsTextStats, target: number, freq: Map<string, number> | null, sentencesOf?: WsSentencesOf | null) {
 		const grid = into.createDiv({ cls: 'ws-report-grid' });
 		// Each figure carries its own explanation on hover, rather than a
 		// block of footnotes below competing with the numbers for height.
@@ -4627,19 +4710,19 @@ export const reportMethods = {
 		};
 		// NINE FIGURES, THREE BY THREE, grouped by what they measure:
 		// the row of SIZE (words, characters, characters without
-		// spaces), the row of STRUCTURE (syllables, sentences,
-		// paragraphs), and the row of WHAT IT COSTS A READER (pages,
+		// spaces), the row of STRUCTURE (paragraphs, sentences, the
+		// vocabulary, A665), and the row of WHAT IT COSTS A READER (pages,
 		// read time, grade). Four-across put those groups wherever the
 		// wrapping fell; three-across is the shape of the meaning, and
 		// it leaves no orphan row.
 		//
 		// The fraction lives in the Words cell rather than beside the
 		// gauge: it is a word count, and that is where a reader looks.
-		cell(target > 0 ? 'of ' + target.toLocaleString() + ' words' : 'Words',
+		cell(target > 0 ? wsT('of {target} words', { n: target, target: target.toLocaleString() }) : wsT('Words'),
 			stats.words.toLocaleString(),
-			'Prose only. Frontmatter, code, maths and link targets don\u2019t count.');
-		cell('Characters', stats.chars.toLocaleString(),
-			'Without spaces. Skips whatever the word count skips.');
+			wsT('Prose only. Frontmatter, code, maths and link targets don\u2019t count.'));
+		cell(wsT('Characters'), stats.chars.toLocaleString(),
+			wsT('Without spaces. Skips whatever the word count skips.'));
 		// Counted all along — the analyser has returned it since the
 		// count was first split out — and never shown. A publisher's
 		// character limit almost always means this one.
@@ -4647,22 +4730,257 @@ export const reportMethods = {
 		// word processor counts: every space, tab and newline once
 		// each. It used to be the COLLAPSED length, which was neither
 		// figure — a run of four spaces scored one.
-		cell('With spaces', (stats.charsWithSpaces || 0).toLocaleString(),
-			'The word-processor figure \u2014 spaces and line breaks included.');
-		cell('Syllables',  stats.syllables.toLocaleString(),
-			'A best guess. Unusual words trip it up.');
-		cell('Sentences',  stats.sentences.toLocaleString(),
-			'Anything ending in . ? or !');
-		cell('Paragraphs', stats.paragraphs.toLocaleString(),
-			'Blocks with a blank line between them.');
-		cell('Pages',      (stats.pages || 0).toLocaleString(),
-			'At 250 words a page \u2014 the manuscript standard.');
-		cell('Read time',  this.formatReadTime(stats.words),
-			'At ' + READ_WPM + ' words a minute.');
-		cell('Grade',      stats.sentences ? stats.grade.toFixed(1) : '\u2014',
-			'Years of school needed to read it easily. Under 9 is easy going.');
-		if (freq && freq.size) this.buildReportWords(into, stats, freq);
+		cell(wsT('With spaces'), (stats.charsWithSpaces || 0).toLocaleString(),
+			wsT('The word-processor figure \u2014 spaces and line breaks included.'));
+		// THE ROW OF STRUCTURE, IN THE WRITER'S ORDER (A631: "remove syllables from the writing
+		// report as it's not usefull at all", "put in that row in this order Paragrpahs, Sentences",
+		// then "Words a sentence: the average"). The syllables still feed the grade; shown, they
+		// told a writer nothing they could act on.
+		cell(wsT('Paragraphs'), stats.paragraphs.toLocaleString(),
+			wsT('Blocks with a blank line between them.'));
+		cell(wsT('Sentences'),  stats.sentences.toLocaleString(),
+			wsT('Anything ending in . ? or !'));
+		// THE WORDS IT USES (A665, the writer, taking A662's Dialogue share back: "I want something more
+		// general writing", then "Use vocabulary."): the different words, off the map Common words lists
+		// (capitals folded, figures out), so a folder's are its notes' words together. A count, not a share:
+		// a share of different words barely moved between Carroll and an encyclopedia (69 to 71%, measured)
+		cell(wsT('Vocabulary'), freq && freq.size ? freq.size.toLocaleString() : '\u2014',
+			wsT('Different words used. The count grows with the text, so compare a chapter with a chapter.'));
+		cell(wsT('Pages'),      (stats.pages || 0).toLocaleString(),
+			wsT('At 250 words a page \u2014 the manuscript standard.'));
+		cell(wsT('Read time'),  wsReadTimeUi(this.formatReadTime(stats.words)),
+			wsT('At {n} words a minute.', { n: READ_WPM }));
+		cell(wsT('Grade'),      stats.sentences ? String(Math.round(stats.grade)) : '\u2014',
+			wsT('Years of school needed to read it easily. Under 9 is easy going.'));
+		if (freq && freq.size) this.buildReportWords(into, stats, freq, sentencesOf || null);
 		return grid;
+	},
+
+	// A TEXT'S SENTENCES, in order, for the Report's chart (A593): each one's words, how it opens
+	// and its note; no grade since A629, the chart counting words only. The prose lines only, as the count reads them (frontmatter, code and
+	// maths out, headings out), cut by the language's own engine.
+	// A FOLDER'S SENTENCES IN SLICES (A652, the writer's pick 6): a cached read resolves at once, so a folder read
+	// note after note never gave the window a turn, and a vault of thousands of notes held it for the whole read.
+	// Back to the window every 30 ms of reading, the count said through `progress`, which answers false to stop
+	// (the face closed while it read).
+	async reportFolderSentences(this: WordSmith, files: TFile[], progress?: ((done: number, total: number) => boolean) | null) {
+		const all: WsReportSentence[] = [];
+		let t0 = performance.now();
+		for (let i = 0; i < files.length; i++) {
+			let t = '';
+			try { t = await this.app.vault.cachedRead(files[i]); } catch (_) { wsCatch('report / sentences: cachedRead', _); }
+			for (const x of this.reportSentences(t, files[i].path)) all.push(x);
+			if (performance.now() - t0 < 30 && i < files.length - 1) continue;
+			if (progress && !progress(i + 1, files.length)) return all;
+			if (i < files.length - 1) { await new Promise((r) => window.setTimeout(r, 0)); t0 = performance.now(); }
+		}
+		return all;
+	},
+
+	reportSentences(this: WordSmith, text: string, path: string): WsReportSentence[] {
+		const E = this.langEngine();
+		const lines = String(text || '').split('\n');
+		const skip = scanNonProseLines(lines);
+		const out: WsReportSentence[] = [];
+		for (let i = 0; i < lines.length; i++) {
+			if (skip.has(i + 1)) continue;
+			const line = lines[i];
+			if (!line.trim() || /^\s{0,3}#{1,6}\s/.test(line)) continue;
+			for (const s of E.sentences(maskForCounting(line))) {
+				const n = E.wordsIn(s.text);
+				if (!n) continue;
+				out.push({ n, head: s.text.slice(0, 80), path });
+			}
+		}
+		return out;
+	},
+
+	// THE CHART (A593; simple since A629, the writer: "do the simple version for sentence report.
+	// add a color ramp to the bars and less info on top of them"). One short line, then how long
+	// the sentences run in eight columns, short to long, each as tall as its share, in a ramp from
+	// the short green through the middle to Sentence rhythm's long and very long tints; a
+	// column's count and share on hover. A bar a sentence was a wall on a novel (8,000 of them),
+	// and WHERE the long ones are is the editor's Sentence rhythm's to show.
+	// `tabsInto`: where the two tabs go (the face's bar, since A648); the chart's own box without one
+	drawReportBars(this: WordSmith, into: HTMLElement, list: WsReportSentence[], tabsInto?: HTMLElement) {
+		into.empty();
+		if (!list.length) { into.createDiv({ cls: 'ws-report-bars-note', text: wsT('No sentences here.') }); return; }
+		const s = this.settings;
+		const total = list.reduce((a, x) => a + x.n, 0);
+		// MORE ON THE LINE (A650, the writer: "also add a bit more info on that line"): the notes a folder's
+		// sentences are in, the longest, the share at the writer's Long from
+		const notes = new Set(list.map((x) => x.path)).size;
+		const longest = list.reduce((a, x) => Math.max(a, x.n), 0);
+		const longAt = s.checkRhythmLongWords != null ? s.checkRhythmLongWords : 25;
+		const longShare = Math.round(100 * list.filter((x) => x.n >= longAt).length / list.length);
+		const line = into.createDiv({ cls: 'ws-report-bars-note' });
+		// a fact a line, each a whole line of its own (A695), the dots between them; a sentence is in one note, so
+		// "in {notes} notes" never meets the singular
+		const many = { n: list.length, count: list.length.toLocaleString(), notes: notes.toLocaleString() };
+		line.appendText((notes > 1 ? wsT('{count} sentences in {notes} notes', many)
+			: list.length === 1 ? wsT('{count} sentence', many) : wsT('{count} sentences', many))
+			+ ' \u00b7 ' + wsT('{n} words on average', { n: Math.round(total / list.length) }) + ' \u00b7 ');
+		// THE LONGEST A LINK (A666, the writer's pick 1): it opens that sentence in its note, the first of the
+		// longest where two tie; a click or Enter, its hover the sentence's opening and its note
+		const top = list.find((x) => x.n === longest) || list[0];
+		const lk = line.createSpan({ cls: 'ws-report-longest', text: wsT('longest {n} words', { n: longest }), attr: {
+			role: 'link', tabindex: '0',
+			title: wsT('{opening}\u2026 \u00b7 {note}. Click to open it.', { opening: top.head, note: (top.path.split('/').pop() || '').replace(/\.md$/, '') }) } });
+		lk.addEventListener('click', (ev) => { void this.openNoteAt(top.path, top.head.slice(0, 40), ev); });
+		lk.addEventListener('keydown', (ev) => {
+			if (ev.key !== 'Enter') return;
+			ev.preventDefault();
+			void this.openNoteAt(top.path, top.head.slice(0, 40));
+		});
+		line.appendText(' \u00b7 ' + wsT('{share}% at {n}+ words', { share: longShare, n: longAt }));
+		into.style.setProperty('--ws-bar-short', s.checkRhythmShortColor || '#5aa469');
+		into.style.setProperty('--ws-bar-hard', s.checkRhythmHardColor || '#d4a017');
+		into.style.setProperty('--ws-bar-veryhard', s.checkRhythmVeryHardColor || '#c2544d');
+		// TWO TABS, A CHART EACH (A644, the writer: "add some tiltes to each chart", "Sentence ryhtm not pace
+		// thorugh the text", then "add to tabs to senteces, Rythm and Distribution, each tab displays a chart"):
+		// the one last pressed opening first again; THE BAR'S BUTTONS since A648 (the writer: "i want the tabs in
+		// the sentece popup to look more like this buttons", a shot of ← Report and the search), in the face's bar
+		tabsInto?.querySelectorAll('.ws-report-tabs').forEach((e) => { e.remove(); });
+		const tabs = (tabsInto || into).createDiv({ cls: 'ws-report-tabs' });
+		const pills: HTMLElement[] = [], panes: HTMLElement[] = [];
+		const show = (k: number) => {
+			wsBarsTab = k;
+			pills.forEach((b, i) => { b.toggleClass('is-picked', i === k); b.setAttribute('aria-pressed', i === k ? 'true' : 'false'); });
+			panes.forEach((p, i) => { p.toggleClass('is-picked', i === k); });
+		};
+		for (const [name, icons] of [[wsT('Rhythm'), ['activity', 'chart-spline', 'line-chart']], [wsT('Distribution'), ['chart-column', 'bar-chart-3', 'bar-chart']]] as [string, string[]][]) {
+			const k = pills.length;
+			const b = tabs.createEl('button', { cls: 'ws-export-mini ws-report-tab', attr: { type: 'button' } });
+			wsGlyphWord(b, icons, name);
+			b.addEventListener('click', () => show(k));
+			pills.push(b);
+			panes.push(into.createDiv({ cls: 'ws-report-tab-pane' }));
+		}
+		show(wsBarsTab);
+		this.drawReportPace(panes[0], list);
+		const chart = panes[1].createDiv({ cls: 'ws-report-bars-chart' });
+		const readCol = wsChartReadout(chart, panes[1], wsT('Hover or tap a column to read it.'));
+		const counts = WS_REPORT_BUCKETS.map(([a, b]) => list.filter((x) => x.n >= a && x.n <= b).length);
+		const most = Math.max(1, ...counts);
+		WS_REPORT_BUCKETS.forEach(([a, b], k) => {
+			const range = b === Infinity ? (a - 1) + '+' : a + '\u2013' + b;
+			// NAMES OF THEIR OWN: `.ws-report-col-pct` is the word table's column, 14ch wide
+			const col = chart.createDiv({ cls: 'ws-report-bin' });
+			// ITS SHARE ON TOP (A640, the writer: "add percentage on top of the bars")
+			col.createDiv({ cls: 'ws-report-bin-pct', text: Math.round(100 * counts[k] / list.length) + '%' });
+			const bar = col.createDiv({ cls: 'ws-report-bar is-b' + k });
+			bar.style.setProperty('--ws-bar-h', String(counts[k] / most));
+			col.createDiv({ cls: 'ws-report-bin-label', text: range });
+			const said = { n: counts[k], count: counts[k].toLocaleString(), range, share: Math.round(100 * counts[k] / list.length) };
+			readCol(col, counts[k] === 1 ? wsT('{count} sentence of {range} words ({share}%)', said)
+				: wsT('{count} sentences of {range} words ({share}%)', said), null);
+		});
+	},
+
+	// THE PACE (A640, the writer: "Like a sentence frequncy so that is shows pacing?", then "do a+b"):
+	// the average sentence along the text, a point a stretch (50 in the window), dipping where the prose runs
+	// fast (dialogue, action) and rising where it slows; a tick where each note begins; a stretch's
+	// figures on hover, a press opens its note at its first sentence. The line wears the ramp of the
+	// spread below it: the short green low, the long and very long tints high, at the writer's thresholds.
+	drawReportPace(this: WordSmith, into: HTMLElement, list: WsReportSentence[]) {
+		const s = this.settings;
+		const pace = into.createDiv({ cls: 'ws-report-pace' });
+		// LONGER FOR A LONGER TEXT (the writer: "i mean for longer text"): the line and its ticks in a box
+		// as wide as its points, scrolled sideways
+		const C = list.length <= WS_PACE_POINTS ? list.length
+			: Math.min(WS_PACE_MAX, Math.max(WS_PACE_POINTS, Math.ceil(list.length / WS_PACE_PER)));
+		// the line scrolls in a box of its own
+		const inner = pace.createDiv({ cls: 'ws-report-pace-scroll' }).createDiv({ cls: 'ws-report-pace-inner' });
+		if (C > WS_PACE_POINTS) inner.style.width = (C * WS_PACE_PX) + 'px';
+		const pts: { avg: number; from: number; to: number }[] = [];
+		for (let c = 0; c < C; c++) {
+			const a = Math.floor(c * list.length / C), b = Math.floor((c + 1) * list.length / C);
+			let sum = 0;
+			for (let i = a; i < b; i++) sum += list[i].n;
+			pts.push({ avg: sum / Math.max(1, b - a), from: a, to: b });
+		}
+		// SMOOTHED, so the shape is the pace and not the noise from one stretch to the next: each point
+		// weighed with its neighbors (1 2 1); a stretch's own figure stays on its hover
+		const W3 = [1, 2, 1];
+		const sm = pts.map((_, c) => {
+			let sum = 0, wt = 0;
+			W3.forEach((w, k) => { const j = c + k - 1; if (j >= 0 && j < C) { sum += pts[j].avg * w; wt += w; } });
+			return sum / wt;
+		});
+		// THE TEXT'S OWN SCALE, the line filling its box (the writer: "increase the scale of this, it's too
+		// short"): its lowest stretch at the foot, its highest at the top; the figures are on each hover
+		let lo = Math.min(...sm), hi = Math.max(...sm);
+		if (hi - lo < 1) { lo -= 0.5; hi += 0.5; }
+		const VW = 600, VH = 120;
+		// A SLOT EACH, THE POINT AT ITS MIDDLE (A661, the writer: "the first and the last graph are hard to hover
+		// on, too little space"): the line ran edge to edge, so the first stretch's half was under the second's and
+		// the last one's past the drawing; equal slots give the two at the ends the width of the rest
+		const slot = VW / C;
+		const xOf = (c: number) => (c + 0.5) * slot;
+		const yOf = (v: number) => VH - 4 - ((v - lo) / (hi - lo)) * (VH - 8);
+		const svg = this.historySvg('svg', { viewBox: '0 0 ' + VW + ' ' + VH, preserveAspectRatio: 'none', class: 'ws-report-pace-chart', role: 'img' }, inner);
+		// ITS NAME A <title>, NEVER AN aria-label (A641): Obsidian's hover tooltip asks an aria-labelled
+		// element isShown(), which an SVG has not
+		this.historySvg('title', null, svg).textContent = wsT('The average sentence along the text');
+		const gid = 'ws-pace-' + (++wsPaceIds);
+		const grad = this.historySvg('linearGradient', { id: gid, gradientUnits: 'userSpaceOnUse', x1: 0, y1: VH, x2: 0, y2: 0 }, this.historySvg('defs', null, svg));
+		const short = s.checkRhythmShortWords != null ? s.checkRhythmShortWords : 8;
+		const long = s.checkRhythmLongWords != null ? s.checkRhythmLongWords : 25;
+		const very = s.checkRhythmVeryLongWords != null ? s.checkRhythmVeryLongWords : 40;
+		for (const [v, color] of [[short, 'var(--ws-bar-short)'], [(short + long) / 2, 'var(--text-faint)'], [long, 'var(--ws-bar-hard)'], [very, 'var(--ws-bar-veryhard)']] as [number, string][]) {
+			this.historySvg('stop', { offset: Math.min(1, Math.max(0, (VH - yOf(v)) / VH)).toFixed(3), style: 'stop-color: ' + color }, grad);
+		}
+		// THE TEXT'S AVERAGE, dashed, the line the pace runs above and below
+		const mean = list.reduce((a, x) => a + x.n, 0) / list.length;
+		this.historySvg('path', { class: 'ws-report-pace-mean', d: 'M0 ' + yOf(mean).toFixed(1) + ' H' + VW }, svg);
+		// (A645's figure on it, "average 17 words", went on the writer's word: "remove the average label")
+		// A CURVE THROUGH THE POINTS (Catmull-Rom as cubic Béziers), not a zigzag between them
+		const P = sm.map((v, c) => [xOf(c), yOf(v)]);
+		let d = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1);
+		for (let i = 0; i + 1 < P.length; i++) {
+			const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
+			const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+			d += ' C' + [c1, c2, p2].map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+		}
+		this.historySvg('path', { class: 'ws-report-pace-line', stroke: 'url(#' + gid + ')', d }, svg);
+		// a stretch to hover and to press, as wide as its share of the line; its figures in the readout under the
+		// chart (A651), a <desc> for a reader, no <title> (a native tooltip)
+		const readStretch = wsChartReadout(pace, into, wsT('Hover or tap a stretch to read it; click to open its note.'));
+		pts.forEach((p, c) => {
+			const hit = this.historySvg('rect', { class: 'ws-report-pace-hit', x: (c * slot).toFixed(2), y: 0, width: slot.toFixed(2), height: VH }, svg);
+			const first = list[p.from];
+			const note = first.path.split('/').pop()?.replace(/\.md$/, '') || '';
+			const stretch = { from: (p.from + 1).toLocaleString(), to: p.to.toLocaleString(), avg: p.avg.toFixed(1), note };
+			const said = note ? wsT('Sentences {from}\u2013{to} \u00b7 {avg} words on average \u00b7 {note}', stretch)
+				: wsT('Sentences {from}\u2013{to} \u00b7 {avg} words on average', stretch);
+			this.historySvg('desc', null, hit).textContent = said;
+			readStretch(hit, said, () => { void this.openNoteAt(first.path, first.head.slice(0, 40)); });
+		});
+		// (A649: the ticks under the line where each note of a folder begins went, the writer circling them: "for
+		// opening in a folder these things appear"; a stretch's hover names its note)
+	},
+
+	// WHICH TINT A SENTENCE TAKES (A595): by its reading grade, or by its length in words where
+	// Shade by says so; null for none. One answer for the editor's shading and the Report's bars
+	// (A593). `!= null`, not ||: a threshold of 0 is a valid setting and `|| 10` discarded it.
+	rhythmTint(this: WordSmith, words: number, grade: number | null): 'short' | 'mid' | 'hard' | 'veryhard' | null {
+		const s = this.settings;
+		if (s.checkRhythmBy === 'length') {
+			const very = s.checkRhythmVeryLongWords != null ? s.checkRhythmVeryLongWords : 40;
+			const long = s.checkRhythmLongWords != null ? s.checkRhythmLongWords : 25;
+			// SHORT, IN GREEN (A630, the writer: "needs to color short sentences too with a green")
+			const short = s.checkRhythmShortWords != null ? s.checkRhythmShortWords : 8;
+			// THE MIDDLE TOO (A658, the writer's pick 8 of "a faint neutral tint, or leave them clean"; it was the
+			// writer's "some sentences are not colorized"): past Short up to and short of Long from, a tint of its
+			// own unless switched off
+			return words >= very ? 'veryhard' : words >= long ? 'hard' : words > 0 && words <= short ? 'short'
+				: s.checkRhythmMid !== false && words > short ? 'mid' : null;
+		}
+		// a fragment (under four words) has no grade: it is not "hard"
+		if (grade === null) return null;
+		const veryAt = s.checkRhythmVeryHardGrade != null ? s.checkRhythmVeryHardGrade : 14;
+		const hardAt = s.checkRhythmHardGrade != null ? s.checkRhythmHardGrade : 10;
+		return grade >= veryAt ? 'veryhard' : grade >= hardAt ? 'hard' : null;
 	},
 
 	// ── MOST USED WORDS ────────────────────────────────────────────────
@@ -4680,17 +4998,30 @@ export const reportMethods = {
 	// brings them back ("Common words" — two words, so the search beside it
 	// keeps its width in a 400px window); the tick is the panel's own and is
 	// not saved.
-	buildReportWords(this: WordSmith, into: HTMLDivElement, stats: { words: number }, freq: Map<string, number>) {
+	buildReportWords(this: WordSmith, into: HTMLDivElement, stats: { words: number }, freq: Map<string, number>, sentencesOf?: WsSentencesOf | null) {
 		into.addClass('ws-report-host');
 		const box = into.createDiv({ cls: 'ws-report-words' });
 		const bar = box.createDiv({ cls: 'ws-report-words-bar' });
 		const btn = bar.createEl('button', { cls: 'ws-export-mini ws-report-words-btn', attr: { type: 'button', 'aria-pressed': 'false' } });
 		const say = (open: boolean) => {
-			wsGlyphWord(btn, open ? ['arrow-left', 'chevron-left'] : ['chart-bar-decreasing', 'bar-chart-horizontal', 'bar-chart-2'], open ? 'Report' : 'Words frequency');
-			btn.title = open ? 'Back to the figures' : 'Every word, most used first';
+			wsGlyphWord(btn, open ? ['arrow-left', 'chevron-left'] : ['chart-bar-decreasing', 'bar-chart-horizontal', 'bar-chart-2'], open ? wsT('Report') : wsT('Words frequency'));
+			btn.title = open ? wsT('Back to the figures') : wsT('Every word, most used first');
 			btn.setAttribute('aria-pressed', open ? 'true' : 'false');
 		};
 		say(false);
+		// ── THE THIRD FACE: SENTENCE LENGTHS (A593) ──────────────────────
+		//
+		// Beside Words frequency, the same costume: one bar a sentence in reading order,
+		// as tall as its words, in Sentence rhythm's tints by `rhythmTint` (the grade or
+		// the length, whichever Shade by says). Read on the first opening: a book is
+		// thousands of sentences, and most reports are read for their figures.
+		const bbtn = bar.createEl('button', { cls: 'ws-export-mini ws-report-bars-btn', attr: { type: 'button', 'aria-pressed': 'false' } });
+		const bsay = (open: boolean) => {
+			wsGlyphWord(bbtn, open ? ['arrow-left', 'chevron-left'] : ['chart-column', 'bar-chart-3', 'bar-chart'], open ? wsT('Report') : wsT('Sentence lengths'));
+			bbtn.title = open ? wsT('Back to the figures') : wsT('Every sentence as a bar, as tall as its words');
+			bbtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+		};
+		bsay(false);
 		// A SEARCH BOX BETWEEN THE BUTTON AND THE TICK (A477, writer 2026-09-21:
 		// "add a search bar so i can see a word count"): the rows narrow to the
 		// words that contain what is typed, so "walk" shows walk, walked and
@@ -4699,12 +5030,12 @@ export const reportMethods = {
 		const srchWrap = bar.createDiv({ cls: 'ws-report-words-search search-input-container' });
 		const srch = srchWrap.createEl('input');
 		srch.type = 'search';
-		srch.placeholder = 'Find a word';
-		srch.setAttribute('aria-label', 'Find a word');
+		srch.placeholder = wsT('Find a word');
+		srch.setAttribute('aria-label', wsT('Find a word'));
 		const lab = bar.createEl('label', { cls: 'ws-report-words-common' });
 		const chk = lab.createEl('input');
 		chk.type = 'checkbox';
-		lab.createSpan({ text: ' Common words' });
+		lab.createSpan({ text: ' ' + wsT('Common words') });
 		// EVERY WORD, in a box that scrolls: a novel has thousands. TWO TABLES,
 		// ONE SET OF COLUMNS: the heading row in a box of its own above the
 		// scroller, so the bar runs beside the words only and never cuts the
@@ -4734,15 +5065,16 @@ export const reportMethods = {
 		// reader that cannot see it.
 		const head = htable.createEl('thead').createEl('tr');
 		type WsWordsCol = 'word' | 'count' | 'pct';
-		const COLS: { id: WsWordsCol; cls: string; label: string; first: 'asc' | 'desc' }[] = [
-			{ id: 'word', cls: 'ws-report-word', label: 'Word', first: 'asc' },
-			{ id: 'count', cls: 'ws-report-wordn', label: 'Count', first: 'desc' },
-			{ id: 'pct', cls: 'ws-report-wordpct', label: 'Frequency', first: 'desc' },
+		// each heading's tip a whole line of its own (A695), never "Sort by " and the heading lowercased
+		const COLS: { id: WsWordsCol; cls: string; label: string; tip: string; first: 'asc' | 'desc' }[] = [
+			{ id: 'word', cls: 'ws-report-word', label: wsT('Word'), tip: wsT('Sort by word'), first: 'asc' },
+			{ id: 'count', cls: 'ws-report-wordn', label: wsT('Count'), tip: wsT('Sort by count'), first: 'desc' },
+			{ id: 'pct', cls: 'ws-report-wordpct', label: wsT('Frequency'), tip: wsT('Sort by frequency'), first: 'desc' },
 		];
 		let sortCol: WsWordsCol = 'count';
 		let sortDir: 'asc' | 'desc' = 'desc';
 		const heads = COLS.map((c) => {
-			const th = head.createEl('th', { cls: c.cls, text: c.label, attr: { title: 'Sort by ' + c.label.toLowerCase() } });
+			const th = head.createEl('th', { cls: c.cls, text: c.label, attr: { title: c.tip } });
 			th.addEventListener('click', () => {
 				if (sortCol === c.id) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
 				else { sortCol = c.id; sortDir = c.first; }
@@ -4789,7 +5121,7 @@ export const reportMethods = {
 				pct.addClass('is-band-' + step);
 			}
 			if (!rows.length) {
-				const only = tbody.createEl('tr').createEl('td', { cls: 'ws-report-word is-muted', text: q ? 'No word here has "' + q + '" in it.' : 'Only common words here.' });
+				const only = tbody.createEl('tr').createEl('td', { cls: 'ws-report-word is-muted', text: q ? wsT('No word here has "{q}" in it.', { q }) : wsT('Only common words here.') });
 				only.setAttribute('colspan', '3');
 			}
 		};
@@ -4797,12 +5129,40 @@ export const reportMethods = {
 		srch.addEventListener('input', draw);
 		// DRAWN ON THE FIRST OPENING, not at build: a folder's map is thousands
 		// of rows, and most reports are read for their figures.
+		const barsBox = box.createDiv({ cls: 'ws-report-bars' });
+		let barsDrawn = false;
+		bbtn.addEventListener('click', () => { void (async () => {
+			const open = !box.hasClass('is-bars');
+			box.toggleClass('is-bars', open);
+			into.toggleClass('is-words', open);
+			// WIDER WHILE IT SHOWS (A646, the writer: "make the popup for senteces a more wider"): the Writing
+			// report's own window only, never the unified window that shows the same face in a tab
+			const rep = into.closest('.ws-report-modal');
+			if (rep) rep.toggleClass('is-bars-open', open);
+			bsay(open);
+			if (!open || barsDrawn) return;
+			barsDrawn = true;
+			barsBox.empty();
+			const reading = barsBox.createDiv({ cls: 'ws-report-bars-note', text: wsT('Reading\u2026') });
+			let list: WsReportSentence[] = [];
+			// THE COUNT AS IT READS (A652), and the reading stopped when the face is closed or the window goes
+			const still = () => barsBox.isConnected && box.hasClass('is-bars');
+			const going = (d: number, t: number) => { if (!still()) return false; reading.setText(wsT('Reading\u2026 {done} of {total} notes', { n: t, done: d.toLocaleString(), total: t.toLocaleString() })); return true; };
+			try { list = sentencesOf ? await sentencesOf(going) : []; } catch (_) { wsCatch('buildReportWords: the sentences', _); }
+			// closed before the end: nothing drawn, and the next opening reads again
+			if (!still()) { barsDrawn = false; return; }
+			this.drawReportBars(barsBox, list, bar);
+		})(); });
 		let drawn = false;
 		btn.addEventListener('click', () => {
 			const open = !box.hasClass('is-open');
 			if (open && !drawn) { rebase(); draw(); drawn = true; }
 			box.toggleClass('is-open', open);
 			into.toggleClass('is-words', open);
+			// A FIFTH SHORTER OPEN (A633): the Writing report's own window only, never the
+			// unified window that shows the same face in a tab
+			const rep = into.closest('.ws-report-modal');
+			if (rep) rep.toggleClass('is-words-open', open);
 			say(open);
 		});
 		return box;
@@ -4875,9 +5235,10 @@ export const reportMethods = {
 			total.sentences       += stats.sentences || 0;
 			total.paragraphs      += stats.paragraphs || 0;
 			total.lines           += stats.lines || 0;
+			this.addReadSums(total, stats);
 		}
 		total.pages = wsPagesOf(total.words);
-		total.grade = fkGrade(total.words, total.sentences, total.syllables);
+		total.grade = this.gradeOfTotal(total);
 		return total;
 	},
 

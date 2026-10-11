@@ -342,6 +342,11 @@ export const diagnosticsMethods = {
 		let m = null;
 		try {
 			if (!Menu) { this._sheetTest = 'no Menu in this build'; return; }
+			// ON A PHONE OR A TABLET ONLY, where menus are sheets (found auditing
+			// for issue #56): on a desktop it flashed six rows over the window for
+			// nothing, and on a Mac, whose menus the system draws by default, it
+			// opened a real menu reading "sheet row 1…6" and measured nothing.
+			if (!(typeof Platform !== 'undefined' && Platform && Platform.isMobile)) { this._sheetTest = 'not run (a desktop: menus are no sheets)'; return; }
 			m = wsMenu();
 			if (m.dom && m.dom.dataset) m.dom.dataset.wsSelftest = '1';
 			for (let i = 1; i <= 6; i++) m.addItem((it) => it.setTitle('sheet row ' + i));

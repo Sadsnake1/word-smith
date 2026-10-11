@@ -45,6 +45,7 @@ interface Window {
 interface WebviewTag extends HTMLElement {
 	src?: string;
 	printToPDF?(options: Record<string, unknown>): Promise<Uint8Array>;
+	executeJavaScript?(code: string): Promise<unknown>;
 }
 interface HTMLElementTagNameMap {
 	webview: WebviewTag;

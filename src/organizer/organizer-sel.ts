@@ -3,6 +3,7 @@
 
 import { Notice, Platform } from 'obsidian';
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type { WsSession } from '../core/preamble';
 import type WordSmith from '../plugin/plugin';
 
@@ -116,7 +117,7 @@ const orgBulkPaths = (row: { path: string; kind?: string } | null | undefined): 
 };
 const orgBulkSay = (n: number, what: string) => {
 	if (n < 2) return;
-	try { new Notice('Word-Smith: ' + what + ' on ' + n + ' notes.'); } catch (_) { wsCatch('orgBulkSay: new Notice', _); }
+	try { new Notice(wsT('Word-Smith: {what} on {n} notes.', { what, n })); } catch (_) { wsCatch('orgBulkSay: new Notice', _); }
 };
 // THE CLICK THAT SELECTS. `rows` is the list as shown, for the range.
 let orgSelAnchor: string | null = null;

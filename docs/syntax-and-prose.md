@@ -6,7 +6,7 @@
 
 **Prose checks** mark eight things worth a second look: filler words, passive voice, doubled words, easily confused pairs, vague pronouns, dialogue tags, sentence rhythm, and repeated uncommon words. Each check has its own switch and its own color. Marks are an underline by default, or a highlight, or colored text.
 
-Both run on your machine. Both are guesswork. A mark is a nudge, not a verdict. Both are English only, and in another language they mark nothing rather than marking it wrongly.
+Both run on your machine. Both are guesswork. A mark is a nudge, not a verdict. English is built in; other languages come as [language packs](language-packs.md), one note each, and a language without one is marked nothing rather than marked wrongly.
 
 ## How the tagger works
 

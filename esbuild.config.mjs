@@ -14,7 +14,39 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
+// ── THE SETTINGS' TRANSLATIONS, PACKED (A692) ────────────────────────────
+//
+// ts/locales holds one JSON file a language, English line → translation:
+// readable, and what src/core/ui-locales.ts imports for the checker. Bundled
+// as they are, every file would carry the 700 English keys again, half a
+// megabyte of repetition. So both builds serve ui-locales.ts as the English
+// keys once and each language as an array in their order, made back into
+// the same objects when main.js loads (a few milliseconds). Sorted, so the
+// output is the same bytes on every build.
+const localesPacked = {
+	name: 'ws-locales-packed',
+	setup(build) {
+		build.onLoad({ filter: /[\\/]core[\\/]ui-locales\.ts$/ }, () => {
+			const dir = path.join(HERE, 'locales');
+			const codes = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort();
+			const tables = {}, keys = [], seen = new Set();
+			for (const c of codes) {
+				tables[c] = JSON.parse(fs.readFileSync(path.join(dir, c + '.json'), 'utf8'));
+				for (const k of Object.keys(tables[c]).sort()) if (!seen.has(k)) { seen.add(k); keys.push(k); }
+			}
+			keys.sort();
+			const rows = codes.map((c) => JSON.stringify(c) + ': ' + JSON.stringify(keys.map((k) => (typeof tables[c][k] === 'string' ? tables[c][k] : ''))));
+			const contents = 'const K = ' + JSON.stringify(keys) + ';\n'
+				+ 'const T = {\n' + rows.join(',\n') + '\n};\n'
+				+ 'export const WS_LOCALES = {};\n'
+				+ 'for (const c of Object.keys(T)) { const a = T[c], o = {}; for (let i = 0; i < K.length; i++) if (a[i]) o[K[i]] = a[i]; WS_LOCALES[c] = o; }\n';
+			return { contents, loader: 'js' };
+		});
+	},
+};
+
 export const options = (test) => ({
+	plugins: [localesPacked],
 	absWorkingDir: HERE,
 	entryPoints: [test ? 'src/test-entry.ts' : 'src/main.ts'],
 	bundle: true,

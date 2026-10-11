@@ -54,6 +54,12 @@
 //   THE PRESETS are the strip of cards under the Powerline switch —
 //   presetsRow, below.
 import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon } from 'obsidian';
+import { WS_PACKS_URL, wsPackCovers } from '../core/language';
+import { wsT, wsTq, wsUiLang, wsUiEchoOn, wsUiJoin } from '../core/ui-text';
+import { wsPackGradeName, wsPackGradeFrom } from '../core/lang-engine';
+import { WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_SAMPLES, wsCiter } from '../core/citations';
+import type { WsCite } from '../core/citations';
+import type { WsPack } from '../core/language';
 import type { App, SettingDefinition, SettingDefinitionItem, SettingDefinitionGroup, SettingDefinitionPage, SettingDefinitionRender, SettingGroupItem } from 'obsidian';
 import {
 	BAR_KEYS_LIVE,
@@ -123,8 +129,8 @@ class WsPrompt extends Modal {
 	field: HTMLInputElement;
 	constructor(app: App, title: string, placeholder: string, submit: (value: string) => Promise<boolean | string>) {
 		super(app);
-		this.setTitle(title);
-		this.field = this.contentEl.createEl('input', { type: 'text', cls: 'ws-prompt-field', attr: { placeholder, spellcheck: 'false' } });
+		this.setTitle(wsT(title));
+		this.field = this.contentEl.createEl('input', { type: 'text', cls: 'ws-prompt-field', attr: { placeholder: wsT(placeholder), spellcheck: 'false' } });
 		const note = this.contentEl.createDiv({ cls: 'ws-prompt-note' });
 		const go = async () => {
 			const result = await submit(this.field.value.trim());
@@ -134,8 +140,8 @@ class WsPrompt extends Modal {
 		};
 		this.field.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); void go(); } });
 		const buttons = this.contentEl.createDiv({ cls: 'modal-button-container' });
-		buttons.createEl('button', { cls: 'mod-cta', text: 'OK', attr: { type: 'button' } }).addEventListener('click', () => { void go(); });
-		buttons.createEl('button', { text: 'Cancel', attr: { type: 'button' } }).addEventListener('click', () => { this.close(); });
+		buttons.createEl('button', { cls: 'mod-cta', text: wsT('OK'), attr: { type: 'button' } }).addEventListener('click', () => { void go(); });
+		buttons.createEl('button', { text: wsT('Cancel'), attr: { type: 'button' } }).addEventListener('click', () => { this.close(); });
 	}
 	onOpen() { this.field.focus(); }
 }
@@ -212,7 +218,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 		// the pages describe surfaces a blocked start did not build
 		const on: Pred = () => !!s.pluginEnabled && !this.plugin._startBlocked;
-		return [
+		return this.translateTree([
 			this.headerGroup(),
 			this.pagePowermenu(on),
 			this.pagePowerline(on),
@@ -220,12 +226,45 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.pageProse(on),
 			this.pageText(on),
 			this.pageManuscript(on),
+			this.pageExport(on),
 			this.pageNavigation(on),
 			// under Navigation
 			this.pageThemes(on),
 			this.pageVault(on),
 			this.footerRow(),
-		];
+		]);
+	}
+
+	// THE TREE IN OBSIDIAN'S LANGUAGE (A692; A586's walk): every name, description, heading and choice through
+	// `wsT`, a page's value through `wsTq`; a translated name keeps its English as a search alias, so a search in
+	// English still finds the row. English: the tree as built.
+	translateTree(items: Item[]): Item[] {
+		if (!wsUiLang() && !wsUiEchoOn()) return items;
+		const walk = (it: Record<string, unknown>) => {
+			if (typeof it.name === 'string' && it.name) {
+				const en = it.name, tr = wsT(en);
+				if (tr !== en) { it.name = tr; it.aliases = (Array.isArray(it.aliases) ? it.aliases as string[] : []).concat([en]); }
+			}
+			if (typeof it.desc === 'string' && it.desc) it.desc = wsT(it.desc);
+			if (typeof it.heading === 'string' && it.heading) it.heading = wsT(it.heading);
+			const c = it.control;
+			if (c && typeof c === 'object') {
+				const cc = c as Record<string, unknown>;
+				const o = cc.options;
+				// a choice that is a sample date is data, never a line (the date format's)
+				if (o && typeof o === 'object' && cc.key !== 'organizerDateFormat') {
+					const oo = o as Record<string, unknown>;
+					for (const k of Object.keys(oo)) { const v = oo[k]; if (typeof v === 'string') oo[k] = wsT(v); }
+				}
+				if (typeof cc.placeholder === 'string') cc.placeholder = wsT(cc.placeholder);
+			}
+			const dv = it.displayValue;
+			if (typeof dv === 'function') { const f = dv as () => string; it.displayValue = () => wsTq(f()); }
+			const kids = it.items;
+			if (Array.isArray(kids)) for (const x of kids) if (x && typeof x === 'object') walk(x as Record<string, unknown>);
+		};
+		for (const it of items) walk(it as unknown as Record<string, unknown>);
+		return items;
 	}
 
 	// The header: the switch, and the blocked-start card while a start is
@@ -254,7 +293,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.alertInto(st, 'triangle-alert');
 				st.setDesc(b ? b.text : '');
 				st.settingEl.toggleClass('is-safe', !!b && b.kind === 'safe');
-				if (b && b.kind === 'safe') st.addButton((btn) => btn.setButtonText('Try again').setCta().onClick(() => { void this.plugin.startAgain(); }));
+				if (b && b.kind === 'safe') st.addButton((btn) => btn.setButtonText(wsT('Try again')).setCta().onClick(() => { void this.plugin.startAgain(); }));
 			},
 		};
 	}
@@ -380,8 +419,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// move is DOM, watched by an observer on the tab's own container.
 	iconDesc(icon: string, text: string): DocumentFragment {
 		return createFragment((f) => {
-			setIcon(f.createSpan({ cls: 'ws-page-icon' }), icon);
-			f.appendText(text);
+			const el = f.createSpan({ cls: 'ws-page-icon' });
+			setIcon(el, icon);
+			// THE EXPORT ARROW POINTS AWAY FROM THE PAGE here as in the menu, the bar
+			// and the window (A591), flipped only when `file-output` itself drew
+			if (icon === 'file-output' && el.childElementCount > 0) el.classList.add('is-mirrored');
+			f.appendText(wsT(text));
 		});
 	}
 
@@ -432,10 +475,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				st.settingEl.addClass('ws-set-reset-row');
 				const btn = st.controlEl.createEl('button', { cls: 'ws-set-reset-link', attr: { type: 'button' } });
 				setIcon(btn, 'rotate-ccw');
-				btn.createSpan({ text: 'Reset ' + title + ' to defaults' });
+				btn.createSpan({ text: wsT('Reset {section} to defaults', { section: wsTq(title) }) });
 				btn.addEventListener('click', () => { void (async () => {
 					const r = await this.plugin.settingsResetKeys(keys);
-					new Notice('Word-Smith: ' + (r.error || (r.changed + ' of ' + r.keys + ' back to the default' + (r.changed === 1 ? '' : 's') + '. Undo is under Vault.')), 6000);
+					new Notice('Word-Smith: ' + (r.error || wsT(r.changed === 1 ? '{n} of {keys} back to the default. Undo is under Vault.' : '{n} of {keys} back to the defaults. Undo is under Vault.', { n: r.changed ?? 0, keys: r.keys ?? 0 })), 6000);
 					this.update();
 				})(); });
 			},
@@ -498,13 +541,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						// beside the name, under our own class rather than Obsidian's
 						// setting-command-hotkeys, whose rules sit the chip at the bottom.
 						const ctl = line.createSpan({ cls: 'ws-set-keys-ctl' });
-						keyEls.push([full, ctl.createSpan({ cls: 'setting-hotkey ws-set-keys-key' + (keys ? '' : ' mod-empty is-blank'), text: keys || 'Blank' })]);
+						keyEls.push([full, ctl.createSpan({ cls: 'setting-hotkey ws-set-keys-key' + (keys ? '' : ' mod-empty is-blank'), text: keys || wsT('Blank') })]);
 						const name = String(cmd.name || id);
-						const add = ctl.createEl('button', { cls: 'clickable-icon setting-add-hotkey-button ws-set-keys-add', attr: { type: 'button', 'aria-label': 'Set a hotkey for ' + name.replace(/^Word-Smith: /, '') } });
+						const add = ctl.createEl('button', { cls: 'clickable-icon setting-add-hotkey-button ws-set-keys-add', attr: { type: 'button', 'aria-label': wsT('Set a hotkey for {name}', { name: name.replace(/^Word-Smith: /, '') }) } });
 						setIcon(add, 'plus-circle');
 						add.addEventListener('click', () => { this.openHotkeysFor(name); });
 					}
-					st.descEl.createDiv({ cls: 'ws-set-keys-note', text: 'Or set them under Settings \u2192 Hotkeys.' });
+					st.descEl.createDiv({ cls: 'ws-set-keys-note', text: wsT('Or set them under Settings \u2192 Hotkeys.') });
 				};
 				draw();
 				// READ AGAIN, NOT ONCE: a hotkey set under Settings → Hotkeys and a
@@ -516,7 +559,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					if (shown().join(' ') !== drawn) { draw(); return; }
 					for (const [full, el] of keyEls) {
 						const keys = keyOf(full);
-						const text = keys || 'Blank';
+						const text = keys || wsT('Blank');
 						if (el.textContent !== text) el.setText(text);
 						setClass(el, 'is-blank', !keys);
 						setClass(el, 'mod-empty', !keys);
@@ -582,7 +625,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// (the whole row clickable, its name in the accent), which reads as a
 	// link.
 	buttonRow(name: string, desc: string, text: string, run: () => void, visible?: Pred): Render {
-		const def: Render = { name, desc, render: (st) => { st.addButton((b) => b.setButtonText(text).onClick(run)); } };
+		const def: Render = { name, desc, render: (st) => { st.addButton((b) => b.setButtonText(wsT(text)).onClick(run)); } };
 		if (visible) def.visible = visible;
 		return def;
 	}
@@ -590,7 +633,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// A destructive button that is two taps: the first turns it red and asks
 	// ("Delete?") for three seconds, the second runs `del`. Left alone, it
 	// turns back. The row's size of button, not a card's icon.
-	twoTapButton(st: Setting, text: string, del: () => void) {
+	twoTapButton(st: Setting, en: string, del: () => void) {
+		const text = wsT(en);
 		st.addButton((b) => {
 			b.setButtonText(text);
 			let armed = 0;
@@ -619,7 +663,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		// the plugin's own glyph where it has one, a Lucide name otherwise
 		if (opts.draw) opts.draw(el.createSpan({ cls: 'ws-pill-icon' }));
 		else if (icon) setIcon(el.createSpan({ cls: 'ws-pill-icon' }), icon);
-		el.createSpan({ cls: 'ws-pill-name', text: name });
+		el.createSpan({ cls: 'ws-pill-name', text: wsTq(name) });
 		return el;
 	}
 
@@ -753,7 +797,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.section('Where it applies', [
 				this.subheadRow('Where it applies'),
 				rendered({ name: 'Rule', desc: 'Only the listed paths, or everywhere except them.', render: (st) => this.renderScopeMode(st), visible: () => count() > 0 }, ['scopeMode']),
-				rendered({ name: 'Paths', desc: 'Folders and notes. With none listed, Word-Smith applies to every note.', render: (st) => this.renderPaths(st, 'scopePaths', 'Add a folder or note', 'Apply to…', true) }, ['scopePaths']),
+				rendered({ name: 'Paths', desc: 'Folders and notes. With none listed, Word-Smith applies to every note.', render: (st) => this.renderPaths(st, 'scopePaths', 'Add a folder or note', wsT('Apply to…'), true) }, ['scopePaths']),
 		]);
 	}
 
@@ -791,15 +835,15 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		paths().forEach((path, i) => {
 			const card = box.createDiv({ cls: 'ws-card' });
 			const text = card.createSpan({ cls: 'ws-card-text' });
-			text.createSpan({ cls: 'ws-card-name', text: path === '/' ? 'Entire vault' : path });
-			text.createSpan({ cls: 'ws-card-kind', text: /\.md$/i.test(path) ? 'note' : 'folder' });
-			this.twoTapDelete(card, 'Remove ' + path, () => { void (async () => {
+			text.createSpan({ cls: 'ws-card-name', text: path === '/' ? wsT('Entire vault') : path });
+			text.createSpan({ cls: 'ws-card-kind', text: /\.md$/i.test(path) ? wsT('note') : wsT('folder') });
+			this.twoTapDelete(card, wsT('Remove {path}', { path }), () => { void (async () => {
 				paths().splice(i, 1);
 				await this.plugin.saveSettings(true);
 				this.update();
 			})(); });
 		});
-		const add = this.pill(box, addLabel, 'plus', { cls: 'ws-pill-more' });
+		const add = this.pill(box, wsT(addLabel), 'plus', { cls: 'ws-pill-more' });
 		add.addEventListener('click', () => this.pickPath(key, placeholder, withRoot));
 	}
 
@@ -834,7 +878,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					['menuOrder', 'menuHidden', 'menuAliases', 'menuJoined', 'menuRuleStyles']),
 				this.hotkeysRow(['open-menu', 'open-menu-panel']),
 			]),
-		], () => s.menuDock ? 'Docked' : 'Floating', on);
+		], () => s.menuDock ? wsT('Docked') : wsT('Floating'), on);
 	}
 
 	renderMenuShelf(st: Setting) {
@@ -844,10 +888,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 		const defs = plugin.menuFeatureDefs();
 		const nameOf = (id: string) => {
-			if (/^rule-\d+$/.test(id)) return 'Separator';
+			if (/^rule-\d+$/.test(id)) return wsT('Separator');
 			if (plugin.menuIsCommand(id)) return plugin.menuAliasOf(id);
 			const d = defs.find((f) => f.id === id);
-			return d ? d.name : id;   // an unknown id is shown as itself: reachable beats pretty
+			// THE MENU'S OWN NAMES, AS THE MENU SAYS THEM: in the interface's language since the menu is (A695; A692 kept
+			// them English while it was not)
+			return d ? wsT(d.name) : id;   // an unknown id is shown as itself: reachable beats pretty
 		};
 
 		const grid = box.createDiv({ cls: 'ws-menu-bands' });
@@ -878,7 +924,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// the card is a div: the handle (glyph and name) and the action
 				// buttons are siblings in it
 				const card = bandEl.createDiv({ cls: 'ws-card ws-menu-card' + (isRule ? ' is-rule' : '') + (isCmd ? ' is-cmd' : '') + (isDead ? ' is-dead' : '') });
-				card.setAttribute('title', isRule ? 'Separator' : isCmd ? plugin.menuCommandName(id) : nameOf(id));
+				card.setAttribute('title', isRule ? wsT('Separator') : isCmd ? plugin.menuCommandName(id) : nameOf(id));
 				card.setAttribute('draggable', 'true');
 				card.addEventListener('dragstart', (e) => { if (e.dataTransfer) e.dataTransfer.setData('text/plain', id); card.addClass('is-dragging'); });
 				card.addEventListener('dragend', () => card.removeClass('is-dragging'));
@@ -912,8 +958,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					// Obsidian's own `dropdown`, as every other select on the tab; the sheet
 					// only keeps it from taking the card's width
 					const sel = card.createEl('select', { cls: 'dropdown ws-rule-style' });
-					sel.setAttribute('aria-label', 'How this separator draws');
-					for (const style of MENU_RULE_STYLES) { const o = sel.createEl('option', { text: style.charAt(0).toUpperCase() + style.slice(1) }); o.value = style; }
+					sel.setAttribute('aria-label', wsT('How this separator draws'));
+					for (const style of MENU_RULE_STYLES) { const o = sel.createEl('option', { text: wsT(style.charAt(0).toUpperCase() + style.slice(1)) }); o.value = style; }
 					sel.value = plugin.menuRuleStyle(id);
 					sel.addEventListener('click', (e) => e.stopPropagation());
 					sel.addEventListener('change', () => { void (async () => {
@@ -946,7 +992,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						try { inp.focus(); inp.select(); } catch (_) { wsCatch('renderMenuShelf: inp.focus();', _); }
 					});
 				}
-				this.action(card, 'x', isRule ? 'Delete this separator' : 'Set ' + nameOf(id) + ' aside', (e) => { void (async () => {
+				this.action(card, 'x', isRule ? wsT('Delete this separator') : wsT('Set {name} aside', { name: nameOf(id) }), (e) => { void (async () => {
 					e.stopPropagation();
 					if (isRule) plugin.menuDeleteRule(id); else plugin.menuHide(id);
 					await plugin.saveSettings();
@@ -971,8 +1017,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		// ends as that one does.
 		const cmdSearch = finder.createDiv({ cls: 'search-input-container' }).createEl('input', { cls: 'ws-cmd-search' });
 		cmdSearch.type = 'search';
-		cmdSearch.placeholder = 'Search any command to pin…';
-		cmdSearch.setAttribute('aria-label', 'Search any command to pin');
+		cmdSearch.placeholder = wsT('Search any command to pin…');
+		cmdSearch.setAttribute('aria-label', wsT('Search any command to pin'));
 		const cmdHits = finder.createDiv({ cls: 'ws-cmd-hits' });
 		const pinnedNow = new Set(plugin.menuLayout());
 		const drawHits = () => {
@@ -988,7 +1034,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				if (sc >= 0) hits.push({ sc, c });
 			}
 			hits.sort((a, b) => b.sc - a.sc);
-			if (!hits.length) { cmdHits.createDiv({ cls: 'ws-cmd-empty', text: 'Nothing matches' }); return; }
+			if (!hits.length) { cmdHits.createDiv({ cls: 'ws-cmd-empty', text: wsT('Nothing matches') }); return; }
 			for (const h of hits.slice(0, 8)) {
 				const hit = cmdHits.createEl('button', { cls: 'ws-cmd-hit', text: h.c.name || h.c.id, attr: { type: 'button' } });
 				hit.addEventListener('click', () => { void (async () => {
@@ -1002,21 +1048,21 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 		const hiddenIds = plugin.settings.menuHidden || [];
 		if (hiddenIds.length) {
-			box.createDiv({ cls: 'ws-set-label', text: 'Set aside' });
+			box.createDiv({ cls: 'ws-set-label', text: wsT('Set aside') });
 			const row = box.createDiv({ cls: 'ws-pills' });
 			for (const id of hiddenIds) {
 				const restore = () => { void (async () => { plugin.menuRestore(id); await plugin.saveSettings(); redisplay(); })(); };
 				if (plugin.menuIsCommand(id)) {
 					const card = row.createDiv({ cls: 'ws-card' });
 					card.setAttribute('title', plugin.menuCommandName(id));
-					const back = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': 'Put ' + nameOf(id) + ' back in the menu' } });
+					const back = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': wsT('Put {name} back in the menu', { name: nameOf(id) }) } });
 					setIcon(back.createSpan({ cls: 'ws-pill-icon' }), 'undo-2');
 					back.createSpan({ cls: 'ws-card-name', text: nameOf(id) });
 					back.addEventListener('click', restore);
-					this.action(card, 'x', 'Unpin ' + nameOf(id), (e) => { void (async () => { e.stopPropagation(); plugin.menuUnpin(id); await plugin.saveSettings(); redisplay(); })(); });
+					this.action(card, 'x', wsT('Unpin {name}', { name: nameOf(id) }), (e) => { void (async () => { e.stopPropagation(); plugin.menuUnpin(id); await plugin.saveSettings(); redisplay(); })(); });
 					continue;
 				}
-				const chip = this.pill(row, nameOf(id), 'undo-2', { label: 'Put ' + nameOf(id) + ' back in the menu' });
+				const chip = this.pill(row, nameOf(id), 'undo-2', { label: wsT('Put {name} back in the menu', { name: nameOf(id) }) });
 				chip.addEventListener('click', restore);
 			}
 		}
@@ -1047,10 +1093,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			return keys;
 		};
 		const value = () => {
-			if (!s.enableRetroStatus) return 'Off';
+			if (!s.enableRetroStatus) return wsT('Off');
 			const n = this.plugin.getStatusRows().length;
 			const preset = this.presetInUse();
-			return 'On · ' + (preset ? preset + ' · ' : '') + n + (n === 1 ? ' row' : ' rows');
+			return wsT('On') + ' · ' + (preset ? preset + ' · ' : '') + wsT(n === 1 ? '{n} row' : '{n} rows', { n });
 		};
 		return this.page('Powerline', 'panel-bottom', 'Rows, colors, borders, tokens.', [
 			this.section('Powerline', [
@@ -1105,6 +1151,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				tokenFormat('{theme}', 'theme', 'Theme', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{darklight}', 'darklight', 'Dark', 'The moon or the sun, the word, or both.'),
 				tokenFormat('{cursors}', 'cursors', 'Cursors', 'The text cursor, the word, or both.'),
+				tokenFormat('{lang}', 'lang', 'Language', 'The menu’s icon, the language’s code (En, Es), or both.'),
 				tokenFormat('{report}', 'report', 'Report', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{history}', 'history', 'History', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{export}', 'export', 'Export', 'The menu’s icon, the word, or both.'),
@@ -1127,10 +1174,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const box = this.block(st, 'ws-status-rows');
 		const SLOTS: ['left' | 'center' | 'right', string][] = [['left', 'Left'], ['center', 'Center'], ['right', 'Right']];
 		rows.forEach((row, i) => {
-			if (rows.length > 1) box.createDiv({ cls: 'ws-set-label', text: 'Row ' + (i + 1) });
+			if (rows.length > 1) box.createDiv({ cls: 'ws-set-label', text: wsT('Row {n}', { n: i + 1 }) });
 			for (const [slot, label] of SLOTS) {
-				const r = new Setting(box).setName(label)
-					.addText((t) => t.setPlaceholder('e.g. {file}').setValue(row[slot])
+				const r = new Setting(box).setName(wsT(label))
+					.addText((t) => t.setPlaceholder(wsT('e.g. {file}')).setValue(row[slot])
 						.onChange((v) => { void (async () => {
 							this.plugin.settings.statusRows[i][slot] = v;
 							await this.plugin.saveSettings();
@@ -1180,7 +1227,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// a button token's format is a map keyed by the token's id, absent meaning the word
 	renderTokenIconFormat(st: Setting, id: string, word: string) {
-		st.addDropdown((dd) => dd.addOption('icon', 'Icon').addOption('word', 'Name (' + word + ')').addOption('both', 'Icon and name')
+		st.addDropdown((dd) => dd.addOption('icon', wsT('Icon')).addOption('word', wsT('Name ({word})', { word })).addOption('both', wsT('Icon and name'))
 			.setValue(this.plugin.barTokenFormat(id))
 			.onChange((v) => { void (async () => {
 				const m = Object.assign({}, this.plugin.settings.barTokenIcons || {});
@@ -1226,7 +1273,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const SUB = (title: string) => {
 			if (!table) return;
 			body = table.createEl('tbody');
-			body.createEl('tr', { cls: 'ws-help-sub' }).createEl('th', { text: title, attr: { colspan: '2' } });
+			body.createEl('tr', { cls: 'ws-help-sub' }).createEl('th', { text: wsT(title), attr: { colspan: '2' } });
 		};
 		const L = (tokens: string[], gloss: string) => {
 			if (!table) return;
@@ -1234,9 +1281,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			const tr = body.createEl('tr', { cls: 'ws-help-line' });
 			const toks = tr.createEl('td', { cls: 'ws-help-toks' });
 			for (const t of tokens) toks.createSpan({ cls: 'ws-help-tok', text: t });
-			tr.createEl('td', { cls: 'ws-help-gloss', text: gloss });
+			tr.createEl('td', { cls: 'ws-help-gloss', text: wsT(gloss) });
 		};
-		const N = (el: HTMLElement, text: string) => { el.createDiv({ cls: 'ws-help-note', text }); };
+		const N = (el: HTMLElement, text: string) => { el.createDiv({ cls: 'ws-help-note', text: wsT(text) }); };
 		// FIVE PILLS: Readouts, Buttons, Dividers (the fades under them), Colors
 		// (a colon paints the background, a semicolon the text), Misc last.
 		let g = G('Readouts', 'book-open');
@@ -1258,12 +1305,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		SUB('Pickers');
 		L(['{syntax}', '{prose}', '{markers}', '{font}', '{theme}'], 'Each opens its picker, right on the bar.');
 		L(['{cursors}'], 'Cursor-Smith’s presets, by name. Pick one to load it.');
+		L(['{lang}'], 'The language in use. Pick another of those ticked under Prose, Language.');
 		L(['{darklight}'], 'Switches Obsidian between dark and light.');
 		SUB('Panes and the menu');
 		L(['{report}', '{history}', '{export}', '{organizer}'], 'Each opens that pane; the Organizer on the tab you arrange it in.');
 		L(['{powermenu}'], 'Opens the Powermenu, the menu of everything.');
 		SUB('Modes');
-		L(['{mode}'], 'A Modes button: letter box, typewriter, Hemingway, right on the bar.');
+		L(['{mode}'], 'A Modes button: letter box, typewriter, Hemingway, page and Zen, right on the bar.');
 		N(g, 'Buttons are never dropped, however narrow the window gets. Under Tokens, each can be the icon, the word, or both.');
 		g = G('Dividers', 'separator-vertical');
 		SUB('Hard dividers: the cut between two segments');
@@ -1345,7 +1393,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			const snap = library[name];
 			const isActive = name === active;
 			const card = strip.createDiv({ cls: 'ws-card ws-preset-card' + (isActive ? ' is-active' : '') });
-			const use = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': 'Use the ' + name + ' bar', 'aria-pressed': isActive ? 'true' : 'false' } });
+			const use = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': wsT('Use the {name} bar', { name }), 'aria-pressed': isActive ? 'true' : 'false' } });
 			if (isActive) setIcon(use.createSpan({ cls: 'ws-tick' }), 'check');
 			this.presetDemo(use, snap);
 			use.createSpan({ cls: 'ws-card-name', text: name });
@@ -1354,13 +1402,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			// the code goes to the clipboard, and the icon says so for a moment;
 			// where the clipboard is out of reach (some Electron/Wayland setups,
 			// silently) a notice says that instead of a check over nothing
-			const copy = this.action(card, 'copy', 'Copy its share code', () => { void (async () => {
+			const copy = this.action(card, 'copy', wsT('Copy its share code'), () => { void (async () => {
 				try { await navigator.clipboard.writeText(barPresetToCode(name, snap)); }
-				catch (_) { wsCatch('presets: the clipboard', _); new Notice('Word-Smith: the clipboard is out of reach here.'); return; }
+				catch (_) { wsCatch('presets: the clipboard', _); new Notice('Word-Smith: ' + wsT('the clipboard is out of reach here.')); return; }
 				setIcon(copy, 'check');
 				window.setTimeout(() => { setIcon(copy, 'copy'); }, 1500);
 			})(); });
-			this.twoTapDelete(card, 'Delete the ' + name + ' bar', () => { void (async () => { await plugin.deleteBarPreset(name); redisplay(); })(); });
+			this.twoTapDelete(card, wsT('Delete the {name} bar', { name }), () => { void (async () => { await plugin.deleteBarPreset(name); redisplay(); })(); });
 		}
 		this.rovingRow(strip, uses).picked(Math.max(0, names.indexOf(active)));
 		// Save the bar as it is, import a code: a card that is one plain button,
@@ -1369,7 +1417,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const more = (icon: string, label: string, run: () => void) => {
 			const b = acts.createEl('button', { cls: 'ws-card ws-card-more', attr: { type: 'button' } });
 			setIcon(b.createSpan({ cls: 'ws-card-more-icon' }), icon);
-			b.createSpan({ cls: 'ws-card-name', text: label });
+			b.createSpan({ cls: 'ws-card-name', text: wsT(label) });
 			b.addEventListener('click', run);
 			return b;
 		};
@@ -1379,7 +1427,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			let warned = '';
 			new WsPrompt(this.app, 'Save this bar as', 'Preset name', async (name) => {
 				if (!name) return false;
-				if (name in library && warned !== name) { warned = name; return 'A preset named ' + name + ' exists. OK again to replace it.'; }
+				if (name in library && warned !== name) { warned = name; return wsT('A preset named {name} exists. OK again to replace it.', { name }); }
 				await plugin.saveBarPreset(name);
 				redisplay();
 				return true;
@@ -1390,7 +1438,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				if (!code) return false;
 				const added = await plugin.importBarPreset(code);
 				if (added) { redisplay(); return true; }
-				return code.startsWith(BAR_SHARE_VERSION + '|') ? 'The code is cut short.' : 'That is not a Word-Smith bar code.';
+				return code.startsWith(BAR_SHARE_VERSION + '|') ? wsT('The code is cut short.') : wsT('That is not a Word-Smith bar code.');
 			}).open();
 		});
 	}
@@ -1454,13 +1502,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			visible: themed,
 		});
 		const value = () => {
-			if (!themed()) return 'Off';
+			if (!themed()) return wsT('Off');
 			const t = s.barTheme && s.barTheme !== 'custom' ? plugin.barThemeById(s.barTheme) : null;
-			const parts = [t ? t.name : 'Default'];
-			if (schemeOn() && s.barThemeHeadings) parts.push('headings');
-			if (schemeOn() && s.barThemeCode) parts.push('code');
-			if (schemeOn() && s.barThemeMarkdown) parts.push('markdown');
-			if (s.barThemeBorderless) parts.push('borderless');
+			const parts = [t ? t.name : wsT('Default')];
+			if (schemeOn() && s.barThemeHeadings) parts.push(wsT('headings'));
+			if (schemeOn() && s.barThemeCode) parts.push(wsT('code'));
+			if (schemeOn() && s.barThemeMarkdown) parts.push(wsT('markdown'));
+			if (s.barThemeBorderless) parts.push(wsT('borderless'));
 			return parts.join(' · ');
 		};
 		// ONE SHELF, ONE RESET: the scheme worn in both modes, the set-aside
@@ -1516,24 +1564,24 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				await plugin.saveSettings();
 				redisplay();
 			})(); });
-			const use = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': 'Use ' + item.label, 'aria-pressed': item.on ? 'true' : 'false', title: item.note } });
+			const use = card.createEl('button', { cls: 'ws-card-use', attr: { type: 'button', 'aria-label': wsT('Use {name}', { name: wsTq(item.label) }), 'aria-pressed': item.on ? 'true' : 'false', title: item.note } });
 			if (item.on) setIcon(use.createSpan({ cls: 'ws-tick' }), 'check');
-			use.createSpan({ cls: 'ws-card-name', text: item.label });
+			use.createSpan({ cls: 'ws-card-name', text: wsTq(item.label) });
 			if (!isDefault) this.themeInks(use, item.id);
 			use.addEventListener('click', () => { void (async () => { await item.onClick(); redisplay(); })(); });
 			uses.push(use);
 			if (!isDefault) {
-				this.action(card, 'x', 'Set ' + item.label + ' aside', (e) => { void (async () => { e.stopPropagation(); plugin.barThemeHide(item.id); await plugin.saveSettings(); redisplay(); })(); });
+				this.action(card, 'x', wsT('Set {name} aside', { name: item.label }), (e) => { void (async () => { e.stopPropagation(); plugin.barThemeHide(item.id); await plugin.saveSettings(); redisplay(); })(); });
 			}
 		});
 		this.rovingRow(grid, uses).picked(Math.max(0, items.findIndex((i) => i.on)));
 		const hiddenIds = plugin.settings.barThemeHidden || [];
 		if (hiddenIds.length) {
-			box.createDiv({ cls: 'ws-set-label', text: 'Set aside' });
+			box.createDiv({ cls: 'ws-set-label', text: wsT('Set aside') });
 			const row = box.createDiv({ cls: 'ws-pills' });
 			for (const id of hiddenIds) {
 				const t = plugin.barThemeById(id);
-				const chip = this.pill(row, t ? t.name : id, 'undo-2', { label: 'Put ' + (t ? t.name : id) + ' back on the shelf' });
+				const chip = this.pill(row, t ? t.name : id, 'undo-2', { label: wsT('Put {name} back on the shelf', { name: t ? t.name : id }) });
 				this.themeInks(chip, id);
 				chip.addEventListener('click', () => { void (async () => { plugin.barThemeShow(id); await plugin.saveSettings(); redisplay(); })(); });
 			}
@@ -1574,12 +1622,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const glyph = (kind: string) => (el: HTMLElement) => { el.appendChild(this.plugin.buildModeGlyph(kind)); };
 		const RAIL: RailEntry[] = [
 			{ key: 'zen', name: 'Zen', icon: 'eye-off', on: zen, draw: glyph('zen') },
-			{ key: 'letterbox', name: 'Letter box', icon: 'rectangle-horizontal', on: box, draw: glyph('lb') },
 			{ key: 'typewriter', name: 'Typewriter', icon: 'type', on: tw, draw: glyph('tw') },
 			{ key: 'hemingway', name: 'Hemingway', icon: 'feather', on: hem, draw: glyph('hem') },
+			{ key: 'letterbox', name: 'Letter box', icon: 'rectangle-horizontal', on: box, draw: glyph('lb') },
 		];
-		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name); return names.length ? names.join(' · ') : 'Off'; };
-		return this.page('Focus', 'eye', 'Zen, letter box, typewriter, Hemingway.', [
+		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => wsTq(e.name)); return names.length ? names.join(' · ') : wsT('Off'); };
+		return this.page('Focus', 'eye', 'Zen, typewriter, Hemingway, letter box.', [
 			this.section('Sections', [this.railRow('focus', RAIL)]),
 			this.section('Zen', [
 				{ name: 'Zen', desc: 'Clears the workspace down to the words until you leave.', control: { type: 'toggle', key: 'zenEnabled' } },
@@ -1600,31 +1648,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Breathing room', desc: 'Pixels the caret keeps clear of the bar, the letter box and, in page mode, the title bar.',
 					control: { type: 'slider', key: 'caretMarginPx', min: 0, max: 120, step: 2 }, visible: zen },
 				{ name: 'Escape exits Zen', desc: 'One key out.', control: { type: 'toggle', key: 'zenEscExits' }, visible: zen },
+				{ name: 'Zen Sidebars', desc: 'In the note’s color, over the margin, out from the edge, faded while you type, every button kept.', control: { type: 'toggle', key: 'zenPanes' }, visible: all(zen, () => !Platform.isMobile) },
 				this.hotkeysRow(['toggle-zen']),
 			], this.railed('focus', 'zen')),
-			this.section('Letter box', [
-				{ name: 'Letter box', desc: 'Dims the top and bottom of the screen so only your band stays lit.', control: { type: 'toggle', key: 'enableLetterbox' } },
-				rendered({ name: 'Mask height', desc: 'In pixels; drag either edge on the page to set it too.', render: (st) => this.renderMaskHeight(st), visible: box }, ['letterboxPx']),
-				{ name: 'Match the text width', desc: 'The band is as wide as the text.', control: { type: 'toggle', key: 'maskMatchText' }, visible: box },
-				{ name: 'Include the editor’s padding', desc: 'Off hugs the words; on takes the page.', control: { type: 'toggle', key: 'maskMatchTextPadded' }, visible: all(box, () => !!s.maskMatchText) },
-				{ name: 'Horizontal inset', desc: 'In pixels.', control: { type: 'slider', key: 'maskPaddingH', min: 0, max: 400, step: 10 }, visible: all(box, () => !s.maskMatchText) },
-				rendered({ name: 'Letter box arrows', desc: 'Arrows along the band’s edges, and how many.', render: (st) => this.renderArrows(st), visible: box }, ['arrowCount']),
-				{ name: 'Arrow style', desc: 'The shape of the arrows.', control: { type: 'dropdown', key: 'arrowStyle', options: {
-					'solid-triangle': 'Solid triangles', 'outline-triangle': 'Outline triangles', 'standard-arrow': 'Standard arrows',
-					chevron: 'Chevrons', 'double-chevron': 'Double chevrons', custom: 'Custom characters' } }, visible: all(box, arrows) },
-				{ name: 'Top character', desc: 'One or two characters.', control: { type: 'text', key: 'customArrowTop' }, visible: all(box, arrows, () => s.arrowStyle === 'custom') },
-				{ name: 'Bottom character', desc: 'One or two characters.', control: { type: 'text', key: 'customArrowBottom' }, visible: all(box, arrows, () => s.arrowStyle === 'custom') },
-				{ name: 'Arrow scale', desc: 'How big the arrows are.', control: { type: 'slider', key: 'arrowScale', min: 0.5, max: 3, step: 0.1 }, visible: all(box, arrows) },
-				{ name: 'Cap the line ends', desc: 'An arrow at each end of the line.', control: { type: 'toggle', key: 'arrowLineEnds' }, visible: all(box, arrows) },
-				{ name: 'Line style', desc: 'The line along each edge of the band.', control: { type: 'dropdown', key: 'separatorStyle', options: { none: 'None', solid: 'Solid', dashed: 'Dashed', dotted: 'Dotted', double: 'Double' } }, visible: box },
-				{ name: 'Line weight', desc: 'In pixels.', control: { type: 'slider', key: 'separatorWeight', min: 1, max: 8, step: 1 }, visible: box },
-				{ name: 'Custom colors', desc: 'Off, the arrows and lines borrow your theme’s text color.', control: { type: 'toggle', key: 'letterboxCustomColors' }, visible: box },
-				{ name: 'Arrows, dark theme', desc: 'The arrows’ color under a dark theme.', control: { type: 'color', key: 'arrowDarkColor' }, visible: all(box, custom) },
-				{ name: 'Arrows, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'arrowLightColor' }, visible: all(box, custom) },
-				{ name: 'Lines, dark theme', desc: 'The lines’ color under a dark theme.', control: { type: 'color', key: 'lineDarkColor' }, visible: all(box, custom) },
-				{ name: 'Lines, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'lineLightColor' }, visible: all(box, custom) },
-				this.hotkeysRow(['toggle-letterbox']),
-			], this.railed('focus', 'letterbox')),
 			this.section('Typewriter', [
 				{ name: 'Typewriter mode', desc: 'Keeps the line you are writing at one height; the page moves under the cursor.', control: { type: 'toggle', key: 'enableTypewriter' } },
 				{ name: 'Rests at', desc: 'Percent of the editor’s height: 0 the top, 50 the middle, 100 the bottom.', control: { type: 'slider', key: 'typewriterAnchor', min: 0, max: 100, step: 5 }, visible: tw },
@@ -1653,6 +1679,29 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					options: { none: 'Nowhere', icon: 'The modes button', retrobar: 'The Powerline bar', screen: 'The screen', both: 'Screen and bar' } }, visible: hem },
 				this.hotkeysRow(['toggle-hemingway']),
 			], this.railed('focus', 'hemingway')),
+			this.section('Letter box', [
+				// THE BAND IS THE WORDS' WIDTH (A672, issue #55): no Match the text width, Include the editor's padding
+				// or Horizontal inset; its sides drag the text's margins
+				{ name: 'Letter box', desc: 'Dims the top and bottom of the screen so only your band stays lit. Drag its sides to set the text\u2019s margins.', control: { type: 'toggle', key: 'enableLetterbox' } },
+				rendered({ name: 'Mask height', desc: 'In pixels; drag either edge on the page to set it too.', render: (st) => this.renderMaskHeight(st), visible: box }, ['letterboxPx']),
+				{ name: 'Mask opacity', desc: 'How solid the masks are. Lower lets the lines above and below show faintly.', control: { type: 'slider', key: 'maskOpacity', min: 0.3, max: 1, step: 0.05 }, visible: box },
+				rendered({ name: 'Letter box arrows', desc: 'Arrows along the band’s edges, and how many.', render: (st) => this.renderArrows(st), visible: box }, ['arrowCount']),
+				{ name: 'Arrow style', desc: 'The shape of the arrows.', control: { type: 'dropdown', key: 'arrowStyle', options: {
+					'solid-triangle': 'Solid triangles', 'outline-triangle': 'Outline triangles', 'standard-arrow': 'Standard arrows',
+					chevron: 'Chevrons', 'double-chevron': 'Double chevrons', custom: 'Custom characters' } }, visible: all(box, arrows) },
+				{ name: 'Top character', desc: 'One or two characters.', control: { type: 'text', key: 'customArrowTop' }, visible: all(box, arrows, () => s.arrowStyle === 'custom') },
+				{ name: 'Bottom character', desc: 'One or two characters.', control: { type: 'text', key: 'customArrowBottom' }, visible: all(box, arrows, () => s.arrowStyle === 'custom') },
+				{ name: 'Arrow scale', desc: 'How big the arrows are.', control: { type: 'slider', key: 'arrowScale', min: 0.5, max: 3, step: 0.1 }, visible: all(box, arrows) },
+				{ name: 'Cap the line ends', desc: 'An arrow at each end of the line.', control: { type: 'toggle', key: 'arrowLineEnds' }, visible: all(box, arrows) },
+				{ name: 'Line style', desc: 'The line along each edge of the band.', control: { type: 'dropdown', key: 'separatorStyle', options: { none: 'None', solid: 'Solid', dashed: 'Dashed', dotted: 'Dotted', double: 'Double' } }, visible: box },
+				{ name: 'Line weight', desc: 'In pixels.', control: { type: 'slider', key: 'separatorWeight', min: 1, max: 8, step: 1 }, visible: box },
+				{ name: 'Custom colors', desc: 'Off, the arrows and lines borrow your theme’s text color.', control: { type: 'toggle', key: 'letterboxCustomColors' }, visible: box },
+				{ name: 'Arrows, dark theme', desc: 'The arrows’ color under a dark theme.', control: { type: 'color', key: 'arrowDarkColor' }, visible: all(box, custom) },
+				{ name: 'Arrows, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'arrowLightColor' }, visible: all(box, custom) },
+				{ name: 'Lines, dark theme', desc: 'The lines’ color under a dark theme.', control: { type: 'color', key: 'lineDarkColor' }, visible: all(box, custom) },
+				{ name: 'Lines, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'lineLightColor' }, visible: all(box, custom) },
+				this.hotkeysRow(['toggle-letterbox']),
+			], this.railed('focus', 'letterbox')),
 		], value, on);
 	}
 
@@ -1683,7 +1732,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			t.inputEl.min = '0';
 			t.inputEl.max = '10';
 			t.inputEl.addClass('ws-set-num');
-			t.inputEl.setAttribute('aria-label', 'How many arrows');
+			t.inputEl.setAttribute('aria-label', wsT('How many arrows'));
 			t.setValue(String(s.arrowCount));
 			t.onChange((v) => { void (async () => {
 				const n = parseInt(v, 10);
@@ -1695,6 +1744,113 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		});
 	}
 
+	// ── LANGUAGE (A571) ─────────────────────────────────────────────────────
+	//
+	// One language for the vault: English, built in, or a pack found in it
+	// (`Word-Smith/ws-lang-<code>.md`). Choosing a pack fills Typography's
+	// marks from it. Below, the chosen pack: its version and file, what it
+	// covers, the lines it could not read, a door to open it.
+	// THE LANGUAGE, the Prose page's first section and pill (A602, the writer: "put
+	// languages settings as a pill in prose page. the first one"; it was a page of
+	// its own, A571).
+	languageSection(): Group {
+		const plugin = this.plugin;
+		const s = plugin.settings;
+		const packs = () => plugin._packs || new Map<string, { path: string; pack: WsPack; dupes: string[] }>();
+		return this.section('Language', [
+				{ name: 'Language', desc: 'What Syntax and the prose checks read, and whose reading grade the Organizer shows. English is built in.',
+					render: (st) => {
+						st.addDropdown((d) => {
+							// English is the built-in's choice, its one pack read on top of it (A691, A694)
+							d.addOption('en', wsT('English'));
+							for (const [code, e] of packs()) if (code !== 'en') d.addOption(code, e.pack.name + ' (' + code + ')');
+							const want = s.language || 'en';
+							if (want !== 'en' && !packs().has(want)) d.addOption(want, wsT('{code}, not in the vault', { code: want }));
+							d.setValue(want).onChange((v) => { void (async () => {
+								await plugin.languageSet(v);
+								this.update();
+							})(); });
+						});
+					} },
+				{ name: 'The pack', desc: '', render: (st) => this.renderPackDetails(st) },
+				// THE SWITCHER'S LANGUAGES (A601): ticked here, offered by {lang} and the menu
+				rendered({ name: 'Switch between', desc: 'Offered by the {lang} token and the menu\u2019s Language row, beside English.',
+					render: (st) => this.renderLangChoices(st), visible: () => packs().size > 0 }, ['languageChoices']),
+				{ name: 'Get packs', desc: 'Download a pack (a note) and drop it in the Word-Smith folder; it appears above.',
+					render: (st) => { st.addButton((b) => b.setButtonText(wsT('Downloads')).onClick(() => { window.open(WS_PACKS_URL); })); } },
+			], this.railed('prose', 'language'), false);
+	}
+
+	// A TICK FOR EACH PACK IN THE VAULT: on, the {lang} token and the menu offer it.
+	renderLangChoices(st: Setting) {
+		const plugin = this.plugin;
+		const box = st.controlEl.createDiv({ cls: 'ws-lang-choices' });
+		for (const [code, e] of (plugin._packs || new Map<string, { path: string; pack: WsPack; dupes: string[] }>())) {
+			if (code === 'en') continue;   // English's own pack: always offered, as English
+			const lab = box.createEl('label', { cls: 'ws-lang-choice' });
+			const cb = lab.createEl('input');
+			cb.type = 'checkbox';
+			cb.checked = (plugin.settings.languageChoices || []).includes(code);
+			lab.appendText(' ' + e.pack.name);
+			cb.addEventListener('change', () => { void (async () => {
+				const list = (plugin.settings.languageChoices || []).filter((c) => c !== code);
+				if (cb.checked) list.push(code);
+				plugin.settings.languageChoices = list;
+				await plugin.saveSettings();
+			})(); });
+		}
+	}
+
+	// The chosen pack, said plainly: found or not, its version and file, what it
+	// covers, any copy not used, the lines it could not read.
+	renderPackDetails(st: Setting) {
+		const plugin = this.plugin;
+		const want = plugin.settings.language;
+		const e = plugin._packs ? plugin._packs.get(want) : null;
+		const box = st.descEl.createDiv({ cls: 'ws-pack-info' });
+		// ENGLISH SAID TOO (A686, the writer: "also add that the pack description for english too"): built in, every
+		// part covered, its grade and where that comes from, as a pack's are said
+		// …AND ITS PACK (A691, one since A694): English built in, its pack read on top where the vault has it
+		if (!want || /^en(-|$)/i.test(want)) {
+			const ep = plugin.englishPack();
+			const epe = ep && plugin._packs ? plugin._packs.get('en') : null;
+			box.createDiv({ text: epe ? wsT('{name}, built in, its words from {path}', { name: epe.pack.name, path: epe.path }) : wsT('English, built in') });
+			box.createDiv({ cls: 'ws-pack-covers is-on', text: wsT('Covers: {list}', { list: wsUiJoin(['Syntax', 'Filler words', 'Passive voice', 'Commonly misused', 'Loose pronouns', 'Common words', 'Sentence rhythm', 'Typography'].map((x) => wsT(x))) }) });
+			box.createDiv({ cls: 'ws-pack-grade', text: wsT('Reading grade: Flesch\u2013Kincaid grade level, a school grade, in the Organizer’s Grade column and the Report') });
+			box.createDiv({ cls: 'ws-pack-grade-from', text: wsT('From: Kincaid and others, for the US Navy (1975), after Flesch’s reading ease (1948); made for English') });
+			if (epe && epe.pack.skipped.length) box.createDiv({ cls: 'ws-pack-skip', text: wsT('Skipped lines: {lines}', { lines: epe.pack.skipped.slice(0, 12).map((k) => k.line + ' (' + k.text + ': ' + k.why + ')').join('; ') }) });
+			if (epe) st.addButton((b) => b.setButtonText(wsT('Open the pack')).onClick(() => { void plugin.app.workspace.openLinkText(epe.path, '', true); }));
+			return;
+		}
+		if (!e) {
+			box.createDiv({ text: plugin._packsRead
+				? wsT('No {code} pack in the vault; English until there is.', { code: want })
+				: wsT('Reading the packs…') });
+			return;
+		}
+		// ONE LINE A KIND (A598): the pack, what it covers, what not, copies, skipped lines
+		box.createDiv({ text: e.pack.name + (e.pack.version ? ' ' + e.pack.version : '') + ', ' + e.path });
+		const cov = wsPackCovers(e.pack);
+		const on = cov.filter((c) => c.on).map((c) => c.feature), off = cov.filter((c) => !c.on).map((c) => c.feature);
+		if (on.length) box.createDiv({ cls: 'ws-pack-covers is-on', text: wsT('Covers: {list}', { list: wsUiJoin(on.map((x) => wsT(x))) }) });
+		if (off.length) box.createDiv({ cls: 'ws-pack-covers is-off', text: wsT('Not covered: {list}', { list: wsUiJoin(off.map((x) => wsT(x))) }) });
+		// …AND ITS READING GRADE (A638, the writer: "say here what reading grade symtem is has")
+		const gradeName = wsPackGradeName(e.pack);
+		if (gradeName) box.createDiv({ cls: 'ws-pack-grade', text: wsT('Reading grade: {name}, shown as a school grade, in the Organizer’s Grade column and the Report', { name: gradeName }) });
+		// …AND WHERE IT COMES FROM (A684, the writer: "say in the language settings what tests were ported"): made for
+		// the language, adapted for it, or ported from another where none is settled
+		const gradeFrom = wsPackGradeFrom(e.pack);
+		if (gradeName && gradeFrom) box.createDiv({ cls: 'ws-pack-grade-from', text: wsT('From: {from}', { from: gradeFrom }) });
+		if (e.dupes.length) box.createDiv({ cls: 'ws-pack-dupe', text: wsT('Unused copies: {list}', { list: e.dupes.join(', ') }) });
+		if (e.pack.skipped.length) {
+			const shown = e.pack.skipped.slice(0, 12).map((k) => k.line + ' (' + k.text + ': ' + k.why + ')');
+			box.createDiv({ cls: 'ws-pack-skip', text: wsT('Skipped lines: {lines}', { lines: shown.join('; ') + (e.pack.skipped.length > 12 ? '; ' + wsT('{n} more', { n: e.pack.skipped.length - 12 }) : '') }) });
+		}
+		st.addButton((b) => b.setButtonText(wsT('Open the pack')).onClick(() => {
+			void plugin.app.workspace.openLinkText(e.path, '', true);
+		}));
+	}
+
 	// ── PROSE ───────────────────────────────────────────────────────────────
 
 	pageProse(on: Pred): Page {
@@ -1704,14 +1860,25 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		// the pills wear the menu's own icons where the menu has the row
 		const menuIcon = (id: string) => (el: HTMLElement) => { this.plugin.menuDrawIcon(el, id); };
 		const RAIL: RailEntry[] = [
+			// the language first (A602): no switch of its own, so never the default pick
+			{ key: 'language', name: 'Language', icon: 'languages' },
 			{ key: 'syntax', name: 'Syntax', icon: 'code', on: pos, draw: menuIcon('syntax') },
 			{ key: 'checks', name: 'Prose checks', icon: 'pen-tool', on: ck, draw: menuIcon('prose') },
 		];
-		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name); return names.length ? names.join(' · ') : 'Off'; };
-		// a category is a color and a switch on one row
-		const cat = (name: string, desc: string, onKey: Key, colorKey: Key, visible: Pred): Def => rendered({
-			name, desc, visible, render: (st) => this.renderCategory(st, onKey, colorKey),
-		}, [onKey, colorKey]);
+		// the page's line: a pack in use first, then what is on
+		const value = () => {
+			const p = this.plugin.packActive();
+			const names = (p ? [p.name] : []).concat(RAIL.filter((e) => e.on && e.on()).map((e) => wsTq(e.name)));
+			return names.length ? names.join(' · ') : wsT('Off');
+		};
+		// a category is a color and a switch on one row; its name in the pack's
+		// language while one is in use, the English kept for a search (A600)
+		const cat = (en: string, desc: string, onKey: Key, colorKey: Key, visible: Pred): Def => {
+			const name = this.plugin.catName(en);
+			return rendered({
+				name, desc, visible, aliases: name !== en ? [en] : undefined, render: (st) => this.renderCategory(st, onKey, colorKey),
+			}, [onKey, colorKey]);
+		};
 		return this.page('Prose', 'pen-tool', 'Parts of speech, and the prose checks.', [
 			// ABOVE THE TABS: the one switch both sections obey sits over the rail,
 			// not inside Syntax; no reset link for a lone switch
@@ -1721,6 +1888,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Skip code and math', desc: 'Leaves code, frontmatter and math alone, for Syntax and the prose checks.', control: { type: 'toggle', key: 'syntaxSkipCode' } },
 				this.railRow('prose', RAIL),
 			], undefined, false),
+			this.languageSection(),
 			this.section('Syntax', [
 				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Works offline.', control: { type: 'toggle', key: 'posEnabled' } },
 				{ name: 'Syntax display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
@@ -1744,10 +1912,18 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Minimum length', desc: 'Skips words shorter than this.', control: { type: 'slider', key: 'repetitionMinLength', min: 3, max: 10, step: 1 }, visible: all(ck, () => !!s.checkRepetition) },
 				cat('Commonly misused', 'Affect and effect, its and it’s, fewer and less.', 'checkMisused', 'checkMisusedColor', ck),
 				cat('Lexical illusions', 'The same word twice in a row.', 'checkIllusion', 'checkIllusionColor', ck),
-				cat('Dialogue', 'Everything inside quotes.', 'checkDialogue', 'checkDialogueColor', ck),
-				rendered({ name: 'Sentence rhythm', desc: 'Shades each sentence by how hard it reads: two tints, and the switch.', render: (st) => this.renderRhythm(st), visible: ck }, ['checkRhythm', 'checkRhythmHardColor', 'checkRhythmVeryHardColor']),
-				{ name: 'Hard above grade', desc: 'Flesch-Kincaid grade for the first tint.', control: { type: 'slider', key: 'checkRhythmHardGrade', min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
-				{ name: 'Very hard above', desc: 'And for the second.', control: { type: 'slider', key: 'checkRhythmVeryHardGrade', min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm) },
+				cat('Dialogue', 'Everything inside quotes, and speech after a dialogue dash where the language writes one.', 'checkDialogue', 'checkDialogueColor', ck),
+				rendered({ name: this.plugin.catName('Sentence rhythm'), desc: 'Shades each sentence by how hard it reads or how long it runs: its tints, and the switch.', render: (st) => this.renderRhythm(st), visible: ck }, ['checkRhythm', 'checkRhythmHardColor', 'checkRhythmVeryHardColor']),
+				// A595: by the grade, as it was, or by the length in words
+				{ name: 'Shade by', desc: 'What the two tints read: how hard a sentence reads, or how many words it runs.', control: { type: 'dropdown', key: 'checkRhythmBy', options: { grade: 'Reading grade', length: 'Length in words' } }, visible: all(ck, () => !!s.checkRhythm) },
+				{ name: 'Hard above grade', desc: 'The reading grade for the first tint: Flesch-Kincaid in English, a pack’s own formula in its language.', control: { type: 'slider', key: 'checkRhythmHardGrade', min: 6, max: 16, step: 1 }, visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy !== 'length') },
+				{ name: 'Very hard above', desc: 'And for the second.', control: { type: 'slider', key: 'checkRhythmVeryHardGrade', min: 8, max: 22, step: 1 }, visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy !== 'length') },
+				{ name: 'Long from', desc: 'The words a sentence runs before the first tint.', control: { type: 'slider', key: 'checkRhythmLongWords', min: 10, max: 60, step: 1 }, visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy === 'length') },
+				{ name: 'Very long from', desc: 'And for the second.', control: { type: 'slider', key: 'checkRhythmVeryLongWords', min: 15, max: 90, step: 1 }, visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy === 'length') },
+				// A630: short sentences in green, shaded by length
+				rendered({ name: 'Short up to', desc: 'Sentences this short or shorter take the green tint, and its color.', render: (st) => this.renderRhythmShort(st), visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy === 'length') }, ['checkRhythmShortWords', 'checkRhythmShortColor']),
+				// A658: the middle, its neutral and its switch
+				rendered({ name: 'The middle', desc: 'Sentences between Short up to and Long from take a faint tint of their own; off leaves them clean.', render: (st) => this.renderRhythmMid(st), visible: all(ck, () => !!s.checkRhythm, () => s.checkRhythmBy === 'length') }, ['checkRhythmMid', 'checkRhythmMidColor']),
 				{ name: 'Mute unmarked text', desc: 'Fades what you didn’t tick, so the marks stand out.', control: { type: 'toggle', key: 'checkDimOthers' }, visible: ck },
 				this.hotkeysRow(['toggle-prose-checks']),
 			], this.railed('prose', 'checks')),
@@ -1760,7 +1936,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings;
 		const marks: Pred = () => !!s.markersEnabled;
 		const ty: Pred = () => !!s.typographyEnabled;
-		const quotes: Pred = all(ty, () => !!s.typoSmartQuotes, () => !!s.typoCustomQuotes);
+		// the language's marks typed (A615): the writer's own rows step aside, untouched
+		const fromLang: Pred = () => !!s.typoQuotesFromLanguage && !!this.plugin.typoLanguageMarks();
+		const quotes: Pred = all(ty, () => !!s.typoSmartQuotes, () => !!s.typoCustomQuotes, () => !fromLang());
 		const text: Pred = () => !!s.miscEnabled;
 		const menuIcon = (id: string) => (el: HTMLElement) => { this.plugin.menuDrawIcon(el, id); };
 		const RAIL: RailEntry[] = [
@@ -1768,20 +1946,20 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			{ key: 'typography', name: 'Typography', icon: 'quote', on: ty },
 			{ key: 'markers', name: 'Markers', icon: 'pilcrow', on: marks, draw: menuIcon('markers') },
 		];
-		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => e.name); return names.length ? names.join(' · ') : 'Off'; };
+		const value = () => { const names = RAIL.filter((e) => e.on && e.on()).map((e) => wsTq(e.name)); return names.length ? names.join(' · ') : wsT('Off'); };
 		return this.page('Text', 'type', 'Layout, typography, hidden markers.', [
 			this.section('Sections', [this.railRow('text', RAIL)]),
 			this.section('Layout', [
 				{ name: 'Text options', desc: 'Margins, indents, line length and spacing, justification.', control: { type: 'toggle', key: 'miscEnabled' } },
 				{ name: 'Only in Zen', desc: 'The layout turns on with Zen and off when you leave it.', control: { type: 'toggle', key: 'layoutZenOnly' }, visible: text },
-				{ name: 'Page mode', desc: 'Your text as a page, outlined on a darker ground.', control: { type: 'toggle', key: 'pageView' }, visible: text },
-				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
+				{ name: 'Page mode', desc: 'Your text as a page, outlined on a darker ground. The Modes menu switches it for now without changing this.', control: { type: 'toggle', key: 'pageView' }, visible: text },
+				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen. The Letter Box’s sides drag it too.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
 				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does. Reading view only.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
 				{ name: 'Indent trigger', desc: 'What starts a paragraph in your writing: a blank line, or every new line.',
 					control: { type: 'dropdown', key: 'paragraphIndentMode', options: { double: 'A blank line (double Enter)', single: 'Every line (single Enter)' } }, visible: all(text, () => !!s.enableParagraphIndent) },
 				{ name: 'Indent size', desc: 'In em.', control: { type: 'slider', key: 'paragraphIndentEm', min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
 				{ name: 'Limit line length', desc: 'Wraps the text at a number of characters.', control: { type: 'toggle', key: 'limitLineLength' }, visible: text },
-				{ name: 'Characters per line', desc: '20 to 200; 64 suits prose.', control: { type: 'number', key: 'maxLineChars', min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
+				{ name: 'Characters per line', desc: '20 to 200; 64 suits prose. The Letter Box’s sides drag it too.', control: { type: 'number', key: 'maxLineChars', min: 20, max: 200, step: 1, validate: between(20, 200) }, visible: all(text, () => !!s.limitLineLength) },
 				{ name: 'Line spacing', desc: '0.8 to 4.', control: { type: 'number', key: 'lineSpacing', min: 0.8, max: 4, step: 0.1, validate: between(0.8, 4) }, visible: text },
 				{ name: 'Justify text', desc: 'Straight edges on both sides.', control: { type: 'toggle', key: 'justifyText' }, visible: text },
 				{ name: 'Center headings', desc: 'Headings in the middle of the line, in reading view too.', control: { type: 'toggle', key: 'centerHeadings' }, visible: text },
@@ -1789,11 +1967,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.hotkeysRow(['toggle-page-view']),
 			], this.railed('text', 'layout')),
 			this.section('Typography', [
-				{ name: 'More fonts', desc: 'Obsidian’s own font list; add one under Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
+				{ name: 'More fonts', desc: 'Add fonts from Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
 				{ name: 'Typography', desc: 'Turns what you type into the proper characters as you go.', control: { type: 'toggle', key: 'typographyEnabled' } },
 				this.alertRow('Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.', ty),
 				{ name: 'Curly quotes', desc: 'Straight quotes turn curly as you type.', control: { type: 'toggle', key: 'typoSmartQuotes' }, visible: ty },
-				{ name: 'Custom quote marks', desc: 'Your own quote marks instead of the usual ones.', control: { type: 'toggle', key: 'typoCustomQuotes' }, visible: all(ty, () => !!s.typoSmartQuotes) },
+				{ name: 'Quotes from the language', desc: 'Quotes are taken from the language pack in use (Prose → Language). Off: the usual marks, or your own.',
+					control: { type: 'toggle', key: 'typoQuotesFromLanguage' }, visible: all(ty, () => !!s.typoSmartQuotes, () => !!this.plugin.typoLanguageMarks()) },
+				// THE USUAL MARKS, US OR UK (A694, the writer: "Only one English pack with us /UK typography dropdown")
+				{ name: 'Quote style', desc: 'The usual marks: US puts “ ” outside and ‘ ’ inside, UK the other way round.',
+					control: { type: 'dropdown', key: 'typoQuoteStyle', options: { us: 'US “ ” ‘ ’', uk: 'UK ‘ ’ “ ”' } }, visible: all(ty, () => !!s.typoSmartQuotes, () => !s.typoCustomQuotes, () => !fromLang()) },
+				{ name: 'Custom quote marks', desc: 'Your own quote marks instead of the usual ones.', control: { type: 'toggle', key: 'typoCustomQuotes' }, visible: all(ty, () => !!s.typoSmartQuotes, () => !fromLang()) },
 				{ name: 'Open double', desc: 'Replaces " at the start of a quotation.', control: { type: 'text', key: 'typoOpenDouble' }, visible: quotes },
 				{ name: 'Close double', desc: 'Replaces " at the end.', control: { type: 'text', key: 'typoCloseDouble' }, visible: quotes },
 				{ name: 'Open single', desc: 'Replaces the straight single quote at the start.', control: { type: 'text', key: 'typoOpenSingle' }, visible: quotes },
@@ -1835,6 +2018,23 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		st.addToggle((t) => t.setValue(!!s.checkRhythm).onChange((v) => { void (async () => { s.checkRhythm = v; await this.plugin.saveSettings(); this.refreshDomState(); })(); }));
 	}
 
+	// THE MIDDLE (A658): its neutral, and the switch that leaves the middle clean
+	renderRhythmMid(st: Setting) {
+		const s = this.plugin.settings;
+		this.swatchRow(st);
+		st.addColorPicker((cp) => cp.setValue(s.checkRhythmMidColor || '#5b8dd6').onChange((v) => { void (async () => { s.checkRhythmMidColor = v; await this.plugin.saveSettings(); })(); }));
+		st.addToggle((t) => t.setValue(s.checkRhythmMid !== false).onChange((v) => { void (async () => { s.checkRhythmMid = v; await this.plugin.saveSettings(); })(); }));
+	}
+
+	// SHORT UP TO (A630): the words, and the green they take
+	renderRhythmShort(st: Setting) {
+		const s = this.plugin.settings;
+		this.swatchRow(st);
+		st.addSlider((sl) => sl.setLimits(2, 15, 1).setValue(s.checkRhythmShortWords != null ? s.checkRhythmShortWords : 8)
+			.onChange((v) => { void (async () => { s.checkRhythmShortWords = v; await this.plugin.saveSettings(); })(); }));
+		st.addColorPicker((cp) => cp.setValue(s.checkRhythmShortColor || '#5aa469').onChange((v) => { void (async () => { s.checkRhythmShortColor = v; await this.plugin.saveSettings(); })(); }));
+	}
+
 	// ── MANUSCRIPT ──────────────────────────────────────────────────────────
 
 	pageManuscript(on: Pred): Page {
@@ -1855,11 +2055,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		];
 		const value = () => {
 			const parts: string[] = [];
-			if (org()) parts.push('Organizer');
+			if (org()) parts.push(wsT('Organizer'));
 			const n = plugin.flagCount();
-			if (org() && n) parts.push(n + (n === 1 ? ' flag' : ' flags'));
-			if (hist()) parts.push('History');
-			return parts.length ? parts.join(' · ') : 'Off';
+			if (org() && n) parts.push(wsT(n === 1 ? '{n} flag' : '{n} flags', { n }));
+			if (hist()) parts.push(wsT('History'));
+			return parts.length ? parts.join(' · ') : wsT('Off');
 		};
 		return this.page('Manuscript', 'book-open', 'The Organizer, the file tree, the history.', [
 			this.section('Sections', [this.railRow('manuscript', RAIL)]),
@@ -1869,7 +2069,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
-				{ name: 'Date format', desc: 'For every date the Organizer shows. A file time reads: ' + plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)),
+				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
 					control: { type: 'dropdown', key: 'organizerDateFormat', defaultValue: 'human', options: dateOptions() }, visible: org },
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
@@ -1894,7 +2094,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Track writing history', desc: 'Counts only, never your words; wherever Word-Smith applies.', control: { type: 'toggle', key: 'historyTracking' } },
 				{ name: 'Remember which notes', desc: 'A rename or a move takes its history along.', control: { type: 'toggle', key: 'historyPerFile' }, visible: hist },
 				{ name: 'Count pasted text', desc: 'Off, pasted and cut text are left out, so moving text never counts as writing.', control: { type: 'toggle', key: 'historyCountPasted' }, visible: hist },
-				rendered({ name: 'Never counted', desc: 'Folders and notes left out of the history and every folder total.', render: (st) => this.renderPaths(st, 'countExclude', 'Add a folder or note', 'Never count…', false), visible: hist }, ['countExclude']),
+				rendered({ name: 'Never counted', desc: 'Folders and notes left out of the history and every folder total.', render: (st) => this.renderPaths(st, 'countExclude', 'Add a folder or note', wsT('Never count…'), false), visible: hist }, ['countExclude']),
 				{ name: 'Delete all history', desc: 'Every day on record. No second copy, no undo.', render: (st) => this.renderHistoryDelete(st), visible: hist },
 				this.hotkeysRow(['open-history']),
 			], this.railed('manuscript', 'history')),
@@ -1905,8 +2105,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// so the row is drawn by hand and converts
 	renderFlagCount(st: Setting) {
 		st.addDropdown((d) => {
-			d.addOption('0', 'None');
-			for (let i = 1; i <= WS_STATE_IDS.length; i++) d.addOption(String(i), i === 1 ? '1 flag' : i + ' flags');
+			d.addOption('0', wsT('None'));
+			for (let i = 1; i <= WS_STATE_IDS.length; i++) d.addOption(String(i), wsT(i === 1 ? '{n} flag' : '{n} flags', { n: i }));
 			d.setValue(String(this.plugin.flagCount()));
 			d.onChange((v) => { void (async () => {
 				this.plugin.settings.flagCount = Number(v);
@@ -1940,7 +2140,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					};
 					st.addText((t) => t.setPlaceholder(f.id).setValue(f.label).onChange((v) => { void write({ label: String(v || '').trim() || f.id }); }));
 					st.addDropdown((d) => {
-						for (const sh of WS_FLAG_SHAPES) d.addOption(sh.id, sh.label);
+						for (const sh of WS_FLAG_SHAPES) d.addOption(sh.id, wsT(sh.label));
 						d.setValue(f.shape);
 						d.onChange((v) => { void (async () => { await write({ shape: v }); this.update(); })(); });
 					});
@@ -1957,9 +2157,203 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	renderHistoryDelete(st: Setting) {
 		this.twoTapButton(st, 'Delete', () => { void (async () => {
 			await this.plugin.historyClear();
-			new Notice('Word-Smith: writing history deleted.');
+			new Notice('Word-Smith: ' + wsT('writing history deleted.'));
 			this.update();
 		})(); });
+	}
+
+	// ── EXPORT (A574) ───────────────────────────────────────────────────────
+	//
+	// What is decided once for every export. The Export window keeps what is
+	// decided each time, beside its preview. The options live in the export's
+	// own store (`exportOpts`), which the window reads too, so a row here
+	// writes there.
+	pageExport(on: Pred): Page {
+		const plugin = this.plugin;
+		const opts = () => plugin.settings.exportOpts || (plugin.settings.exportOpts = {});
+		const value = () => (opts().footnotePlace === 'end' ? wsT('Notes at the end') : wsT('Footnotes at the foot'));
+		// the window's defaults, set where they are missing, so a row reads what an export would (A574)
+		try { plugin.exportOptionDefaults(); } catch (_) { wsCatch('pageExport: exportOptionDefaults', _); }
+		const flag = (key: 'roundWordCount' | 'smartQuotes') => (st: Setting) => {
+			st.addToggle((t) => t.setValue(!!opts()[key]).onChange((v) => { void (async () => {
+				opts()[key] = v;
+				await plugin.saveSettings();
+			})(); }));
+		};
+		// TWO PILLS (A634, the writer: "the citations needs to be in a pill in the export page. so two
+		// pills there Options Citations or something like that")
+		const RAIL: RailEntry[] = [
+			{ key: 'options', name: 'Options', icon: 'sliders-horizontal' },
+			{ key: 'citations', name: 'Citations', icon: 'quote' },
+		];
+		return this.page('Export', 'file-output', 'What every export does, decided once.', [
+			this.section('Sections', [this.railRow('export', RAIL)]),
+			// DECIDED ONCE (A574): moved out of the Export window, which says where they went
+			this.section('Title page', [
+				{ name: 'Author', desc: 'Your name on the title page and in the running header.',
+					render: (st) => {
+						st.addText((t) => t.setPlaceholder('A. Writer').setValue(String(opts().author || '')).onChange((v) => { void (async () => {
+							opts().author = v;
+							await plugin.saveSettings();
+						})(); }));
+					} },
+				{ name: 'Round the word count', desc: '“About 90,000 words” on the title page, as a publisher expects. Off prints it exactly.', render: flag('roundWordCount') },
+			], this.railed('export', 'options')),
+			this.section('Text', [
+				{ name: 'Curly quotes in exports', desc: 'Straight quotes turn curly as the file is compiled; your notes keep what you typed.', render: flag('smartQuotes') },
+			], this.railed('export', 'options')),
+			this.section('Notes', [
+				{ name: 'Notes in a Word file', desc: 'Word’s own footnotes at the foot of each page, or endnotes at the end. PDF and web page notes go at the end.',
+					render: (st) => {
+						st.addDropdown((d) => d
+							.addOption('foot', wsT('At the foot of each page'))
+							.addOption('end', wsT('At the end'))
+							.setValue(opts().footnotePlace === 'end' ? 'end' : 'foot')
+							.onChange((v) => { void (async () => {
+								opts().footnotePlace = v === 'end' ? 'end' : 'foot';
+								await plugin.saveSettings();
+							})(); }));
+					} },
+			], this.railed('export', 'options')),
+			this.citationsSection(this.railed('export', 'citations')),
+		], value, on);
+	}
+
+	// ── CITATIONS (A572) ──────────────────────────────────────────────────
+	//
+	// The library, the style, the list's heading; under "Your own", a style written in
+	// tokens; and a preview that answers every change: two sources from the library (or
+	// two samples while there is none) cited in the text and listed at the back.
+	// LAID OUT SINCE A634 (the writer: "the citations preview needs to be up top full width and the
+	// custom citations text box where people add their tokens same full width below it. the presets a
+	// drop down above the big preview and the tokens for each citation needs to be like a table - same
+	// we used for the powerline tokens"): the style, the preview under it the page's width, the two
+	// boxes under that as wide, and the tokens in the Powerline reference's table.
+	citationsSection(slot?: RailSlot) {
+		const plugin = this.plugin;
+		const s = plugin.settings;
+		const custom: Pred = () => s.citeStyle === 'custom';
+		let paint: () => void = () => undefined;
+		const libDesc = () => !String(s.citeLibrary || '').trim()
+			? 'A .bib or .json file in your vault (Zotero keeps either up to date). Cite with [@key].'
+			: plugin._citeLibError || (plugin.citeLibrary().size + ' sources read from ' + s.citeLibrary + '.');
+		let libTimer: number | null = null;
+		const text = (key: 'citeHeading' | 'citeCustomInText' | 'citeCustomEntry', ph: () => string) => (st: Setting) => {
+			// a box tokens are typed in: under its name, the page's width
+			if (key !== 'citeHeading') { st.settingEl.addClass('ws-set-block'); st.settingEl.addClass('ws-cite-fmt'); }
+			st.addText((t) => t.setPlaceholder(ph()).setValue(String(s[key] || '')).onChange((v) => { void (async () => {
+				s[key] = v;
+				paint();
+				await plugin.saveSettings();
+			})(); }));
+		};
+		const mdInto = (into: HTMLElement, md: string) => {
+			for (const part of String(md).split(/(\*[^*]+\*)/)) {
+				if (!part) continue;
+				if (/^\*[^*]+\*$/.test(part)) into.createEl('em', { text: part.slice(1, -1) });
+				else into.appendText(part);
+			}
+		};
+		return this.section('Citations', [
+			{ name: 'Citation library', desc: libDesc(),
+				render: (st) => {
+					st.addText((t) => t.setPlaceholder('library.bib').setValue(String(s.citeLibrary || '')).onChange((v) => {
+						s.citeLibrary = v.trim();
+						void plugin.saveSettings();
+						if (libTimer != null) window.clearTimeout(libTimer);
+						libTimer = window.setTimeout(() => { void (async () => { libTimer = null; await plugin.citeLoad(); st.setDesc(libDesc()); paint(); })(); }, 500);
+					}));
+					st.addButton((b) => b.setButtonText(wsT('Choose\u2026')).onClick(() => {
+						const items = this.app.vault.getFiles().map((f) => f.path).filter((p) => /\.(bib|json)$/i.test(p) && !p.startsWith(this.app.vault.configDir + '/'));
+						if (!items.length) { new Notice('Word-Smith: ' + wsT('no .bib or .json file in this vault yet.')); return; }
+						if (!WsPathSuggestModal) return;
+						new WsPathSuggestModal(this.app, items, 'A .bib or .json file', (picked: string) => { void (async () => {
+							s.citeLibrary = picked;
+							await plugin.saveSettings();
+							await plugin.citeLoad();
+							this.update();
+						})(); }).open();
+					}));
+				} },
+			{ name: 'Citation style', desc: 'How a citation reads in the text, and the list at the back.',
+				render: (st) => {
+					st.addDropdown((d) => {
+						for (const x of WS_CITE_STYLES) d.addOption(x.id, wsTq(x.name));
+						d.setValue(s.citeStyle || 'apa').onChange((v) => { void (async () => {
+							s.citeStyle = v;
+							await plugin.saveSettings();
+							this.refreshDomState();
+							paint();
+						})(); });
+					});
+				} },
+			{ name: 'Citation preview', desc: 'Two sources from your library, or two samples while there is none.',
+				render: (st) => {
+					const box = this.block(st, 'ws-cite-preview');
+					paint = () => {
+						box.empty();
+						const lib = plugin.citeLibrary();
+						const refs = lib.size ? Array.from(lib.values()).slice(0, 2) : WS_CITE_SAMPLES;
+						const citer = wsCiter(s.citeStyle || 'apa', new Map(refs.map((r) => [r.key, r])), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading);
+						const one = (key: string, locator: string): WsCite => ({ from: 0, to: 0, narrative: false, items: [{ key, locator, prefix: '', suppress: false }] });
+						const said = refs.map((r, k) => citer.cite(one(r.key, k === 0 ? '12' : '')));
+						const prose = box.createDiv({ cls: 'ws-cite-preview-text' });
+						if (said.some((x) => x && x.note)) {
+							mdInto(prose, 'As one source has it,\u00b9 and another.\u00b2');
+							said.forEach((x, k) => { if (x) mdInto(box.createDiv({ cls: 'ws-cite-preview-note' }), (k + 1) + '. ' + x.text); });
+						} else {
+							mdInto(prose, 'As one source has it ' + (said[0] ? said[0].text : '') + (said[1] ? ', and another ' + said[1].text : '') + '.');
+						}
+						box.createDiv({ cls: 'ws-cite-preview-head', text: citer.heading() });
+						for (const e of citer.list()) mdInto(box.createDiv({ cls: 'ws-cite-preview-entry' }).createSpan({ cls: 'ws-cite-hang' }), e);
+					};
+					paint();
+				} },
+			{ name: 'In the text', desc: 'One source as it reads in the text, in the tokens below; [ ] drops a part whose field is empty.',
+				render: text('citeCustomInText', () => '{etal} {year}[, {page}]'), visible: custom },
+			{ name: 'In the list', desc: 'One source as it reads in the list at the back.',
+				render: text('citeCustomEntry', () => '{authors-full}. {year}. {title*}.'), visible: custom },
+			{ name: 'Around them', desc: 'What encloses the sources cited together.',
+				render: (st) => {
+					st.addDropdown((d) => d.addOption('parens', '( )').addOption('brackets', '[ ]').addOption('none', wsT('Nothing'))
+						.setValue(s.citeCustomAround || 'parens').onChange((v) => { void (async () => { s.citeCustomAround = v; paint(); await plugin.saveSettings(); })(); }));
+				}, visible: custom },
+			{ name: 'List heading', desc: 'Over the list at the back; empty, the style\u2019s own (References, Works Cited, Bibliography).',
+				render: text('citeHeading', () => (WS_CITE_STYLES.find((x) => x.id === s.citeStyle) || WS_CITE_STYLES[0]).heading) },
+			{ name: 'Citation tokens', desc: 'What each token draws.',
+				render: (st) => this.renderCiteTokens(st), searchable: false, visible: custom },
+			{ name: 'Mark citations', desc: 'As you write: a citation marked, a key not in the library underlined, its source on hover.', control: { type: 'toggle', key: 'citeMarks' } },
+		], slot);
+	}
+
+	// THE TOKENS AS POWERLINE'S ARE SHOWN (A634): the reference's rounded table, a heading a group, a line a
+	// token, its chip and what it draws. Every token is in it: one no group names goes under the last.
+	renderCiteTokens(st: Setting) {
+		const box = this.block(st, 'ws-token-help-box').createDiv({ cls: 'ws-token-help' });
+		this.infoInto(st, true);
+		const table = box.createEl('table', { cls: 'ws-help-table' });
+		const GROUPS: [string, string[]][] = [
+			['Who', ['{author}', '{etal}', '{authors}', '{authors-full}', '{authors-initials}', '{editors}']],
+			['The work', ['{year}', '{title}', '{title*}', '{title-quoted}', '{edition}']],
+			['Where it appeared', ['{container}', '{container*}', '{volume}', '{issue}', '{pages}', '{publisher}', '{place}']],
+			['Finding it', ['{page}', '{n}', '{doi}', '{url}']],
+		];
+		const named = new Set(GROUPS.flatMap((g) => g[1]));
+		const rest = WS_CITE_TOKENS.map((t) => t[0]).filter((t) => !named.has(t));
+		if (rest.length) GROUPS[GROUPS.length - 1][1].push(...rest);
+		const gloss = new Map(WS_CITE_TOKENS);
+		for (const [title, toks] of GROUPS) {
+			const body = table.createEl('tbody');
+			body.createEl('tr', { cls: 'ws-help-sub' }).createEl('th', { text: wsT(title), attr: { colspan: '2' } });
+			for (const tok of toks) {
+				const what = gloss.get(tok);
+				if (!what) continue;
+				const tr = body.createEl('tr', { cls: 'ws-help-line' });
+				tr.createEl('td', { cls: 'ws-help-toks' }).createSpan({ cls: 'ws-help-tok', text: tok });
+				tr.createEl('td', { cls: 'ws-help-gloss', text: wsT(what.charAt(0).toUpperCase() + what.slice(1) + '.') });
+			}
+		}
+		box.createDiv({ cls: 'ws-help-note', text: wsT('A part in [ ] is dropped when its field is empty: {year}[, {page}].') });
 	}
 
 	// ── NAVIGATION ──────────────────────────────────────────────────────────
@@ -1969,9 +2363,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const s = plugin.settings;
 		const value = () => {
 			const parts: string[] = [];
-			if (s.quickExplorer || s.quickOutline || s.quickCycle) parts.push('Quick panels');
-			if (s.vimSoftWrapMotion) parts.push('Vim motions');
-			return parts.length ? parts.join(' · ') : 'Off';
+			if (s.quickExplorer || s.quickOutline || s.quickCycle) parts.push(wsT('Quick panels'));
+			if (s.vimSoftWrapMotion) parts.push(wsT('Vim motions'));
+			return parts.length ? parts.join(' · ') : wsT('Off');
 		};
 		return this.page('Navigation', 'compass', 'Quick panels and Vim motions.', [
 			this.section('Quick panels', [
@@ -2013,7 +2407,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				const paint = () => {
 					const p = at();
 					const exists = !!(p && plugin.app.vault.getAbstractFileByPath(p));
-					const text = (exists ? 'At ' + p + '. ' : 'Not made yet. ') + note;
+					const text = (exists ? wsT('At {path}.', { path: p || '' }) : wsT('Not made yet.')) + ' ' + wsT(note);
 					if (st.descEl.textContent !== text) st.setDesc(text);
 				};
 				paint();
@@ -2025,7 +2419,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Backup and repair', [
 				this.subheadRow('Backup and repair'),
 				{ name: 'As text', desc: 'Copy every setting as JSON, paste a copy back, or undo the last paste or reset.', render: (st) => this.renderSettingsText(st) },
-				this.buttonRow('Repair the display', 'Draws every surface again from the settings as they are.', 'Repair', () => { plugin.repairDisplay(); new Notice('Word-Smith: repaired.', 4000); }),
+				this.buttonRow('Repair the display', 'Draws every surface again from the settings as they are.', 'Repair', () => { plugin.repairDisplay(); new Notice('Word-Smith: ' + wsT('repaired.'), 4000); }),
 				this.buttonRow('Clean up the custom order file', 'Takes out entries for files and folders that are gone. Run it once the vault is fully synced.', 'Clean up', () => { void plugin.structureCleanUpSay(); }),
 				{ name: 'Keep a copy of my settings in the vault', desc: 'A readable copy, read back only after a reinstall. Editing it changes nothing.',
 					control: { type: 'toggle', key: 'settingsMirror', defaultValue: true } },
@@ -2045,31 +2439,33 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		], () => {
 			// the scope first, since it is the page's first section
 			const n = Array.isArray(s.scopePaths) ? s.scopePaths.length : 0;
-			const scope = !n ? 'Everywhere' : (s.scopeMode === 'exclude' ? 'Everywhere except ' : 'Only ') + n + (n === 1 ? ' path' : ' paths');
-			return scope + ' · ' + (s.settingsMirror !== false ? 'copy in vault' : 'no copy in vault');
+			const scope = !n ? wsT('Everywhere') : wsT(s.scopeMode === 'exclude' ? (n === 1 ? 'Everywhere except {n} path' : 'Everywhere except {n} paths') : (n === 1 ? 'Only {n} path' : 'Only {n} paths'), { n });
+			return scope + ' · ' + (s.settingsMirror !== false ? wsT('copy in vault') : wsT('no copy in vault'));
 		}, on);
 	}
 
 	renderSettingsText(st: Setting) {
 		const plugin = this.plugin;
-		st.addButton((b) => b.setButtonText('Copy').onClick(() => { void (async () => {
-			try { await navigator.clipboard.writeText(plugin.settingsCopyText()); new Notice('Word-Smith: settings copied.', 4000); }
-			catch { new Notice('Word-Smith: could not reach the clipboard.', 6000); }
+		st.addButton((b) => b.setButtonText(wsT('Copy')).onClick(() => { void (async () => {
+			try { await navigator.clipboard.writeText(plugin.settingsCopyText()); new Notice('Word-Smith: ' + wsT('settings copied.'), 4000); }
+			catch { new Notice('Word-Smith: ' + wsT('could not reach the clipboard.'), 6000); }
 		})(); }));
-		st.addButton((b) => b.setButtonText('Paste').onClick(() => { void (async () => {
+		st.addButton((b) => b.setButtonText(wsT('Paste')).onClick(() => { void (async () => {
 			let text = '';
 			try { text = await navigator.clipboard.readText(); }
-			catch { new Notice('Word-Smith: could not read the clipboard.', 6000); return; }
+			catch { new Notice('Word-Smith: ' + wsT('could not read the clipboard.'), 6000); return; }
 			const r = await plugin.settingsPasteText(text);
 			if (r.error !== undefined) { new Notice('Word-Smith: ' + r.error, 8000); return; }
-			new Notice('Word-Smith: ' + r.applied + ' setting' + (r.applied === 1 ? '' : 's') + ' pasted'
-				+ (r.repaired.length ? ', ' + r.repaired.length + ' reset to the default (' + r.repaired.join(', ') + ')' : '')
-				+ '. Undo is beside this button.', 8000);
+			// whole sentences (A692): a language joins the clauses with its own punctuation
+			const one = r.applied === 1;
+			new Notice('Word-Smith: ' + (r.repaired.length
+				? wsT(one ? '{n} setting pasted, {m} reset to the default ({list}). Undo is beside this button.' : '{n} settings pasted, {m} reset to the default ({list}). Undo is beside this button.', { n: r.applied, m: r.repaired.length, list: r.repaired.join(', ') })
+				: wsT(one ? '{n} setting pasted. Undo is beside this button.' : '{n} settings pasted. Undo is beside this button.', { n: r.applied })), 8000);
 			this.update();
 		})(); }));
-		st.addButton((b) => b.setButtonText('Undo').setDisabled(!plugin._settingsUndo).onClick(() => { void (async () => {
+		st.addButton((b) => b.setButtonText(wsT('Undo')).setDisabled(!plugin._settingsUndo).onClick(() => { void (async () => {
 			const r = await plugin.settingsUndoPaste();
-			new Notice('Word-Smith: ' + (r.error || 'the previous settings are back.'), 6000);
+			new Notice('Word-Smith: ' + (r.error || wsT('the previous settings are back.')), 6000);
 			this.update();
 		})(); }));
 	}

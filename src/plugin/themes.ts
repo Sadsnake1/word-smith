@@ -8,6 +8,7 @@
 import type { WsCursorSmithPlugin } from '../core/settings';
 import { BAR_THEMES, colorToHsl, hslToHex, mixColors, parseColorRGB, wsCatch } from '../core/preamble';
 import type { WsBarTheme, WsThemeHalf } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
 export const themesMethods = {
@@ -124,8 +125,8 @@ export const themesMethods = {
 		// removing it.
 		const items = [{
 			id:    'custom',
-			label: 'Default',
-			note:  'No scheme \u2014 the workspace is your Obsidian theme\u2019s.',
+			label: wsT('Default'),
+			note:  wsT('No scheme \u2014 the workspace is your Obsidian theme\u2019s.'),
 			swatches: [] as string[],
 			on:    live === 'custom',
 			onClick: async () => {
@@ -164,7 +165,8 @@ export const themesMethods = {
 		const one = (t: WsBarTheme) => ({
 			id:    t.id,
 			label: (t.names && t.names[half]) || t.name,
-			note:  t.note,
+			// a scheme's note is Word-Smith's own words about it, its makers named as they name themselves (A695)
+			note:  t.note ? wsT(t.note) : t.note,
 			color: this.barThemeHalf(t).c1,
 			// a scheme is a square, set apart from the balls of the word classes
 			shape: 'square' as const,

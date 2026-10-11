@@ -3,6 +3,7 @@
 
 import type { TAbstractFile } from 'obsidian';
 import { wsCatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { wsOrgPropsMake } from './organizer-props';
 import type { WsOrgJournalEntry } from './organizer-journal';
@@ -41,7 +42,7 @@ const orgRenameRow = (item: { path: string; kind?: string }) => {
 	const rowEl = d.panel.querySelector('tr[data-path="'
 		+ String(item.path).replace(/"/g, '\\"') + '"]');
 	const nameEl = rowEl && rowEl.querySelector('.ws-org-namelabel');
-	if (!nameEl) { d.said('That row is no longer on screen.', true); return; }
+	if (!nameEl) { d.said(wsT('That row is no longer on screen.'), true); return; }
 	const parts = d.plugin.outlinerRenameParts(item.path, false);
 	// A contenteditable, not an <input> (which carries a form field's
 	// box), and
@@ -78,9 +79,9 @@ const orgRenameRow = (item: { path: string; kind?: string }) => {
 		if (r && r.ok && r.path) {
 			const oldPath = item.path, newPath = r.path, oldBase = parts.base;
 			d.orgHistPush({
-				label: 'Rename ' + oldBase + ' \u2192 ' + String(typed).trim(),
-				undo: async () => { const u = await d.plugin.outlinerRenameTo(newPath, false, oldBase); if (u && !u.ok) throw new Error(u.said || 'the rename could not be undone'); },
-				redo: async () => { const u = await d.plugin.outlinerRenameTo(oldPath, false, typed); if (u && !u.ok) throw new Error(u.said || 'the rename could not be redone'); }
+				label: wsT('Rename {from} \u2192 {to}', { from: oldBase, to: String(typed).trim() }),
+				undo: async () => { const u = await d.plugin.outlinerRenameTo(newPath, false, oldBase); if (u && !u.ok) throw new Error(u.said || wsT('the rename could not be undone')); },
+				redo: async () => { const u = await d.plugin.outlinerRenameTo(oldPath, false, typed); if (u && !u.ok) throw new Error(u.said || wsT('the rename could not be redone')); }
 			});
 		}
 	};

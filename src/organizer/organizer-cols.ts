@@ -3,7 +3,8 @@
 
 import { Menu, Notice } from 'obsidian';
 import type { WsSession } from '../core/preamble';
-import { WsPropItem, WsPropSuggestModal, wsCatch, wsMenu, wsSessionLens } from '../core/preamble';
+import { WsPropItem, WsPropSuggestModal, wsCatch, wsIconPick, wsMenu, wsSessionLens } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { wsOrgLensMake } from './organizer-lens';
 import type { WordSmithSettings } from '../core/settings';
@@ -75,18 +76,21 @@ export const wsOrgColsMake = (d: OrgColsDeps) => {
 // its assertion — that the band no longer draws the column — was the
 // one thing the source could not tell me.
 const colDefs = (): WsOrgCol[] => [
-	{ id: 'goal',  label: 'Target', def: 116, min: 78 },
-	{ id: 'words', label: 'Words',  def: 66, min: 44 },
+	{ id: 'goal',  label: wsT('Target'), def: 116, min: 78 },
+	{ id: 'words', label: wsT('Words'),  def: 66, min: 44 },
+	// VOCABULARY (A681, the writer: "also add a Vocabulary propriety in the organzier"): a note's different
+	// words, the Report's figure; a folder's is no sum of its notes', so its row is left empty
+	{ id: 'vocab', label: wsT('Vocabulary'), def: 80, min: 44 },
 	// IT WAS NAMED IN EIGHT PLACES HERE: this definition, the raw
 	// reader, the signed formatter, the signed aggregate, the
 	// Properties menu’s Progress group, the default off-list, the
 	// sort-relevance order and `BUILTIN_SORTS`. A column is named in
 	// more places than it looks.
-	{ id: 'grade', label: 'Grade',  def: 50, min: 34 },
+	{ id: 'grade', label: wsT('Grade'),  def: 50, min: 34 },
 	// WIDE ENOUGH FOR THE WORD, not just the glyph: "Needs revision"
 	// on a hover is a state you go looking for; beside the flag it is
 	// a state you read straight down the column.
-	{ id: 'mark',  label: 'Flag',   def: 104, min: 30 },
+	{ id: 'mark',  label: wsT('Flag'),   def: 104, min: 30 },
 	// ── The readings that wait to be asked for ───────────────────
 	//
 	// Each answers a question a writer has SOMETIMES, which is the
@@ -98,41 +102,41 @@ const colDefs = (): WsOrgCol[] => [
 	// disagreed; and beside a Created column, "Modified" alone
 	// reads as a state rather than a time. Both are WIDER now:
 	// they carry the hour as well as the day.
-	{ id: 'modified', label: 'Last modified', def: 132, min: 96 },
+	{ id: 'modified', label: wsT('Last modified'), def: 132, min: 96 },
 	// WHEN IT WAS STARTED. Off by default like every column down
 	// here — it answers a question a writer has sometimes.
-	{ id: 'created',  label: 'Created',  def: 132, min: 96 },
-	{ id: 'paras',    label: 'Paras',    def: 60, min: 42 },
+	{ id: 'created',  label: wsT('Created'),  def: 132, min: 96 },
+	{ id: 'paras',    label: wsT('Paras'),    def: 60, min: 42 },
 	// TASKS AS A FRACTION, not a count: "3/17" says how much is left
 	// and "17" says nothing at all. A folder sums its children, which
 	// is where the useful version lives — "Part One: 3/17" tells you
 	// which part the work is in.
-	{ id: 'tasks',    label: 'Tasks',    def: 62, min: 44 },
+	{ id: 'tasks',    label: wsT('Tasks'),    def: 62, min: 44 },
 	// TAGS AS A COUNT, with the list on the hover. Six tags rendered
 	// small is six unreadable words in a column that then decides how
 	// wide every row is; the count answers "is this tagged, and about
 	// how much" and the hover answers the rest.
-	{ id: 'tags',     label: 'Tags',     def: 62, min: 44 },
+	{ id: 'tags',     label: wsT('Tags'),     def: 62, min: 44 },
 	// ── TWO MORE READINGS ────────────────────────────────────────
 	//
 	// IN PROPERTIES: both are down here with the readings that wait to be
 	// asked for, and both are in the fresh-vault off-list. A vault that
 	// has already shaped that list gets them ON (the `created` precedent).
-	{ id: 'read',     label: 'Read time', def: 84, min: 56 },
+	{ id: 'read',     label: wsT('Read time'), def: 84, min: 56 },
 	// A ROUGH PAGE COUNT, 250 words to a page (`wsPagesOf`): Export's preview
 	// counts real pages for the paper and the type; this is the quick answer.
-	{ id: 'pages',    label: 'Pages',    def: 60, min: 44 },
-	{ id: 'ftype',    label: 'Type',     def: 62, min: 40 },
+	{ id: 'pages',    label: wsT('Pages'),    def: 60, min: 44 },
+	{ id: 'ftype',    label: wsT('Type'),     def: 62, min: 40 },
 	// ── WHO POINTS HERE ──────────────────────────────────────────
 	//
 	// WIDER THAN THE REST, because it holds names and there are usually
 	// several. It still ellipsises at that width and the hover carries the
 	// full list, the way every other cell does.
-	{ id: 'backlinks', label: 'Backlinks', def: 170, min: 70 },
+	{ id: 'backlinks', label: wsT('Backlinks'), def: 170, min: 70 },
 	// Outgoing links: the notes this one links to, resolved ones by name
 	// and clickable, the unresolved as written. Footnotes: a count.
-	{ id: 'outlinks',  label: 'Outgoing links', def: 170, min: 70 },
-	{ id: 'footnotes', label: 'Footnotes', def: 80, min: 50 },
+	{ id: 'outlinks',  label: wsT('Outgoing links'), def: 170, min: 70 },
+	{ id: 'footnotes', label: wsT('Footnotes'), def: 80, min: 50 },
 	// ── FOUR MORE READINGS ────────────────────────────────────────
 	//
 	// LINKS IS A COUNT, NOT A LIST: Backlinks is the list — it
@@ -140,9 +144,9 @@ const colDefs = (): WsOrgCol[] => [
 	// wants their names; "how many does this one point at" is a size. THE
 	// CHARACTER COLUMNS ARE TWO COLUMNS because they are two numbers. Wide
 	// enough for a six-figure count with its separators.
-	{ id: 'chars',     label: 'Chars',     def: 84, min: 56 },
-	{ id: 'charsall',  label: 'Chars + spaces', def: 104, min: 60 },
-	{ id: 'sentences', label: 'Sentences', def: 84, min: 56 }
+	{ id: 'chars',     label: wsT('Chars'),     def: 84, min: 56 },
+	{ id: 'charsall',  label: wsT('Chars + spaces'), def: 104, min: 60 },
+	{ id: 'sentences', label: wsT('Sentences'), def: 84, min: 56 }
 ].concat(
 	// ── AND THE WRITER'S OWN ──────────────────────────────────────
 	//
@@ -178,7 +182,9 @@ if (!Array.isArray(d.s.uniColsOff)) {
 		// lines down. Four more readings that wait to be asked for; a
 		// vault that has already shaped this list gets them ON, which is
 		// the `created` precedent.
-		'chars', 'charsall', 'sentences'];
+		'chars', 'charsall', 'sentences',
+		// …and Vocabulary (A681): off on a fresh vault, on in one that has shaped this list (the writer's)
+		'vocab'];
 }
 let COLS: WsOrgCol[] = colDefs();
 // ── AND THE ARRANGEMENT COMES BACK, ONCE ─────────────────────────
@@ -285,6 +291,8 @@ const BUILTIN_SORTS = [
 	{ id: 'order',  label: 'Custom sort', icon: 'list-ordered' },
 	{ id: 'name',   label: 'Name', icon: 'case-sensitive' },
 	{ id: 'words',  label: 'Words', icon: 'file-text' },
+	// Lucide's letters, the writer's pick; Obsidian 1.14.4 bundles a set without it, and letter-text stands in
+	{ id: 'vocab',  label: 'Vocabulary', icon: wsIconPick(['letters', 'letter-text', 'whole-word']) },
 	{ id: 'mark',   label: 'Where it is up to', icon: 'flag' },
 	{ id: 'grade',  label: 'Reading grade', icon: 'graduation-cap' },
 	{ id: 'pct',    label: 'How close to target', icon: 'percent' },
@@ -470,12 +478,12 @@ const addProp = async (info: WsPropItem) => {
 // AND NAMED, not assumed: it is the commonest answer, and being asked
 // and choosing Text is a different act from not being asked.
 const PROP_TYPES = [
-	{ id: 'text', label: 'Text' },
-	{ id: 'multitext', label: 'List' },
-	{ id: 'number', label: 'Number' },
-	{ id: 'checkbox', label: 'Checkbox' },
-	{ id: 'date', label: 'Date' },
-	{ id: 'datetime', label: 'Date & time' }
+	{ id: 'text', label: wsT('Text') },
+	{ id: 'multitext', label: wsT('List') },
+	{ id: 'number', label: wsT('Number') },
+	{ id: 'checkbox', label: wsT('Checkbox') },
+	{ id: 'date', label: wsT('Date') },
+	{ id: 'datetime', label: wsT('Date & time') }
 ];
 // WRITTEN ONTO THE COLUMN THAT ALREADY EXISTS, so there is one
 // record of the choice and it disappears with the column. An empty
@@ -551,7 +559,7 @@ const nameNewProp = (type: string, ev2: MouseEvent) => {
 				const nk = String(info.key).toLowerCase();
 				void addProp({ key: nk, label: String(info.key) });
 				if (type) void setPropType(nk, type);
-			}, 'Name the new property', 'Create \u201c%s\u201d',
+			}, wsT('Name the new property'), wsT('Create \u201c{name}\u201d', { name: '%s' }),
 				taken).open();
 		} catch { pickProp(ev2); }
 	};
@@ -579,7 +587,7 @@ const ORG_PROP_DOORS = [
 	// in the other. `open` is what a caller with no submenu of its own does
 	// — the header menu, and any build without our flyout — and it still
 	// asks with `askPropType`.
-	{ label: 'Add a new property',
+	{ label: wsT('Add a new property'),
 		icons: ['plus', 'plus-circle', 'file-plus'],
 		types: PROP_TYPES,
 		pick: (type: string, ev2: MouseEvent) => nameNewProp(type, ev2),
@@ -615,7 +623,7 @@ const pickProp = (ev2: MouseEvent) => {
 				} else {
 					void addProp(info);
 				}
-			}, null, 'Add “%s” as a new property').open();
+			}, null, wsT('Add “{name}” as a new property', { name: '%s' })).open();
 			return;
 		} catch (_) { wsCatch('openManuscriptModal / pickProp: new WsPropSuggestModal(this.app, found, (info) =>', _); }
 	}
@@ -624,16 +632,15 @@ const pickProp = (ev2: MouseEvent) => {
 	// empty list it would be a menu of nothing, so that one case
 	// still says so rather than opening a blank.
 	if (!found.length) {
-		try { new Notice('Word-Smith: no properties in these notes.'); } catch (_) { wsCatch('openManuscriptModal / pickProp: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
+		try { new Notice(wsT('Word-Smith: no properties in these notes.')); } catch (_) { wsCatch('openManuscriptModal / pickProp: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
 		return;
 	}
 	const pick = wsMenu();
-	pick.addItem((i2) => i2.setTitle('Add a property').setIsLabel(true));
+	pick.addItem((i2) => i2.setTitle(wsT('Add a property')).setIsLabel(true));
 	for (const info of found.slice(0, 20)) {
 		pick.addItem((i2) => i2
-			.setTitle(info.label + '  ·  ' + info.n
-				+ (info.n === 1 ? ' note' : ' notes')
-				+ (info.spellings > 1 ? '  ·  ' + info.spellings + ' spellings' : ''))
+			.setTitle(info.label + '  ·  ' + (info.n === 1 ? wsT('{n} note', { n: info.n }) : wsT('{n} notes', { n: info.n }))
+				+ (info.spellings > 1 ? '  ·  ' + wsT('{n} spellings', { n: info.spellings }) : ''))
 			.onClick(() => addProp(info)));
 	}
 	try { pick.showAtMouseEvent(ev2); }

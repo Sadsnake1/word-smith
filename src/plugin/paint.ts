@@ -7,6 +7,7 @@
 
 import type { WsCursorSmithPlugin, WsElectronWindow } from '../core/settings';
 import { BAR_DIRECTIVE_BG, DEFAULT_SETTINGS, PL_SEP_ASPECT, STYLE_CLASSES, STYLE_KINDS, STYLE_PROPS, readBarDirective, wsCatch, wsElShown } from '../core/preamble';
+import { Platform } from 'obsidian';
 import type WordSmith from './plugin';
 
 export const paintMethods = {
@@ -104,7 +105,8 @@ export const paintMethods = {
 			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-ios', 'ws-margin-nums',
 			'ws-masks-active', 'ws-retrobar-active', 'ws-pos-dim', 'ws-ck-dim', 'ws-hemingway-active',
 			'ws-line-limit', 'ws-page', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
-				'ws-bar-hidden', 'ws-bar-anim', 'ws-bar-peek', 'ws-titlebar-match', 'ws-drag-ok'
+				'ws-bar-hidden', 'ws-bar-anim', 'ws-bar-peek', 'ws-titlebar-match', 'ws-drag-ok',
+			'ws-zen-panes', 'ws-zen-panes-dim', 'ws-zen-panes-peek', 'ws-zen-panes-over'
 		);
 		document.body.removeAttribute('data-zen-hide-inline-title');
 		document.body.removeAttribute('data-zen-focused-file');
@@ -269,10 +271,20 @@ export const paintMethods = {
 		body.classList.toggle('zenmode-hide-scroll-bar',    this.shouldHideScrollBar());
 		body.classList.toggle('zenmode-hide-linked-mentions', zen && this.settings.hideLinkedMentions);
 		body.classList.toggle('zenmode-hide-ribbon',        zen && this.settings.hideRibbon);
+		// ZEN'S SIDE PANES (A578), desktop only: the look, and its four ways. A
+		// peek a pane is open by ends here when they go (Zen left, the switch off),
+		// BEFORE setSidebarVisibility puts back the panes Zen found.
+		const zenPanes = zen && !Platform.isMobile && !!this.settings.zenPanes;
+		body.classList.toggle('ws-zen-panes',               zenPanes);
+		// ONE SWITCH, ZEN SIDEBARS (A604): its ways all on with it
+		body.classList.toggle('ws-zen-panes-dim',           zenPanes);
+		body.classList.toggle('ws-zen-panes-peek',          zenPanes);
+		body.classList.toggle('ws-zen-panes-over',          zenPanes);
+		if (!zenPanes) this.zenPeekEnd();
 		// The horizontal padding is applied by an otherwise unscoped rule, so
 		// this class is what makes both kill switches able to reach it — the
 		// plugin's own, and Text Options' (with its "Only in Zen", A481).
-		body.classList.toggle('ws-text-pad',                laid && this.layoutOn());
+		body.classList.toggle('ws-text-pad',                laid && this.padOn());
 		body.classList.toggle('ws-para-indent',             laid && this.textOpt('enableParagraphIndent', false));
 		// One class for either kind of margin number: the CSS reserves the
 		// room once, so turning both on does not indent the text twice.
@@ -310,7 +322,7 @@ export const paintMethods = {
 		}
 		// PAGE MODE: the column below, drawn as a page (the sheet's rules read
 		// this class and the two above it).
-		body.classList.toggle('ws-page',                    laid && this.textOpt('pageView', false));
+		body.classList.toggle('ws-page',                    laid && this.pageViewWanted());
 		body.classList.toggle('ws-line-limit',              laid && this.textOpt('limitLineLength', false));
 		body.classList.toggle('ws-rtl',                     this.isRightToLeft());
 		// The slide transition only exists while the bar is actually
@@ -406,6 +418,16 @@ export const paintMethods = {
 		}
 	},
 
+	// THE TEXT'S SIDE PADDING, one writer (A672: the Letter Box's drag stamps it too, as the hand moves): the
+	// writer's own while the layout or the Letter Box owns the margins (padOn); otherwise DEFAULT_SETTINGS' own
+	// value, not zero: zero would jam the text against the window edge, which is not "no text options", it is a
+	// different text option.
+	stampEditorPadding(this: WordSmith) {
+		const s = this.settings;
+		const px = this.padOn() && s.editorPaddingH != null ? s.editorPaddingH : DEFAULT_SETTINGS.editorPaddingH;
+		document.documentElement.style.setProperty('--ws-editor-padding-h', px + 'px');
+	},
+
 	applyCssVariables(this: WordSmith) {
 		// Not applied any more, only ever cleared — see CHROME CLEANUP above.
 		this.clearChromeColors();
@@ -415,11 +437,7 @@ export const paintMethods = {
 		// inline values on :root with no setting left to change them.
 		root.removeProperty('--zen-mode-top-padding');
 		root.removeProperty('--zen-mode-bottom-padding');
-		// DEFAULT_SETTINGS' own value when the tab is off, not zero: zero would
-		// jam the text against the window edge, which is not "no text options",
-		// it is a different text option.
-		root.setProperty('--ws-editor-padding-h',
-			this.textOpt('editorPaddingH', DEFAULT_SETTINGS.editorPaddingH) + 'px');
+		this.stampEditorPadding();
 		// (z-index vars intentionally not stamped here — the stylesheet
 		// defaults already provide them, and inline values on :root would
 		// still lose to the elevated body.ws-masks-active values anyway.)
@@ -651,6 +669,8 @@ export const paintMethods = {
 			props['--ws-line-measure'] = 'calc(' + Math.max(20, Math.min(200, s.maxLineChars || 64))
 				+ 'ch + (var(--ws-editor-padding-h) * 2))';
 		}
+		// THE MASKS' OPACITY (A673): the Letter Box's, read by .ws-mask
+		props['--ws-mask-opacity'] = String(s.maskOpacity != null ? Math.max(0.3, Math.min(1, s.maskOpacity)) : 1);
 		// 1.5 is the theme's own line-height: at the default the rule stays
 		// off and the theme decides, exactly as before.
 		const ls = this.textOpt('lineSpacing', 1.5);
@@ -706,6 +726,10 @@ export const paintMethods = {
 			if (s.checkRhythm) {
 				props['--ws-ck-hard-bg']     = this.hexToRgba(s.checkRhythmHardColor, 0.22);
 				props['--ws-ck-veryhard-bg'] = this.hexToRgba(s.checkRhythmVeryHardColor, 0.22);
+				// …and the short one's green, shaded by length (A630)
+				props['--ws-ck-short-bg']    = this.hexToRgba(s.checkRhythmShortColor || '#5aa469', 0.22);
+				// …and the middle's neutral, fainter: there is more of it than of the other three (A658)
+				if (s.checkRhythmMid !== false) props['--ws-ck-mid-bg'] = this.hexToRgba(s.checkRhythmMidColor || '#5b8dd6', 0.12);
 			}
 		}
 		// Repetition rode outside the checks guard in the old sheet, and

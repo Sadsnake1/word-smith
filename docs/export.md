@@ -2,7 +2,7 @@
 
 [← Back to the README](../README.md)
 
-Pick a folder, or several, or one note, and Word-Smith compiles it into one manuscript: **PDF**, **Word (.docx)**, **web page (.html)** or **Markdown**.
+Pick a folder, or several, or one note, and Word-Smith compiles it into one manuscript: **PDF**, **Word (.docx)**, **web page (.html)**, **e-book (.epub)** or **Markdown**.
 
 It's a pane of its own. Open it from the command palette (**Export a manuscript…**), the menu, `{export}` on the bar, or select folders in Obsidian's explorer, right-click, **Export these**.
 
@@ -39,11 +39,12 @@ Press **Expand** and the preview takes the whole pane as one reading column. Cli
 
 ## The formats
 
-Word, web page and Markdown work on phones too. For a PDF on a phone, export the web page and print it from the browser; the pane says so where the format would be.
+Word, web page, e-book and Markdown work on phones too. For a PDF on a phone, export the web page and print it from the browser; the pane says so where the format would be.
 
 - **PDF** is printed by Obsidian's own engine from the same document the preview draws, so it matches what you saw.
 - **Word** is a real `.docx` with styles.
 - **Web page** is the same document with its page rules built in. Print it from any browser and you get the PDF again.
+- **E-book** is an EPUB for any e-reader: a file a chapter, the contents, the notes and the pictures inside. The reader sets the pages, the font and the line spacing, so paper, margins, the font and the spacing don't apply.
 - **Markdown** is the plain compile. Also the way to glue a few notes into one file.
 
 ## Where it stops

@@ -9,6 +9,7 @@ import { setIcon } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WsMenuRowSpec, WsOpenedPanel, WsMenuPickItem } from '../core/settings';
 import { MENU_MAX_COLS, MENU_RULE_STYLES, WS_MENU_ESC, WS_MENU_VIEW, WsMenuView, barMenuFuzzy, wsCatch, wsMenuSearchInto, wsPickerSwatch } from '../core/preamble';
+import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
 export const menuMethods = {
@@ -142,6 +143,8 @@ export const menuMethods = {
 			{ id: 'theme',    name: 'Theme',         icon: 'palette' },
 			// Cursor-Smith's presets: the text caret
 			{ id: 'cursors',  name: 'Cursors',       icon: 'text-cursor' },
+			// the language the checks read, to switch (A601)
+			{ id: 'lang',     name: 'Language',      icon: 'languages' },
 			{ id: 'report',    name: 'Report',       icon: 'bar-chart-2' },
 			{ id: 'history',    name: 'History',     icon: 'history' },
 			// THE THIRD PLACE a row has to be named. `menuRowSpecs` makes it
@@ -222,7 +225,7 @@ export const menuMethods = {
 		// THE SHIPPED SHAPE: Search, Modes, then pairs — Syntax | Prose, Font |
 		// Markers, Theme | Light / Dark — a rule, Report | History, Organizer |
 		// Export. The pairs are `menuJoined`'s default; this is the order.
-		const def = ['search', 'modes', 'syntax', 'prose', 'font', 'markers',
+		const def = ['search', 'modes', 'syntax', 'prose', 'lang', 'font', 'markers',
 			'theme', 'cursors', 'lightdark', 'rule-1', 'report', 'history', 'organizer',
 			'export'];
 		const out: string[] = [];
@@ -248,7 +251,9 @@ export const menuMethods = {
 		// Menu tab keeps naming the card, so nothing wears a raw id.
 		// AND CURSOR-SMITH'S PRESETS only while it is there to load them.
 		return this.menuLayout().filter(id => !hidden.has(id) && (id !== 'organizer' || this.settings.organizerOn !== false)
-			&& (id !== 'cursors' || !!this.cursorSmithPlugin()));
+			&& (id !== 'cursors' || !!this.cursorSmithPlugin())
+			// THE LANGUAGE ROW while a pack is in the vault: with none, English is all there is
+			&& (id !== 'lang' || !!(this._packs && this._packs.size)));
 	},
 
 	// Drag semantics, verbatim from barThemeMove: position IS priority, and
@@ -478,11 +483,11 @@ export const menuMethods = {
 	// is looking at.
 	menuRowSpecs(this: WordSmith): WsMenuRowSpec[] {
 		return [
-		{ id: 'modes',   label: 'Modes',   items: () => this.modesPickerItems() },
-		{ id: 'syntax',  label: 'Syntax',  items: () => this.syntaxPickerItems() },
-		{ id: 'prose',   label: 'Prose',   items: () => this.checksPickerItems() },
-		{ id: 'markers', label: 'Markers', items: () => this.markersPickerItems() },
-		{ id: 'font',    label: 'Font',    items: () => this.fontPickerItems(), count: false },
+		{ id: 'modes',   label: wsT('Modes'),   items: () => this.modesPickerItems() },
+		{ id: 'syntax',  label: wsT('Syntax'),  items: () => this.syntaxPickerItems() },
+		{ id: 'prose',   label: wsT('Prose'),   items: () => this.checksPickerItems() },
+		{ id: 'markers', label: wsT('Markers'), items: () => this.markersPickerItems() },
+		{ id: 'font',    label: wsT('Font'),    items: () => this.fontPickerItems(), count: false },
 		// Above Theme, because it changes which HALF of a theme you are
 		// looking at: the question "dark or light" comes before the
 		// question "which scheme".
@@ -506,35 +511,37 @@ export const menuMethods = {
 			// "Dark" and "Light", not "Dark Mode" and "Light Mode". Every other
 			// row in this menu is a noun — Markers, Font, Theme — and "Mode"
 			// was doing no work in a list where nothing else needed the word.
-			label: () => this.isDarkTheme() ? 'Dark' : 'Light',
+			label: () => this.isDarkTheme() ? wsT('Dark') : wsT('Light'),
 			// Both words, so the finder answers "dark" and "light"
 			// whichever one the label happens to be showing.
 			keywords: 'light dark mode appearance',
 			toggle: () => this.barSetColorMode(!this.isDarkTheme())
 		},
-		{ id: 'theme',   label: 'Theme',   items: () => this.themesPickerItems(), count: false },
+		{ id: 'theme',   label: wsT('Theme'),   items: () => this.themesPickerItems(), count: false },
 		// CURSOR-SMITH'S PRESETS, by name, the active one beside the row. Shown only
 		// while Cursor-Smith is installed (menuVisibleLayout).
-		{ id: 'cursors', label: 'Cursors', items: () => this.cursorsPickerItems(), count: false },
+		{ id: 'cursors', label: wsT('Cursors'), items: () => this.cursorsPickerItems(), count: false },
+		// THE LANGUAGES TO SWITCH BETWEEN (A601), the one in use lit
+		{ id: 'lang', label: wsT('Language'), items: () => this.langPickerItems(), count: false },
 		// These OPEN something rather than setting it — a different
 		// kind of act, still centred (is-wide) so the pair reads as a
 		// footer. The divider that used to be Report's own flag is a
 		// layout entry now: the shipped order carries one rule above
 		// Report, and the Menu tab can move it, delete it, or add more.
-		{ id: 'report',  label: 'Report',  wide: true, reopen: true,
+		{ id: 'report',  label: wsT('Report'),  wide: true, reopen: true,
 			run: () => this.openReportModal() },
-		{ id: 'history', label: 'History', wide: true, reopen: true,
+		{ id: 'history', label: wsT('History'), wide: true, reopen: true,
 			run: () => this.openHistoryModal() },
 		// Export joins the pair for the same reason they are a pair: it
 		// OPENS a window rather than setting a switch. Third in the run,
 		// because it is the one you reach for least often and last in the
 		// order of things you do — write, look at what you wrote, send it.
-		{ id: 'export',  label: 'Export',  wide: true, reopen: true,
+		{ id: 'export',  label: wsT('Export'),  wide: true, reopen: true,
 			run: () => this.openExportModal() },
 		// The Organizer among the window-openers, and FIRST of the four, not
 		// last: Report, History and Export all look at writing that exists, and
 		// this is where the writing is arranged.
-		{ id: 'organizer', label: 'Organizer', wide: true, reopen: true,
+		{ id: 'organizer', label: wsT('Organizer'), wide: true, reopen: true,
 			// THE PANE: one door in.
 			run: () => this.orgOpenTab('organizer') },
 		];
@@ -965,7 +972,7 @@ export const menuMethods = {
 				if (row.items && row.count !== false) {
 					const its = row.items();
 					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
-					el.createSpan({ cls: 'ws-menu-state', text: on ? String(on) + ' on' : 'off' });
+					el.createSpan({ cls: 'ws-menu-state', text: on ? wsT('{n} on', { n: on }) : wsT('off') });
 				} else if (row.items) {
 					const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
 					if (cur) el.createSpan({ cls: 'ws-menu-state', text: cur.label });

@@ -4,6 +4,7 @@
 import { TFile } from 'obsidian';
 
 import { wsCatch, wsListOf, wsPagesOf, wsStr, wsTaskSay, wsTasksOf } from '../core/preamble';
+import { wsT, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 
 // ════════════════════════════════════════════════════════════════════════
@@ -46,6 +47,7 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 	const r = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
 	switch (col.id) {
 		case 'words': return r ? r.words : null;
+		case 'vocab': return r ? r.vocab : null;
 		case 'paras': return r ? r.paras : null;
 		// ── HOW LONG IT TAKES TO READ ────────────────────────
 		//
@@ -194,7 +196,7 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		// 12309 while the folder row above it read 75,947 — the aggregate
 		// path groups and the cell path did not, so one column printed a
 		// number two ways depending on which kind of row it was in.
-		case 'words': case 'paras':
+		case 'words': case 'paras': case 'vocab':
 		case 'chars': case 'charsall': case 'sentences':
 			return Number(v).toLocaleString();
 		// A TYPE IS ALREADY THE WORD IT SHOWS.
@@ -216,7 +218,9 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		// see `orgTargetSay`, which is the one writer of that.
 		case 'goal':
 			return d.plugin.orgTargetSay(Number(orgColRaw({ id: 'words' }, path)) || 0, Number(v) || 0);
-		case 'grade': return (Math.round(Number(v) * 10) / 10).toFixed(1);
+		// A WHOLE NUMBER (A685, the writer: "make grade a single number not 9.2 just 9 ,round it up", "as it's just an
+		// indicator"): rounded, the cell, the folder's average and the Report's alike
+		case 'grade': return String(Math.round(Number(v)));
 		// ONE FIXED STAMP, dd/mm/yyyy hh:mm, from `orgStamp` (org-index.ts),
 		// the only place this plugin turns a file time into a column string — the cell
 		// and BOTH group aggregates call it.
@@ -320,7 +324,10 @@ const ORG_AGG: Record<string, string> = {
 	// a folder's characters are its notes' characters added up; so are its
 	// sentences. None of them is an average or a newest — they are all
 	// sizes, and sizes add.
-	chars: 'sum', charsall: 'sum', sentences: 'sum'
+	chars: 'sum', charsall: 'sum', sentences: 'sum',
+	// VOCABULARY IS NO SIZE (A681): two notes of 500 different words share most of them, and their folder's
+	// figure is the words counted once over both, which its Report shows; the row is left empty, never a sum
+	vocab: 'none'
 };
 // ── A FOLDER SUMS WHAT IT CAN AND COUNTS EVERYTHING ELSE ────────
 //
@@ -431,17 +438,16 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 		});
 		return {
 			flags,
-			text: flags.map(f => f.n + ' ' + f.label).join(', '),
-			title: flags.map(f => f.n + (f.n === 1 ? ' file ' : ' files ') + f.label).join(', ')
+			text: wsUiJoin(flags.map(f => f.n + ' ' + f.label)),
+			title: wsUiJoin(flags.map(f => (f.n === 1 ? wsT('{n} file {flag}', { n: f.n, flag: f.label }) : wsT('{n} files {flag}', { n: f.n, flag: f.label }))))
 		};
 	}
 	// A FOLDER WITH NOTHING TICKED SAYS NOTHING, like every other
 	// aggregate here — `!n` above has already returned for that.
 	if (how === 'ticked') {
 		return { text: done + '/' + n,
-			title: done + ' of ' + n + ' ticked'
-				+ ' \u2014 ' + n + (n === 1 ? ' file carries' : ' files carry')
-				+ ' this property' };
+			title: n === 1 ? wsT('{done} of {n} ticked \u2014 {n} file carries this property', { done, n })
+				: wsT('{done} of {n} ticked \u2014 {n} files carry this property', { done, n }) };
 	}
 	switch (how) {
 		case 'sum':
@@ -452,14 +458,16 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			// because the ARITHMETIC is a plain sum — it is only the saying of it
 			// that differs.
 			if (col.id === 'read') return { text: d.plugin.formatReadTime(sum) };
-			if (col.id === 'pages') return { text: wsPagesOf(sum).toLocaleString(), title: 'About ' + wsPagesOf(sum).toLocaleString() + (wsPagesOf(sum) === 1 ? ' page' : ' pages') + ', at 250 words a page' };
+			if (col.id === 'pages') return { text: wsPagesOf(sum).toLocaleString(), title: wsPagesOf(sum) === 1 ? wsT('About {count} page, at 250 words a page', { count: wsPagesOf(sum).toLocaleString(), n: wsPagesOf(sum) })
+				: wsT('About {count} pages, at 250 words a page', { count: wsPagesOf(sum).toLocaleString(), n: wsPagesOf(sum) }) };
 			// A FOLDER'S TARGET READS LIKE ITS NOTES': the words of its targeted
 			// notes over their targets, said the way the setting says a note's
 			// (`orgTargetSay`: a percentage, or the two numbers) and wearing the
 			// band the cells wear (`goal` carries the pair for `orgGoalBand`).
 			// Both numbers are on the hover either way.
 			if (col.id === 'goal') return { text: d.plugin.orgTargetSay(wg, sum), goal: { words: wg, target: sum },
-				title: wg.toLocaleString() + ' words over a target of ' + sum.toLocaleString() + ', in ' + n + (n === 1 ? ' note' : ' notes') };
+				title: n === 1 ? wsT('{words} words over a target of {target}, in {n} note', { words: wg.toLocaleString(), target: sum.toLocaleString(), n })
+					: wsT('{words} words over a target of {target}, in {n} notes', { words: wg.toLocaleString(), target: sum.toLocaleString(), n }) };
 			return { text: sum.toLocaleString() };
 		case 'avg': {
 			// ── WEIGHTED BY LENGTH ──────────────────────────────────────
@@ -470,19 +478,19 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			// would divide by zero and put NaN in a cell, which is worse than the
 			// mean it replaced.
 			const a = wsum > 0 ? (wtot / wsum) : (sum / n);
-			return { text: (Math.round(a * 10) / 10).toFixed(1),
-				title: (wsum > 0 ? 'average of ' + n + ', weighted by length'
-					: 'average of ' + n) };
+			return { text: String(Math.round(a)),
+				title: (wsum > 0 ? wsT('average of {n}, weighted by length', { n })
+					: wsT('average of {n}', { n })) };
 		}
 		// Written the way the CELLS are written, and now literally
 		// BY the same function — `orgStamp`, one fixed dd/mm/yyyy hh:mm — so a
 		// group and its rows read as one column rather than two formats.
 		case 'newest':
 			return { text: d.plugin.orgStamp(newest),
-				title: 'newest of ' + n };
+				title: wsT('newest of {n}', { n }) };
 		case 'oldest':
 			return { text: d.plugin.orgStamp(oldest),
-				title: 'oldest of ' + n };
+				title: wsT('oldest of {n}', { n }) };
 		// AND THE BRACKETS, matching the cell (`orgColText`,
 		// 'tasks'). The contract in this function's own header says
 		// the aggregate is written "as the cells write it" — so
@@ -517,9 +525,10 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			const count = listy ? vals2.length : n;
 			return { text: String(count),
 				title: (listy
-					? vals2.length + (vals2.length === 1 ? ' value' : ' values')
-						+ ' across ' + n + (n === 1 ? ' note' : ' notes')
-					: n + ' of ' + tot + (tot === 1 ? ' note' : ' notes'))
+					? (vals2.length === 1
+						? (n === 1 ? wsT('{count} value across {n} note', { count: vals2.length, n }) : wsT('{count} value across {n} notes', { count: vals2.length, n }))
+						: (n === 1 ? wsT('{count} values across {n} note', { count: vals2.length, n }) : wsT('{count} values across {n} notes', { count: vals2.length, n })))
+					: (tot === 1 ? wsT('{count} of {n} note', { count: n, n: tot }) : wsT('{count} of {n} notes', { count: n, n: tot })))
 					+ (vals2.length && many.length <= 120
 						? ' \u00b7 ' + many : '') };
 		}

@@ -178,6 +178,122 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
    (A453). */
 .ws-color-probe { position: fixed; left: -9999px; top: 0; width: 0; height: 0; pointer-events: none; }
 
+/* =========================================================================
+   Zen's side panes (A578), desktop only: like the Zen UI picture the writer
+   sent. THE NOTE'S OWN COLOR, the page's surround under page mode, so pane and
+   note are one surface (A587); OBSIDIAN'S OWN HAIRLINE where a pane meets the
+   note and under its icon rows, and its scroll bars (A588: the writer took
+   back A578's straight cut); the icons on top, where Obsidian keeps them
+   (A587), on a strip of the pane's own ground (A597). Then three ways, each its
+   own switch: dimmed while writing, a peek from the edge (the code's), floating
+   over the note. Nothing lights up or appears under the pointer (A597: Quiet's
+   hidden buttons and Dim's hover taken out on the writer's word).
+   ========================================================================= */
+
+/* THE VAULT SWITCHER STAYS HIDDEN IN ZEN (A585). Obsidian 1.14 shows it with a
+   rule five selectors deep that outranks the plain hide above; its own
+   variable is the door that rule leaves. */
+body.zenmode-active:not(.ws-zen-panes) { --vault-profile-display: none; }
+
+/* THE NOTE'S OWN COLOR, the theme's, so it follows dark and light; every
+   surface in the pane reads the variables set here. */
+body.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock {
+	--ws-pane-ground: var(--background-primary);
+	--background-secondary: var(--ws-pane-ground);
+	--background-secondary-alt: var(--ws-pane-ground);
+	--tab-container-background: var(--ws-pane-ground);
+	--sidebar-tab-container-background: var(--ws-pane-ground);
+	background-color: var(--ws-pane-ground);
+}
+/* under page mode the note is a page on a darker ground, and the pane is that
+   ground, so it reads as the desk around the page */
+body.ws-zen-panes.ws-page:not(.is-mobile) .workspace-split.mod-sidedock {
+	--ws-pane-ground: var(--ws-page-ground);
+}
+/* THE SWITCHER'S LANGUAGES under Prose → Language (A601): a tick and a name each,
+   in a row that wraps, at the control side like any setting's control. */
+.ws-lang-choices {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+	gap: var(--size-4-2);
+}
+.ws-lang-choice {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-2-2);
+}
+
+/* THE SIDEBARS' FULL BUTTONS (A604, the writer: "including vault and settings
+   button"): the vault switcher, help and settings at the left sidebar's foot,
+   and the buttons that open and close the sidebars, which Zen hides. Obsidian
+   lays the vault row out by its own variable, FLEX, the name and its buttons on
+   one row; Zen sets it to none only without Zen Sidebars (A585), and nothing here
+   writes it (A613: a `block` here stacked the buttons under the name). */
+body.zenmode-active.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock .workspace-sidedock-vault-profile {
+	display: var(--vault-profile-display);
+}
+body.zenmode-active.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock .sidebar-toggle-button {
+	display: flex;
+}
+/* THE STRIP OF ICONS AT THE TOP, the pane's own ground (A597). Obsidian paints a
+   pane's top tabs with the title bar's color where they sit in the title bar's
+   row, which under page mode (and under a theme) is not the pane's. */
+body.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock .workspace-tab-header-container {
+	background-color: var(--ws-pane-ground);
+}
+/* THE HAIRLINE TO THE TOP (A597, both panes): Obsidian draws it as the resize
+   handle's border, the full height of the pane; the icon strip, lifted over the
+   title bar in Zen (+1, below), covered its top. The handle one above it. */
+body.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock > .workspace-leaf-resize-handle {
+	z-index: calc(var(--ws-z-titlebar, 23) + 2);
+}
+
+/* DIMMED WHILE WRITING: the panes fade while the caret is in the note, and come
+   back the moment it leaves the note (a click in a pane). Not under the pointer
+   (A597). */
+body.ws-zen-panes-dim.ws-editor-focused:not(.is-mobile) .workspace-split.mod-sidedock .workspace-tabs {
+	opacity: 0.45;
+	transition: opacity 0.4s ease;
+}
+
+/* OVER THE BAR AND THE TITLE BAR, in every band (A597): the bar rises to 10006
+   while the caret is in the note (it clears Cursor-Smith's canvas) and covered
+   the foot of a long list; the title bar rises with the letter box's masks. A
+   pane stands one above the higher of the two, whichever band is on; below
+   menus and windows, which take the focus and drop both bands. */
+body.ws-zen-panes:not(.is-mobile) .workspace > .workspace-split.mod-sidedock {
+	position: relative;
+	z-index: calc(max(var(--ws-z-status, 22), var(--ws-z-titlebar, 23)) + 2);
+}
+/* THE RIGHT STRIP KEEPS NO ROOM FOR THE WINDOW BUTTONS (A597, the writer's pick):
+   every icon shows, and the buttons stay under the pane while it is open. The
+   left strip's own padding. */
+body.ws-zen-panes:not(.is-mobile) .workspace-tabs.mod-top-right-space .workspace-tab-header-container {
+	padding-right: var(--size-4-2);
+}
+
+/* FLOATING OVER THE NOTE: a pane opens over the margin and the note keeps
+   its width, so the text does not reflow. Beside a ribbon that is shown, not
+   over it. Its layer is the one above. */
+body.ws-zen-panes-over:not(.is-mobile) .workspace {
+	position: relative;
+}
+body.ws-zen-panes-over:not(.is-mobile) .workspace > .workspace-split.mod-sidedock {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+}
+body.ws-zen-panes-over:not(.is-mobile) .workspace > .workspace-split.mod-left-split {
+	left: 0;
+}
+body.ws-zen-panes-over:not(.is-mobile):not(.zenmode-hide-ribbon) .workspace > .workspace-split.mod-left-split {
+	left: var(--ribbon-width, 44px);
+}
+body.ws-zen-panes-over:not(.is-mobile) .workspace > .workspace-split.mod-right-split {
+	right: 0;
+}
+
 /* Native status bar, hidden with specificity rather than the important flag so a
    user's own snippet can still override it. Both shapes are listed because
    the status bar moved inside .app-container in newer Obsidian versions.
@@ -628,7 +744,8 @@ body.ws-masks-active .workspace-drag-region {
 body.ws-masks-active .workspace-split.mod-left-split .workspace-tab-header-container,
 body.ws-masks-active .workspace-split.mod-right-split .workspace-tab-header-container,
 body.zenmode-active .workspace-split.mod-left-split .workspace-tab-header-container,
-body.zenmode-active .workspace-split.mod-right-split .workspace-tab-header-container {
+body.zenmode-active .workspace-split.mod-right-split .workspace-tab-header-container,
+body.ws-zen-panes:not(.is-mobile) .workspace-split.mod-sidedock .nav-header {
 	position: relative;
 	z-index: calc(var(--ws-z-titlebar, 23) + 1);
 	-webkit-app-region: no-drag;
@@ -961,6 +1078,37 @@ body.ws-text-pad .ws-scoped .markdown-reading-view .markdown-preview-sizer {
 	z-index: var(--ws-z-mask, 20);
 	pointer-events: none;
 	background-color: var(--background-primary);
+	/* how solid (A673, Mask opacity): 1 hides the lines above and below the band */
+	opacity: var(--ws-mask-opacity, 1);
+}
+
+/* THE BAND'S SIDES, A HANDLE EACH (A673): a strip the band's height just outside the words, the left one drawn
+   to the left of its edge; 14px to catch (the arrows were 10 by 13), a finger's 28 on a phone. Invisible until
+   the pointer is on it. */
+.ws-lb-side {
+	position: fixed;
+	z-index: var(--ws-z-mask, 20);
+	width: 14px;
+	cursor: ew-resize;
+	pointer-events: auto;
+	touch-action: none;
+}
+.ws-lb-side.is-left { transform: translateX(-100%); }
+.ws-lb-side:hover { background-color: var(--background-modifier-hover); }
+body.is-mobile .ws-lb-side { width: 28px; }
+
+/* THE READOUT while a side is dragged or a command moves the band (A673): "72 characters" */
+.ws-lb-readout {
+	position: fixed;
+	z-index: calc(var(--ws-z-mask, 20) + 1);
+	pointer-events: none;
+	padding: 2px 8px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	background-color: var(--background-secondary);
+	color: var(--text-normal);
+	font-size: var(--font-ui-smaller);
+	white-space: nowrap;
 }
 
 /* Hidden, not merely emptied: a thin mask has no band for the arrows to
@@ -2600,6 +2748,61 @@ body.ws-vim-panel-open .ws-status-bar {
    rebuilt, so the jar keeps its water — and the scroller takes what height
    the window has. Shut, the box is its one button. */
 .ws-report-host.is-words > :not(.ws-report-words) { display: none; }
+/* THE REPORT'S THIRD FACE, SENTENCE LENGTHS (A593): beside Words frequency, each
+   face hiding the other's button; a chart of eight columns since A629. */
+.ws-report-words.is-open .ws-report-bars-btn,
+.ws-report-words.is-bars .ws-report-words-btn { display: none; }
+.ws-report-words:not(.is-bars) > .ws-report-bars { display: none; }
+.ws-report-words.is-bars > .ws-report-bars { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.ws-report-bars { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.ws-report-bars-note { color: var(--text-muted); }
+/* the longest sentence a link to it (A666), as the Organizer's backlinks are */
+.ws-report-longest {
+	color: var(--link-color, var(--text-accent));
+	cursor: pointer;
+}
+.ws-report-longest:hover,
+.ws-report-longest:focus-visible {
+	color: var(--link-color-hover, var(--text-accent-hover));
+	text-decoration: underline;
+}
+/* TWO TABS, A CHART EACH (A644): Rhythm and Distribution, the other chart hidden; THE BAR'S BUTTONS since
+   A648, in the face's bar beside ← Report, the picked one pressed */
+.ws-report-tabs { display: inline-flex; gap: 6px; }
+.ws-report-words:not(.is-bars) .ws-report-tabs { display: none; }
+.ws-report-tabs > .ws-export-mini.is-picked { color: var(--text-normal); background-color: var(--background-modifier-active-hover); }
+.ws-report-tab-pane:not(.is-picked) { display: none; }
+/* THE CHART (A629): eight columns, short to long, as tall as their shares; rounded tops,
+   and a ramp from the short green through the middle to the long and very long tints */
+/* THE PACE (A640): the average sentence along the text, a line in the ramp, a tick where each note begins */
+.ws-report-pace { position: relative; max-width: 560px; margin: 2px 0 10px; --ws-pace-h: 110px; }
+.ws-report-pace-scroll { overflow-x: auto; overflow-y: hidden; }
+.ws-report-pace-inner { min-width: 100%; }
+.ws-report-pace-chart { display: block; width: 100%; height: var(--ws-pace-h); }
+.ws-report-pace-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ws-report-pace-mean { fill: none; stroke: var(--text-faint); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
+.ws-report-pace-hit { fill: transparent; cursor: pointer; }
+/* THE READOUT UNDER A CHART (A651): one muted line, what the pointer is on; one line always, so the chart never
+   jumps as it changes */
+.ws-report-readout { margin: 2px 0 6px; color: var(--text-muted); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 1.4em; }
+.ws-report-pace-hit:hover { fill: var(--background-modifier-hover); }
+.ws-report-bars-chart { display: flex; align-items: flex-end; gap: 6px; height: 170px; max-width: 560px; padding-top: 6px; }
+.ws-report-bin-pct { margin-bottom: 3px; text-align: center; white-space: nowrap; font-size: var(--font-ui-smaller); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ws-report-bin { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.ws-report-bar {
+	height: calc(2px + var(--ws-bar-h, 0) * (100% - 44px));
+	background: var(--text-faint);
+	border-radius: 4px 4px 0 0;
+}
+.ws-report-bin-label { margin-top: 5px; text-align: center; white-space: nowrap; font-size: var(--font-ui-smaller); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ws-report-bar.is-b0 { background: var(--ws-bar-short); }
+.ws-report-bar.is-b1 { background: color-mix(in srgb, var(--ws-bar-short) 55%, var(--text-faint)); }
+.ws-report-bar.is-b2 { background: var(--text-faint); }
+.ws-report-bar.is-b3 { background: color-mix(in srgb, var(--ws-bar-hard) 30%, var(--text-faint)); }
+.ws-report-bar.is-b4 { background: color-mix(in srgb, var(--ws-bar-hard) 65%, var(--text-faint)); }
+.ws-report-bar.is-b5 { background: var(--ws-bar-hard); }
+.ws-report-bar.is-b6 { background: color-mix(in srgb, var(--ws-bar-veryhard) 55%, var(--ws-bar-hard)); }
+.ws-report-bar.is-b7 { background: var(--ws-bar-veryhard); }
 .ws-report-host.is-words > .ws-report-words { flex: 1 1 auto; }
 .ws-report-words:not(.is-open) > .ws-report-words-head,
 .ws-report-words:not(.is-open) > .ws-report-words-scroll,
@@ -2610,6 +2813,15 @@ body.ws-vim-panel-open .ws-status-bar {
 	min-height: 4em;
 	max-height: none;
 }
+/* A FIFTH SHORTER OPEN (A633, the writer: "make the word frequency menu a bit shorter in
+   height when it opens by 20%"): the table took the dialog to Obsidian's ceiling, 85vh;
+   open, the report stops at 80% of it */
+.ws-report-modal.is-words-open { max-height: calc(var(--dialog-max-height, 85vh) * 0.8); }
+/* WIDER WHILE THE SENTENCES SHOW (A646, the writer: "make the popup for senteces a more wider"): 640px, the
+   figures' 400 again when they close; in it the charts lose the docked pane's 560 cap */
+.ws-report-modal.is-bars-open { width: min(640px, 92vw); max-width: min(640px, 92vw); }
+.ws-report-modal.is-bars-open .ws-report-pace,
+.ws-report-modal.is-bars-open .ws-report-bars-chart { max-width: none; }
 
 /* The scope line sits under the tabs, above the rule: the tab says which
    thing, this says exactly which one. */
@@ -2748,10 +2960,12 @@ body.ws-vim-panel-open .ws-status-bar {
 	margin: 0 0 4px 0;
 	color: var(--text-muted);
 }
-.ws-report-words:not(.is-open) > .ws-report-words-bar { justify-content: center; margin: 0; }
+.ws-report-words:not(.is-open):not(.is-bars) > .ws-report-words-bar { justify-content: center; margin: 0; }
+/* THE SENTENCES' FACE IN WORDS FREQUENCY'S FRAME (A648): its bar at the left, ← Report and the two tabs */
+.ws-report-words.is-bars > .ws-report-words-bar { justify-content: flex-start; }
 /* Shut, no frame: the button stands alone (writer 2026-09-21: "remove the
    contour of the button, that box surrounding it"). */
-.ws-report-words:not(.is-open) { border: none; padding: 0; }
+.ws-report-words:not(.is-open):not(.is-bars) { border: none; padding: 0; }
 .ws-report-words-btn { display: inline-flex; align-items: center; gap: 6px; }
 /* THE SEARCH BETWEEN THEM (A477, writer 2026-09-21: "add a search bar so i
    can see a word count"): the box takes the room between the button and
@@ -3643,6 +3857,9 @@ body.ws-vim-panel-open .ws-status-bar {
    cause above is measured; the cure is one gesture — look at Daily and
    Monthly one after the other. */
 .ws-hist-axis     { fill: var(--text-muted); shape-rendering: crispEdges; }
+/* THE BARS SMOOTH (A639, the writer: "they look pixelated"): a round tip stair-steps under the chart's
+   crispEdges; the bars draw at full precision, the grid and the axis stay crisp */
+.ws-hist-chart path.ws-hist-px { shape-rendering: geometricPrecision; }
 .ws-hist-avgline  { fill: var(--ws-hist-avg); }
 /* NET IS A LINE OVER THE BARS NOW (writer, 2026-08-30), drawn as a step of
    whole blocks because HISTORY_PX forbids a stroked path here and the data
@@ -6447,6 +6664,7 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 	   (A413). */
 	.ws-export-split > .ws-export-prevcol { margin-top: 0; }
 	.ws-export-split.is-fit > .ws-export-prevcol { align-self: auto; height: auto; }
+	.ws-uni-panel > .ws-export-top.ws-export-top { width: 100%; }
 }
 .ws-export-optside { min-width: 0; display: flex; flex-direction: column; }
 
@@ -6580,8 +6798,9 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 /* THE TOTALS LINE, WHEN IT SITS IN THE ACT ROW (writer, 2026-09-02).
    Quiet, tabular and to the LEFT of the count it elaborates — the row
    reads “what is going out, how much of it, do it”. */
+/* AFTER TICK ALL since A627, inside the format's group: no auto margin, it
+   follows the button it counts for */
 .ws-export-prevhead.is-inact {
-	margin-left: auto;
 	color: var(--text-faint);
 	font-size: var(--ws-ctl-fs);
 	font-variant-numeric: tabular-nums;
@@ -6633,7 +6852,9 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 	flex-wrap: wrap;
 	max-width: 100%;
 	gap: 8px;
-	margin-right: auto;
+	/* NO AUTO MARGIN since A627: the Export button follows the format menu
+	   (the writer: "the export button after export as"), it no longer sits
+	   hard right */
 }
 /* THE BODY STEP, with the rest of this pane (writer, 2026-09-01). It read
    `--font-ui-smaller`, which is Obsidian's own 12px and one step under
@@ -6652,6 +6873,8 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
    it) — the row wraps at any width since A431, so the class is a mark now. */
 .ws-export-fmtnote {
 	flex-basis: 100%;
+	/* AFTER THE DESTINATION'S LINE (order 4), in the act since A657 */
+	order: 5;
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
@@ -7862,10 +8085,9 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 .ws-export-ico-in { display: inline-flex; align-items: center; }
 .ws-export-ico-in:empty { display: none; }
 .ws-export-ico-in svg { width: 14px; height: 14px; flex: 0 0 auto; }
-.ws-export-prevfoot .ws-export-prevdark.is-on {
-	background: var(--background-modifier-hover);
-	color: var(--text-normal);
-}
+/* THE ZOOM'S ONE BUTTON (A628): its figure and the chevron that opens its list */
+.ws-export-prevfoot .ws-export-zoombtn { display: inline-flex; align-items: center; gap: 2px; padding: 0 6px; }
+.ws-export-prevfoot .ws-export-zoombtn .ws-export-zoompct { min-width: 3.2em; color: var(--text-normal); }
 .ws-export-prevfoot .ws-export-zoom,
 .ws-export-prevfoot .ws-export-view { margin-left: 6px; }
 /* AN ARROW AT THE END OF THE BOOK IS SHUT, and has to look it — a control
@@ -8350,6 +8572,64 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 	width: 100%;
 }
 .ws-export-right .ws-export-textrow { grid-column: 1 / -1; }
+/* CITATIONS WHILE WRITING (A572): a citation in a quieter ink, a key the library lacks
+   underlined; the [@ search's rows: the authors and year, the title, the key. */
+.ws-cite { color: var(--text-muted); }
+/* a border, not text-decoration: the review refuses its shorthand's many values and its longhands */
+/* A KEY THE LIBRARY DOES NOT HOLD (A660, the writer over the dotted 2px border: "the underline looks bad"):
+   one thin line in the error color just under the letters. A background, not a border: the mark is three
+   pieces ([, the key, ]) and a dotted border restarted its dots at each; a solid background line joins them */
+.ws-cite-missing { background-image: linear-gradient(var(--text-error), var(--text-error)); background-repeat: no-repeat; background-size: 100% max(1px, 0.06em); background-position: 0 calc(100% - 0.12em); }
+.ws-cite-sug-head { font-weight: 600; }
+.ws-cite-sug-title { color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.ws-cite-sug-key { color: var(--text-faint); font-size: var(--font-ui-smaller); font-family: var(--font-monospace); }
+.ws-cite-sug-none { color: var(--text-muted); }
+
+/* CITATIONS' SETTINGS (A572): the tokens a style of one's own is written in, and the preview
+   of any style: two sources in the text, then the list at the back with hanging indents. */
+/* THE PAGE'S WIDTH SINCE A634 (the writer: "the citations preview needs to be up top full width and the
+   custom citations text box where people add their tokens same full width below it"): the preview and the
+   two boxes are blocks under their names; the tokens are Powerline's reference table (.ws-token-help). */
+.ws-cite-fmt .setting-item-control input[type="text"] { width: 100%; font-family: var(--font-monospace); font-size: 0.9em; }
+.ws-cite-preview {
+	text-align: left;
+	padding: 8px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	font-family: var(--font-text);
+	font-size: var(--font-ui-small);
+	line-height: 1.45;
+}
+.ws-cite-preview-head { font-weight: 600; margin: 8px 0 2px; }
+/* the hanging indent: the entry set in, its first line's span drawn back out */
+.ws-cite-preview-entry { padding-left: 1.5em; margin: 0 0 4px; }
+.ws-cite-hang { margin-left: -1.5em; }
+.ws-cite-preview-note { font-size: var(--font-ui-smaller); color: var(--text-muted); }
+
+/* A GROUP AS ONE BUTTON AND ITS LIST (A617 Also include, A625 Front matter): one button
+   across the group naming what is in, and the chevron that opens the list. */
+.ws-export-right .ws-export-opts > .ws-export-picklist {
+	grid-column: 1 / -1;
+	justify-self: start;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: 100%;
+}
+.ws-export-pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* THE CHEVRON ON ITS WORDS' MIDDLE (A636, the writer: "these chevrons are not aligned
+   properly"): a flex item's span is a block, and the svg in it sat on the text's baseline,
+   1.5px above the middle. A block svg has no baseline to sit on, so the button's own
+   centering takes it; the zoom's button wears it too. */
+.ws-export-pick-chev svg { display: block; width: 14px; height: 14px; }
+
+/* WHERE THE DECIDED-ONCE OPTIONS WENT (A574): a muted line across the group */
+.ws-export-moved {
+	grid-column: 1 / -1;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin: 2px 0 6px;
+}
 
 /* ── LABELS SHARE A WIDTH SO THEIR CONTROLS LINE UP ──────────────────
 
@@ -8465,7 +8745,8 @@ body.is-mobile .ws-export-hit { padding: 8px; }
    A381) and the chips of the export's places under the subject line. The
    tree's boxes say what is in. */
 .ws-export-into    { order: 1; }
-.ws-export-go      { order: 3; }
+/* RIGHT AFTER THE FORMAT (A627): order 1, the zoom figure (2) after it */
+.ws-export-go      { order: 1; }
 /* The folder picker takes the slack, so the two buttons sit hard right
    however wide the window is. */
 /* ── THE DESTINATION GETS ITS OWN LINE ────────────────────────────────
@@ -8497,17 +8778,33 @@ body.is-mobile .ws-export-hit { padding: 8px; }
    item of that same grid — which would also let the preview start higher,
    the second half of their ask that a width alone cannot deliver. Logged on
    A82 rather than started at the end of a long session. */
+/* THE OPTIONS' HALF (A635): the act is two lines over the options, and the preview rises beside it
+   to the pane's top. Through the panel, (0,2,0): `.ws-uni-panel > * { width: 100% }` sits later at
+   (0,1,0) and took the whole width. Stacked, the two queries give it back at (0,3,0). And on the
+   LEFT: the panel centers its children, which put the half in the middle, over the preview. */
+.ws-uni-panel > .ws-export-top { width: 54.5%; align-self: flex-start; }
+/* ON A PHONE THE FOLDER BOX TAKES A LINE OF ITS OWN (A657, measured at 360px: "Export as" on two lines and the
+   box 118px): the line may wrap, and the box goes under the format rather than squeezing beside it */
+.ws-export-top .ws-export-into { flex-wrap: wrap; }
+/* …BUT NOT A HALF TOO NARROW FOR ITS SECOND LINE (A647, the writer: "the export wrapping is fucked now";
+   measured in a pane of 760 to 840px: "Export as" on two lines, the folder box 135px). Up to 900px the act
+   takes the pane's width again and the preview starts level with the options, under it. */
+@container ws-panel (max-width: 900px) {
+	.ws-uni-panel > .ws-export-top.ws-export-top { width: 100%; }
+	.ws-export-split > .ws-export-prevcol { margin-top: 0; }
+}
 .ws-export-top .ws-export-into {
 	flex: 1 1 100%;
-	max-width: 54.5%;
+	/* THE WHOLE OF ITS LINE since A635: the act block is the options' half now, so the line is too */
+	max-width: none;
 	/* AND THE REST OF ITS LINE (A542). The cap above also capped the size the
 	   row wraps by, so in a pane wide enough for 54.5% beside the format and
 	   the count, the field stayed on the FIRST line, where the risen preview
 	   covered 511px of it. The margin is the other 45.5%: the field's outer
 	   box is the whole line, so the line is always its own. */
-	margin-right: 45.5%;
-	/* ORDER 4, NOT 1. Preview and the Export button already carry order 2
-	   and 3, so an order of 1 put the destination ABOVE them and the row
+	margin-right: 0;
+	/* ORDER 4, NOT 1. The Export button and the zoom figure carry order 1
+	   and 2 (A627), and an order of 1 once put the destination ABOVE them and the row
 	   became three lines: format and count, then the field, then the two
 	   buttons underneath. Measured at 114.8px tall over four distinct tops.
 	   Last means last. */
@@ -9186,6 +9483,7 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	   read off the measurement rather than guessed. */
 	.ws-export-split > .ws-export-prevcol { margin-top: 0; }
 	.ws-export-split.is-fit > .ws-export-prevcol { align-self: auto; height: auto; }
+	.ws-uni-panel > .ws-export-top.ws-export-top { width: 100%; }
 }
 .ws-uni-modal .ws-org-current,
 .ws-uni-modal .ws-org-current:hover {
@@ -9496,7 +9794,7 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
    zoom box with 80% ... like organizer and history have"). That tab puts its
    subject line away, so the figure stands after the counts and before the
    button, in the same costume. ORDER 2: the counts are drawn again on every
-   refresh, before the button, and the button is 3. */
+   refresh; since A627 the button is 1 and this follows it. */
 .ws-export-top .ws-uni-zoomtag { order: 2; }
 /* AND NO TALLER THAN ITS LINE (A293; writer 2026-09-11: “the zoom resets
    button i think it adds padding to the top”). It wore the tab button’s
@@ -13498,6 +13796,15 @@ body { --ws-hit-min: 44px; }
 	flex: 0 0 9rem;
 	width: 9rem;
 }
+/* ON A PHONE THE SWATCHES TAKE A LINE OF THEIR OWN (A693). The phone stacks
+   the row, its controls on a line of their own (328px at 360), and the five
+   need 389: the two swatches ran past the screen, one of them by 63px, in every
+   language (settings_phone_probe, under Obsidian's own app.css; 11px at 412).
+   The glyph, the name and the shape keep the first line; a full-width break
+   (order 1) sends the swatches (order 2) to the next, together, at any width. */
+.is-phone .modal .ws-flagrow .setting-item-control { flex-wrap: wrap; }
+.is-phone .modal .ws-flagrow .setting-item-control input[type="color"] { order: 2; }
+.is-phone .modal .ws-flagrow .setting-item-control::after { content: ""; order: 1; flex-basis: 100%; }
 /* The glyph leads the controls, the row's preview. */
 .ws-flagrow-icon {
 	display: inline-flex;
@@ -13812,6 +14119,8 @@ body { --ws-hit-min: 44px; }
    `file-output` (WS_PANE_ICONS). */
 .ws-export-ico-in.is-mirrored svg,
 .workspace-tab-header[data-type="word-smith-export"] .workspace-tab-header-inner-icon svg { transform: scaleX(-1); }
+/* …and the Export page's entry in the settings (A591, the writer circled it) */
+.ws-page-icon.is-mirrored svg { transform: scaleX(-1); }
 
 
 /* The kind icon on a non-markdown row: small, muted, before the name —
@@ -15050,6 +15359,10 @@ body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-
    seeing a wall of a single colour at a glance. */
 .ws-ck-hard     { background-color: var(--ws-ck-hard-bg);     border-radius: 2px; }
 .ws-ck-veryhard { background-color: var(--ws-ck-veryhard-bg); border-radius: 2px; }
+/* SHORT, IN GREEN, shaded by length (A630) */
+.ws-ck-short    { background-color: var(--ws-ck-short-bg);    border-radius: 2px; }
+/* THE MIDDLE, a faint neutral (A658): the lengths between the green and the long tints */
+.ws-ck-mid      { background-color: var(--ws-ck-mid-bg);      border-radius: 2px; }
 
 /* Muting everything else is what makes one class read as the sentence's
    skeleton. The word-class marks set their own colour and are separate
@@ -15073,4 +15386,4 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-lin
    sentence flagged as hard to read is exactly what the writer is looking
    for. */
 body.ws-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
-body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-hard, .ws-ck-veryhard) { color: var(--text-normal); }
+body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-hard, .ws-ck-veryhard, .ws-ck-short, .ws-ck-mid) { color: var(--text-normal); }

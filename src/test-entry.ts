@@ -23,12 +23,22 @@ import {
 	wsGuardReset, wsGuardSeen, wsGuardTell, wsLabelCh, wsLineOfSnippet, WsMenuView, wsNarrowDecide,
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
-	wsBuildDocx, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsEpubCheck,
+	wsPageStarts, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
-	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart,
-	wsCursorMarkSvg, wsHueRotate,
+	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
+	wsCursorMarkSvg, wsHueRotate, wsWheelStep, wsIconPick,
+	POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 } from './core/preamble';
+import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
+import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
+import { wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER } from './editor/cite-suggest';
+import { wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
+import { WS_LOCALES } from './core/ui-locales';
+import { wsCiteEntryText } from './core/citations';
+import { wsCiteSections } from './core/citations';
+import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_SAMPLES } from './core/citations';
 
 export default Object.assign(WordSmith, {
 	// the 47 the slices exported
@@ -49,13 +59,25 @@ export default Object.assign(WordSmith, {
 	wsOrgRemove, wsOrgRename, wsOrgStale, wsOrgPathsUnder, wsOrgAgg, wsOrgDistinct, wsUnderIndex,
 	wsUnderRow, wsOrgFolderWords,
 	// the twenty-three the Word export audit and probe evaluated out of a slice of the text
-	wsBuildDocx, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsEpubCheck,
+	wsPageStarts, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did
 	findDialogue, BAR_THEMES,
 	// the tagger's own words, for the accents suite (A482)
-	tokenizeLine, tagTokens, countSyllables, splitSentences,
+	tokenizeLine, tagTokens, countSyllables, splitSentences, posBucket,
+	// the language packs' reader (A571)
+	wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS,
+	wsPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom,
+	// English's own lists and its pack engine (A691): what ws-dev/gen-english-packs.js writes the English packs from
+	// the settings in Obsidian's language (A692)
+	wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale, WS_LOCALES,
+	wsEnglishPackEngine, POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
+	// citations (A572)
+	wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER, wsCiteEntryText,
+	wsCiteSections,
+	wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_SAMPLES,
 	// onload's phases, driven by the phases suite (A488)
 	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
 	// the export's tick memory and the preview's size, driven by the big-vault suite (A516)
@@ -66,4 +88,8 @@ export default Object.assign(WordSmith, {
 	wsCursorMarkSvg,
 	// the colour a hue-rotate() filter turns, for a token following Cursor-Smith’s flip
 	wsHueRotate,
+	// a wheel's zoom steps, a trackpad's small deltas added up (the Mac audit for issue #56)
+	wsWheelStep,
+	// the first icon name this Obsidian bundles (A681)
+	wsIconPick,
 });

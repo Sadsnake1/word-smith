@@ -5,10 +5,17 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
-import { Notice } from 'obsidian';
+import { Notice, getLanguage } from 'obsidian';
+import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
-import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr } from '../core/preamble';
+import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg } from '../core/preamble';
+import { wsIsPackPath, wsPackPick, wsPackQuotes, wsParsePack } from '../core/language';
+import type { WsPack } from '../core/language';
+import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
+import { wsParseLibrary, wsCiter } from '../core/citations';
+import type { WsRef, WsCiter } from '../core/citations';
+import type { WsEngine } from '../core/lang-engine';
 import type WordSmith from './plugin';
 import type { WsStructSource } from './plugin';
 
@@ -548,7 +555,7 @@ export const storesMethods = {
 	// the stores find themselves the way they already do.
 	settingsMirrorVaultKeys(this: WordSmith) {
 		return ['goalsPath', 'exportListPath', 'structurePath',
-			'historyFilePath', 'settingsMirrorPath', 'scopePaths'];
+			'historyFilePath', 'settingsMirrorPath', 'scopePaths', 'citeLibrary'];
 	},
 
 	vaultName(this: WordSmith) {
@@ -2331,6 +2338,213 @@ export const storesMethods = {
 		// `treeOrderChanged`. A Manuscript window standing open beside the
 		// explorer used to keep drawing the order it had drawn last.
 		this.treeOrderChanged();
+	},
+
+	// ── LANGUAGE PACKS (A571): found by name, read, read again when one changes ──
+	//
+	// Every `ws-lang-<code>.md` in the vault is read; one language's copies
+	// are reduced to one (wsPackPick); a file with no language code is listed as
+	// unreadable. Read at layout-ready, never in the start, and again a moment
+	// after any pack is created, changed, renamed or deleted, so a word added to
+	// a pack takes effect when it is saved. The language chosen is kept by its
+	// code: a pack not in the vault (not synced yet) is English until it is, said
+	// once a session, and comes back with the file.
+	async packsScan(this: WordSmith) {
+		if (this._unloaded) return;
+		const files = this.app.vault.getMarkdownFiles().filter((f) => wsIsPackPath(f.path));
+		const read: { path: string; pack: WsPack }[] = [];
+		const bad: { path: string; why: string }[] = [];
+		for (const f of files) {
+			let text = '';
+			try { text = await this.app.vault.cachedRead(f); }
+			catch (_) { wsCatch('packsScan: cachedRead', _); bad.push({ path: f.path, why: 'could not be read' }); continue; }
+			const pack = wsParsePack(text);
+			if (!pack.lang) { bad.push({ path: f.path, why: 'no language code (language: de)' }); continue; }
+			read.push({ path: f.path, pack });
+		}
+		const byLang = new Map<string, { path: string; pack: WsPack }[]>();
+		// ws-lang-en.md is English's own (A691, one pack since A694): 'en', the built-in's choice, read on top of it
+		for (const r of read) { const k = r.pack.lang; const l = byLang.get(k); if (l) l.push(r); else byLang.set(k, [r]); }
+		const home = this.packsHome();
+		const packs = new Map<string, { path: string; pack: WsPack; dupes: string[] }>();
+		for (const [lang, list] of byLang) { const pick = wsPackPick(list, home); packs.set(lang, { path: pick.use.path, pack: pick.use.pack, dupes: pick.dupes }); }
+		if (this._unloaded) return;
+		this._packs = packs;
+		this._packsBad = bad;
+		this._packsRead = true;
+		const want = this.settings.language;
+		if (want && want !== 'en' && !packs.has(want) && !this._packMissingSaid) {
+			this._packMissingSaid = true;
+			new Notice('Word-Smith: the ' + want + ' language pack is not in the vault. English is used until it is.', 8000);
+		}
+		if (want && packs.has(want)) this._packMissingSaid = false;
+		this.packApply();
+		const tab = this._settingsTab;
+		try { if (tab && tab.containerEl && tab.containerEl.isConnected) tab.update(); }
+		catch (_) { wsCatch('packsScan: the settings page', _); }
+	},
+
+	// Word-Smith's own folder: where its order file lives, `Word-Smith` by default.
+	packsHome(this: WordSmith) {
+		try {
+			const p = this.structurePathNow();
+			if (p && p.indexOf('/') !== -1) return p.slice(0, p.lastIndexOf('/'));
+		} catch (_) { wsCatch('packsHome: structurePathNow', _); }
+		return 'Word-Smith';
+	},
+
+	// A file event: a pack's means read them all again, a moment later.
+	packsChanged(this: WordSmith, path: string | null | undefined) {
+		if (!wsIsPackPath(path)) return;
+		if (this._packTimer != null) window.clearTimeout(this._packTimer);
+		this._packTimer = window.setTimeout(() => { this._packTimer = null; void this.packsScan(); }, 400);
+	},
+
+	// ── THE CITATION LIBRARY (A572) ──────────────────────────────────────
+	//
+	// The file Settings → Export → Citations names: a .bib (BibTeX, BibLaTeX) or a .json
+	// (CSL-JSON), read on start, when the setting changes and when the file itself does
+	// (Zotero's Better BibTeX rewrites it). Through Obsidian's vault, so a phone reads it too.
+	async citeLoad(this: WordSmith) {
+		const path = String(this.settings.citeLibrary || '').trim();
+		let lib = new Map<string, WsRef>();
+		let error = '';
+		if (path) {
+			const f = this.app.vault.getAbstractFileByPath(path);
+			if (!f || !wsIsFile(f)) error = 'No file at ' + path + '.';
+			else {
+				try { lib = wsParseLibrary(path, await this.app.vault.cachedRead(f)); } catch (e) { error = wsErrMsg(e); }
+				if (!error && !lib.size) error = 'No sources could be read from ' + path + '.';
+			}
+		}
+		this._citeLib = lib;
+		this._citeLibError = error;
+		this._citeGen = (this._citeGen || 0) + 1;
+		try { this.reconfigureEditors(); } catch (_) { wsCatch('citeLoad: reconfigureEditors', _); }
+	},
+
+	// the library's own file changed (or appeared, or went): read again, once the writes settle
+	citeChanged(this: WordSmith, path: string | null | undefined) {
+		if (!path || path !== String(this.settings.citeLibrary || '').trim()) return;
+		if (this._citeTimer != null) window.clearTimeout(this._citeTimer);
+		this._citeTimer = window.setTimeout(() => { this._citeTimer = null; void this.citeLoad(); }, 400);
+	},
+
+	// THE LIBRARY MOVED, or a folder above it did: the setting follows, as every path-keyed
+	// setting does on a rename
+	citeRenamed(this: WordSmith, oldPath: string, newPath: string) {
+		const cur = String(this.settings.citeLibrary || '').trim();
+		if (!cur || !oldPath || !newPath || oldPath === newPath) return;
+		const next = cur === oldPath ? newPath : cur.startsWith(oldPath + '/') ? newPath + cur.slice(oldPath.length) : '';
+		if (!next) return;
+		this.settings.citeLibrary = next;
+		void this.saveSettings();
+		this.citeChanged(next);
+	},
+
+	citeLibrary(this: WordSmith): Map<string, WsRef> {
+		return this._citeLib || new Map<string, WsRef>();
+	},
+
+	// the style the settings name, over the library: one book's citations, in order
+	citer(this: WordSmith): WsCiter {
+		const s = this.settings;
+		return wsCiter(s.citeStyle || 'apa', this.citeLibrary(), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading);
+	},
+
+	// The chosen language's pack, or null for English (or for a pack not in the vault). AN ENGLISH PACK IS
+	// NOT ONE (A691): English keeps its own tagger, sums and grade; its pack is `englishPack`.
+	packActive(this: WordSmith): WsPack | null {
+		const l = this.settings.language;
+		if (!l || /^en(-|$)/i.test(l) || !this._packs) return null;
+		const e = this._packs.get(l);
+		return e ? e.pack : null;
+	},
+
+	// THE ENGLISH PACK IN USE (A691; ONE since A694, the writer: "Only one English pack with us /UK
+	// typography dropdown"): ws-lang-en.md read on top of the built-in English while English is chosen;
+	// null for the built-in alone, or no pack in the vault. Its quotes are Typography's Quote style.
+	englishPack(this: WordSmith): WsPack | null {
+		const l = this.settings.language || 'en';
+		if (!/^en(-|$)/i.test(l) || !this._packs) return null;
+		const e = this._packs.get('en');
+		return e ? e.pack : null;
+	},
+
+	// THE SETTINGS' LANGUAGE (A692, the writer: "if the obsidian language is change we give the translations too
+	// for word-smith settings"): Obsidian's own, read at the start (Obsidian restarts when its language changes);
+	// English where Word-Smith has no table for it, or where this Obsidian has no getLanguage
+	uiApply(this: WordSmith) {
+		let code = 'en';
+		try { code = getLanguage() || 'en'; } catch { code = 'en'; }
+		wsUiSet(wsUiPick(code));
+	},
+
+	// CHOOSING A LANGUAGE. Its quote marks are not written into Typography's own fields
+	// (A615): they are read where they are typed (`typoMarks`), so a language chosen and
+	// changed back loses nothing of the writer's.
+	async languageSet(this: WordSmith, code: string) {
+		this.settings.language = code || 'en';
+		await this.saveSettings(true);
+		this.packApply();
+	},
+
+	// THE LANGUAGE'S QUOTE MARKS (A615): the pack in use's, with its name; null for English or a
+	// pack that names none (English's are the Quote style's, US or UK: A694)
+	typoLanguageMarks(this: WordSmith): { name: string; od: string; cd: string; os: string; cs: string; ap: string } | null {
+		const pack = this.packActive();
+		const q = wsPackQuotes(pack);
+		return pack && q ? { name: pack.name, od: q.od, cd: q.cd, os: q.os, cs: q.cs, ap: pack.props.apostrophe || '\u2019' } : null;
+	},
+
+	// THE MARKS TYPOGRAPHY TYPES (A615): the language's while "Quotes from the language" is on and
+	// it names its own; the writer's under Custom quote marks otherwise; then the usual ones, by the
+	// Quote style (A694, the writer: "Only one English pack with us /UK typography dropdown"): null
+	// for US (\u201c \u201d outside, the editor's own), UK's \u2018 \u2019 outside and \u201c \u201d inside.
+	typoMarks(this: WordSmith): { od: string; cd: string; os: string; cs: string; ap: string } | null {
+		const s = this.settings;
+		const lang = s.typoQuotesFromLanguage ? this.typoLanguageMarks() : null;
+		if (lang) return lang;
+		if (!s.typoCustomQuotes) return s.typoQuoteStyle === 'uk' ? { od: '\u2018', cd: '\u2019', os: '\u201c', cs: '\u201d', ap: '\u2019' } : null;
+		const b = wsBag(s);
+		const str = (k: string, f: string) => { const v = b[k]; return typeof v === 'string' && v.length ? v : f; };
+		return { od: str('typoOpenDouble', '\u201c'), cd: str('typoCloseDouble', '\u201d'), os: str('typoOpenSingle', '\u2018'), cs: str('typoCloseSingle', '\u2019'), ap: str('typoApostrophe', '\u2019') };
+	},
+
+	// A CATEGORY'S NAME as the bar and the settings show it: the pack's own, from
+	// its `## Names`, while a pack is in use; the English otherwise, in the interface's language (A600, A695)
+	catName(this: WordSmith, en: string): string {
+		const p = this.packActive();
+		const n = p && p.keyed.names ? p.keyed.names[en.toLowerCase()] : '';
+		return n || wsT(en);
+	},
+
+	// THE LANGUAGE'S ENGINE: the chosen pack's, built once for each read of it;
+	// English's while none is chosen or its pack is not in the vault.
+	langEngine(this: WordSmith): WsEngine {
+		const p = this.packActive();
+		if (p) return wsPackEngine(p);
+		// …English with its pack's words on top (A691)
+		const ep = this.englishPack();
+		return ep ? wsEnglishPackEngine(ep) : WS_ENGLISH_ENGINE;
+	},
+
+	// The language's engine taking effect: every open editor marked up again.
+	// WHAT WAS MEASURED IN THE LAST ONE IS MEASURED AGAIN, once, when the pack in
+	// use changes (another language, or the same pack edited): a note's
+	// sentences and grade, cached by the Report and held by the Organizer's
+	// index, are a language's answers. A scan that leaves the pack as it was
+	// (another language's pack edited) costs nothing.
+	packApply(this: WordSmith) {
+		this._scopeGen++;
+		const now = this.packActive() || this.englishPack();
+		if (now !== (this._packWas || null)) {
+			this._packWas = now;
+			const cache = this.wordCountCache;
+			if (cache) for (const k of Array.from(cache.keys())) if (k.startsWith('stats:')) cache.delete(k);
+			if (this._orgIndex) void this.orgIndexResweep(true);
+		}
+		try { this.reconfigureEditors(); } catch (_) { wsCatch('packApply: reconfigureEditors', _); }
 	},
 };
 export type StoresMethods = typeof storesMethods;
