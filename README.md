@@ -205,7 +205,7 @@ Syntax colors and prose checks work in your language too, through a language pac
 
 English is built in, and its pack shows every word it knows. US or UK quotes are one switch in Typography.
 
-Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [issues](https://github.com/Sadsnake1/word-smith/issues).
+Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59).
 
 Read more about [language packs](docs/language-packs.md): how to install one, its reading grade, and how well it colors.
 

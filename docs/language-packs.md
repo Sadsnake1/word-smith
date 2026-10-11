@@ -12,7 +12,7 @@ A language pack is one note that teaches Word-Smith a language: its word colors,
 
 A pack is a plain note. If a word gets the wrong color, add it under the right heading and it applies as you save.
 
-Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [issues](https://github.com/Sadsnake1/word-smith/issues), so everyone gets the fix.
+Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59), so everyone gets the fix.
 
 ## The packs
 
