@@ -37,7 +37,7 @@ Found a bad translation, or something the syntax and prose checks get wrong? Pos
 | Українська (Ukrainian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-uk.md) · [read](../packs/ws-lang-uk.md) | Flesch, for now | 83% |
 | 简体中文 (Chinese) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hans.md) · [read](../packs/ws-lang-zh-Hans.md) | Sentence length and rare characters | 73% |
 
-**Accuracy** is the share of words that get the right color on published text the packs never saw (the Universal Dependencies test sets). Expect your own prose near it. "For now" means the language has no settled reading-grade formula yet.
+**Accuracy** is the share of words that get the right color on published text the packs never saw (the Universal Dependencies test sets). "For now" means the language has no settled reading-grade formula yet.
 
 ## Your language is missing?
 
