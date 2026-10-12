@@ -1,6 +1,5 @@
 <div align="center">
 
-  <a href="https://github.com/Sadsnake1/word-smith/stargazers"><img src="https://img.shields.io/github/stars/Sadsnake1/word-smith?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=F5B301" alt="Stars"></a>
   <a href="https://github.com/Sadsnake1/word-smith/releases"><img src="https://img.shields.io/github/downloads/Sadsnake1/word-smith/total?style=flat-square&logo=github&logoColor=white&labelColor=1a1a1a&color=10B981" alt="Downloads"></a>
   <a href="https://github.com/Sadsnake1/word-smith/releases/latest"><img src="https://img.shields.io/github/v/release/Sadsnake1/word-smith?style=flat-square&logo=obsidian&logoColor=white&labelColor=1a1a1a&color=8B5CF6" alt="Version"></a>
   <a href="#your-language"><img src="https://img.shields.io/badge/works_in-18_languages-EC4899?style=flat-square&logo=googletranslate&logoColor=white&labelColor=1a1a1a" alt="Works in 18 languages"></a>
