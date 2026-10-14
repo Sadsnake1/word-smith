@@ -5,8 +5,12 @@
 // refuse it).
 import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin/plugin';
 import { WordSmithSettingTab } from './plugin/settings-tab';
+import { WsWelcomeModal, wsWhatsNewInto, wsWelcomeText } from './plugin/welcome';
+import { WS_WHATS_NEW } from './core/whats-new';
 import { wsCompat, wsCompatText, WS_INTERNALS } from './core/obsidian-internals';
 import { wsOrgTicksMake } from './organizer/organizer-ticks';
+import { wsOrgRowsMake } from './organizer/organizer-rows';
+import { wsOrgReadingsMake } from './organizer/organizer-readings';
 import {
 	wsCountFootnotes, wsOrgAgg, wsOrgDistinct, wsOrgDropBefore, wsOrgFolderWords, wsOrgIndex, wsOrgPathsUnder, wsOrgPut,
 	wsOrgRemove, wsOrgRename, wsOrgStale, wsUnderIndex, wsUnderRow,
@@ -24,11 +28,11 @@ import {
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
 	wsEpubCheck,
-	wsPageStarts, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
-	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, BAR_THEMES,
+	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, wsDialoguePairs, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
-	wsCursorMarkSvg, wsHueRotate, wsWheelStep, wsIconPick,
+	wsCursorMarkSvg, wsHueRotate, wsWheelStep, wsIconPick, wsDayKey, wsDayOf, wsWorkDaysLeft, wsGoalPlan,
 	POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 } from './core/preamble';
 import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
@@ -38,7 +42,7 @@ import { wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoO
 import { WS_LOCALES } from './core/ui-locales';
 import { wsCiteEntryText } from './core/citations';
 import { wsCiteSections } from './core/citations';
-import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_SAMPLES } from './core/citations';
+import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS } from './core/citations';
 
 export default Object.assign(WordSmith, {
 	// the 47 the slices exported
@@ -50,6 +54,8 @@ export default Object.assign(WordSmith, {
 	wsDemoteHeadings, wsFileHeadLevel, wsSecHeadLevel, wsDeepestLevel, wsTocSteps, WsMenuView,
 	wsSessionLens, wsTaskSay, DEFAULT_BAR_PRESETS, wsShareText, barCodeToPreset,
 	DEFAULT_SETTINGS, wsSessionNew, wsForDisk,
+	// the welcome and About's notes (A743)
+	WsWelcomeModal, wsWhatsNewInto, wsWelcomeText, WS_WHATS_NEW,
 	// the sixteen the bar probes reached through a `__test` line
 	WordSmithSettingTab, PL_THEME_BGS, PL_BG_COUNT, readBarDirective, BAR_DIRECTIVE_BG,
 	BAR_DIRECTIVE_TEXT, BAR_KEYS, BAR_KEYS_INERT, BAR_KEYS_LIVE, barPresetToCode,
@@ -60,11 +66,11 @@ export default Object.assign(WordSmith, {
 	wsUnderRow, wsOrgFolderWords,
 	// the twenty-three the Word export audit and probe evaluated out of a slice of the text
 	wsEpubCheck,
-	wsPageStarts, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did
-	findDialogue, BAR_THEMES,
+	findDialogue, wsDialoguePairs, BAR_THEMES,
 	// the tagger's own words, for the accents suite (A482)
 	tokenizeLine, tagTokens, countSyllables, splitSentences, posBucket,
 	// the language packs' reader (A571)
@@ -77,11 +83,13 @@ export default Object.assign(WordSmith, {
 	// citations (A572)
 	wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER, wsCiteEntryText,
 	wsCiteSections,
-	wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_SAMPLES,
+	wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS,
 	// onload's phases, driven by the phases suite (A488)
 	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
 	// the export's tick memory and the preview's size, driven by the big-vault suite (A516)
 	wsOrgTicksMake, WS_EXPORT_PREVIEW_AUTO_BYTES,
+	// the Organizer's walk, driven by the own-folder suite (A733)
+	wsOrgRowsMake, wsOrgReadingsMake,
 	// the sentence rule, for the capitalize suite (A519)
 	wsSentenceStart,
 	// a Cursor-Smith preset drawn beside its name in the Cursors lists
@@ -92,4 +100,6 @@ export default Object.assign(WordSmith, {
 	wsWheelStep,
 	// the first icon name this Obsidian bundles (A681)
 	wsIconPick,
+	// goals with a date (A700)
+	wsDayKey, wsDayOf, wsWorkDaysLeft, wsGoalPlan,
 });

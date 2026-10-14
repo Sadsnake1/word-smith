@@ -60,6 +60,8 @@ const orgRowList = (at: string, flat: boolean): WsOrgRow[] => {
 			let node = null;
 			try { node = d.plugin.app.vault.getAbstractFileByPath(p); } catch (_) { wsCatch('openManuscriptModal / dive: node = this.app.vault.getAbstractFileByPath(p);', _); }
 			if (!node) continue;
+			// the plugin's own folder, on the switch (A733)
+			if (d.plugin.isOwnHidden(p)) continue;
 			const isFolder = !!node.children;
 			// ── THE WALK ENUMERATES THE VAULT ────────────────────────────
 			//
@@ -139,7 +141,7 @@ const orgUnder = (folder: string) => {
 	}
 	try {
 		for (const p of orgAllFilePaths()) {
-			if (seen.has(p)) continue;
+			if (seen.has(p) || d.plugin.isOwnHidden(p)) continue;
 			if (pre && !p.startsWith(pre)) continue;
 			out.push(p);
 		}

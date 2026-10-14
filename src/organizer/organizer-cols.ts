@@ -77,6 +77,12 @@ export const wsOrgColsMake = (d: OrgColsDeps) => {
 // one thing the source could not tell me.
 const colDefs = (): WsOrgCol[] => [
 	{ id: 'goal',  label: wsT('Target'), def: 116, min: 78 },
+	// GOALS WITH A DATE (A700, issues #63 and #37): the day; the working days left; the day's share, worked out from
+	// the count at the start of today so it holds still all day. A note's or a folder's, the folder's its own.
+	{ id: 'deadline', label: wsT('Deadline'), def: 104, min: 60 },
+	// (TOMBSTONE, A731: Days left, a column that hung on Deadline; the Deadline cell shows the days left itself)
+	// (TOMBSTONE, A725, the writer: "remove the per day in the organizer. i think it's useless there": the day's share
+	// is {target}'s on the bar and its panel's Today, where the writing is; Days left stays, the planning number)
 	{ id: 'words', label: wsT('Words'),  def: 66, min: 44 },
 	// VOCABULARY (A681, the writer: "also add a Vocabulary propriety in the organzier"): a note's different
 	// words, the Report's figure; a folder's is no sum of its notes', so its row is left empty
@@ -106,7 +112,8 @@ const colDefs = (): WsOrgCol[] => [
 	// WHEN IT WAS STARTED. Off by default like every column down
 	// here — it answers a question a writer has sometimes.
 	{ id: 'created',  label: wsT('Created'),  def: 132, min: 96 },
-	{ id: 'paras',    label: wsT('Paras'),    def: 60, min: 42 },
+	// THE WHOLE WORD (A728, the writer: "instead of Paras say whole name"), as wide by default as Sentences for its letters
+	{ id: 'paras',    label: wsT('Paragraphs'), def: 94, min: 42 },
 	// TASKS AS A FRACTION, not a count: "3/17" says how much is left
 	// and "17" says nothing at all. A folder sums its children, which
 	// is where the useful version lives — "Part One: 3/17" tells you
@@ -177,6 +184,8 @@ if (!Array.isArray(d.s.uniColsOff)) {
 	// whose writer has already shaped this list gets it ON, which is who
 	// asked for the column.
 	d.s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
+		// the deadline's two (A700; Per day gone, A725): off here, and off in a shaped list too (loadSettings, once)
+		'deadline',
 		'tags', 'created', 'read', 'pages', 'ftype', 'backlinks', 'outlinks', 'footnotes',
 		// A COLUMN COSTS EVERY ROW IN THE VAULT, which is the note a few
 		// lines down. Four more readings that wait to be asked for; a
@@ -288,7 +297,7 @@ const BUILTIN_SORTS = [
 	// and the order the manuscript compiles in — one fact, shown in
 	// three places. Dragging a row here writes it, so all three move
 	// together.
-	{ id: 'order',  label: 'Custom sort', icon: 'list-ordered' },
+	{ id: 'order',  label: 'Custom order', icon: 'list-ordered' },
 	{ id: 'name',   label: 'Name', icon: 'case-sensitive' },
 	{ id: 'words',  label: 'Words', icon: 'file-text' },
 	// Lucide's letters, the writer's pick; Obsidian 1.14.4 bundles a set without it, and letter-text stands in
@@ -297,6 +306,8 @@ const BUILTIN_SORTS = [
 	{ id: 'grade',  label: 'Reading grade', icon: 'graduation-cap' },
 	{ id: 'pct',    label: 'How close to target', icon: 'percent' },
 	{ id: 'goal',   label: 'Target', icon: 'target' },
+	// the soonest first, the fewest days, the largest share (A700)
+	{ id: 'deadline', label: 'Deadline', icon: wsIconPick(['calendar-clock', 'calendar']) },
 	// NEWEST FIRST when picked, because the question is "what have I
 	// touched lately". Oldest-first is a list of what you have
 	// abandoned — a real question, and not the one anybody asks by
@@ -311,7 +322,9 @@ const BUILTIN_SORTS = [
 	{ id: 'footnotes', label: 'Footnotes', icon: 'file-signature' },
 	{ id: 'chars',     label: 'Chars',     icon: 'case-sensitive' },
 	{ id: 'charsall',  label: 'Chars + spaces', icon: 'case-sensitive' },
-	{ id: 'sentences', label: 'Sentences', icon: 'pilcrow' },
+	// A DOT, a sentence's end (A728, the writer: "for sentences icon use this lucide.dev/icons/dot"): Obsidian 1.14.4's
+	// Lucide has none, so the plugin's own `ws-dot` (registered at load) until a build that has it
+	{ id: 'sentences', label: 'Sentences', icon: wsIconPick(['dot', 'ws-dot']) },
 	{ id: 'tasks',    label: 'Tasks left', icon: 'check-square' },
 	// ── THE COLUMNS THAT ARE NOT SORTS IN THEIR OWN RIGHT ───────
 	//

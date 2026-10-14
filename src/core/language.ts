@@ -107,6 +107,9 @@ export function wsPackQuotes(pack: WsPack | null | undefined): { od: string; cd:
 	return null;
 }
 
+// (TOMBSTONE, A776: wsPackQuoteSpace, a pack's `quote-space` line; the writer: "we do the leaner version", the space with
+// « » typed in Custom quote marks)
+
 // THE READING FORMULAS the engine knows, by the name a pack's `## Readability`
 // gives under `formula`, with the coefficients each starts from; a pack writes a
 // coefficient under its own name to change it (lang-engine.ts says what each is).

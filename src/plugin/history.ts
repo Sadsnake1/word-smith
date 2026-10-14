@@ -7,7 +7,7 @@
 
 import { TFile, Notice, setIcon } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
-import { HISTORY_BAR_MAX, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg } from '../core/preamble';
+import { wsMonotoneTangents, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg } from '../core/preamble';
 import { wsT, wsUiDate, wsUiJoin } from '../core/ui-text';
 import type WordSmith from './plugin';
 import type { WsHistoryTally, WsHistoryTabState, WsHistoryBucket, WsHistoryRecord } from './plugin';
@@ -247,6 +247,8 @@ export const historyMethods = {
 	async historyLoad(this: WordSmith) {
 		if (this._historyLoading != null) return this._historyLoading;
 		this._historyLoading = (async () => {
+			// (A709: a history file a power cut emptied or cut short is put back first, once)
+			await this.storeBackupRestore('history', HISTORY_MARK_START, HISTORY_MARK_END);
 			let file = null;
 			try { file = await this.historyFindFile(); } catch (_) { wsCatch('historyLoad: file = await this.historyFindFile();', _); }
 			let parsed: Partial<WsHistoryRecord> = { started: null, days: {} };
@@ -893,7 +895,9 @@ export const historyMethods = {
 				// then writes over what they just typed. `process` reads, composes and
 				// writes inside one turn, and writes nothing when the text comes back
 				// unchanged.
-				await this.app.vault.process(file, (was) => this.historyCompose(String(was)));
+				let wrote = '';
+				await this.app.vault.process(file, (was) => (wrote = this.historyCompose(String(was))));
+				void this.storeBackupWrite('history', file.path, wrote);
 				await this.historyMarkSeen();
 				return true;
 			}
@@ -940,8 +944,10 @@ export const historyMethods = {
 					try { await this.app.vault.createFolder(dir); } catch (_) { wsCatch('historyWrite: await this.app.vault.createFolder(dir);', _); }
 				}
 			}
-			const made = await this.app.vault.create(path, this.historyCompose(''));
+			const first = this.historyCompose('');
+			const made = await this.app.vault.create(path, first);
 			this._historyPath = made ? made.path : path;
+			void this.storeBackupWrite('history', this._historyPath, first);
 			this.orgIndexStoreKnown(this._historyPath);
 			await this.historyMarkSeen();
 			return true;
@@ -2213,13 +2219,17 @@ export const historyMethods = {
 		// version estimated the whole plot area as filled, which is never true
 		// and quietly doubled the cell on every chart in the plugin: the
 		// pixels were four units wide everywhere and nothing said so.
+		// A BAR FILLS 82% OF ITS SLOT, AND NO VIEW'S IS WIDER THAN A DAY'S IN A 31-DAY MONTH (A783, the writer: "make the bars
+		// the same size for daily, monthly, yearly. too thick for month and yearly"): the Daily view's own width in Monthly and
+		// Yearly too, where twelve months or a few years drew slabs (HISTORY_BAR_MAX, 34, the cap they reached, is gone)
+		const FILL = 0.82, daySlot = W / 31;
 		let cell = HISTORY_PX, bw, gap;
 		for (;;) {
-			bw = Math.floor((slot * 0.82 / ncol) / cell) * cell;
+			bw = Math.floor((slot * FILL / ncol) / cell) * cell;
 			// Both bounds snapped to the cell as well, or the cap reintroduces
 			// a width that is not a whole number of pixels and the right-hand
 			// column of every bar sits half off the grid.
-			bw = Math.max(cell * 2, Math.min(Math.floor(HISTORY_BAR_MAX / cell) * cell, bw));
+			bw = Math.max(cell * 2, Math.min(Math.floor((daySlot * FILL / ncol) / cell) * cell, bw));
 			gap = Math.max(0, (slot - ncol * bw) / (ncol + 1));
 			// AGAINST THE REAL PLOT, not against PAD twice. The margins are
 			// per-side since the over-label got its room, so `H - PAD * 2` is no
@@ -2476,26 +2486,8 @@ export const historyMethods = {
 				}, svg);
 			} else if (px.length > 1) {
 				const nP = px.length;
-				const d = new Array<number>(nP - 1);
-				for (let i = 0; i < nP - 1; i++) d[i] = (py[i + 1] - py[i]) / (px[i + 1] - px[i]);
-				const m = new Array<number>(nP);
-				m[0] = d[0];
-				m[nP - 1] = d[nP - 2];
-				for (let i = 1; i < nP - 1; i++) {
-					// A TURNING POINT GETS A FLAT TANGENT. Without this the curve
-					// rounds over a peak and reads as a higher day than there was.
-					m[i] = (d[i - 1] * d[i] <= 0) ? 0 : (d[i - 1] + d[i]) / 2;
-				}
-				for (let i = 0; i < nP - 1; i++) {
-					if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
-					const a = m[i] / d[i], bq = m[i + 1] / d[i];
-					const sq = a * a + bq * bq;
-					if (sq > 9) {
-						const t2 = 3 / Math.sqrt(sq);
-						m[i] = t2 * a * d[i];
-						m[i + 1] = t2 * bq * d[i];
-					}
-				}
+				// (the tangents shared with the Report's Rhythm since A794: wsMonotoneTangents)
+				const m = wsMonotoneTangents(px, py);
 				// TODAY IS STILL MARKED, and it has to be marked per BLOCK now
 				// rather than per tread: the bars say which bucket is in
 				// progress, and a net line that did not would be the one reading

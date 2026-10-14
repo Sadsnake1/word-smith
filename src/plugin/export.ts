@@ -8,9 +8,10 @@
 import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage } from '../core/settings';
+import { wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill } from '../core/preamble';
 import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
 import type { WsWheelAcc } from '../core/preamble';
-import { wsCiteMissing, wsCiteMissingText, wsCiteSections } from '../core/citations';
+import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
 import { wsT, wsUiJoin } from '../core/ui-text';
 import { wsUnderIndex } from '../organizer/org-index';
 import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
@@ -77,7 +78,8 @@ function wsPlaceFigures(row: Element, head: Element) {
 	const tick = row.querySelector('.ws-export-tickall');
 	if (tick) { tick.after(head); return; }
 	const go = row.querySelector('.ws-export-go');
-	if (go) row.insertBefore(head, go);
+	// BESIDE IT WHEREVER IT LIVES: in the format's group since A715, no longer a child of the row
+	if (go) go.before(head);
 }
 // THE PAPER'S LINE IN THE INTERFACE'S WORDS (A695): the unit routed with the line, the size
 // as the table writes it, the name kept where it is one (A4, US Letter, Executive); the three
@@ -185,11 +187,16 @@ function wsPreviewPlaceSheets(a: { o: WsExportRun; pool: HTMLElement[]; topOf: (
 		// file. The number is the PAGE — it was `counter(sheet)`,
 		// which counted FILES, so a forty-page chapter said the same
 		// number on all forty of its pages.
+		// THE NUMBER WHERE IT WAS ASKED (A751): beside the header top right, else in a box of its own
+		const at = wsPageNumAt(o, true);
+		const bare = !!o.titlePage && n === 0;
 		if (hdr) {
-			const bare = !!o.titlePage && n === 0;
-			hdr.textContent = (!o.runningHeader || bare) ? ''
-				: (o.runningHeader + ' ' + (n + 1));
+			hdr.textContent = bare ? ''
+				: o.runningHeader ? (o.runningHeader + (at === 'top-right' ? ' ' + (n + 1) : ''))
+				: (at === 'top-right' ? String(n + 1) : '');
 		}
+		const pn = el.querySelector('.pnum');
+		if (pn) pn.textContent = (bare || at === 'top-right' || at === 'none') ? '' : String(n + 1);
 	}
 	// A SHEET WITH NO PAGE IS HIDDEN rather than left showing page one
 	// somewhere down the stack — at the end of a short book the pool is
@@ -277,6 +284,7 @@ function wsPreviewFlowApply(a: { apply: () => void; docOf: () => Document | null
 			// and once more on the next frame for a document the engine had not laid out yet
 			if (pv.flow) {
 				wsPageStarts(doc);
+				try { wsTocPagesFill(doc); } catch (_) { wsCatch('flowApply: the contents\' pages', _); }
 				try { window.requestAnimationFrame(() => { try { if (pv.flow) wsPageStarts(doc); } catch (_) { wsCatch('flowApply: page starts, next frame', _); } }); } catch (_) { wsCatch('flowApply: requestAnimationFrame', _); }
 			}
 			doc.documentElement.classList.toggle('is-flow', pv.flow);
@@ -443,6 +451,8 @@ function wsPreviewSyncPages(plugin: WordSmith, a: { fillPool: (m: WsPoolMetrics)
 	if (pv.flow) return;
 	const m = metrics();
 	if (!m) return;
+	// THE CONTENTS' PAGE NUMBERS (A751), read once off this document's own pages, before its sheets are copied
+	try { wsTocPagesFill(m.doc); } catch (_) { wsCatch('syncPages: the contents\' pages', _); }
 	fillPool(m);
 	m.stack.style.height = (m.pages * m.down - m.gap) + 'px';
 	const z = parseFloat(m.doc.documentElement.style.zoom) || 1;
@@ -476,8 +486,8 @@ function wsPreviewSyncPages(plugin: WordSmith, a: { fillPool: (m: WsPoolMetrics)
 }
 
 // The preview painted at the current zoom (lifted out of exportPreviewInto, A488).
-function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; armScroll: () => void; asText: boolean; docOf: () => Document | null; fileStep: (by: number) => boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; frame: HTMLIFrameElement; html: string; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; restoreArm: () => void; syncPages: () => void }) {
-	const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages } = a;
+function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; armScroll: () => void; asText: boolean; docOf: () => Document | null; fileStep: (by: number) => boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; frame: HTMLIFrameElement; html: string; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; restoreArm: () => void; syncPages: () => void; topTo: (el: HTMLElement | null) => void }) {
+	const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages, topTo } = a;
 	try {
 		const doc = frame.contentDocument
 			|| (frame.contentWindow && frame.contentWindow.document);
@@ -496,6 +506,7 @@ function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: ()
 	apply();
 	applyDark();
 	try { plugin.exportReaderClicks(docOf(), null, frame); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderClicks(docOf(), null, frame);', _); }
+	try { plugin.exportAnchorClicks(docOf(), (el: HTMLElement) => topTo(el)); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportAnchorClicks(docOf(), topTo)', _); }
 	try { plugin.exportReaderKeys(docOf(), { collapse: () => flowSet(false), open: (p: string, sn: string | null) => plugin.openNoteAt(p, sn), step: (by: number) => fileStep(by), vim: () => !!(plugin.app.vault.getConfig && plugin.app.vault.getConfig('vimMode')) }); } catch (_) { wsCatch('exportPreviewInto / paint: this.exportReaderKeys(docOf(), collapse: () => flowSet(false), open: …', _); }
 	// ── AND THE READER, RE-APPLIED ──────────────────────────
 	//
@@ -516,7 +527,7 @@ function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: ()
 
 // THE FLIPPER, first in the preview's foot: previous, the page, next, the
 // zoom and the flow (lifted out of exportPreviewInto, A488).
-function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; asText: boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; foot: HTMLDivElement; iconBtn: (into: HTMLElement, cls: string, names: string[], glyph: string, aria: string, fn: (ev: MouseEvent) => void) => HTMLButtonElement; jumpTo: (path: string) => boolean; o: WsExportRun; onRefresh: () => void; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; setZoom: (z: number, keep?: boolean) => void; showPage: (n: number) => void }) {
+function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; asText: boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; foot: HTMLDivElement; iconBtn: (into: HTMLElement, cls: string, names: string[], glyph: string, aria: string, fn: (ev: MouseEvent) => void) => HTMLButtonElement; jumpTo: (path: string) => boolean; o: WsExportRun; onRefresh: () => void; pv: { zoom: number; flowZoom: number; flowFit?: boolean; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; setZoom: (z: number, keep?: boolean) => void; showPage: (n: number) => void }) {
 	const { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage } = a;
 	if (!asText) {
 		// ── THE FLIPPER, FIRST IN THE ROW ────────────────────
@@ -578,7 +589,7 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		wsIconInto(zb.createSpan({ cls: 'ws-export-pick-chev' }), ['chevron-down'], '\u25be');
 		zb.title = wsT('The zoom and the page: press for the list');
 		zb.setAttribute('aria-label', zb.title);
-		const fitted = () => !pv.flow && plugin._exportZoom == null;
+		const fitted = () => (pv.flow ? !!pv.flowFit : plugin._exportZoom == null);
 		const printed = () => !fitted() && Math.abs(zoomNow() - 1) < 0.001;
 		// LIGHT OR DARK, a property of the READING rather than of the document:
 		// the sheet is white because paper is, right for proofing and a lamp in
@@ -602,7 +613,11 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 				{ label: wsT('Zoom in'), icon: ico(['zoom-in']), on: () => true, onClick: () => setZoom(zoomNow() + 0.1) },
 				{ label: wsT('Zoom out'), icon: ico(['zoom-out']), on: () => true, onClick: () => setZoom(zoomNow() - 0.1) },
 				{ label: wsT('Fit to the window'), icon: ico(['shrink', 'minimize-2']), on: () => fitted(),
-					onClick: () => { plugin._exportZoom = null; setZoom(pv.flow ? 1 : fitZoom(), false); } },
+					onClick: () => {
+						// (in the reader: back to the window's width, A804; the session forgets the chosen zoom)
+						if (pv.flow) { pv.flowFit = true; try { if (plugin._wsSession) plugin._wsSession.flowZoom = 0; } catch { /* a session or none */ } apply(); return; }
+						plugin._exportZoom = null; setZoom(fitZoom(), false);
+					} },
 				{ label: wsT('Printed size (100%)'), icon: ico(['square-dimensions', 'scan']), on: () => printed(), onClick: () => setZoom(1) },
 				// THE ROW SAYS ITS ACT, as the button did: a moon to dim a white page, a sun to bring it back
 				{ label: pv.dark ? wsT('Light page') : wsT('Dark page'), labelOf: () => (pv.dark ? wsT('Light page') : wsT('Dark page')),
@@ -880,7 +895,7 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 }
 
 // FRONT MATTER AND STRUCTURE: the title page, the running header, the contents; how files and folders meet (lifted out of buildExportOptions, A669).
-function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; pickList: (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => HTMLButtonElement; redrawOpts: () => void; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; textOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string, inRow?: boolean) => HTMLInputElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
+function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; pickList: (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string, after?: () => void) => HTMLButtonElement; redrawOpts: () => void; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; textOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string, inRow?: boolean) => HTMLInputElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
 	const { o, optGroup, pickList, redrawOpts, selOpt, textOpt, toggle } = a;
 	{
 		// The title page, the running header, the contents page, and how the
@@ -899,9 +914,37 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 			['runningHeaderOn', wsT('Running header'), wsT('Your surname, the title and the page number along the top of every page, so a printed manuscript can be put back in order.'), ['panel-top', 'arrow-up-to-line']],
 			['toc', wsT('Table of contents'), wsT('A list of the files at the front, each one a link that jumps to it.'),
 				['table-of-contents', 'list-ordered']],
+			// its pages (A751), a row of the same list while there are contents and pages
+			['tocPages', wsT('Contents page numbers'), wsT('Each file’s page beside it, as a printed book has them.'), ['hash', 'list-ordered']],
 		];
-		pickList(grp, 'ws-export-front', () => FRONT.filter(([k]) => k !== 'runningHeaderOn' || wsFormatHasPages(o.format || 'docx')),
-			wsT('No front matter'), (list) => (list ? wsT('Before the text: {list}. Press for the list.', { list }) : wsT('Before the text: nothing. Press for the list.')));
+		pickList(grp, 'ws-export-front', () => FRONT.filter(([k]) => (k !== 'runningHeaderOn' || wsFormatHasPages(o.format || 'docx'))
+			&& (k !== 'tocPages' || (!!o.toc && wsFormatHasPages(o.format || 'docx')))),
+			wsT('No front matter'), (list) => (list ? wsT('Before the text: {list}. Press for the list.', { list }) : wsT('Before the text: nothing. Press for the list.')),
+			() => showPageRows());
+		// THE PAGES' OWN LINES (A751, the writer: "do 12 too with a contents text input"): your own running header,
+		// where the page number goes, the contents' title and its page numbers; each shown only while it can mean
+		// something, and shown or hidden at once as the list above is ticked
+		const paged = () => wsFormatHasPages(o.format || 'docx');
+		const hdrRow = textOpt(grp, 'headerText', wsT('Header text'),
+			(o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + (String(o.titleText || '').trim() || wsT('Title')) + ' /',
+			wsT('Along the top of every page. Empty, your surname and the title.')).parentElement;
+		const pnSel = selOpt(grp, 'pageNumberAt', wsT('Page numbers'), [
+			{ id: 'top-left', label: wsT('Top left') }, { id: 'top-center', label: wsT('Top center') }, { id: 'top-right', label: wsT('Top right') },
+			{ id: 'bottom-left', label: wsT('Bottom left') }, { id: 'bottom-center', label: wsT('Bottom center') }, { id: 'bottom-right', label: wsT('Bottom right') },
+			{ id: 'none', label: wsT('None') },
+		], () => { void plugin.saveSettings(); }, false, wsPageNumAt(o));
+		const pnRow = pnSel.parentElement;
+		const tocRow = textOpt(grp, 'tocTitle', wsT('Contents title'), wsT('Contents'), wsT('Over the list of files at the front.')).parentElement;
+		// PAGES: the format table's own sweep (`ws-export-pages`), so a format change hides them as it hides the rest;
+		// ON OR OFF: a class of their own, so the two never undo each other
+		for (const r of [hdrRow, pnRow]) if (r) { r.addClass('ws-export-pages'); r.toggleClass('is-gone', !paged()); }
+		const showPageRows = () => {
+			if (hdrRow) hdrRow.toggleClass('is-off', !o.runningHeaderOn);
+			if (tocRow) tocRow.toggleClass('is-off', !o.toc);
+			// UNCHOSEN, the number follows the header: the box says what will print
+			if (!o.pageNumberAt) pnSel.value = wsPageNumAt(o);
+		};
+		showPageRows();
 		// ONE QUESTION, THREE ANSWERS: how does one file join the next? As two
 		// booleans it allowed both at once — a page break AND a divider —
 		// which no manuscript wants. TWO ROWS THAT READ AS SENTENCES: the
@@ -1120,6 +1163,10 @@ function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLE
 		// still the default here.
 		toggle(grp, 'indent', wsT('Indent paragraphs'),
 			wsT('A half-inch first line on every paragraph but the first of a scene \u2014 the manuscript convention. Off sets them block style, with a space between instead.'));
+		// A BLANK LINE BETWEEN PARAGRAPHS (A756, the writer: "add option in export tab to include line breaks below indent
+		// paragraphs"): a full empty line after each, indented or not; over the half line block style gives
+		toggle(grp, 'paraBlank', wsT('Paragraph spacing'),
+			wsT('An empty line after every paragraph, indented or not.'));
 		// UNDER THE INDENT, not above the size. The two switches in this
 		// tab are the only two things here a writer flips rather than
 		// chooses from a list, and the grid lays toggles two to a row —
@@ -1204,6 +1251,8 @@ export const exportMethods = {
 		const files: string[] = [], folders: string[] = [];
 		const walk = (f: TFolder) => {
 			for (const k of (f.children || [])) {
+				// (the plugin's own folder, on the switch, A733)
+				if (this.isOwnHidden(k.path)) continue;
 				if (wsIsFolder(k)) { folders.push(k.path); walk(k); }
 				else if (k.extension === 'md') files.push(k.path);
 			}
@@ -1317,6 +1366,8 @@ export const exportMethods = {
 		};
 		const walk = (folder: TFolder) => {
 			for (const k of ordered(folder)) {
+				// (the plugin's own folder, on the switch, A733)
+				if (this.isOwnHidden(k.path)) continue;
 				if (wsIsFolder(k)) walk(k);
 				else if (isMd(k)) out.push(k);
 			}
@@ -1708,7 +1759,7 @@ export const exportMethods = {
 			parts.push('');
 		}
 		if (o.toc && sections.length > 1) {
-			parts.push('## Contents\n');
+			parts.push('## ' + wsTocTitle(o) + '\n');
 			// Markdown's own heading anchors: lower case, spaces to
 			// hyphens. They work in Obsidian and on GitHub, which is where
 			// a compiled .md actually gets read.
@@ -1845,6 +1896,8 @@ export const exportMethods = {
 		if (['words', 'flag', 'pct'].indexOf(String(o.listColumn)) === -1) o.listColumn = 'words';
 		dflt('pageNumbers', true);
 		dflt('outFolder', '');  dflt('toc', false);  dflt('lastScope', '');
+		// A751: the contents' page numbers on; the header's words and the contents' title empty (the defaults)
+		dflt('tocPages', true); dflt('headerText', ''); dflt('tocTitle', '');
 		dflt('titleText', '');
 		dflt('doubleSpaced', true); dflt('indent', true);
 		// SPACING, from the boolean it replaced — and written back to it on
@@ -1961,6 +2014,30 @@ export const exportMethods = {
 				open(path, wsSnippetOf(block ? block.textContent : ''), ev);
 			} catch (_) { wsCatch('exportReaderClicks: const t = ev.target;', _); }
 		});
+	},
+
+	// THE BOOK'S OWN LINKS (A805, the writer on the phone: "clicking on the pages in contents leave the page preview
+	// blank"): the frame's document is written into a doctype shell, so "#ch-3" resolved against Obsidian's own address
+	// and the frame navigated away to nothing. A press on an in-book link (the contents, a footnote's mark) turns to its
+	// target instead, through the preview's own `topTo`: its page in pages, the place in the reader. The target the eye
+	// can see when the pool holds copies of the page. On the document, once, as the clicks are.
+	exportAnchorClicks(this: WordSmith, doc: Document | null, go: (el: HTMLElement) => void) {
+		if (!doc || !doc.documentElement || doc.__wsAnchorClicks) return;
+		doc.__wsAnchorClicks = true;
+		doc.addEventListener('click', (ev: MouseEvent) => {
+			try {
+				const t = ev.target as HTMLElement | null;
+				const a = t && t.closest ? t.closest('a[href^="#"]') : null;
+				if (!a) return;
+				ev.preventDefault();
+				let id = String(a.getAttribute('href') || '').slice(1);
+				try { id = decodeURIComponent(id); } catch { /* as written */ }
+				if (!id) return;
+				const all = Array.from(doc.querySelectorAll<HTMLElement>('[id="' + id.replace(/["\\]/g, '\\$&') + '"]'));
+				const el = all.find((e) => e.getClientRects().length > 0) || all[0];
+				if (el) go(el);
+			} catch (_) { wsCatch('exportAnchorClicks', _); }
+		}, true);
 	},
 
 	// THE KEYS A READER EXPECTS. On the frame's document, reader only,
@@ -2170,6 +2247,9 @@ export const exportMethods = {
 		// HEIGHT COMES FROM THE SAME TABLE AS THE WIDTH — `wsPaperOf`, which
 		// the .docx reads — so the two never disagree about what US Letter is.
 		const paperHighPx = () => (wsPaperOf(o).h / 1440) * 96;
+		// THE READER'S FIT (A804): the page's width and its ground's air (36px a side) across the frame's width, a scrollbar's
+		// worth spared
+		const flowFitZoom = () => Math.max(0.2, Math.min(2.5, ((frame.clientWidth || 640) - 72 - 16) / paperPx()));
 		const fitZoom = () => {
 			const w = frame.clientWidth || 640;
 			const h = frame.clientHeight || 0;
@@ -2199,6 +2279,8 @@ export const exportMethods = {
 		const pv: {
 			zoom: number;
 			flowZoom: number;
+			// the reader follows the window's width (A804) until a zoom is chosen
+			flowFit: boolean;
 			pct: HTMLElement | null;
 			fitSay: (() => void) | null;
 			dark: boolean;
@@ -2216,6 +2298,7 @@ export const exportMethods = {
 		} = {
 			zoom: 0,   // 0 = not measured yet
 			flowZoom: 1,
+			flowFit: true,
 			pct: null,   // the read-out, once the foot exists
 			fitSay: null,   // the Fit/100% toggle's word, once it exists
 			dark: !!((this.settings && this.settings.exportOpts
@@ -2252,7 +2335,7 @@ export const exportMethods = {
 		// gone when Obsidian restarts.
 		try {
 			const z0 = this._wsSession && this._wsSession.flowZoom;
-			if (typeof z0 === 'number' && z0 > 0) pv.flowZoom = z0;
+			if (typeof z0 === 'number' && z0 > 0) { pv.flowZoom = z0; pv.flowFit = false; }
 		} catch (_) { wsCatch('exportPreviewInto: const z0 = this._wsSession && this._wsSession.flowZoom;', _); }
 		const applyDark = () => {
 			try {
@@ -2271,6 +2354,8 @@ export const exportMethods = {
 				// painted result and leaves the scrollable area the size it
 				// was, so the bottom of a long manuscript becomes
 				// unreachable. Zoom relays out, which is what a page wants.
+				// (the reader at the page's width, fitted to the window's while no zoom is chosen, A804)
+				if (pv.flow && pv.flowFit) pv.flowZoom = flowFitZoom();
 				doc.documentElement.style.zoom = String(pv.flow ? pv.flowZoom : pv.zoom);
 			} catch (_) { wsCatch('exportPreviewInto / apply: const doc = frame.contentDocument', _); }
 			if (pv.pct) pv.pct.setText(Math.round((pv.flow ? pv.flowZoom : pv.zoom) * 100) + '%');
@@ -2290,7 +2375,8 @@ export const exportMethods = {
 			// reading size is about the text, and storing it there would have one
 			// of them overwrite the other every time the reader was opened.
 			if (pv.flow) {
-				pv.flowZoom = Math.max(0.5, Math.min(2.5, z));
+				pv.flowZoom = Math.max(0.2, Math.min(2.5, z));
+				pv.flowFit = false;
 				try { if (this._wsSession) this._wsSession.flowZoom = pv.flowZoom; } catch (_) { wsCatch('exportPreviewInto / setZoom: if (this._wsSession) this._wsSession.flowZoom = flowZoom;', _); }
 				apply();
 				return;
@@ -2299,6 +2385,30 @@ export const exportMethods = {
 			if (keep !== false) this._exportZoom = pv.zoom;
 			apply();
 		};
+		// THE FIT FOLLOWS THE FRAME (A803, the writer on the phone: "export doesn't fit the page preview properly when i first
+		// open it"): the first paint fits a frame not yet given its size (its column's height comes a frame later, a pane
+		// still opening has no width and fits a 640px guess), and nothing fitted again until Fit was pressed. While the
+		// writer has not chosen a size (`_exportZoom` null), a change to the frame's box fits the page again; a size they
+		// chose stays, and the reader keeps its own
+		try {
+			const fw = frame.ownerDocument.defaultView || window;
+			if (!asText && typeof fw.ResizeObserver === 'function') {
+				let box = '';
+				const refit = new fw.ResizeObserver(() => {
+					if (!frame.isConnected) { refit.disconnect(); return; }
+					const now = frame.clientWidth + 'x' + frame.clientHeight;
+					if (now === box) return;
+					box = now;
+					if (!(frame.clientWidth > 0)) return;
+					// (the reader follows the window's width the same way, A804)
+					if (pv.flow) { if (pv.flowFit) apply(); return; }
+					if (this._exportZoom != null || !pv.zoom) return;
+					const z = fitZoom();
+					if (Math.abs(z - pv.zoom) > 0.005) setZoom(z, false);
+				});
+				refit.observe(frame);
+			}
+		} catch (_) { wsCatch('exportPreviewInto: the fit follows the frame', _); }
 
 		// ── A STACK OF PAGES, SCROLLED ─────────────────────────────
 		//
@@ -2683,7 +2793,7 @@ export const exportMethods = {
 		// markup on screen. The click wiring goes on the frame's document,
 		// once — the document persists across paints (the swap below keeps
 		// it), so the wiring's latch lives on it.
-		const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages });
+		const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages, topTo });
 		// ── WRITTEN BEFORE THE EMPTY FRAME CAN BE PAINTED ───────────────
 		//
 		// An option change rebuilds the pane, so a NEW iframe is created, and
@@ -2799,7 +2909,7 @@ export const exportMethods = {
 			.filter((e) => !!e.label);
 		return wsBuildEpub(this.exportToHtml(sections, o, false), {
 			title: o.title || 'Untitled', author: o.author || '', lang: this.settings.language || 'en',
-			nav, indent: o.indent !== false,
+			nav, indent: o.indent !== false, paraBlank: !!o.paraBlank, tocTitle: wsTocTitle(o),
 		});
 	},
 
@@ -2827,7 +2937,10 @@ export const exportMethods = {
 				+ '</div></section>');
 		}
 		if (o.toc && sections.length > 1) {
-			parts.push('<section class="page"><h2>Contents</h2><ol class="toc">');
+			parts.push('<section class="page"><h2>' + esc(wsTocTitle(o)) + '</h2><ol class="toc">');
+			// EACH ENTRY'S PAGE (A751), where there are pages: measured before a file is written, filled in by the preview
+			const tocPg = o.tocPages !== false && wsFormatHasPages(o.format || 'docx');
+			const pageOf = o.tocPageOf || {};
 			// INDENTED BY THE LEVEL THE ENTRY WILL CARRY. A CLASS, not an
 			// inline style: this markup is also what the print path lays out,
 			// and an indent a stylesheet cannot reach is one a page size
@@ -2837,7 +2950,9 @@ export const exportMethods = {
 				const lv = stepOf(sec);
 				parts.push('<li class="l' + lv + '"><a href="#'
 					+ wsAnchorId(sec.title, i) + '">'
-					+ esc(sec.title || ('Section ' + (i + 1))) + '</a></li>');
+					+ esc(sec.title || ('Section ' + (i + 1))) + '</a>'
+					+ (tocPg ? '<span class="lead"></span><span class="pg">' + (pageOf[wsAnchorId(sec.title, i)] || '') + '</span>' : '')
+					+ '</li>');
 			});
 			parts.push('</ol></section>');
 		}
@@ -2986,6 +3101,7 @@ export const exportMethods = {
 		// two places.
 		const lineH = ({ 240: '1.45', 360: '1.7', 480: '2' }[wsLineTwips(o)] || '2');
 		const head = o.runningHeader ? esc(o.runningHeader) : '';
+		const pnAt = wsPageNumAt(o, true);
 		const font = JSON.stringify(o.font || 'Times New Roman');
 		const pt = o.pt || 12;
 		// The same table the .docx and the RTF read, so the sheet on screen
@@ -3002,8 +3118,12 @@ export const exportMethods = {
 		const ch = 'calc(' + ph + ' - 2 * ' + pm + ')';
 		// Air between paragraphs when there is no indent to separate them —
 		// see wsStylesXml. Half a line, matching the .docx's 120 twips.
-		const pgap = o.indent === false ? '0.5em' : '0';
-		return '<!doctype html><html><head><meta charset="utf-8">'
+		// (a whole line when asked, A756: `lh`, the paragraph's own line height)
+		const pgap = o.paraBlank ? '1lh' : o.indent === false ? '0.5em' : '0';
+		// (THE READER'S SEAMS read the running header, where the number goes and whether a title page leads, A804: on the
+		// preview's root, never in a file)
+		return '<!doctype html><html' + (forScreen ? ' data-ws-head="' + (o.runningHeader ? esc(o.runningHeader).replace(/"/g, '&quot;') : '') + '" data-ws-pn="' + pnAt + '"' + (o.titlePage ? ' data-ws-tp=""' : '') : '')
+			+ '><head><meta charset="utf-8">'
 			+ '<title>' + esc(o.title || 'Manuscript') + '</title><style>'
 			// ── THE MARGIN BOX IS THE PRINTED HEADER ────────────────────
 			//
@@ -3019,9 +3139,8 @@ export const exportMethods = {
 			// white space. `size` and `margin` are what makes the document
 			// printable at the manuscript's paper from any browser, and
 			// `preferCSSPageSize` in `exportPdfOptions` reads them.
-			+ '@page { size: ' + pw + ' ' + ph + '; margin: ' + pm + ';'
-			+ (head ? ' @top-right { content: "' + head + ' " counter(page); }' : '')
-			+ ' }'
+			// (the margin boxes in a rule of their own at the foot of the sheet, A751: see there)
+			+ '@page { size: ' + pw + ' ' + ph + '; margin: ' + pm + '; }'
 			// DECLARED LIGHT. A page is white, and an iframe inherits the
 			// app's colour scheme — so under a dark theme the engine was
 			// treating this document as dark and everything that had not
@@ -3073,7 +3192,12 @@ export const exportMethods = {
 			// hiding the box: `w:titlePg` in the .docx gives the first sheet a
 			// separate empty header, and the preview is meant to be the sheet in
 			// the file.
-			+ (head && forScreen
+			// THE NUMBER IN A BOX OF ITS OWN when it is not beside the header (A751), where it prints
+			+ (forScreen && pnAt !== 'top-right' && pnAt !== 'none'
+				? '.pnum { position: absolute; ' + (pnAt.startsWith('top') ? 'top' : 'bottom') + ': calc(' + pm + ' / 2);'
+					+ (pnAt.endsWith('center') ? ' left: 0; right: 0; text-align: center;' : pnAt.endsWith('left') ? ' left: ' + pm + ';' : ' right: ' + pm + ';')
+					+ ' font-size: 0.9em; color: inherit; }' : '')
+			+ ((head || pnAt === 'top-right') && forScreen
 				? '.hdr { position: absolute; top: calc(' + pm + ' / 2); right: ' + pm + ';'
 					// INHERITED, NOT PINNED: a pinned #111 on a dark sheet is the header
 					// present and unreadable. One writer for the ink: `inherit` walks to
@@ -3130,7 +3254,7 @@ export const exportMethods = {
 					// contents: the flow box begins at the top of the sheet's content area
 					// whatever the overlay ever comes to hold, and `height: 100%` resolves
 					// against the sheet rather than against what is left of it.
-					+ '.hdr { position: absolute; }'
+					+ '.hdr, .pnum { position: absolute; }'
 					// THE COLUMN IS THE PAGE. `height: 100%` of a parent with a
 					// definite height is itself definite, which is what
 					// `column-fill: auto` requires — without it the engine
@@ -3184,27 +3308,37 @@ export const exportMethods = {
 					// narrow pane narrows it rather than scrolling sideways. The paper keeps
 					// its colour (`background: none` once put #111 text on the frame's dark).
 					+ 'html.is-flow { background: #6b6e72; } html.is-dark.is-flow { background: #121315; }'
-					+ 'html.is-flow .sheet { position: static; width: ' + pw + '; max-width: calc(100% - 48px);'
+					// THE PAGE'S WIDTH KEPT (A804, the writer: "the expanded view doesn't care about what page I set it just wraps
+					// the text to the zoom size"): no cap at the window, so a line holds what the page's line holds at every zoom;
+					// the reader opens fitted to the window's width, and a zoom past that scrolls sideways
+					+ 'html.is-flow .sheet { position: static; width: ' + pw + '; max-width: none;'
 					+ ' height: auto; margin: 36px auto; padding: 0; box-sizing: border-box; min-height: 0;'
 					+ ' box-shadow: 0 1px 3px rgba(0,0,0,0.22), 0 10px 30px rgba(0,0,0,0.28); }'
 					// A RUNNING HEADER IS A PROPERTY OF A PAGE. With no pages there
 					// is nothing for it to head, and it would sit once at the top of
 					// the whole text reading as a title.
-					+ 'html.is-flow .hdr { display: none; }'
+					+ 'html.is-flow .hdr, html.is-flow .pnum { display: none; }'
 					// THE PAPER'S OWN TEXT COLUMN (A569): its margins inside the sheet, so a line
 					// holds what a printed line holds
 					+ 'html.is-flow .flow { height: auto; columns: auto;'
 					+ ' overflow: visible; max-width: none; margin: 0;'
 					+ ' padding: ' + pm + '; }'
-					// …AND WHERE EACH PRINTED PAGE BEGINS: a faint rule across the sheet and the
-					// page number under it at the right, on the block `wsPageStarts` stamped
+					// …AND WHERE EACH PRINTED PAGE BEGINS: the page's seam (A804, below; a faint rule and the bare number
+					// until then), on the block `wsPageStarts` stamped
 					// ONE RULE, NOT TWO (A618): a file that opens a printed page wears the page's
 					// rule, so the dashed one between files stands down there
 					+ 'html.is-flow section[data-ws-page-open]::before { content: none; }'
-					+ 'html.is-flow [data-ws-page]::before { content: attr(data-ws-page); display: block;'
-					+ ' text-indent: 0; text-align: right; margin: 1.2em -' + pm + ' 0.8em; padding: 3px 10px 0;'
-					+ ' border-top: 1px dashed rgba(127,127,127,0.55); color: rgba(127,127,127,0.95);'
-					+ ' font: normal 11px/1.3 ui-sans-serif, system-ui, sans-serif; }'
+					// THE PAGE'S OWN FOOT AND HEAD AT EACH SEAM (A804, the writer: "make the expanded view with all the headers
+					// page numbers and everything to match the actual export"): where a page ends its number as the file prints it
+					// (at the foot, left, centre or right), a dashed cut, and the next page's running header with its number as
+					// the file heads it; none on a title page. `wsPageStarts` puts the seams in; they show in the reader alone
+					+ '.seam { display: none; }'
+					+ 'html.is-flow .seam { display: block; margin: 1.2em -' + pm + ' 1em; text-indent: 0; font-size: 0.9em; line-height: 1.3; }'
+					+ 'html.is-flow .seam-foot, html.is-flow .seam-head { display: grid; grid-template-columns: 1fr auto 1fr; padding: 0 ' + pm + '; min-height: 1.3em; }'
+					+ 'html.is-flow .seam .is-left { grid-column: 1; justify-self: start; }'
+					+ 'html.is-flow .seam .is-center { grid-column: 2; }'
+					+ 'html.is-flow .seam .is-right, html.is-flow .seam-hdr { grid-column: 3; justify-self: end; }'
+					+ 'html.is-flow .seam-cut { border-top: 1px dashed rgba(127,127,127,0.55); margin: 0.9em 0; }'
 					// A SECTION NO LONGER OPENS A PAGE, because there are none.
 					// `break-before` has to go here or the engine keeps a column break in
 					// a document with one column and drops everything after it.
@@ -3228,9 +3362,11 @@ export const exportMethods = {
 					// a page — it just has nothing to key on here, because in flow
 					// there is no page for a paragraph to be first on.
 					+ 'html.is-flow section > p:first-child { text-indent: 0; }'
-					// AND A TITLE PAGE STOPS BEING A PAGE TALL, or the reader opens
-					// on eleven inches of nothing above the first line.
-					+ 'html.is-flow .tp { height: auto; padding: 2em 0 3em; }'
+					// A TITLE PAGE IS A PAGE TALL HERE TOO (A723, the writer, a circled shot: "title page in expanded view
+					// is too short"). It was `height: auto` and a little padding, so the reader did not open on a
+					// page of nothing above the first line; read as one text, the first chapter then started half a page
+					// down the title's sheet. The paged view's content height, its three lines centred in it as there.
+					+ 'html.is-flow .tp { height: ' + ch + '; padding: 0; }'
 					// THE PRINTED DOCUMENT IS NOT THE SCREEN ONE: a drop shadow is a
 					// compositing effect, and asked to print one Chromium rasterises the
 					// page it cannot describe in vector terms — a PDF that is a picture of
@@ -3251,7 +3387,7 @@ export const exportMethods = {
 					+ ' .stack { width: auto; height: auto !important; }'
 					+ ' .sheet { position: static; width: auto; height: auto;'
 					+ '   padding: 0; margin: 0; box-shadow: none; }'
-					+ ' .hdr { display: none; }'
+					+ ' .hdr, .pnum { display: none; }'
 					+ ' .flow { height: auto; overflow: visible; columns: auto; }'
 					+ ' .tp { height: auto; }'
 					+ ' .page, .run { width: auto; margin: 0; padding: 0;'
@@ -3389,6 +3525,10 @@ export const exportMethods = {
 			+ ' page-break-after: avoid; }'
 			+ 'ol.toc { list-style: none; padding: 0; }'
 			+ 'ol.toc a { color: inherit; text-decoration: none; }'
+			// THE PAGE AT THE RIGHT, a dotted leader to it (A751)
+			+ 'ol.toc li { display: flex; align-items: baseline; }'
+			+ 'ol.toc li .lead { flex: 1 1 auto; margin: 0 0.4em; border-bottom: 1px dotted currentColor; opacity: 0.45; }'
+			+ 'ol.toc li .pg { flex: none; }'
 			// One rule per level rather than a calc: this stylesheet is
 			// inlined into a file a writer may open in Word or a browser, and
 			// six literal rules survive anything that reads CSS at all.
@@ -3408,6 +3548,11 @@ export const exportMethods = {
 			// no second compile to keep in step with the first. THE FILE GETS NONE
 			// OF IT: `forScreen` is false there, and the sections are the
 			// document.
+			// THE PRINTED HEADER AND PAGE NUMBER, the page's margin boxes (A751: the number where it was asked), and NOTHING
+			// IN THE MARGINS OF THE TITLE PAGE, as the .docx and the preview have it. LAST IN THE SHEET: a parser that cannot
+			// read margin boxes (jsdom's) loses its place in one and takes the rule after it with it; here there is none
+			+ (wsPageBoxesCss(o.runningHeader || '', pnAt) ? '@page {' + wsPageBoxesCss(o.runningHeader || '', pnAt) + ' }' : '')
+			+ (o.titlePage && (head || pnAt !== 'none') ? '@page :first {' + wsPageBoxesCss(o.runningHeader || '', pnAt, true) + ' }' : '')
 			+ '</style></head><body>'
 			+ (forScreen
 				// ONE SHEET IS EMITTED AND THE PANE CLONES IT. The document
@@ -3415,10 +3560,30 @@ export const exportMethods = {
 				// a `cloneNode` of this one with a different column showing, so
 				// the bytes are written once however many pages are on screen.
 				? '<div class="stack"><div class="sheet">'
-					+ '<div class="hdr"></div><div class="flow">'
+					+ '<div class="hdr"></div><div class="pnum"></div><div class="flow">'
 					+ parts.join('\n') + '</div></div></div>'
 				: parts.join('\n'))
 			+ '</body></html>';
+	},
+
+	// THE CONTENTS' PAGE NUMBERS FOR A FILE (A751): the preview's own pages (a column a page), laid out once in a
+	// frame out of sight and read the way the preview reads them; none where the contents carries none. The frame
+	// is filled as the preview's is, its root swapped, never written.
+	async exportTocPagesFor(this: WordSmith, sections: WsExportSection[], o: WsExportRun): Promise<Record<string, number>> {
+		if (!o.toc || o.tocPages === false || sections.length < 2 || !wsFormatHasPages(o.format || 'docx')) return {};
+		const frame = document.body.createEl('iframe', { cls: 'ws-export-measure', attr: { srcdoc: WS_FRAME_SHELL, 'aria-hidden': 'true', tabindex: '-1' } });
+		try {
+			await new Promise<void>((done) => { frame.addEventListener('load', () => done(), { once: true }); window.setTimeout(done, 1500); });
+			const doc = frame.contentDocument;
+			if (!doc) return {};
+			const fresh = new (doc.defaultView || window).DOMParser().parseFromString(this.exportToHtml(sections, o, true), 'text/html');
+			const root = doc.adoptNode(fresh.documentElement);
+			if (doc.documentElement) doc.replaceChild(root, doc.documentElement); else doc.appendChild(root);
+			await new Promise<void>((done) => { window.requestAnimationFrame(() => window.requestAnimationFrame(() => done())); window.setTimeout(done, 400); });
+			try { await doc.fonts.ready; } catch (_) { wsCatch('exportTocPagesFor: fonts', _); }
+			return wsTocPagesMeasure(doc);
+		} catch (_) { wsCatch('exportTocPagesFor', _); return {}; }
+		finally { frame.remove(); }
 	},
 
 	exportDefaultScope(this: WordSmith) {
@@ -3566,8 +3731,9 @@ export const exportMethods = {
 			|| 'Untitled';
 		return Object.assign({}, o, {
 			title, wordCount: words,
+			// THE WRITER'S OWN WORDS when they gave some (A751)
 			runningHeader: o.runningHeaderOn
-				? ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /')
+				? (String(o.headerText || '').trim() || ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /'))
 				: ''
 		});
 	},
@@ -3769,7 +3935,11 @@ export const exportMethods = {
 		// the same list: a preview of a different book is worse than none.
 		const compileList = () => ctx.compileList();
 		const runBtn = (label: string, kind: string) => {
-			const b = into.createEl('button', { cls: 'mod-cta ws-export-go' });
+			// IN THE FORMAT'S GROUP, AFTER ITS MENU (A715, the writer: "the wrapped export button that goes on the
+			// second line"). A child of the row beside the group, it was the one thing the row could break before, and
+			// a real book's figures inside the group sent it down alone; a sibling of the figures, it keeps the line
+			// while they give way (the sheet's A715).
+			const b = fmt.createEl('button', { cls: 'mod-cta ws-export-go' });
 			wsGlyphWord(b, ['file-output', 'download'], label);
 			b.addEventListener('click', () => { void (async () => {
 				b.disabled = true;
@@ -4173,7 +4343,7 @@ export const exportMethods = {
 		// follows each switch. `rows` is asked at every press and every saying, so a
 		// row that does not apply (a running header where there are no pages) is in
 		// neither, and a format change has the button say it again (paintFmt).
-		const pickList = (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => {
+		const pickList = (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string, after?: () => void) => {
 			const btn = grp.createEl('button', { cls: 'ws-export-mini ws-export-picklist ' + cls, attr: { type: 'button' } });
 			const say = () => {
 				btn.empty();
@@ -4190,7 +4360,7 @@ export const exportMethods = {
 					label: lab, note: hint,
 					icon: () => { const el = createSpan(); wsIconInto(el, icon, '\u2022'); return el; },
 					on: () => !!o[key],
-					onClick: () => { o[key] = !o[key]; void this.saveSettings(); say(); refreshPreview(); },
+					onClick: () => { o[key] = !o[key]; void this.saveSettings(); say(); if (after) after(); refreshPreview(); },
 				})), 'toggle');
 			});
 			return btn;
@@ -4429,8 +4599,13 @@ export const exportMethods = {
 		if (kind !== 'md') {
 			// A KEY THE LIBRARY DOES NOT HOLD (A670, the writer's pick 3): MEASURED, it printed as typed
 			// ("[@nobody2020]") and its group whole with it, and nothing said so; the file is made all the same
+			// …AND A SOURCE CITED WITHOUT A YEAR OR A TITLE (#60's rest), read before the citations are written in
+			let thin: string[] = [];
+			try { thin = wsCiteThin(sections, this.citeLibrary()); } catch (_) { wsCatch('exportCiteThin', _); }
 			const missing = this.exportCite(sections);
-			if (missing.length) this.exportNotice(wsCiteMissingText(missing, this.settings.citeLibrary || ''), 12000);
+			const lib = this.settings.citeLibrary || '';
+			const said = [missing.length ? wsCiteMissingText(missing, lib) : '', thin.length ? wsCiteThinText(thin, lib) : ''].filter(Boolean);
+			if (said.length) this.exportNotice(said.join(' '), 12000);
 			if (progress) progress.show(files.length, files.length, wsT('Pictures'));
 			await this.exportImages(sections, kind === 'docx' ? 'docx' : 'page');
 		}
@@ -4452,6 +4627,7 @@ export const exportMethods = {
 				// cannot drift from the pages the preview drew — and no page
 				// layout of our own, which is the part that would mean owning
 				// line breaking, font metrics and font embedding.
+				opt.tocPageOf = await this.exportTocPagesFor(sections, opt);
 				const html = this.exportToHtml(sections, opt, false);
 				const pdfName = into(this.exportFileName(scope, 'pdf', opt.title));
 				try {
@@ -4485,6 +4661,7 @@ export const exportMethods = {
 				// printing it from any browser gives a PDF with the
 				// pagination, the margins and the running header intact.
 				const htmlName = into(this.exportFileName(scope, 'html', opt.title));
+				opt.tocPageOf = await this.exportTocPagesFor(sections, opt);
 				await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
 				this.exportRemember(scope, kind, opt, files.length, htmlName);
 				new Notice('Word-Smith: ' + wsT('exported {name}', { name: htmlName }));
@@ -4505,6 +4682,8 @@ export const exportMethods = {
 					wrong.length ? 15000 : 0);
 				return;
 			}
+			// (each contents entry's page, as the PDF's: written into Word's field, A806)
+			opt.tocPageOf = await this.exportTocPagesFor(sections, opt);
 			const bytes = wsBuildDocx(sections, opt);
 			const name = into(this.exportFileName(scope, 'docx', opt.title));
 			await this.app.vault.createBinary(name, bytes.buffer);

@@ -154,7 +154,10 @@ export const menuMethods = {
 			// what "export" in lower case was, and exactly what the
 			// assertion about raw ids exists to catch.
 			{ id: 'export',    name: 'Export',       icon: 'file-output' },
-		{ id: 'organizer', name: 'Organizer',    icon: 'list-tree' }
+		{ id: 'organizer', name: 'Organizer',    icon: 'list-tree' },
+			// THE SETTINGS (A749, the writer: "the settings in the pane and menu. For user to jump directly to word-smith
+			// settings"): the cog, as Obsidian's own
+			{ id: 'settings',  name: 'Settings',     icon: 'settings' }
 		];
 	},
 
@@ -227,7 +230,7 @@ export const menuMethods = {
 		// Export. The pairs are `menuJoined`'s default; this is the order.
 		const def = ['search', 'modes', 'syntax', 'prose', 'lang', 'font', 'markers',
 			'theme', 'cursors', 'lightdark', 'rule-1', 'report', 'history', 'organizer',
-			'export'];
+			'export', 'settings'];
 		const out: string[] = [];
 		for (const id of (this.settings.menuOrder || [])) {
 			if (!out.includes(id)) out.push(id);
@@ -481,6 +484,15 @@ export const menuMethods = {
 	// and moving it out is the whole reason the two cannot drift — the same
 	// rows, the same pickers, the same labels, whichever surface a writer
 	// is looking at.
+	// WORD-SMITH'S SETTINGS, STRAIGHT TO ITS OWN PAGE (A749, the writer: "For user to jump directly to word-smith
+	// settings"): Obsidian's settings window, opened on the plugin's tab. The menu's row and the bar's {settings}.
+	openOwnSettings(this: WordSmith) {
+		try {
+			this.app.setting.open();
+			this.app.setting.openTabById(this.manifest.id);
+		} catch (_) { wsCatch('openOwnSettings', _); }
+	},
+
 	menuRowSpecs(this: WordSmith): WsMenuRowSpec[] {
 		return [
 		{ id: 'modes',   label: wsT('Modes'),   items: () => this.modesPickerItems() },
@@ -544,6 +556,9 @@ export const menuMethods = {
 		{ id: 'organizer', label: wsT('Organizer'), wide: true, reopen: true,
 			// THE PANE: one door in.
 			run: () => this.orgOpenTab('organizer') },
+		// THE SETTINGS (A749): Word-Smith's own page in Obsidian's settings, in one press; the menu does not come back
+		{ id: 'settings', label: wsT('Settings'), wide: true,
+			run: () => this.openOwnSettings() },
 		];
 	},
 

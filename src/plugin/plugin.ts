@@ -3,6 +3,7 @@
 // modules (see the class top).
 
 import { Plugin, MarkdownView, TFile, Menu, Modal, Notice, setIcon, Platform, addIcon } from 'obsidian';
+import { WsWelcomeModal } from './welcome';
 import type { Command, Events, WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 import type { Text as CmText } from '@codemirror/state';
@@ -36,8 +37,9 @@ import {
 	wsBag,
 	wsStr,
 	wsErrMsg,
+	wsIsFolder,
 } from '../core/preamble';
-import type { WsSession } from '../core/preamble';
+import type { WsSession, WsGoalPlan } from '../core/preamble';
 import { WordSmithSettingTab } from './settings-tab';
 import { wsIsPackPath } from '../core/language';
 import type { WsPack } from '../core/language';
@@ -142,6 +144,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._barBoxHeight = 0;
 	plugin.retroPlinthEl = null;
 	plugin.clockInterval    = null;
+	plugin._wpm = null; plugin._wpmTimer = null; plugin._wpmWanted = false; plugin._wpmDayDirty = false;
 	plugin.batteryLevel     = null;
 	plugin.batteryCharging  = false;
 	plugin._batteryManager  = null;   // kept so listeners can be detached on unload
@@ -151,11 +154,14 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._capsLockOn      = false;  // tracked from keyboard events for {caps}
 	plugin._numLockOn       = false;  // tracked from keyboard events for {nump}
 	plugin._statusRowEls    = [];     // per-row elements, for per-row text fitting
-	plugin._goalWasMet      = null;   // previous goal state, to fire the celebration once
 	plugin._fenceCache      = null;   // { doc, set } of non-prose line numbers
 	plugin._paraCache       = null;   // { doc, val } paragraph geometry
 	plugin._lastTypo        = null;   // last typography substitution, for backspace-to-revert
 	plugin._barPicker       = null;   // open bar popup, if any
+	plugin._backupLast = null; plugin._backupTried = null; plugin._ownFolders = null; plugin._ownMarked = null;
+	plugin._goalNowState = null;
+	plugin._goalFolderCounts = null; plugin._goalFolderBusy = false;
+	plugin._goalPanel = null; plugin._goalPanelOff = null;
 	plugin._barPickerDismiss = null;
 	plugin._barPickerFrames = null;
 	plugin._barPickerKey    = (e) => { if (e.key === 'Escape') plugin.closeBarPicker(); };
@@ -459,11 +465,17 @@ export function wsRegisterCommands(plugin: WordSmith) {
 
 	// The mark, registered before anything can ask for it.
 	try { if (addIcon) addIcon(WS_ICON, WS_ICON_SVG); } catch (_) { wsCatch('onload: if (addIcon) addIcon(WS_ICON, WS_ICON_SVG);', _); }
+	// A DOT (A728): Lucide's `dot` as it draws at its stroke, a filled circle in the middle of addIcon's 100 by 100
+	try { if (addIcon) addIcon('ws-dot', '<circle cx="50" cy="50" r="8.5" fill="currentColor" stroke="none"/>'); } catch (_) { wsCatch('onload: addIcon(ws-dot)', _); }
 }
 
 // THE WORKSPACE'S EVENTS: file menus, leaf and layout changes, resize, the
 // theme's CSS (lifted out of onload, A488).
+// THE PLUGIN'S FILES BY THEIR NAMES (A733): the stores (and the two retired ones a vault may still hold) and the packs
+const WS_OWN_NAMES = /^ws-(?:history|structure|settings|export|goals|lang-[A-Za-z0-9-]+)\.md$/;
 export function wsWireWorkspace(plugin: WordSmith) {
+	// THE PLUGIN'S OWN FOLDER IS READ AGAIN after any file comes, goes or moves (A733)
+	for (const ev of ['create', 'delete', 'rename'] as const) plugin.onAppEvent(plugin.app.vault, ev, () => { plugin._ownFolders = null; });
 	plugin.onAppEvent(plugin.app.workspace, 'file-menu',
 		(menu: Menu, file: TAbstractFile, source: string) => {
 			if (source === 'word-smith-outliner') return;
@@ -1010,7 +1022,10 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	// ordinary start this is one `getAbstractFileByPath` and a return.
 	void (async () => {
 		// a mirror that cannot be read leaves data.json as it is
-		try { await plugin.settingsMirrorRestore(plugin._rawData); } catch (_) { wsCatch('onLayoutReady: await plugin.settingsMirrorRestore(plugin._rawData);', _); }
+		let restored = false;
+		try { restored = await plugin.settingsMirrorRestore(plugin._rawData); } catch (_) { wsCatch('onLayoutReady: await plugin.settingsMirrorRestore(plugin._rawData);', _); }
+		// THE WELCOME, ONCE, TO A NEW INSTALL (A743): after the mirror, because a setup it brought back is not new
+		try { await plugin.welcomeOnFirstStart(restored); } catch (_) { wsCatch('onLayoutReady: welcomeOnFirstStart', _); }
 		try {
 			await plugin.goalsFileLoad();
 			plugin.refresh();
@@ -1109,6 +1124,7 @@ export default class WordSmith extends Plugin {
 	declare exportFoldersTicked: ExportMethods["exportFoldersTicked"];
 	declare exportTickAllSay: ExportMethods["exportTickAllSay"];
 	declare exportReaderClicks: ExportMethods["exportReaderClicks"];
+	declare exportAnchorClicks: ExportMethods["exportAnchorClicks"];
 	declare exportReaderKeys: ExportMethods["exportReaderKeys"];
 	declare openNoteAt: ExportMethods["openNoteAt"];
 	declare exportPreviewInto: ExportMethods["exportPreviewInto"];
@@ -1125,6 +1141,7 @@ export default class WordSmith extends Plugin {
 	declare tagsWithSource: ExportMethods["tagsWithSource"];
 	declare exportFillCounts: ExportMethods["exportFillCounts"];
 	declare exportOptsFor: ExportMethods["exportOptsFor"];
+	declare exportTocPagesFor: ExportMethods["exportTocPagesFor"];
 	declare exportPrevColFit: ExportMethods["exportPrevColFit"];
 	declare buildExportAct: ExportMethods["buildExportAct"];
 	declare buildExportOptions: ExportMethods["buildExportOptions"];
@@ -1182,6 +1199,8 @@ export default class WordSmith extends Plugin {
 	declare languageSet: StoresMethods["languageSet"];
 	declare typoLanguageMarks: StoresMethods["typoLanguageMarks"];
 	declare typoMarks: StoresMethods["typoMarks"];
+	declare typoQuotesChoice: StoresMethods["typoQuotesChoice"];
+	declare typoQuotesChoose: StoresMethods["typoQuotesChoose"];
 	declare rhythmTint: ReportMethods["rhythmTint"];
 	declare reportSentences: ReportMethods["reportSentences"];
 	declare reportFolderSentences: ReportMethods["reportFolderSentences"];
@@ -1222,6 +1241,10 @@ export default class WordSmith extends Plugin {
 	declare renameGoalPaths: StoresMethods["renameGoalPaths"];
 	declare forgetGoalPaths: StoresMethods["forgetGoalPaths"];
 	declare goalPathStores: StoresMethods["goalPathStores"];
+	declare goalDatesSectionKeys: StoresMethods["goalDatesSectionKeys"];
+	declare goalDatesStoreApply: StoresMethods["goalDatesStoreApply"];
+	declare goalDatesStoreAdopt: StoresMethods["goalDatesStoreAdopt"];
+	declare goalsNothing: StoresMethods["goalsNothing"];
 	declare renameScopePath: StoresMethods["renameScopePath"];
 	declare removeScopePath: StoresMethods["removeScopePath"];
 	declare storeResolve: StoresMethods["storeResolve"];
@@ -1252,6 +1275,10 @@ export default class WordSmith extends Plugin {
 	declare structureWrite: StoresMethods["structureWrite"];
 	declare structureQueue: StoresMethods["structureQueue"];
 	declare storeHandBack: StoresMethods["storeHandBack"];
+	declare storeBackupPath: StoresMethods["storeBackupPath"];
+	declare citeTerms: StoresMethods["citeTerms"];
+	declare storeBackupWrite: StoresMethods["storeBackupWrite"];
+	declare storeBackupRestore: StoresMethods["storeBackupRestore"];
 	declare structureWriteNow: StoresMethods["structureWriteNow"];
 	declare structureRenamePath: StoresMethods["structureRenamePath"];
 	declare structureForgetPath: StoresMethods["structureForgetPath"];
@@ -1309,6 +1336,7 @@ export default class WordSmith extends Plugin {
 	declare rememberMenuPanelSpot: MenuMethods["rememberMenuPanelSpot"];
 	declare restoreMenuPanelSpot: MenuMethods["restoreMenuPanelSpot"];
 	declare menuPanelLeaves: MenuMethods["menuPanelLeaves"];
+	declare openOwnSettings: MenuMethods["openOwnSettings"];
 	declare reviveMenuPanel: MenuMethods["reviveMenuPanel"];
 	declare openMenuPanel: MenuMethods["openMenuPanel"];
 	declare closeMenuPanel: MenuMethods["closeMenuPanel"];
@@ -1381,6 +1409,7 @@ export default class WordSmith extends Plugin {
 	declare buildBarButton: BarMethods["buildBarButton"];
 	declare buildHistoryIndicator: BarMethods["buildHistoryIndicator"];
 	declare buildExportIndicator: BarMethods["buildExportIndicator"];
+	declare buildSettingsIndicator: BarMethods["buildSettingsIndicator"];
 	declare buildPowermenuIndicator: BarMethods["buildPowermenuIndicator"];
 	declare buildOutlinerIndicator: BarMethods["buildOutlinerIndicator"];
 	declare flagColor: BarMethods["flagColor"];
@@ -1419,7 +1448,24 @@ export default class WordSmith extends Plugin {
 	declare getLineColumn: BarMethods["getLineColumn"];
 	declare headingTrail: BarMethods["headingTrail"];
 	declare getBacklinkCount: BarMethods["getBacklinkCount"];
-	declare barTargetText: BarMethods["barTargetText"];
+	declare barGoalNow: BarMethods["barGoalNow"];
+	declare goalFolderCount: BarMethods["goalFolderCount"];
+	declare barGoalSay: BarMethods["barGoalSay"];
+	declare buildGoalTokenEl: BarMethods["buildGoalTokenEl"];
+	declare openGoalPanel: BarMethods["openGoalPanel"];
+	declare wpmMeter: BarMethods["wpmMeter"];
+	declare wpmTyped: BarMethods["wpmTyped"];
+	declare wpmReading: BarMethods["wpmReading"];
+	declare wpmMomentum: BarMethods["wpmMomentum"];
+	declare wpmSay: BarMethods["wpmSay"];
+	declare buildWpmTokenEl: BarMethods["buildWpmTokenEl"];
+	declare wpmPaint: BarMethods["wpmPaint"];
+	declare wpmTickStart: BarMethods["wpmTickStart"];
+	declare wpmTick: BarMethods["wpmTick"];
+	declare wpmTickStop: BarMethods["wpmTickStop"];
+	declare wpmDayToday: BarMethods["wpmDayToday"];
+	declare wpmReset: BarMethods["wpmReset"];
+	declare closeGoalPanel: BarMethods["closeGoalPanel"];
 	declare formatCount: BarMethods["formatCount"];
 	declare formatReadTime: BarMethods["formatReadTime"];
 	declare getVimModeKey: BarMethods["getVimModeKey"];
@@ -1480,16 +1526,20 @@ export default class WordSmith extends Plugin {
 	declare getParagraphLines: ReportMethods["getParagraphLines"];
 	declare getParagraphInfo: ReportMethods["getParagraphInfo"];
 	declare activeFolderPath: ReportMethods["activeFolderPath"];
-	declare celebrate: ReportMethods["celebrate"];
 	declare fileGoalFor: ReportMethods["fileGoalFor"];
-	declare folderTargetSums: ReportMethods["folderTargetSums"];
-	declare folderTargetRollup: ReportMethods["folderTargetRollup"];
+	declare folderTargetFor: ReportMethods["folderTargetFor"];
+	declare goalDeadlineFor: ReportMethods["goalDeadlineFor"];
+	declare goalCount: ReportMethods["goalCount"];
+	declare goalResolve: ReportMethods["goalResolve"];
+	declare goalFollow: ReportMethods["goalFollow"];
+	declare goalFolderAbove: ReportMethods["goalFolderAbove"];
+	declare goalStartOf: ReportMethods["goalStartOf"];
+	declare goalDayToday: ReportMethods["goalDayToday"];
+	declare goalPlanOf: ReportMethods["goalPlanOf"];
 	declare filesInFolder: ReportMethods["filesInFolder"];
 	declare analyzeFolder: ReportMethods["analyzeFolder"];
 	declare buildGoalLiquid: ReportMethods["buildGoalLiquid"];
 	declare _rgbToHsl: ReportMethods["_rgbToHsl"];
-	declare registerGoalStates: ReportMethods["registerGoalStates"];
-	declare refreshFolderWords: ReportMethods["refreshFolderWords"];
 	declare reportFinderMatches: ReportMethods["reportFinderMatches"];
 	declare scopeFinderMatches: ReportMethods["scopeFinderMatches"];
 	declare scopeNoteCount: ReportMethods["scopeNoteCount"];
@@ -1498,7 +1548,6 @@ export default class WordSmith extends Plugin {
 	declare buildReportWords: ReportMethods["buildReportWords"];
 	declare selectionFiles: ReportMethods["selectionFiles"];
 	declare analyzeSelection: ReportMethods["analyzeSelection"];
-	declare selectionTarget: ReportMethods["selectionTarget"];
 	// organizer-window.ts
 	declare fileMenuReportRow: OrganizerWindowMethods["fileMenuReportRow"];
 	declare fileMenuFor: OrganizerWindowMethods["fileMenuFor"];
@@ -1827,14 +1876,24 @@ export default class WordSmith extends Plugin {
 	_fmCache: Record<string, Record<string, boolean | string> | null>;
 	_focusTabPrev: Map<HTMLElement, { display: string; width: string; flexGrow: string; flexShrink: string; flexBasis: string }>;
 	_folderWordBusy: boolean;
-	_folderWordCache: { path: string; words: number } | null;
 	_goalsFoldedFrom: string | null;
 	_goalsFoundAt: string | null;
 	_goalsSig: string | null;
-	_goalStates: { kind: string; ratio: number; met: boolean }[];
+	// goals with a date (A700): the token's state, the celebration running, the crossings seen, the folders' counts, the panel
+	// (and the open note, its path and its words now, for the panel's other rows, A726)
+	_goalNowState: { goal: { path: string; kind: 'note' | 'folder'; target: number; due: string }; plan: WsGoalPlan; say: { num: number; rest: string }; note?: { path: string; live: number } } | null;
+	_goalFolderCounts: Map<string, { n: number; at: number }> | null;
+	_goalFolderBusy: boolean;
+	_goalPanel: HTMLDivElement | null;
+	_goalPanelOff: (() => void) | null;
+	// A709: the last good copy written per store, and the stores already checked for a cut this session
+	_backupLast: Map<string, string> | null;
+	_backupTried: Set<string> | null;
+	// A733: the plugin's own folders, read once until the vault changes, and the explorer rows marked hidden
+	_ownFolders: string[] | null;
+	_ownMarked: Set<string> | null;
 	_goalsTimer: number | null;
 	_goalsWritten: boolean;
-	_goalWasMet: boolean | null;
 	_hemFlashTimer: number | null;
 	_hemIconTimer: number | null;
 	_hemSaid: boolean;
@@ -2002,6 +2061,13 @@ export default class WordSmith extends Plugin {
 	batteryLevel: number | null;
 	caps: Record<string, boolean | null>;
 	clockInterval: number | null;
+	// {wpm} (A730): the meter (typed characters by time, the time spent typing, what is shown), its timer, and
+	// whether a token is on the bar to listen for
+	_wpm: { hits: [number, number][]; last: number; shown: number; needle: number; at: number } | null;
+	_wpmTimer: number | null;
+	_wpmWanted: boolean;
+	// today's {wpm} record changed since it was last saved (A742)
+	_wpmDayDirty: boolean;
 	currentScroller: HTMLElement | null;
 	editorExtensions: Extension[];
 	explorerObserver: MutationObserver | null;
@@ -2444,6 +2510,8 @@ export default class WordSmith extends Plugin {
 		try { this.zenPeekEnd(); } catch (_) { wsCatch('onunload: this.zenPeekEnd();', _); }
 		// the Typewriter's pending iOS scroll has no plugin to scroll for
 		if (this._twIdle != null) { window.clearTimeout(this._twIdle); this._twIdle = null; this._twIdleView = null; }
+		// {wpm}'s timer (A730)
+		try { this.wpmTickStop(); } catch (_) { wsCatch('onunload: this.wpmTickStop();', _); }
 		// THE SETTINGS TAB'S OBSERVER: it lives for the tab's life — not
 		// disconnected on hide(), since Obsidian 1.13 re-renders the last
 		// definitions on reopen without asking for them again — so this is the
@@ -2560,6 +2628,8 @@ export default class WordSmith extends Plugin {
 		if (this._hemIconTimer) { window.clearTimeout(this._hemIconTimer); this._hemIconTimer = null; }
 		if (this._hemScreenEl) { this._hemScreenEl.remove(); this._hemScreenEl = null; }
 		this.closeBarPicker();
+		// (A700: the goal's panel)
+		this.closeGoalPanel();
 		document.querySelectorAll('.cm-editor.ws-hem-blocked')
 			.forEach(el => el.classList.remove('ws-hem-blocked'));
 		// Leave zen cleanly. The MASTER goes down, matching how toggleZen()
@@ -2688,6 +2758,15 @@ export default class WordSmith extends Plugin {
 		const tab = this._settingsTab;
 		try { if (tab && tab.containerEl && tab.containerEl.isConnected) tab.update(); }
 		catch (e) { wsCatch('onExternalSettingsChange: the settings page', e); }
+	}
+
+	// THE WELCOME (A743): opened from Settings → About, and once on a new install's first start
+	openWelcome() { new WsWelcomeModal(this.app, this).open(); }
+	async welcomeOnFirstStart(restored: boolean) {
+		if (this.settings.welcomeShown || !this.settings.pluginEnabled || this._startBlocked) return;
+		this.settings.welcomeShown = true;
+		await this.saveSettings();
+		if (!restored) this.openWelcome();
 	}
 
 	async loadSettings() {
@@ -2995,6 +3074,32 @@ export default class WordSmith extends Plugin {
 		// `folderGoals`: a number typed on a FOLDER used to beat the sum of the
 		// notes under it; there is one answer now and it derives.
 		delete this.settings.folderGoals;
+		// `goalUnit` (A705): words or characters for a target, never released; a target counts words.
+		delete this.settings.goalUnit;
+		// `goalTokenFormat` (A707): how {goal} read, never released; {target} is the one token now, its shape targetTokenFormat.
+		delete this.settings.goalTokenFormat;
+		// {target}'S FIVE (A754, the writer: "only those 5 options"): a shape cut that day reads as the nearest of the
+		// five, and `targetTokenFollows` (A726, whose goal) goes, never released; its "Today's share" was Words to go today
+		const tf = String(this.settings.targetTokenFormat || '');
+		const follows = wsBag(this.settings).targetTokenFollows;
+		if (tf === 'left' || (follows === 'daily' && (tf === 'ratio' || tf === 'percent'))) this.settings.targetTokenFormat = 'today';
+		else if (tf === 'barcount' || tf === 'barpercent') this.settings.targetTokenFormat = 'bar';
+		else if (!['ratio', 'today', 'percent', 'bar', 'icon'].includes(tf)) this.settings.targetTokenFormat = 'percent';
+		delete this.settings.targetTokenFollows;
+		// `markNbsp`, `markInvisible` and `markOther` (A768, A771, A777), never released: the markers they drew are gone (A780)
+		delete this.settings.markNbsp; delete this.settings.markInvisible; delete this.settings.markOther;
+		// `goalCelebrate` and `goalMetSeen` (A700), never released: the celebration is gone (A786)
+		delete this.settings.goalCelebrate; delete this.settings.goalMetSeen;
+		// `typoQuoteSpace` (A770), never released: the space with « » is typed in Custom quote marks since A776
+		delete this.settings.typoQuoteSpace;
+		// A VAULT WITH SETTINGS BEFORE THE WELCOME HAS SEEN WORD-SMITH (A743): only a new install meets it; asked of the
+		// FILE, so it decides once
+		if (raw.welcomeShown === undefined && Object.keys(raw).length > 0) this.settings.welcomeShown = true;
+		// SENTENCE RHYTHM'S OLD DEFAULTS FOLLOW THE THEME (A782): a vault that never picked a tint saved the default; the
+		// three hexes read as "the theme's" once, and a color the writer chose stays theirs
+		for (const [k, old] of [['checkRhythmHardColor', '#d4a017'], ['checkRhythmVeryHardColor', '#c2544d'], ['checkRhythmShortColor', '#5aa469']] as const) {
+			if (typeof raw[k] === 'string' && raw[k].toLowerCase() === old) this.settings[k] = '';
+		}
 		// `uniColCh`: the same store in characters; the handles that wrote it
 		// are gone and every reading column sizes itself to its contents.
 		delete this.settings.uniColCh;
@@ -3091,6 +3196,25 @@ export default class WordSmith extends Plugin {
 		}
 		// And the old key goes.
 		delete this.settings.organizerNameColPx;
+		// THE DEADLINE'S COLUMNS START OFF (A700). A vault that has shaped its columns keeps a list of what is OFF, so a
+		// new column arrives ON in it; these three wait to be asked for, as on a fresh vault. Keyed on `raw.goalDeadlines`,
+		// absent only until this build first saves: decided once, never over a column the writer later turned on.
+		if (raw.goalDeadlines === undefined && Array.isArray(this.settings.uniColsOff)) {
+			for (const id of ['deadline']) if (this.settings.uniColsOff.indexOf(id) === -1) this.settings.uniColsOff.push(id);
+		}
+		// PER DAY IS GONE (A725): a dev build's vault may name it among the hidden columns or the widths; a dead name
+		// is one somebody reuses
+		// A731's `orgDeadlineShow` ('days' | 'date'), never released: `orgDeadlineCell` since A735, the date and the days
+		delete this.settings.orgDeadlineShow;
+		// {wpm}'s 'best' (A730), never released, gone on the writer's word (A738): the speed now
+		if (this.settings.wpmTokenFormat === 'best') this.settings.wpmTokenFormat = 'now';
+		// …its 'avg' and its unit (A730), never released, gone on the writer's word (A788: "wpm should only do
+		// wordperminute no charsper minute, remove the average while typing"): the speed now, in words a minute
+		if (this.settings.wpmTokenFormat === 'avg') this.settings.wpmTokenFormat = 'now';
+		delete this.settings.wpmTokenUnit;
+		// …AND DAYS LEFT (A731), the Deadline cell's own now
+		if (Array.isArray(this.settings.uniColsOff)) this.settings.uniColsOff = this.settings.uniColsOff.filter((id) => id !== 'perday' && id !== 'daysleft');
+		if (this.settings.uniColPx && typeof this.settings.uniColPx === 'object') { delete this.settings.uniColPx.perday; delete this.settings.uniColPx.daysleft; }
 		// `folderStatus`: only files have flags. A stale map of folder paths is
 		// a list a future reader could treat as flagged. The structure file
 		// stops being written with folder flags, `goalsStoreAdopt` stops
@@ -3506,6 +3630,8 @@ export default class WordSmith extends Plugin {
 		} else {
 			this.detachExplorerObserver();
 			this.removeWordCounts();
+			// (and the own folder shown again, the pass that would have done it not running, A733)
+			this.paintExplorerOwnFolder();
 		}
 		// …and the order, which patches or unpatches itself from one call.
 		// Switching it OFF has to put the tree back within the same gesture:
@@ -3711,7 +3837,14 @@ export default class WordSmith extends Plugin {
 			if (!WsOutlinerView) return false;
 			const ws = this.app.workspace;
 			const v = ws && typeof ws.getActiveViewOfType === 'function' ? ws.getActiveViewOfType(WsOutlinerView) : null;
-			return !!v;
+			if (v) return true;
+			// A SIDEBAR IN FOCUS LEAVES THE MAIN AREA'S ANSWER (A764, the writer: "if i have the organizer open and i click in
+			// the word-smith pane the obsidian status bar appears, check for history and export tabs too"): the pane took the
+			// focus and the Organizer, History or Export still fills the main area, Obsidian's most recent leaf there. A note
+			// in focus anywhere is the note's answer.
+			if (!ws || (typeof ws.getActiveViewOfType === 'function' && ws.getActiveViewOfType(MarkdownView))) return false;
+			const leaf = typeof ws.getMostRecentLeaf === 'function' ? ws.getMostRecentLeaf() : null;
+			return !!(leaf && leaf.view instanceof WsOutlinerView);
 		} catch (_) { wsCatch('wsOwnViewActive: const v = ws.getActiveViewOfType(WsOutlinerView);', _); return false; }
 	}
 
@@ -3986,6 +4119,62 @@ export default class WordSmith extends Plugin {
 			if (path === this.settingsMirrorPathFor()) return true;
 		} catch (_) { wsCatch('isStoreFile: if (path === this._historyPath) return true;', _); }
 		return false;
+	}
+
+	// THE PLUGIN'S OWN FOLDER (A733, the writer: "add option to hide Word-Smith folder in Vault page settings, toggled off
+	// by default (hide it from organizer, obsidian own filetree, export too)"): a folder holding the plugin's files and
+	// NOTHING ELSE (the stores, the packs), `Word-Smith/` unless the writer moved them. A book folder a store was moved
+	// into holds the writer's notes too, so it is never this. Read once until the vault changes (wsWireWorkspace).
+	ownFolders(): string[] {
+		if (this._ownFolders) return this._ownFolders;
+		const dirs = new Set<string>();
+		try {
+			for (const f of this.app.vault.getFiles()) {
+				const cut = f.path.lastIndexOf('/');
+				if (cut > 0 && (this.isStoreFile(f.path) || WS_OWN_NAMES.test(f.name))) dirs.add(f.path.slice(0, cut));
+			}
+		} catch (_) { wsCatch('ownFolders: this.app.vault.getFiles()', _); }
+		const out: string[] = [];
+		for (const dir of dirs) {
+			const node = this.app.vault.getAbstractFileByPath(dir);
+			const kids = node && wsIsFolder(node) ? node.children : null;
+			// (BY NAME TOO, measured live: just after a reload the history is not loaded yet, so `isStoreFile` did not know
+			// ws-history.md and the folder was no one's; the plugin's files keep their names wherever they live)
+			if (kids && kids.length && kids.every((k) => !wsIsFolder(k) && (this.isStoreFile(k.path) || WS_OWN_NAMES.test(k.name)))) out.push(dir);
+		}
+		this._ownFolders = out;
+		return out;
+	}
+	// …and whether a path is in it, the switch on: the folder and everything in it
+	isOwnHidden(path: string): boolean {
+		if (!this.settings || !this.settings.hideOwnFolder || !path) return false;
+		return this.ownFolders().some((d0) => path === d0 || path.startsWith(d0 + '/'));
+	}
+	// …and out of Obsidian's file explorer: its row and its children go with the folder's `.nav-folder` (the class is
+	// taken off every other folder, and off all of them with the switch off)
+	paintExplorerOwnFolder() {
+		const own = this.settings.hideOwnFolder ? this.ownFolders() : [];
+		// OBSIDIAN'S OWN RECORD OF EVERY ROW TOO (`fileItems`, private; measured live: the explorer draws only the rows in
+		// view, and `Word-Smith/` sits at the foot): a folder scrolled to is drawn already marked, never shown for a pass.
+		// The paths marked last time are unmarked when the switch or the folder changes.
+		const marked = this._ownMarked || (this._ownMarked = new Set<string>());
+		try {
+			for (const leaf of this.app.workspace.getLeavesOfType('file-explorer')) {
+				const items = leaf.view && leaf.view.fileItems;
+				if (!items) continue;
+				for (const p of marked) { const it = items[p]; if (it && it.el && own.indexOf(p) === -1) it.el.removeClass('ws-own-hidden'); }
+				for (const p of own) { const it = items[p]; if (it && it.el) it.el.addClass('ws-own-hidden'); }
+			}
+		} catch (_) { wsCatch('paintExplorerOwnFolder: fileItems', _); }
+		marked.clear();
+		for (const p of own) marked.add(p);
+		const roots = document.querySelectorAll('.workspace-leaf-content[data-type="file-explorer"]');
+		for (const root of Array.from(roots)) {
+			for (const t of Array.from(root.querySelectorAll<HTMLElement>('.nav-folder-title'))) {
+				const box = t.closest('.nav-folder');
+				if (box) box.toggleClass('ws-own-hidden', own.indexOf(String(t.dataset.path || '')) !== -1);
+			}
+		}
 	}
 
 	isFileCounted(file: TAbstractFile) {

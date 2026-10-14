@@ -294,12 +294,18 @@ const WS_DEFAULT_VOWELS = 'aeiouy\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5\u00e6\u00e
 // …and the cedilla ş ţ an older Romanian text types read as the comma ș ț its pack lists (A614)
 // …and a stress mark left over after composing (Russian, Ukrainian: Ко́фе is кофе; A677). A Latin é is
 // composed by then and keeps its accent; …and the apostrophe Ukrainian spelling recommends, \u02bc, is the plain one
-const wsLower = (w: string) => w.toLowerCase().replace(/[\u2019\u02bc]/g, "'").normalize('NFC').replace(/\u0301/g, '').replace(/\u015f/g, '\u0219').replace(/\u0163/g, '\u021b');
+// TURKISH CASE BY ITS OWN RULES, THE CEDILLA ROMANIAN'S ALONE (A769, the Turkish pack's builder, measured: plain toLowerCase
+// made IŞIK "işik" and İlk "i̇lk", and the cedilla mapping turned every ş a Turkish passive mark holds into a ș the raw text
+// never has): `lang` is the pack's; without one (the English engine, a formula's name) it reads as it always did
+const wsLower = (w: string, lang?: string) => {
+	const s = (lang && /^(tr|az)(-|$)/i.test(lang) ? w.toLocaleLowerCase('tr') : w.toLowerCase()).replace(/[\u2019\u02bc]/g, "'").normalize('NFC').replace(/\u0301/g, '');
+	return lang && !/^ro(-|$)/i.test(lang) ? s : s.replace(/\u015f/g, '\u0219').replace(/\u0163/g, '\u021b');
+};
 const wsEsc = (s: string) => s.replace(/[\\\]^-]/g, '\\$&');
 const wsListOfKeyed = (v: string | undefined) => String(v || '').split(/[,\uff0c\u3001]/).map((x) => x.trim()).filter(Boolean);
 const wsNum = (v: string | undefined) => { const x = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(x) ? x : null; };
 // a phrase as the matcher keys it: lower case, one space where any ran
-const wsPhraseKey = (s: string) => wsLower(s).replace(/\s+/g, ' ').trim();
+const wsPhraseKey = (s: string, lang?: string) => wsLower(s, lang).replace(/\s+/g, ' ').trim();
 // what opens a clause whose first word wears a sentence's capital: a quote, a colon, a dash, a bracket (A624)
 const WS_CLAUSE_OPEN = /^["'\u201c\u201e\u201a\u2018\u00ab\u00bb\u2039\u203a\u300c\u300e([:\u2013\u2014-]$/;
 // the first character before a place that is not a space, or ''
@@ -314,8 +320,8 @@ function wsSegmenterFor(lang: string): WsSegmenter | null {
 // one pattern of a pack: `ge…t` (a beginning and an end), `…iert` (an end),
 // `被…` (a mark and the word after it), a bare word; `...` is read as `…`
 interface WsPat { pre: string; suf: string; whole: string }
-const wsPat = (raw: string): WsPat => {
-	const s = wsLower(raw).replace(/\.\.\./g, '\u2026');
+const wsPat = (raw: string, lang?: string): WsPat => {
+	const s = wsLower(raw, lang).replace(/\.\.\./g, '\u2026');
 	const k = s.indexOf('\u2026');
 	return k === -1 ? { pre: '', suf: '', whole: s } : { pre: s.slice(0, k), suf: s.slice(k + 1), whole: '' };
 };
@@ -330,6 +336,8 @@ export function wsPackEngine(pack: WsPack): WsEngine {
 }
 
 function wsBuildPackEngine(pack: WsPack): WsEngine {
+	// (lower case by the pack's language, A769)
+	const lower = (w: string) => wsLower(w, pack.lang);
 	const notes: string[] = [];
 	const L = (k: string) => pack.lists[k] || [];
 	const segmented = String(pack.props.words || '').trim().toLowerCase() === 'segmenter';
@@ -338,22 +346,22 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// THE LEXICON: one-word entries, the first heading in WS_LEX_ORDER winning
 	const lex = new Map<string, string>();
 	for (const [k, tag] of WS_LEX_ORDER) for (const w of L(k)) {
-		const lw = wsLower(w);
+		const lw = lower(w);
 		if (!/\s/.test(lw) && !lex.has(lw)) lex.set(lw, tag);
 	}
 	const closed = new Set<string>();
-	for (const k of WS_CLOSED) for (const w of L(k)) closed.add(wsLower(w));
+	for (const k of WS_CLOSED) for (const w of L(k)) closed.add(lower(w));
 	// AN INFLECTION: an ending a word sheds ("e": schnelle is schnell), or one it swaps
 	// for another ("t>en": liegt is liegen), longest first
-	const inflections = L('inflections').map(wsLower).map((x) => {
+	const inflections = L('inflections').map(lower).map((x) => {
 		const [off, on] = x.split('>');
 		return { off: (off || '').trim().replace(/^[-\u2026]+/, ''), on: (on || '').trim().replace(/^[-\u2026]+/, '') };
 	}).filter((x) => x.off).sort((a, b) => b.off.length - a.off.length);
-	const elisions = new Set(L('elisions').map((x) => wsLower(x).replace(/\u2019/g, "'")));
+	const elisions = new Set(L('elisions').map((x) => lower(x).replace(/\u2019/g, "'")));
 	const endings: { end: string; tag: string }[] = [];
 	for (const row of pack.tables.endings || []) {
-		const end = wsLower(row[0] || '').replace(/^[-\u2026*]+|^\.\.\./, '');
-		const tag = WS_TAG_OF[wsLower(row[1] || '')];
+		const end = lower(row[0] || '').replace(/^[-\u2026*]+|^\.\.\./, '');
+		const tag = WS_TAG_OF[lower(row[1] || '')];
 		if (!end) continue;
 		if (!tag) { notes.push('Endings: "' + (row[1] || '') + '" is not a word class'); continue; }
 		endings.push({ end, tag });
@@ -381,7 +389,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// …and "no verb after" (A677, Russian and Ukrainian): classes no verb follows ("в берете", "свої орбіти"),
 	// where a word an ending alone called a verb takes the "after" rule's class instead
 	const CTX_LISTS = /^(verb after|infinitive after|infinitive endings|not infinitive|article endings|capitalized over|article before|adjective after|coordination|no verb after)$/;
-	const ctxList = (k: string) => String(ctx[k] || '').split(',').map((x) => wsLower(x.trim()).replace(/^[-\u2026]+/, '')).filter(Boolean);
+	const ctxList = (k: string) => String(ctx[k] || '').split(',').map((x) => lower(x.trim()).replace(/^[-\u2026]+/, '')).filter(Boolean);
 	const verbAfter = new Set(ctxList('verb after'));
 	const infAfter = new Set(ctxList('infinitive after'));
 	const infEnds = ctxList('infinitive endings');
@@ -397,7 +405,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	let openTag = '', unknownTag = '';
 	for (const k of Object.keys(ctx)) {
 		if (CTX_LISTS.test(k)) continue;
-		const tag = WS_TAG_OF[wsLower(ctx[k])];
+		const tag = WS_TAG_OF[lower(ctx[k])];
 		if (!tag) { notes.push('Context: "' + ctx[k] + '" is not a word class'); continue; }
 		if (k === 'capitalized') { capTag = tag; continue; }
 		if (k === 'capitalized first') { capFirstTag = tag; continue; }
@@ -444,7 +452,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	const ends = String(pack.props['sentence-end'] || '. ! ? \u2026').split(/\s+/).filter(Boolean).join('').replace(/\.\.\./g, '\u2026');
 	const endCls = wsEsc(ends);
 	const SPLIT = new RegExp('[^' + endCls + ']+[' + endCls + ']*[' + wsEsc(WS_CLOSERS) + ']*\\s*', 'gu');
-	const abbr = new Set(L('abbreviations').map((a) => { const x = wsLower(a).replace(/\s+/g, ''); return x.endsWith('.') ? x : x + '.'; }));
+	const abbr = new Set(L('abbreviations').map((a) => { const x = lower(a).replace(/\s+/g, ''); return x.endsWith('.') ? x : x + '.'; }));
 	// the letters of an abbreviation, each a word to the tokenizer ("z" and "b" in "z. B.")
 	const abbrPieces = new Set<string>();
 	for (const a of abbr) for (const p of a.split('.')) if (p) abbrPieces.add(p);
@@ -456,7 +464,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	for (let i = 0; i + 1 < oq.length; i += 2) pairs[oq[i]] = oq[i + 1];
 	const dashes = String(pack.props['dialogue-dash'] || '').replace(/\s+/g, '');
 	// …and its speech verbs, which end a speech with no second dash after them (A622)
-	const dialogue: WsDialogueMarks | null = (Object.keys(pairs).length || dashes) ? { pairs, dashes, verbs: L('speech verbs').map(wsLower) } : null;
+	const dialogue: WsDialogueMarks | null = (Object.keys(pairs).length || dashes) ? { pairs, dashes, verbs: L('speech verbs').map(lower) } : null;
 	// …and the doubles and guillemets among them hold a quotation opened partway through a sentence whole (A642);
 	// a single quote can be the apostrophe
 	const held: Record<string, string> = { '"': '"' };
@@ -475,7 +483,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		ordinal,
 	};
 	// …and its speech verbs, which keep a speech tag with its quotation where no capital can (A677)
-	const sayWords = L('speech verbs').map(wsLower).filter(Boolean);
+	const sayWords = L('speech verbs').map(lower).filter(Boolean);
 	const sentences = (text: string): WsSentence[] => {
 		const out: WsSentence[] = [];
 		SPLIT.lastIndex = 0;
@@ -487,7 +495,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			const prev = out.length ? out[out.length - 1] : null;
 			if (prev) {
 				const tail = text.slice(prev.from, prev.to);
-				const last = wsLower((/(\S+)$/.exec(tail) || ['', ''])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '');
+				const last = lower((/(\S+)$/.exec(tail) || ['', ''])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '');
 				// an initial, or letters each with its dot (R.G., U.S., A.J.: A642), ends no sentence
 				const dotEnd = /\.$/.test(last) && (/^(\p{L}\.)+$/u.test(last) || abbr.has(last) || (ordinal && /^\d{1,3}\.$/.test(last)));
 				// A PIECE WITH NO LETTER OR FIGURE IN IT (a zero-width space, a lone ";"), or one that opens with a
@@ -515,7 +523,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// WORDS
 	// an ordinal in letters is its figure's (19e, 1er, 3ème, 2nd) (A614)
 	const WORDS = /(?![\u00ba\u00aa])\p{L}[\p{L}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*(?:\.?[\u00ba\u00aa])?(?:\p{Ll}{1,3}(?!\p{L}))?%?/gu;
-	const push = (out: WsToken[], w: string, at: number) => { if (w) out.push({ w, lw: wsLower(w), from: at, to: at + w.length, tag: null }); };
+	const push = (out: WsToken[], w: string, at: number) => { if (w) out.push({ w, lw: lower(w), from: at, to: at + w.length, tag: null }); };
 	const tokenize = (text: string): WsToken[] => {
 		const out: WsToken[] = [];
 		if (segmented) {
@@ -537,7 +545,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			// an elision, its own word: l'homme is l' and homme
 			const ap = w.search(/['\u2019]/);
 			// …unless the whole is a word the pack lists: c'est-à-dire, d'abord (A614)
-			if (ap > 0 && ap < w.length - 1 && !lex.has(wsLower(w)) && elisions.has(wsLower(w.slice(0, ap + 1)).replace(/\u2019/g, "'"))) {
+			if (ap > 0 && ap < w.length - 1 && !lex.has(lower(w)) && elisions.has(lower(w.slice(0, ap + 1)).replace(/\u2019/g, "'"))) {
 				push(out, w.slice(0, ap + 1), m.index);
 				push(out, w.slice(ap + 1), m.index + ap + 1);
 				continue;
@@ -548,10 +556,10 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	};
 	// THE PASSIVE'S WORDS, read before the tagger: a participle it does not otherwise know is a verb
 	const pv = pack.keyed.passive || {};
-	const helpers = new Set(wsListOfKeyed(pv.helpers).map(wsLower));
-	const parts = wsListOfKeyed(pv.participle).map(wsPat);
-	const notPart = new Set(wsListOfKeyed(pv.not).map(wsLower));
-	const marks = wsListOfKeyed(pv.marks).map(wsPat).filter((p) => p.pre || p.suf || p.whole);
+	const helpers = new Set(wsListOfKeyed(pv.helpers).map(lower));
+	const parts = wsListOfKeyed(pv.participle).map((x) => wsPat(x, pack.lang));
+	const notPart = new Set(wsListOfKeyed(pv.not).map(lower));
+	const marks = wsListOfKeyed(pv.marks).map((x) => wsPat(x, pack.lang)).filter((p) => p.pre || p.suf || p.whole);
 	const winRaw = String(pv.window || '').trim().toLowerCase();
 	const clause = winRaw === 'clause';
 	const hops = clause ? 12 : Math.max(0, Math.min(12, wsNum(winRaw) ?? 2));
@@ -686,7 +694,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		const map = new Map<string, string>();
 		let longest = 1;
 		for (const [words, kind] of pairs) for (const w of words) {
-			const k = wsPhraseKey(w.replace(/\s*\([^)]*\)\s*$/, ''));
+			const k = wsPhraseKey(w.replace(/\s*\([^)]*\)\s*$/, ''), pack.lang);
 			if (!k) continue;
 			map.set(k, kind);
 			longest = Math.max(longest, segmented ? Math.min(8, k.length) : k.split(' ').length);
@@ -718,11 +726,11 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// …AND IN A SEGMENTED SCRIPT EVERY LISTED WORD OF TWO CHARACTERS OR MORE (A624): the segmenter cuts listed
 	// words in two (网民 as 网|民, 読売新聞 as 読|売|新聞), and the pieces joined are the word
 	const lexPm = phraseMap(WS_LEX_ORDER.slice().reverse().map(([k, tag]): [string[], string] => [L(k).filter((w) => {
-		const lw = wsLower(w).trim();
+		const lw = lower(w).trim();
 		return segmented ? Array.from(lw).length > 1 : /\s/.test(lw);
 	}), tag]));
 	const misusedPm = phraseMap([[(pack.tables.misused || []).map((r) => r[0] || ''), 'misused']]);
-	const vague = new Set(L('loose pronouns').map(wsLower));
+	const vague = new Set(L('loose pronouns').map(lower));
 
 	const passive = (tokens: WsToken[], text: string): WsSpan[] => {
 		const out: WsSpan[] = [];
@@ -767,12 +775,12 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// SYLLABLES AND SUMS
 	const rd = pack.keyed.readability || {};
 	const vowelStr = wsListOfKeyed(rd.vowels).join('') || WS_DEFAULT_VOWELS;
-	const vowels = new Set(Array.from(wsLower(vowelStr)));
-	const diph = wsListOfKeyed(rd.diphthongs).map(wsLower).sort((a, b) => b.length - a.length);
-	const silent = wsListOfKeyed(rd.silent).map(wsLower).sort((a, b) => b.length - a.length);
+	const vowels = new Set(Array.from(lower(vowelStr)));
+	const diph = wsListOfKeyed(rd.diphthongs).map(lower).sort((a, b) => b.length - a.length);
+	const silent = wsListOfKeyed(rd.silent).map(lower).sort((a, b) => b.length - a.length);
 	const common = new Set(Array.from(L('common characters').join('')));
 	const syllables = (word: string): number => {
-		let w = wsLower(word);
+		let w = lower(word);
 		if (!WS_LETTER.test(w)) { const d = w.replace(/[^0-9]/g, '').length; return d ? Math.min(6, d + 1) : 0; }
 		for (const s of silent) if (w.length > s.length + 2 && w.endsWith(s)) { w = w.slice(0, -s.length); break; }
 		let n = 0;
@@ -814,7 +822,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		close();
 		return true;
 	};
-	const formula = wsLower(rd.formula || '');
+	const formula = lower(rd.formula || '');
 	if (formula && !WS_PACK_FORMULAS[formula]) notes.push('Readability: "' + rd.formula + '" is not a formula this engine knows');
 	const coef: Record<string, number> = {};
 	for (const k of Object.keys(rd)) { const v = wsNum(rd[k]); if (v !== null) coef[k] = v; }
@@ -822,7 +830,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 
 	// REPETITION: the function words and the pack's own list left out; a word
 	// keyed by its stem where an inflection comes off
-	const repIgnore = new Set([...closed, ...L('repetition ignore').map(wsLower)]);
+	const repIgnore = new Set([...closed, ...L('repetition ignore').map(lower)]);
 	const repMin = wsNum(pack.props['repeat-min']);
 	const stem = (w: string) => {
 		for (const f of inflections) if (w.length - f.off.length >= 4 && w.endsWith(f.off)) return w.slice(0, -f.off.length) + f.on;
@@ -874,7 +882,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		},
 		sumsInto,
 		gradeOf,
-		isCommon: (lw) => closed.has(wsLower(lw)) || repIgnore.has(wsLower(lw)),
+		isCommon: (lw) => closed.has(lower(lw)) || repIgnore.has(lower(lw)),
 		sentenceStart: (before, prevLine) => wsSentenceStart(before, prevLine, capMarks),
 		dialogue,
 		notes,

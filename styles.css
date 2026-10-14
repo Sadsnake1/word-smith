@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 577;
+	--ws-stylesheet-version: 579;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -307,7 +307,8 @@ body.zenmode-hide-status-bar > .status-bar {
 
 .zenmode-hide-properties .markdown-reading-view .metadata-container { display: none; }
 .zenmode-hide-properties { --metadata-display-editing: none; }
-.zenmode-active[data-zen-hide-inline-title="true"] .inline-title { display: none; }
+/* a body CLASS, which a pop-out window gets (A701, issue #64); it was a data- attribute, which it does not */
+body.zenmode-active.ws-zen-hide-inline-title .inline-title { display: none; }
 .zenmode-hide-linked-mentions .embedded-backlinks { display: none; }
 /* Obsidian's own scroller is a plain div, so the ::-webkit-scrollbar
    pseudo-element is all that's needed here for Chromium/Electron.
@@ -1265,6 +1266,7 @@ body.ws-rtl.ws-justify .ws-scoped .markdown-reading-view .markdown-preview-sizer
 	background-repeat: no-repeat;
 }
 
+
 /* Tabs keep their real width; the arrow is overlaid at the start. */
 .ws-ws-tab {
 	position: relative;
@@ -1574,7 +1576,93 @@ body.ws-bar-anim .ws-status-bar {
 	body.ws-bar-anim .ws-status-bar { transition: none; }
 }
 
-/* One line of the bar./* One line of the bar. A single-row bar is still wrapped in one of these,
+/* ── GOALS WITH A DATE ON THE BAR (A700) ───────────────────────────────
+
+   {goal} and {target} are elements so a goal met can be celebrated on them: the number counts up, one glint
+   crosses the bar, the check lands as it passes. The glint is a child of the bar, which clips it; it takes no
+   pointer and lightens what it passes over (screen), words included. Under Reduce motion there is none. */
+.ws-goaltok { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-goaltok.is-pressable { cursor: pointer; }
+/* {wpm}: a click starts it again from zero (A741) */
+.ws-wpmtok.is-pressable { cursor: pointer; }
+/* ONE BAR, ITS CORNERS A LITTLE ROUND (A724, the writer: "make the bar not segmented with a bit of rounded corners.
+   including the one in the popup"). TOMBSTONE: A705's eight cells in one crisp svg. A track and its fill
+   (`wsBarInto`), boxes, so their edges land on whole pixels and their corners are not stretched with them; the
+   fill's width is `--ws-bar-pct`, the track's one writer. The corner is half the theme's small radius: 2px on
+   Obsidian's own, "a bit", a theme's rounder or squarer. */
+.ws-bar { position: relative; display: block; overflow: hidden; border-radius: calc(var(--radius-s, 4px) / 2); }
+.ws-bar-fill { position: relative; display: block; height: 100%; width: calc(var(--ws-bar-pct, 0) * 1%); border-radius: inherit; background-color: currentColor; }
+/* on the bar the token's own ink, the track a quarter of it (a pseudo-element: the fill is not dimmed with it) */
+.ws-goaltok-gauge { display: inline-block; margin-right: 0.45em; vertical-align: 0.05em; line-height: 0; }
+/* half a line tall, its middle where the text's is (A745: 0.8em until the writer's "shorten in height") */
+.ws-goaltok-gauge .ws-bar { width: 3.1em; height: 0.5em; }
+.ws-goaltok-gauge .ws-bar::before { content: ""; position: absolute; inset: 0; background-color: currentColor; opacity: 0.25; }
+/* {wpm} (A730): a gauge in the token's ink, the needle turned about the dial's centre by --ws-wpm-deg (set in place
+   on every tick while it moves; the transition joins the ticks into one motion) */
+.ws-wpmtok { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-wpm-gauge { display: inline-flex; vertical-align: -0.12em; margin-right: 0.3em; line-height: 0; }
+.ws-wpmtok.is-gaugeonly .ws-wpm-gauge { margin-right: 0; }
+.ws-wpm-svg { width: 1em; height: 1em; }
+.ws-wpm-needle { transform-box: view-box; transform-origin: 12px 14px; transform: rotate(calc(var(--ws-wpm-deg, -120) * 1deg)); transition: transform 200ms linear; }
+@media (prefers-reduced-motion: reduce) { .ws-wpm-needle { transition: none; } }
+/* the icon alone (A726): the token's own ink, the bar's text size */
+.ws-goaltok-icon { display: inline-flex; vertical-align: -0.12em; line-height: 0; }
+.ws-goaltok-icon .svg-icon { width: 1em; height: 1em; }
+/* a goal with no deadline is its bar alone (A706): nothing after it */
+.ws-goaltok.is-bare .ws-goaltok-gauge { margin-right: 0; }
+/* (TOMBSTONE, A786: the glint a goal met sent across the bar; the celebration is gone) */
+/* THE PANEL a press on {goal} opens: the bar's pickers' place and surface */
+.ws-goal-panel {
+	position: fixed;
+	z-index: 10051;   /* the bar's pickers' band (.ws-picker, 10050), one above */
+	min-width: 220px;
+	/* AS WIDE AS ITS ROWS (A760, the writer, a shot: "improve this menu visually, also it overflows"): a 360px cap held four
+	   columns of nowrap text (a label, the 98px bar, the numbers, the days) and the days ran out past the edge */
+	width: max-content;
+	padding: 10px 14px 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background-color: var(--background-primary);
+	box-shadow: var(--shadow-s);
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+}
+/* THE ROWS IN ONE GRID (A705, the writer: "kinda cluttered"): a row spans it and takes
+   its columns (`subgrid`), so the labels, the cells and the numbers each share a column and line up whatever the
+   numbers' lengths. (Not an unwrapped row, and not the gap's column-only longhand: the review's CSS lint refuses
+   both, even in a comment; sheet_probe names them.)
+   The bar is one bar since A724: 98 by 8, whole pixels, the theme's border its track and the accent its fill.
+   No name and no day over them since A774 (the writer: "remove that"): the rows are the panel. */
+.ws-goal-panel-rows { display: grid; grid-template-columns: auto auto 1fr; gap: 6px 12px; }
+.ws-goal-panel-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
+/* the row's icon, the file's or the folder's, Obsidian's small icon size (A778) */
+.ws-goal-panel-label { color: var(--text-muted); display: flex; --icon-size: var(--icon-s); }
+.ws-goal-panel-bar { line-height: 0; }
+.ws-goal-panel-bar .ws-bar { width: 98px; height: 8px; background-color: var(--background-modifier-border); }
+.ws-goal-panel-bar .ws-bar-fill { background-color: var(--interactive-accent); }
+.ws-goal-panel-said { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A ROW MET, ITS CHECK IN A COLUMN OF ITS OWN (A774, the writer: "right align that xx/xxx and left align deadline"): the
+   numbers share one right edge, the days one left edge; the check's column only when a row is met */
+.ws-goal-panel-rows.has-check { grid-template-columns: auto auto 1fr auto; }
+.ws-goal-panel-rows.has-days.has-check { grid-template-columns: auto auto 1fr auto auto; }
+.ws-goal-panel-rows:not(.has-check) .ws-goal-panel-check { display: none; }
+/* each deadline's days left beside its bar, with two in the panel (A744); a column only then */
+.ws-goal-panel-rows.has-days { grid-template-columns: auto auto 1fr auto; }
+.ws-goal-panel-rows:not(.has-days) .ws-goal-panel-days { display: none; }
+.ws-goal-panel-days { color: var(--text-muted); font-size: var(--font-ui-smaller); text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* the hourglass before the days (A778, the writer: "put the https://lucide.dev/icons/hourglass in the left of 8d"), the
+   theme's smallest icon, Obsidian's small gap */
+.ws-goal-panel-days { display: flex; align-items: center; gap: var(--size-2-2); --icon-size: var(--icon-xs); }
+.ws-goal-panel-glass { display: flex; }
+/* a deadline passed in the theme's own error color (A760) */
+.ws-goal-panel-days.is-late { color: var(--text-error); }
+/* the note's bar fainter than the folder's (A746) */
+.ws-goal-panel-row.is-note .ws-bar-fill { opacity: 0.5; }
+/* a row counting today's share, its bar in the text's own color, as Per day's was (A761; A778) */
+.ws-goal-panel-row.is-today .ws-bar-fill { background-color: var(--text-normal); opacity: 1; }
+.ws-goal-panel-pace { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); color: var(--text-muted); }
+
+/* One line of the bar. A single-row bar is still wrapped in one of these,
    so there is only one layout path to reason about. */
 .ws-status-row {
 	display: flex;
@@ -2193,6 +2281,11 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	height: 1.15em;
 	flex: none;
 }
+/* …AND ITS SVG FILLS THAT SQUARE (A802, the writer's shot of the preview's zoom menu on the phone: "These icons are not
+   aligned properly"): an Obsidian icon kept Obsidian's own --icon-size, larger on a phone than the square, and spilled
+   onto the word, low */
+span.ws-picker-icon { display: inline-flex; align-items: center; justify-content: center; }
+span.ws-picker-icon > svg { width: 100%; height: 100%; flex: none; }
 /* A CURSOR-SMITH PRESET'S CARET beside its name, in its own colors, centered
    in the icon's square at the height of a caret on the line. A row that is not
    the loaded preset fades with its mark, as the Theme list's swatches do. */
@@ -2555,111 +2648,7 @@ body.ws-masks-active   .cm-editor .cm-panels.cm-panels-bottom .cm-vim-panel > * 
 	cursor: pointer;  /* pointer, not default: the injected copy said so and was winning (A418) */
 }
 
-/* Fireworks over the report when a target is met. pointer-events:none so the
-   modal stays usable while it plays, and the layer removes itself after. */
-/* Covers the report body, which is emptied on every render — so the layer
-   still dies with the tab that earned it, while getting the full width and
-   height to play in.
-
-   inset must be 0, not negative. An absolutely positioned child still
-   contributes to scrollable overflow, so a layer hanging past its parent
-   gave the modal a scrollbar out of nowhere. */
-.ws-fireworks {
-	position: absolute;
-	inset: 0;
-	pointer-events: none;
-	overflow: hidden;
-	z-index: 5;
-}
-
-.ws-firework {
-	position: absolute;
-	width: 0;
-	height: 0;
-}
-/* A rocket launches from near the foot and its head climbs 150px before
-   the burst (the burst's own marks place themselves). */
-.ws-firework.is-launch { top: 94%; }
-.ws-firework-head.is-launch { --rise: 150px; }
-
-/* Two nested elements per spark. The outer flies along its own angle; the
-   inner falls and fades. One transform per element, because a second on the
-   same element would overwrite the first. */
-.ws-firework-vec {
-	position: absolute;
-	transform: rotate(var(--a)) translateY(0);
-}
-
-.ws-firework-vec.is-fly    { animation: ws-spark-fly 1.7s cubic-bezier(0.12, 0.72, 0.24, 1) forwards; }
-/* A jet decelerates less sharply than a burst — it is thrown, not exploded. */
-.ws-firework-vec.is-jet    { animation: ws-spark-fly 2.0s cubic-bezier(0.20, 0.55, 0.35, 1) forwards; }
-.ws-firework-vec.is-rocket { animation: ws-spark-fly 1.1s cubic-bezier(0.25, 0.60, 0.40, 1) forwards; }
-/* A ring expands evenly and settles; a willow throws far and droops long. */
-.ws-firework-vec.is-ring   { animation: ws-spark-fly 1.5s cubic-bezier(0.18, 0.70, 0.30, 1) forwards; }
-.ws-firework-vec.is-willow { animation: ws-spark-fly 2.9s cubic-bezier(0.15, 0.80, 0.30, 1) forwards; }
-.ws-firework-vec.is-willow .ws-firework-spark { animation-duration: 3.4s; }
-/* A comet is thrown hard and keeps going — almost no deceleration, and a
-   spark that holds bright the whole way rather than peaking early. */
-.ws-firework-vec.is-comet  { animation: ws-spark-fly 2.4s cubic-bezier(0.35, 0.45, 0.55, 1) forwards; }
-.ws-firework-vec.is-comet .ws-firework-spark { animation: ws-spark-comet 2.4s ease-out forwards; }
-/* A chrysanthemum is the big one: far, slow, and it hangs before it drops. */
-.ws-firework-vec.is-chrys  { animation: ws-spark-fly 2.6s cubic-bezier(0.10, 0.85, 0.25, 1) forwards; }
-.ws-firework-vec.is-chrys .ws-firework-spark { animation-duration: 3.1s; }
-/* A strobe burst flickers on its way out instead of fading smoothly. */
-.ws-firework-vec.is-strobe { animation: ws-spark-fly 1.9s cubic-bezier(0.15, 0.75, 0.30, 1) forwards; }
-.ws-firework-vec.is-strobe .ws-firework-spark { animation: ws-spark-strobe 1.9s steps(1) forwards; }
-
-@keyframes ws-spark-comet {
-	0%   { opacity: 0; transform: translateY(0) scale(1.8); }
-	5%   { opacity: 1; }
-	80%  { opacity: 1; transform: translateY(6px) scale(1); }
-	100% { opacity: 0; transform: translateY(20px) scale(0.5); }
-}
-
-@keyframes ws-spark-strobe {
-	0%, 14%, 30%, 46%, 62% { opacity: 1; }
-	7%, 22%, 38%, 54%      { opacity: 0.15; }
-	100% { opacity: 0; transform: translateY(18px) scale(0.4); }
-}
-
-@keyframes ws-spark-fly {
-	from { transform: rotate(var(--a)) translateY(0); }
-	to   { transform: rotate(var(--a)) translateY(var(--d)); }
-}
-
-/* A rocket's break has to happen where its climb ended, so the head rides up
-   to the same height before its own sparks fire. */
-.ws-firework-head {
-	position: absolute;
-	animation: ws-rocket-rise 1s cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
-}
-
-@keyframes ws-rocket-rise {
-	from { transform: translateY(0); }
-	to   { transform: translateY(calc(var(--rise) * -1)); }
-}
-
-/* Square, unrounded, no blur: at 2–4px that reads as a pixel rather than a
-   dot, which is the look. */
-.ws-firework-spark {
-	position: absolute;
-	border-radius: 0;
-	image-rendering: pixelated;
-	opacity: 0;
-	animation: ws-spark-fall 1.7s ease-in forwards;
-}
-
-/* Gravity plus a fade that holds bright before dropping away, so each burst
-   has a peak rather than dimming from the first frame. */
-@keyframes ws-spark-fall {
-	0%   { opacity: 0; transform: translateY(0)    scale(1.5); }
-	7%   { opacity: 1; }
-	55%  { opacity: 1; transform: translateY(4px)  scale(1);   }
-	100% { opacity: 0; transform: translateY(16px) scale(0.4); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-	.ws-fireworks { display: none; }
 	.ws-jar-pct { animation: none; }
 	/* The tank's own loop already draws a single static frame under
 	   reduced motion (see buildGoalLiquid) — nothing to suppress here. */
@@ -2846,7 +2835,7 @@ body.ws-vim-panel-open .ws-status-bar {
 }
 
 .ws-report-ring {
-	position: relative;           /* the fireworks layer anchors here */
+	position: relative;
 	display: flex;
 	align-items: center;
 	justify-content: center;      /* the gauge is the centrepiece */
@@ -3968,7 +3957,9 @@ body.ws-vim-panel-open .ws-status-bar {
    rule cannot say "every 3rd" without a class per stride. It is still
    `visibility`, and for the same reason: a hidden label keeps its grid cell,
    so the ones that remain stay under their own bars. */
-.ws-hist-xaxis span.is-now { color: var(--text-normal); font-weight: 700; }
+/* IN THE ACCENT, AND STILL BOLD (A716, the writer: "Make the current day/month/year in accent color in history
+   tab, not just bold"). The label's text, never a fill: the bars' accent column was a warning on a red accent. */
+.ws-hist-xaxis span.is-now { color: var(--text-accent); font-weight: 700; }
 /* fitAxis hides every n-th label with `visibility`, not `display`: the
    axis is one grid cell per bar, and a hidden label keeps its cell. */
 .ws-hist-xaxis span.is-hid { visibility: hidden; }
@@ -3990,14 +3981,6 @@ body.ws-vim-panel-open .ws-status-bar {
 }
 
 /* Horizontal gets a fixed length and takes its thickness from the viewBox. */
-
-/* Goal reached: a slow, continuous green breath. Opacity only — a growing
-   drop-shadow reads as the ring swelling, and the bar clips its overflow so
-   anything that grows gets sliced by the row padding anyway. */
-@keyframes ws-goal-met-breathe {
-	0%, 100% { opacity: 1;    }
-	50%      { opacity: 0.42; }
-}
 
 /* The refresh glyph replaces the percentage once the target is met: the
    number would read 100 and stay there, where the glyph says what a click
@@ -4409,16 +4392,8 @@ button.ws-card-use:hover {
 }
 .ws-set-reset-link svg { width: 12px; height: 12px; }
 
-/* --- The footer: the version, muted, under the pages -------------------- */
-.setting-item.ws-set-footer { border-top: none; padding: 14px 0 0; justify-content: flex-end; }
-.setting-item.ws-set-footer::before { content: none; }
-.setting-item.ws-set-footer .setting-item-name:empty { display: none; }
-.setting-item.ws-set-footer .setting-item-description {
-	padding-top: 0;
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-	text-align: right;
-}
+/* --- The footer: no version line since A784 ("remove that tag there"; About says it), the row out of sight -- */
+.setting-item.ws-set-footer { display: none; }
 
 /* The plugin's own glyphs in a pill: the mode glyph (buildModeGlyph) and
    the menu's icon (menuDrawIcon), sized to the pill's Lucide icons. */
@@ -4431,7 +4406,8 @@ button.ws-card-use:hover {
    command with the hotkey it has now, muted; a blank one says so. The
    same shape as the alert, in the theme's own tint. */
 .setting-item.ws-set-keys,
-.setting-item.ws-set-note {
+.setting-item.ws-set-note,
+.ws-welcome-card {
 	align-items: flex-start;
 	gap: 10px;
 	margin: 4px 0 2px;
@@ -6375,7 +6351,8 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 .ws-cal-day.is-today {
 	box-shadow: inset 0 0 0 1.5px var(--interactive-accent);
 	font-weight: 700;
-	color: var(--text-normal);
+	/* the date in the accent too (A716), as the chart's axis says today */
+	color: var(--text-accent);
 }
 
 .ws-cal-day:hover { outline: 1px solid var(--text-muted); outline-offset: -1px; }
@@ -6427,7 +6404,10 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
    THE RADIUS IS THE THEME'S. Six literals became one token, so a writer
    who has rounded their Obsidian gets a rounded Word-Smith — which no hex
    written here could ever have followed. */
-:root {
+/* ON body, NOT :root (A718, measured under Obsidian's own app.css): Obsidian declares --radius-s and
+   --font-ui-smaller on body, so at :root both read nothing and every control took the fallback, 4px and
+   12px, whatever the theme or the phone said. The radius above was never the theme's until here. */
+body {
 	--ws-ctl-h: 28px;
 	--ws-chip-h: 24px;
 	--ws-ctl-rad: var(--radius-s, 4px);
@@ -6453,9 +6433,10 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
    thing smaller, and its 13px type was holding it at 30. */
 .ws-uni-modal .ws-export-go,
 .ws-export-top .ws-export-go {
-	min-height: var(--ws-ctl-h);
-	height: var(--ws-ctl-h);
-	border-radius: var(--ws-ctl-rad);
+	/* the Export tab's family (A717): a phone's 44px, not the desktop's 28 */
+	min-height: var(--ws-xc-h);
+	height: var(--ws-xc-h);
+	border-radius: var(--ws-xc-rad);
 	font-size: var(--ws-ctl-fs);
 	font-weight: var(--ws-ctl-fw);
 	padding: 0 12px;
@@ -6710,6 +6691,10 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
    rather than sitting greyed — a control that cannot act and stays on
    screen reads as broken rather than as absent. */
 .ws-export-flip.is-gone { display: none; }
+/* the pages' own rows (A751), shown only while they can mean something */
+.ws-export-opt.is-gone, .ws-export-opt.is-off { display: none; }
+/* the frame the contents' page numbers are measured in before a file is written: laid out, out of sight */
+.ws-export-measure { position: fixed; left: -20000px; top: 0; width: 1200px; height: 1600px; border: 0; visibility: hidden; pointer-events: none; }
 
 /* ── WHERE YOU ARE IN THE READER (A223, trimmed at A225) ─────────────────
 
@@ -6808,6 +6793,22 @@ body.ws-cb-markdown .markdown-reading-view .task-list-item {
 	/* CLIPPED, NOT OVERFLOWING (A431): 12px past a 280px pane's edge, and a
 	   bar for it. */
 	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+/* …AND THE FIGURES GIVE WAY BEFORE EXPORT DOES (A715, the writer: "the wrapped export button that goes on
+   the second line"). A wrapping row breaks by each item's FULL width before anything shrinks, so a real
+   book's figures ("3 folders · 48 notes · 112,345 words") sent Export, the last item, down a line at the
+   writer's own size, measured 31-36px lower at four of ten. From nothing, the figures grow to their own width
+   and no further: the line is decided without them, and the clip is what a short line costs them. EXPORT IS
+   THEIR SIBLING since A715 (it moved into the format's group, after its menu), so it is on the line they give.
+   Every figures line in the row: the empty and the long manuscript's are drawn without `is-inact`.
+   NOT ON A PHONE: there the figures have a line of their own and are read whole. */
+body:not(.is-phone) .ws-export-top .ws-export-prevhead {
+	flex: 1 1 0;
+	max-width: max-content;
+	min-width: 0;
+	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
@@ -8374,8 +8375,39 @@ body.is-mobile .ws-export-hit { padding: 8px; }
    was wrong was never the value — it was that ONE rule, at (0,2,1),
    overrode it with `--ws-h-body` and made the five lower dropdowns a pixel
    larger than the one at the top. */
-:root { --ws-export-selfs: var(--font-ui-smaller); }
+/* on body (A718): at :root `--font-ui-smaller` does not exist, the token was invalid, and the menu inherited
+   whatever was around it (14.1px on a phone, 12.22px on a desktop) */
+body { --ws-export-selfs: var(--font-ui-smaller); }
 .ws-uni-modal .ws-export-fmtsel { font-size: var(--ws-export-selfs); }
+
+/* ── ONE FAMILY: THE EXPORT TAB'S CONTROLS (A717, A718) ───────────────────────
+
+   The writer, a shot from a phone: "The export button on phone is too small", then "make the buttons in
+   export more in line with each other. Too many font size, different sizes and so on." Measured under
+   Obsidian's own app.css (ws-dev/export_controls_probe.js): on a phone a 28px Export among 44px controls,
+   three type sizes (12, 12.8 and 14.1px), square buttons beside pill menus; on a desktop 28px buttons
+   beside 30px menus and boxes, two type sizes.
+
+   ONE HEIGHT, ONE TYPE SIZE, ONE CORNER for every control of the tab (Tick all, the format menu, Export,
+   the folder box, the options' menus, boxes and list buttons): the window's own on a desktop, Obsidian's
+   control height and corner on a phone or a tablet, the hit size in a narrow window. The preview's tools
+   are the reader's chrome and keep theirs. */
+body { --ws-xc-h: var(--ws-ctl-h); --ws-xc-rad: var(--ws-ctl-rad); }
+body.is-mobile { --ws-xc-h: max(var(--input-height), var(--ws-ctl-h)); --ws-xc-rad: var(--input-radius); }
+.ws-uni-modal.is-narrow { --ws-xc-h: max(var(--ws-hit-min), var(--ws-ctl-h)); }
+.ws-uni-modal .ws-export-tickall,
+.ws-uni-modal .ws-export-picklist,
+.ws-uni-modal .ws-export-fmtsel,
+.ws-uni-modal .ws-export-sel,
+.ws-uni-modal .ws-export-text {
+	min-height: var(--ws-xc-h);
+	height: var(--ws-xc-h);
+	border-radius: var(--ws-xc-rad);
+	font-size: var(--ws-ctl-fs);
+}
+/* a menu is a choice like a button: the buttons' weight, not a box's (400 on a desktop beside a 500 Export) */
+.ws-uni-modal .ws-export-fmtsel,
+.ws-uni-modal .ws-export-sel { font-weight: var(--ws-ctl-fw); }
 
 /* ── The progress line ──────────────────────────────────────────────────── */
 
@@ -8590,6 +8622,8 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 /* THE PAGE'S WIDTH SINCE A634 (the writer: "the citations preview needs to be up top full width and the
    custom citations text box where people add their tokens same full width below it"): the preview and the
    two boxes are blocks under their names; the tokens are Powerline's reference table (.ws-token-help). */
+/* Customize (A739): by the style's dropdown, but not under Your own or Chicago's notes */
+.ws-cite-customize.is-off { display: none; }
 .ws-cite-fmt .setting-item-control input[type="text"] { width: 100%; font-family: var(--font-monospace); font-size: 0.9em; }
 .ws-cite-preview {
 	text-align: left;
@@ -8941,9 +8975,13 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 	--ws-h-label: 11px;
 	--ws-h-small: 13px;
 	--ws-add-0: #1d5233;  --ws-add-1: #276c41;  --ws-add-2: #35894f;
-	--ws-add-3: #49a862;  --ws-add-4: #6bc77c;  --ws-add-5: #99e29c;
+	--ws-add-3: #49a862;  --ws-add-4: #6bc77c;
 	--ws-del-0: #5e1a22;  --ws-del-1: #7e242a;  --ws-del-2: #a33033;
-	--ws-del-3: #c4423e;  --ws-del-4: #dd6055;  --ws-del-5: #f08d7d;
+	--ws-del-3: #c4423e;  --ws-del-4: #dd6055;
+	/* THE BARS' GREEN AND RED ARE THE THEME'S (A782, the writer: "use the same green and red as in the word frequency, to
+	   be more in line with the colors"): Word frequency's bands wear --color-green and --color-red, and so does every
+	   bar (step 5 since pair 290), the legend with them (it reads the same token) */
+	--ws-add-5: var(--color-green, #44cf6e);  --ws-del-5: var(--color-red, #fb464c);
 
 	/* ── AND A CLIPPED BAR IS THE SAME COLOUR, PUSHED (A216) ──────────
 
@@ -8973,13 +9011,18 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 	   those pixelated shit." This is their own later ask, in their own
 	   terms, and it is not the tint they refused: that one drained the
 	   colour, this one deepens it. */
-	--ws-add-over: #6de37d;  --ws-del-over: #f36d68;
+	/* …AND A CLIPPED BAR THE SAME, NOT PUSHED (A782, the writer: "make the colors red and green for the history bars the
+	   same (so no more what has gone over the line is saturated)"): the caption and the figure over it say it was cut */
+	--ws-add-over: var(--ws-add-5);  --ws-del-over: var(--ws-del-5);
 	--ws-net-0: #1b3a63;  --ws-net-1: #245084;  --ws-net-2: #2f6ba8;
 	--ws-net-3: #3e8bcb;  --ws-net-4: #5fabe4;  --ws-net-5: #8fcbf4;
 	--ws-add-now-0: #6c8f7a;  --ws-add-now-1: #73a083;  --ws-add-now-2: #7cb28d;
-	--ws-add-now-3: #89c699;  --ws-add-now-4: #9fdbaa;  --ws-add-now-5: #bdecbf;
+	--ws-add-now-3: #89c699;  --ws-add-now-4: #9fdbaa;
+	/* today's bar, the day not over: the same green and red, a third of the way to the page (A782) */
+	--ws-add-now-5: color-mix(in srgb, var(--ws-add-5) 67%, var(--background-primary));
 	--ws-del-now-0: #966a6f;  --ws-del-now-1: #ab7175;  --ws-del-now-2: #c3787a;
-	--ws-del-now-3: #d98481;  --ws-del-now-4: #e99891;  --ws-del-now-5: #f5b5aa;
+	--ws-del-now-3: #d98481;  --ws-del-now-4: #e99891;
+	--ws-del-now-5: color-mix(in srgb, var(--ws-del-5) 67%, var(--background-primary));
 	--ws-net-now-0: #6b7f9a;  --ws-net-now-1: #718daf;  --ws-net-now-2: #789fc6;
 	--ws-net-now-3: #82b4dd;  --ws-net-now-4: #97c8ed;  --ws-net-now-5: #b6ddf8;
 	/* THE LEGEND READS THE COLOUR THE BARS ARE PAINTED (writer,
@@ -9760,7 +9803,9 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	margin-inline-end: 2px;
 }
 .ws-uni-crumbmark svg.ws-obsidian-mark { width: 14px; height: 14px; vertical-align: -0.125em; }
-.ws-org-agg { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; }
+/* (A800: the line wraps between its figures in a narrow pane, each figure whole; it was one nowrap line past the edge) */
+.ws-org-agg { font-size: var(--font-ui-smaller); color: var(--text-muted); max-width: 100%; }
+.ws-org-agg-part { white-space: nowrap; }
 /* THE WORD BESIDE UNDO AND REDO (A394/A395): what the journal just did, or
    how many rows are selected; muted, one line, never a control. */
 .ws-org-barsay {
@@ -10056,7 +10101,10 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 .ws-org-table thead th {
 	position: sticky;
 	top: 0;
-	z-index: 2;
+	/* ONE ABOVE THE PINNED ROOT ROW (A765, the writer, a shot: "the vertical hover line is not displaying there on any
+	   column"): the column's hover line hangs from its heading, and the root row (`.is-root`, sticky at 2) came later
+	   in the page at the same level, so it painted over the line; the Name and # headings one above these */
+	z-index: 3;
 	background-color: var(--background-secondary);
 	padding-block: 3px;
 	/* THE ROWS' OWN HEIGHT (A385, writer 2026-09-13: "make the header row
@@ -10136,7 +10184,7 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 
 	   IT IS THE HOST’S `::after` NOW, one line for the whole pane. */
 }
-.ws-org-table thead th.ws-org-name { z-index: 3; background-color: var(--background-secondary); }
+.ws-org-table thead th.ws-org-name { z-index: 4; background-color: var(--background-secondary); }
 /* ── THE TABLE’S OWN EDGES (A323, writer 2026-09-12) ─────────────────────
 
    “add a vertical separator to the name on the left side (so that it looks
@@ -11003,6 +11051,8 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	height: var(--icon-s, 16px);
 }
 .ws-org-proppop .ws-org-propauto:hover .ws-org-propautoicon { color: var(--text-accent); }
+/* UNTICK ALL ABOVE RESIZE (A752), one group: the rule over the pair, none between */
+.ws-org-proppop .ws-org-propuntick + .ws-org-propauto { border-top: 0; }
 body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	min-height: var(--ws-hit-min);
 }
@@ -11019,7 +11069,7 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	   band and the band ran past the last separator, over a spacer whose rows
 	   beneath show their own surface. The spacer’s heading keeps the spacer’s
 	   surface (the shared rule above), so the band stops where the columns do. */
-	z-index: 3;
+	z-index: 4;
 }
 /* The spacer cell that keeps every body row level with the header. It
    holds nothing and must never look like it could. */
@@ -11792,6 +11842,17 @@ td.is-prop { cursor: pointer; }
 	text-align: right;
 	padding: 1px 4px;
 }
+/* THE DEADLINE'S EDITOR (A705, the writer: "deadline row dont display well"): the cell's whole box, as an outline
+   editor is (`is-editing`), and never narrower than the date and its picker need, `max-content`, the field's own
+   width in the system's date format. A column narrower than that lets it lie over the next cell, above it, until it
+   closes: the cell's 20ch cap clips, so this cell does not while it edits. It wore the target's 8ch and showed a
+   calendar glyph and two letters. */
+.ws-org-table td.is-editing.is-dateedit { overflow: visible; position: relative; z-index: 3; }
+.ws-org-table td.is-editing .ws-org-editor.ws-org-dateedit {
+	min-width: max-content;
+	background: linear-gradient(var(--background-modifier-form-field), var(--background-modifier-form-field)), var(--background-primary);
+}
+/* (A759's deadline × and its box: removed on the writer's word, A772) */
 /* ── THE OUTLINE VIEW (Phase 4) — one field under each row ────────────────
    The field row spans every column and must escape the 20ch value cap; the
    CARD inside it is sticky-left so the editor stays under the writer's eye
@@ -12088,7 +12149,7 @@ td.is-prop { cursor: pointer; }
 	padding-block: 4px;
 	/* THE FOLDER ROWS' GROUND (A387, writer 2026-09-13: "with the color of a
 	   folder row"), kept by the root row that replaced the Total row (A549). */
-	background-color: var(--background-secondary);
+	background-color: var(--ws-org-folder-bg);
 	border-top: 1px solid var(--background-modifier-border);
 	/* THE FOLDER ROWS' RULE UNDER IT TOO (A370, writer 2026-09-13: "add a
 	   bottom line to the root row too (the showcase-vault) so it matches
@@ -12155,7 +12216,8 @@ td.is-prop { cursor: pointer; }
    a contour round it would draw a box round nothing, at the exact edge
    three overshoot reports have already been about. */
 .ws-org-table tbody tr.ws-org-row td:hover:not(.ws-org-pickcell) {
-	outline: 1px solid var(--interactive-accent);
+	/* (QUIET, A700: see the rule after this one) */
+	outline: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border));
 	/* ── AND IT CLEARS THE SEAM (writer, 2026-09-01, twice) ──────
 
 	   "the cells in flag the left accented margin is not displayed
@@ -12187,6 +12249,17 @@ td.is-prop { cursor: pointer; }
 	   starts at 679.8. Applied on all four sides, so the box stays square
 	   rather than being 1px thinner down one edge only. */
 	outline-offset: -2px;
+}
+/* ── ONLY A CELL THAT TAKES A VALUE WEARS THE ACCENT (A700) ─────────────
+
+   The writer: "the cells that i cannot edit tone done the square highlited on cover". A count, a time, a
+   reading is pointed at, not written in: its box is the theme's own hover border, quiet. A flag, a property,
+   a target and a deadline take a value, and the name opens the note: those keep the accent. */
+.ws-org-table tbody tr.ws-org-row td.is-flag:hover,
+.ws-org-table tbody tr.ws-org-row td.is-prop:hover,
+.ws-org-table tbody tr.ws-org-row td.is-goal:hover,
+.ws-org-table tbody tr.ws-org-row td.ws-org-name:hover {
+	outline-color: var(--interactive-accent);
 }
 /* ── AND A CELL BEING WRITTEN IN IS WRITABLE EDGE TO EDGE ─────────────
 
@@ -12644,6 +12717,8 @@ textarea.ws-org-editor.is-grow {
    cells (a border would change the row's height mid-drag), top edge for
    "before this row", bottom for "after" — same grammar as the tree's. */
 .ws-org-row.is-draggable { cursor: grab; }
+/* THE GHOST IS OBSIDIAN'S (A704): its drag-ghost, built off screen for the browser to take its picture, then gone */
+.drag-ghost.ws-drag-ghost-shot { left: -2000px; top: -2000px; }
 .ws-org-row.is-dragging td { opacity: 0.45; }
 /* ── AND THESE CURVED THE DAY THE CARD GOT A RADIUS ───────────────────
 
@@ -12710,6 +12785,15 @@ textarea.ws-org-editor.is-grow {
 .ws-org-row.is-over-top > td::after { top: 0; }
 .ws-org-row.ws-drop-below > td::after,
 .ws-org-row.is-over-bottom > td::after { bottom: 0; }
+/* ── AND NOT OVER THE SPACER (A704) ─────────────────────────────────────
+
+   The writer: "when i drag things in the organizer this purple lines gets out ot the table". MEASURED in the
+   showcase: the last column ends at 934.2 and the line ran on to 940.2, over the pick cell, which is painted
+   the pane's own colour so it reads as the margin. The line ends where the columns do. */
+.ws-org-row.ws-drop-above > td.ws-org-pickcell::after,
+.ws-org-row.ws-drop-below > td.ws-org-pickcell::after,
+.ws-org-row.is-over-top > td.ws-org-pickcell::after,
+.ws-org-row.is-over-bottom > td.ws-org-pickcell::after { content: none; }
 /* DROPPING A FILE INTO THIS FOLDER (writer, 2026-08-22). A row drop is
    a LINE between two rows — where it will sit; a group drop is a
    CONTAINER taking it in, so the whole header lights instead. Two
@@ -12723,7 +12807,7 @@ textarea.ws-org-editor.is-grow {
    cell the resting colour would have masked the drop highlight and the
    drag target would have lit everywhere except its frozen first column.
    The `.ws-org-table` prefix makes it win outright. */
-.ws-org-table .ws-org-row.is-folder.ws-drop-into td {
+.ws-org-table .ws-org-row.is-folder.ws-drop-into td:not(.ws-org-pickcell) {
 	background-color: var(--background-modifier-hover);
 	box-shadow: inset 0 2px 0 0 var(--interactive-accent),
 		inset 0 -2px 0 0 var(--interactive-accent);
@@ -12760,9 +12844,38 @@ textarea.ws-org-editor.is-grow {
    (0,2,1), which beats the name cell's own `.ws-org-table .ws-org-name`
    at (0,2,0); descendant form so cascade_check can hold it, which it
    cannot do through a `>`. */
+/* THE PLUGIN'S OWN FOLDER OUT OF SIGHT in Obsidian's file explorer (A733): its row and its children, on the switch */
+.workspace-leaf-content[data-type="file-explorer"] .nav-folder.ws-own-hidden { display: none; }
+/* A FOLDER'S GROUND, MUTED (A732, the writer, a shot with the header row and two folder rows circled: "make the folder
+   rows a bit muted so it does[n't] have the same color as the header row to improve visibility"). It was the header's
+   own `--background-secondary`, so the column names and a folder read as one band. Halfway between the page and the
+   header now, the theme's two colors mixed: the header stands out, a folder still stands off its notes. On body,
+   where Obsidian's own colors are (A718). Opaque, so the frozen name cell still covers what scrolls under it. */
+body { --ws-org-folder-bg: color-mix(in srgb, var(--background-secondary) 50%, var(--background-primary)); }
 .ws-org-table .ws-org-row.is-folder td {
-	background-color: var(--background-secondary);
+	background-color: var(--ws-org-folder-bg);
 }
+/* ── A FOLDER'S CELLS ANSWER THE POINTER AS A NOTE'S DO (A719) ─────────────────────
+
+   The writer, a shot of the root row's Target with its tooltip: "make the hover highlight and mouse work on
+   folders cells too". MEASURED with a real pointer (ws-dev/org_hover_probe.js, under Obsidian's app.css): the
+   ROOT row (the Total row at the vault) is `tr.ws-org-subrow`, which no hover rule names, and its own rule's
+   `cursor: default` outranked the Target's pointer: no box, no ring, an arrow over a cell that takes a click.
+   A FOLDER row's fill (just above, the same weight, later) beat the hover's on its Target and Deadline. Here
+   the note row's answers, A704's and A700's, said once more for the two: the quiet box under the pointer
+   (offset -2px past the name seam, as there), the accent on a cell that takes a value, its row's faint ring,
+   the pointer, the hover's fill. */
+.ws-org-table tr.ws-org-subrow td:hover:not(.ws-org-pickcell) { outline: 1px solid var(--background-modifier-border-hover, var(--background-modifier-border)); outline-offset: -2px; }
+.ws-org-table tr.ws-org-subrow td.is-goal:hover { outline-color: var(--interactive-accent); }
+.ws-org-table tr.ws-org-subrow:hover td.is-goal {
+	box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+	border-radius: 0;
+}
+.ws-org-table .ws-org-subrow td.is-goal { cursor: pointer; }
+.ws-org-table .ws-org-row.is-folder td.is-flag:hover,
+.ws-org-table .ws-org-row.is-folder td.is-prop:hover,
+.ws-org-table .ws-org-row.is-folder td.is-goal:hover,
+.ws-org-table .ws-org-subrow td.is-goal:hover { background-color: var(--background-modifier-hover); }
 /* (The binder's trailing words cell — `.ws-org-words` — stood here.
    Removed with the cell, writer's pass 2026-08-21: the binder tree is
    names, folds and nothing else; the counts live in the Table.) */
@@ -13805,6 +13918,13 @@ body { --ws-hit-min: 44px; }
 .is-phone .modal .ws-flagrow .setting-item-control { flex-wrap: wrap; }
 .is-phone .modal .ws-flagrow .setting-item-control input[type="color"] { order: 2; }
 .is-phone .modal .ws-flagrow .setting-item-control::after { content: ""; order: 1; flex-basis: 100%; }
+/* THE WORKING DAYS (A700, A705): seven buttons of two letters, on one line. On a phone Obsidian stretches every
+   button in a settings control to the full width (`.is-phone .modal .setting-item-control button:not(.clickable-icon)`,
+   0,4,1), which stacked the seven on seven lines in every language (settings_phone_probe, 264px each at 360); there
+   they share the line equally instead, about 43px each. */
+.ws-workdays { display: flex; flex-wrap: nowrap; gap: 4px; }
+.is-phone .modal .setting-item-control .ws-workdays { width: 100%; }
+.is-phone .modal .setting-item-control .ws-workdays > button:not(.clickable-icon) { flex: 1 1 0; width: auto; min-width: 0; padding-inline: 0; }
 /* The glyph leads the controls, the row's preview. */
 .ws-flagrow-icon {
 	display: inline-flex;
@@ -14119,8 +14239,9 @@ body { --ws-hit-min: 44px; }
    `file-output` (WS_PANE_ICONS). */
 .ws-export-ico-in.is-mirrored svg,
 .workspace-tab-header[data-type="word-smith-export"] .workspace-tab-header-inner-icon svg { transform: scaleX(-1); }
-/* …and the Export page's entry in the settings (A591, the writer circled it) */
-.ws-page-icon.is-mirrored svg { transform: scaleX(-1); }
+/* …and the Export page's entry in the settings (A591, the writer circled it), and the welcome's Export pill (A743) */
+.ws-page-icon.is-mirrored svg,
+.ws-welcome-pill .ws-pill-icon.is-mirrored svg { transform: scaleX(-1); }
 
 
 /* The kind icon on a non-markdown row: small, muted, before the name —
@@ -15111,19 +15232,6 @@ body.ws-masks-active .cm-editor .cm-panels.cm-panels-bottom input {
 .ws-status-bar .ws-barbtn-flag.is-revise { color: var(--ws-flag-revise); }
 .ws-status-bar .ws-barbtn-flag.is-done { color: var(--ws-flag-done); }
 
-/* Two firework kinds the section above never had. */
-.ws-firework-vec.is-crackle { animation: ws-spark-fly 0.9s cubic-bezier(0.20,0.75,0.35,1) forwards; }
-.ws-firework-twinkle {
-	position: absolute;
-	border-radius: 0;
-	opacity: 0;
-	animation: ws-twinkle 1.4s ease-in-out forwards;
-}
-@keyframes ws-twinkle { 0% { opacity: 0; } 35% { opacity: 1; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-	.ws-firework-twinkle { animation: none; }
-}
-
 /* ── Paragraph indent ───────────────────────────────────────────────────
    ws-para-indent switches it on (applyBodyClasses); ws-para-single says
    every line, otherwise the first line after a blank; --ws-para-indent is
@@ -15387,3 +15495,99 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-lin
    for. */
 body.ws-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
 body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-hard, .ws-ck-veryhard, .ws-ck-short, .ws-ck-mid) { color: var(--text-normal); }
+
+/* ── THE WELCOME (A743, the writer's mockup, ws-dev/mockups/welcome-mockup.html) ─────────────────────────────────
+   Obsidian's modal: the settings' pills in a rail, one tab at a time, the hint, Close and Next at the foot. The pills
+   and the info card are the settings' own (button.ws-pill, .ws-set-note's rule); sizes are Obsidian's variables.
+   IN THE INTERFACE'S SIZES (A785, the writer, a shot: "normalize this text popup!"): it took the editor's large text;
+   now Settings' own (the body small, the lead and headline a step up), and the mockup's width, so the six pills sit in
+   one row */
+.modal.ws-welcome { --dialog-width: 720px; }
+.ws-welcome .modal-content { font-size: var(--font-ui-small); line-height: var(--line-height-normal); }
+.ws-welcome-rail {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	padding-bottom: var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.ws-welcome-pane { display: none; }
+.ws-welcome-pane.is-shown { display: block; }
+.ws-welcome-pane p { margin: 0 0 var(--size-4-2); color: var(--text-muted); }
+.ws-welcome-pane p.ws-welcome-lead { color: var(--text-normal); font-size: var(--font-ui-medium); }
+.ws-welcome-big { font-size: var(--font-ui-medium); font-weight: var(--font-bold); margin-bottom: var(--size-4-2); }
+.ws-welcome-sub { font-weight: var(--font-semibold); }
+.ws-welcome-pane p.ws-welcome-sub { color: var(--text-normal); margin-bottom: 0; }
+.ws-welcome-pane p.ws-welcome-subnote, .ws-welcome-pane p.ws-welcome-where { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.ws-welcome-card { display: flex; color: var(--text-muted); font-size: var(--font-ui-small); }
+.ws-welcome-card-icon { display: inline-flex; flex: none; color: var(--interactive-accent); --icon-size: var(--icon-s); }
+.ws-welcome-pane .ws-welcome-card { margin: var(--size-4-2) 0; }
+/* THE LANGUAGES ON HELLO (A799, A801): the card's line, each language's own name in a row that wraps (plain text since
+   A801, no link), then how to get a pack */
+.ws-welcome-langbody { min-width: 0; }
+.ws-welcome-langs { display: flex; flex-wrap: wrap; gap: var(--size-2-1) var(--size-4-3); margin-top: var(--size-4-1); }
+.ws-welcome-langs .ws-welcome-lang { color: var(--text-normal); white-space: nowrap; }
+.ws-welcome-langhow { margin-top: var(--size-4-1); }
+.ws-welcome-links { display: flex; flex-wrap: wrap; gap: var(--size-4-2); margin-top: var(--size-4-4); }
+.ws-welcome-links a {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	height: var(--input-height);
+	padding: 0 var(--size-4-3);
+	border-radius: var(--input-height);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+	text-decoration: none;
+	white-space: nowrap;
+	font-size: var(--font-ui-small);
+	--icon-size: var(--icon-s);
+}
+.ws-welcome-links a:hover { background-color: var(--background-modifier-hover); }
+.ws-welcome-link-icon { display: inline-flex; }
+/* "Watch the intro" in YouTube's own red, white on it (the writer's mockup) */
+.ws-welcome-links a.ws-welcome-yt { background-color: #e62117; border-color: #e62117; color: #fff; font-weight: var(--font-semibold); }
+.ws-welcome-links a.ws-welcome-yt:hover { filter: brightness(1.08); background-color: #e62117; }
+.ws-welcome-files { list-style: none; margin: var(--size-4-1) 0 var(--size-4-3); padding: 0; }
+.ws-welcome-files li { display: grid; grid-template-columns: auto 1fr; gap: 0 var(--size-4-2); padding: var(--size-4-2) 0; border-top: 1px solid var(--background-modifier-border); }
+.ws-welcome-files li:first-child { border-top: 0; }
+.ws-welcome-file-icon { display: inline-flex; color: var(--text-muted); --icon-size: var(--icon-s); }
+.ws-welcome-files code { font-weight: var(--font-semibold); color: var(--text-normal); }
+.ws-welcome-file-when { margin-left: var(--size-4-2); color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.ws-welcome-files li p { grid-column: 2; margin: 0; font-size: var(--font-ui-small); }
+.ws-welcome-feat { padding: var(--size-4-2) 0; border-top: 1px solid var(--background-modifier-border); }
+.ws-welcome-feat:first-child { border-top: 0; padding-top: 0; }
+.ws-welcome-feat-name { display: block; font-weight: var(--font-semibold); color: var(--text-normal); }
+.ws-welcome-feat-desc { display: block; color: var(--text-muted); font-size: var(--font-ui-small); }
+.ws-welcome-foot {
+	display: flex;
+	align-items: center;
+	gap: var(--size-4-2);
+	margin-top: var(--size-4-3);
+	padding-top: var(--size-4-3);
+	border-top: 1px solid var(--background-modifier-border);
+}
+.ws-welcome-hint { flex: 1; color: var(--text-faint); font-size: var(--font-ui-smaller); }
+/* on a phone the hint goes and the buttons keep their place under the tab */
+.is-phone .ws-welcome-hint { display: none; }
+.is-phone .ws-welcome-foot { justify-content: flex-end; }
+
+/* ── ABOUT'S NOTES (A743): what's new, built in; the version above, the notes in a box that scrolls ── */
+.setting-item.ws-about-notes-row { display: block; }
+.ws-about-ver { font-weight: var(--font-bold); margin-bottom: var(--size-4-2); }
+.ws-about-notes {
+	max-height: 18em;
+	overflow: auto;
+	padding: var(--size-4-2) var(--size-4-3);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	background-color: var(--background-secondary);
+	font-size: var(--font-ui-small);
+	user-select: text;
+}
+.ws-about-notes h4 { margin: var(--size-4-2) 0 var(--size-4-1); font-size: var(--font-ui-small); }
+.ws-about-notes h4:first-child { margin-top: 0; }
+.ws-about-notes ul { margin: 0; padding-left: var(--size-4-5); color: var(--text-muted); }
+/* Buy me a coffee in its own yellow (the writer's mockup) */
+button.ws-about-coffee, button.ws-about-coffee:hover { background-color: #ffdd00; color: #1a1a1a; font-weight: var(--font-semibold); }

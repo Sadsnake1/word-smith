@@ -8,8 +8,20 @@
 import { MarkdownView, TFile, Notice, setIcon, Platform } from 'obsidian';
 import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
-import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsCursorMarkSvg, wsHueRotate, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch } from '../core/preamble';
+import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsBarInto, wsCursorMarkSvg, wsHueRotate, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch, wsPagesOf, wsGoalPlan, wsGoalPct, wsIconPick, wsDayKey } from '../core/preamble';
+import type { WsGoalPlan } from '../core/preamble';
 import { wsT, wsUiJoin, wsUiLang } from '../core/ui-text';
+
+// {wpm} (A730): the last minute is "now"; ten seconds at least, so one burst is no record; a pause of five seconds is
+// out of today's average, and puts the needle to rest (A788); a needle full at a hundred words a minute; the number
+// eases with a time constant of 1.5 s, the needle with 0.5 s (at rest about two seconds after it starts to fall),
+// redrawn every 200 ms while they move; the Momentum gauge weighs each key by its age, the weight a third after 0.7 s
+const WS_WPM_WINDOW_MS = 60000, WS_WPM_MIN_SPAN_MS = 10000, WS_WPM_IDLE_MS = 5000, WS_WPM_TICK_MS = 200, WS_WPM_EASE_MS = 1500;
+const WS_WPM_FALL_MS = 500, WS_WPM_MOM_MS = 700;
+const WS_WPM_FULL_CPM = 500;
+// THE GAUGE: an arc open at the foot and a needle from its centre (12, 14), the needle turned by the sheet
+const WS_WPM_GAUGE_SVG = '<svg class="ws-wpm-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+	+ '<path d="M4.21 18.5A9 9 0 1 1 19.79 18.5"/><path class="ws-wpm-needle" d="M12 14V8.5"/></svg>';
 import type WordSmith from './plugin';
 
 export const barMethods = {
@@ -154,6 +166,7 @@ export const barMethods = {
 			this._barAnimT = window.setTimeout(
 				() => document.body.classList.remove('ws-bar-anim'), 350);
 		}
+		// (a celebration's peek holds until it ends, A700)
 		body.classList.toggle('ws-bar-peek', !!on);
 	},
 
@@ -1086,6 +1099,135 @@ export const barMethods = {
 		if (this.clockInterval) { window.clearInterval(this.clockInterval); this.clockInterval = null; }
 	},
 
+	// ── {wpm}: THE TYPING SPEED (A730) ─────────────────────────────────────────────
+	//
+	// Issue #65 (PorousSpoon: "a card to display typing speed, average speed, lowest speed, highest speed, idle time");
+	// the writer: "user want wpm token. add that too, with some options", then "add a tiny gauge … that moves with the
+	// speed. add a bit of inertia to it so it does not drop flat". TYPED characters only (`input.type`: never a paste, a
+	// drop or a smart quote), a word five of them as typing speeds are counted. NOW is the last minute's characters over
+	// the time they span (the BEST this session went on the writer's word, A738, and the AVERAGE WHILE TYPING and the
+	// characters a minute on A788's: "wpm should only do wordperminute no charsper minute, remove the average while
+	// typing"). What is SHOWN eases toward the reading, and the token is redrawn in place on a short timer while it
+	// moves, never the whole bar. TODAY'S AVERAGE (A742) is the time spent typing today, a pause left out, kept in the
+	// settings (`wpmDay`) so a reload keeps it and saved once the typing rests; A CLICK on the token starts it all again
+	// from zero (A741).
+	wpmMeter(this: WordSmith) {
+		return this._wpm || (this._wpm = { hits: [], last: 0, shown: 0, needle: 0, at: 0 });
+	},
+	wpmTyped(this: WordSmith, n: number, at: number) {
+		const m = this.wpmMeter();
+		// (today's time and characters, a pause left out, A742)
+		const d = this.wpmDayToday(at);
+		d.activeMs += m.last && at - m.last < WS_WPM_IDLE_MS ? at - m.last : 0;
+		m.last = at; d.chars += n;
+		this._wpmDayDirty = true;
+		m.hits.push([at, n]);
+		while (m.hits.length && at - m.hits[0][0] > WS_WPM_WINDOW_MS) m.hits.shift();
+		this.wpmTickStart();
+	},
+	// the reading the token's shape asks for, in characters a minute
+	wpmReading(this: WordSmith, at: number): number {
+		const m = this.wpmMeter();
+		while (m.hits.length && at - m.hits[0][0] > WS_WPM_WINDOW_MS) m.hits.shift();
+		let now = 0;
+		if (m.hits.length) {
+			let chars = 0;
+			for (const h of m.hits) chars += h[1];
+			now = chars / (Math.max(WS_WPM_MIN_SPAN_MS, at - m.hits[0][0]) / 60000);
+		}
+		if (this.settings.wpmTokenFormat === 'today') { const d = this.wpmDayToday(at); return d.activeMs >= WS_WPM_MIN_SPAN_MS ? d.chars / (d.activeMs / 60000) : 0; }
+		return now;
+	},
+	// THE MOMENTUM GAUGE (A788, the writer: "add the Momentum gauge"): the last second or so, each key's weight fading
+	// as it ages, so the needle swings with a burst and is back at rest about three seconds after the last key
+	wpmMomentum(this: WordSmith, at: number): number {
+		let sum = 0;
+		for (const h of this.wpmMeter().hits) if (at >= h[0]) sum += h[1] * Math.exp(-(at - h[0]) / WS_WPM_MOM_MS);
+		return sum * 60000 / WS_WPM_MOM_MS;
+	},
+	// TODAY'S TYPING (A742, the writer: "add a average today option"): characters and the time spent typing, a new
+	// record each day, in the settings so a reload keeps it
+	wpmDayToday(this: WordSmith, at?: number) {
+		const today = wsDayKey(new Date(at || Date.now()));
+		let d = this.settings.wpmDay;
+		if (!d || d.date !== today) { d = { date: today, chars: 0, activeMs: 0 }; this.settings.wpmDay = d; }
+		return d;
+	},
+	// A CLICK STARTS IT AGAIN FROM ZERO (A741, the writer: "When i click the wpm token i want the values to reset to 0"):
+	// the speed now and today's, the needle and the number at once
+	wpmReset(this: WordSmith) {
+		this._wpm = { hits: [], last: 0, shown: 0, needle: 0, at: 0 };
+		this.settings.wpmDay = { date: wsDayKey(new Date()), chars: 0, activeMs: 0 };
+		this._wpmDayDirty = false;
+		void this.saveSettings();
+		if (this.retroStatusBarEl) for (const t of Array.from(this.retroStatusBarEl.querySelectorAll<HTMLElement>('.ws-wpmtok'))) this.wpmPaint(t, 0);
+	},
+	// THE NUMBER ALONE (A747, the writer: "Remove the wpm near the wpm token that can be added by users on the
+	// powerline"): in words a minute (A788: no characters a minute); a writer who wants the word types it after the token
+	wpmSay(this: WordSmith, cpm: number) {
+		return { num: this.formatCount(Math.round(cpm / 5)) };
+	},
+	// THE TOKEN: the gauge and the number, as its shape asks; the Momentum gauge its dial alone (A793, the writer:
+	// "momentum gauge should be icon only")
+	buildWpmTokenEl(this: WordSmith) {
+		this._wpmWanted = true;
+		const f = this.settings.wpmTokenFormat, m = this.wpmMeter();
+		const alone = f === 'gaugeonly' || f === 'momentum';
+		const el = createSpan({ cls: 'ws-fit-item ws-wpmtok' + (alone ? ' is-gaugeonly' : '') });
+		if (f === 'gauge' || f === 'gaugeonly' || f === 'momentum') wsSvgInto(el.createSpan({ cls: 'ws-wpm-gauge' }), WS_WPM_GAUGE_SVG);
+		if (!alone) {
+			const say = this.wpmSay(m.shown);
+			el.createSpan({ cls: 'ws-wpmtok-num', text: say.num });
+		}
+		this.wpmPaint(el, m.shown, m.needle);
+		// A CLICK STARTS IT AGAIN FROM ZERO (A741), on the PRESS as {target}'s: a rebuild between press and release
+		// swallows a click
+		el.addClass('is-pressable');
+		el.setAttribute('title', wsT('Your typing speed. Click to start again from zero.'));
+		el.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); this.wpmReset(); });
+		this.wpmTickStart();
+		return el;
+	},
+	// the needle's turn (-120° at rest, +120° full) and the number, on a token already drawn; the needle its own
+	// reading since A788 (at rest after a pause, or the Momentum gauge's), the number's otherwise
+	wpmPaint(this: WordSmith, el: HTMLElement, cpm: number, needle = cpm) {
+		const deg = -120 + 240 * Math.max(0, Math.min(1, needle / WS_WPM_FULL_CPM));
+		el.setCssProps({ '--ws-wpm-deg': deg.toFixed(1) });
+		const num = el.querySelector('.ws-wpmtok-num');
+		if (num) num.textContent = this.wpmSay(cpm).num;
+	},
+	// THE SHORT TIMER, only while a token is on the bar and the needle has somewhere to go
+	wpmTickStart(this: WordSmith) {
+		if (this._wpmTimer || !this._wpmWanted || this._unloaded) return;
+		this._wpmTimer = window.setInterval(() => this.wpmTick(), WS_WPM_TICK_MS);
+	},
+	wpmTick(this: WordSmith, at?: number) {
+		const now = at || Date.now(), m = this.wpmMeter();
+		const toks = this.retroStatusBarEl ? Array.from(this.retroStatusBarEl.querySelectorAll<HTMLElement>('.ws-wpmtok')) : [];
+		if (!toks.length) { this._wpmWanted = false; this.wpmTickStop(); return; }
+		const target = this.wpmReading(now);
+		const dt = m.at ? now - m.at : WS_WPM_TICK_MS;
+		m.at = now;
+		m.shown += (target - m.shown) * (1 - Math.exp(-dt / WS_WPM_EASE_MS));
+		if (Math.abs(target - m.shown) < 0.5) m.shown = target;
+		// THE NEEDLE (A788, the writer: "after 5 seconds without a key, the needle glides to zero within a couple of
+		// seconds. The number stays the minute's speed"): the number's speed while typing, nothing once five seconds
+		// pass without a key; the Momentum gauge's, the last second or so
+		const dial = this.settings.wpmTokenFormat === 'momentum' ? this.wpmMomentum(now) : m.last && now - m.last >= WS_WPM_IDLE_MS ? 0 : m.shown;
+		m.needle += (dial - m.needle) * (1 - Math.exp(-dt / WS_WPM_FALL_MS));
+		if (Math.abs(dial - m.needle) < 0.5) m.needle = dial;
+		for (const t of toks) this.wpmPaint(t, m.shown, m.needle);
+		// AT REST: the last minute empty and the number and the needle at their readings (today's holds still once the
+		// typing stops)
+		if (m.shown === target && m.needle === dial && !m.hits.length) this.wpmTickStop();
+	},
+	wpmTickStop(this: WordSmith) {
+		if (this._wpmTimer) { window.clearInterval(this._wpmTimer); this._wpmTimer = null; }
+		if (this._wpm) this._wpm.at = 0;
+		// today's record saved once the typing rests, and at unload (A742), never on every key
+		if (this._wpmDayDirty) { this._wpmDayDirty = false; void this.saveSettings(); }
+	},
+
 	// ── THE BATTERY, ASKED AGAIN RATHER THAN WAITED ON ──────────────────────
 	//
 	// Issue #9: `{battery}` sat at 100% for ever on a Surface Pro 6 running
@@ -1556,6 +1698,8 @@ export const barMethods = {
 		const own = (v: string) => (v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon');
 		if (id === 'font') return own(s.fontTokenFormat || 'glyph');
 		if (id === 'markers') return own(s.markersTokenFormat || 'glyph');
+		// THE COG ALONE (A749, the writer: "just the cog icon"): no word, no choice
+		if (id === 'settings') return 'icon';
 		const m = s.barTokenIcons;
 		const v = m && typeof m === 'object' ? m[id] : '';
 		// THE TWO COUNTS DEFAULT TO THE ICON: the number with the pane's small
@@ -1643,6 +1787,14 @@ export const barMethods = {
 			(node: HTMLElement) => this.barTokenPaint(node, 'history', wsT('History')),
 			wsT('Your writing history \u2014 click to open it'),
 			() => this.openHistoryModal());
+	},
+
+	// {settings}: the cog, a press opening Word-Smith's own settings page (A749)
+	buildSettingsIndicator(this: WordSmith) {
+		return this.buildBarButton('ws-barbtn-settings',
+			(node: HTMLElement) => this.barTokenPaint(node, 'settings', wsT('Settings')),
+			wsT('Word-Smith settings \u2014 click to open them'),
+			() => this.openOwnSettings());
 	},
 
 	buildExportIndicator(this: WordSmith) {
@@ -2251,7 +2403,8 @@ export const barMethods = {
 			label: c.label,
 			// currentColor rather than a fixed value, so the ball fades with
 			// the row when the check is off exactly as the label does.
-			color: c.swatch === 'text' ? 'currentColor' : s[c.color],
+			// (a tint left to the theme, A782, its color the theme's: Sentence rhythm's yellow)
+			color: c.swatch === 'text' ? 'currentColor' : (s[c.color] || (c.color === 'checkRhythmHardColor' ? 'var(--color-yellow)' : 'currentColor')),
 			// the thick line a check underlines with, not a ball
 			shape: 'line' as const,
 			on:    () => !!(s.checksEnabled && s[c.key]),
@@ -2306,7 +2459,10 @@ export const barMethods = {
 			sub:   true,
 			on: () => !!(s.markersEnabled && s[d.key]),
 			onClick: async () => {
-				s[d.key] = !s[d.key];
+				// THE ROW AS IT LOOKS (A777, measured: NBSP off in the writer's vault): with the markers off every row reads
+				// off, so a press flipping the hidden flag turned an on marker OFF and nothing appeared; a row that looks off
+				// turns on, a row that looks on turns off
+				s[d.key] = !(s.markersEnabled && s[d.key]);
 				if (s[d.key]) {
 					// Turning a marker on from the bar has to turn the tab that
 					// owns it on too, or the click sets a flag and nothing
@@ -2665,15 +2821,235 @@ export const barMethods = {
 		}
 	},
 
-	// {target}: the note's target, said by the Organizer's own `orgTargetSay`
-	// in the token's own shape (a percentage, or words and target). The words
-	// are the whole note's, never a selection's; a note with no target says
-	// nothing, as its cell does.
-	barTargetText(this: WordSmith, view: MarkdownView | null, words: number) {
+
+	// ── {target}: THE GOAL, ITS DEADLINE, AND THE CELEBRATIONS (A700; ONE TOKEN since A707, {goal} gone) ──────────
+	//
+	// THE OPEN NOTE'S DEADLINE GOAL, NOW: its own, else the nearest folder's above it (goalResolve); its count in the
+	// unit, the open note live, a folder from the vault with the open note's unsaved words in; its plan. Null for none,
+	// and null while a folder has not been counted yet: nothing said rather than a wrong number.
+	barGoalNow(this: WordSmith, view: MarkdownView | null, live: number) {
 		const path = view && view.file ? view.file.path : '';
-		if (!path) return '';
-		const s: Partial<WordSmithSettings> = this.settings || {};
-		return this.orgTargetSay(words, this.fileGoalFor(path), s.targetTokenFormat === 'ratio' ? 'ratio' : 'percent');
+		const g = path ? this.goalFollow(path) : null;
+		if (!g) return null;
+		let done: number | null = live;
+		if (g.kind === 'folder') done = this.goalFolderCount(g.path, path, live);
+		if (done == null) return null;
+		return { goal: g, plan: g.due ? this.goalPlanOf(g, done) : wsGoalPlan(g.target, done, done, '', new Date(), ''), note: { path, live } };
+	},
+
+	// A FOLDER'S COUNT, from the vault (analyzeFolder, cached by mtime), read again at most every three seconds and
+	// the bar repainted when it moved; the open note's words as they stand, not as last saved.
+	goalFolderCount(this: WordSmith, folder: string, openPath: string, live: number): number | null {
+		if (!this._goalFolderCounts) this._goalFolderCounts = new Map();
+		const key = folder;
+		const hit = this._goalFolderCounts.get(key);
+		if ((!hit || Date.now() - hit.at > 3000) && !this._goalFolderBusy) {
+			this._goalFolderBusy = true;
+			void (async () => {
+				try {
+					const t = await this.analyzeFolder(folder === '' ? '/' : folder);
+					const n = this.goalCount(t);
+					const was = this._goalFolderCounts ? this._goalFolderCounts.get(key) : null;
+					if (this._goalFolderCounts) this._goalFolderCounts.set(key, { n, at: Date.now() });
+					if (!was || was.n !== n) this.updateRetroStatusBar();
+				} catch (_) { wsCatch('goalFolderCount: analyzeFolder', _); }
+				finally { this._goalFolderBusy = false; }
+			})();
+		}
+		if (!hit) return null;
+		let n = hit.n;
+		const within = folder === '' || openPath.startsWith(folder + '/');
+		const cached = within && this.wordCountCache ? this.wordCountCache.get('stats:' + openPath) : null;
+		if (cached && cached.stats) n += live - this.goalCount(cached.stats);
+		return Math.max(0, n);
+	},
+
+	// WHAT {target} SAYS, in two parts: the number, and the rest. FIVE SHAPES, NUMBERS ONLY (A754,
+	// the writer: "only those 5 options, display only numbers no to go, that part can be added by anyone"): Words
+	// (2,145/5,000), Words to go today (500), Percentage (43%, held at 99 until it is met), the bar alone, the icon alone.
+	// Each the same with a deadline or without: the whole goal's, except Words to go today, which is today's share of the
+	// nearest deadline (0 once it is met; every word still to go past the date, or with no deadline anywhere). NO CHECK
+	// ON THE BAR (A781, the writer: "remove the checkbox from the powerline, leave it only in the popup"): A700's check
+	// until midnight and A736's place for it are the panel's rows now. (TOMBSTONE, A754: A737's shapes that turned
+	// into today's numbers and the days left when a deadline was set; "Words to go", "Bar and words", "Bar and percentage")
+	barGoalSay(this: WordSmith, now: { goal: { path: string; target: number; due: string }; plan: WsGoalPlan }) {
+		const p = now.plan;
+		const f = this.settings.targetTokenFormat;
+		if (f === 'today') {
+			if (p.state === 'done') return { num: 0, rest: '' };
+			if (!now.goal.due || p.state === 'overdue') return { num: p.left, rest: '' };
+			return { num: Math.max(0, p.perDay - p.today), rest: '' };
+		}
+		// (the bar alone or the icon alone: their share in hundredths, A724)
+		if (f === 'bar' || f === 'icon') return { num: wsGoalPct(p), rest: '' };
+		if (f === 'ratio') return { num: p.done, rest: '/' + this.formatCount(p.target) };
+		const raw = p.target > 0 ? p.done / p.target * 100 : 0;
+		return { num: raw < 100 ? Math.min(99, Math.round(raw)) : Math.round(raw), rest: '%' };
+	},
+
+	// (TOMBSTONE, A707: `barTargetNow`, the note's own target alone; {target} says the goal now, `barGoalSay`)
+
+	// THE TOKEN AS AN ELEMENT: the number, the rest, the check, so a celebration can count the number and land the
+	// check; a text item still (`ws-fit-item`), so a narrow bar sheds it as it shed the text. It opens its panel on a
+	// press (MOUSEDOWN: a rebuild between press and release swallows a click) and may wear an 8-cell gauge.
+	buildGoalTokenEl(this: WordSmith) {
+		const now = this._goalNowState;
+		if (!now) return null;
+		const st = now.say, kind = 'goal';
+		const el = createSpan({ cls: 'ws-fit-item ws-goaltok ws-goaltok-' + kind });
+		// THE BAR IS ITS BAR AND NOTHING ELSE (A706; with a deadline too since A754): the check once reached
+		const fmt = this.settings.targetTokenFormat;
+		// THE ICON ALONE (A726, the writer: "add option for only target icon too for the token target"): Lucide's target,
+		// the check beside it once met, the panel on a press
+		if (fmt === 'icon') {
+			el.addClass('is-bare', 'is-icon');
+			setIcon(el.createSpan({ cls: 'ws-goaltok-icon' }), wsIconPick(['target', 'crosshair', 'circle-dot']));
+		} else if (fmt === 'bar') {
+			el.addClass('is-bare');
+			wsBarInto(el.createSpan({ cls: 'ws-goaltok-gauge' }), st.num / 100);
+		} else {
+			el.createSpan({ cls: 'ws-goaltok-num', text: this.formatCount(st.num) });
+			el.createSpan({ cls: 'ws-goaltok-rest', text: st.rest });
+		}
+		el.addClass('is-pressable');
+		el.setAttribute('title', now.goal.due ? wsT('Your deadline. Click for more.') : wsT('Your target. Click for more.'));
+		el.addEventListener('mousedown', (ev) => {
+			ev.preventDefault();
+			ev.stopPropagation();
+			if (this._goalPanel) this.closeGoalPanel();
+			else this.openGoalPanel(el);
+		});
+		return el;
+	},
+
+	// (TOMBSTONE, A786, the writer: "Remove the target celebration thing": A700's celebration of a goal met, the token's
+	// number counting up, one glint across the bar, a hidden bar peeking for it, and the latches that let it fire once
+	// (goalCelebNum, goalCelebCheck, goalCelebrate, goalCelebTick, goalGlintApply; goalMetSeen, goalDay.met))
+
+	// ── THE PANEL, from a press on {goal} ───────────────────────────────────
+	// The goal's name, its day and the working days left under it; today's share and the goal's own as rows of cells
+	// in one grid, so their cells and numbers line up (A705, the writer: "kinda cluttered"); a closing line only for what
+	// the rows cannot say (done, the last day, past the deadline). Placed as the
+	// bar's pickers are (centred on the token, above the bar), closed by a press outside, Escape, or a second press.
+	openGoalPanel(this: WordSmith, anchor: HTMLElement) {
+		this.closeGoalPanel();
+		const st = this._goalNowState;
+		if (!st) return;
+		const { goal, plan } = st;
+		const doc = anchor.ownerDocument, win = doc.defaultView || window;
+		const pop = doc.body.createDiv({ cls: 'ws-goal-panel' });
+		// TOMBSTONE (A774, the writer, a shot with both struck through: "remove that"): the goal's name and "Due {day}" over
+		// the rows; each dated row says its own days (A753), and the rows are the panel
+		const rows = pop.createDiv({ cls: 'ws-goal-panel-rows' });
+		// (a row met: its check in the cell after its numbers, and the check's column drawn, A774)
+		const checkIn = (r: HTMLElement) => { const c = r.querySelector<HTMLElement>('.ws-goal-panel-check'); if (c) c.setText('\u2713'); rows.addClass('has-check'); };
+		// EACH DEADLINE'S DAYS LEFT AFTER ITS NUMBERS (A744; A753, the writer: "add after 5000 x days left same for the folder
+		// too"): every dated row says its own, the note's and the folder's, one alone too; Overdue once it has passed.
+		// Working days when the week is not every day.
+		// A ROW IS AN ICON, A BAR, ITS NUMBERS, ITS CHECK, ITS DAYS (A778, the writer: "let's go with the icons but remove the
+		// today line"): the file's or the folder's own icon, the name on the hover, no word before the bar, and no Per day row
+		const row = (kind: 'note' | 'folder', name: string) => {
+			const r = rows.createDiv({ cls: 'ws-goal-panel-row is-' + kind });
+			const ic = r.createDiv({ cls: 'ws-goal-panel-label', attr: { 'aria-label': name } });
+			setIcon(ic, kind === 'note' ? 'file-text' : 'folder');
+			r.createDiv({ cls: 'ws-goal-panel-bar' });
+			r.createDiv({ cls: 'ws-goal-panel-said' });
+			// A ROW MET, ITS CHECK AFTER ITS NUMBERS (A755, the writer: "remove the done from the popup add checkboxes in the
+			// right of 5000 or 22.000 if it's done"), IN A COLUMN OF ITS OWN (A774, the writer: "right align that xx/xxx"):
+			// inside the numbers' cell it pushed a met row's numbers left of the others'
+			r.createDiv({ cls: 'ws-goal-panel-check' });
+			r.createDiv({ cls: 'ws-goal-panel-days' });
+			return r;
+		};
+		const work = String(this.settings.goalWorkDays == null ? '0123456' : this.settings.goalWorkDays);
+		const everyDay = !work || '0123456'.split('').every((c) => work.includes(c));
+		const daysSay = (p: WsGoalPlan) => (p.state === 'overdue' ? wsT('Overdue')
+			: everyDay ? (p.daysLeft === 1 ? wsT('1 day left') : wsT('{n} days left', { n: p.daysLeft }))
+			: (p.daysLeft === 1 ? wsT('1 working day left') : wsT('{n} working days left', { n: p.daysLeft })));
+		const fmt = (n: number) => this.formatCount(n);
+		const notePath = st.note ? st.note.path : '', live = st.note ? st.note.live : 0;
+		// WHAT A ROW COUNTS (A778, the writer: "let's add option for today, if there is deadline else full and full"): Today,
+		// the default, is today's words over today's share while the row's deadline runs (its bar in the text's color, as Per
+		// day's was, A761), the whole goal when it has no deadline, is met or is past it; Full is always the whole goal.
+		// `p` is the row's plan: the followed goal's own, the other's read here (null with no deadline or not counted yet)
+		const showToday = this.settings.targetPanelShows !== 'full';
+		const fill = (r: HTMLElement, target: number, n: number | null, due: string, p: WsGoalPlan | null) => {
+			const barHost = r.querySelector<HTMLElement>('.ws-goal-panel-bar'), said = r.querySelector<HTMLElement>('.ws-goal-panel-said'), days = r.querySelector<HTMLElement>('.ws-goal-panel-days');
+			if (!barHost || !said || !days) return;
+			barHost.empty();
+			if (n == null) { wsBarInto(barHost, 0); said.setText('\u2026 / ' + fmt(target)); return; }
+			const today = !!(showToday && due && p && p.state === 'open' && p.perDay > 0);
+			r.toggleClass('is-today', today);
+			if (p && today) {
+				wsBarInto(barHost, p.today / p.perDay);
+				said.setText(fmt(p.today) + ' / ' + fmt(p.perDay));
+				if (p.todayMet) checkIn(r);
+			} else {
+				wsBarInto(barHost, target > 0 ? n / target : 0);
+				said.setText(fmt(n) + ' / ' + fmt(target));
+				if (target > 0 && n >= target) checkIn(r);
+			}
+			if (today) said.setAttribute('aria-label', wsT('Today')); else said.removeAttribute('aria-label');
+			// THE DAYS AS AN HOURGLASS AND 8d (A778, the writer: "also say 8d put the https://lucide.dev/icons/hourglass in the left
+			// of 8d"): the whole sentence and the date on the hover
+			if (due && p) {
+				days.empty();
+				setIcon(days.createSpan({ cls: 'ws-goal-panel-glass' }), 'hourglass');
+				days.createSpan({ text: p.state === 'overdue' ? wsT('Overdue') : wsT('{n}d', { n: p.daysLeft }) });
+				days.setAttribute('aria-label', daysSay(p) + ' \u00b7 ' + this.formatValue('deadline', due, 'date', this.dateStyle()).text);
+				days.toggleClass('is-late', p.state === 'overdue');
+				rows.addClass('has-days');
+			}
+		};
+		const planOf = (path: string, target: number, n: number | null, due: string) => (due && n != null ? this.goalPlanOf({ path, target, due }, n) : null);
+		const nameOf = (path: string) => (path.split('/').pop() || path).replace(/\.md$/i, '');
+		// NOTE, THEN FOLDER (A726): the note's own target and the nearest folder's, each when there is one; the followed
+		// goal's from its plan, the other read here, a folder's in the background (… until counted). The note's bar
+		// fainter than the folder's (A746, the writer: "Make the note bar in the popup fainted in color than the folder one")
+		if (goal.kind === 'note') fill(row('note', nameOf(goal.path)), plan.target, plan.done, goal.due, goal.due ? plan : null);
+		else if (notePath) {
+			const t = this.fileGoalFor(notePath), nd = this.goalDeadlineFor(notePath);
+			if (t > 0) fill(row('note', nameOf(notePath)), t, live, nd, planOf(notePath, t, live, nd));
+		}
+		if (goal.kind === 'folder') fill(row('folder', goal.path ? nameOf(goal.path) : this.app.vault.getName()), plan.target, plan.done, goal.due, goal.due ? plan : null);
+		else if (notePath) {
+			const f = this.goalFolderAbove(notePath);
+			if (f !== null) {
+				const t = this.folderTargetFor(f), n = this.goalFolderCount(f, notePath, live), fd = this.goalDeadlineFor(f);
+				const r = row('folder', f ? nameOf(f) : this.app.vault.getName());
+				fill(r, t, n, fd, planOf(f, t, n, fd));
+				if (n == null) void this.analyzeFolder(f === '' ? '/' : f).then(() => {
+					const m = this.goalFolderCount(f, notePath, live);
+					if (m != null) fill(r, t, m, fd, planOf(f, t, m, fd));
+				}).catch((e) => { wsCatch('openGoalPanel: the folder row', e); });
+			}
+		}
+		// (TOMBSTONE, A755: "Done" in this line, the row's check says it; A762: "{count} to go, past the deadline", the
+		// writer: "remove the 2884 to go from the popup is usless info")
+		const pace = !goal.due || plan.state !== 'open' ? ''
+			: plan.daysLeft <= 1 ? wsT('{count} today, the last working day', { count: this.formatCount(plan.perDay) })
+			: '';
+		if (pace) pop.createDiv({ cls: 'ws-goal-panel-pace', text: pace });
+		const a = anchor.getBoundingClientRect(), r2 = pop.getBoundingClientRect();
+		let left = a.left + (a.width / 2) - (r2.width / 2);
+		left = Math.max(6, Math.min(left, win.innerWidth - r2.width - 6));
+		pop.style.left = left + 'px';
+		pop.style.bottom = (win.innerHeight - a.top + 6) + 'px';
+		this._goalPanel = pop;
+		const outside = (ev: MouseEvent) => {
+			const t = wsElOf(ev.target);
+			if (t && (pop.contains(t) || t.closest('.ws-goaltok-goal'))) return;
+			this.closeGoalPanel();
+		};
+		const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') this.closeGoalPanel(); };
+		doc.addEventListener('mousedown', outside, true);
+		doc.addEventListener('keydown', key, true);
+		this._goalPanelOff = () => { doc.removeEventListener('mousedown', outside, true); doc.removeEventListener('keydown', key, true); };
+	},
+
+	closeGoalPanel(this: WordSmith) {
+		if (this._goalPanelOff) { try { this._goalPanelOff(); } catch (_) { wsCatch('closeGoalPanel: off', _); } this._goalPanelOff = null; }
+		if (this._goalPanel) { try { this._goalPanel.remove(); } catch (_) { wsCatch('closeGoalPanel: remove', _); } this._goalPanel = null; }
 	},
 
 	// `onlyIfChanged` is the keystroke's door (the editor-change handler): a
@@ -2707,6 +3083,12 @@ export const barMethods = {
 
 		const dp = this.dateParts(now);
 		const hTrail = this.headingTrail(view);
+		// GOALS WITH A DATE (A700): {target} is an element, the count a celebration counts and the check it lands; its
+		// words travel in the sentinel so a change repaints the bar (THE SAME BAR IS NOT BUILT TWICE). The whole note's
+		// words, never a selection's.
+		const gNow = this.barGoalNow(view, totalWC);
+		this._goalNowState = gNow ? { goal: gNow.goal, plan: gNow.plan, say: this.barGoalSay(gNow), note: gNow.note } : null;
+		const sayOf = (s: { num: number; rest: string } | null) => (s ? this.formatCount(s.num) + s.rest : '');
 		const subs: Record<string, string> = {
 			'{file}':      this.getFilePath(view),
 			// Grouped, so a five-figure manuscript reads as 12,480 rather
@@ -2719,6 +3101,8 @@ export const barMethods = {
 			// A DRAWN token, so it goes through the sentinel path like the
 			// buttons rather than substituting to text.
 			'{clock}':     '\x00CLOCK\x00',
+			// the typing speed (A730): drawn, and redrawn in place as it moves, so its key never changes with it
+			'{wpm}':       '\x00WPM\x00',
 			// Another drawn token: the app's own crystal, in whatever ink
 			// the segment or bar is using.
 			'{obsidian}':  '\x00OBSIDIAN\x00',
@@ -2792,6 +3176,8 @@ export const barMethods = {
 			'{report}':    '\x00REPORT\x00',
 			'{history}':   '\x00HISTORY\x00',
 			'{export}':    '\x00EXPORT\x00',
+			// THE COG (A749, the writer: "Add a settings token just the cog icon for powerline"): Word-Smith's settings
+			'{settings}':  '\x00SETTINGS\x00',
 			// THE MENU ITSELF: the Powermenu, floating, from the bar.
 			'{powermenu}': '\x00POWERMENU\x00',
 			// THE WINDOW, FROM THE ROW A WRITER ALREADY WATCHES. The other
@@ -2805,11 +3191,16 @@ export const barMethods = {
 			'{outliner}':  '\x00OUTLINER\x00',
 			'{flag}':      '\x00FLAG\x00',
 			'{readtime}':  this.formatReadTime(totalWC),
+			// THE NOTE'S PAGES (A703, issue #62), by the rule the Report's Pages and the Organizer's column read
+			// (wsPagesOf, 250 words a page): the whole note, as {readtime} is, never a selection
+			'{pages}':     this.formatCount(wsPagesOf(totalWC)),
 			// {tasks}: the Organizer's own formatter, `wsTaskSay`, so `[3/7]` here
 			// is `[3/7]` there — and a note with no tasks says nothing, as its cell
 			// does.
 			'{tasks}':     stats && stats.tasks ? wsTaskSay(stats.tasks.done, stats.tasks.all) : '',
-			'{target}':    this.barTargetText(view, totalWC),
+			// THE GOAL (A700, one token since A707): with a deadline, today's words over today's share and the working days
+			// left; without, the progress in its shape; nothing with no target
+			'{target}':    this._goalNowState ? '\x00GOAL:' + sayOf(this._goalNowState.say) + '\x00' : '',
 			'{properties}': '\x00PROPS\x00'
 		};
 
@@ -2837,7 +3228,6 @@ export const barMethods = {
 			this.snappedRowHeight()]);
 		if (onlyIfChanged && sig === this._barRenderSig && this.retroStatusBarEl.childElementCount > 0) return;
 		this._barRenderSig = sig;
-		this._goalStates = [];
 		// One repaint, one read of each theme surface. Dropped here rather
 		// than invalidated on theme change: a per-pass cache is cheaper and
 		// cannot go stale across a theme switch.
@@ -2861,7 +3251,6 @@ export const barMethods = {
 		this.retroStatusBarEl.title        = '';
 
 		this._wsLastTotalWordCount = totalWC;
-		this.registerGoalStates();
 
 		this.retroStatusBarEl.empty();
 		this._statusRowEls = [];
@@ -2970,10 +3359,7 @@ export const barMethods = {
 		this.retroStatusBarEl.classList.toggle('ws-status-multirow', rows.length > 1);
 		this.retroStatusBarEl.classList.toggle('ws-pl-haslit', barLit);
 
-		// Flash the bar when any registered goal is met (if enabled).
-		const anyGoalMet = (this._goalStates || []).some((gl) => gl.met);
-		this.retroStatusBarEl.classList.toggle('ws-goal-met', anyGoalMet);
-		this._goalWasMet = anyGoalMet;
+		// (TOMBSTONE, A786: a celebration put back on every build, and a goal met since the last one celebrated)
 
 
 		// Shrink font size if the content overflows the bar's current width
@@ -4524,6 +4910,7 @@ export const barMethods = {
 			REPORT:   () => this.buildReportIndicator(),
 			HISTORY:  () => this.buildHistoryIndicator(),
 			EXPORT:   () => this.buildExportIndicator(),
+			SETTINGS: () => this.buildSettingsIndicator(),
 			POWERMENU: () => this.buildPowermenuIndicator(),
 			OUTLINER: () => this.buildOutlinerIndicator(),
 			FLAG:     () => this.buildFlagIndicator(),
@@ -4532,6 +4919,7 @@ export const barMethods = {
 			CAPS:     () => this.buildCapsIndicator(),
 			NUM:      () => this.buildNumIndicator(),
 			CLOCK:    () => this.buildClockFace(),
+			WPM:      () => this.buildWpmTokenEl(),
 			OBSIDIAN: () => this.buildObsidianIcon()
 		};
 		for (const n of nodes) {
@@ -4561,6 +4949,10 @@ export const barMethods = {
 					gr.className = 'ws-pl-grad';
 					gr.style.width = (Number(n.el.slice(3)) * this.plUnit()) + 'px';
 					frag.appendChild(gr);
+				// {target} (A700): built from the state worked out above, the sentinel's text only its key
+				} else if (n.el.startsWith('GOAL:')) {
+					const tok = this.buildGoalTokenEl();
+					if (tok) frag.appendChild(tok);
 				} else if (builders[n.el]) {
 					const drawn = builders[n.el]();
 					if (drawn && drawn.classList && typeof n.tok === 'string' && AMBIENT_TOKENS[n.tok]) {

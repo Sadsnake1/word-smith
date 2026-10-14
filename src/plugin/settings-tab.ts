@@ -53,11 +53,13 @@
 //
 //   THE PRESETS are the strip of cards under the Powerline switch —
 //   presetsRow, below.
-import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon } from 'obsidian';
+import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon, apiVersion } from 'obsidian';
+import { WS_WHATS_NEW } from '../core/whats-new';
+import { wsWhatsNewInto, WS_README_URL, WS_ISSUES_URL, WS_CURSOR_SMITH_URL, WS_FUNDING_URL } from './welcome';
 import { WS_PACKS_URL, wsPackCovers } from '../core/language';
-import { wsT, wsTq, wsUiLang, wsUiEchoOn, wsUiJoin } from '../core/ui-text';
+import { wsT, wsTq, wsUiLang, wsUiEchoOn, wsUiJoin, wsUiLocale } from '../core/ui-text';
 import { wsPackGradeName, wsPackGradeFrom } from '../core/lang-engine';
-import { WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_SAMPLES, wsCiter } from '../core/citations';
+import { WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_SAMPLES, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, wsCiter } from '../core/citations';
 import type { WsCite } from '../core/citations';
 import type { WsPack } from '../core/language';
 import type { App, SettingDefinition, SettingDefinitionItem, SettingDefinitionGroup, SettingDefinitionPage, SettingDefinitionRender, SettingGroupItem } from 'obsidian';
@@ -78,8 +80,10 @@ import {
 	barPresetWithDefaults,
 	wsCatch,
 	wsFlagSvg,
+	wsIconPick,
 	wsModKeyName,
 	wsSvgInto,
+	wsThemeHex,
 } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WordSmithSettings } from '../core/settings';
@@ -191,11 +195,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// A control's write: the key, its AFTER effect, the save, then the
 	// predicates — so a switch hides and shows its rows in place.
 	async setControlValue(key: string, value: unknown): Promise<void> {
+		await this.applyKey(key, value);
+		this.refreshDomState();
+	}
+
+	// A SETTING WRITTEN, ITS HOOK RUN, SAVED: the one writer a control here and the welcome's Setup switches share (A743)
+	async applyKey(key: string, value: unknown): Promise<void> {
 		bag(this.plugin.settings)[key] = value;
 		const after = AFTER[key];
 		if (after) await after(this, value);
 		await this.plugin.saveSettings(SAVE_NOW.has(key));
-		this.refreshDomState();
 	}
 
 	// Obsidian's refresh re-asks every row's `visible`; ours also repaints
@@ -231,6 +240,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			// under Navigation
 			this.pageThemes(on),
 			this.pageVault(on),
+			this.pageAbout(),
 			this.footerRow(),
 		]);
 	}
@@ -390,11 +400,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// The version, a muted line under the pages. Not a heading: Obsidian's
 	// guidelines ask plugins not to head their settings with their own name,
 	// and Community plugins lists the version anyway.
+	// NO VERSION LINE (A784, the writer: "remove that tag there"): About shows the version on its entry; the row stays,
+	// empty and out of sight, for the watch it re-seats
 	footerRow(): Render {
-		const version = this.plugin.manifest && this.plugin.manifest.version ? this.plugin.manifest.version : '';
 		return {
 			name: '',
-			desc: ('Word-Smith ' + version).trim(),
+			desc: '',
 			searchable: false,
 			// the footer renders with the top level, in the settings window's
 			// document: the watch is re-seated there (measured: Obsidian asks for
@@ -1141,8 +1152,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Tokens', [
 				{ name: '{file}', desc: 'The note’s name, with or without its folders.', control: { type: 'dropdown', key: 'fileTokenFormat', options: { path: 'Full path', name: 'File name only' } } },
 				{ name: '{flag}', desc: 'The flag’s icon, its name, or both.', control: { type: 'dropdown', key: 'flagTokenFormat', options: { icon: 'Icon', name: 'Name', both: 'Icon and name' } } },
-				{ name: '{target}', desc: 'The note’s progress toward its target.', control: { type: 'dropdown', key: 'targetTokenFormat', options: { percent: 'Percentage (43%)', ratio: 'Words and target (2,145/5,000)' } } },
+				// ONE TOKEN FOR THE GOAL (A707), FIVE SHAPES, NUMBERS ONLY (A754, the writer: "only those 5 options")
+				{ name: '{target}', desc: 'The note\u2019s target, else its folder\u2019s. Words to go today is today\u2019s share of the nearest deadline.', control: { type: 'dropdown', key: 'targetTokenFormat', options: { ratio: 'Words (2,145/5,000)', today: 'Words to go today (500)', percent: 'Percentage (43%)', bar: 'Bar', icon: 'Icon' } } },
+				// WHAT ITS PANEL COUNTS (A778, the writer: "let's add option for today, if there is deadline else full and full")
+				{ name: '{target} panel', desc: 'What its rows count: today’s share while a deadline runs, else the whole goal; or always the whole goal.', control: { type: 'dropdown', key: 'targetPanelShows', options: { today: 'Today, else full', full: 'Full' } } },
 				{ name: '{time}', desc: 'The time, in 24 or 12 hours.', control: { type: 'dropdown', key: 'timeTokenFormat', options: { '24h': '24-hour (14:05)', '12h': '12-hour (2:05 PM)' } } },
+				// A730, issue #65: the typing speed; A788: in words a minute alone, no average while typing, the Momentum gauge
+				{ name: '{wpm}', desc: 'Words a minute. The gauge rests five seconds after your last key; Momentum follows your last few seconds.', control: { type: 'dropdown', key: 'wpmTokenFormat', options: { gauge: 'Gauge and speed', gaugeonly: 'Gauge alone', momentum: 'Momentum gauge', now: 'Speed now', today: 'Average today' } } },
 				{ name: '{font}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'fontTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				{ name: '{markers}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'markersTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				tokenFormat('{mode}', 'modes', 'Modes', 'The menu’s icon, the word, or both.'),
@@ -1291,6 +1307,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{file}'], 'The note\u2019s name. Click it to reveal the note in the explorer.');
 		L(['{words}', '{chars}'], 'The note, or your selection.');
 		L(['{readtime}'], 'How long the note takes to read.');
+		L(['{pages}'], 'How many pages the note fills, 250 words to a page, as in the Report.');
 		L(['{#>}'], 'The heading path: Chapter 3 \u203a The Ferry \u203a Beat 2.');
 		L(['{flag}'], 'The flag of the note you\u2019re in. Click to change it.');
 		SUB('Where you are');
@@ -1298,7 +1315,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{paragraph}'], 'The paragraph the cursor is in.');
 		SUB('Counts');
 		L(['{tasks}'], 'Tasks ticked over tasks in the note, [3/7], as the Organizer shows them. Nothing when there are none.');
-		L(['{target}'], 'How far the note is toward its target, 43% or 2,145/5,000. Set a target in the Organizer. Nothing when there is none.');
+		L(['{target}'], 'How far you are toward your target, 43% or 2,145/5,000 or a bar; with a deadline, today\u2019s words over today\u2019s share and the working days left. Click it for more. Set a target and a deadline in the Organizer, on a note or a folder.');
 		L(['{properties}'], 'How many properties the note has. Click to open the Properties pane.');
 		L(['{backlinks}'], 'How many notes link here. Click to open the backlinks pane.');
 		g = G('Buttons', 'mouse-pointer-click');
@@ -1309,6 +1326,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{darklight}'], 'Switches Obsidian between dark and light.');
 		SUB('Panes and the menu');
 		L(['{report}', '{history}', '{export}', '{organizer}'], 'Each opens that pane; the Organizer on the tab you arrange it in.');
+		L(['{settings}'], 'A cog: Word-Smith\u2019s settings, in one press.');
 		L(['{powermenu}'], 'Opens the Powermenu, the menu of everything.');
 		SUB('Modes');
 		L(['{mode}'], 'A Modes button: letter box, typewriter, Hemingway, page and Zen, right on the bar.');
@@ -1351,6 +1369,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		SUB('Time and date');
 		L(['{time}'], 'The time, written: 14:05, or 2:05 PM in 12 hours (Tokens).');
 		L(['{clock}'], 'The time, drawn as a dial.');
+		L(['{wpm}'], 'Your typing speed, with a small gauge (Tokens).');
 		L(['{dd}', '{mm}', '{yyyy}', '{yy}'], 'Date parts, joined however you like: {dd}/{mm}/{yy}.');
 		SUB('The machine');
 		L(['{battery}'], 'The battery.');
@@ -1773,6 +1792,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						});
 					} },
 				{ name: 'The pack', desc: '', render: (st) => this.renderPackDetails(st) },
+				// ENGLISH NEEDS NO PACK (A787, the writer: "Add a info card in language that says ws-language-en is not needed.
+				// Only if tou want to extend or customize it"): while English is the language in use
+				this.noteRow('English is built in, so ws-lang-en.md is not needed. Get it only to extend or customize English’s word lists.', () => (s.language || 'en') === 'en'),
 				// THE SWITCHER'S LANGUAGES (A601): ticked here, offered by {lang} and the menu
 				rendered({ name: 'Switch between', desc: 'Offered by the {lang} token and the menu\u2019s Language row, beside English.',
 					render: (st) => this.renderLangChoices(st), visible: () => packs().size > 0 }, ['languageChoices']),
@@ -1913,6 +1935,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				cat('Commonly misused', 'Affect and effect, its and it’s, fewer and less.', 'checkMisused', 'checkMisusedColor', ck),
 				cat('Lexical illusions', 'The same word twice in a row.', 'checkIllusion', 'checkIllusionColor', ck),
 				cat('Dialogue', 'Everything inside quotes, and speech after a dialogue dash where the language writes one.', 'checkDialogue', 'checkDialogueColor', ck),
+				// A711, issue #68: thoughts and telepathy, written in italics or angle brackets
+				{ name: 'More speech marks', desc: 'Italics and angle brackets count as speech too: *thoughts*, ‹whispers›, <telepathy>.', control: { type: 'toggle', key: 'checkDialogueMore' }, visible: all(ck, () => !!s.checkDialogue) },
+				// A729: your own pairs, under the switch that turns them on
+				{ name: 'Your own pairs', desc: 'Pairs that open and close speech, a space between: <<>> is << with >>, // is / with /.', control: { type: 'text', key: 'checkDialogueCustom', placeholder: '<> // <<>>' }, visible: all(ck, () => !!s.checkDialogue && !!s.checkDialogueMore) },
 				rendered({ name: this.plugin.catName('Sentence rhythm'), desc: 'Shades each sentence by how hard it reads or how long it runs: its tints, and the switch.', render: (st) => this.renderRhythm(st), visible: ck }, ['checkRhythm', 'checkRhythmHardColor', 'checkRhythmVeryHardColor']),
 				// A595: by the grade, as it was, or by the length in words
 				{ name: 'Shade by', desc: 'What the two tints read: how hard a sentence reads, or how many words it runs.', control: { type: 'dropdown', key: 'checkRhythmBy', options: { grade: 'Reading grade', length: 'Length in words' } }, visible: all(ck, () => !!s.checkRhythm) },
@@ -1970,15 +1996,27 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'More fonts', desc: 'Add fonts from Settings → Appearance → Text font.', render: (st) => this.infoInto(st) },
 				{ name: 'Typography', desc: 'Turns what you type into the proper characters as you go.', control: { type: 'toggle', key: 'typographyEnabled' } },
 				this.alertRow('Quotes, dashes and arrows change as you type. Not for you? Turn Typography off.', ty),
-				{ name: 'Curly quotes', desc: 'Straight quotes turn curly as you type.', control: { type: 'toggle', key: 'typoSmartQuotes' }, visible: ty },
-				{ name: 'Quotes from the language', desc: 'Quotes are taken from the language pack in use (Prose → Language). Off: the usual marks, or your own.',
-					control: { type: 'toggle', key: 'typoQuotesFromLanguage' }, visible: all(ty, () => !!s.typoSmartQuotes, () => !!this.plugin.typoLanguageMarks()) },
-				// THE USUAL MARKS, US OR UK (A694, the writer: "Only one English pack with us /UK typography dropdown")
-				{ name: 'Quote style', desc: 'The usual marks: US puts “ ” outside and ‘ ’ inside, UK the other way round.',
-					control: { type: 'dropdown', key: 'typoQuoteStyle', options: { us: 'US “ ” ‘ ’', uk: 'UK ‘ ’ “ ”' } }, visible: all(ty, () => !!s.typoSmartQuotes, () => !s.typoCustomQuotes, () => !fromLang()) },
-				{ name: 'Custom quote marks', desc: 'Your own quote marks instead of the usual ones.', control: { type: 'toggle', key: 'typoCustomQuotes' }, visible: all(ty, () => !!s.typoSmartQuotes, () => !fromLang()) },
-				{ name: 'Open double', desc: 'Replaces " at the start of a quotation.', control: { type: 'text', key: 'typoOpenDouble' }, visible: quotes },
-				{ name: 'Close double', desc: 'Replaces " at the end.', control: { type: 'text', key: 'typoCloseDouble' }, visible: quotes },
+				// QUOTE MARKS, ONE CHOICE (A779, the writer: "we need to rethink this menu a bit curly quotes and custom quotes don't
+				// make sense", then "ok do the proposals", "instead of your own say Custom"): Straight, US, UK, the language's own
+				// (while the pack names some), Custom. A view of the four switches that hold it (`typoQuotesChoice`), so nothing a
+				// vault saved moves; Curly quotes, Quotes from the language, Quote style and Custom quote marks were its four rows
+				rendered({ name: 'Quote marks', desc: 'What straight quotes turn into as you type.', visible: ty, render: (st) => {
+					st.addDropdown((dd) => {
+						const lm = this.plugin.typoLanguageMarks();
+						dd.addOption('straight', wsT('Straight') + ' " \'');
+						dd.addOption('us', wsT('US “ ” ‘ ’'));
+						dd.addOption('uk', wsT('UK ‘ ’ “ ”'));
+						if (lm) dd.addOption('language', wsT('Language pack') + ' ' + lm.od + ' ' + lm.cd + ' ' + lm.os + ' ' + lm.cs);
+						dd.addOption('custom', wsT('Custom'));
+						dd.setValue(this.plugin.typoQuotesChoice());
+						dd.onChange((v) => { void (async () => { this.plugin.typoQuotesChoose(v); await this.plugin.saveSettings(true); this.refreshDomState(); })(); });
+					});
+				} }, ['typoSmartQuotes', 'typoQuotesFromLanguage', 'typoQuoteStyle', 'typoCustomQuotes']),
+				// MARKS OF MORE THAN ONE CHARACTER (A776, the writer: "add a info card in typograhy that they can use nbsp or multiple
+				// chars in custom quotes"): « with a non-breaking space after it, one before », as French sets them; under Custom (A779)
+				this.noteRow('Custom marks can be more than one character, with a non-breaking space inside « and », as French sets them.', quotes),
+				{ name: 'Open double', desc: 'Replaces " at the start of a quotation. A non-breaking space: Alt+0160 on Windows, Option+Space on a Mac.', control: { type: 'text', key: 'typoOpenDouble' }, visible: quotes },
+				{ name: 'Close double', desc: 'Replaces " at the end. A non-breaking space is typed the same way.', control: { type: 'text', key: 'typoCloseDouble' }, visible: quotes },
 				{ name: 'Open single', desc: 'Replaces the straight single quote at the start.', control: { type: 'text', key: 'typoOpenSingle' }, visible: quotes },
 				{ name: 'Close single', desc: 'And at the end.', control: { type: 'text', key: 'typoCloseSingle' }, visible: quotes },
 				{ name: 'Apostrophe', desc: 'Used mid-word, where it is not a quote at all.', control: { type: 'text', key: 'typoApostrophe' }, visible: quotes },
@@ -2013,8 +2051,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	renderRhythm(st: Setting) {
 		const s = this.plugin.settings;
 		this.swatchRow(st);
-		st.addColorPicker((cp) => cp.setValue(s.checkRhythmHardColor).onChange((v) => { void (async () => { s.checkRhythmHardColor = v; await this.plugin.saveSettings(); })(); }));
-		st.addColorPicker((cp) => cp.setValue(s.checkRhythmVeryHardColor).onChange((v) => { void (async () => { s.checkRhythmVeryHardColor = v; await this.plugin.saveSettings(); })(); }));
+		st.addColorPicker((cp) => cp.setValue(s.checkRhythmHardColor || wsThemeHex('yellow')).onChange((v) => { void (async () => { s.checkRhythmHardColor = v; await this.plugin.saveSettings(); })(); }));
+		st.addColorPicker((cp) => cp.setValue(s.checkRhythmVeryHardColor || wsThemeHex('red')).onChange((v) => { void (async () => { s.checkRhythmVeryHardColor = v; await this.plugin.saveSettings(); })(); }));
 		st.addToggle((t) => t.setValue(!!s.checkRhythm).onChange((v) => { void (async () => { s.checkRhythm = v; await this.plugin.saveSettings(); this.refreshDomState(); })(); }));
 	}
 
@@ -2032,7 +2070,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		this.swatchRow(st);
 		st.addSlider((sl) => sl.setLimits(2, 15, 1).setValue(s.checkRhythmShortWords != null ? s.checkRhythmShortWords : 8)
 			.onChange((v) => { void (async () => { s.checkRhythmShortWords = v; await this.plugin.saveSettings(); })(); }));
-		st.addColorPicker((cp) => cp.setValue(s.checkRhythmShortColor || '#5aa469').onChange((v) => { void (async () => { s.checkRhythmShortColor = v; await this.plugin.saveSettings(); })(); }));
+		st.addColorPicker((cp) => cp.setValue(s.checkRhythmShortColor || wsThemeHex('green')).onChange((v) => { void (async () => { s.checkRhythmShortColor = v; await this.plugin.saveSettings(); })(); }));
 	}
 
 	// ── MANUSCRIPT ──────────────────────────────────────────────────────────
@@ -2066,11 +2104,15 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Organizer', [
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
+				// A731: the deadline's two halves, one column
+				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (20 Oct 2026 \u00b7 8d)', days: 'Days left (8d)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
 				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
 					control: { type: 'dropdown', key: 'organizerDateFormat', defaultValue: 'human', options: dateOptions() }, visible: org },
+				// GOALS WITH A DATE (A700): the days that count toward a deadline. A target counts words, only words (A705)
+				rendered({ name: 'Working days', desc: 'The days that count toward a deadline.', render: (st) => this.renderWorkDays(st), visible: org }, ['goalWorkDays']),
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
 				...this.flagRows(flags),
@@ -2099,6 +2141,40 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				this.hotkeysRow(['open-history']),
 			], this.railed('manuscript', 'history')),
 		], value, on);
+	}
+
+	// THE WORKING DAYS (A700): seven buttons, Monday first, named in the interface's language; a day lit counts toward a
+	// deadline. Stored as the digits of getDay(), Sunday 0.
+	// TWO LETTERS (A705, the writer: "make the day Mo, Tu"): each short name cut to two, its first a capital, so the
+	// seven fit one line on a phone; where two letters no longer tell the seven apart (Portuguese seg and sex), three
+	// (Portugal's short names are whole words, segunda, and ran past a phone's edge). 12 October 2026 is a Monday: its
+	// week names the days.
+	renderWorkDays(st: Setting) {
+		const plugin = this.plugin;
+		const loc = wsUiLocale();
+		const fmt = new Intl.DateTimeFormat(loc, { weekday: 'short' });
+		const days = [1, 2, 3, 4, 5, 6, 0];
+		const short = days.map((day) => fmt.format(new Date(2026, 9, 11 + (day === 0 ? 7 : day))).replace(/\.$/, ''));
+		const cut = (k: number) => short.map((s) => { const a = Array.from(s).slice(0, k).join(''); return a.charAt(0).toLocaleUpperCase(loc) + a.slice(1); });
+		const names = [cut(2), cut(3)].find((c) => new Set(c).size === days.length) || short;
+		const row = st.controlEl.createDiv({ cls: 'ws-workdays' });
+		const draw = () => {
+			row.empty();
+			const on = String(plugin.settings.goalWorkDays == null ? '0123456' : plugin.settings.goalWorkDays);
+			days.forEach((day, i) => {
+				const lit = on.indexOf(String(day)) !== -1;
+				const b = row.createEl('button', { text: names[i], cls: lit ? 'mod-cta' : '' });
+				b.setAttribute('aria-pressed', String(lit));
+				b.addEventListener('click', () => { void (async () => {
+					const now = String(plugin.settings.goalWorkDays == null ? '0123456' : plugin.settings.goalWorkDays);
+					const next = (now.indexOf(String(day)) !== -1 ? now.replace(String(day), '') : now + day).split('').sort().join('');
+					plugin.settings.goalWorkDays = next;
+					await plugin.saveSettings();
+					draw();
+				})(); });
+			});
+		};
+		draw();
 	}
 
 	// the count is a number in the settings; a dropdown's value is a string,
@@ -2286,6 +2362,38 @@ export class WordSmithSettingTab extends PluginSettingTab {
 							paint();
 						})(); });
 					});
+					// CUSTOMIZE (A739, the writer: "i don't see the customize option"): Your own, started from the style picked
+					// (its tokens, WS_CITE_PRESET_TOKENS), the preview as it was; none under Your own or Chicago's notes. Your
+					// own tokens, once changed, are replaced only on a second press.
+					st.addButton((b) => {
+						const btn = b.buttonEl;
+						btn.addClass('ws-cite-customize');
+						let armed = 0;
+						const disarm = () => { window.clearTimeout(armed); btn.removeClass('mod-warning'); b.setButtonText(wsT('Customize')); };
+						const changed = () => {
+							const mine = { inText: String(s.citeCustomInText || ''), around: String(s.citeCustomAround || 'parens'), entry: String(s.citeCustomEntry || '') };
+							if (!mine.inText.trim() && !mine.entry.trim()) return false;
+							return [WS_CITE_CUSTOM_DEFAULT, ...Object.values(WS_CITE_PRESET_TOKENS)].every((x) => x.inText !== mine.inText || x.entry !== mine.entry || x.around !== mine.around);
+						};
+						b.setButtonText(wsT('Customize')).setTooltip(wsT('Start your own style from this one, in tokens.')).onClick(() => { void (async () => {
+							const from = WS_CITE_PRESET_TOKENS[s.citeStyle || 'apa'];
+							if (!from) return;
+							if (changed() && !btn.hasClass('mod-warning')) {
+								btn.addClass('mod-warning');
+								b.setButtonText(wsT('Replace your own?'));
+								armed = window.setTimeout(disarm, 4000);
+								return;
+							}
+							disarm();
+							s.citeCustomInText = from.inText; s.citeCustomAround = from.around; s.citeCustomEntry = from.entry;
+							s.citeStyle = 'custom';
+							await plugin.saveSettings();
+							this.update();
+						})(); });
+						const show = () => setClass(btn, 'is-off', !WS_CITE_PRESET_TOKENS[s.citeStyle || 'apa']);
+						show();
+						this.onRefresh(() => { show(); if (btn.hasClass('mod-warning')) disarm(); });
+					});
 				} },
 			{ name: 'Citation preview', desc: 'Two sources from your library, or two samples while there is none.',
 				render: (st) => {
@@ -2294,7 +2402,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						box.empty();
 						const lib = plugin.citeLibrary();
 						const refs = lib.size ? Array.from(lib.values()).slice(0, 2) : WS_CITE_SAMPLES;
-						const citer = wsCiter(s.citeStyle || 'apa', new Map(refs.map((r) => [r.key, r])), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading);
+						const citer = wsCiter(s.citeStyle || 'apa', new Map(refs.map((r) => [r.key, r])), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading, this.plugin.citeTerms(), { ibid: !!s.citeIbid });
 						const one = (key: string, locator: string): WsCite => ({ from: 0, to: 0, narrative: false, items: [{ key, locator, prefix: '', suppress: false }] });
 						const said = refs.map((r, k) => citer.cite(one(r.key, k === 0 ? '12' : '')));
 						const prose = box.createDiv({ cls: 'ws-cite-preview-text' });
@@ -2309,6 +2417,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					};
 					paint();
 				} },
+			// IBID. (#60's rest): Chicago's notes alone, off by default; under the preview, so the style stays right over it (A634)
+			{ name: 'Ibid.', desc: 'A note citing the same source as the note before it says Ibid.', control: { type: 'toggle', key: 'citeIbid' }, visible: () => s.citeStyle === 'chicago-notes' },
 			{ name: 'In the text', desc: 'One source as it reads in the text, in the tokens below; [ ] drops a part whose field is empty.',
 				render: text('citeCustomInText', () => '{etal} {year}[, {page}]'), visible: custom },
 			{ name: 'In the list', desc: 'One source as it reads in the list at the back.',
@@ -2333,10 +2443,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		this.infoInto(st, true);
 		const table = box.createEl('table', { cls: 'ws-help-table' });
 		const GROUPS: [string, string[]][] = [
-			['Who', ['{author}', '{etal}', '{authors}', '{authors-full}', '{authors-initials}', '{editors}']],
-			['The work', ['{year}', '{title}', '{title*}', '{title-quoted}', '{edition}']],
+			// (A713: {translators} with the people, {origyear} and {series} with the work, {accessed} with finding it)
+			['Who', ['{author}', '{etal}', '{etal-amp}', '{authors}', '{authors-full}', '{authors-initials}', '{authors-apa}', '{editors}', '{translators}']],
+			['The work', ['{year}', '{origyear}', '{title}', '{title*}', '{title-quoted}', '{edition}', '{series}']],
 			['Where it appeared', ['{container}', '{container*}', '{volume}', '{issue}', '{pages}', '{publisher}', '{place}']],
-			['Finding it', ['{page}', '{n}', '{doi}', '{url}']],
+			['Finding it', ['{page}', '{locator}', '{n}', '{doi}', '{url}', '{accessed}']],
 		];
 		const named = new Set(GROUPS.flatMap((g) => g[1]));
 		const rest = WS_CITE_TOKENS.map((t) => t[0]).filter((t) => !named.has(t));
@@ -2354,6 +2465,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			}
 		}
 		box.createDiv({ cls: 'ws-help-note', text: wsT('A part in [ ] is dropped when its field is empty: {year}[, {page}].') });
+		box.createDiv({ cls: 'ws-help-note', text: wsT('A backslash prints a bracket of its own: \\[{n}\\].') });
 	}
 
 	// ── NAVIGATION ──────────────────────────────────────────────────────────
@@ -2367,7 +2479,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			if (s.vimSoftWrapMotion) parts.push(wsT('Vim motions'));
 			return parts.length ? parts.join(' · ') : wsT('Off');
 		};
-		return this.page('Navigation', 'compass', 'Quick panels and Vim motions.', [
+		// THE DIRECTIONAL PAD (A722, the writer: "change the icon of navigation from the compass to
+		// lucide.dev/icons/gamepad-directional"): Obsidian 1.14.4 bundles it; a build without it keeps the compass
+		return this.page('Navigation', wsIconPick(['gamepad-directional', 'compass']), 'Quick panels and Vim motions.', [
 			this.section('Quick panels', [
 				this.subheadRow('Quick panels'),
 				{ name: 'Quick file explorer', desc: 'A command that opens the file explorer and moves you into it.', control: { type: 'toggle', key: 'quickExplorer' } },
@@ -2394,6 +2508,38 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// ── VAULT ───────────────────────────────────────────────────────────────
+
+	// ABOUT (A743, the writer: "add an About as a main category option showing the release notes there, a link to github
+	// … the youtube video … if you find a bug post on github issue"): what's new, built in (no network, privacy.md); the
+	// welcome again; the links open in the browser, the issue with the versions filled in. Shown with the plugin off too,
+	// not on a start that blocked (the pages step aside for its card)
+	pageAbout(): Page {
+		const plugin = this.plugin;
+		const version = plugin.manifest && plugin.manifest.version ? plugin.manifest.version : '';
+		const os = Platform.isIosApp ? 'iOS' : Platform.isAndroidApp ? 'Android' : Platform.isMacOS ? 'macOS' : Platform.isWin ? 'Windows' : Platform.isLinux ? 'Linux' : '';
+		const issue = WS_ISSUES_URL + '?body=' + encodeURIComponent('\n\n---\nWord-Smith ' + version + ' \u00b7 Obsidian ' + String(apiVersion || '') + (os ? ' \u00b7 ' + os : ''));
+		const funding = WS_FUNDING_URL;   // the manifest's fundingUrl, which Obsidian's types do not carry
+		const link = (name: string, desc: string, text: string, url: string, cls = ''): Render => ({ name, desc, render: (st) => {
+			st.addButton((b) => { b.setButtonText(wsT(text)).onClick(() => { window.open(url, '_blank'); }); if (cls) b.buttonEl.addClass(cls); });
+		} });
+		return this.page('About', 'info', 'What\u2019s new, the welcome again, help and support.', [
+			this.section('What\u2019s new', [
+				{ name: '', desc: '', searchable: false, render: (st) => {
+					st.settingEl.addClass('ws-about-notes-row');
+					st.settingEl.querySelectorAll('.ws-about-notes, .ws-about-ver').forEach((old) => { old.remove(); });
+					st.settingEl.createDiv({ cls: 'ws-about-ver', text: wsT('What\u2019s new in Word-Smith {version}', { version }) });
+					wsWhatsNewInto(st.settingEl.createDiv({ cls: 'ws-about-notes' }), WS_WHATS_NEW);
+				} },
+			]),
+			this.section('Word-Smith', [
+				this.buttonRow('The welcome', 'The whole welcome again: the intro, the four choices, your data and the tour.', 'Open the welcome', () => { plugin.openWelcome(); }),
+				link('Documentation', 'How to use Word-Smith, on GitHub.', 'GitHub', WS_README_URL),
+				link('Cursor-Smith', 'My other plugin: a fancier text cursor. Pairs nicely with Word-Smith.', 'Watch Cursor-Smith', WS_CURSOR_SMITH_URL),
+				link('Found a bug?', 'Post it on GitHub. The Word-Smith and Obsidian versions are filled in for you.', 'Post an issue', issue),
+				link('Support Word-Smith', 'Word-Smith is free. A coffee keeps it going.', 'Buy me a coffee', funding, 'ws-about-coffee'),
+			]),
+		], () => version, () => !this.plugin._startBlocked);
+	}
 
 	pageVault(on: Pred): Page {
 		const plugin = this.plugin;
@@ -2430,6 +2576,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				fileRow('Custom order file', () => plugin.structurePathNow(), 'Custom order, flags, targets, ticks, colors, columns, and the details of files that are not notes.'),
 				fileRow('Settings copy file', () => s.settingsMirror !== false ? plugin.settingsMirrorPathFor() : null, 'Machine settings and other vaults’ paths are skipped on restore.'),
 				fileRow('History file', () => plugin.historyStorePath(), 'Every day you have written; the only copy.'),
+				// A733: the folder out of sight
+				{ name: 'Hide the Word-Smith folder', desc: 'Its files stay where they are; the Organizer, the file explorer and the compiled book leave the folder out.', control: { type: 'toggle', key: 'hideOwnFolder' } },
 			]),
 			this.section('Notes', [
 				this.subheadRow('Good to know'),
@@ -2475,6 +2623,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// and the block sits with the words rather than in the control area the
 	// card hides.
 	renderFrontmatterHelp(st: Setting) {
+		// ONE BOX (A727, the writer: "there are three info boxes for frontmatter"): Obsidian keeps a row's info element
+		// between redraws (its description it sets afresh), so the last box goes first, as `infoInto` does its icon
+		st.infoEl.querySelectorAll('.ws-fm-block').forEach((old) => { old.remove(); });
 		st.infoEl.createEl('pre', {
 			cls: 'ws-fm-block',
 			text: 'wordsmith: off       the plugin does nothing in this note\n'
@@ -2503,6 +2654,7 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	flagTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	targetTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	timeTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
+	wpmTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	fontTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	markersTokenFormat: (tab) => { tab.plugin.updateRetroStatusBar(); },
 	barThemeEnabled: (tab) => { tab.plugin.applyThemeClass(); tab.plugin.applyThemeVars(); void tab.plugin.barThemeCursorSync(); },
@@ -2526,6 +2678,8 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	// flag, find or make the file, write it once — live in `historyTrackingOn`
 	historyTracking: async (tab, v) => { if (v) await tab.plugin.historyTrackingOn(); },
 	organizerDateFormat: (tab) => { tab.update(); },   // the sample time in the description follows
+	// A733: the folder read again, and an open Organizer drawn without it (the explorer follows the save's refresh)
+	hideOwnFolder: (tab) => { tab.plugin._ownFolders = null; if (typeof tab.plugin._orgDraw === 'function') tab.plugin._orgDraw(); },
 	settingsMirror: (tab) => { tab.update(); },   // the file row's text follows
 };
 
@@ -2533,6 +2687,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
-	'checkFillerSoft', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgFolderIcons',
-	'layoutZenOnly', 'pageView',
+	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons',
+	'layoutZenOnly', 'pageView', 'hideOwnFolder',
 ]);

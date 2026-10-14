@@ -6,7 +6,7 @@
 
 **"No appropriate version found" when installing.** That message is Obsidian's. Word-Smith needs Obsidian 1.13.7 or newer (the app version, the first of the two numbers). Update Obsidian and install again.
 
-**"Word-Smith did not start: your Obsidian installer is…"** The plugin refuses to start in installers before 1.9, because Obsidian froze on enable in every one reported. It is built and tested on the 1.13.7 installer. The fix is the paragraph above.
+**"Word-Smith did not start: your Obsidian installer is…"** The plugin refuses to start in installers before 1.9, because Obsidian froze on enable in every one reported. It is built on 1.13.7 and tested on the 1.13.7 and 1.14.4 installers. The fix is the paragraph above.
 
 **"The last start did not finish, so everything is off this time."** The plugin marks the moment it starts and clears the mark two seconds after its first paint. If the mark is still there next time, the previous start never got that far, so it comes up with everything off rather than freeze again. Settings → Word-Smith has a **Try again** button. Closing Obsidian within two seconds of opening it trips this too, once.
 

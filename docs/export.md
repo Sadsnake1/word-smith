@@ -35,7 +35,7 @@ Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a no
 
 The manuscript as pages, at the paper size you chose, before a single file is written. Page through it, zoom, **Fit** the whole sheet or **100%** for print size. Flip the paper dark for reading at night. Print still comes out ink on paper. **Refresh** redraws it after you edit and keeps your place.
 
-Press **Expand** and the preview takes the whole pane as one reading column. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
+Press **Expand** and the preview takes the whole pane as one long column of your pages: each keeps its width and its margins, and where one page ends and the next begins you see the page number and the running header as the file prints them. It opens fitted to the window; zoom in and it scrolls sideways rather than rewrapping. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
 
 ## The formats
 
@@ -46,6 +46,16 @@ Word, web page, e-book and Markdown work on phones too. For a PDF on a phone, ex
 - **Web page** is the same document with its page rules built in. Print it from any browser and you get the PDF again.
 - **E-book** is an EPUB for any e-reader: a file a chapter, the contents, the notes and the pictures inside. The reader sets the pages, the font and the line spacing, so paper, margins, the font and the spacing don't apply.
 - **Markdown** is the plain compile. Also the way to glue a few notes into one file.
+
+## Citations
+
+Write Pandoc's citations in your notes, `[@woolf1929, p. 12]` or a narrative `@woolf1929`, and the export turns them into the style you pick under Settings → Word-Smith → Export → **Citations**: APA, Chicago (author-date or notes), Harvard, MLA, IEEE, or your own, built from tokens. Press **Customize** beside a style to start your own from it. Point it at your library, a BibTeX (`.bib`) or CSL-JSON file from Zotero, and the list of sources lands at the end.
+
+A reprint or a translation keeps its original year (`origdate`, `original-date`): (1867; Paris: PUF, 1993) in a Chicago note, 1867/1993 in APA. Translators, editions, series and the day a web page was read come along too.
+
+Harvard follows Cite Them Right: (Woolf, 1929, p. 108) in the text, Woolf, V. (1929) in the list. In Chicago notes, turn on **Ibid.** and a note citing the same source as the one before it says Ibid. (Ebd. in German, Там же in Russian). An export tells you which cited sources have no year or title.
+
+The words around the fields follow your book's language (Settings → Word-Smith → **Language**): French gets "trad.", "2e éd.", "s.d." and « », German "übers. v." and „ “. A language pack can change any of them with a `cite-` line (`- cite-and: &`, `- cite-ibid: Id.`). IEEE stays in English.
 
 ## Where it stops
 

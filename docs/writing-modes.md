@@ -26,7 +26,7 @@ Locks the keys you'd use to go back and fiddle, so a first draft can only go for
 
 ## Typography
 
-Turns what you type into the proper characters as you go: curly quotes, ellipses, dashes, arrows, fractions, guillemets. Never inside code, maths or frontmatter. Undo gives back exactly what you typed.
+Turns what you type into the proper characters as you go: curly quotes, ellipses, dashes, arrows, fractions, guillemets. **Quote marks** picks straight, US, UK, your language pack's, or Custom, as many characters as you like. Never inside code, maths or frontmatter. Undo gives back exactly what you typed.
 
 ## Text options and markers
 

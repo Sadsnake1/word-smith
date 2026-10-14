@@ -2,43 +2,36 @@
 
 [← Back to the README](../README.md)
 
-A language pack is one note that teaches Word-Smith a language: its word colors, its prose checks, where its sentences end and its reading grade. English is built in, and comes as a pack too so you can see and extend its words.
+A pack is one plain note that teaches Word-Smith a language: word colors, prose checks, sentences and the reading grade. English is built in; its pack shows every word it knows.
 
-## Install a pack
+**Install:** click your language to download its pack, put it in the **Word-Smith** folder in your Vault (keep its name, `ws-lang-de.md`), then pick it in Settings → Word-Smith → **Language**. A word in the wrong color? Add it under the right heading in the pack; it applies as you save.
 
-1. Download your language from the table below.
-2. Put it in the **Word-Smith** folder in your Vault. Keep its name (`ws-lang-de.md`): that is how Word-Smith finds it.
-3. Pick it in **Settings → Word-Smith → Prose → Language**. The **{lang}** token and the menu's Language row switch between the languages you tick there.
+| Language | Version | Reading grade | Accuracy |
+|---|---|---|---|
+| <img src="https://flagcdn.com/48x36/us.png" width="16" height="12" alt=""> <img src="https://flagcdn.com/48x36/gb.png" width="16" height="12" alt=""> [English](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-en.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-en.version.json&style=flat-square" alt="version"> | Flesch–Kincaid | 88% |
+| <img src="https://flagcdn.com/48x36/dk.png" width="16" height="12" alt=""> [Dansk](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-da.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-da.version.json&style=flat-square" alt="version"> | LIX | 85% |
+| <img src="https://flagcdn.com/48x36/de.png" width="16" height="12" alt=""> [Deutsch](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-de.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-de.version.json&style=flat-square" alt="version"> | Wiener Sachtextformel | 91% |
+| <img src="https://flagcdn.com/48x36/es.png" width="16" height="12" alt=""> [Español](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-es.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-es.version.json&style=flat-square" alt="version"> | Fernández-Huerta | 89% |
+| <img src="https://flagcdn.com/48x36/fr.png" width="16" height="12" alt=""> [Français](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-fr.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-fr.version.json&style=flat-square" alt="version"> | Kandel and Moles | 90% |
+| <img src="https://flagcdn.com/48x36/id.png" width="16" height="12" alt=""> [Bahasa Indonesia](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-id.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-id.version.json&style=flat-square" alt="version"> | Flesch, for now | 88% |
+| <img src="https://flagcdn.com/48x36/it.png" width="16" height="12" alt=""> [Italiano](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-it.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-it.version.json&style=flat-square" alt="version"> | Gulpease | 89% |
+| <img src="https://flagcdn.com/48x36/jp.png" width="16" height="12" alt=""> [日本語](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ja.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-ja.version.json&style=flat-square" alt="version"> | Tateisi | 83% |
+| <img src="https://flagcdn.com/48x36/kr.png" width="16" height="12" alt=""> [한국어](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ko.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-ko.version.json&style=flat-square" alt="version"> | LIX, for now | 80% |
+| <img src="https://flagcdn.com/48x36/nl.png" width="16" height="12" alt=""> [Nederlands](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-nl.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-nl.version.json&style=flat-square" alt="version"> | Douma | 89% |
+| <img src="https://flagcdn.com/48x36/no.png" width="16" height="12" alt=""> [Norsk bokmål](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-no.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-no.version.json&style=flat-square" alt="version"> | LIX | 88% |
+| <img src="https://flagcdn.com/48x36/pl.png" width="16" height="12" alt=""> [Polski](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pl.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-pl.version.json&style=flat-square" alt="version"> | FOG-PL | 87% |
+| <img src="https://flagcdn.com/48x36/pt.png" width="16" height="12" alt=""> [Português](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pt.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-pt.version.json&style=flat-square" alt="version"> | Martins | 88% |
+| <img src="https://flagcdn.com/48x36/br.png" width="16" height="12" alt=""> [Português (Brasil)](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pt-BR.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-pt-BR.version.json&style=flat-square" alt="version"> | Martins, Brazilian | 89% |
+| <img src="https://flagcdn.com/48x36/ro.png" width="16" height="12" alt=""> [Română](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ro.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-ro.version.json&style=flat-square" alt="version"> | Flesch, for now | 88% |
+| <img src="https://flagcdn.com/48x36/ru.png" width="16" height="12" alt=""> [Русский](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ru.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-ru.version.json&style=flat-square" alt="version"> | Oborneva | 85% |
+| <img src="https://flagcdn.com/48x36/se.png" width="16" height="12" alt=""> [Svenska](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-sv.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-sv.version.json&style=flat-square" alt="version"> | LIX | 86% |
+| <img src="https://flagcdn.com/48x36/tr.png" width="16" height="12" alt=""> [Türkçe](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-tr.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-tr.version.json&style=flat-square" alt="version"> | Ateşman | 82% |
+| <img src="https://flagcdn.com/48x36/ua.png" width="16" height="12" alt=""> [Українська](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-uk.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-uk.version.json&style=flat-square" alt="version"> | Flesch, for now | 83% |
+| <img src="https://flagcdn.com/48x36/cn.png" width="16" height="12" alt=""> [简体中文](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hans.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-zh-Hans.version.json&style=flat-square" alt="version"> | Sentence length and rare characters | 73% |
+| <img src="https://flagcdn.com/48x36/tw.png" width="16" height="12" alt=""> [繁體中文](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hant.md) | <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FSadsnake1%2Fword-smith%2Fbadges%2Fws-lang-zh-Hant.version.json&style=flat-square" alt="version"> | Sentence length and rare characters | 73% |
 
-A pack is a plain note. If a word gets the wrong color, add it under the right heading and it applies as you save.
+**Accuracy** is the share of words colored right on published text the packs never saw (the Universal Dependencies test sets; the middle figure where a language has several). "For now": no settled reading-grade formula yet.
 
-Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59), so everyone gets the fix.
+Want a non-breaking space inside « and », as French sets them? Pick Custom under Typography › Quote marks and type it in: Alt+0160 on Windows, Option+Space on a Mac.
 
-## The packs
-
-| Language | Pack | Reading grade | Accuracy |
-|----------|------|---------------|----------|
-| English | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-en.md) · [read](../packs/ws-lang-en.md) | Flesch–Kincaid | 87–88% |
-| Dansk (Danish) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-da.md) · [read](../packs/ws-lang-da.md) | LIX | 85% |
-| Deutsch (German) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-de.md) · [read](../packs/ws-lang-de.md) | Wiener Sachtextformel | 91% |
-| Español (Spanish) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-es.md) · [read](../packs/ws-lang-es.md) | Fernández-Huerta | 89% |
-| Français (French) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-fr.md) · [read](../packs/ws-lang-fr.md) | Kandel and Moles | 90% |
-| Italiano (Italian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-it.md) · [read](../packs/ws-lang-it.md) | Gulpease | 89% |
-| 日本語 (Japanese) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ja.md) · [read](../packs/ws-lang-ja.md) | Tateisi | 81–85% |
-| 한국어 (Korean) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ko.md) · [read](../packs/ws-lang-ko.md) | LIX, for now | 79–81% |
-| Nederlands (Dutch) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-nl.md) · [read](../packs/ws-lang-nl.md) | Douma | 88–89% |
-| Norsk bokmål (Norwegian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-no.md) · [read](../packs/ws-lang-no.md) | LIX | 88% |
-| Polski (Polish) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pl.md) · [read](../packs/ws-lang-pl.md) | FOG-PL | 87% |
-| Português (Portuguese) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pt.md) · [read](../packs/ws-lang-pt.md) | Martins | 87–89% |
-| Português (Brasil) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-pt-BR.md) · [read](../packs/ws-lang-pt-BR.md) | Martins, Brazilian | 88–90% |
-| Română (Romanian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ro.md) · [read](../packs/ws-lang-ro.md) | Flesch, for now | 88% |
-| Русский (Russian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-ru.md) · [read](../packs/ws-lang-ru.md) | Oborneva | 82–87% |
-| Svenska (Swedish) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-sv.md) · [read](../packs/ws-lang-sv.md) | LIX | 84–87% |
-| Українська (Ukrainian) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-uk.md) · [read](../packs/ws-lang-uk.md) | Flesch, for now | 83% |
-| 简体中文 (Chinese) | [download](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hans.md) · [read](../packs/ws-lang-zh-Hans.md) | Sentence length and rare characters | 73% |
-
-**Accuracy** is the share of words that get the right color on published text the packs never saw (the Universal Dependencies test sets). "For now" means the language has no settled reading-grade formula yet.
-
-## Your language is missing?
-
-Copy the closest pack, rename it `ws-lang-<code>.md` and change its lists. If you build one, a pull request is welcome.
+Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59). Your language missing? Copy the closest pack, rename it `ws-lang-<code>.md`, change its lists, and send a pull request.

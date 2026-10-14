@@ -36,9 +36,15 @@ export interface WsExportOpts {
 	keepHeadings?: boolean; wordCountOnTitle?: boolean; roundWordCount?: boolean; pageNumbers?: boolean;
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;
 	doubleSpaced?: boolean; toc?: boolean; runningHeaderOn?: boolean; sectionTitles?: boolean; previewDark?: boolean;
+	/** page numbers beside the contents' entries (A751) */
+	tocPages?: boolean;
+	/** an empty line after every paragraph, indented or not (A756) */
+	paraBlank?: boolean;
 	// words
 	author?: string; titleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
 	format?: string; footnotePlace?: string; chapterTitles?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
+	/** A751: the running header's own words, where the page number goes, the contents' title */
+	headerText?: string; pageNumberAt?: string; tocTitle?: string;
 	// numbers
 	pt?: number;
 	/** the last export, remembered so the panel can offer it again */
@@ -93,7 +99,9 @@ export interface WsImage { name: string; alt: string; width: number | null; ext:
 /** what a build carries beside the options: the pictures of the note being walked, and the .docx's figure writer */
 /** …and the numbering of footnote markers, one call per marker: a number for one whose note is defined, null for one that is not */
 export interface WsExportBuild { imgs?: Map<string, WsImage> | null; docxFigure?: ((img: WsImage) => string[]) | null; noteRef?: ((label: string) => { n: number; end: boolean } | null) | null }
-export interface WsExportRun extends WsExportOpts, WsExportBuild { title?: string; wordCount?: number; runningHeader?: string }
+export interface WsExportRun extends WsExportOpts, WsExportBuild { title?: string; wordCount?: number; runningHeader?: string;
+	/** the page each contents entry lands on, measured before a paged file is written (A751) */
+	tocPageOf?: Record<string, number> }
 // One section of a compiled book: a folder heading, or a note with its text.
 export interface WsExportSection { title: string; markdown: string; path: string; depth: number; folder?: boolean; images?: Map<string, WsImage>;
 	/** the list of sources at the back (A572 step 4): its heading the title, one entry a source */
@@ -197,7 +205,7 @@ export interface WsLegacySettings {
 	barThemeMarginalia?: never; marginaliaGutter?: never; typewriterLinesAbove?: never; typewriterLinesBelow?: never;
 	letterboxRatio?: never; statusFormatText?: never; statusFormatLeft?: never; statusFormatCenter?: never;
 	statusFormatRight?: never; wpmWindowSec?: never; statusBarPadding?: never; hemFlashOnBlock?: never;
-	proseSkipCode?: never; uniCols?: never; folderGoals?: never; uniColCh?: never; exportTicksAlways?: never;
+	proseSkipCode?: never; uniCols?: never; folderGoals?: never; goalUnit?: never; goalTokenFormat?: never; targetTokenFollows?: never; markNbsp?: never; markInvisible?: never; markOther?: never; goalCelebrate?: never; goalMetSeen?: never; typoQuoteSpace?: never; wpmTokenUnit?: never; orgDeadlineShow?: never; uniColCh?: never; exportTicksAlways?: never;
 	manuscriptRoots?: never; organizerRoot?: never; uniRootShut?: never; organizerRootShut?: never;
 	uniTreeWidth?: never; uniShut?: never; fileTreeGoals?: never; goalsFile?: never; goalBaseline?: never;
 	goalRingWeight?: never; goalOrientation?: never; goalLenWriting?: never; goalLenFile?: never;

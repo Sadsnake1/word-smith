@@ -3,6 +3,7 @@
 import {
 	CM,
 	findDialogue,
+	wsDialoguePairs,
 	isParagraphLine,
 	maskMarkup,
 	posBucket,
@@ -53,6 +54,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 	const dimText   = Decoration.mark({ class: 'ws-dim-text' });
 	const spaceDeco = Decoration.mark({ class: 'ws-ws-space' });
 	const tabDeco   = Decoration.mark({ class: 'ws-ws-tab' });
+	// (TOMBSTONE, A780, the writer: "leave the nbsp and invisible chars for now. remove them for now": A768's special spaces
+	// as °, A771's invisible characters as ⌷ and ¬, A777's Other that held both)
 
 	// WHETHER THE WRITER IS IN THIS EDITOR. CodeMirror's `hasFocus` also asks
 	// `document.hasFocus()`, and on iOS nothing promises that stays true
@@ -408,7 +411,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					// throws, so turning Dialogue on switched every
 					// check and word-class colour off at once.
 				if (s.checkDialogue) {
-					for (const q of findDialogue(text, E.dialogue)) {
+					// (and your own pairs with them, A729)
+					for (const q of findDialogue(text, E.dialogue, !!s.checkDialogueMore, s.checkDialogueMore && s.checkDialogueCustom ? wsDialoguePairs(s.checkDialogueCustom) : null)) {
 						keep(checkMark.dialogue, base + q.from, base + q.to);
 					}
 				}
@@ -904,6 +908,20 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	});
 
+	// ── {wpm}: THE TYPED CHARACTERS (A730), only while the token is on the bar: typing, never a paste, a drop or a
+	// smart quote (`input.typography`); one property read per keystroke otherwise ──
+	const wpmPlugin = ViewPlugin.fromClass(class {
+		update(u: ViewUpdate) {
+			if (!u.docChanged || !plugin._wpmWanted) return;
+			let n = 0;
+			for (const tr of u.transactions) {
+				if (!tr.docChanged || !tr.isUserEvent('input.type')) continue;
+				tr.changes.iterChanges((_fa: number, _ta: number, _fb: number, _tb: number, ins: Text) => { n += ins.length; });
+			}
+			if (n > 0) plugin.wpmTyped(n, Date.now());
+		}
+	});
+
 	// ── CITATIONS WHILE WRITING (A572) ────────────────────────────────────
 	//
 	// A citation marked as it is written, a bracketed key the library does not hold
@@ -944,7 +962,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	}, { decorations: (v) => v.decorations });
 
-	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin, citePlugin]
+	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin, wpmPlugin, citePlugin]
 		.concat(plugin.buildHemingwayExtensions())
 		.concat(plugin.buildTypographyExtension())
 		.concat(plugin.buildTypographyRevertKeymap());

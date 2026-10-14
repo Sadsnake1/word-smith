@@ -36,9 +36,9 @@ import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
 import type { WsOrgColAgg } from './organizer-readings';
-import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf, wsListOf } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
-import { wsT, wsTq, wsUiDate } from '../core/ui-text';
+import { wsT, wsTq, wsUiDate, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
 
@@ -83,7 +83,7 @@ function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 	//
 	// A NEW COLUMN NEEDS NO ENTRY HERE: an unnamed id ranks last rather
 	// than throwing or vanishing.
-	const SORT_RELEVANCE = ['words', 'vocab', 'goal', 'tasks', 'mark',
+	const SORT_RELEVANCE = ['words', 'vocab', 'goal', 'deadline', 'tasks', 'mark',
 		'modified', 'created', 'grade', 'paras', 'tags'];
 	const sortRank = (c: { id: string; }) => {
 		const at = SORT_RELEVANCE.indexOf(c.id);
@@ -630,6 +630,39 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 	}
 }
 
+// THE VAULT'S TOTAL ROW COUNTS WHAT IT CANNOT ADD (A752, the writer: "in the total row show the numer of deadline x
+// deadlines", "in the total row say x targets", "in the total row say how many file types, same for footnotes,
+// backlinks, outgoing links"): with no target or deadline of the vault's own, how many are set in it (a note's and a
+// folder's, of files that are there); how many kinds of file, each kind on the hover; every link in, every link out.
+// (Footnotes already add up.) A folder's root row keeps its own target and deadline (A700).
+function wsOrgTotalSay(plugin: WordSmith, ctx: WsOrgCtx, id: string, paths: string[]): WsOrgColAgg | null {
+	const there = (p: string) => !!p && !!plugin.app.vault.getAbstractFileByPath(p);
+	if (id === 'goal' || id === 'deadline') {
+		const goals = plugin.settings.fileGoals || {}, folders = plugin.settings.folderTargets || {}, days = plugin.settings.goalDeadlines || {};
+		const keys = id === 'goal'
+			? Object.keys(goals).filter((p) => Number(goals[p]) > 0).concat(Object.keys(folders).filter((p) => Number(folders[p]) > 0))
+			: Object.keys(days).filter((p) => !!days[p]);
+		const n = new Set(keys.filter(there)).size;
+		if (!n) return null;
+		if (id === 'goal') return { text: n === 1 ? wsT('{n} target', { n }) : wsT('{n} targets', { n }) };
+		return { text: n === 1 ? wsT('{n} deadline', { n }) : wsT('{n} deadlines', { n }) };
+	}
+	if (id === 'ftype') {
+		const kinds = new Map<string, number>();
+		for (const p of paths) { const m = /\.([A-Za-z0-9]+)$/.exec(p); if (m) { const k = m[1].toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); } }
+		const n = kinds.size;
+		if (!n) return null;
+		const each = Array.from(kinds.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, c]) => c.toLocaleString() + ' ' + k);
+		return { text: n === 1 ? wsT('{n} file type', { n }) : wsT('{n} file types', { n }), title: wsUiJoin(each) };
+	}
+	if (id === 'backlinks' || id === 'outlinks') {
+		let n = 0;
+		for (const p of paths) n += wsListOf(ctx.orgColRaw({ id }, p)).length;
+		return n ? { text: n.toLocaleString() } : null;
+	}
+	return null;
+}
+
 // THE ROOT ROW at the head of the table, or at the vault the Total row at its
 // foot (lifted out of drawOrg).
 function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx: WsOrgCtx; orgLensEmptied: boolean; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
@@ -714,8 +747,23 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			// `orgColStamp`. Without this the column is as wide as its
 			// widest cell whatever the header asks for.
 			ctx.orgColStamp(td, col.id, wrap);
-			const agg = ctx.orgColAgg(col, subUnder);
-			if (agg) aggInto(td, agg);
+			// (its own target, deadline and plan: the folder the window is opened on, or the vault's, A700)
+			const agg = ctx.orgColAgg(col, subUnder, at || '');
+			// …AND SET WHERE THEY ARE READ (A700, the writer: "let me hove on the root folder too"): the folder the window is
+			// opened on, or the vault's own on the Total row. A row of its own, `idx` -1: never a selection's.
+			// (the vault's Total row: what it cannot add, counted, A752)
+			const many = isRoot ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
+			if (col.id === 'goal' || col.id === 'deadline') {
+				const self: WsOrgRow = { path: at || '', parent: '', kind: 'folder', group: '', depth: 0, rel: '', idx: -1 };
+				// (its own first; the count only while the vault has none, a click still setting it)
+				const say = agg ? agg.text : (many ? many.text : '');
+				if (col.id === 'goal') ctx.orgGoalCell(td, self, say, agg && agg.goal ? agg.goal : null);
+				else ctx.orgDeadlineCell(td, self, say, agg && agg.title ? agg.title : '');
+				if (!agg && many) td.title = col.id === 'goal' ? wsT('Click to set a target') : wsT('Click to set a deadline');
+				continue;
+			}
+			if (many) aggInto(td, many);
+			else if (agg) aggInto(td, agg);
 		}
 		// AND THE PICKER’S COLUMN, so the row is not one cell short
 		// and the table draws level - the same trailing cell every
@@ -851,7 +899,18 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			// change its own number, and a fold that moves a total is a fold
 			// acting as a filter.
 			if (isFolder) {
-				const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path));
+				const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path), row.path);
+				// A FOLDER'S OWN TARGET AND DEADLINE ARE ITS OWN, set where they are read (A700): no summary weight
+				if (col.id === 'goal') { ctx.orgGoalCell(td, row, agg ? agg.text : '', agg && agg.goal ? agg.goal : null); continue; }
+				if (col.id === 'deadline') { ctx.orgDeadlineCell(td, row, agg ? agg.text : '', agg && agg.title ? agg.title : ''); continue; }
+				// A FOLDER'S VOCABULARY (A792): its notes' words counted once, drawn when they are read (orgFolderVocab);
+				// the Total row never asks
+				if (col.id === 'vocab') {
+					const put = (a: WsOrgColAgg) => { td.empty(); td.addClass('ws-org-aggcell'); td.setText(a.text); if (a.title) td.title = a.title; };
+					const now = ctx.orgFolderVocab(row.path, ctx.orgUnder(row.path), (a) => { if (td.isConnected) put(a); });
+					if (now) put(now);
+					continue;
+				}
 				if (agg) {
 					// A SUMMARY IS NOT A MEASUREMENT: folder aggregate cells render in a
 					// visibly different weight from note values, so nobody reads a
@@ -890,6 +949,7 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			// cycles, the target edits.
 			if (col.id === 'mark') { ctx.orgFlagCell(td, row, text); continue; }
 			if (col.id === 'goal') { ctx.orgGoalCell(td, row, text); continue; }
+			if (col.id === 'deadline') { ctx.orgDeadlineCell(td, row, text, ctx.orgPlanTitle('deadline', row.path)); continue; }
 			if (col.id === 'tags') { ctx.orgTagsCell(td, row); continue; }
 			// A FILE ROW ONLY. A folder has no backlinks of its own; its cell
 			// is the aggregate over the notes beneath it, which is a count and
@@ -1010,7 +1070,7 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			if (col.user) { ctx.orgPropCell(td, row, col, text); continue; }
 			td.setText(text);
 			// The cap cuts, the hover answers — same trade the old
-			// table made, kept because it is the right one.
+			// table made, kept because it is the right one. The plan's two readings say what they are for (A705).
 			if (text) td.title = text;
 		}
 		// THE PICKER'S COLUMN, kept level: the header carries a cell, so every
@@ -2955,9 +3015,9 @@ export const organizerWindowMethods = {
 		// does not have, and the checker holds the chain's type against
 		// `WsOrgCtx` (org-ctx.ts).
 			.lend(orgWidths, ['ORG_COL_MIN', 'ORG_GRIP_CLICK_MS', 'orgColCeil', 'orgColCeilReset', 'orgColFitNow', 'orgColGripBind', 'orgColPx', 'orgColStamp', 'orgColUnfix', 'orgGripReleasedAt', 'orgNameGripBind', 'orgNameLineNow', 'orgNameRO', 'orgNameStamp', 'orgScrollTop', 'orgScrollLeft'])
-			.lend(orgCells, ['orgBackCell', 'orgOutCell', 'orgCanHoldProps', 'orgGoalBand', 'orgGoalCell', 'orgPropCell', 'orgPropRefuse', 'orgTagsCell'])
+			.lend(orgCells, ['orgBackCell', 'orgOutCell', 'orgCanHoldProps', 'orgGoalBand', 'orgGoalCell', 'orgDeadlineCell', 'orgPropCell', 'orgPropRefuse', 'orgTagsCell'])
 			.lend(orgLensBox, ['orgAddChip', 'orgAt', 'orgFilterByKey', 'orgLens', 'orgLensClear', 'orgLensOn', 'orgLensSet'])
-			.lend(orgReadings, ['orgColAgg', 'orgColRaw', 'orgColSortKey', 'orgColText', 'orgFolderIcon'])
+			.lend(orgReadings, ['orgColAgg', 'orgColRaw', 'orgColSortKey', 'orgColText', 'orgFolderIcon', 'orgFolderVocab', 'orgPlanTitle'])
 			.lend(orgProps, ['orgEditDone', 'orgEditGuard', 'orgFieldEditor', 'orgOpenAfter', 'orgPropPopClose', 'orgPropPopEl', 'orgPropPopOpen', 'orgRedrawPending'])
 			.lend(orgShape, ['setShape', 'showShape', 'typeLabel', 'typeRows'])
 			.lend(orgSel, ['orgSelClick', 'orgSelHas', 'orgSelCount'])
@@ -3359,11 +3419,11 @@ export const organizerWindowMethods = {
 	// an over-long scene needs to say.
 	// `show` is the bar's {target}, which has its own shape; the Organizer's
 	// cells leave it out and follow the column's.
-	orgTargetSay(this: WordSmith, words: number, target: number, show?: string) {
+	orgTargetSay(this: WordSmith, words: number, target: number) {
 		const t = Number(target) || 0;
 		if (t <= 0) return '';
 		const w = Number(words) || 0;
-		const how = show || (this.settings && this.settings.orgTargetShow)
+		const how = (this.settings && this.settings.orgTargetShow)
 			|| 'percent';
 		if (how === 'percent') {
 			const raw = (w / t) * 100;
@@ -3477,7 +3537,8 @@ export const organizerWindowMethods = {
 		const countEl = (actRow || panel).createDiv({
 			cls: 'ws-uni-count' + (actRow ? ' is-besidego' : '') });
 		// BEFORE the button, so it reads as the sentence the button acts on.
-		if (actRow && goEl) actRow.insertBefore(countEl, goEl);
+		// (`before`, not the row's insertBefore: the button lives in the format's group since A715)
+		if (actRow && goEl) goEl.before(countEl);
 		const bits: string[] = [];
 		countEl.setText(bits.join('  \u00b7  '));
 		countEl.style.display = bits.length ? '' : 'none';

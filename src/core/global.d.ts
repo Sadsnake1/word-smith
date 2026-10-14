@@ -67,6 +67,7 @@ interface HTMLElement {
 // across paints, and so do its listeners
 interface Document {
 	__wsReaderClicks?: boolean;
+	__wsAnchorClicks?: boolean;
 	__wsReaderKeys?: boolean;
 }
 

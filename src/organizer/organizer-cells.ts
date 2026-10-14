@@ -3,7 +3,7 @@
 
 import type { WsOrgRow } from './organizer-rows';
 import { Notice, setIcon } from 'obsidian';
-import { wsCatch } from '../core/preamble';
+import { wsCatch, wsDayOf, WS_TARGET_MAX } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent } from '../plugin/plugin';
@@ -202,15 +202,27 @@ const orgGoalBand = (td: HTMLElement, words: number, target: number) => {
 		for (const k of ['low', 'mid', 'high', 'done']) td.removeClass('is-band-' + k);
 	}
 };
-const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
+// A FOLDER IS A PATH WITH CHILDREN, asked of the vault (a folder named `Ch 1.md` is still a folder)
+const orgIsFolder = (path: string) => {
+	try { const f = d.plugin.app.vault.getAbstractFileByPath(String(path || '')); return !!f && !!f.children; } catch { return false; }
+};
+// A FOLDER'S OWN TARGET IS SET WHERE IT IS READ TOO (A700): `band` is its rows' count over it, from the aggregate.
+const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { words: number; target: number } | null) => {
+	const folder = row.kind === 'folder';
 	td.setText(text);
 	try {
-		orgGoalBand(td, Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0);
+		if (band) orgGoalBand(td, band.words, band.target);
+		else if (!folder) orgGoalBand(td, Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0);
 	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
-	const canGoal = orgCanHoldGoal(row.path);
+	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
+	const canGoal = folder || orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
-		td.title = text ? wsT('Click to change the target') : wsT('Click to set a target');
+		// (a folder's own: both numbers first, then the click, A700)
+		const hint = text ? wsT('Click to change the target') : wsT('Click to set a target');
+		td.title = band && band.target > 0
+			? wsT('{count} of a target of {target}', { count: band.words.toLocaleString(), target: band.target.toLocaleString() }) + ' · ' + hint
+			: hint;
 	}
 	td.addEventListener('click', (ev: Event) => {
 		ev.stopPropagation();
@@ -222,11 +234,12 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 			return;
 		}
 		if (td.querySelector('input')) return;
-		const was = d.targetOf(row.path);
+		const was = folder ? d.plugin.folderTargetFor(row.path) : d.targetOf(row.path);
 		td.textContent = '';
 		const inp = td.createEl('input', { cls: 'ws-org-editor ws-org-goaledit' });
 		inp.type = 'number';
 		inp.min = '0';
+		inp.max = String(WS_TARGET_MAX);
 		inp.value = was > 0 ? String(was) : '';
 		let settled = false;
 		inp.addEventListener('focus', () => {
@@ -242,18 +255,27 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 			settled = true;
 			if (commit) {
 				const n = parseFloat(inp.value);
-				const want = (isFinite(n) && n > 0) ? Math.round(n) : 0;
+				// AT MOST A MILLION (A752, the writer: "limit it to 1 milion"), a note's and a folder's alike
+				const want = (isFinite(n) && n > 0) ? Math.min(WS_TARGET_MAX, Math.round(n)) : 0;
+				if (n > WS_TARGET_MAX) {
+					try { new Notice(wsT('Word-Smith: a target goes up to {max} words.', { max: WS_TARGET_MAX.toLocaleString() })); } catch (_) { wsCatch('orgGoalCell: the cap', _); }
+				}
 				if (want !== was) {
-					// ON EVERY NOTE THE SELECTION HOLDS.
-					const paths = d.orgBulkPaths(row).filter(p => orgCanHoldGoal(p));
-					const before: [string, number][] = paths.map((p) => [p, d.s[d.goalStore()][p] || 0]);
+					// ON EVERY NOTE THE SELECTION HOLDS; A FOLDER'S ON ITSELF (A752, MEASURED: the selection holds notes
+					// only, so a folder row's edit asked of it was set on nothing; only the root row, which skips it, worked)
+					const paths = (row.idx === -1 || folder) ? [row.path] : d.orgBulkPaths(row).filter(p => orgCanHoldGoal(p) && !orgIsFolder(p));
+					if (!d.s[store]) d.s[store] = {};
+					const before: [string, number][] = paths.map((p) => [p, d.s[store][p] || 0]);
 					const after: [string, number][] = paths.map((p) => [p, want]);
 					const apply = async (pairs: [string, number][]) => {
 						for (const [p, v] of pairs) {
-							if (v > 0) d.s[d.goalStore()][p] = v;
-							else delete d.s[d.goalStore()][p];
+							if (v > 0) d.s[store][p] = v;
+							else delete d.s[store][p];
 						}
 						await d.plugin.saveSettings(true);
+						d.plugin.updateRetroStatusBar();
+						// (THE BAR SAYS IT AT ONCE, A763, the writer: "the deadlines don't update proprely after chaning a date";
+						// MEASURED: {target} kept the old day until the next keystroke repainted it)
 					};
 					await apply(after);
 					d.orgBulkSay(paths.length, want > 0 ? wsT('Target set') : wsT('Target cleared'));
@@ -268,6 +290,77 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 			d.orgEditDone();
 		})(); });
 		window.setTimeout(() => { try { inp.focus(); inp.select(); } catch (_) { wsCatch('openManuscriptModal / orgGoalCell: inp.focus();', _); } }, 0);
+	});
+};
+
+// ── THE DEADLINE, A DAY, SET WHERE IT IS READ (A700) ─────────────────
+//
+// The target cell's shape: a click swaps in a date input, the guard engages on focus, blur is the one committer,
+// Enter blurs, Escape restores; empty clears it. A note's or a folder's alike (the selection's notes and folders),
+// never a .pdf's: nothing counts its words, so a deadline there measures nothing.
+// ANY FILE TAKES ONE (A731, the writer: "add the deadline to non-md files too, just display days left in it"): a
+// deadline counts days, not words, so a .pdf's has its days as a note's does. The sentence (the days and the date)
+// on hover before the click.
+const orgDeadlineCell = (td: HTMLElement, row: WsOrgRow, text: string, tip?: string) => {
+	const folder = row.kind === 'folder';
+	td.setText(text);
+	td.addClass('is-goal');
+	td.title = (tip ? tip + ' \u00b7 ' : '') + (text ? wsT('Click to change the deadline') : wsT('Click to set a deadline'));
+	td.addEventListener('click', (ev: Event) => {
+		ev.stopPropagation();
+		if (td.querySelector('input')) return;
+		const was = d.plugin.goalDeadlineFor(row.path);
+		td.textContent = '';
+		// ITS OWN EDITOR, THE CELL'S WHOLE BOX (A705, the writer: "deadline row dont display well"): it wore the target's
+		// number-sized class and was cut to a calendar glyph and two letters; the sheet gives it the date's own width
+		td.addClass('is-editing', 'is-dateedit');
+		// TOMBSTONE (A772, the writer: "remove that x button from deadline row"): A759's × after a dated day, and the box
+		// that held the two; an emptied date clears the deadline
+		const inp = td.createEl('input', { cls: 'ws-org-editor ws-org-dateedit' });
+		inp.type = 'date';
+		inp.value = was;
+		let settled = false;
+		inp.addEventListener('focus', () => {
+			d.orgProps.orgEditGuard = { path: row.path, key: 'deadline' };
+			d.orgProps.orgFieldEscape = () => { settled = true; inp.blur(); };
+		});
+		inp.addEventListener('keydown', (ev2: KeyboardEvent) => {
+			if (ev2.key === 'Enter') { ev2.preventDefault(); inp.blur(); }
+			ev2.stopPropagation();
+		});
+		const finish = () => { void (async () => {
+			const commit = !settled;
+			settled = true;
+			if (commit) {
+				const want = wsDayOf(inp.value) ? inp.value : '';
+				if (want !== was) {
+					const paths = (row.idx === -1 || folder) ? [row.path] : d.orgBulkPaths(row).filter(p => !orgIsFolder(p));
+					if (!d.s.goalDeadlines) d.s.goalDeadlines = {};
+					const before: [string, string][] = paths.map((p) => [p, d.s.goalDeadlines[p] || '']);
+					const after: [string, string][] = paths.map((p) => [p, want]);
+					const apply = async (pairs: [string, string][]) => {
+						for (const [p, v] of pairs) {
+							if (v) d.s.goalDeadlines[p] = v;
+							else delete d.s.goalDeadlines[p];
+						}
+						await d.plugin.saveSettings(true);
+						d.plugin.updateRetroStatusBar();
+						// (and {target} with it, A763)
+					};
+					await apply(after);
+					d.orgBulkSay(paths.length, want ? wsT('Deadline set') : wsT('Deadline cleared'));
+					d.orgHistPush({
+						label: d.orgHistOn(paths, want ? wsT('Deadline {day}', { day: d.plugin.formatValue('deadline', want, 'date', d.plugin.dateStyle()).text }) : wsT('Deadline cleared')),
+						undo: async () => { await apply(before); d.drawPanel(); },
+						redo: async () => { await apply(after); d.drawPanel(); }
+					});
+				}
+			}
+			d.orgProps.orgRedrawPending = true;
+			d.orgEditDone();
+		})(); };
+		inp.addEventListener('blur', finish);
+		window.setTimeout(() => { try { inp.focus(); } catch (_) { wsCatch('orgDeadlineCell: inp.focus();', _); } }, 0);
 	});
 };
 
@@ -411,5 +504,5 @@ const orgTagsCell = (td: HTMLElement, row: WsOrgRow) => {
 			: wsT('#{tag} — a frontmatter tag', { tag: t.tag });
 	}
 };
-	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
+	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgDeadlineCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
 };

@@ -314,7 +314,13 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 		if (d.tab !== 'organizer' && agg && agg.files) {
 			// The rows under the place less the notes the index knows are the files.
 			const others = note ? 0 : Math.max(0, d.orgUnder(at).length - agg.files);
-			subject.createSpan({ cls: 'ws-org-agg', text: wsOrgCountsLine(agg, others) });
+			// A NARROW PANE BREAKS IT BETWEEN ITS FIGURES (A800, the writer's phone: "10297 words line is not display good"):
+			// one line that could not wrap ran past the pane; each figure is kept whole now, the line wrapping between them
+			const line = subject.createSpan({ cls: 'ws-org-agg' });
+			wsOrgCountsLine(agg, others).split(' · ').forEach((part, i) => {
+				if (i) line.appendText(' · ');
+				line.createSpan({ cls: 'ws-org-agg-part', text: part });
+			});
 		}
 		d.zoomTag();
 	};

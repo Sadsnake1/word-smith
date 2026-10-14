@@ -17,12 +17,14 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{words}` `{chars}` | The note, or your selection |
 | `{ln:col}` `{paragraph}` | Where the cursor is |
 | `{readtime}` | How long the note takes to read |
+| `{pages}` | How many pages the note fills, 250 words to a page, as in the Report |
 | `{tasks}` | Tasks ticked over tasks in the note, `[3/7]`, as the Organizer shows them. Nothing when there are none |
-| `{target}` | How far the note is toward its target, `43%` or `2,145/5,000` (pick one under **Powerline → Tokens**). Set a target in the Organizer. Nothing when there is none |
+| `{target}` | How far you are toward your target, `43%`, `2,145/5,000`, `2,855 to go`, a small bar or just an icon (pick one under **Powerline → Tokens**). With a deadline the same shapes measure today's share and add the working days left, `412/850 · 23d` or `48% · 23d`. A deadline goal comes first, then the note's own target, then its folder's; **Which target** can keep it on one of them. Click it for more. A goal met gets a check after it until midnight. Set a target and a deadline in the Organizer, on a note or a folder. Nothing when there is none |
 | `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
 | `{time}` `{clock}` | The time, written or drawn as a dial. `{time}` reads `14:05` or `2:05 PM` (pick one under **Powerline → Tokens**) |
 | `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts, joined however you like |
+| `{wpm}` | Your typing speed in words a minute, with a small gauge whose needle rests five seconds after your last key. The Momentum gauge, a dial alone, follows your last few seconds instead. Or today's average (pick one under **Powerline → Tokens**). Click it to start again from zero. It shows the number alone; type `wpm` after it if you want the word. Only what you type counts, never a paste |
 | `{battery}` `{caps}` `{num}` | Battery; caps and num lock, only when on |
 | `{vim}` | Which Vim mode you're in |
 | `{mode}` | A Modes button: letter box, typewriter, Hemingway, right on the bar |
@@ -30,9 +32,11 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{obsidian}` | A small Obsidian crystal |
 | `{#>}` | The heading path: `Chapter 3 › The Ferry › Beat 2` |
 
+**Your target.** `{target}` follows the goal you're working toward: a deadline first (the note's own, then the nearest folder's), else the note's target, else its folder's. With a deadline it reads today's words over today's share and the days left; without one, `43%`, `2,145/5,000` or a small bar. Click it for a panel: a row for the note and one for its folder, each with its bar, its numbers, a ✓ once met, and the days left. **{target} panel** under Powerline → Tokens picks what the rows count: today's share while a deadline runs, or always the whole goal.
+
 ## Buttons
 
-`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{cursors}` picks one of your [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) presets by name. `{lang}` switches between English and the language packs ticked under **Prose → Language**. `{darklight}` switches Obsidian between dark and light. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes; `{powermenu}` opens the Powermenu, the menu of everything. Buttons are never dropped, however narrow the window gets.
+`{syntax}` `{prose}` `{markers}` `{font}` `{theme}` are pickers. `{cursors}` picks one of your [Cursor-Smith](https://github.com/Sadsnake1/cursor-smith) presets by name. `{lang}` switches between English and the language packs ticked under **Prose → Language**. `{darklight}` switches Obsidian between dark and light. `{report}`, `{history}`, `{export}` and `{organizer}` open those panes; `{settings}` is a cog that opens Word-Smith's settings; `{powermenu}` opens the Powermenu, the menu of everything. Buttons are never dropped, however narrow the window gets.
 
 Every token that has an icon can be shown as the icon, the word, or both, one drop-down each under **Powerline → Tokens**: the pickers and the pane buttons, `{flag}`, `{properties}`, `{backlinks}`, `{darklight}` and `{cursors}`. The two counts always show their number; the drop-down picks what follows it. A clickable token takes your accent color under the pointer.
 

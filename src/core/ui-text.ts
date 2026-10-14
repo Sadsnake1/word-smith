@@ -31,12 +31,13 @@ const WS_UI_MISSED = new Set<string>();
 const WS_PLURAL_CAT = /^\s*(zero|one|two|few|many|other)\s*:/;
 
 /** Obsidian's language code to the table Word-Smith has for it, '' for English or a language it has none for:
- *  zh is Simplified Chinese (Obsidian's zh-TW is Traditional: English until it has a table), nn reads Bokmål,
+ *  zh is Simplified Chinese, zh-TW (and Hong Kong's, Macau's) Traditional (A767), nn reads Bokmål,
  *  pt-BR falls back to European Portuguese where it has no line of its own */
 export function wsUiPick(code: string): string {
 	const c = String(code || '').trim();
 	if (!c || /^en(-|$)/i.test(c)) return '';
 	if (/^zh(-hans|-cn)?$/i.test(c)) return WS_LOCALES['zh-Hans'] ? 'zh-Hans' : '';
+	if (/^zh-(hant|tw|hk|mo)$/i.test(c)) return WS_LOCALES['zh-Hant'] ? 'zh-Hant' : '';
 	if (/^nn$/i.test(c)) return WS_LOCALES.no ? 'no' : '';
 	if (WS_LOCALES[c]) return c;
 	const base = c.split('-')[0].toLowerCase();
@@ -134,7 +135,7 @@ export function wsUiDate(english: string, d: Date, opts: Intl.DateTimeFormatOpti
 /** a list as the settings' language writes one: 、 between items in Chinese and Japanese, a comma and a space
  * elsewhere (the reviewer of the Chinese: "Covers: {list} is joined with ', '; Chinese wants '、'") */
 export function wsUiJoin(items: string[]): string {
-	return items.join(/^(ja|zh-Hans)$/.test(WS_UI_LANG) ? '、' : ', ');
+	return items.join(/^(ja|zh-Hans|zh-Hant)$/.test(WS_UI_LANG) ? '、' : ', ');
 }
 
 /** a line in the settings' language where it has one, never counted as missing: for a value that may be a name

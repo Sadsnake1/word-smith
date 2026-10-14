@@ -1,6 +1,7 @@
 // Word-Smith — organizer-drag: a row moved within its parent, a file
 // dropped into a folder.
 
+import { setIcon } from 'obsidian';
 import { wsOrgDropBefore } from './org-index';
 import { wsCatch } from '../core/preamble';
 import { wsT } from '../core/ui-text';
@@ -174,6 +175,20 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 		orgDragPath = row.path;
 		tr.addClass('is-dragging');
 		try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', row.path); } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
+		// THE GHOST IS OBSIDIAN'S (A704, the writer: "improve the dragging"): the explorer's own name tag, the glyph and
+		// the name, in Obsidian's own `drag-ghost` costume, never a translucent snapshot of the whole row with every
+		// column in it. Built in the row's own document (a pop-out has its own), shot, and taken away.
+		try {
+			const dt = ev.dataTransfer;
+			if (dt && typeof dt.setDragImage === 'function') {
+				const ghost = tr.ownerDocument.body.createDiv({ cls: 'drag-ghost ws-drag-ghost-shot' });
+				const self = ghost.createDiv({ cls: 'drag-ghost-self' });
+				try { setIcon(self, row.kind === 'folder' ? 'folder' : 'file-text'); } catch (_) { wsCatch('orgRowDrag: setIcon(ghost)', _); }
+				self.createSpan({ text: d.nameOf(row.path) });
+				dt.setDragImage(ghost, -12, -10);
+				window.setTimeout(() => { try { ghost.remove(); } catch (_) { wsCatch('orgRowDrag: ghost.remove()', _); } }, 0);
+			}
+		} catch (_) { wsCatch('openManuscriptModal / orgRowDrag: setDragImage', _); }
 	});
 	tr.addEventListener('dragover', (ev: DragEvent) => {
 		orgDropMarks();

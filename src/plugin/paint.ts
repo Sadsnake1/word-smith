@@ -10,6 +10,15 @@ import { BAR_DIRECTIVE_BG, DEFAULT_SETTINGS, PL_SEP_ASPECT, STYLE_CLASSES, STYLE
 import { Platform } from 'obsidian';
 import type WordSmith from './plugin';
 
+// ON BODY, NEVER :root, FOR ANYTHING A NOTE'S LAYOUT READS (A701, issue #64). A pop-out window is another
+// document, and Obsidian keeps it in step by copying the main body's classes and its `--` properties into it
+// (app.js, a MutationObserver on body's class and style) and nothing else: not :root's properties, not body's
+// other attributes. The indent's amount and Typewriter's pads lived on :root, so a pop-out had the indent switched
+// on at no width, and Zen's hidden title was a data- attribute, so a pop-out kept its title. Body's style is
+// watched (by that copier, and by the theme observer, wsWatchTheme), and the passes that write these repeat
+// often: a write of the value already there queues no mutation, in Chromium as in jsdom (measured 2026-10-12),
+// so they cost the watchers nothing.
+
 export const paintMethods = {
 
 	// ── The window controls, which are not DOM ───────────────────────────────
@@ -101,7 +110,7 @@ export const paintMethods = {
 		document.body.classList.remove(
 			'zenmode-active', 'zenmode-hide-properties', 'zenmode-hide-status-bar',
 			'zenmode-hide-scroll-bar', 'zenmode-hide-title-bar', 'zenmode-hide-ribbon',
-			'ws-zen-hide-window-title',
+			'ws-zen-hide-window-title', 'ws-zen-hide-inline-title',
 			'zenmode-hide-linked-mentions', 'ws-text-pad', 'ws-para-indent', 'ws-justify', 'ws-typewriter', 'ws-ios', 'ws-margin-nums',
 			'ws-masks-active', 'ws-retrobar-active', 'ws-pos-dim', 'ws-ck-dim', 'ws-hemingway-active',
 			'ws-line-limit', 'ws-page', 'ws-editor-focused', 'ws-font-active', 'ws-rtl', 'ws-vim-panel-open',
@@ -266,6 +275,8 @@ export const paintMethods = {
 		const hideNativeStatusBar = this.shouldHideNativeStatusBar();
 		body.classList.toggle('zenmode-active',             zen);
 		body.classList.toggle('ws-zen-hide-window-title',   zen && this.settings.zenHideWindowTitle);
+		// A CLASS, NOT THE data- ATTRIBUTE IT WAS (A701): a pop-out window gets body's classes and no other attribute
+		body.classList.toggle('ws-zen-hide-inline-title',   zen && !!this.settings.hideInlineTitle);
 		body.classList.toggle('zenmode-hide-properties',    zen && this.settings.hideProperties);
 		body.classList.toggle('zenmode-hide-status-bar',    hideNativeStatusBar);
 		body.classList.toggle('zenmode-hide-scroll-bar',    this.shouldHideScrollBar());
@@ -314,11 +325,11 @@ export const paintMethods = {
 		body.classList.toggle('ws-ios', this.isIosApp());
 		if (twOn) {
 			const pct = this.typewriterAnchorRatio() * 100;
-			document.documentElement.style.setProperty('--ws-tw-pad-top',    pct + 'vh');
-			document.documentElement.style.setProperty('--ws-tw-pad-bottom', (100 - pct) + 'vh');
+			body.style.setProperty('--ws-tw-pad-top',    pct + 'vh');
+			body.style.setProperty('--ws-tw-pad-bottom', (100 - pct) + 'vh');
 		} else {
-			document.documentElement.style.removeProperty('--ws-tw-pad-top');
-			document.documentElement.style.removeProperty('--ws-tw-pad-bottom');
+			body.style.removeProperty('--ws-tw-pad-top');
+			body.style.removeProperty('--ws-tw-pad-bottom');
 		}
 		// PAGE MODE: the column below, drawn as a page (the sheet's rules read
 		// this class and the two above it).
@@ -355,13 +366,8 @@ export const paintMethods = {
 		body.classList.toggle('ws-pos-dim',                 laid && this.settings.posEnabled && this.settings.posDimOthers);
 		body.classList.toggle('ws-ck-dim',                  laid && this.settings.checksEnabled && this.settings.checkDimOthers);
 		body.classList.toggle('ws-hemingway-active',        scoped && this.settings.hemingwayEnabled);
-		if (zen) {
-			body.setAttribute('data-zen-hide-inline-title', String(this.settings.hideInlineTitle));
-			body.setAttribute('data-zen-focused-file',      String(this.settings.focusedFileMode));
-		} else {
-			body.removeAttribute('data-zen-hide-inline-title');
-			body.removeAttribute('data-zen-focused-file');
-		}
+		if (zen) body.setAttribute('data-zen-focused-file', String(this.settings.focusedFileMode));
+		else body.removeAttribute('data-zen-focused-file');
 		this.tagMainTitlebar();
 	},
 
@@ -425,7 +431,7 @@ export const paintMethods = {
 	stampEditorPadding(this: WordSmith) {
 		const s = this.settings;
 		const px = this.padOn() && s.editorPaddingH != null ? s.editorPaddingH : DEFAULT_SETTINGS.editorPaddingH;
-		document.documentElement.style.setProperty('--ws-editor-padding-h', px + 'px');
+		document.body.style.setProperty('--ws-editor-padding-h', px + 'px');
 	},
 
 	applyCssVariables(this: WordSmith) {
@@ -511,7 +517,6 @@ export const paintMethods = {
 		root.setProperty('--ws-pl-sep-aspect', String(PL_SEP_ASPECT));
 		this._barBoxHeight = rowH * barRows + padTop + padBottom + rules.top + rules.bottom;
 		root.setProperty('--ws-status-bar-height', this._barBoxHeight + 'px');
-		root.setProperty('--ws-para-indent',          (this.settings.paragraphIndentEm || 2) + 'em');
 		root.setProperty('--ws-mask-overhang',        (this.settings.maskOverhang || 4) + 'px');
 
 		const isDark = document.body.classList.contains('theme-dark');
@@ -658,9 +663,10 @@ export const paintMethods = {
 		const props: Record<string, string> = {};
 		// The indent's MODE. The class that switches the feature on
 		// (ws-para-indent) is applyBodyClasses'; this one says which lines
-		// the indent lands on. The amount is --ws-para-indent, from
-		// applyCssVariables.
+		// the indent lands on. The amount is --ws-para-indent, beside it on body
+		// (it was on :root, which a pop-out window never gets, A701).
 		cls['ws-para-single'] = this.textOpt('enableParagraphIndent', false) && s.paragraphIndentMode === 'single';
+		props['--ws-para-indent'] = (s.paragraphIndentEm || 2) + 'em';
 		if (this.textOpt('limitLineLength', false)) {
 			// ch is the width of a "0", which is the conventional stand-in for
 			// a character in a proportional face. The horizontal padding is
@@ -724,10 +730,11 @@ export const paintMethods = {
 			// line under a thirty-word sentence is noise, and the point
 			// of this one is seeing a wall of a single colour at a glance.
 			if (s.checkRhythm) {
-				props['--ws-ck-hard-bg']     = this.hexToRgba(s.checkRhythmHardColor, 0.22);
-				props['--ws-ck-veryhard-bg'] = this.hexToRgba(s.checkRhythmVeryHardColor, 0.22);
+				// (the theme's yellow and red unless picked, A782)
+				props['--ws-ck-hard-bg']     = s.checkRhythmHardColor ? this.hexToRgba(s.checkRhythmHardColor, 0.22) : 'rgba(var(--color-yellow-rgb), 0.22)';
+				props['--ws-ck-veryhard-bg'] = s.checkRhythmVeryHardColor ? this.hexToRgba(s.checkRhythmVeryHardColor, 0.22) : 'rgba(var(--color-red-rgb), 0.22)';
 				// …and the short one's green, shaded by length (A630)
-				props['--ws-ck-short-bg']    = this.hexToRgba(s.checkRhythmShortColor || '#5aa469', 0.22);
+				props['--ws-ck-short-bg']    = s.checkRhythmShortColor ? this.hexToRgba(s.checkRhythmShortColor, 0.22) : 'rgba(var(--color-green-rgb), 0.22)';
 				// …and the middle's neutral, fainter: there is more of it than of the other three (A658)
 				if (s.checkRhythmMid !== false) props['--ws-ck-mid-bg'] = this.hexToRgba(s.checkRhythmMidColor || '#5b8dd6', 0.12);
 			}

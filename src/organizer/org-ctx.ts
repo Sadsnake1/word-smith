@@ -80,9 +80,9 @@ export interface WsOrgCtxOwn {
 // member's type is whatever the module says it is.
 export type WsOrgCtx = WsOrgCtxOwn
 	& Pick<ReturnType<typeof wsOrgWidthsMake>, 'ORG_COL_MIN' | 'ORG_GRIP_CLICK_MS' | 'orgColCeil' | 'orgColCeilReset' | 'orgColFitNow' | 'orgColGripBind' | 'orgColPx' | 'orgColStamp' | 'orgColUnfix' | 'orgGripReleasedAt' | 'orgNameGripBind' | 'orgNameLineNow' | 'orgNameRO' | 'orgNameStamp' | 'orgScrollTop' | 'orgScrollLeft'>
-	& Pick<ReturnType<typeof wsOrgCellsMake>, 'orgBackCell' | 'orgOutCell' | 'orgCanHoldProps' | 'orgGoalBand' | 'orgGoalCell' | 'orgPropCell' | 'orgPropRefuse' | 'orgTagsCell'>
+	& Pick<ReturnType<typeof wsOrgCellsMake>, 'orgBackCell' | 'orgOutCell' | 'orgCanHoldProps' | 'orgGoalBand' | 'orgGoalCell' | 'orgDeadlineCell' | 'orgPropCell' | 'orgPropRefuse' | 'orgTagsCell'>
 	& Pick<ReturnType<typeof wsOrgLensMake>, 'orgAddChip' | 'orgAt' | 'orgFilterByKey' | 'orgLens' | 'orgLensClear' | 'orgLensOn' | 'orgLensSet'>
-	& Pick<ReturnType<typeof wsOrgReadingsMake>, 'orgColAgg' | 'orgColRaw' | 'orgColSortKey' | 'orgColText' | 'orgFolderIcon'>
+	& Pick<ReturnType<typeof wsOrgReadingsMake>, 'orgColAgg' | 'orgColRaw' | 'orgColSortKey' | 'orgColText' | 'orgFolderIcon' | 'orgFolderVocab' | 'orgPlanTitle'>
 	& Pick<ReturnType<typeof wsOrgPropsMake>, 'orgEditDone' | 'orgEditGuard' | 'orgFieldEditor' | 'orgOpenAfter' | 'orgPropPopClose' | 'orgPropPopEl' | 'orgPropPopOpen' | 'orgRedrawPending'>
 	& Pick<ReturnType<typeof wsOrgShapeMake>, 'setShape' | 'showShape' | 'typeLabel' | 'typeRows'>
 	& Pick<ReturnType<typeof wsOrgSelMake>, 'orgSelClick' | 'orgSelHas' | 'orgSelCount'>

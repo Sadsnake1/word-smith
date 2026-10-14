@@ -31,7 +31,7 @@ export const STYLE_KINDS = ['text', 'highlight', 'line'];
 export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-dim-active']
 	.concat(STYLE_KINDS.map((k) => 'ws-pos-' + k), STYLE_KINDS.map((k) => 'ws-ck-' + k));
 export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line-hl-color', '--ws-dim-opacity',
-	'--ws-ck-hard-bg', '--ws-ck-veryhard-bg', '--ws-ck-short-bg', '--ws-ck-mid-bg', '--ws-mask-opacity']
+	'--ws-ck-hard-bg', '--ws-ck-veryhard-bg', '--ws-ck-short-bg', '--ws-ck-mid-bg', '--ws-mask-opacity', '--ws-para-indent']
 	.concat(['noun', 'verb', 'adj', 'adv', 'conj'].flatMap((k) => ['--ws-pos-' + k + '-color', '--ws-pos-' + k + '-bg']),
 		['filler', 'passive', 'illusion', 'misused', 'pronoun', 'dialogue', 'repeat'].flatMap((k) => ['--ws-ck-' + k + '-color', '--ws-ck-' + k + '-bg']));
 
@@ -2191,7 +2191,35 @@ function wsDashDialogue(text: string, at: number, dashes: string, verbs?: string
 	return out;
 }
 
-export function findDialogue(line: string, marks?: WsDialogueMarks | null) {
+// LEADING ELISIONS (A710): a straight mark that begins a word and is no quote: English 'em, 'til, 'tis, 'twas, 'cause,
+// 'bout, 'round, 'nuff, 'cept, the 'n' of rock 'n' roll; Dutch 's, 't, 'n, 'k, 'm, 'r, 'ns; a year ('90s). The word
+// whole (not 'Sorry', not a stammer's 'M-my'), any case.
+const WS_ELISION = /^(?:(?:em|til|tis|twas|cause|bout|round|nuff|cept|ns|n|s|t|k|m|r)(?![\p{L}\p{N}-])|\d\d)/iu;
+// SCRIPTS WITH NO APOSTROPHE (A710): Chinese, Japanese and Korean. A mark between two of their characters is a quote
+// (他心想‘算了’就走了, ‘아니’라고), never the apostrophe the letters-on-both-sides rule took it for.
+const WS_NO_APOSTROPHE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+// YOUR OWN SPEECH MARKS (A729, the writer: "add more speech marks into dialogue with a custom text box to add pairs there
+// under like <> // \\ <<>> and so on"): pairs written one after another, a space or a comma between; a pair is its
+// opening half and its closing half (<<>> is << and >>, // is / and /), one mark alone opens and closes on itself. A
+// pair of odd length past one says nothing it could mean and is left out. The longest opener first, so << is read
+// before <. Read once a text.
+const WS_OWN_PAIRS = new Map<string, [string, string][]>();
+export function wsDialoguePairs(text: string): [string, string][] {
+	const key = String(text || '');
+	const had = WS_OWN_PAIRS.get(key);
+	if (had) return had;
+	const out: [string, string][] = [];
+	for (const t of key.split(/[\s,]+/)) {
+		const pair: [string, string] | null = !t ? null : t.length === 1 ? [t, t]
+			: t.length % 2 === 0 ? [t.slice(0, t.length / 2), t.slice(t.length / 2)] : null;
+		if (pair && !out.some((p) => p[0] === pair[0] && p[1] === pair[1])) out.push(pair);
+	}
+	out.sort((a, b) => b[0].length - a[0].length);
+	if (WS_OWN_PAIRS.size > 32) WS_OWN_PAIRS.clear();
+	WS_OWN_PAIRS.set(key, out);
+	return out;
+}
+export function findDialogue(line: string, marks?: WsDialogueMarks | null, more?: boolean, own?: [string, string][] | null) {
 	const text = String(line || '');
 	const out = [];
 	if (marks && marks.dashes) {
@@ -2211,16 +2239,55 @@ export function findDialogue(line: string, marks?: WsDialogueMarks | null) {
 	// …and the language's own (A610): a closer added beside the usual one, so „ closes
 	// on “ in German and on ” in Polish; each opener a string of what may close it
 	if (marks) for (const o of Object.keys(marks.pairs)) if (o) PAIRS[o] = (PAIRS[o] || '') + marks.pairs[o];
-	const isWordish = (ch: string) => !!ch && /[\p{L}\p{N}]/u.test(ch);
+	// MORE SPEECH MARKS, ON A SWITCH (A711, issue #68, lilellia: "in fantasy, telepathic communication is generally
+	// italicised, with quotation marks reserved for spoken dialogue"; the writer: "Add a toggle in dialogue for more
+	// brackets"): italics, *one* or _one_, and angle brackets, ‹ › and < >
+	if (more) { PAIRS['*'] = '*'; PAIRS['_'] = '_'; PAIRS['\u2039'] = (PAIRS['\u2039'] || '') + '\u203a'; PAIRS['<'] = '>'; }
+	// a letter or digit of an alphabet that has an apostrophe (A710: not Chinese, Japanese or Korean)
+	const isWordish = (ch: string) => !!ch && /[\p{L}\p{N}]/u.test(ch) && !WS_NO_APOSTROPHE.test(ch);
 	let i = 0;
 	while (i < text.length) {
 		const ch = text[i];
+		// AN HTML TAG IS STEPPED OVER WHOLE (A711): its attributes' quotes (class="x") are no speech, switch or not
+		if (ch === '<') {
+			const tag = /^(?:!--[\s\S]*?--|\/?[a-z][\w-]*(?:\s[^>]*)?\/?)>/.exec(text.slice(i + 1));
+			if (tag) { i += 1 + tag[0].length; continue; }
+		}
+		// YOUR OWN PAIRS FIRST (A729): one opens where a word may begin (the line's start, a space, an opening bracket or
+		// quote) and touches its first word; it closes on its closer touching the last word, before a space, a mark or
+		// the line's end; and something is between. So https://, and/or, C:\ and an empty <<>> open nothing.
+		if (own && own.length) {
+			let hit: { from: number; to: number } | null = null;
+			for (const [o, c] of own) {
+				if (!text.startsWith(o, i)) continue;
+				const first = text[i + o.length] || '';
+				if (!/[\s([{"'\u201c\u2018\u00ab\u2039]/.test(i === 0 ? ' ' : text[i - 1]) || !first || /\s/.test(first) || text.startsWith(c, i + o.length)) continue;
+				for (let k = i + o.length + 1; k <= text.length - c.length; k++) {
+					if (!text.startsWith(c, k) || /\s/.test(text[k - 1])) continue;
+					if (/[\p{L}\p{N}]/u.test(text[k + c.length] || '')) continue;
+					hit = { from: i, to: k + c.length };
+					break;
+				}
+				if (hit) break;
+			}
+			if (hit) { out.push(hit); i = hit.to; continue; }
+		}
 		const close = PAIRS[ch];
 		if (!close) { i++; continue; }
 		// An apostrophe, not an opening quote: letters or digits on both
 		// sides. Only the single marks can be one.
 		if ((ch === "'" || ch === '\u2018' || ch === '\u2019')
 			&& isWordish(text[i - 1]) && isWordish(text[i + 1])) { i++; continue; }
+		// A STRAIGHT MARK RIGHT AFTER A LETTER OR DIGIT OPENS NOTHING (A710, issue #67, lilellia: "The girls' choice to
+		// leave was understandable, given the teachers' actions." read as speech from one possessive to the other): it is a
+		// possessive (girls'), the end of a pair, or inches (5"). Speech opens after a space, a mark or the line's start.
+		// Curly marks never needed this: the curly apostrophe opens nothing.
+		if ((ch === "'" || ch === '"') && isWordish(text[i - 1])) { i++; continue; }
+		// …nor one that begins an elision ('em, 'til, '90s, Dutch 's and 't)
+		if (ch === "'" && WS_ELISION.test(text.slice(i + 1, i + 8))) { i++; continue; }
+		// an italic opens on ONE mark touching its first word: not bold (**), not a list's "* ", not snake_case (A711)
+		if ((ch === '*' || ch === '_') && (text[i + 1] === ch || text[i - 1] === ch || !text[i + 1] || /\s/.test(text[i + 1])
+			|| (ch === '_' && isWordish(text[i - 1])))) { i++; continue; }
 		let j = -1;
 		for (let k = i + 1; k < text.length; k++) {
 			const c = text[k];
@@ -2229,9 +2296,20 @@ export function findDialogue(line: string, marks?: WsDialogueMarks | null) {
 			// a single-quoted line would end the speech early.
 			if ((c === "'" || c === '\u2019')
 				&& isWordish(text[k - 1]) && isWordish(text[k + 1])) continue;
+			// A straight mark after a space closes nothing (A710): speech ends on its last word or mark, and "stay 'til"
+			// is the elision's own mark
+			if (c === "'" && /\s/.test(text[k - 1] || '')) continue;
+			// an italic closes on ONE mark after its last word, and an underscore not inside a word (A711)
+			if ((c === '*' || c === '_') && (text[k + 1] === c || text[k - 1] === c || /\s/.test(text[k - 1] || '')
+				|| (c === '_' && isWordish(text[k + 1])))) continue;
 			j = k;
 			break;
 		}
+		// AN UNCLOSED STRAIGHT SINGLE MARK OPENS NOTHING (A710): with no partner on the line it is far likelier an
+		// apostrophe ('ere, 'ow, any elision the list does not know) than speech. The double marks and the curly ones,
+		// which no apostrophe shares, still run to the end of the line.
+		// (and, on the switch, an italic or a < with no partner on the line: a stray mark paints nothing, A711)
+		if (j === -1 && (ch === "'" || ch === '*' || ch === '_' || ch === '<')) { i++; continue; }
 		// Unclosed: to the end of the line, which is as far as this can
 		// safely guess.
 		const end = j === -1 ? text.length : j + 1;
@@ -2665,6 +2743,7 @@ export function wsPageStarts(doc: Document) {
 	if (!root || !view) return 0;
 	for (const el of Array.from(doc.querySelectorAll('[data-ws-page]'))) el.removeAttribute('data-ws-page');
 	for (const el of Array.from(doc.querySelectorAll('[data-ws-page-open]'))) el.removeAttribute('data-ws-page-open');
+	for (const el of Array.from(doc.querySelectorAll('.seam'))) el.remove();
 	const flow = doc.querySelector<HTMLElement>('.sheet:not([data-pooled]) .flow');
 	if (!flow) return 0;
 	const scroller = doc.scrollingElement;
@@ -2672,6 +2751,7 @@ export function wsPageStarts(doc: Document) {
 	const was = root.classList.contains('is-flow');
 	if (was) root.classList.remove('is-flow');
 	let n = 0;
+	const starts: [Element, number][] = [];
 	try {
 		const across = flow.clientWidth + (parseFloat(view.getComputedStyle(flow).columnGap) || 0);
 		if (across > 0) {
@@ -2681,6 +2761,7 @@ export function wsPageStarts(doc: Document) {
 				const col = Math.floor((el.getBoundingClientRect().left - origin + 1) / across);
 				if (col > seen) {
 					el.setAttribute('data-ws-page', String(col + 1)); seen = col; n++;
+					starts.push([el, col + 1]);
 					// A FILE THAT OPENS THE PAGE (A618): its page rule is its divider, so it
 					// draws no dashed rule of its own above it
 					if (el === sec.firstElementChild) sec.setAttribute('data-ws-page-open', '');
@@ -2691,7 +2772,46 @@ export function wsPageStarts(doc: Document) {
 		if (was) root.classList.add('is-flow');
 		if (scroller) scroller.scrollTop = top;
 	}
+	try { wsPageSeams(doc, flow, starts); } catch (_) { wsCatch('wsPageStarts: the seams', _); }
 	return n;
+}
+
+// ── THE PAGE'S FOOT AND HEAD, WHERE ONE PAGE ENDS AND THE NEXT BEGINS (A804) ──
+//
+// The writer: "make the expanded view with all the headers page numbers and everything to match the actual export".
+// Before each page's first block a seam: the page that ends, its number where the file puts it at the foot; a dashed
+// cut; the page that begins, its running header and its number where the file heads it. The first page's head over
+// the text, the last page's foot under it; neither on a title page (`w:titlePg`, and the preview's own sheets). Read
+// off the preview's root (`data-ws-head`, `data-ws-pn`, `data-ws-tp`), shown in the reader alone (`.seam`).
+export function wsPageSeams(doc: Document, flow: Element, starts: [Element, number][]) {
+	const root = doc.documentElement;
+	if (!root || !root.hasAttribute('data-ws-pn')) return 0;
+	const head = root.getAttribute('data-ws-head') || '', pn = root.getAttribute('data-ws-pn') || 'none', tp = root.hasAttribute('data-ws-tp');
+	// (made with Obsidian's own helpers and handed to the frame's document, which adopts them: the review asks for
+	// createEl over createElement)
+	const seam = (parent: Node, before: Node | null, ends: number, begins: number) => {
+		const s = createDiv({ cls: 'seam', attr: { 'aria-hidden': 'true' } });
+		if (ends > 0) {
+			const f = s.createDiv({ cls: 'seam-foot' });
+			if (pn.startsWith('bottom-') && !(tp && ends === 1)) f.createSpan({ cls: 'seam-num is-' + pn.slice(7), text: String(ends) });
+			if (begins > 0) s.createDiv({ cls: 'seam-cut' });
+		}
+		if (begins > 0) {
+			const h = s.createDiv({ cls: 'seam-head' });
+			if (!(tp && begins === 1)) {
+				if (pn === 'top-left' || pn === 'top-center') h.createSpan({ cls: 'seam-num is-' + pn.slice(4), text: String(begins) });
+				const said = head + (pn === 'top-right' ? (head ? ' ' : '') + begins : '');
+				if (said) h.createSpan({ cls: 'seam-hdr', text: said });
+			}
+		}
+		parent.insertBefore(s, before);
+	};
+	const first = flow.firstElementChild;
+	if (first) seam(first, first.firstChild, 0, 1);
+	for (const [el, page] of starts) if (el.parentNode) seam(el.parentNode, el, page - 1, page);
+	const last = flow.lastElementChild;
+	if (last) seam(last, null, starts.length ? starts[starts.length - 1][1] : 1, 0);
+	return starts.length + 2;
 }
 
 // ── AN E-BOOK (A612) ─────────────────────────────────────────────────────
@@ -2706,7 +2826,7 @@ export function wsPageStarts(doc: Document) {
 // EPUB 2 table of contents beside it for older readers; a store-only zip, the
 // mimetype first and alone, as the format asks.
 export interface WsEpubNav { id: string; label: string; level: number }
-export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; modified?: string }
+export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; paraBlank?: boolean; modified?: string; tocTitle?: string }
 
 // the picture kinds every EPUB reader is bound to show
 const WS_EPUB_IMG: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
@@ -2752,7 +2872,7 @@ export function wsDataUrlBytes(url: string): { mime: string; bytes: Uint8Array }
 // shape: the indents, the headings, the breaks.
 export function wsEpubCss(meta: WsEpubMeta) {
 	return 'body { margin: 0; }\n'
-		+ 'p { margin: ' + (meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
+		+ 'p { margin: ' + (meta.paraBlank ? '0 0 1em 0' : meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
 		+ 'p.first, p.div, p.cmt, p.li, blockquote p, figure p, li p, td p, th p { text-indent: 0; }\n'
 		+ 'h1, h2, h3, h4, h5, h6 { text-align: center; font-weight: bold; text-indent: 0; margin: 1.5em 0 1em; page-break-after: avoid; break-after: avoid; }\n'
 		+ 'h1, h2 { font-size: 1.4em; } h3, h4, h5, h6 { font-size: 1.15em; }\n'
@@ -2886,7 +3006,7 @@ export function wsBuildEpub(html: string, meta: WsEpubMeta) {
 		+ '<spine toc="ncx">\n' + parts.map((_, i) => '<itemref idref="p' + (i + 1) + '"/>').join('\n') + '\n</spine>\n</package>\n';
 	return wsZip(files.concat([
 		{ name: 'OEBPS/content.opf', bytes: wsUtf8(opf) },
-		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>Contents</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
+		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>' + x(meta.tocTitle || 'Contents') + '</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
 		{ name: 'OEBPS/toc.ncx', bytes: wsUtf8(ncx) },
 		{ name: 'OEBPS/style.css', bytes: wsUtf8(wsEpubCss(meta)) },
 	], texts, media.map((m) => ({ name: 'OEBPS/' + m.href, bytes: m.bytes }))));
@@ -3600,8 +3720,8 @@ export function wsSessionNew(): WsSession {
 		flow: false,
 		// AND HOW THE READER WAS SET: the paged side has its page and its fit
 		// as runtime fields; these are the reader's two, and they live here for
-		// the same reason `flow` does.
-		flowZoom: 1,
+		// the same reason `flow` does. NONE CHOSEN (0) until the reader zooms (A804): the page's width fitted to the window
+		flowZoom: 0,
 		flowScroll: 0,
 		// WHICH FOLDER THE PANE WAS ABOUT. `organizerFolder` persists this
 		// across restarts; what the session adds is the answer to a different
@@ -4842,7 +4962,8 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 	// is why the indent switch was removed once; the switch was never the
 	// problem, the missing second boundary was. Body prose only: a list or
 	// a table cell already has its own separation.
-	const gap  = o.indent === false ? 120 : 0;
+	// …AND A WHOLE EMPTY LINE WHEN ASKED (A756): the line at the font's size and the chosen spacing, in twentieths of a point
+	const gap  = o.paraBlank ? Math.round((o.pt || 12) * line / 12) : o.indent === false ? 120 : 0;
 	// ── WIDOWS AND ORPHANS ──────────────────────────────────────────────
 	//
 	// An ORPHAN is the first line of a paragraph left alone at the foot of
@@ -4946,6 +5067,92 @@ export function wsHeaderXml(text: string, withPage: boolean) {
 		+ (withPage === false ? ''
 			: '<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>')
 		+ '</w:p></w:hdr>';
+}
+
+// ── PAGE NUMBERS ANYWHERE, THE HEADER'S OWN WORDS, THE CONTENTS' TITLE AND ITS PAGES (A751) ─────────────────
+//
+// The writer: "do 12 too with a contents text input" (a reader's asks, A696: page numbers where I choose, my own
+// header text, page numbers in the contents). Where the page number goes: a corner or the middle, top or bottom;
+// top right sits beside the running header, as it always has; none, nowhere. NOT CHOSEN YET, it is what it always
+// was: beside the header, and nowhere while the header is off.
+// A TARGET'S CEILING (A752, the writer: "limit it to 1 milion"), a note's and a folder's, typed in the Organizer or
+// in ws-structure.md by hand
+export const WS_TARGET_MAX = 1000000;
+export const WS_PAGE_NUM_AT = ['top-left', 'top-center', 'top-right', 'bottom-left', 'bottom-center', 'bottom-right', 'none'];
+export function wsPageNumAt(o: WsExportRun | null | undefined, asRun?: boolean) {
+	const v = String((o && o.pageNumberAt) || '');
+	if (WS_PAGE_NUM_AT.includes(v)) return v;
+	// (beside a running header when there is one: a run's own words, which `exportOptsFor` always writes; the panel's
+	// switch while it is still being set; else none, as before)
+	if (!o) return 'none';
+	return (asRun ? !!o.runningHeader : !!o.runningHeaderOn) ? 'top-right' : 'none';
+}
+// the contents' title: the writer's own words, else "Contents"
+export function wsTocTitle(o: WsExportOpts | null | undefined) {
+	return String((o && o.tocTitle) || '').trim() || 'Contents';
+}
+// A HEADER OR A FOOTER LINE IN WORD, three places on one line: a centre tab stop at the column's middle and a
+// right one at its edge; the running header on the right, the page number (a field, so Word counts it) where
+// it was asked. The header with its number top right keeps `wsHeaderXml`, the shape it has always had.
+export function wsHdrFtrXml(tag: 'hdr' | 'ftr', right: string, pageAt: string, contentW: number) {
+	const page = '<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>';
+	const run = (s: string) => (s ? '<w:r><w:t xml:space="preserve">' + wsXml(s) + '</w:t></w:r>' : '');
+	const tab = '<w:r><w:tab/></w:r>';
+	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+		+ '<w:' + tag + ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+		+ '<w:p><w:pPr><w:tabs><w:tab w:val="center" w:pos="' + Math.round(contentW / 2) + '"/><w:tab w:val="right" w:pos="' + contentW + '"/></w:tabs><w:ind w:firstLine="0"/></w:pPr>'
+		+ (pageAt === 'left' ? page : '') + tab + (pageAt === 'center' ? page : '') + tab
+		+ run(right + (pageAt === 'right' && right ? ' ' : '')) + (pageAt === 'right' ? page : '')
+		+ '</w:p></w:' + tag + '>';
+}
+// THE PRINTED PAGE'S MARGIN BOXES: the running header top right, the page number where it was asked (beside the
+// header when that is top right too); `blank`, the same boxes emptied (the title page). The header's own words as a
+// CSS string: a quote or a backslash a writer types is escaped, and an ampersand stays an ampersand
+export function wsPageBoxesCss(header: string, at: string, blank?: boolean) {
+	const head = String(header || '').replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, (c) => '\\' + c);
+	const boxes: Record<string, string> = {};
+	if (head) boxes['top-right'] = '"' + head + (at === 'top-right' ? ' " counter(page)' : '"');
+	else if (at === 'top-right') boxes['top-right'] = 'counter(page)';
+	if (at !== 'top-right' && at !== 'none') boxes[at] = 'counter(page)';
+	return Object.keys(boxes).map((k) => ' @' + k + ' { content: ' + (blank ? 'none' : boxes[k]) + '; }').join('');
+}
+// THE PAGE EACH CONTENTS ENTRY LANDS ON, read off the paginating flow the preview draws (a column is a page, the
+// title page the first): for each entry, the column its target starts in. The expanded view's flowing sheet is
+// set aside while it is read, as `wsPageStarts` does.
+export function wsTocPagesMeasure(doc: Document): Record<string, number> {
+	const out: Record<string, number> = {};
+	const view = doc.defaultView;
+	const flow = doc.querySelector<HTMLElement>('.sheet:not([data-pooled]) .flow');
+	if (!flow || !view || !doc.documentElement) return out;
+	const root = doc.documentElement;
+	const was = root.classList.contains('is-flow');
+	if (was) root.classList.remove('is-flow');
+	try {
+		const across = flow.clientWidth + (parseFloat(view.getComputedStyle(flow).columnGap) || 0);
+		if (across <= 0) return out;
+		const origin = flow.getBoundingClientRect().left - flow.scrollLeft;
+		for (const a of Array.from(flow.querySelectorAll('ol.toc a'))) {
+			const id = decodeURIComponent((a.getAttribute('href') || '').replace(/^#/, ''));
+			const t = id ? doc.getElementById(id) : null;
+			if (t) out[id] = Math.floor((t.getBoundingClientRect().left - origin + 1) / across) + 1;
+		}
+	} finally { if (was) root.classList.add('is-flow'); }
+	return out;
+}
+// …and written beside each entry, in every sheet that carries the contents
+export function wsTocPagesApply(doc: Document, pages: Record<string, number>) {
+	for (const li of Array.from(doc.querySelectorAll('ol.toc li'))) {
+		const a = li.querySelector('a'), pg = li.querySelector('.pg');
+		if (!a || !pg) continue;
+		const id = decodeURIComponent((a.getAttribute('href') || '').replace(/^#/, ''));
+		pg.textContent = pages[id] ? String(pages[id]) : '';
+	}
+}
+// the preview's: once a document, when its contents has numbers to show
+export function wsTocPagesFill(doc: Document | null) {
+	if (!doc || !doc.documentElement || doc.documentElement.hasAttribute('data-ws-toc-pages') || !doc.querySelector('ol.toc .pg')) return;
+	wsTocPagesApply(doc, wsTocPagesMeasure(doc));
+	doc.documentElement.setAttribute('data-ws-toc-pages', '');
 }
 
 // Assemble the whole package. `sections` is [{ title, markdown }].
@@ -5057,14 +5264,19 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	//
 	// The old objection — that a field renders as "right-click to update"
 	// until a reader refreshes it — is answered by settings.xml below,
-	// which asks Word to update fields on open. The placeholder text
-	// inside the field is what shows if a reader declines, so it says
-	// something useful rather than nothing.
+	// which asks Word to update fields on open, and since A806 by the
+	// entries written inside the field, which every app shows as they are.
 	if (o.toc && sections.length > 1) {
-		body.push(wsPara([{ text: 'Contents', bold: true }], 'WsHeading2',
+		body.push(wsPara([{ text: wsTocTitle(o), bold: true }], 'WsHeading2',
 			{ noIndent: true, pageBreakBefore: !!o.titlePage }));
-		body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:ind w:firstLine="0"/></w:pPr>'
-			+ '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
+		// THE ENTRIES INSIDE THE FIELD (A806, the writer: "cant we make the table contents in word a real word TOC?"): it
+		// was one, Word's TOC field, but it carried only "Right-click here and choose Update Field", which is all Word on a
+		// phone, Google Docs or LibreOffice show until somebody updates it. The field's result is written in now, as Word
+		// writes it: an entry a paragraph, a link to its chapter's bookmark, stepped in by its level, its page (the
+		// preview's, which the PDF prints) after a dotted tab at the text's right edge; Word recomputes them on update
+		const tp = wsPaperOf(o), tabAt = Math.max(1440, tp.w - 2 * tp.mar);
+		const stepOf = wsTocSteps(o, sections), pageOf = o.tocPageOf || {}, showPg = o.tocPages !== false;
+		const instr = '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
 			// \o collects a RANGE of outline levels, \h makes the entries
 			// links, \z hides the page numbers in web layout, \u uses the
 			// outline levels declared above.
@@ -5077,11 +5289,18 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// level is exactly the line between the two, and with folder headings
 			// off it computes to 2.
 			+ '<w:r><w:instrText xml:space="preserve"> TOC \\o "1-'
-			+ wsDeepestLevel(o, sections) + '" \\h \\z \\u </w:instrText></w:r>'
-			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>'
-			+ '<w:r><w:t xml:space="preserve">Right-click here and choose '
-			+ 'Update Field to build the contents.</w:t></w:r>'
-			+ '<w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>');
+			// (\n: no page numbers, when the writer says so, A751)
+			+ wsDeepestLevel(o, sections) + '"' + (o.tocPages === false ? ' \\n' : '') + ' \\h \\z \\u </w:instrText></w:r>'
+			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
+		sections.forEach((sec, i) => {
+			const id = wsAnchorId(sec.title, i), pg = showPg && pageOf[id] ? String(pageOf[id]) : '';
+			body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + tabAt + '"/></w:tabs>'
+				+ '<w:ind w:left="' + (stepOf(sec) * 440) + '" w:firstLine="0"/></w:pPr>'
+				+ (i === 0 ? instr : '')
+				+ '<w:hyperlink w:anchor="' + wsXml(id) + '" w:history="1"><w:r><w:t xml:space="preserve">' + wsXml(sec.title || ('Section ' + (i + 1))) + '</w:t></w:r>'
+				+ (pg ? '<w:r><w:tab/></w:r><w:r><w:t>' + pg + '</w:t></w:r>' : '') + '</w:hyperlink>'
+				+ (i === sections.length - 1 ? '<w:r><w:fldChar w:fldCharType="end"/></w:r>' : '') + '</w:p>');
+		});
 	}
 
 	let bibAt = -1;
@@ -5220,10 +5439,15 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	const paper = wsPaperOf(o);
 	const wantToc = !!(o.toc && sections.length > 1);
 	const wantSettings = wantToc || noteXml.length > 0;
-	const headerRef = o.runningHeader
+	// THE NUMBER WHERE IT WAS ASKED (A751): a header for the running head or a number at the top, a footer for one at
+	// the foot; neither on the title page, its own section with none
+	const pnAt = wsPageNumAt(o, true);
+	const wantHeader = !!o.runningHeader || pnAt.startsWith('top-');
+	const wantFooter = pnAt.startsWith('bottom-');
+	const headerRef = (wantHeader
 		? '<w:headerReference w:type="default" r:id="rId3"/>'
 			+ (wantFirst ? '<w:headerReference w:type="first" r:id="rId4"/><w:titlePg/>' : '')
-		: '';
+		: '') + (wantFooter ? '<w:footerReference w:type="default" r:id="rId7"/>' : '');
 	const doc = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 		+ ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -5246,7 +5470,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		+ Array.from(new Set(media.map((m) => m.ext))).map((x) => '<Default Extension="' + x + '" ContentType="' + (WS_IMAGE_MIME[x] || 'image/png') + '"/>').join('')
 		+ '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
 		+ '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
-		+ (o.runningHeader ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
+		+ (wantHeader ? '<Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
+		+ (wantFooter ? '<Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' : '')
 		+ (wantFirst ? '<Override PartName="/word/header2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' : '')
 		+ (wantSettings ? '<Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' : '')
 		+ (noteXml.length ? '<Override PartName="/word/' + noteTag + 's.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.' + noteTag + 's+xml"/>' : '')
@@ -5260,7 +5485,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	const docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
 		+ '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-		+ (o.runningHeader ? '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '')
+		+ (wantHeader ? '<Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>' : '')
+		+ (wantFooter ? '<Relationship Id="rId7" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' : '')
 		+ (wantFirst ? '<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>' : '')
 		+ (wantSettings ? '<Relationship Id="rId5" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' : '')
 		+ (noteXml.length ? '<Relationship Id="rId6" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/' + noteTag + 's" Target="' + noteTag + 's.xml"/>' : '')
@@ -5293,10 +5519,14 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	];
 	if (wantSettings) entries.push({ name: 'word/settings.xml', bytes: wsUtf8(settingsXml) });
 	if (noteXml.length) entries.push({ name: 'word/' + noteTag + 's.xml', bytes: wsUtf8(notesPart) });
-	if (o.runningHeader) {
+	const contentW = paper.w - 2 * paper.mar;
+	if (wantHeader) {
 		entries.push({ name: 'word/header1.xml',
-			bytes: wsUtf8(wsHeaderXml(o.runningHeader, o.pageNumbers !== false)) });
+			bytes: wsUtf8(pnAt === 'top-left' || pnAt === 'top-center'
+				? wsHdrFtrXml('hdr', o.runningHeader || '', pnAt.slice(4), contentW)
+				: wsHeaderXml(o.runningHeader || '', pnAt === 'top-right' && o.pageNumbers !== false)) });
 	}
+	if (wantFooter) entries.push({ name: 'word/footer1.xml', bytes: wsUtf8(wsHdrFtrXml('ftr', '', pnAt.slice(7), contentW)) });
 	if (wantFirst) {
 		// An EMPTY header, not a missing one: Word needs the part the
 		// reference names, and a reference pointing at nothing is the kind
@@ -5337,6 +5567,58 @@ export const READ_WPM = 238;
 export const WS_WORDS_PER_PAGE = 250;
 export function wsPagesOf(words: number) {
 	return words > 0 ? Math.max(1, Math.round(words / WS_WORDS_PER_PAGE)) : 0;
+}
+
+// ── GOALS WITH A DATE (A700) ─────────────────────────────────────────────
+// A day is a LOCAL calendar day, written YYYY-MM-DD: `new Date('2026-11-30')` is midnight in UTC, which is
+// the day before west of Greenwich, so a deadline is never parsed that way.
+export function wsDayKey(d: Date) {
+	const p = (n: number) => (n < 10 ? '0' : '') + n;
+	return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+export function wsDayOf(key: string): Date | null {
+	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || '').trim());
+	if (!m) return null;
+	const d = new Date(+m[1], +m[2] - 1, +m[3]);
+	return wsDayKey(d) === m[0] ? d : null;   // 2026-02-30 is no day
+}
+// The working days from one day to another, both counted, by the digits of getDay() that `work` holds (an
+// empty `work` is every day: a writer who unticked all seven still has a deadline).
+export function wsWorkDaysLeft(from: Date, to: Date, work: string) {
+	const w = work ? String(work) : '0123456';
+	const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+	const end = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+	let n = 0;
+	for (let guard = 0; d.getTime() <= end && guard < 40000; guard++) {
+		if (w.indexOf(String(d.getDay())) !== -1) n++;
+		d.setDate(d.getDate() + 1);
+	}
+	return n;
+}
+// THE PLAN for one goal. `start` is the count when today began (the first reading of the day), so the day's share
+// holds still while the writer writes: what was left at the start, over the working days left, today counted when it
+// is one, rounded UP (a share that rounds down misses the deadline by the remainder). On a day off the share is
+// the working days' own; met is met whichever day it is. Past the deadline the goal is overdue by what is left.
+export interface WsGoalPlan { target: number; done: number; start: number; today: number; due: string; daysLeft: number; perDay: number; todayMet: boolean; left: number; state: 'open' | 'done' | 'overdue' }
+export function wsGoalPlan(target: number, done: number, start: number, due: string, now: Date, work: string): WsGoalPlan {
+	const t = Math.max(0, Math.round(target || 0)), d = Math.max(0, Math.round(done || 0));
+	const s = Math.max(0, Math.min(d, Math.round(start == null ? d : start)));
+	const plan: WsGoalPlan = { target: t, done: d, start: s, today: d - s, due: String(due || ''), daysLeft: 0, perDay: 0, todayMet: false, left: Math.max(0, t - d), state: 'open' };
+	const dueDay = wsDayOf(plan.due);
+	const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+	if (dueDay && dueDay.getTime() >= today.getTime()) plan.daysLeft = wsWorkDaysLeft(today, dueDay, work);
+	if (t > 0 && d >= t) { plan.state = 'done'; return plan; }
+	if (dueDay && dueDay.getTime() < today.getTime()) { plan.state = 'overdue'; return plan; }
+	if (!dueDay || t <= 0) return plan;
+	plan.perDay = Math.ceil(Math.max(0, t - s) / Math.max(1, plan.daysLeft));
+	plan.todayMet = plan.perDay > 0 && plan.today >= plan.perDay;
+	return plan;
+}
+
+// HOW FAR A GOAL WITH NO DEADLINE HAS COME (A706), IN HUNDREDTHS since A724 (the bar is one bar, not eight cells):
+// words over target, a hundred once it is reached
+export function wsGoalPct(p: WsGoalPlan): number {
+	return p.target > 0 ? Math.min(100, Math.round(100 * Math.min(1, p.done / p.target))) : 0;
 }
 
 // How many addressable colours each row offers. Backgrounds carry the
@@ -5966,6 +6248,18 @@ export const wsSvgInto = (el: Element, markup: string) => {
 	el.appendChild(sanitizeHTMLToDom(String(markup == null ? '' : markup)));
 	return el;
 };
+// ONE BAR, ITS CORNERS A LITTLE ROUND (A724, the writer: "make the bar not segmented with a bit of rounded corners.
+// including the one in the popup"): a track and its fill, two boxes and not an svg of cells. A box's edges land on
+// whole pixels (A705's fuzz was an svg's cells between them) and its corners are the sheet's, never stretched with
+// the box. The share, 0 to 100, is `--ws-bar-pct` on the track: the one writer of the fill's width.
+// (TOMBSTONE, A724: `wsCellsInto`, A705's row of cells in one crisp svg.)
+export const wsBarInto = (host: HTMLElement, frac: number): HTMLElement => {
+	const pct = Math.round(Math.max(0, Math.min(1, isFinite(frac) ? frac : 0)) * 100);
+	const bar = host.createSpan({ cls: 'ws-bar' });
+	bar.setCssProps({ '--ws-bar-pct': String(pct) });
+	bar.createSpan({ cls: 'ws-bar-fill' });
+	return bar;
+};
 // A COLOR TURNED ROUND THE WHEEL as CSS's `hue-rotate()` turns it: the filter's
 // own matrix, on the 0-255 channels (Cursor-Smith turns its caret canvas with
 // that filter while its colors are flipped, and a token in the caret's color
@@ -6237,7 +6531,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 577;
+export const WS_STYLESHEET_VERSION = 579;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -6275,7 +6569,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.2';
+export const WS_PLUGIN_VERSION = '1.8.3';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -6410,6 +6704,36 @@ export function wsFlagShapeOf(id: string) {
 // would drag the median to nothing and make the bound 3x nothing.
 export const WS_AXIS_PCT = 0.95;
 export const WS_AXIS_MED_MULT = 3;
+// MONOTONE CUBIC TANGENTS (Fritsch–Carlson), not Catmull-Rom: a curve through the points that never leaves the
+// interval its neighbours define, so a peak is drawn at its own height and no higher. A Catmull-Rom spline overshoots:
+// History's quiet day between two busy ones got a net it never had, and the Report's Rhythm drew its sharpest stretch
+// past the top of its box (A794, the writer: "that peak gets too high"). A span from i to i+1, h wide, is the Bézier
+// C(x[i] + h/3, y[i] + m[i]·h/3, x[i+1] − h/3, y[i+1] − m[i+1]·h/3, x[i+1], y[i+1]).
+export function wsMonotoneTangents(px: number[], py: number[]): number[] {
+	const nP = px.length;
+	if (nP < 2) return nP ? [0] : [];
+	const d = new Array<number>(nP - 1);
+	for (let i = 0; i < nP - 1; i++) d[i] = (py[i + 1] - py[i]) / (px[i + 1] - px[i]);
+	const m = new Array<number>(nP);
+	m[0] = d[0];
+	m[nP - 1] = d[nP - 2];
+	for (let i = 1; i < nP - 1; i++) {
+		// A TURNING POINT GETS A FLAT TANGENT. Without this the curve rounds over a peak and reads higher than it was.
+		m[i] = (d[i - 1] * d[i] <= 0) ? 0 : (d[i - 1] + d[i]) / 2;
+	}
+	for (let i = 0; i < nP - 1; i++) {
+		if (d[i] === 0) { m[i] = 0; m[i + 1] = 0; continue; }
+		const a = m[i] / d[i], bq = m[i + 1] / d[i];
+		const sq = a * a + bq * bq;
+		if (sq > 9) {
+			const t2 = 3 / Math.sqrt(sq);
+			m[i] = t2 * a * d[i];
+			m[i + 1] = t2 * bq * d[i];
+		}
+	}
+	return m;
+}
+
 export function wsQuantile(sorted: number[], q: number) {
 	if (!sorted.length) return 0;
 	return sorted[Math.max(0, Math.min(sorted.length - 1,
@@ -6594,29 +6918,9 @@ export function wsFolderSvg(open: boolean, size: number) {
 // the label FIT by construction instead of overflowing on a machine we
 // cannot measure.
 
-// THE MANUSCRIPT ORDER'S OWN MARK: lines in a chosen order, and an arrow.
-//
-// It stands on Obsidian's sort button while this order is on, which is the
-// alternative to HIDING that button — the app's own control keeps working and
-// says what it is set to, the way a filtered search shows a marked funnel.
-//
-export function wsManuscriptSvg(size: number) {
-	const px = size || 18;
-	return '<svg class="ws-mssort svg-icon" viewBox="0 0 24 24" '
-		+ 'width="' + px + '" height="' + px + '" fill="none" stroke="currentColor" '
-		+ 'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" '
-		+ 'aria-hidden="true">'
-		// Three lines, deliberately unequal and NOT in descending order:
-		// a neat staircase reads as "sorted by length", which is the one
-		// thing this order is not.
-		+ '<path d="M4 6.5 H15"/>'
-		+ '<path d="M4 12 H11"/>'
-		+ '<path d="M4 17.5 H16.5"/>'
-		// …and the arrow, set apart from them, saying which way they run.
-		+ '<path d="M20 6.5 V17"/>'
-		+ '<path d="M17.6 14.6 L20 17.2 L22.4 14.6"/>'
-		+ '</svg>';
-}
+// TOMBSTONE (A705): `wsManuscriptSvg`, the custom order's hand-drawn mark (three unequal lines and an arrow) on
+// Obsidian's sort button. The button wears the Organizer's `list-ordered` now, the writer's word: "change the icon
+// from the file tree of custom order to the one in the organizer".
 
 export function wsStatusLabel(id: string) {
 	for (const st of WS_STATUSES) if (st.id === id) return st.label;
@@ -6696,9 +7000,8 @@ export const MASK_MEASURE_RETRIES = 20;
 // that has something to say: a chart with nothing clipped keeps the
 // whole plot.
 export const HISTORY_OVERLAB_PAD = 24;
-// Few buckets must not become slabs: two years of data on the Year tab would
-// otherwise draw two bars a third of the panel wide each.
-export const HISTORY_BAR_MAX     = 34;
+// (TOMBSTONE, A783: HISTORY_BAR_MAX, 34, the cap that kept a few buckets from slabs a third of the panel wide; every
+// view's bar is a 31-day month's day now, history.ts)
 // The chart's viewBox. Chosen to land close to 1:1 against the modal's real
 // width so a 4-unit block renders as a roughly 4-pixel square — the whole
 // pixel idiom depends on the two scales not drifting far apart.
@@ -7114,6 +7417,9 @@ export const DEFAULT_SETTINGS = {
 	// column narrow, and a folder's cell says both numbers whichever way
 	// the notes read.
 	orgTargetShow: 'percent',
+	// THE DEADLINE CELL SHOWS the date and the working days left, "20 Oct 2026 · 8d" (A735, the writer: "show the deadline
+	// date too and 8d"), or one of them: 'both' | 'days' | 'date'. One column (A731), not a Days left that hung on it.
+	orgDeadlineCell: 'both',
 	// ── THE ORGANISER'S OWN ICONS, ONE SWITCH EACH ──────────────────────
 	//
 	// TWO KEYS, NOT ONE, like the pair they are modelled on:
@@ -7292,8 +7598,20 @@ export const DEFAULT_SETTINGS = {
 		  right: '~{markers}{paragraph}~{words} words){clock}{time}' },
 	],
 	fileTokenFormat:          'path',     // 'path' (~/folder/name) | 'name' (basename only)
-	targetTokenFormat:        'percent',  // {target}: 'percent' (43%) | 'ratio' (2,145/5,000)
+	// WHAT THE {target} PANEL'S ROWS COUNT (A778, the writer: "let's add option for today, if there is deadline else full and
+	// full"): 'today' (today's share while a deadline runs, else the whole goal) | 'full' (always the whole goal)
+	targetPanelShows:         'today',
+	// THE WELCOME SHOWN (A743): false on a new install, which opens it once; a vault that had settings before it, or
+	// whose setup came back from ws-settings.md, is not new
+	welcomeShown:             false,
+	targetTokenFormat:        'percent',  // {target}: 'ratio' (2,145/5,000) | 'today' (500, today's share to go) | 'percent' (43%)
+	                                     //   | 'bar' | 'icon' (A754: five, numbers only; whose goal, A726's targetTokenFollows, went)
 	timeTokenFormat:          '24h',      // {time}: '24h' (14:05) | '12h' (2:05 PM)
+	// {wpm} (A730, issue #65): 'gauge' (the gauge and the speed now) | 'gaugeonly' | 'momentum' (A788) | 'now' | 'today'
+	// (A742; A738: no 'best'; A788: no 'avg', and words a minute only, no wpmTokenUnit)
+	wpmTokenFormat:           'gauge',
+	// {wpm}'s day (A742): today's typed characters and the time spent typing, a new record each day
+	wpmDay:                   { date: '', chars: 0, activeMs: 0 },
 	// 'icon' (the silhouette alone) | 'name' (the word alone, for a bar in a
 	// face where an inline SVG sits badly) | 'both'.
 	//
@@ -7431,6 +7749,16 @@ export const DEFAULT_SETTINGS = {
 	// which has to outlive a reinstall and be editable by hand. See
 	// WS_STATE_IDS.
 	fileStatus:               {} as Record<string, string>,   // note path -> flag id
+	// GOALS WITH A DATE (A700). A FOLDER'S OWN TARGET, by folder path, the vault's root as '' (the writer: folders get
+	// their own target, and the sum of their notes' targets is gone). NOT `folderGoals`, a retired name every load deletes.
+	folderTargets:            {} as Record<string, number>,
+	// …a deadline, a local day YYYY-MM-DD, on a note or a folder, by path. Both live in ws-structure.md beside the targets.
+	goalDeadlines:            {} as Record<string, string>,
+	// the days of the week that count toward a deadline, as the digits of Date.getDay() (0 is Sunday): every day
+	goalWorkDays:             '0123456',
+	// THE DAY (A700): each goal's count the first time it was read today, which today's share is worked out from so
+	// it holds still all day (its `met`, the celebration's latch, went with it, A786)
+	goalDay:                  { date: '', start: {} as Record<string, number> },
 
 	// The bar's top and bottom rules. Their own colours now rather than
 	// var(--ws-text): the rules are the one part of the bar that reads as a
@@ -7557,10 +7885,18 @@ export const DEFAULT_SETTINGS = {
 	// colouring a manuscript before it is asked has overreached.
 	checkDialogue:            false,
 	checkDialogueColor:       "#4f9dd9",
+	// italics (*thought*) and angle brackets (‹ › and < >) count as speech too, for thoughts and telepathy (A711, #68)
+	checkDialogueMore:        false,
+	// …and your own pairs, under that switch (A729): "<> // <<>>", a space between, each its opener and its closer
+	checkDialogueCustom:      '',
+	// the plugin's own folder out of sight, its files where they are (A733): the Organizer, the explorer, Export
+	hideOwnFolder:            false,
 	checkRhythm:              false,
-	checkRhythmHardColor:     "#d4a017",
-	checkRhythmVeryHardColor: "#c2544d",
-	checkRhythmShortColor:    "#5aa469", // by length: the green a short sentence takes (A630)
+	// SENTENCE RHYTHM'S TINTS, THE THEME'S UNLESS PICKED (A782, the writer: "put the same colors for sentence rythm
+	// too"): empty is the theme's yellow, red and green, as Word frequency's bands; a color picked is the writer's
+	checkRhythmHardColor:     "",
+	checkRhythmVeryHardColor: "",
+	checkRhythmShortColor:    "", // by length: the green a short sentence takes (A630)
 	checkRhythmMid:           true,      // by length: the middle (past Short up to, short of Long from) tinted too (A658)
 	checkRhythmMidColor:      "#5b8dd6", // …a blue, fainter than the other three (the writer: "use a faint blue")
 	checkRhythmHardGrade:     10,        // Flesch-Kincaid grade for "hard"
@@ -7590,6 +7926,8 @@ export const DEFAULT_SETTINGS = {
 	citeCustomAround:         'parens',
 	citeCustomEntry:          '{authors-full}. {year}. {title*}.[ {place}:][ {publisher}.]',
 	citeMarks:                true,
+	// Ibid. in Chicago's notes (#60's rest): off, as Chicago now prefers the short note
+	citeIbid:                 false,
 	posEnabled:               false,
 	posDimOthers:             true,
 	// The Writing Checks counterpart of posDimOthers. Ships OFF where the
@@ -7900,7 +8238,11 @@ export const BAR_KEYS = [
 	// APPENDED: how {target} says the note's target.
 	'targetTokenFormat',
 	// APPENDED: {time} in 24 or 12 hours.
-	'timeTokenFormat'
+	'timeTokenFormat',
+	// APPENDED: {wpm}'s shape (A730).
+	'wpmTokenFormat'
+	// (TOMBSTONE, A788: 'wpmTokenUnit', words or characters a minute; never released, words a minute alone)
+	// (TOMBSTONE, A707: 'goalTokenFormat', how {goal} read; {goal} went before it shipped, {target} is the one token)
 ];
 
 // The keys above that no longer DO anything.
@@ -8185,6 +8527,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
 		"timeTokenFormat": "24h",
+		"wpmTokenFormat": "gauge",
 	},
 	"Code": {
 		"statusRows": [{"left":":b4{obsidian}:b2;f|{vim}|{ln:col}:6|{file}:b2>{#>}:b1>{ggg}>{gg}>{g}","center":"","right":"{powermenu}:b3\\ {markers}\\{words}:b2w::{chars}ch\\{tasks}:6\\{clock}{time}:5"}],
@@ -8240,6 +8583,7 @@ export const DEFAULT_BAR_PRESETS = {
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
 		"timeTokenFormat": "24h",
+		"wpmTokenFormat": "gauge",
 	},
 	// ── TWO MORE, DIFFERENT FROM THE TWO. FADE is built on the {g} runs —
 	// three fades a row, a warm seven-colour palette, mode colours on, no
@@ -8301,9 +8645,19 @@ export const DEFAULT_BAR_PRESETS = {
 		"statusBarUiFont": false,
 		"targetTokenFormat": "percent",
 		"timeTokenFormat": "24h",
+		"wpmTokenFormat": "gauge",
 	},
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Plugin
 // ─────────────────────────────────────────────────────────────────────────────
+
+// THE THEME'S COLOR AS HEX (A782): Obsidian's --color-<name> as the body has it, for a color picker that shows what a
+// tint left to the theme draws; the default theme's when it cannot be read
+export const WS_THEME_FALLBACK: Record<string, string> = { green: '#44cf6e', yellow: '#e0de71', red: '#fb464c' };
+export function wsThemeHex(name: string): string {
+	let v = '';
+	try { v = getComputedStyle(document.body).getPropertyValue('--color-' + name).trim(); } catch { v = ''; }
+	return /^#[0-9a-f]{6}$/i.test(v) ? v : (WS_THEME_FALLBACK[name] || '#808080');
+}

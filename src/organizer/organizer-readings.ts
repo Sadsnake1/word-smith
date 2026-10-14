@@ -3,7 +3,8 @@
 
 import { TFile } from 'obsidian';
 
-import { wsCatch, wsListOf, wsPagesOf, wsStr, wsTaskSay, wsTasksOf } from '../core/preamble';
+import { wsCatch, wsGoalPlan, wsListOf, wsPagesOf, wsStr, wsTaskSay, wsTasksOf } from '../core/preamble';
+import type { WsGoalPlan } from '../core/preamble';
 import { wsT, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 
@@ -43,9 +44,42 @@ export interface OrgReadingsDeps {
 }
 
 export const wsOrgReadingsMake = (d: OrgReadingsDeps) => {
+// WHAT A TARGET COUNTS: the Words column's reading, only words (A705, the writer: "only word")
+const WORDS_COL = { id: 'words' };
+// THE PLAN of a note's or a folder's dated goal, its count given (A700): null without a deadline. Only a goal with a
+// target keeps a day's start (`goalPlanOf`); a deadline alone still has its days.
+const orgPlan = (path: string, target: number, count: number): WsGoalPlan | null => {
+	const due = d.plugin.goalDeadlineFor(path);
+	if (!due) return null;
+	if (target > 0) return d.plugin.goalPlanOf({ path, target, due }, count);
+	return wsGoalPlan(0, count, count, due, new Date(), String(d.plugin.settings.goalWorkDays == null ? '0123456' : d.plugin.settings.goalWorkDays));
+};
+// …said: the days left, or Overdue (the day's share, Per day's, gone with the column, A725)
+// THE DEADLINE CELL (A731; A735, the writer: "show the deadline date too and 8d"): the date and the working days left,
+// "20 Oct 2026 · 8d left" (A752, the writer: "in the deadline say the day 8d left"), or one of them as Settings
+// says; Overdue once it has passed
+const sayDeadline = (due: string, p: WsGoalPlan | null) => {
+	const how = String(d.plugin.settings.orgDeadlineCell || 'both');
+	const date = d.plugin.formatValue('deadline', due, 'date', d.plugin.dateStyle()).text;
+	const days = !p ? '' : p.state === 'overdue' ? wsT('Overdue') : wsT('{days}d left', { days: p.daysLeft });
+	if (how === 'date' || !days) return date;
+	return how === 'days' ? days : date + ' \u00b7 ' + days;
+};
+// …and said whole on hover (A705, the writer: "say on hove what per day is for cells"): what the number is for
+// (A731: the deadline cell's own, whichever half it shows: the days left and the date in one sentence)
+const planTip = (_id: string, p: WsGoalPlan | null): string => {
+	if (!p) return '';
+	const day = d.plugin.formatValue('deadline', p.due, 'date', d.plugin.dateStyle()).text;
+	return p.state === 'overdue' ? wsT('The deadline was {day}', { day })
+		: p.daysLeft === 1 ? wsT('One working day to the deadline, {day}', { day })
+		: wsT('{n} working days to the deadline, {day}', { n: p.daysLeft, day });
+};
+const orgPlanTitle = (id: string, path: string) => planTip(id, orgPlan(path, d.targetOf(path), Number(orgColRaw(WORDS_COL, path)) || 0));
 const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => {
 	const r = d.plugin._orgIndex && d.plugin._orgIndex.get(path);
 	switch (col.id) {
+		// GOALS WITH A DATE (A700): the day (sorted by the day, whichever half the cell shows, A731)
+		case 'deadline': return d.plugin.goalDeadlineFor(path) || null;
 		case 'words': return r ? r.words : null;
 		case 'vocab': return r ? r.vocab : null;
 		case 'paras': return r ? r.paras : null;
@@ -217,7 +251,11 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		// THE TARGET SAYS HOW FAR ALONG IT IS, not just what it is —
 		// see `orgTargetSay`, which is the one writer of that.
 		case 'goal':
-			return d.plugin.orgTargetSay(Number(orgColRaw({ id: 'words' }, path)) || 0, Number(v) || 0);
+			return d.plugin.orgTargetSay(Number(orgColRaw(WORDS_COL, path)) || 0, Number(v) || 0);
+		// THE DAY, in the Organizer's own date format (A700)
+		// THE DEADLINE AS ITS COLUMN SHOWS IT (A731, the writer: "deadline needs to work like the target row. write in it then
+		// it displays either the date or days left", "so we dont have multiple columns that are dependable to one another")
+		case 'deadline': return sayDeadline(typeof v === 'string' ? v : '', orgPlan(path, d.targetOf(path), Number(orgColRaw(WORDS_COL, path)) || 0));
 		// A WHOLE NUMBER (A685, the writer: "make grade a single number not 9.2 just 9 ,round it up", "as it's just an
 		// indicator"): rounded, the cell, the folder's average and the Report's alike
 		case 'grade': return String(Math.round(Number(v)));
@@ -300,7 +338,9 @@ const orgFolderIcon = (into: HTMLElement, path: string, open: boolean) =>
 // one that can be trusted. Same reader as the cells (`orgColRaw`), so a
 // total and its rows can never disagree.
 const ORG_AGG: Record<string, string> = {
-	words: 'sum', paras: 'sum', goal: 'sum',
+	// A FOLDER'S OWN (A700, the writer: folders get their own target, and the sum of their notes' targets is gone):
+	// the target, the deadline and the plan are the folder's, set on it; its progress, its rows' count as shown
+	words: 'sum', paras: 'sum', goal: 'own', deadline: 'own',
 	today: 'sum', grade: 'avg', modified: 'newest',
 	// A COUNT PER FLAG: a folder's Flag cell says how many files beneath
 	// carry each flag, in the flags' own order.
@@ -355,19 +395,34 @@ const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 	} catch (_) { wsCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
 	return 'count';
 };
-const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: string[]): WsOrgColAgg | null => {
+// A GROUP'S OWN READING (A700): `self` is the folder the row is (the vault's root as ''); its rows' count, as
+// shown, is the progress, the number the Words cell beside it reads
+const orgOwnAgg = (col: { id: string }, self: string, paths: string[]): WsOrgColAgg | null => {
+	let count = 0;
+	for (const p of (paths || [])) count += Number(orgColRaw(WORDS_COL, p)) || 0;
+	const target = d.plugin.folderTargetFor(self);
+	if (col.id === 'goal') {
+		if (!(target > 0)) return null;
+		return { text: d.plugin.orgTargetSay(count, target), goal: { words: count, target },
+			title: wsT('{count} of a target of {target}', { count: count.toLocaleString(), target: target.toLocaleString() }) };
+	}
+	const due = d.plugin.goalDeadlineFor(self);
+	if (!due) return null;
+	if (col.id !== 'deadline') return null;
+	// a folder's own deadline, as a note's (A731): the days left or the date, the sentence on hover
+	const p = orgPlan(self, target, count);
+	const text = sayDeadline(due, p);
+	return text ? { text, title: planTip(col.id, p) || text } : null;
+};
+const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: string[], self?: string): WsOrgColAgg | null => {
 	const how = orgAggHow(col);
 	if (how === 'none') return null;
+	if (how === 'own') return self == null ? null : orgOwnAgg(col, self, paths);
 	let sum = 0, n = 0, newest = 0, oldest = 0, done = 0, all = 0;
 	// A GRADE IS WEIGHTED BY WORDS — see the 'avg' case. `wsum` is the
 	// total weight and `wtot` the weighted total; both stay 0 for every
 	// other aggregation and cost nothing.
 	let wsum = 0, wtot = 0;
-	// THE TARGET'S OWN NUMERATOR: the words of the notes whose targets are
-	// being summed, so a folder's cell reads its progress the way a note's
-	// does — words over target — and a note with no target is in neither
-	// number.
-	let wg = 0;
 	// WHETHER THIS COLUMN HOLDS LISTS, learnt from the values rather
 	// than from a table of column names. A hand-kept list of 'the
 	// list-ish properties' forgets the next one somebody adds — the
@@ -417,11 +472,6 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			try { w = Number(orgColRaw({ id: 'words' }, p)) || 0; } catch { w = 0; }
 			if (w > 0) { wsum += w; wtot += num * w; }
 		}
-		if (col.id === 'goal') {
-			let w = 0;
-			try { w = Number(orgColRaw({ id: 'words' }, p)) || 0; } catch { w = 0; }
-			wg += w;
-		}
 		sum += num;
 	}
 	if (!n) return null;
@@ -460,14 +510,6 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			if (col.id === 'read') return { text: d.plugin.formatReadTime(sum) };
 			if (col.id === 'pages') return { text: wsPagesOf(sum).toLocaleString(), title: wsPagesOf(sum) === 1 ? wsT('About {count} page, at 250 words a page', { count: wsPagesOf(sum).toLocaleString(), n: wsPagesOf(sum) })
 				: wsT('About {count} pages, at 250 words a page', { count: wsPagesOf(sum).toLocaleString(), n: wsPagesOf(sum) }) };
-			// A FOLDER'S TARGET READS LIKE ITS NOTES': the words of its targeted
-			// notes over their targets, said the way the setting says a note's
-			// (`orgTargetSay`: a percentage, or the two numbers) and wearing the
-			// band the cells wear (`goal` carries the pair for `orgGoalBand`).
-			// Both numbers are on the hover either way.
-			if (col.id === 'goal') return { text: d.plugin.orgTargetSay(wg, sum), goal: { words: wg, target: sum },
-				title: n === 1 ? wsT('{words} words over a target of {target}, in {n} note', { words: wg.toLocaleString(), target: sum.toLocaleString(), n })
-					: wsT('{words} words over a target of {target}, in {n} notes', { words: wg.toLocaleString(), target: sum.toLocaleString(), n }) };
 			return { text: sum.toLocaleString() };
 		case 'avg': {
 			// ── WEIGHTED BY LENGTH ──────────────────────────────────────
@@ -553,7 +595,7 @@ const orgColSortKey = (col: { id: string; key?: string; sortAs?: string }, path:
 			const t = Number(v) || 0;
 			if (!(t > 0)) return null;
 			let w = 0;
-			try { w = Number(orgColRaw({ id: 'words' }, path)) || 0; } catch { w = 0; }
+			try { w = Number(orgColRaw(WORDS_COL, path)) || 0; } catch { w = 0; }
 			return w / t;
 		}
 		case 'mark': {
@@ -577,5 +619,57 @@ const orgColSortKey = (col: { id: string; key?: string; sortAs?: string }, path:
 		}
 	}
 };
-	return { orgColRaw, orgColText, orgFolderIcon, orgColAgg, orgColSortKey };
+// ── A FOLDER'S VOCABULARY (A792) ────────────────────────────────────────
+//
+// The writer: "add vocabulary in the folder row too", then "actually don't add it in the total row". Different words do
+// not add (A681: two notes of 500 share most of them), so a folder's figure is its notes' words COUNTED ONCE, by the
+// Report's own reader: the cell and the folder's Report are one number. Read in the background, each note's words
+// kept by its modified time while the window is open, the cell drawn when they are in; the last figure stays meanwhile.
+// Only a folder row asks; the Total row never does.
+const VOCAB_COL = { id: 'vocab' }, MTIME_COL = { id: 'modified' };
+const vocabWords = new Map<string, { mtime: number; words: Set<string> }>();
+const vocabReading = new Map<string, Promise<Set<string> | null>>();
+const vocabDone = new Map<string, { sig: string; agg: WsOrgColAgg }>();
+const vocabRunning = new Map<string, Promise<WsOrgColAgg>>();
+const wordsOf = (p: string): Promise<Set<string> | null> => {
+	const m = Number(orgColRaw(MTIME_COL, p)) || 0;
+	const had = vocabWords.get(p);
+	if (had && had.mtime === m) return Promise.resolve(had.words);
+	const key = p + '\u0000' + m;
+	let run = vocabReading.get(key);
+	if (!run) {
+		run = (async () => {
+			const f = d.plugin.app.vault.getAbstractFileByPath(p);
+			if (!(f instanceof TFile)) return null;
+			const words = new Set(d.plugin.wordFreqInto(await d.plugin.app.vault.cachedRead(f), null).keys());
+			vocabWords.set(p, { mtime: m, words });
+			return words;
+		})().finally(() => vocabReading.delete(key));
+		vocabReading.set(key, run);
+	}
+	return run;
+};
+const orgFolderVocab = (self: string, paths: string[], ready: (agg: WsOrgColAgg) => void): WsOrgColAgg | null => {
+	// the notes beneath that have words of their own (a PDF, an empty note: none to add)
+	const notes = (paths || []).filter((p) => (Number(orgColRaw(VOCAB_COL, p)) || 0) > 0);
+	if (!notes.length) return null;
+	const sig = notes.map((p) => p + '\u0000' + (Number(orgColRaw(MTIME_COL, p)) || 0)).join('\u0001');
+	const done = vocabDone.get(self);
+	if (done && done.sig === sig) return done.agg;
+	const key = self + '\u0002' + sig;
+	let run = vocabRunning.get(key);
+	if (!run) {
+		run = (async () => {
+			const all = new Set<string>();
+			for (const p of notes) { const w = await wordsOf(p); if (w) for (const x of w) all.add(x); }
+			const agg: WsOrgColAgg = { text: all.size.toLocaleString(), title: wsT('Different words over the notes below, each counted once') };
+			vocabDone.set(self, { sig, agg });
+			return agg;
+		})().finally(() => vocabRunning.delete(key));
+		vocabRunning.set(key, run);
+	}
+	run.then(ready, (e: unknown) => wsCatch('orgFolderVocab', e));
+	return done ? done.agg : null;
+};
+	return { orgColRaw, orgColText, orgFolderIcon, orgColAgg, orgColSortKey, orgPlanTitle, orgFolderVocab };
 };

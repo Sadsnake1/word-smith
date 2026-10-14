@@ -9,11 +9,11 @@ import { Notice, getLanguage } from 'obsidian';
 import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
-import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg } from '../core/preamble';
+import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg } from '../core/preamble';
 import { wsIsPackPath, wsPackPick, wsPackQuotes, wsParsePack } from '../core/language';
 import type { WsPack } from '../core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
-import { wsParseLibrary, wsCiter } from '../core/citations';
+import { wsParseLibrary, wsCiter, wsCiteTermsFor } from '../core/citations';
 import type { WsRef, WsCiter } from '../core/citations';
 import type { WsEngine } from '../core/lang-engine';
 import type WordSmith from './plugin';
@@ -108,7 +108,7 @@ export const storesMethods = {
 				const value = String(r[2] || '');
 				const num = value.match(/\d[\d,\s]*/);
 				const n = num ? parseInt(num[0].replace(/[,\s]/g, ''), 10) : 0;
-				if (n > 0) res[into][path] = n;
+				if (n > 0) res[into][path] = Math.min(WS_TARGET_MAX, n);
 				// The word, wherever it sits and in whatever case: this file
 				// is written to be typed in.
 				const word = (value.match(/[A-Za-z]+/) || [''])[0].toLowerCase();
@@ -184,7 +184,7 @@ export const storesMethods = {
 				const value = String(r.note || '');
 				const num = value.match(/\d[\d,\s]*/);
 				const n = num ? parseInt(num[0].replace(/[,\s]/g, ''), 10) : 0;
-				if (n > 0) res[into][r.path] = n;
+				if (n > 0) res[into][r.path] = Math.min(WS_TARGET_MAX, n);
 				if (!statusInto) continue;
 				const word = (value.match(/[A-Za-z]+/) || [''])[0].toLowerCase();
 				if (word && wsStatusLabel(word)) res[statusInto][r.path] = word;
@@ -316,6 +316,43 @@ export const storesMethods = {
 		return res;
 	},
 
+	// ── GOALS WITH A DATE (A700): two sections of their own, beside the targets ─────────
+	//
+	// A folder's own target and every deadline, `- Book — 50000`, `- Book/Ch 1.md — 2026-11-30`, the vault's root as
+	// `/` (the colours' rule). OF THEIR OWN, NOT IN `goals: notes`: that row's reader takes the first run of digits as the
+	// target, so `2000 · 2026-11-30` beside it would be a target of 2026 to anything that read it before this build.
+	// And never `goals: folders`, the retired section, which is read only to be dropped.
+	goalDatesSectionKeys(this: WordSmith) { return { targets: 'targets: folders', deadlines: 'deadlines: notes and folders' }; },
+
+	goalDatesStoreApply(this: WordSmith, store?: Record<string, WsStructRow[]>) {
+		const all = this.structureStore(store);
+		const keys = this.goalDatesSectionKeys();
+		const rows = (src: Record<string, string | number>, ok: (v: string) => boolean) => Object.keys(src || {}).sort()
+			.filter((k) => ok(String(src[k])))
+			.map((k) => ({ path: k === '' ? '/' : k, on: true, note: String(src[k]) }));
+		all[keys.targets] = rows(this.settings.folderTargets || {}, (v) => parseInt(v, 10) > 0);
+		all[keys.deadlines] = rows(this.settings.goalDeadlines || {}, (v) => !!wsDayOf(v));
+		return all;
+	},
+
+	// …and back, each NULL when its section is absent (unknown, not empty: the colours' rule), and null too when its
+	// rows all say nothing a target or a day can be read from (written wrongly, not deleted).
+	goalDatesStoreAdopt(this: WordSmith, store?: Record<string, WsStructRow[]>) {
+		const all = this.structureStore(store);
+		const keys = this.goalDatesSectionKeys();
+		const take = <T>(key: string, read: (v: string) => T | null) => {
+			if (!Object.prototype.hasOwnProperty.call(all, key)) return null;
+			const rows = all[key] || [];
+			const res: Record<string, T> = {};
+			for (const r of rows) { const v = read(String(r.note || '').trim()); if (v != null) res[r.path === '/' ? '' : r.path] = v; }
+			return rows.length && !Object.keys(res).length ? null : res;
+		};
+		return {
+			folderTargets: take<number>(keys.targets, (v) => { const n = parseInt(v.replace(/[,\s]/g, ''), 10); return n > 0 ? Math.min(WS_TARGET_MAX, n) : null; }),
+			goalDeadlines: take<string>(keys.deadlines, (v) => (wsDayOf(v) ? v : null))
+		};
+	},
+
 	// The write, for when the goals are what changed. Same one file and the
 	// same migration as any other write. IT CARRIES THE COLOURS AND THE
 	// COLUMNS TOO: the name says goals because that is what it carried
@@ -327,6 +364,7 @@ export const storesMethods = {
 		this.goalsStoreApply(this._structStore);
 		this.colorsStoreApply(this._structStore);
 		this.userColsStoreApply(this._structStore);
+		this.goalDatesStoreApply(this._structStore);
 		await this.structureWrite();
 	},
 
@@ -337,11 +375,20 @@ export const storesMethods = {
 	// comparison means nothing. THE TWO FAILURE MODES ARE OPPOSITE AND
 	// BOTH SILENT: shapes that differ write forever, shapes that agree on
 	// too little write never.
+	// NOTHING TO SAY: no target, flag, colour, column, folder target or deadline anywhere
+	goalsNothing(this: WordSmith) {
+		const s = this.settings;
+		const none = (m: unknown) => !m || typeof m !== 'object' || !Object.keys(m).length;
+		return none(s.fileGoals) && none(s.fileStatus) && none(s.folderColors) && none(s.uniUserCols)
+			&& none(s.folderTargets) && none(s.goalDeadlines);
+	},
+
 	goalsSignature(this: WordSmith) {
 		try {
 			return JSON.stringify([this.settings.fileGoals,
 				this.settings.fileStatus,
-				this.settings.folderColors, this.settings.uniUserCols]);
+				this.settings.folderColors, this.settings.uniUserCols,
+				this.settings.folderTargets, this.settings.goalDeadlines]);
 		} catch { return ''; }
 	},
 
@@ -356,7 +403,9 @@ export const storesMethods = {
 		if (sig === this._goalsSig) return;
 		// Nothing to say and nothing said before: do not create a file of
 		// empty sections in a vault that has never set a goal.
-		if (sig === '[{},{},{},{}]' && !this._goalsWritten) return;
+		// (A700: this compared the signature with '[{},{},{},{}]', which no fresh vault ever had: its columns are
+		// undefined, written `null`. Asked of the stores themselves now.)
+		if (this.goalsNothing() && !this._goalsWritten) return;
 		// ── AND THE WRITE IS RECORDED WHEN IT LANDS ─────────────────────
 		//
 		// THE SIGNATURE IS NOT CACHED BEFORE THE WRITE. Set on the way IN, a
@@ -486,6 +535,10 @@ export const storesMethods = {
 			if (colors) this.settings.folderColors = colors;
 			const ucols = this.userColsStoreAdopt(store);
 			if (ucols) this.settings.uniUserCols = ucols;
+			// …and the dated goals, each kind on its own (A700): absent is unknown
+			const dated = this.goalDatesStoreAdopt(store);
+			if (dated.folderTargets) this.settings.folderTargets = dated.folderTargets;
+			if (dated.goalDeadlines) this.settings.goalDeadlines = dated.goalDeadlines;
 			// THROUGH THE ONE WRITER OF THE SHAPE. A signature built by hand here
 			// drifts from `goalsSignature` — one element short, and the first save
 			// after every start writes the file for no change, a symptom nobody
@@ -844,8 +897,10 @@ export const storesMethods = {
 	// deliberately absent: folders have no flags and no typed targets, and
 	// carrying a dead key through a move — or forgetting it on a delete —
 	// keeps it alive.
-	goalPathStores(this: WordSmith): ('fileGoals' | 'fileStatus' | 'folderColors')[] {
-		return ['fileGoals', 'fileStatus', 'folderColors'];
+	// (A700: a folder's own target and every deadline move and go with their path too, the day's start and the
+	// celebrated goals with them)
+	goalPathStores(this: WordSmith): ('fileGoals' | 'fileStatus' | 'folderColors' | 'folderTargets' | 'goalDeadlines')[] {
+		return ['fileGoals', 'fileStatus', 'folderColors', 'folderTargets', 'goalDeadlines'];
 	},
 
 	async renameScopePath(this: WordSmith, oldPath: string, newPath: string) {
@@ -880,6 +935,52 @@ export const storesMethods = {
 	// file with markers, exactly like `ws-history.md` and for the same
 	// reasons — a writer can read it, edit it, move it, and keep it after
 	// this plugin is gone. Settings JSON would be none of those things.
+	// ── A LAST GOOD COPY, FOR A POWER CUT MID-SAVE (A709) ───────────────────────────────────────
+	//
+	// NEO's issue #219: a cut during a save left a file empty and a book gone. The history ("the only copy" of every day
+	// written) and the structure file (custom order, flags, targets, deadlines) are rewritten whole, so a cut between
+	// the truncate and the write leaves one empty or cut short, and the next start reads no store at all (measured: an
+	// empty ws-history.md was no store, the record began empty, every later save was refused). After each good write
+	// the text goes to the plugin's own folder too, `backup/<name>.json`, with the path it was written to. At the next
+	// start, ONCE, a store file that lost its end marker (empty, or cut) is put back from it, out loud. A file that is
+	// GONE is left gone: deleting it is a choice, a cut is not. Mid-session the stores already keep what they hold.
+	storeBackupPath(this: WordSmith, name: string) {
+		const dir = (this.manifest && this.manifest.dir) || (this.app.vault.configDir + '/plugins/word-smith');
+		return dir + '/backup/' + name + '.json';
+	},
+	async storeBackupWrite(this: WordSmith, name: string, path: string, text: string) {
+		if (!path || !text) return;
+		const last = this._backupLast || (this._backupLast = new Map<string, string>());
+		if (last.get(name) === path + '\n' + text) return;
+		try {
+			const ad = this.app.vault.adapter;
+			const p = this.storeBackupPath(name), dir = p.slice(0, p.lastIndexOf('/'));
+			if (!(await ad.exists(dir))) await ad.mkdir(dir);
+			await ad.write(p, JSON.stringify({ path, at: Date.now(), text }));
+			last.set(name, path + '\n' + text);
+		} catch (_) { wsCatch('storeBackupWrite: ' + name, _); }
+	},
+	async storeBackupRestore(this: WordSmith, name: string, start: string, end: string): Promise<string | null> {
+		const tried = this._backupTried || (this._backupTried = new Set<string>());
+		if (tried.has(name)) return null;
+		tried.add(name);
+		try {
+			const ad = this.app.vault.adapter, p = this.storeBackupPath(name);
+			if (!(await ad.exists(p))) return null;
+			const b = JSON.parse(await ad.read(p)) as { path?: unknown; at?: unknown; text?: unknown };
+			const path = typeof b.path === 'string' ? b.path : '', text = typeof b.text === 'string' ? b.text : '';
+			if (!path || text.indexOf(start) === -1 || text.indexOf(end) === -1) return null;
+			const f = this.app.vault.getAbstractFileByPath(path);
+			if (!wsIsFile(f)) return null;
+			const now = String(await this.app.vault.read(f));
+			if (now.indexOf(end) !== -1) return null;
+			await this.app.vault.modify(f, text);
+			new Notice(wsT('Word-Smith: {path} came back empty or cut short, so it was put back from its last good copy ({when}).',
+				{ path, when: new Date(Number(b.at) || Date.now()).toLocaleString() }), 10000);
+			return path;
+		} catch (_) { wsCatch('storeBackupRestore: ' + name, _); return null; }
+	},
+
 	// WHERE A STORE LIVES, and the migration in one place. The configured
 	// path is what a NEW file is made at; an existing one keeps its home.
 	// An upgrading vault has `ws-goals.md` in the root, and the default
@@ -1364,7 +1465,9 @@ export const storesMethods = {
 			// NO TYPE IS NOT `text`: writing one would PIN the column to text and
 			// stop the registry answering for it.
 			const usercols = scope.indexOf('columns: ') === 0;
-			const plain = goals || props || colors || usercols
+			// …AND THE DATED GOALS' (A700): a value after a path, as a target is
+			const dated = scope.indexOf('targets: ') === 0 || scope.indexOf('deadlines: ') === 0;
+			const plain = goals || props || colors || usercols || dated
 				|| scope.indexOf('order: ') === 0;
 			for (const r of rows) {
 				if (usercols) {
@@ -1372,7 +1475,7 @@ export const storesMethods = {
 					out.push(note
 						? '- ' + r.path + ' \u2014 ' + note
 						: '- ' + r.path);
-				} else if (goals || props || colors) {
+				} else if (goals || props || colors || dated) {
 					// A path can carry a target, a flag, or both. A row with
 					// neither has nothing to say and is not written.
 					const note = String(r.note || '').trim();
@@ -1433,7 +1536,8 @@ export const storesMethods = {
 					continue;
 				}
 			}
-			if (scope != null && scope.indexOf('goals: ') === 0) {
+			// (the dated goals' rows split the same way: a number or a day never holds a separator, a path may, A700)
+			if (scope != null && (scope.indexOf('goals: ') === 0 || scope.indexOf('targets: ') === 0 || scope.indexOf('deadlines: ') === 0)) {
 				const g = line.match(/^\s*-\s+(.*)\s+[\u2014\u2013]\s+(.*)$/)
 					|| line.match(/^\s*-\s+(.*)\s+[:-]\s+(.*)$/);
 				if (g) {
@@ -1560,6 +1664,8 @@ export const storesMethods = {
 
 	async structureReadNow(this: WordSmith) {
 		if (this._structStore) return this._structStore;
+		// (A709: a structure file a power cut emptied or cut short is put back first, once)
+		await this.storeBackupRestore('structure', STRUCT_MARK_START, STRUCT_MARK_END);
 		let sources: WsStructSource[] = [];
 		try { sources = await this.structureSources(); } catch (_) { wsCatch('structureRead: sources = await this.structureSources();', _); }
 		this._structSources = sources;
@@ -1686,12 +1792,15 @@ export const storesMethods = {
 				// told about. AND "ALREADY ON DISK" IS READ ACROSS LINE ENDINGS: the
 				// same text in CRLF is handed back as it came, so the file is not
 				// rewritten for a difference nobody typed.
-				await this.app.vault.process(f, (was) => this.storeHandBack(path, was, text));
+				let wrote = text;
+				await this.app.vault.process(f, (was) => (wrote = this.storeHandBack(path, was, text)));
+				void this.storeBackupWrite('structure', path, wrote);
 			} else {
 				await this.storeEnsureFolder(path);
 				await this.app.vault.create(path, text);
 				this._structFoundAt = path;
 				this._structSources = [{ path, legacy: false, mtime: Date.now(), text }];
+				void this.storeBackupWrite('structure', path, text);
 			}
 			return this.storeWriteOk(WS_WRITE.structure);
 		} catch (e) {
@@ -2267,11 +2376,14 @@ export const storesMethods = {
 		const goals = this.goalsStoreAdopt(store);
 		const colors = this.colorsStoreAdopt(store);
 		const ucols = this.userColsStoreAdopt(store);
+		const dated = this.goalDatesStoreAdopt(store);
+		if (dated.folderTargets) this.settings.folderTargets = dated.folderTargets;
+		if (dated.goalDeadlines) this.settings.goalDeadlines = dated.goalDeadlines;
 		if (goals) { this.settings.fileGoals = goals.fileGoals; this.settings.fileStatus = goals.fileStatus || {}; }
 		if (colors) this.settings.folderColors = colors;
 		if (ucols) this.settings.uniUserCols = ucols;
 		const sig = this.goalsSignature();
-		if ((!goals && !colors && !ucols) || sig === this._goalsSig) return false;
+		if ((!goals && !colors && !ucols && !dated.folderTargets && !dated.goalDeadlines) || sig === this._goalsSig) return false;
 		this._goalsSig = sig;
 		void this.saveSettings(true);
 		return true;
@@ -2446,10 +2558,16 @@ export const storesMethods = {
 		return this._citeLib || new Map<string, WsRef>();
 	},
 
-	// the style the settings name, over the library: one book's citations, in order
+	// the style the settings name, over the library: one book's citations, in order, in the book's language (A713)
 	citer(this: WordSmith): WsCiter {
 		const s = this.settings;
-		return wsCiter(s.citeStyle || 'apa', this.citeLibrary(), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading);
+		return wsCiter(s.citeStyle || 'apa', this.citeLibrary(), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading, this.citeTerms(), { ibid: !!s.citeIbid });
+	},
+	// THE BOOK'S LANGUAGE FOR A CITATION (A713, issue #60): the language Settings → Language names, and its pack's own
+	// `cite-<term>` lines over the built-in words
+	citeTerms(this: WordSmith) {
+		const p = this.packActive();
+		return wsCiteTermsFor(this.settings.language || 'en', p ? p.props : null);
 	},
 
 	// The chosen language's pack, or null for English (or for a pack not in the vault). AN ENGLISH PACK IS
@@ -2491,6 +2609,8 @@ export const storesMethods = {
 
 	// THE LANGUAGE'S QUOTE MARKS (A615): the pack in use's, with its name; null for English or a
 	// pack that names none (English's are the Quote style's, US or UK: A694)
+	// (no space of their own since A776: the space with « » is the writer's, in Custom quote marks; A702's pack
+	// `quote-space` and A770's dropdown are gone, the writer: "we do the leaner version")
 	typoLanguageMarks(this: WordSmith): { name: string; od: string; cd: string; os: string; cs: string; ap: string } | null {
 		const pack = this.packActive();
 		const q = wsPackQuotes(pack);
@@ -2501,15 +2621,42 @@ export const storesMethods = {
 	// it names its own; the writer's under Custom quote marks otherwise; then the usual ones, by the
 	// Quote style (A694, the writer: "Only one English pack with us /UK typography dropdown"): null
 	// for US (\u201c \u201d outside, the editor's own), UK's \u2018 \u2019 outside and \u201c \u201d inside.
-	typoMarks(this: WordSmith): { od: string; cd: string; os: string; cs: string; ap: string } | null {
+	typoMarks(this: WordSmith): { od: string; cd: string; os: string; cs: string; ap: string; sp?: string } | null {
 		const s = this.settings;
 		const lang = s.typoQuotesFromLanguage ? this.typoLanguageMarks() : null;
 		if (lang) return lang;
 		if (!s.typoCustomQuotes) return s.typoQuoteStyle === 'uk' ? { od: '\u2018', cd: '\u2019', os: '\u201c', cs: '\u201d', ap: '\u2019' } : null;
 		const b = wsBag(s);
 		const str = (k: string, f: string) => { const v = b[k]; return typeof v === 'string' && v.length ? v : f; };
-		return { od: str('typoOpenDouble', '\u201c'), cd: str('typoCloseDouble', '\u201d'), os: str('typoOpenSingle', '\u2018'), cs: str('typoCloseSingle', '\u2019'), ap: str('typoApostrophe', '\u2019') };
+		// YOUR OWN MARKS, MORE THAN ONE CHARACTER IF YOU LIKE (A776, the writer: "can't they just use the custom quotes marks
+		// and add more chars to it?"): « with a non-breaking space after it, one before »; the space the opener ends in is
+		// the one a space typed by habit would double (`sp`, A702's guards)
+		const od = str('typoOpenDouble', '\u201c'), cd = str('typoCloseDouble', '\u201d');
+		const sp = (/[ \u00a0\u202f]$/.exec(od) || [''])[0];
+		return { od, cd, os: str('typoOpenSingle', '\u2018'), cs: str('typoCloseSingle', '\u2019'), ap: str('typoApostrophe', '\u2019'), sp };
 	},
+
+	// THE QUOTE MARKS AS ONE CHOICE (A779, the writer: "curly quotes and custom quotes don't make sense"): Straight while the
+	// curly quotes are off; the language's while it names its own and is asked for; Custom; else the style, US or UK
+	typoQuotesChoice(this: WordSmith): 'straight' | 'us' | 'uk' | 'language' | 'custom' {
+		const s = this.settings;
+		if (!s.typoSmartQuotes) return 'straight';
+		if (s.typoQuotesFromLanguage && this.typoLanguageMarks()) return 'language';
+		if (s.typoCustomQuotes) return 'custom';
+		return s.typoQuoteStyle === 'uk' ? 'uk' : 'us';
+	},
+	// …and written to them: Straight turns the curly quotes off and leaves the rest as the writer had it
+	typoQuotesChoose(this: WordSmith, v: string) {
+		const s = this.settings;
+		if (v === 'straight') { s.typoSmartQuotes = false; return; }
+		s.typoSmartQuotes = true;
+		if (v === 'language') { s.typoQuotesFromLanguage = true; return; }
+		s.typoQuotesFromLanguage = false;
+		s.typoCustomQuotes = v === 'custom';
+		if (v === 'us' || v === 'uk') s.typoQuoteStyle = v;
+	},
+
+	// (TOMBSTONE, A776: typoGuilleSpace, A770's dropdown read; the space with « » is in your own marks now)
 
 	// A CATEGORY'S NAME as the bar and the settings show it: the pack's own, from
 	// its `## Names`, while a pack is in use; the English otherwise, in the interface's language (A600, A695)

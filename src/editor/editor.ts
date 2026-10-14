@@ -144,10 +144,27 @@ export const editorMethods = {
 					const preceding = lookback.charAt(lookback.length - prefix.length - 1);
 					if (preceding && rule.notAfter.test(preceding)) continue;
 				}
+				// « AND » FROM << >> WEAR YOUR OWN « » WHEN THEY CARRY A SPACE (A776; A770's dropdown before): a space typed by
+				// habit before >> taken into it, not doubled
+				if (rule.group === 'guillemets') {
+					const tg = this.typoMarks();
+					if (tg && tg.sp && tg.od === '\u00ab' + tg.sp && tg.cd === tg.sp + '\u00bb') {
+						const open = rule.insert === '\u00ab';
+						const habit = !open && lookback.charAt(lookback.length - prefix.length - 1) === ' ';
+						this.applyTypography(view, from, to, text, (habit ? ' ' : '') + rule.text, open ? tg.od : tg.cd);
+						return true;
+					}
+				}
 				this.applyTypography(view, from, to, text, rule.text, rule.insert);
 				return true;
 			}
 
+			// A SPACE TYPED RIGHT AFTER AN OPENER THAT ENDS IN ONE is the one already there (A702; your own marks since A776, and
+			// << >> wearing them): typed by habit, it would double it
+			if ((s.typoSmartQuotes || s.typoGuillemets) && text === ' ' && from === to) {
+				const tmS = this.typoMarks();
+				if (tmS && tmS.sp && lookback.endsWith(tmS.od)) return true;
+			}
 			if (s.typoSmartQuotes && (text === '"' || text === "'")) {
 				const prev  = lookback.charAt(lookback.length - 1);
 				// TYPE OVER THE CLOSER THAT IS ALREADY THERE. Without this,
@@ -159,16 +176,18 @@ export const editorMethods = {
 				// Checked before anything else, because it is the one case
 				// where the right answer is to add nothing at all.
 				if (from === to) {
-					const ahead = doc.sliceString(from, from + 1);
 					const tm0   = this.typoMarks();
 					const closer = text === '"'
 						? ((tm0 && tm0.cd) || '\u201d')
 						: ((tm0 && tm0.cs) || '\u2019');
+					// the closer whole: French's is two characters, the space and » (A702)
+					const ahead = doc.sliceString(from, from + closer.length);
 					if (ahead && ahead === closer) {
-						view.dispatch({
-							selection: { anchor: from + 1 },
-							userEvent: 'select.typography'
-						});
+						// …and a space typed before it by habit goes, or the closer's own space doubles it
+						const stray = !!(tm0 && tm0.sp) && closer.charAt(0) === tm0.sp && before.endsWith(' ');
+						view.dispatch(stray
+							? { changes: { from: from - 1, to: from }, selection: { anchor: from - 1 + closer.length }, userEvent: 'select.typography' }
+							: { selection: { anchor: from + closer.length }, userEvent: 'select.typography' });
 						return true;
 					}
 				}

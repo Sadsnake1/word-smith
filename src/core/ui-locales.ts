@@ -21,6 +21,10 @@ import zh_Hans from '../../locales/zh-Hans.json';
 import ru from '../../locales/ru.json';
 import uk from '../../locales/uk.json';
 import ko from '../../locales/ko.json';
+// THREE MORE (A767, the writer: "We'll do Turkish, traditional chinese, indonesian.")
+import tr from '../../locales/tr.json';
+import id from '../../locales/id.json';
+import zh_Hant from '../../locales/zh-Hant.json';
 
 export const WS_LOCALES: Record<string, Record<string, string>> = {
 	de: de,
@@ -40,4 +44,7 @@ export const WS_LOCALES: Record<string, Record<string, string>> = {
 	ru: ru,
 	uk: uk,
 	ko: ko,
+	tr: tr,
+	id: id,
+	'zh-Hant': zh_Hant,
 };

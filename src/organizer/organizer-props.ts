@@ -388,6 +388,32 @@ function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) =>
 		orgPropPopRender();
 	});
 	pop.createDiv({ cls: 'ws-org-propbody' });
+	// ── UNTICK ALL (A752, the writer: "add an untick all button above the resize columns in the proprities popup") ──
+	//
+	// Every column off at once, the Name column staying (it is no row here); a tick brings any back. Above the
+	// resize, the other row about the SET of columns.
+	{
+		const un = pop.createDiv({ cls: 'ws-org-propauto ws-org-propuntick' });
+		const g = un.createSpan({ cls: 'ws-org-propautoicon' });
+		for (const n of ['square', 'square-dashed', 'x']) {
+			g.textContent = '';
+			try { if (setIcon) setIcon(g, n); } catch (_) { wsCatch('orgPropPopOpen: untick all: setIcon(g, n);', _); }
+			if (g.childElementCount > 0) { g.dataset.icon = n; break; }
+		}
+		un.createSpan({ text: wsT('Untick all') });
+		un.title = wsT('Hide every column but the name. Tick any to bring it back.');
+		un.addEventListener('click', (ev: Event) => {
+			ev.preventDefault();
+			ev.stopPropagation();
+			void (async () => {
+				for (const c of d.COLS) if (c.id !== 'name') d.colOff.add(c.id);
+				d.s.uniColsOff = Array.from<string>(d.colOff);
+				await d.plugin.saveSettings();
+				void d.fill(); d.drawPanel();
+				orgPropPopRender();
+			})();
+		});
+	}
 	// ── AND ONE SWITCH FOR HOW WIDE THEY ALL ARE ───────────────
 	//
 	// It sits at the foot with the add door because it is the only

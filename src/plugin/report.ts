@@ -45,7 +45,7 @@ function wsChartReadout(chart: HTMLElement, under: HTMLElement, hint: string) {
 }
 // HOW LONG THEY RUN (A629): the chart's eight columns, short to long, in words
 const WS_REPORT_BUCKETS: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40], [41, Infinity]];
-import { CJK_CHAR, READ_WPM, wsPagesOf, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
+import { wsMonotoneTangents, CJK_CHAR, READ_WPM, wsPagesOf, wsDayKey, wsDayOf, wsGoalPlan, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
@@ -2752,8 +2752,10 @@ export const reportMethods = {
 			return map;
 		}
 		const prose = kept.join('\n').replace(/%%[\s\S]*?%%/g, ' ').replace(CJK_CHAR, ' ');
+		// (Turkish folds case by its own rules, A769: İstanbul is istanbul, IŞIK ışık, never "i̇stanbul" with a stray dot)
+		const fold = /^(tr|az)(-|$)/i.test(String(this.settings.language || '')) ? (s: string) => s.toLocaleLowerCase('tr') : (s: string) => s.toLowerCase();
 		for (const run of prose.match(WORDISH) || []) {
-			const w = run.toLowerCase().replace(/\u2019/g, "'").replace(/[-'_]+$/, '');
+			const w = fold(run).replace(/\u2019/g, "'").replace(/[-'_]+$/, '');
 			if (!w || /^\p{N}/u.test(w)) continue;
 			map.set(w, (map.get(w) || 0) + 1);
 		}
@@ -2967,237 +2969,85 @@ export const reportMethods = {
 		return i < 0 ? '/' : file.path.slice(0, i);
 	},
 
-	// Frontmatter wins, so a note can carry its own target without touching
-	// settings. The click-to-set modal writes to fileGoals.
-	// Pixel fireworks over the report when a goal is crossed. Rebuilt after
-	// the gauge cleanup accidentally took the original with it. Two nested
-	// elements per spark — the outer flies along its own angle, the inner
-	// falls and fades — and the CSS drives all of the motion; this only
-	// stamps positions, angles, distances and colours.
-	celebrate(this: WordSmith, host: HTMLElement | null) {
-		try {
-			if (!host) return;
-			if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-			// Plain DOM throughout. Obsidian's createDiv throws on a cls string
-			// containing a space, and one throw here kills the whole show
-			// silently — createElement cannot be broken that way.
-			const div = (cls: string, parent?: HTMLDivElement) => {
-				const d = createDiv();
-				d.className = cls;
-				(parent || host).appendChild(d);
-				return d;
-			};
-			const wrap = div('ws-fireworks');
-			const colors = ['#ffd166', '#ef476f', '#06d6a0', '#4f9dde', '#e347e6', '#fbfaf9', '#e0913a'];
-			const spark = (parent: HTMLDivElement, size: number, color: string, delay: string|number) => {
-				const sp = div('ws-firework-spark', parent);
-				sp.style.width = sp.style.height = size + 'px';
-				sp.style.background = color;
-				sp.style.animationDelay = delay + 'ms';
-			};
-			// arcStart/arcSpan aim a burst: full circle by default, a narrow
-			// upward fan for fountains, inward fans for the corner jets.
-			const burst = (x: string|number, y: string|number, count: number, dist: number, kind: string, delay: number, arcStart?: number, arcSpan?: number) => {
-				const a0   = arcStart == null ? 0   : arcStart;
-				const span = arcSpan  == null ? 360 : arcSpan;
-				const fw = div('ws-firework', wrap);
-				fw.style.left = x + '%'; fw.style.top = y + '%';
-				for (let i = 0; i < count; i++) {
-					const vec = div('ws-firework-vec ' + kind, fw);
-					vec.style.setProperty('--a', Math.round(a0 + (span / count) * i + Math.random() * (span / count) * 0.6) + 'deg');
-					vec.style.setProperty('--d', String(-Math.round(dist * (0.6 + Math.random() * 0.7))) + 'px');
-					vec.style.animationDelay = delay + 'ms';
-					spark(vec, 2 + Math.floor(Math.random() * 3), colors[(i + delay) % colors.length], delay);
-				}
-				return fw;
-			};
-			// A crackle bursts, then pops a handful of micro-bursts around
-			// its own rim a beat later.
-			const crackle = (x: number, y: number) => {
-				burst(x, y, 10, 40, 'is-fly', 0);
-				for (let i = 0; i < 5; i++) {
-					window.setTimeout(() => { try {
-						burst(x + (Math.random() * 16 - 8), y + (Math.random() * 12 - 6),
-							6, 16, 'is-crackle', 0);
-					} catch (_) { wsCatch('celebrate / crackle: burst(x + (Math.random() * 16 - 8), y + (Math.random() * 12 - 6),', _); } }, 420 + i * 110);
-				}
-			};
-			// Glitter: lone pixels twinkling anywhere on the layer.
-			const glitter = (n: number, over: number) => {
-				for (let i = 0; i < n; i++) {
-					const tw = div('ws-firework-twinkle', wrap);
-					tw.style.left = (4 + Math.random() * 92) + '%';
-					tw.style.top  = (4 + Math.random() * 88) + '%';
-					tw.style.width = tw.style.height = (1 + Math.round(Math.random())) + 'px';
-					tw.style.background = colors[i % colors.length];
-					tw.style.animationDelay = Math.round(Math.random() * over) + 'ms';
-				}
-			};
-			const ring = (x: number, y: number, count: number, dist: number, delay: number) => {
-				const fw = div('ws-firework', wrap);
-				fw.style.left = x + '%'; fw.style.top = y + '%';
-				const c = colors[Math.floor(Math.random() * colors.length)];
-				for (let i = 0; i < count; i++) {
-					const vec = div('ws-firework-vec is-ring', fw);
-					// No jitter: uniform angles and one distance make a circle.
-					vec.style.setProperty('--a', Math.round((360 / count) * i) + 'deg');
-					vec.style.setProperty('--d', String(-dist) + 'px');
-					vec.style.animationDelay = delay + 'ms';
-					spark(vec, 3, c, delay);
-				}
-			};
-			const rocket = (x: number, breakY: number, at: number, kind: string, count: number, dist: number) => {
-				window.setTimeout(() => { try {
-					const rk = div('ws-firework is-launch', wrap);
-					rk.style.left = x + '%';
-					const head = div('ws-firework-head is-launch', rk);
-					spark(head, 3, '#fbfaf9', 0);
-					window.setTimeout(() => { try {
-						burst(x, breakY, count || 14, dist || 56, kind || 'is-rocket', 0);
-						rk.remove();
-					} catch (_) { wsCatch('celebrate / rocket: burst(x, breakY, count || 14, dist || 56, kind || \'is-rocket\', 0);', _); } }, 950);
-				} catch (_) { wsCatch('celebrate / rocket: const rk = div(\'ws-firework\', wrap);', _); } }, at);
-			};
-			// A shell that breaks, then breaks AGAIN a beat later from the
-			// same point in a second colour — the classic double-break.
-			const shell = (x: number, y: number, delay: number) => {
-				at(delay,       () => burst(x, y, 16, 58, 'is-chrys', 0));
-				at(delay + 480, () => burst(x, y, 12, 34, 'is-strobe', 0));
-			};
-			// A barrage: n shells walked across the report on a stagger.
-			const barrage = (n: number, y: number, delay: number, spacing: number) => {
-				for (let i = 0; i < n; i++) {
-					const x = 12 + (76 / (n - 1)) * i;
-					at(delay + i * (spacing || 140),
-						() => burst(x, y + (i % 2 ? 6 : 0), 11, 46,
-							i % 2 ? 'is-fly' : 'is-strobe', 0));
-				}
-			};
-			const at = (ms: number, fn: (() => HTMLDivElement) | (() => void)) => window.setTimeout(() => { try { fn(); } catch (_) { wsCatch('celebrate: fn();', _); } }, ms);
-
-			// Thirteen seconds, choreographed in five movements. Glitter
-			// underlies the whole show; over it, each movement is louder
-			// than the one before and the finale is a wall.
-			glitter(46, 7000);
-
-			// I — openers
-			burst(24, 26, 14, 50, 'is-fly', 0);
-			at(200,  () => burst(76, 22, 14, 50, 'is-fly', 0));
-			at(430,  () => burst(50, 34, 12, 44, 'is-strobe', 0));
-			at(650,  () => ring(50, 28, 18, 46, 0));
-			at(900,  () => burst(12, 40, 10, 40, 'is-comet', 0));
-			at(1020, () => burst(88, 38, 10, 40, 'is-comet', 0));
-
-			// II — jets from the floor, a rocket, a fountain
-			at(1250, () => burst(8,  96, 10, 72, 'is-jet', 0, 5, 70));
-			at(1400, () => burst(92, 96, 10, 72, 'is-jet', 0, -75, 70));
-			rocket(50, 32, 1550, 'is-chrys', 18, 62);
-			at(2500, () => burst(50, 97, 11, 64, 'is-jet', 0, -32, 64));
-			at(2800, () => burst(50, 97, 11, 72, 'is-jet', 0, -26, 52));
-			at(3050, () => burst(50, 97, 11, 80, 'is-jet', 0, -20, 40));
-
-			// III — willows and comets over the top
-			at(3300, () => burst(30, 28, 16, 54, 'is-willow', 0));
-			at(3550, () => burst(70, 24, 16, 54, 'is-willow', 0));
-			at(3850, () => burst(50, 20, 12, 66, 'is-comet', 0));
-			at(4100, () => crackle(26, 44));
-			at(4300, () => crackle(74, 40));
-			at(4550, () => ring(20, 36, 14, 38, 0));
-			at(4700, () => ring(80, 36, 14, 38, 0));
-
-			// IV — double-break shells, walked across
-			shell(34, 30, 4900);
-			shell(66, 26, 5250);
-			rocket(28, 30, 5400, 'is-chrys', 16, 58);
-			rocket(72, 26, 5700, 'is-chrys', 16, 58);
-			at(6200, () => glitter(22, 900));
-			barrage(6, 34, 6400, 150);
-			at(7400, () => burst(50, 30, 20, 60, 'is-chrys', 0));
-
-			// V — the finale: everything at once, then a wide ring over it
-			at(8200, () => { crackle(20, 38); crackle(50, 30); crackle(80, 38); });
-			at(8500, () => burst(50, 97, 14, 90, 'is-jet', 0, -22, 44));
-			barrage(8, 28, 8700, 110);
-			shell(50, 26, 9600);
-			at(9800,  () => burst(16, 34, 14, 52, 'is-willow', 0));
-			at(9950,  () => burst(84, 34, 14, 52, 'is-willow', 0));
-			at(10200, () => glitter(30, 700));
-			at(10400, () => { burst(30, 32, 16, 56, 'is-strobe', 0);
-			                  burst(70, 32, 16, 56, 'is-strobe', 0); });
-			at(10800, () => ring(50, 30, 26, 62, 0));
-			at(11000, () => ring(50, 30, 20, 40, 0));
-			at(11300, () => burst(50, 30, 24, 74, 'is-chrys', 0));
-			at(11600, () => glitter(24, 600));
-			window.setTimeout(() => { try { wrap.remove(); } catch (_) { wsCatch('celebrate: wrap.remove();', _); } }, 15000);
-		} catch (_) { wsCatch('celebrate: if (!host) return;', _); }
-	},
-
 	fileGoalFor(this: WordSmith, path: string) {
 		const goals = this.settings.fileGoals || {};
 		return Number(goals[path]) || 0;
 	},
 
-	// ── WHAT A FOLDER IS WORTH: THE SUM OF ITS NOTES ────────────────────
-	//
-	// A folder's target is the sum of the targets under it; nothing is
-	// typed on a folder. `derived` is always true for a non-zero total —
-	// the SHAPE is kept so a caller that asks whether a number was typed
-	// gets an honest no rather than a missing property.
-	//
-	// AND IT ANSWERS FOR THE WHOLE SUBTREE, not for the rows on screen. The
-	// table's folder total is `ORG_AGG` summing OVER THE ROWS AS SHOWN,
-	// deliberately, so a lens that hides half the scenes cannot leave a
-	// header claiming their words; the report is not lens-scoped. Two
-	// questions that agree when nothing is hidden; tying one to the other
-	// would tie a report to a view.
-	//
-	// ── EVERY FOLDER'S SUM, IN ONE WALK ──────────────────────────────────
-	//
-	// `folderTargetRollup` answers for ONE folder by walking the whole
-	// goals map, which is right for one question and wrong in a loop:
-	// called per folder row, the cost is folders × targets, and with a
-	// target on every scene of a 3,000-note vault that is 157ms a pass. One
-	// walk: each goal adds itself to every folder above it — the same
-	// arithmetic as `folderTargetRollup`, a strict prefix, and the root
-	// takes everything — and nothing to invalidate, because a caller builds
-	// it inside the pass that uses it and drops it after.
-	folderTargetSums(this: WordSmith) {
-		const files = this.settings.fileGoals || {};
-		const sums = new Map();
-		let root = 0;
-		for (const p of Object.keys(files)) {
-			const n = Number(files[p]) || 0;
-			if (!n) continue;
-			root += n;
-			// EVERY ANCESTOR, which is what a prefix test means walked the
-			// other way. `Book/Part 1/Ch 2/Scene.md` counts toward
-			// `Book/Part 1/Ch 2`, `Book/Part 1` and `Book`, and a note at the
-			// vault root counts toward the root alone.
-			let cut = String(p).lastIndexOf('/');
-			while (cut > -1) {
-				const dir = p.slice(0, cut);
-				sums.set(dir, (sums.get(dir) || 0) + n);
-				cut = dir.lastIndexOf('/');
-			}
-		}
-		// THE THREE SPELLINGS OF THE ROOT that `folderTargetRollup` accepts,
-		// so a caller can hand this map the same path it handed that.
-		sums.set('', root);
-		sums.set('/', root);
-		return sums;
+	// ── GOALS WITH A DATE (A700) ───────────────────────────────────────────
+	// A FOLDER'S OWN TARGET, the root as '' (or '/'); 0 for none. Never a sum of its notes' targets.
+	folderTargetFor(this: WordSmith, path: string) {
+		const t = this.settings.folderTargets || {};
+		return Number(t[path === '/' ? '' : path]) || 0;
 	},
-
-	folderTargetRollup(this: WordSmith, path: string) {
-		const root = (path === '/' || path === '' || path == null);
-		const pre = root ? '' : path + '/';
-		const inside = (p: string) => root || String(p).indexOf(pre) === 0;
-		const files = this.settings.fileGoals || {};
-		let sum = 0;
-		for (const p of Object.keys(files)) {
-			if (!inside(p)) continue;
-			sum += Number(files[p]) || 0;
+	goalDeadlineFor(this: WordSmith, path: string) {
+		const d = this.settings.goalDeadlines || {};
+		const v = String(d[path === '/' ? '' : path] || '');
+		return wsDayOf(v) ? v : '';
+	},
+	// what a target counts, out of a note's or a folder's figures: words, only words (A705)
+	goalCount(this: WordSmith, stats: { words?: number } | null) {
+		return stats ? (stats.words || 0) : 0;
+	},
+	// THE GOAL A NOTE WORKS TOWARD, the one {target} says (A707, the writer: "We'll use only target token"): a goal
+	// with a deadline first, the note's own, else the nearest folder's above it, the vault's root last; with none
+	// dated, the note's own target, else the nearest folder's (A706: "just show the goal bar"), `due` empty. Null
+	// when there is none.
+	goalResolve(this: WordSmith, notePath: string): { path: string; kind: 'note' | 'folder'; target: number; due: string } | null {
+		if (!notePath) return null;
+		const own = this.fileGoalFor(notePath), ownDue = this.goalDeadlineFor(notePath);
+		if (own > 0 && ownDue) return { path: notePath, kind: 'note', target: own, due: ownDue };
+		const parts = notePath.split('/');
+		const folders: string[] = [];
+		for (let n = parts.length - 1; n >= 0; n--) folders.push(parts.slice(0, n).join('/'));
+		for (const f of folders) {
+			const t = this.folderTargetFor(f), due = this.goalDeadlineFor(f);
+			if (t > 0 && due) return { path: f, kind: 'folder', target: t, due };
 		}
-		return { value: sum, derived: sum > 0 };
+		if (own > 0) return { path: notePath, kind: 'note', target: own, due: '' };
+		for (const f of folders) {
+			const t = this.folderTargetFor(f);
+			if (t > 0) return { path: f, kind: 'folder', target: t, due: '' };
+		}
+		return null;
+	},
+	// WHICH GOAL {target} FOLLOWS (A754, the writer: "we need to think on something more simple"): the note's own target,
+	// else the nearest folder's above it; Words to go today the nearest deadline's (goalResolve: a dated goal first). Null
+	// when there is none, and the token says nothing. (TOMBSTONE, A754: A726's "Which target", Automatic, Today's share,
+	// This note, Its folder)
+	goalFollow(this: WordSmith, notePath: string): { path: string; kind: 'note' | 'folder'; target: number; due: string } | null {
+		if (!notePath) return null;
+		if (this.settings.targetTokenFormat === 'today') return this.goalResolve(notePath);
+		const t = this.fileGoalFor(notePath);
+		if (t > 0) return { path: notePath, kind: 'note', target: t, due: this.goalDeadlineFor(notePath) };
+		const f = this.goalFolderAbove(notePath);
+		return f === null ? null : { path: f, kind: 'folder', target: this.folderTargetFor(f), due: this.goalDeadlineFor(f) };
+	},
+	// the nearest folder above a note with a target of its own ('' the vault's root), or null
+	goalFolderAbove(this: WordSmith, notePath: string): string | null {
+		const parts = String(notePath || '').split('/');
+		for (let n = parts.length - 1; n >= 0; n--) { const f = parts.slice(0, n).join('/'); if (this.folderTargetFor(f) > 0) return f; }
+		return null;
+	},
+	// THE DAY'S START for a goal: its count the first time it is read today, kept for the day (in settings, so a
+	// reload keeps it). A new day starts a new record. A goal first read after the writing began starts there.
+	// TODAY'S RECORD: the starts, a new one each day (the checks' latch went with the celebration, A786)
+	goalDayToday(this: WordSmith, at?: Date) {
+		const today = wsDayKey(at || new Date());
+		let day = this.settings.goalDay;
+		if (!day || day.date !== today) { day = { date: today, start: {} }; this.settings.goalDay = day; }
+		if (!day.start) day.start = {};
+		return day;
+	},
+	goalStartOf(this: WordSmith, path: string, now: number, at?: Date) {
+		const day = this.goalDayToday(at);
+		if (!Object.prototype.hasOwnProperty.call(day.start, path)) { day.start[path] = Math.max(0, Math.round(now || 0)); void this.saveSettings(); }
+		return day.start[path];
+	},
+	// THE PLAN for a goal, its count now given: today's share, the days left, the state (wsGoalPlan)
+	goalPlanOf(this: WordSmith, g: { path: string; target: number; due: string }, now: number, at?: Date) {
+		const when = at || new Date();
+		return wsGoalPlan(g.target, now, this.goalStartOf(g.path, now, when), g.due, when, String(this.settings.goalWorkDays == null ? '0123456' : this.settings.goalWorkDays));
 	},
 
 	filesInFolder(this: WordSmith, path: string, recursive: boolean) {
@@ -4342,48 +4192,6 @@ export const reportMethods = {
 		return [hue, s * 100, l * 100];
 	},
 
-	// Goals render nowhere in the bar. Their state exists for the met flash
-	// and the report only — the top-edge hairline that used to read from it
-	// was removed, along with the per-goal colours that only ever tinted
-	// that line. The folder total still refreshes in the background and
-	// repaints when it lands.
-	registerGoalStates(this: WordSmith) {
-		if (!this._goalStates) this._goalStates = [];
-
-		const view    = this.app.workspace.getActiveViewOfType(MarkdownView);
-		const fpath   = view && view.file ? view.file.path : null;
-		const ftarget = fpath ? this.fileGoalFor(fpath) : 0;
-		if (fpath && ftarget) {
-			const words = this._wsLastTotalWordCount || 0;
-			this._goalStates.push({
-				kind: 'file', ratio: Math.min(words / ftarget, 1), met: words >= ftarget
-			});
-		}
-
-		const dpath   = this.activeFolderPath();
-		const dtarget = dpath ? this.folderTargetRollup(dpath).value : 0;
-		if (dpath && dtarget) {
-			const words = this._folderWordCache && this._folderWordCache.path === dpath
-				? this._folderWordCache.words : 0;
-			this._goalStates.push({
-				kind: 'folder', ratio: Math.min(words / dtarget, 1), met: words >= dtarget
-			});
-			void this.refreshFolderWords(dpath);
-		}
-	},
-
-	async refreshFolderWords(this: WordSmith, path: string) {
-		if (this._folderWordBusy) return;
-		this._folderWordBusy = true;
-		try {
-			const stats = await this.analyzeFolder(path);
-			const prev  = this._folderWordCache;
-			this._folderWordCache = { path, words: stats.words };
-			if (!prev || prev.path !== path || prev.words !== stats.words) this.updateRetroStatusBar();
-		} catch (_) { wsCatch('refreshFolderWords: const stats = await this.analyzeFolder(path);', _); }
-		finally { this._folderWordBusy = false; }
-	},
-
 	// The REPORT's finder searches the vault itself, not the writing
 	// record: the history can only offer paths it has seen you write in,
 	// and "how long is that other chapter" is a fair question about a
@@ -4625,8 +4433,8 @@ export const reportMethods = {
 				freq   = await this.wordFreqFor(this.filesInFolder(folderSel, true).filter((f) => this.isFileCounted(f)));
 				const folderFiles = this.filesInFolder(folderSel, true).filter((f) => this.isFileCounted(f));
 				sentencesOf = (progress) => this.reportFolderSentences(folderFiles, progress);
-				// A FOLDER IS THE SUM OF ITS NOTES; there is no typed number.
-				target = this.folderTargetRollup(folderSel).value;
+				// A FOLDER'S OWN TARGET (A700, the writer: folders get their own target; the sum of its notes' is gone)
+				target = this.folderTargetFor(folderSel);
 			}
 
 			// A tab switch mid-read must not paint stale numbers. FINDER
@@ -4833,9 +4641,10 @@ export const reportMethods = {
 			void this.openNoteAt(top.path, top.head.slice(0, 40));
 		});
 		line.appendText(' \u00b7 ' + wsT('{share}% at {n}+ words', { share: longShare, n: longAt }));
-		into.style.setProperty('--ws-bar-short', s.checkRhythmShortColor || '#5aa469');
-		into.style.setProperty('--ws-bar-hard', s.checkRhythmHardColor || '#d4a017');
-		into.style.setProperty('--ws-bar-veryhard', s.checkRhythmVeryHardColor || '#c2544d');
+		// (the theme's green, yellow and red unless picked, as Word frequency's bands, A782)
+		into.style.setProperty('--ws-bar-short', s.checkRhythmShortColor || 'var(--color-green)');
+		into.style.setProperty('--ws-bar-hard', s.checkRhythmHardColor || 'var(--color-yellow)');
+		into.style.setProperty('--ws-bar-veryhard', s.checkRhythmVeryHardColor || 'var(--color-red)');
 		// TWO TABS, A CHART EACH (A644, the writer: "add some tiltes to each chart", "Sentence ryhtm not pace
 		// thorugh the text", then "add to tabs to senteces, Rythm and Distribution, each tab displays a chart"):
 		// the one last pressed opening first again; THE BAR'S BUTTONS since A648 (the writer: "i want the tabs in
@@ -4934,13 +4743,15 @@ export const reportMethods = {
 		const mean = list.reduce((a, x) => a + x.n, 0) / list.length;
 		this.historySvg('path', { class: 'ws-report-pace-mean', d: 'M0 ' + yOf(mean).toFixed(1) + ' H' + VW }, svg);
 		// (A645's figure on it, "average 17 words", went on the writer's word: "remove the average label")
-		// A CURVE THROUGH THE POINTS (Catmull-Rom as cubic Béziers), not a zigzag between them
-		const P = sm.map((v, c) => [xOf(c), yOf(v)]);
-		let d = 'M' + P[0][0].toFixed(1) + ' ' + P[0][1].toFixed(1);
-		for (let i = 0; i + 1 < P.length; i++) {
-			const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(P.length - 1, i + 2)];
-			const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-			d += ' C' + [c1, c2, p2].map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
+		// A CURVE THROUGH THE POINTS, not a zigzag between them: MONOTONE (A794, the writer: "that peak gets too high"),
+		// as History's net line. Catmull-Rom drew a sharp stretch past its own height and out of the box; a monotone
+		// curve turns AT each point, so the highest stretch is the top of the box and nothing goes higher
+		const px = sm.map((_, c) => xOf(c)), py = sm.map((v) => yOf(v));
+		const m = wsMonotoneTangents(px, py);
+		let d = 'M' + px[0].toFixed(1) + ' ' + py[0].toFixed(1);
+		for (let i = 0; i + 1 < px.length; i++) {
+			const h = px[i + 1] - px[i];
+			d += ' C' + [[px[i] + h / 3, py[i] + m[i] * h / 3], [px[i + 1] - h / 3, py[i + 1] - m[i + 1] * h / 3], [px[i + 1], py[i + 1]]].map((q) => q[0].toFixed(1) + ' ' + q[1].toFixed(1)).join(' ');
 		}
 		this.historySvg('path', { class: 'ws-report-pace-line', stroke: 'url(#' + gid + ')', d }, svg);
 		// a stretch to hover and to press, as wide as its share of the line; its figures in the readout under the
@@ -5242,36 +5053,5 @@ export const reportMethods = {
 		return total;
 	},
 
-	// The TARGET a selection is working towards.
-	//
-	// WHAT AN ANCESTOR ALREADY COVERS IS DROPPED. A folder's target is a
-	// statement about everything under it, so adding a selected scene's
-	// target to its selected chapter's would count the same words twice and
-	// draw a gauge that can never fill. The files are unioned above for the
-	// same reason; this is that rule applied to the other half of the sum.
-	selectionTarget(this: WordSmith, rows: { kind: string; path: string }[]) {
-		if (!rows || !rows.length) {
-			// THE WHOLE VAULT IS A FOLDER TOO: the root sums its notes like every
-			// other folder — one rule, no spellings.
-			return this.folderTargetRollup('/').value;
-		}
-		const folders = rows.filter((r) => r && r.kind === 'folder').map((r) => r.path);
-		const covered = (p: string, kind: string) => folders.some((f) =>
-			!(kind === 'folder' && f === p)
-			&& (f === '' || f === '/' || p === f || String(p).indexOf(f + '/') === 0));
-		let sum = 0;
-		// ONE WALK, NOT ONE PER ROW. Same change as the explorer's badge pass,
-		// and the same reason: a selection of many folders would pay the whole
-		// goals map once per folder in it.
-		const sums = this.folderTargetSums();
-		for (const it of rows) {
-			if (!it || covered(it.path, it.kind)) continue;
-			// A FOLDER IS WORTH WHAT IS UNDER IT — see `folderTargetRollup`.
-			sum += it.kind === 'folder'
-				? (sums.get(it.path) || 0)
-				: this.fileGoalFor(it.path);
-		}
-		return sum;
-	},
 };
 export type ReportMethods = typeof reportMethods;

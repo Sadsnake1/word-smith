@@ -12,7 +12,8 @@ Word-Smith is local. No network calls of any kind: no `fetch`, no `XMLHttpReques
 
 - `data.json` in the plugin folder: your settings and saved bars. With history on, also each note's last word count, so a save can be turned into a difference. That cache rebuilds itself and can be deleted.
 - Your history file, if history is on: one row per day, the date and how many words you added, cut and netted. Counts only, never a word of what you wrote.
-- Your targets, flags, order and export ticks: note and folder names and numbers, no prose.
+- Your targets, deadlines, flags, order and export ticks: note and folder names and numbers, no prose.
+- A last good copy of your history and structure files, in the plugin folder, for a power cut in the middle of a save (below).
 
 An exported manuscript is the obvious exception. You asked for your words in a file, so the file has your words in it.
 
@@ -36,7 +37,9 @@ Plain notes, all in `Word-Smith/` on a new vault, yours to read, edit, move or d
 | `ws-structure.md` | Your book's order, targets, flags, folder colors, which properties are columns, what's ticked for export, and the properties of files that have no frontmatter of their own (PDFs, spreadsheets, images) |
 | `ws-settings.md` | A readable mirror of your settings, so a new machine can be handed the lot |
 
-Each is found by the markers inside it, not by its name, so moving or renaming is safe. Their locations show under **Misc**. If you already have these in your vault root, they stay put.
+Each is found by the markers inside it, not by its name, so moving or renaming is safe. Their locations show under Settings → Word-Smith → **Vault**.
+
+After each save, the plugin folder also keeps a last good copy of `ws-history.md` and `ws-structure.md` (in `backup/`). It's read once, at startup, and only if a power cut left one of them empty or cut short; Word-Smith tells you when it puts one back. A file you deleted stays deleted. If you already have these in your vault root, they stay put.
 
 `ws-structure.md` is one path per line, so a sync engine or git can merge it line by line. A conflict is one scene misplaced, not a broken book. The reader repairs rather than rejects: duplicate lines dropped, unknown paths ignored, missing notes appended.
 

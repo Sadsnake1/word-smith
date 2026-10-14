@@ -10,7 +10,7 @@ import type { TAbstractFile, View, MenuItem } from 'obsidian';
 import type { WordSmithSettings, WsFlagDef, WsOrgMenuCtx } from '../core/settings';
 import { wsOrgFolderWords } from '../organizer/org-index';
 import type { WsOrgIndexMap } from '../organizer/org-index';
-import { DEFAULT_SETTINGS, WS_FOLDER_COLOURS, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsMenuIsNative, wsFlagShapeOf, wsFlagSvg, wsManuscriptSvg, wsPassState, wsPassStorm, wsSoon, wsStatusLabel, wsSvgInto, wsTaskSay, wsIsFile, wsErrMsg, wsElOf, WS_STATE_IDS, WS_STATUSES, wsIsFolder } from '../core/preamble';
+import { DEFAULT_SETTINGS, WS_FOLDER_COLOURS, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsMenuIsNative, wsFlagShapeOf, wsFlagSvg, wsPassState, wsPassStorm, wsSoon, wsStatusLabel, wsSvgInto, wsTaskSay, wsIsFile, wsErrMsg, wsElOf, WS_STATE_IDS, WS_STATUSES, wsIsFolder } from '../core/preamble';
 import type { WsExplorerItem } from '../core/obsidian-private';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
@@ -639,6 +639,15 @@ export const treeMethods = {
 			.onClick(() => { if (c.rename) c.rename(item); }));
 		menu.addItem((i: MenuItem) => i.setTitle(wsT('Delete')).setIcon('trash')
 			.onClick(() => {
+				// OBSIDIAN'S OWN PROMPT, ASKED OF THE ROW'S FILE (A752, the writer: "if i delete a file in the organizer is werid
+				// and it switches back to a note"): the command acts on the ACTIVE note, so the row's note was opened first, the
+				// pane switched to it and the Organizer followed. The prompt is the explorer's own dialog, the vault's confirm
+				// and trash settings with it; the command and our own confirm stay for a build without it
+				const fm = this.app.fileManager;
+				if (file && fm && typeof fm.promptForDeletion === 'function') {
+					void fm.promptForDeletion(file).catch((e: unknown) => { if (c.said) c.said(wsT('Could not do that \u2014 {error}', { error: wsErrMsg(e) }), true); });
+					return;
+				}
 				void runFileCommand('app:delete-file', async () => {
 					// THE FALLBACK ASKS TOO. A confirmation is not a nicety
 					// here — it is the difference between a mis-aimed click
@@ -995,6 +1004,8 @@ export const treeMethods = {
 			() => s.fileTreeFolderIcons,
 			() => s.fileTreeKindIcons,
 			() => s.fileTreeTasks,
+			// the plugin's own folder kept out of sight (A733)
+			() => s.hideOwnFolder,
 			() => s.folderColors && Object.keys(s.folderColors).length,
 			// The tree's own order is drawn by a patched comparator rather than
 			// by a mark on a row, and it still needs the tree watched: a folder
@@ -1118,8 +1129,10 @@ export const treeMethods = {
 			origMenu.call(view, menu);
 			try {
 				menu.addSeparator();
+				// ("Custom order", the Organizer's word and its glyph, A704)
 				menu.addItem((i) => i
-					.setTitle('Custom sort')
+					.setTitle(wsT('Custom order'))
+					.setIcon('list-ordered')
 					.setChecked(!!this.settings.treeOrder)
 					.onClick(async () => {
 						this.settings.treeOrder = !this.settings.treeOrder;
@@ -1246,7 +1259,10 @@ export const treeMethods = {
 			const t = (i as { titleEl?: { textContent?: string | null } }).titleEl;
 			return t && t.textContent ? t.textContent.trim() : '';
 		};
-		if (list.some((i) => titleOf(i) === 'Custom sort')) return;
+		// THE ORGANIZER'S WORD AND GLYPH (A704, the writer: "in this menu says custom sort. and in the organizer says custom
+		// order and has another icon. change it to custom order and to that icon too")
+		const title = wsT('Custom order');
+		if (list.some((i) => titleOf(i) === title)) return;
 		const on = !!this.settings.treeOrder;
 		// One tick in a menu that asks one question, as the row above does.
 		if (on) for (const i of list) {
@@ -1254,7 +1270,7 @@ export const treeMethods = {
 			if (typeof set === 'function') { try { (set as (v: boolean) => unknown).call(i, false); } catch (_) { wsCatch('addSortMenuItem: setChecked(false)', _); } }
 		}
 		menu.addSeparator();
-		menu.addItem((i: MenuItem) => i.setTitle('Custom sort').setChecked(on).onClick(async () => {
+		menu.addItem((i: MenuItem) => i.setTitle(title).setIcon('list-ordered').setChecked(on).onClick(async () => {
 			this.settings.treeOrder = !this.settings.treeOrder;
 			await this.saveSettings();
 			this.patchExplorerSort();
@@ -1270,8 +1286,9 @@ export const treeMethods = {
 			// carrying both, a writer got two "Custom sort" rows. Ask
 			// what the menu SAYS, not what it is made of.
 			const scroll0 = menu.querySelector('.menu-scroll') || menu;
+			const title = wsT('Custom order');
 			const already = Array.from(scroll0.querySelectorAll('.menu-item-title'))
-				.some(t => (t.textContent || '').trim() === 'Custom sort');
+				.some(t => (t.textContent || '').trim() === title);
 			if (already) return;
 			// BUILT THE WAY THEIRS ARE BUILT, from their own markup rather
 			// than from a guess. Every row in that menu is
@@ -1293,10 +1310,9 @@ export const treeMethods = {
 			const item = group.createDiv({
 				cls: 'menu-item tappable ws-menu-msorder' + (on ? ' mod-checked' : '') });
 			const icon = item.createDiv({ cls: 'menu-item-icon' });
-			// The same written mark the sort button wears, so the row and the
-			// state it turns on are one thing rather than two to connect.
-			wsSvgInto(icon, wsManuscriptSvg(16));
-			item.createDiv({ cls: 'menu-item-title', text: 'Custom sort' });
+			// THE ORGANIZER'S GLYPH (A704): the row says what the Organizer's Sort menu says, with the same mark
+			try { setIcon(icon, 'list-ordered'); } catch (_) { wsCatch('addSortMenuRow: setIcon(list-ordered)', _); }
+			item.createDiv({ cls: 'menu-item-title', text: title });
 			if (on) {
 				const tick = item.createDiv({ cls: 'menu-item-icon mod-checked' });
 				try { if (setIcon) setIcon(tick, 'check'); } catch { tick.setText('\u2713'); }
@@ -1843,8 +1859,8 @@ export const treeMethods = {
 		const hosts = document.querySelectorAll(
 			'.workspace-leaf-content[data-type="file-explorer"] .nav-buttons-container');
 		for (const host of Array.from(hosts)) {
-			let btn = null;
-			for (const b of Array.from(host.children)) {
+			let btn: HTMLElement | null = null;
+			for (const b of Array.from(host.querySelectorAll<HTMLElement>(':scope > *'))) {
 				const said = (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '');
 				if (/sort/i.test(said)) { btn = b; break; }
 			}
@@ -1856,7 +1872,13 @@ export const treeMethods = {
 					btn.setAttribute('data-ws-was', btn.innerHTML);
 					btn.setAttribute('data-ws-said', btn.getAttribute('aria-label') || '');
 					btn.setAttribute('data-ws-sort', '1');
-					wsSvgInto(btn, wsManuscriptSvg(18));
+					// THE ORGANIZER'S GLYPH (A705, the writer: "change the icon from the file tree of custom order to the one in
+					// the organizer"): the Sort menu's own mark, Lucide's, tried in order since `setIcon` fails silently
+					btn.empty();
+					for (const name of ['list-ordered', 'list']) {
+						try { setIcon(btn, name); } catch (_) { wsCatch('paintExplorerSortIcon: setIcon', _); }
+						if (btn.childElementCount) break;
+					}
 					btn.setAttribute('aria-label', 'Sorted in custom order');
 				}
 			} else if (btn.getAttribute('data-ws-sort') === '1') {
@@ -1883,6 +1905,7 @@ export const treeMethods = {
 		// After the folders because they are the same pass and the folder
 		// rows are the ones a theme is fussiest about.
 		this.paintExplorerKindIcons();
+		this.paintExplorerOwnFolder();
 	},
 
 	async paintExplorerTasks(this: WordSmith, root: HTMLElement) {
