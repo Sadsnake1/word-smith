@@ -62,6 +62,8 @@ export const WS_PACK_PARTS: Record<string, 'list' | 'table' | 'keyed' | 'text' |
 	'abbreviations': 'list', 'readability': 'keyed', 'common characters': 'list', 'loose pronouns': 'list',
 	// what the reader marks up, and what the gate expects the engine to find in it
 	'test': 'text', 'expect': 'keyed',
+	// the spaces the language sets beside its marks, a row a mark (French's before ; : ! ? and inside « »)
+	'spaces': 'table',
 	// the category names Word-Smith shows while the pack is in use, by their English (A600)
 	'names': 'keyed',
 	// THE PACK'S FACTS (language, name, version, quotes…) in the body, not as properties:
@@ -109,6 +111,33 @@ export function wsPackQuotes(pack: WsPack | null | undefined): { od: string; cd:
 
 // (TOMBSTONE, A776: wsPackQuoteSpace, a pack's `quote-space` line; the writer: "we do the leaner version", the space with
 // « » typed in Custom quote marks)
+
+// THE SPACES A LANGUAGE SETS BESIDE ITS MARKS (the writer, 2026-10-15: "do the french spaces toggle"): `## Spaces`, a row
+// a mark, `| ; | before | narrow |`, the space `nbsp` (U+00A0) or `narrow` (U+202F). French's: a narrow one before ; ! ?,
+// a no-break one before : and inside « ». Typed by Typography's Language spacing (`typoLanguageSpaces`), off by default.
+// AND AFTER A WORD (the writer's pick, "Those plus Polish"): `| a, i, o, u, w, z | word | nbsp |`, the space after
+// each of those words, so a one-letter word never ends a line (Russian's and Ukrainian's: before the dash, a mark)
+export interface WsPackSpaces { before: Record<string, string>; after: Record<string, string>; words: Record<string, string> }
+export const WS_PACK_SPACE_CHARS: Record<string, string> = { nbsp: '\u00a0', narrow: '\u202f' };
+export function wsPackSpaces(pack: WsPack | null | undefined): WsPackSpaces | null {
+	const rows = pack ? pack.tables.spaces : null;
+	if (!rows || !rows.length) return null;
+	const out: WsPackSpaces = { before: {}, after: {}, words: {} };
+	let any = false;
+	for (const r of rows) {
+		const mark = (r[0] || '').trim(), side = (r[1] || '').trim().toLowerCase(), sp = WS_PACK_SPACE_CHARS[(r[2] || '').trim().toLowerCase()];
+		// the words, a comma or a space between them, kept in lower case ("W domu" is w)
+		if (side === 'word' && sp) {
+			for (const w of mark.split(/[,\s]+/)) if (/^\p{L}+$/u.test(w)) { out.words[w.toLowerCase()] = sp; any = true; }
+			continue;
+		}
+		// one mark, a side, a space this reader knows; anything else is passed over
+		if (Array.from(mark).length !== 1 || !sp || (side !== 'before' && side !== 'after')) continue;
+		out[side][mark] = sp;
+		any = true;
+	}
+	return any ? out : null;
+}
 
 // THE READING FORMULAS the engine knows, by the name a pack's `## Readability`
 // gives under `formula`, with the coefficients each starts from; a pack writes a

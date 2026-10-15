@@ -5,7 +5,7 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## Про пакет (About)
 - language: uk
 - name: Українська
-- pack: 1.0
+- pack: 1.1
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -13,6 +13,12 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - other-quotes: “ ” „ ”
 - apostrophe: ʼ
 - dialogue-dash: — –
+
+## Пробіли (Spaces)
+| знак | бік | пробіл |
+|------|-----|--------|
+| — | before | nbsp |
+| – | before | nbsp |
 
 ## Числівники (Numbers)
 - нуль, один, одна, одне, одного, одній, одному, одним, одною, одні, одних, одними, два, дві, двох, двом, двома, три, трьох, трьом, трьома, чотири, чотирьох, чотирьом, чотирма

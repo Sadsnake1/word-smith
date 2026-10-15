@@ -158,7 +158,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._paraCache       = null;   // { doc, val } paragraph geometry
 	plugin._lastTypo        = null;   // last typography substitution, for backspace-to-revert
 	plugin._barPicker       = null;   // open bar popup, if any
-	plugin._backupLast = null; plugin._backupTried = null; plugin._ownFolders = null; plugin._ownMarked = null;
+	plugin._backupLast = null; plugin._backupTried = null; plugin._ownFolders = null; plugin._ownMarked = null; plugin._ownExcludeTimer = null;
 	plugin._goalNowState = null;
 	plugin._goalFolderCounts = null; plugin._goalFolderBusy = false;
 	plugin._goalPanel = null; plugin._goalPanelOff = null;
@@ -476,6 +476,8 @@ const WS_OWN_NAMES = /^ws-(?:history|structure|settings|export|goals|lang-[A-Za-
 export function wsWireWorkspace(plugin: WordSmith) {
 	// THE PLUGIN'S OWN FOLDER IS READ AGAIN after any file comes, goes or moves (A733)
 	for (const ev of ['create', 'delete', 'rename'] as const) plugin.onAppEvent(plugin.app.vault, ev, () => { plugin._ownFolders = null; });
+	// …AND OBSIDIAN'S EXCLUDED FILES MOVE WITH IT (#71), once the vault has settled
+	for (const ev of ['create', 'delete', 'rename'] as const) plugin.onAppEvent(plugin.app.vault, ev, () => plugin.excludeOwnFolderSoon());
 	plugin.onAppEvent(plugin.app.workspace, 'file-menu',
 		(menu: Menu, file: TAbstractFile, source: string) => {
 			if (source === 'word-smith-outliner') return;
@@ -1121,7 +1123,7 @@ export default class WordSmith extends Plugin {
 	declare exportOptionDefaults: ExportMethods["exportOptionDefaults"];
 	declare openExportModal: ExportMethods["openExportModal"];
 	declare exportFiguresText: ExportMethods["exportFiguresText"];
-	declare exportFoldersTicked: ExportMethods["exportFoldersTicked"];
+	declare exportOptsChanged: ExportMethods["exportOptsChanged"];
 	declare exportTickAllSay: ExportMethods["exportTickAllSay"];
 	declare exportReaderClicks: ExportMethods["exportReaderClicks"];
 	declare exportAnchorClicks: ExportMethods["exportAnchorClicks"];
@@ -1199,6 +1201,8 @@ export default class WordSmith extends Plugin {
 	declare languageSet: StoresMethods["languageSet"];
 	declare typoLanguageMarks: StoresMethods["typoLanguageMarks"];
 	declare typoMarks: StoresMethods["typoMarks"];
+	declare typoSpaces: StoresMethods["typoSpaces"];
+	declare typoSpaced: StoresMethods["typoSpaced"];
 	declare typoQuotesChoice: StoresMethods["typoQuotesChoice"];
 	declare typoQuotesChoose: StoresMethods["typoQuotesChoose"];
 	declare rhythmTint: ReportMethods["rhythmTint"];
@@ -1865,6 +1869,8 @@ export default class WordSmith extends Plugin {
 	_explorerClick: ((ev: Event) => void) | null;
 	_exportPage: number;
 	_exportZoom: number | null;
+	/** the open Export panes' preview refreshes, run on a change in Settings › Export (`exportOptsChanged`) */
+	_exportRefreshers?: Set<() => void>;
 	_fenceCache: { doc: CmText; set: Set<unknown> } | null;
 	_fitPending: boolean;
 	_fitShortenFile: boolean;
@@ -1892,6 +1898,8 @@ export default class WordSmith extends Plugin {
 	// A733: the plugin's own folders, read once until the vault changes, and the explorer rows marked hidden
 	_ownFolders: string[] | null;
 	_ownMarked: Set<string> | null;
+	// #71: Obsidian's Excluded files brought in line a moment after the vault changes
+	_ownExcludeTimer: number | null;
 	_goalsTimer: number | null;
 	_goalsWritten: boolean;
 	_hemFlashTimer: number | null;
@@ -2623,6 +2631,7 @@ export default class WordSmith extends Plugin {
 		}
 		// Cancel a pending debounced refresh
 		if (this._refreshTimer) { window.clearTimeout(this._refreshTimer); this._refreshTimer = null; }
+		if (this._ownExcludeTimer) { window.clearTimeout(this._ownExcludeTimer); this._ownExcludeTimer = null; }
 		if (this._hemFlashTimer) { window.clearTimeout(this._hemFlashTimer); this._hemFlashTimer = null; }
 		if (this._hemScreenTimer) { window.clearTimeout(this._hemScreenTimer); this._hemScreenTimer = null; }
 		if (this._hemIconTimer) { window.clearTimeout(this._hemIconTimer); this._hemIconTimer = null; }
@@ -3092,6 +3101,11 @@ export default class WordSmith extends Plugin {
 		delete this.settings.goalCelebrate; delete this.settings.goalMetSeen;
 		// `typoQuoteSpace` (A770), never released: the space with « » is typed in Custom quote marks since A776
 		delete this.settings.typoQuoteSpace;
+		// `exportOpts.tocPages` (A751, released in 1.8.3): the contents always carry their page numbers (the writer: "table of
+		// contents always have page numbers, so remove that extra page numbers option for toc")
+		if (this.settings.exportOpts) delete wsBag(this.settings.exportOpts).tocPages;
+		// `exportOpts.paraStart` (#77's dropdown), never released: Keep line breaks (`keepLineBreaks`) since the writer's word
+		if (this.settings.exportOpts) delete wsBag(this.settings.exportOpts).paraStart;
 		// A VAULT WITH SETTINGS BEFORE THE WELCOME HAS SEEN WORD-SMITH (A743): only a new install meets it; asked of the
 		// FILE, so it decides once
 		if (raw.welcomeShown === undefined && Object.keys(raw).length > 0) this.settings.welcomeShown = true;
@@ -3633,6 +3647,8 @@ export default class WordSmith extends Plugin {
 			// (and the own folder shown again, the pass that would have done it not running, A733)
 			this.paintExplorerOwnFolder();
 		}
+		// …and out of the graph and search, or back in (#71)
+		this.excludeOwnFolder();
 		// …and the order, which patches or unpatches itself from one call.
 		// Switching it OFF has to put the tree back within the same gesture:
 		// a writer turning it off and seeing their tree still in book order
@@ -4175,6 +4191,41 @@ export default class WordSmith extends Plugin {
 				if (box) box.toggleClass('ws-own-hidden', own.indexOf(String(t.dataset.path || '')) !== -1);
 			}
 		}
+	}
+
+	// …AND OUT OF THE GRAPH (#71, Skrath: "Any chance they can also be hidden from the graph view?"): the folder in
+	// Obsidian's own Excluded files (Settings → Files and links), the one list the graph, search, Bases and the link
+	// suggestions all ask (`metadataCache.isUserIgnored`, read in 1.14.4's app.js). SYNC DOES NOT READ IT (the writer
+	// asked; measured there: Sync keeps its own `ignoreFolders`), so the files still sync. ONLY WHAT THIS ADDED is taken
+	// out again (`ownExcluded`): an entry the writer typed is theirs, switch or no switch. Not before the vault is read
+	// (the folder would read as gone and its entry be taken out at every start), and never on unload, or app.json
+	// would change at every close.
+	excludeOwnFolder() {
+		const vault = this.app && this.app.vault;
+		if (!vault || typeof vault.getConfig !== 'function' || typeof vault.setConfig !== 'function') return;
+		if (!this.app.workspace || !this.app.workspace.layoutReady) return;
+		const ours = (this.settings.ownExcluded || []).map(String);
+		if (!this.settings.hideOwnFolder && !ours.length) return;
+		const want = this.settings.hideOwnFolder ? this.ownFolders().map((d) => d + '/') : [];
+		const raw = vault.getConfig('userIgnoreFilters');
+		const now = Array.isArray(raw) ? raw.map(String) : [];
+		const next = now.filter((e) => !(ours.includes(e) && !want.includes(e)));
+		const kept = ours.filter((e) => want.includes(e) && next.includes(e));
+		// (the writer's own entry for the folder, in any case, as Obsidian matches: kept, not added again, not ours)
+		for (const d of want) if (!next.some((e) => e.toLowerCase() === d.toLowerCase())) { next.push(d); kept.push(d); }
+		if (next.length !== now.length || next.some((e, i) => e !== now[i])) {
+			try { vault.setConfig('userIgnoreFilters', next.length ? next : null); } catch (_) { wsCatch('excludeOwnFolder: setConfig', _); return; }
+		}
+		if (kept.length !== ours.length || kept.some((e, i) => e !== ours[i])) {
+			this.settings.ownExcluded = kept;
+			void this.saveSettings();
+		}
+	}
+	// …a moment after the vault changes (the folder moved or renamed), and only while there is something to keep in line
+	excludeOwnFolderSoon() {
+		if (!this.settings || (!this.settings.hideOwnFolder && !(this.settings.ownExcluded || []).length)) return;
+		if (this._ownExcludeTimer) window.clearTimeout(this._ownExcludeTimer);
+		this._ownExcludeTimer = window.setTimeout(() => { this._ownExcludeTimer = null; this.excludeOwnFolder(); }, 1500);
 	}
 
 	isFileCounted(file: TAbstractFile) {

@@ -54,6 +54,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 	const dimText   = Decoration.mark({ class: 'ws-dim-text' });
 	const spaceDeco = Decoration.mark({ class: 'ws-ws-space' });
 	const tabDeco   = Decoration.mark({ class: 'ws-ws-tab' });
+	const nbspDeco  = Decoration.mark({ class: 'ws-ws-nbsp' });
 	// (TOMBSTONE, A780, the writer: "leave the nbsp and invisible chars for now. remove them for now": A768's special spaces
 	// as °, A771's invisible characters as ⌷ and ¬, A777's Other that held both)
 
@@ -201,24 +202,24 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// mark its own below.
 			if (!s.pluginEnabled || !s.markersEnabled) return Decoration.none;
 			if (!plugin.isEditorInScope(view)) return Decoration.none;
-			const showSp  = s.markSpaces, showTab = s.markTabs;
+			const showSp  = s.markSpaces, showTab = s.markTabs, showNb = s.markNoBreak;
 			const showPar = s.markParagraphs, showEol = s.markEndOfLines;
-			if (!showSp && !showTab && !showPar && !showEol) return Decoration.none;
+			if (!showSp && !showTab && !showNb && !showPar && !showEol) return Decoration.none;
 			const doc  = view.state.doc;
 			const b    = new RangeSetBuilder<Decoration>();
-			const wsRe = /[ \t]/g;
+			const wsRe = /[ \t\u00a0\u202f]/g;
 			for (const range of view.visibleRanges) {
 				let pos = range.from;
 				while (pos <= range.to) {
 					const line = doc.lineAt(pos);
-					if (showSp || showTab) {
+					if (showSp || showTab || showNb) {
 						wsRe.lastIndex = 0;
 						let m;
 						while ((m = wsRe.exec(line.text))) {
-							const isTab = m[0] === '\t';
-							if (isTab ? showTab : showSp) {
-								b.add(line.from + m.index, line.from + m.index + 1, isTab ? tabDeco : spaceDeco);
-							}
+							// a no-break space as ° (U+00A0, the narrow U+202F), a plain one as ·, a tab as →
+							const ch = m[0];
+							const deco = ch === '\t' ? (showTab ? tabDeco : null) : ch === ' ' ? (showSp ? spaceDeco : null) : (showNb ? nbspDeco : null);
+							if (deco) b.add(line.from + m.index, line.from + m.index + 1, deco);
 						}
 					}
 					// A blank line shows ¶ (paragraph break); every other line

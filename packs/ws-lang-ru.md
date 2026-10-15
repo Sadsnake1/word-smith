@@ -5,7 +5,7 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## О пакете (About)
 - language: ru
 - name: Русский
-- pack: 1.0
+- pack: 1.1
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -13,6 +13,12 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - other-quotes: “ ” „ ”
 - apostrophe: ’
 - dialogue-dash: — –
+
+## Пробелы (Spaces)
+| знак | сторона | пробел |
+|------|---------|--------|
+| — | before | nbsp |
+| – | before | nbsp |
 
 ## Числительные (Numbers)
 - ноль, нуль, один, одна, одно, одного, одной, одному, одним, одном, одни, одних, одними, два, две, двух, двум, двумя, три, трёх, трех, трём, трем, тремя, четыре, четырёх, четырех, четырём, четырьмя

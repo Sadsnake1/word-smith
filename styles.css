@@ -1268,6 +1268,20 @@ body.ws-rtl.ws-justify .ws-scoped .markdown-reading-view .markdown-preview-sizer
 
 
 /* Tabs keep their real width; the arrow is overlaid at the start. */
+/* A NO-BREAK SPACE WEARS A ° (the writer, 2026-10-15: "do the french spaces toggle and the non-breaking space marker";
+   A768's, out at A780 and back), laid over the space and centered on it, the space keeping its own width; faint. */
+.ws-ws-nbsp {
+	position: relative;
+}
+.ws-ws-nbsp::before {
+	content: '\00b0';
+	position: absolute;
+	left: 0;
+	right: 0;
+	text-align: center;
+	color: var(--text-faint, currentColor);
+	pointer-events: none;
+}
 .ws-ws-tab {
 	position: relative;
 }
@@ -6711,14 +6725,14 @@ body {
    WHAT SURVIVES is the one fact it was carrying: which page of how many. It
    sits in the footer beside the zoom now, three controls along from the
    `1 / ~259` the paged mode shows — one place to look, whichever is up. */
+/* ("6 / 766" since the writer's "just 6/766": the paged read-out's own look, in the shared rules below) */
 .ws-export-readpage {
-	font-size: var(--font-ui-smaller);
-	color: var(--text-faint);
-	font-variant-numeric: tabular-nums;
 	padding: 0 4px;
 	white-space: nowrap;
 }
 .ws-export-readpage.is-gone { display: none; }
+/* the reader's page arrows (a desktop's), on either side of the read-out */
+.ws-export-prevfoot .ws-export-mini.ws-export-readstep.is-gone { display: none; } /* (over the footer's icon buttons, inline-flex) */
 /* THE FILE LIST BESIDE IT (A340): the compiled files in their order, the one
    at the top of the reader chosen, the same size as the rest of the foot.
    Narrow, and its text cut with an ellipsis, so twelve chapters with long
@@ -6773,7 +6787,7 @@ body {
    152px tall in a 314px column — a preview of a manuscript showing four
    lines of it. The min-height is the floor for a short window; the flex is
    what makes it fill a tall one. */
-.ws-export-prevcol .ws-export-paper {
+.ws-export-prevcol .ws-export-paperbox {
 	flex: 1 1 auto;
 	width: 100%;
 	/* The floor is for a short window; the flex above is what makes it
@@ -7948,7 +7962,11 @@ body:not(.is-phone) .ws-export-top .ws-export-prevhead {
    So the frame stops having an opinion and takes what is left. No
    arithmetic and no constant: whatever the header and footer come to,
    at any window height, the sum is right by construction. */
-.ws-export-paper {
+/* THE BOX THE FRAME FILLS (#72): it takes the column's room, the frame's border and ground; below the zoom floor the
+   frame inside is laid out larger and shrunk to it, so the box clips */
+.ws-export-paperbox {
+	position: relative;
+	overflow: hidden;
 	width: 100%;
 	flex: 1 1 auto;
 	/* An iframe’s content cannot report a height, so without this the
@@ -7958,6 +7976,15 @@ body:not(.is-phone) .ws-export-top .ws-export-prevhead {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
 	background: #5a5a5e;
+}
+.ws-export-paper {
+	position: absolute;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+	transform-origin: 0 0;
 }
 
 /* ── The preview's zoom ─────────────────────────────────────────────────────
@@ -8102,7 +8129,8 @@ body:not(.is-phone) .ws-export-top .ws-export-prevhead {
    the number goes from 90% to 100% — under the pointer, while the writer is
    pressing the button that changes it. */
 .ws-export-zoompct,
-.ws-export-pagenum {
+.ws-export-pagenum,
+.ws-export-readpage {
 	min-width: 3.6em;
 	text-align: center;
 	font-size: var(--font-ui-smaller);
@@ -8114,7 +8142,8 @@ body:not(.is-phone) .ws-export-top .ws-export-prevhead {
    written first is a number that never applies. `3.6em` fits "100%"; a page
    read-out says "128 / 342", and a read-out that grows on the click that
    changed it shuffles the arrow out from under the pointer. */
-.ws-export-pagenum { min-width: 5.4em; }
+.ws-export-pagenum,
+.ws-export-readpage { min-width: 5.4em; }
 /* ── A VISIBLE DOOR ON THE ESTIMATE (A215) ─────────────────────────────────
 
    Writer, 2026-09-06: "add something of a mark to 1/~17 so users know it's

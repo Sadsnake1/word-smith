@@ -9,7 +9,7 @@
 // notes, MLA 9, IEEE: no citeproc), and a style of the writer's own written in
 // tokens. Everything here is pure: the plugin reads the file, the editor marks, the
 // export formats; this only answers.
-import { wsBag, wsListOf, wsStr } from './preamble';
+import { wsBag, wsListOf, wsStr, WS_CITE_KEY_START, WS_CITE_KEY_RE } from './preamble';
 import { wsT, wsUiJoin } from './ui-text';
 import type { WsExportSection } from './settings';
 
@@ -332,24 +332,26 @@ export function wsParseLibrary(path: string, text: string): Map<string, WsRef> {
 
 // ── IN THE TEXT ───────────────────────────────────────────────────────────
 
-const WS_CITE_KEY = '[A-Za-z0-9_][\\w:.#$%&+?<>~/-]*';
 /** Pandoc's citations in a text: bracketed ([@a, p. 12; -@b]) and narrative (@a). An email is not one. */
 export function wsFindCitations(text: string): WsCite[] {
 	const src = String(text || '');
 	const out: WsCite[] = [];
-	const BR = /\[([^[\]]*?-?@[A-Za-z0-9_][^[\]]*)\]/g;
+	const BR = new RegExp('\\[([^[\\]]*?-?@(?:' + WS_CITE_KEY_START + '|\\{)[^[\\]]*)\\]', 'gu');
 	let m: RegExpExecArray | null;
 	while ((m = BR.exec(src))) {
 		if (src.charAt(m.index + m[0].length) === '(' || src.charAt(m.index - 1) === '[' || src.charAt(m.index + m[0].length) === ']') continue;
 		const items: WsCiteItem[] = [];
 		let ok = true;
 		for (const part of m[1].split(';')) {
-			const pm = new RegExp('^([\\s\\S]*?)(-?)@(' + WS_CITE_KEY + ')([\\s\\S]*)$').exec(part);
-			if (!pm || /\S/.test(pm[1]) && /[A-Za-z0-9_]$/.test(pm[1])) { ok = false; break; }
+			const pm = new RegExp('^([\\s\\S]*?)(-?)@(' + WS_CITE_KEY_RE + ')([\\s\\S]*)$', 'u').exec(part);
+			// a letter before the @ in any alphabet is an email's (jø@post.no), not a citation
+			if (!pm || /\S/.test(pm[1]) && /[\p{L}\p{N}_]$/u.test(pm[1])) { ok = false; break; }
 			let key = pm[3];
 			let rest = pm[4];
-			const tail = /[.:,;?!/-]+$/.exec(key);
-			if (tail) { rest = tail[0] + rest; key = key.slice(0, -tail[0].length); }
+			// a key in braces is all of what they hold; a bare one leaves its last punctuation to the sentence
+			const tail = key.startsWith('{') ? null : /[.:,;?!/-]+$/.exec(key);
+			if (key.startsWith('{')) key = key.slice(1, -1);
+			else if (tail) { rest = tail[0] + rest; key = key.slice(0, -tail[0].length); }
 			items.push({ key, prefix: pm[1].trim(), suppress: pm[2] === '-', locator: rest.replace(/^\s*,\s*/, '').trim() });
 		}
 		if (ok && items.length) out.push({ from: m.index, to: m.index + m[0].length, items, narrative: false });
@@ -358,12 +360,13 @@ export function wsFindCitations(text: string): WsCite[] {
 	const links: [number, number][] = [];
 	const LK = /\[\[[^\]]*\]\]|\[[^[\]]*\]\([^)]*\)/g;
 	while ((m = LK.exec(src))) links.push([m.index, m.index + m[0].length]);
-	const NR = new RegExp('(^|[^\\w@\\[\\]`])@(' + WS_CITE_KEY + ')', 'g');
+	const NR = new RegExp('(^|[^\\p{L}\\p{N}_@\\[\\]`])@(' + WS_CITE_KEY_RE + ')', 'gu');
 	while ((m = NR.exec(src))) {
 		const at = m.index + m[1].length;
 		if (out.some((c) => at >= c.from && at < c.to) || links.some(([a, b]) => at >= a && at < b)) continue;
-		const key = m[2].replace(/[.:,;?!/-]+$/, '');
-		out.push({ from: at, to: at + 1 + key.length, items: [{ key, locator: '', prefix: '', suppress: false }], narrative: true });
+		const braced = m[2].startsWith('{');
+		const key = braced ? m[2].slice(1, -1) : m[2].replace(/[.:,;?!/-]+$/, '');
+		out.push({ from: at, to: at + 1 + (braced ? m[2].length : key.length), items: [{ key, locator: '', prefix: '', suppress: false }], narrative: true });
 	}
 	return out.sort((a, b) => a.from - b.from);
 }

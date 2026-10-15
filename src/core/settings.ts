@@ -37,9 +37,16 @@ export interface WsExportOpts {
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;
 	doubleSpaced?: boolean; toc?: boolean; runningHeaderOn?: boolean; sectionTitles?: boolean; previewDark?: boolean;
 	/** page numbers beside the contents' entries (A751) */
-	tocPages?: boolean;
+	/** (A751's contents page numbers switch: the contents always carry them now; deleted on load) */
+	tocPages?: never;
+	/** the headings in the middle of the line (#76), on by default; off, at the start like the text */
+	centerHeads?: boolean;
 	/** an empty line after every paragraph, indented or not (A756) */
 	paraBlank?: boolean;
+	/** (#77's dropdown, never released: Keep line breaks since the writer's "in dont like this dropdown"; deleted on load) */
+	paraStart?: never;
+	/** KEEP LINE BREAKS (#77): a blank line starts a paragraph, a single line break stays one inside it; off, every line a paragraph */
+	keepLineBreaks?: boolean;
 	// words
 	author?: string; titleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
 	format?: string; footnotePlace?: string; chapterTitles?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;

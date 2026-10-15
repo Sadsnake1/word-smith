@@ -147,13 +147,24 @@ export const editorMethods = {
 				// « AND » FROM << >> WEAR YOUR OWN « » WHEN THEY CARRY A SPACE (A776; A770's dropdown before): a space typed by
 				// habit before >> taken into it, not doubled
 				if (rule.group === 'guillemets') {
-					const tg = this.typoMarks();
-					if (tg && tg.sp && tg.od === '\u00ab' + tg.sp && tg.cd === tg.sp + '\u00bb') {
+					const tm = this.typoMarks();
+					// …or the language's spaces beside « » (Language spacing), whatever the quote marks
+					const gl = this.typoSpaced({ od: '\u00ab', cd: '\u00bb', os: '', cs: '', ap: '', sp: '' });
+					const tg = tm && tm.sp && tm.od === '\u00ab' + tm.sp && tm.cd === tm.sp + '\u00bb' ? tm : gl.sp ? gl : null;
+					if (tg) {
 						const open = rule.insert === '\u00ab';
 						const habit = !open && lookback.charAt(lookback.length - prefix.length - 1) === ' ';
 						this.applyTypography(view, from, to, text, (habit ? ' ' : '') + rule.text, open ? tg.od : tg.cd);
 						return true;
 					}
+				}
+				// …AND THE LANGUAGE'S SPACE BEFORE THE MARK IT MAKES (Language spacing): Russian's and Ukrainian's dash, typed as
+				// -- and ---, takes the space typed before it as a no-break one, so the dash never starts a line
+				const spR = from === to ? this.typoSpaces() : null;
+				const lead = lookback.slice(0, lookback.length - prefix.length);
+				if (spR && spR.before[rule.insert] && lead.length >= 2 && lead.endsWith(' ') && !/\s/.test(lead.charAt(lead.length - 2))) {
+					this.applyTypography(view, from, to, text, ' ' + rule.text, spR.before[rule.insert] + rule.insert);
+					return true;
 				}
 				this.applyTypography(view, from, to, text, rule.text, rule.insert);
 				return true;
@@ -164,6 +175,24 @@ export const editorMethods = {
 			if ((s.typoSmartQuotes || s.typoGuillemets) && text === ' ' && from === to) {
 				const tmS = this.typoMarks();
 				if (tmS && tmS.sp && lookback.endsWith(tmS.od)) return true;
+			}
+			// THE LANGUAGE'S SPACES, TYPED (the writer, 2026-10-15: "do the french spaces toggle"; `## Spaces` in the pack, Language
+			// spacing on): the space you type before ; : ! ? becomes the no-break one the pack names, narrow or not, so the mark
+			// never starts a line alone; the space after « too, and one typed after a « that already carries its own is not
+			// doubled. Only the space you type: none is added where none was (a link's https:, a time's 10:30)
+			const spc = from === to ? this.typoSpaces() : null;
+			if (spc && text === ' ') {
+				if (Object.keys(spc.after).some((mk) => lookback.endsWith(mk + spc.after[mk]))) return true;
+				const opener = spc.after[lookback.charAt(lookback.length - 1)];
+				if (opener) { this.applyTypography(view, from, to, text, text, opener); return true; }
+				// …and after a word the pack lists (Polish a, i, o, u, w, z), a word of its own: "w" in "kraw" is not one
+				const word = /(?:^|[^\p{L}\p{N}])(\p{L}+)$/u.exec(before);
+				const wordSp = word ? spc.words[word[1].toLowerCase()] : '';
+				if (wordSp) { this.applyTypography(view, from, to, text, text, wordSp); return true; }
+			}
+			if (spc && spc.before[text] && before.length >= 2 && before.endsWith(' ') && !/\s/.test(before.charAt(before.length - 2))) {
+				this.applyTypography(view, from, to, text, ' ' + text, spc.before[text] + text);
+				return true;
 			}
 			if (s.typoSmartQuotes && (text === '"' || text === "'")) {
 				const prev  = lookback.charAt(lookback.length - 1);

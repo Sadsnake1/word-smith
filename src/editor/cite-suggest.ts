@@ -13,12 +13,14 @@ import { EditorSuggest } from 'obsidian';
 import type { Editor, EditorPosition, EditorSuggestContext, EditorSuggestTriggerInfo, TFile } from 'obsidian';
 import type WordSmith from '../plugin/plugin';
 import type { WsRef } from '../core/citations';
+import { WS_CITE_KEY_CHAR, wsCiteKeyText } from '../core/preamble';
 
 /** a source, or the one line said when there is nothing to search */
 export type WsCiteHit = WsRef | { none: string };
 
 /** what opens the search: an open bracket, any sources cited before a semicolon, then @ and the key so far */
-export const WS_CITE_TRIGGER = /\[(?:[^[\]]*;\s*)?[^[\]@;]*?-?@([\w:.#$%&+?<>~/-]*)$/;
+// (a key's letters in any alphabet, #75: typing the ø of Søhr closed the search; and after Pandoc's @{ too)
+export const WS_CITE_TRIGGER = new RegExp('\\[(?:[^[\\]]*;\\s*)?[^[\\]@;]*?-?@\\{?(' + WS_CITE_KEY_CHAR + '*)$', 'u');
 
 /** The library narrowed by every word typed, best first: a key that starts with it, then an author who does. */
 export function wsCiteSearch(lib: Map<string, WsRef>, query: string, limit = 20): WsRef[] {
@@ -66,8 +68,12 @@ export function wsMakeCiteSuggest(plugin: WordSmith) {
 			// the bracket closed by the pick where nothing after the cursor closes it yet
 			const rest = ctx.editor.getLine(ctx.end.line).slice(ctx.end.ch);
 			const closed = /^[^[]*\]/.test(rest);
-			ctx.editor.replaceRange(hit.key + (closed ? '' : ']'), ctx.start, ctx.end);
-			ctx.editor.setCursor({ line: ctx.start.line, ch: ctx.start.ch + hit.key.length + (closed ? 0 : 1) });
+			// THE KEY AS IT READS BACK (#75): in braces where it holds other punctuation (Räikkönen_1935.498–506) or ends
+			// in a full stop, so a pick is never a key the export cuts; after a typed @{, only its closing brace
+			const opened = ctx.start.ch > 0 && ctx.editor.getLine(ctx.start.line).charAt(ctx.start.ch - 1) === '{';
+			const text = opened ? hit.key + '}' : wsCiteKeyText(hit.key);
+			ctx.editor.replaceRange(text + (closed ? '' : ']'), ctx.start, ctx.end);
+			ctx.editor.setCursor({ line: ctx.start.line, ch: ctx.start.ch + text.length + (closed ? 0 : 1) });
 			this.close();
 		}
 	}

@@ -32,6 +32,6 @@ A pack is one plain note that teaches Word-Smith a language: word colors, prose 
 
 **Accuracy** is the share of words colored right on published text the packs never saw (the Universal Dependencies test sets; the middle figure where a language has several). "For now": no settled reading-grade formula yet.
 
-Want a non-breaking space inside « and », as French sets them? Pick Custom under Typography › Quote marks and type it in: Alt+0160 on Windows, Option+Space on a Mac.
+Writing in French, Russian, Ukrainian or Polish? Turn on Typography › Language spacing, and the spaces your language keeps together turn no-break as you type: French before ; : ! ? and inside « », Russian and Ukrainian before a dash, Polish after a, i, o, u, w and z (packs 1.1 and later). A pack lists them under `## Spaces`. Markers › NBSP shows them as °.
 
 Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59). Your language missing? Copy the closest pack, rename it `ws-lang-<code>.md`, change its lists, and send a pull request.

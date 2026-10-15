@@ -6,7 +6,7 @@ The big boy. Obsidian's file explorer is the tree, the Organizer is the table. C
 
 <img width="1573" alt="The Organizer: a folder as a table of chapters" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
+Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It opens to the right of your note, or as a new tab: **Settings → Word-Smith → Manuscript → Open in** (Export and History follow it). It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
 
 No project file, no special folder. Your folders and files, as they are.
 
@@ -66,3 +66,5 @@ Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 -
 ## In Obsidian's explorer
 
 Under **Settings → Word-Smith → Manuscript → File tree**: word counts (folders total what's inside), flags, tasks left, goal percentage, folder icons, file-kind icons. **Outline counts** put a word count beside each heading, so you can see which scene ran long.
+
+**Hide the Word-Smith folder** (Settings → Word-Smith → Vault) keeps the plugin's own folder out of the Organizer, the file explorer, the graph, search and the compiled book. While it's on, the folder is listed in Obsidian's **Excluded files** (Settings → Files and links), which is how the graph and search leave it out. The files stay where they are and still sync.

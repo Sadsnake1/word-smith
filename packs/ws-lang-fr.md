@@ -5,13 +5,23 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## À propos (About)
 - language: fr
 - name: Français
-- pack: 1.0
+- pack: 1.1
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
 - quotes: « » “ ”
 - apostrophe: ’
 - dialogue-dash: — –
+
+## Espaces (Spaces)
+| signe | côté | espace |
+|-------|------|--------|
+| ; | before | narrow |
+| ! | before | narrow |
+| ? | before | narrow |
+| : | before | nbsp |
+| « | after | nbsp |
+| » | before | nbsp |
 
 ## Nombres (Numbers)
 - zéro, deux, trois, quatre, cinq, six, sept, huit, neuf, dix, onze, douze, treize, quatorze, quinze, seize

@@ -23,9 +23,11 @@ It opens on it. Title page, `Surname / Title / page` running header, each file o
 Everything else is a switch:
 
 - **Front matter**: title page (with the word count, rounded if you like), running header, table of contents with working links.
-- **Structure**: each file starts a new page, follows a divider, or runs straight on. Insert the file's name, the note's own heading, or nothing. Folder names as headings. **--- starts a new page**: a line of three dashes in a note breaks the page there, while `***` and `___` stay scene breaks (Word, PDF and web page).
-- **Typesetting**: paper, font, size (10 to 24pt: past 14 is a large-print reading copy, with headings that grow with the text), spacing, indents, curly quotes.
+- **Structure**: each file starts a new page, follows a divider, or runs straight on. Insert the file's name, the note's own heading, or nothing. Folder names as headings.
+- **Typesetting**: paper, font, size (10 to 24pt: past 14 is a large-print reading copy, with headings that grow with the text), spacing.
 - **Also include**: properties, `%%` comments, callouts, `#tags`, `==highlights==`, image placeholders, footnotes as endnotes. Tags and footnotes are on by default, the rest off. Turn Tags off to keep your tags in your notes and out of the manuscript.
+
+What you decide once lives in **Settings → Export**: your name, the header text, where the page numbers go, the contents' title, **Center headings in exports** (on by default; off, headings start at the left like the text, and the title page stays centered), **--- starts a new page** (a line of three dashes in a note breaks the page there, while `***` and `___` stay scene breaks), **Indent paragraphs**, **Paragraph spacing**, **Keep line breaks** (your blank lines and line breaks as the note has them; off, every line is a paragraph), curly quotes, and where Word puts the footnotes. A change there shows in an open preview at once.
 
 Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a novel is actually printed at: trade paperback, digest and mass market. Margins scale with the paper.
 
@@ -35,7 +37,9 @@ Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a no
 
 The manuscript as pages, at the paper size you chose, before a single file is written. Page through it, zoom, **Fit** the whole sheet or **100%** for print size. Flip the paper dark for reading at night. Print still comes out ink on paper. **Refresh** redraws it after you edit and keeps your place.
 
-Press **Expand** and the preview takes the whole pane as one long column of your pages: each keeps its width and its margins, and where one page ends and the next begins you see the page number and the running header as the file prints them. It opens fitted to the window; zoom in and it scrolls sideways rather than rewrapping. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
+For a Word file, footnotes sit at the foot of the page that cites them, under a short rule, the way Word sets them, so the pages you see are the pages Word prints. With **Notes at the end** (Settings → Word-Smith → Export), and for a PDF or a web page, they're at the back.
+
+Press **Expand** and the preview takes the whole pane, your pages one under the other with a little space between them, the same as the preview: each page the paper's size, with its margins, running header, page number and footnotes where the file prints them. It opens fitted to the window; zoom in and it scrolls sideways rather than rewrapping. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
 
 ## The formats
 
@@ -50,6 +54,8 @@ Word, web page, e-book and Markdown work on phones too. For a PDF on a phone, ex
 ## Citations
 
 Write Pandoc's citations in your notes, `[@woolf1929, p. 12]` or a narrative `@woolf1929`, and the export turns them into the style you pick under Settings → Word-Smith → Export → **Citations**: APA, Chicago (author-date or notes), Harvard, MLA, IEEE, or your own, built from tokens. Press **Customize** beside a style to start your own from it. Point it at your library, a BibTeX (`.bib`) or CSL-JSON file from Zotero, and the list of sources lands at the end.
+
+Keys can use any alphabet (`@Søhr_1938`). A key with other punctuation in it, or one ending in a full stop, goes in braces: `[@{Räikkönen_1935.498–506}]`. Type `[@` to search your library; a key that needs braces gets them.
 
 A reprint or a translation keeps its original year (`origdate`, `original-date`): (1867; Paris: PUF, 1993) in a Chicago note, 1867/1993 in APA. Translators, editions, series and the day a web page was read come along too.
 

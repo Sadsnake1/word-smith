@@ -10,8 +10,8 @@ import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
 import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg } from '../core/preamble';
-import { wsIsPackPath, wsPackPick, wsPackQuotes, wsParsePack } from '../core/language';
-import type { WsPack } from '../core/language';
+import { wsIsPackPath, wsPackPick, wsPackQuotes, wsPackSpaces, wsParsePack } from '../core/language';
+import type { WsPack, WsPackSpaces } from '../core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
 import { wsParseLibrary, wsCiter, wsCiteTermsFor } from '../core/citations';
 import type { WsRef, WsCiter } from '../core/citations';
@@ -2624,7 +2624,7 @@ export const storesMethods = {
 	typoMarks(this: WordSmith): { od: string; cd: string; os: string; cs: string; ap: string; sp?: string } | null {
 		const s = this.settings;
 		const lang = s.typoQuotesFromLanguage ? this.typoLanguageMarks() : null;
-		if (lang) return lang;
+		if (lang) return this.typoSpaced(lang);
 		if (!s.typoCustomQuotes) return s.typoQuoteStyle === 'uk' ? { od: '\u2018', cd: '\u2019', os: '\u201c', cs: '\u201d', ap: '\u2019' } : null;
 		const b = wsBag(s);
 		const str = (k: string, f: string) => { const v = b[k]; return typeof v === 'string' && v.length ? v : f; };
@@ -2633,7 +2633,25 @@ export const storesMethods = {
 		// the one a space typed by habit would double (`sp`, A702's guards)
 		const od = str('typoOpenDouble', '\u201c'), cd = str('typoCloseDouble', '\u201d');
 		const sp = (/[ \u00a0\u202f]$/.exec(od) || [''])[0];
-		return { od, cd, os: str('typoOpenSingle', '\u2018'), cs: str('typoCloseSingle', '\u2019'), ap: str('typoApostrophe', '\u2019'), sp };
+		return this.typoSpaced({ od, cd, os: str('typoOpenSingle', '\u2018'), cs: str('typoCloseSingle', '\u2019'), ap: str('typoApostrophe', '\u2019'), sp });
+	},
+
+	// THE LANGUAGE'S SPACES (the writer, 2026-10-15: "do the french spaces toggle"): the pack in use's `## Spaces` while
+	// Typography's Language spacing is on; null while it is off, or the pack lists none
+	typoSpaces(this: WordSmith): WsPackSpaces | null {
+		if (!this.settings.typoLanguageSpaces) return null;
+		return wsPackSpaces(this.packActive());
+	},
+	// …worn by the marks Typography types: the space after an opener and before a closer the list names (« and »), never
+	// a second one on a mark that carries its own; the opener's space is the one a space typed by habit would double (`sp`)
+	typoSpaced<M extends { od: string; cd: string; os: string; cs: string; ap: string; sp?: string }>(this: WordSmith, m: M): M {
+		const spc = this.typoSpaces();
+		if (!spc) return m;
+		const bare = (mk: string) => !!mk && !/[\s\u00a0\u202f]/.test(mk);
+		const after = (mk: string) => (bare(mk) && spc.after[mk] ? mk + spc.after[mk] : mk);
+		const before = (mk: string) => (bare(mk) && spc.before[mk] ? spc.before[mk] + mk : mk);
+		const od = after(m.od);
+		return Object.assign({}, m, { od, cd: before(m.cd), os: after(m.os), cs: before(m.cs), sp: m.sp || (/[\u00a0\u202f]$/.exec(od) || [''])[0] || undefined });
 	},
 
 	// THE QUOTE MARKS AS ONE CHOICE (A779, the writer: "curly quotes and custom quotes don't make sense"): Straight while the

@@ -3559,8 +3559,6 @@ export const organizerWindowMethods = {
 			// and a captured count would be the one that was true when the
 			// pane was built.
 			total: () => exportFiles().length,
-			// THE FOLDERS THE TREE SHOWS TICKED, for the figures line.
-			folders: () => this.exportFoldersTicked(exportFiles(), ctx.ticks())
 		}));
 		// ── AND THEN THE FORMAT IS PAINTED AGAIN ────────────────────
 		//
@@ -4971,7 +4969,8 @@ export const organizerWindowMethods = {
 				if (sibling && sibling.parent && typeof ws.createLeafInParent === 'function') {
 					leaf = ws.createLeafInParent(sibling.parent, (sibling.parent.children || []).length);
 				} else {
-					leaf = ws.getLeaf('split', 'vertical');
+					// A SPLIT, or the writer's new tab (#73)
+					leaf = this.settings.paneOpenIn === 'tab' ? ws.getLeaf('tab') : ws.getLeaf('split', 'vertical');
 				}
 				if (leaf) await leaf.setViewState({ type, active: true });
 			} catch { return null; }

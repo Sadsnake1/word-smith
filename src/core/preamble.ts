@@ -2544,12 +2544,28 @@ export function maskForCounting(text: string) {
 	return wsMaskCitations(out);
 }
 
+// A CITATION KEY (#75, Folkemunne: Søhr_1938 "won't export"): Pandoc's, a letter of ANY alphabet, a digit or _
+// first, then those, a combining mark and its inner punctuation. Read with the u flag. These were [A-Za-z0-9_] and
+// \w, ASCII alone: Søhr_1938 was read as @S, 209 keys of the reporter's 670. One writer for the finder, the mask
+// and the [@ search.
+export const WS_CITE_KEY_START = '[\\p{L}\\p{N}_]';
+export const WS_CITE_KEY_CHAR = '[\\p{L}\\p{M}\\p{N}_:.#$%&+?<>~/-]';
+// …OR ANY KEY IN BRACES, Pandoc's way for one with other punctuation in it: @{Räikkönen_1935.498–506}, a key ending
+// in a full stop (@{Schweitz.}), no space and no brace inside. The finder's whole key, the braces with it.
+export const WS_CITE_KEY_RE = '(?:\\{[^{}\\s]+\\}|' + WS_CITE_KEY_START + WS_CITE_KEY_CHAR + '*)';
+/** A key as the text must carry it to be read back whole: as it is, or in braces where it would be cut. */
+export function wsCiteKeyText(key: string): string {
+	const k = String(key || '');
+	return new RegExp('^' + WS_CITE_KEY_START + WS_CITE_KEY_CHAR + '*$', 'u').test(k) && !/[.:,;?!/-]$/.test(k) ? k : '{' + k + '}';
+}
+const WS_CITE_BRACKET_MASK = new RegExp('\\[[^[\\]]*?-?@(?:' + WS_CITE_KEY_START + '|\\{)[^[\\]]*\\](?!\\()', 'gu');
+const WS_CITE_NARRATIVE_MASK = new RegExp('(^|[^\\p{L}\\p{N}_@[\\]`])@' + WS_CITE_KEY_RE, 'gu');
 // CITATIONS ARE NOT PROSE (A572): Pandoc's [@key, p. 12] and a narrative @key blanked,
 // for the count and for the marks; an email (a letter before its @) is left as it is.
 export function wsMaskCitations(text: string) {
 	return text
-		.replace(/\[[^[\]]*?-?@[A-Za-z0-9_][^[\]]*\](?!\()/g, (m: string) => ' '.repeat(m.length))
-		.replace(/(^|[^\w@[\]`])@[A-Za-z0-9_][\w:.#$%&+?<>~/-]*/g, (m: string, pre: string) => pre + ' '.repeat(m.length - pre.length));
+		.replace(WS_CITE_BRACKET_MASK, (m: string) => ' '.repeat(m.length))
+		.replace(WS_CITE_NARRATIVE_MASK, (m: string, pre: string) => pre + ' '.repeat(m.length - pre.length));
 }
 
 // ── Markup masking ───────────────────────────────────────────────────────────
@@ -2731,6 +2747,88 @@ export function wsZip(entries: { name: string; bytes: number[] | Uint8Array }[])
 	return out;
 }
 
+// A RECT'S PAGE IN THE PAGED PREVIEW, its column, in one unit at every zoom. A rect comes back ZOOMED by the root's
+// CSS zoom while `clientWidth` and `scrollLeft` do not (measured in Edge: at zoom 0.5 a 624px column's rect is 312px
+// wide, its scrollLeft unchanged), so both are brought to the rect's. Read with the two mixed (A569 to #72), a page at a
+// phone's 0.29 counted as a third of one: the reader's seams skipped pages, the contents' numbers ran short.
+export function wsColumnOf(view: Window, flow: HTMLElement): ((r: DOMRect) => number) | null {
+	const cw = flow.clientWidth, fr = flow.getBoundingClientRect();
+	if (!(cw > 0) || !(fr.width > 0)) return null;
+	const z = fr.width / cw;
+	const across = (cw + (parseFloat(view.getComputedStyle(flow).columnGap) || 0)) * z;
+	const origin = fr.left - flow.scrollLeft * z;
+	return (r: DOMRect) => Math.floor((r.left - origin + 1) / across);
+}
+// A PARAGRAPH CUT WHERE A PAGE BEGINS (the writer: "So the preview and expanded look the same"): its first line on page
+// `col` and what follows it go to a second paragraph, which opens the page in the reader; set to read as one paragraph
+// (`pgsplit` keeps no air under it, `pgcont` no indent). The cut half, or null where the paragraph has no line there.
+function wsPageCutAt(doc: Document, P: HTMLElement, colOf: (r: DOMRect) => number, col: number): [Text, number] | null {
+	const tw = doc.createTreeWalker(P, 4);
+	const marks: [Text, number][] = [];
+	let n: Node | null;
+	while ((n = tw.nextNode())) { const t = n as Text; for (let o = 0; o < t.data.length; o++) if (!/\s/.test(t.data[o])) marks.push([t, o]); }
+	if (!marks.length || !P.lastChild) return null;
+	const rg = doc.createRange();
+	const on = (k: number) => { rg.setStart(marks[k][0], marks[k][1]); rg.setEnd(marks[k][0], marks[k][1] + 1); const rs = rg.getClientRects(); return rs.length ? colOf(rs[0]) >= col : false; };
+	let lo = 0, hi = marks.length;
+	while (lo < hi) { const mid = (lo + hi) >> 1; if (on(mid)) hi = mid; else lo = mid + 1; }
+	return lo === 0 || lo >= marks.length ? null : marks[lo];
+}
+// …and made: what follows the place goes to a second paragraph after the first. Cut more than once, a paragraph is cut
+// from its end back (`wsPageStarts`), so every place read is still in its first half; a middle part is both halves
+function wsPageSplit(doc: Document, P: HTMLElement, at: [Text, number]): HTMLElement | null {
+	if (!P.lastChild || !P.contains(at[0])) return null;
+	const rg = doc.createRange();
+	rg.setStart(at[0], at[1]); rg.setEndAfter(P.lastChild);
+	const P2 = P.cloneNode(false) as HTMLElement;
+	P2.removeAttribute('id');
+	P2.classList.remove('pgsplit', 'first');
+	P2.classList.add('pgcont');
+	P2.appendChild(rg.extractContents());
+	P.after(P2);
+	P.classList.add('pgsplit');
+	return P2;
+}
+// A TABLE WHERE A PAGE BEGINS IN IT, likewise: its rows from that page on go to a second table after the first (the head
+// not repeated, as Word repeats one only when told), so the reader's page holds the rows the printed page holds
+function wsTableCutAt(table: Element, colOf: (r: DOMRect) => number, col: number): Element | null {
+	const rows = Array.from(table.querySelectorAll(':scope > tbody > tr'));
+	for (let i = 1; i < rows.length; i++) { const r = rows[i].getClientRects()[0]; if (r && colOf(r) >= col) return rows[i]; }
+	return null;
+}
+function wsTableSplit(table: HTMLElement, row: Element): HTMLElement | null {
+	const body = row.parentElement;
+	if (!body) return null;
+	const T2 = table.cloneNode(false) as HTMLElement;
+	T2.classList.remove('tbsplit');
+	T2.classList.add('tbcont');
+	const B2 = T2.appendChild(body.cloneNode(false));
+	for (let r: Element | null = row; r;) { const nx: Element | null = r.nextElementSibling; B2.appendChild(r); r = nx; }
+	table.after(T2);
+	table.classList.add('tbsplit');
+	return T2;
+}
+// …joined again before the pages are read anew: another zoom may begin them elsewhere (from the end back, so a part
+// that is both cut from and cut folds in before its first half takes it)
+function wsPageJoin(flow: HTMLElement) {
+	for (const t2 of Array.from(flow.querySelectorAll('table.tbcont')).reverse()) {
+		const t1 = t2.previousElementSibling;
+		const into = t1 && t1.classList.contains('tbsplit') ? t1.querySelector(':scope > tbody:last-of-type') : null;
+		if (!t1 || !into) { t2.classList.remove('tbcont'); continue; }
+		for (const r of Array.from(t2.querySelectorAll(':scope > tbody > tr'))) into.appendChild(r);
+		t2.remove();
+		t1.classList.remove('tbsplit');
+	}
+	for (const p2 of Array.from(flow.querySelectorAll('p.pgcont')).reverse()) {
+		const p1 = p2.previousElementSibling;
+		if (!p1 || !p1.classList.contains('pgsplit')) { p2.classList.remove('pgcont'); continue; }
+		while (p2.firstChild) p1.appendChild(p2.firstChild);
+		p2.remove();
+		p1.classList.remove('pgsplit');
+		p1.normalize();
+	}
+}
+
 // ── WHERE EACH PRINTED PAGE BEGINS, FOR THE READER (A569, the writer's look 4) ──
 //
 // Read off the paged preview: every block's column is its page, so the first block of a new
@@ -2746,6 +2844,7 @@ export function wsPageStarts(doc: Document) {
 	for (const el of Array.from(doc.querySelectorAll('.seam'))) el.remove();
 	const flow = doc.querySelector<HTMLElement>('.sheet:not([data-pooled]) .flow');
 	if (!flow) return 0;
+	wsPageJoin(flow);
 	const scroller = doc.scrollingElement;
 	const top = scroller ? scroller.scrollTop : 0;
 	const was = root.classList.contains('is-flow');
@@ -2753,20 +2852,43 @@ export function wsPageStarts(doc: Document) {
 	let n = 0;
 	const starts: [Element, number][] = [];
 	try {
-		const across = flow.clientWidth + (parseFloat(view.getComputedStyle(flow).columnGap) || 0);
-		if (across > 0) {
-			const origin = flow.getBoundingClientRect().left - flow.scrollLeft;
+		const colOf = wsColumnOf(view, flow);
+		if (colOf) {
 			let seen = 0;
-			for (const sec of Array.from(flow.children)) for (const el of Array.from(sec.children)) {
-				const col = Math.floor((el.getBoundingClientRect().left - origin + 1) / across);
-				if (col > seen) {
-					el.setAttribute('data-ws-page', String(col + 1)); seen = col; n++;
-					starts.push([el, col + 1]);
-					// A FILE THAT OPENS THE PAGE (A618): its page rule is its divider, so it
-					// draws no dashed rule of its own above it
-					if (el === sec.firstElementChild) sec.setAttribute('data-ws-page-open', '');
+			const mark = (el: Element, col: number, sec: Element) => {
+				el.setAttribute('data-ws-page', String(col + 1)); seen = col; n++;
+				starts.push([el, col + 1]);
+				// A FILE THAT OPENS THE PAGE (A618): its page rule is its divider, so it
+				// draws no dashed rule of its own above it
+				if (el === sec.firstElementChild) sec.setAttribute('data-ws-page-open', '');
+			};
+			// A BLOCK THAT RUNS ONTO THE NEXT PAGE: a paragraph is cut at that page's first line and the cut opens the
+			// page, so the reader's page holds what the printed page holds (until #72 the next block was marked, and a
+			// paragraph longer than a page skipped a number); a list or a quotation is entered, block by block
+			// READ FIRST, WRITTEN AFTER (the writer: "really laggy on 700pages, especially the expaned view"): every start and
+			// every cut found with nothing changed, then the cuts made and the starts stamped. A cut made between two reads had
+			// the engine lay the whole book out again before the next: a page a cut, a book's layout a page.
+			const found: { el: Element | null; col: number; sec: Element; P?: HTMLElement; at?: [Text, number]; T?: HTMLElement; row?: Element }[] = [];
+			const visit = (el: Element, sec: Element) => {
+				const rs = el.getClientRects();
+				if (!rs.length) return;
+				const first = colOf(rs[0]), last = colOf(rs[rs.length - 1]);
+				if (first > seen) { found.push({ el, col: first, sec }); seen = first; }
+				if (last > first) {
+					if (el.tagName === 'P') {
+						for (let c = first + 1; c <= last; c++) { const at = wsPageCutAt(doc, el as HTMLElement, colOf, c); if (at) found.push({ el: null, col: c, sec, P: el as HTMLElement, at }); }
+					} else if (el.tagName === 'TABLE') {
+						for (let c = first + 1; c <= last; c++) { const row = wsTableCutAt(el, colOf, c); if (row) found.push({ el: null, col: c, sec, T: el as HTMLElement, row }); }
+					} else if (/^(UL|OL|BLOCKQUOTE)$/.test(el.tagName)) for (const k of Array.from(el.children)) visit(k, sec);
 				}
-			}
+				if (last > seen) seen = last;
+			};
+			for (const sec of Array.from(flow.children)) for (const el of Array.from(sec.children)) visit(el, sec);
+			for (let i = found.length - 1; i >= 0; i--) { const f = found[i]; if (f.P && f.at) f.el = wsPageSplit(doc, f.P, f.at); else if (f.T && f.row) f.el = wsTableSplit(f.T, f.row); }
+			for (const c of Array.from(flow.querySelectorAll('table.tbcont'))) { const pv = c.previousElementSibling; if (pv) pv.classList.add('tbsplit'); }
+			// (a part both cut from and cut: no air under it either)
+			for (const c of Array.from(flow.querySelectorAll('p.pgcont'))) { const pv = c.previousElementSibling; if (pv) pv.classList.add('pgsplit'); }
+			for (const f of found) if (f.el) mark(f.el, f.col, f.sec);
 		}
 	} finally {
 		if (was) root.classList.add('is-flow');
@@ -2790,8 +2912,13 @@ export function wsPageSeams(doc: Document, flow: Element, starts: [Element, numb
 	// (made with Obsidian's own helpers and handed to the frame's document, which adopts them: the review asks for
 	// createEl over createElement)
 	const seam = (parent: Node, before: Node | null, ends: number, begins: number) => {
-		const s = createDiv({ cls: 'seam', attr: { 'aria-hidden': 'true' } });
+		// SOFT where the engine broke inside a file (the next block's top margin is dropped there, as the page drops it); a
+		// file that opens the page keeps its own
+		const soft = !!before && before.parentNode === parent && (before as Element).previousElementSibling !== null;
+		const s = createDiv({ cls: 'seam' + (soft ? ' is-soft' : ''), attr: { 'aria-hidden': 'true' } });
 		if (ends > 0) {
+			// the room the page's text left at its foot, made up (`wsSeamFill`)
+			s.createDiv({ cls: 'seam-fill' });
 			const f = s.createDiv({ cls: 'seam-foot' });
 			if (pn.startsWith('bottom-') && !(tp && ends === 1)) f.createSpan({ cls: 'seam-num is-' + pn.slice(7), text: String(ends) });
 			if (begins > 0) s.createDiv({ cls: 'seam-cut' });
@@ -2811,7 +2938,261 @@ export function wsPageSeams(doc: Document, flow: Element, starts: [Element, numb
 	for (const [el, page] of starts) if (el.parentNode) seam(el.parentNode, el, page - 1, page);
 	const last = flow.lastElementChild;
 	if (last) seam(last, null, starts.length ? starts[starts.length - 1][1] : 1, 0);
+	try { wsSeamFill(doc, flow as HTMLElement); } catch (_) { wsCatch('wsPageSeams: the fill', _); }
 	return starts.length + 2;
+}
+
+// …AND EACH PAGE THE PAPER'S HEIGHT (the writer: "for expanded view add those spaces between pages. So the preview and
+// expanded look the same"): a page's text stops short of its foot by what the engine left there, and the seam's fill
+// makes that up, so every page in the reader is a sheet as tall as the paper with the paged view's air between sheets.
+// Measured in the reader (the seams show there alone), and written as a share of the page's height (`--page-ch`) so a
+// zoom leaves it right.
+function wsSeamFill(doc: Document, flow: HTMLElement) {
+	const root = doc.documentElement;
+	if (!root || !root.classList.contains('is-flow')) return 0;
+	const seams = Array.from(flow.querySelectorAll<HTMLElement>('.seam'));
+	if (seams.length < 2) return 0;
+	const probe = createDiv({ cls: 'seam-probe' });
+	flow.appendChild(probe);
+	const H = probe.getBoundingClientRect().height;
+	const marks = seams.map((s) => {
+		const fill = s.querySelector<HTMLElement>('.seam-fill'), head = s.querySelector<HTMLElement>('.seam-head');
+		return { fill, top: fill ? fill.getBoundingClientRect().top : 0, after: (head || s).getBoundingClientRect().bottom };
+	});
+	probe.remove();
+	if (!(H > 0)) return 0;
+	let n = 0;
+	for (let i = 1; i < marks.length; i++) {
+		const m = marks[i];
+		if (!m.fill) continue;
+		const share = Math.max(0, (H - (m.top - marks[i - 1].after)) / H);
+		m.fill.style.height = 'calc(var(--page-ch) * ' + share.toFixed(5) + ')';
+		n++;
+	}
+	return n;
+}
+
+// ── THE NOTES AT THE FOOT OF THE PAGE THAT CITES THEM (#72) ─────────────────────────────────────────────────────────
+//
+// brg-2000: "if you choose in the export options to display the footnotes at the bottom of each page, it doesn't display
+// that way in the preview panel". A Word file's footnotes are Word's to lay out, and the preview lays them out as Word
+// does: each note at the foot of the page its first mark is on, under a short rule, single spaced and a size smaller
+// (the .docx's FootnoteText), the page's text giving way to them and a paragraph cut at the line where the room ends.
+// LAID OUT A FEW PAGES AT A TIME: the book's sections go through a SCRATCH flow of the same columns holding only the
+// pages since the last block, the finished ones held aside, so a layout is a few pages and not the book (measured in
+// Edge, 375 pages and 520 notes: the whole flow 7.4 s, this 0.64 s). A note no page can take (its mark on a page a
+// picture fills) stays on the notes page at the back. Run in the pages, at zoom 1; the reader is the same document.
+// (TOMBSTONE: WS_FOOT_SLACK, 4px left at each page's foot, and `.fnfoot { break-inside: avoid }`: both held a page placed
+// at 100% and shown under a CSS zoom, whose lines rounded differently. The page is never zoomed now, only its frame
+// scaled, and neither could be shown to matter: each passed anyway in the sweep, and every zoom placed without them.)
+// (TOMBSTONE: WS_PREVIEW_ZOOM_FLOOR, the preview zoomed down to three quarters and shrunk below. A zoom at all relaid
+// the page's text, 58 pages at 110% to 150% where the book has 61: the frame is scaled at every zoom now, `apply`.)
+export function wsFootNotes(doc: Document): { notes: number; placed: number } {
+	const none = { notes: 0, placed: 0 };
+	const view = doc.defaultView, root = doc.documentElement;
+	const flow = doc.querySelector<HTMLElement>('.sheet:not([data-pooled]) .flow');
+	const notesSec = flow ? flow.querySelector<HTMLElement>('section.notes') : null;
+	const sheet = flow ? flow.closest<HTMLElement>('.sheet') : null;
+	// PLACED, OR TRIED: the contents' numbers may be read now (`wsTocPagesFill` waits for this on a page of notes at the foot)
+	if (root) root.setAttribute('data-ws-fn-placed', '');
+	if (!view || !root || !flow || !notesSec || !sheet || !sheet.parentNode) return none;
+	const wasFlow = root.classList.contains('is-flow');
+	if (wasFlow) root.classList.remove('is-flow');
+	const zoomWas = root.style.zoom;
+	root.style.removeProperty('zoom');
+	const byId = new Map<string, HTMLElement>();
+	for (const li of Array.from(notesSec.querySelectorAll<HTMLElement>('ol.notes > li'))) byId.set(li.id, li);
+	notesSec.remove();
+	// the scratch: a sheet of the same shape out of sight, its flow of the same columns
+	const sSheet = sheet.cloneNode(false) as HTMLElement;
+	sSheet.removeAttribute('id');
+	sSheet.setAttribute('data-ws-scratch', '');
+	const sFlow = flow.cloneNode(false) as HTMLElement;
+	sSheet.appendChild(sFlow);
+	sheet.parentNode.appendChild(sSheet);
+	const meas = createDiv({ cls: 'fnmeasure' });
+	sSheet.appendChild(meas);
+	const queue = Array.from(flow.children);
+	for (const s of queue) s.remove();
+	const placed = new Set<string>(), leftovers: string[] = [];
+	// THE FINISHED PAGES WAIT IN THE REAL FLOW, laid out by nobody while it is hidden (`is-placing`): a flow a layout
+	// has to cross is the book again, at every step
+	flow.classList.add('is-placing');
+	try {
+		const across = sFlow.clientWidth + (parseFloat(view.getComputedStyle(sFlow).columnGap) || 0);
+		const fr = sFlow.getBoundingClientRect();
+		const H = fr.height, top0 = fr.top;
+		if (!(across > 0) || !(H > 0)) throw new Error('no page to lay notes on');
+		let O = 0;
+		const origin = () => { const r = sFlow.getBoundingClientRect(); O = r.left - sFlow.scrollLeft; };
+		const colOf = (r: DOMRect) => Math.floor((r.left - O + 1) / across);
+		const refId = (r: Element) => { const a = r.querySelector('a'); return a ? decodeURIComponent((a.getAttribute('href') || '').slice(1)) : ''; };
+		// a page's notes as Word sets them: the number raised, a space, the note
+		const mk = (ids: string[]) => {
+			const b = createDiv({ cls: 'fnfoot' });
+			for (const id of ids) {
+				const li = byId.get(id);
+				if (!li) continue;
+				const p = b.createEl('p', { cls: 'fn', attr: { id } });
+				p.createEl('sup', { cls: 'fnmark', text: id.replace(/^fn-/, '') });
+				p.appendText(' ');
+				for (const k of Array.from(li.childNodes)) p.appendChild(k.cloneNode(true));
+			}
+			return b;
+		};
+		const blocksOf = () => Array.from(sFlow.querySelectorAll<HTMLElement>(':scope > * > *'));
+		const mb = (el: Element) => parseFloat(view.getComputedStyle(el).marginBottom) || 0;
+		// a line's box: a character's glyph box grown by the half-leading to the line's height
+		const lineBottom = (r: DOMRect, lh: number) => (lh > r.height ? r.bottom + (lh - r.height) / 2 : r.bottom);
+		// the first character of the line that runs past `limit` on page p
+		const splitAt = (P: HTMLElement, p: number, limit: number) => {
+			const lh = parseFloat(view.getComputedStyle(P).lineHeight) || 0;
+			const tw = doc.createTreeWalker(P, 4);
+			const marks: [Text, number][] = [];
+			let n: Node | null;
+			while ((n = tw.nextNode())) { const t = n as Text; for (let o = 0; o < t.data.length; o++) if (!/\s/.test(t.data[o])) marks.push([t, o]); }
+			if (!marks.length) return null;
+			const rg = doc.createRange();
+			const past = (k: number) => {
+				rg.setStart(marks[k][0], marks[k][1]); rg.setEnd(marks[k][0], marks[k][1] + 1);
+				const rs = rg.getClientRects();
+				if (!rs.length) return false;
+				const c = colOf(rs[0]);
+				return c > p || (c === p && lineBottom(rs[0], lh) > limit + 0.5);
+			};
+			let lo = 0, hi = marks.length;
+			while (lo < hi) { const mid = (lo + hi) >> 1; if (past(mid)) hi = mid; else lo = mid + 1; }
+			return lo < marks.length ? { k: lo, at: marks[lo] } : null;
+		};
+		// the notes cited on scratch page p, at its foot: the block, or null when the page cannot take them
+		const placeOn = (p: number, ids: string[]) => {
+			let block = mk(ids);
+			meas.appendChild(block);
+			const h = block.getBoundingClientRect().height;
+			meas.removeChild(block);
+			for (let attempt = 0; attempt < 4; attempt++) {
+				origin();
+				const list = blocksOf();
+				const limitFor = (el: Element | null) => top0 + H - h - (el ? mb(el) : 0) - 1 - attempt * 4;
+				const endsBefore = (el: Element) => {
+					const rs = el.getClientRects();
+					if (!rs.length) return true;
+					const r = rs[rs.length - 1], c = colOf(r);
+					return c < p || (c === p && r.bottom <= limitFor(el) + 0.5);
+				};
+				let lo = 0, hi = list.length;
+				while (lo < hi) { const mid = (lo + hi) >> 1; if (endsBefore(list[mid])) lo = mid + 1; else hi = mid; }
+				const B = list[lo] || null;
+				let after: HTMLElement | null = null, split: [HTMLElement, HTMLElement] | null = null;
+				if (!B) after = list[list.length - 1] || null;
+				else {
+					const r0 = B.getClientRects()[0];
+					const c0 = r0 ? colOf(r0) : p + 1;
+					if (r0 && (c0 < p || (c0 === p && r0.top < limitFor(B))) && B.tagName === 'P') {
+						const s = splitAt(B, p, limitFor(B));
+						if (s && s.k > 0 && B.lastChild) {
+							const rg = doc.createRange();
+							rg.setStart(s.at[0], s.at[1]); rg.setEndAfter(B.lastChild);
+							const frag = rg.extractContents();
+							const P2 = B.cloneNode(false) as HTMLElement;
+							P2.removeAttribute('id');
+							P2.classList.add('fncont');
+							P2.appendChild(frag);
+							B.after(P2);
+							B.classList.add('fnsplit');
+							split = [B, P2];
+							after = B;
+						}
+					}
+					if (!split) {
+						after = list[lo - 1] || null;
+						// the page's first block cannot be cut before: nothing would stand on the page
+						if (after) { const ra = after.getClientRects(); const la = ra[ra.length - 1]; if (!la || colOf(la) < p) after = null; }
+					}
+				}
+				if (!after) return null;
+				after.after(block);
+				// a note whose every mark went on with the text goes with it
+				for (const fn of Array.from(block.querySelectorAll('p.fn'))) {
+					const cites = Array.from(sFlow.querySelectorAll('sup.fnref')).filter((r) => refId(r) === fn.id);
+					if (cites.length && cites.every((r) => (block.compareDocumentPosition(r) & 4) !== 0)) fn.remove();
+				}
+				const br = block.getBoundingClientRect();
+				if (colOf(br) === p && block.getClientRects().length === 1 && br.bottom <= top0 + H + 0.5) {
+					// AT THE FOOT: the air left above the block, so the rule sits where Word draws it
+					const gap = Math.floor(top0 + H - br.bottom - 1);
+					if (gap > 0) block.style.marginTop = gap + 'px';
+					return block;
+				}
+				block.remove();
+				if (split) { const [a, b2] = split; while (b2.firstChild) a.appendChild(b2.firstChild); b2.remove(); a.classList.remove('fnsplit'); }
+				block = mk(ids);
+			}
+			return null;
+		};
+		const finishBefore = (keep: Node | null) => { while (sFlow.firstChild && sFlow.firstChild !== keep) flow.appendChild(sFlow.firstChild); };
+		const opensPage = (s: Element) => s.classList.contains('page') || s.hasAttribute('data-ws-cont');
+		for (let guard = 0; guard < 200000; guard++) {
+			origin();
+			const refs = Array.from(sFlow.querySelectorAll('sup.fnref'));
+			const first = refs.find((r) => { const id = refId(r); return byId.has(id) && !placed.has(id); });
+			if (!first) {
+				const next = queue.shift();
+				if (!next) break;
+				// what stands before the last section that opens a page is finished
+				const secs = Array.from(sFlow.children);
+				for (let k = secs.length - 1; k > 0; k--) if (opensPage(secs[k])) { finishBefore(secs[k]); break; }
+				sFlow.appendChild(next);
+				continue;
+			}
+			const p = colOf(first.getBoundingClientRect());
+			// a page's foot is decided once another page follows it (or it is the book's last)
+			if (queue.length && Math.round(sFlow.scrollWidth / across) <= p + 1) { const next = queue.shift(); if (next) sFlow.appendChild(next); continue; }
+			const ids: string[] = [];
+			for (const r of refs) {
+				const id = refId(r);
+				if (!byId.has(id) || placed.has(id) || ids.indexOf(id) >= 0) continue;
+				const c = colOf(r.getBoundingClientRect());
+				if (c === p) ids.push(id); else if (c > p) break;
+			}
+			const block = placeOn(p, ids);
+			if (!block) { for (const id of ids) { placed.add(id); leftovers.push(id); } continue; }
+			for (const fn of Array.from(block.querySelectorAll('p.fn'))) placed.add(fn.id);
+			if (!block.querySelector('p.fn')) { block.remove(); continue; }
+			// the section cut after the block: the rest opens the next page
+			const S = block.parentElement;
+			if (!S) break;
+			if (block.nextSibling) {
+				const S2 = S.cloneNode(false) as HTMLElement;
+				S2.removeAttribute('id');
+				S2.setAttribute('data-ws-cont', '');
+				while (block.nextSibling) S2.appendChild(block.nextSibling);
+				S.after(S2);
+			}
+			finishBefore(S.nextSibling);
+			if (sFlow.firstChild === S) flow.appendChild(S);
+		}
+	} catch (_) { wsCatch('wsFootNotes', _); }
+	finally {
+		while (sFlow.firstChild) flow.appendChild(sFlow.firstChild);
+		for (const s of queue) flow.appendChild(s);
+		// the cut sections joined back to the ones they were cut from
+		for (const c of Array.from(flow.querySelectorAll(':scope > [data-ws-cont]'))) {
+			const prev = c.previousElementSibling;
+			if (prev) { while (c.firstChild) prev.appendChild(c.firstChild); c.remove(); } else c.removeAttribute('data-ws-cont');
+		}
+		sSheet.remove();
+		// what no page could take stays at the back
+		for (const id of byId.keys()) if (!placed.has(id) && leftovers.indexOf(id) < 0) leftovers.push(id);
+		if (leftovers.length) {
+			for (const li of Array.from(notesSec.querySelectorAll('ol.notes > li'))) if (leftovers.indexOf(li.id) < 0) li.remove();
+			flow.appendChild(notesSec);
+		}
+		flow.classList.remove('is-placing');
+		root.style.zoom = zoomWas;
+		if (wasFlow) root.classList.add('is-flow');
+	}
+	return { notes: byId.size, placed: byId.size - leftovers.length };
 }
 
 // ── AN E-BOOK (A612) ─────────────────────────────────────────────────────
@@ -2826,7 +3207,7 @@ export function wsPageSeams(doc: Document, flow: Element, starts: [Element, numb
 // EPUB 2 table of contents beside it for older readers; a store-only zip, the
 // mimetype first and alone, as the format asks.
 export interface WsEpubNav { id: string; label: string; level: number }
-export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; paraBlank?: boolean; modified?: string; tocTitle?: string }
+export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; paraBlank?: boolean; modified?: string; tocTitle?: string; centerHeads?: boolean }
 
 // the picture kinds every EPUB reader is bound to show
 const WS_EPUB_IMG: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
@@ -2874,7 +3255,8 @@ export function wsEpubCss(meta: WsEpubMeta) {
 	return 'body { margin: 0; }\n'
 		+ 'p { margin: ' + (meta.paraBlank ? '0 0 1em 0' : meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
 		+ 'p.first, p.div, p.cmt, p.li, blockquote p, figure p, li p, td p, th p { text-indent: 0; }\n'
-		+ 'h1, h2, h3, h4, h5, h6 { text-align: center; font-weight: bold; text-indent: 0; margin: 1.5em 0 1em; page-break-after: avoid; break-after: avoid; }\n'
+		// CENTERED unless the writer turned Center headings off (#76); the title page stays centered either way
+		+ 'h1, h2, h3, h4, h5, h6 {' + (meta.centerHeads === false ? '' : ' text-align: center;') + ' font-weight: bold; text-indent: 0; margin: 1.5em 0 1em; page-break-after: avoid; break-after: avoid; }\n'
 		+ 'h1, h2 { font-size: 1.4em; } h3, h4, h5, h6 { font-size: 1.15em; }\n'
 		+ 'section.tp { text-align: center; padding-top: 25%; } section.tp h1 { font-size: 2em; } section.tp p { text-indent: 0; }\n'
 		+ 'p.div { text-align: center; margin: 1em 0; }\n'
@@ -2882,7 +3264,7 @@ export function wsEpubCss(meta: WsEpubMeta) {
 		+ 'blockquote { margin: 0.6em 1.5em; } blockquote.callout { border-left: 2px solid #bbb; padding-left: 0.6em; margin-left: 1em; }\n'
 		+ 'p.li { margin: 0 0 0.2em 1em; } p.li.l1 { margin-left: 2em; } p.li.l2 { margin-left: 3em; } p.li.l3 { margin-left: 4em; }\n'
 		+ 'pre.code, pre.math, pre.fm { font-family: monospace; font-size: 0.85em; white-space: pre-wrap; }\n'
-		+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; } table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 6px; }\n'
+		+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; width: 100%; table-layout: fixed; } table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 6px; vertical-align: top; overflow-wrap: anywhere; }\n'
 		+ 'figure.fig { margin: 0.8em 0; text-align: center; text-indent: 0; page-break-inside: avoid; break-inside: avoid; }\n'
 		+ 'figure.fig img { max-width: 100%; height: auto; } figure.fig figcaption { font-style: italic; font-size: 0.9em; }\n'
 		+ 'mark.hl-red { background: #f8c1c8; } mark.hl-orange { background: #f9d6b2; } mark.hl-green { background: #b5eaca; } mark.hl-blue { background: #b5d3f5; } mark.hl-purple { background: #d6cbfa; }\n'
@@ -4456,7 +4838,8 @@ export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean
 		return '<w:r>' + (rpr.length ? '<w:rPr>' + rpr.join('') + '</w:rPr>' : '')
 			// xml:space, or Word eats the spaces at either end of a run and
 			// "**bold** word" comes out as "boldword".
-			+ '<w:t xml:space="preserve">' + wsXml(r.text) + '</w:t></w:r>';
+			// (a line broken inside a paragraph, #77: Word's own break between its pieces)
+			+ String(r.text).split('\n').map((x) => '<w:t xml:space="preserve">' + wsXml(x) + '</w:t>').join('<w:br/>') + '</w:r>';
 	}).join('');
 	return '<w:p>' + (pr.length ? '<w:pPr>' + pr.join('') + '</w:pPr>' : '') + body + '</w:p>';
 }
@@ -4464,17 +4847,22 @@ export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean
 // A table, plainly. Verbose but entirely static — no relationships, no binary
 // parts, nothing that can fall out of sync with another file in the package,
 // which is why this is cheap and images are not.
-export function wsTable(rows: string[][]) {
+// THE PAPER'S TEXT WIDTH, ITS COLUMNS EQUAL AND FIXED (the writer: "i think we need to resize tables to fit"): Word wraps a
+// cell's text inside its column, as the preview does. 9,360 twips stood here, Letter's text width, on every paper: an A5
+// table ran past the margin.
+export function wsTable(rows: string[][], o?: WsExportOpts | null) {
 	const width = Math.max.apply(null, rows.map((r) => r.length));
-	const grid = '<w:tblGrid>' + new Array(width).fill('<w:gridCol w:w="' + Math.floor(9360 / width) + '"/>').join('') + '</w:tblGrid>';
-	const body = rows.map((cells, ri) => '<w:tr>' + new Array(width).fill(0).map((_, ci) => {
+	const paper = wsPaperOf(o), textW = Math.max(1440, paper.w - 2 * paper.mar), colW = Math.floor(textW / width);
+	const grid = '<w:tblGrid>' + new Array(width).fill('<w:gridCol w:w="' + colW + '"/>').join('') + '</w:tblGrid>';
+	// (a row never split across two pages, as the preview and the PDF set it: `cantSplit`)
+	const body = rows.map((cells, ri) => '<w:tr><w:trPr><w:cantSplit/></w:trPr>' + new Array(width).fill(0).map((_, ci) => {
 		const runs = wsInlineRuns(cells[ci] == null ? '' : cells[ci]);
 		if (ri === 0) runs.forEach(r => { r.bold = true; });
-		return '<w:tc><w:tcPr><w:tcW w:w="' + Math.floor(9360 / width) + '" w:type="dxa"/></w:tcPr>'
+		return '<w:tc><w:tcPr><w:tcW w:w="' + colW + '" w:type="dxa"/></w:tcPr>'
 			+ wsPara(runs, 'WsTableCell') + '</w:tc>';
 	}).join('') + '</w:tr>').join('');
 	return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/>'
-		+ '<w:tblW w:w="0" w:type="auto"/>'
+		+ '<w:tblW w:w="' + colW * width + '" w:type="dxa"/><w:tblLayout w:type="fixed"/>'
 		+ '<w:tblBorders>'
 		+ ['top','left','bottom','right','insideH','insideV']
 			.map(k => '<w:' + k + ' w:val="single" w:sz="4" w:color="auto"/>').join('')
@@ -4591,6 +4979,28 @@ export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild) {
 		return x;
 	}).join('');
 }
+// A LINE THAT RUNS ON INTO THE PARAGRAPH BEFORE IT (#77, davidepicatto: "Blocks of text visually divided in .md by a
+// blank line are divided by a simple line break"; the writer's pick, a checkbox): with Keep line breaks on, a line of
+// prose goes on the one before it unless a blank line stands between; never a line a builder sets apart (a heading, a
+// list, a quote, a table, a fence, a rule, a note, a comment, a picture). Off, the default, every line a paragraph of
+// its own, as before
+export function wsProseGoesOn(line: string, o: WsExportOpts & WsExportBuild): boolean {
+	const t = line.trim();
+	if (!t) return false;
+	if (/^%%|^\[\^[^\]]+\]:|^(`{3,}|~{3,})|^\$\$|^\||^#{1,6}\s|^>/.test(t)) return false;
+	if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) return false;
+	if (/^(\s*)([-*+]|\d+[.)])\s+/.test(line)) return false;
+	return !wsSplitFigures(t, o.imgs);
+}
+// …and the paragraph from line i: its lines joined by '\n', which each builder writes as its own line break (a
+// trailing \ that broke the line in the note taken off), and the line it ends on
+export function wsProseBlock(lines: string[], i: number, o: WsExportOpts & WsExportBuild): { text: string; end: number } {
+	const out = [lines[i].trim()];
+	let j = i;
+	if (o.keepLineBreaks) while (j + 1 < lines.length && wsProseGoesOn(lines[j + 1], o)) out.push(lines[++j].trim());
+	return { text: out.map((l, k) => (k < out.length - 1 ? l.replace(/\\$/, '') : l)).join('\n'), end: j };
+}
+
 export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOpen: string, parts: string[]) {
 	if (o.keepTags === false) md = wsDropTags(md);
 	const esc = (t: string) => String(t == null ? '' : t)
@@ -4710,7 +5120,10 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 			}
 			continue;
 		}
-		parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(t) + '</p>');
+		// (the lines that run on into it, each break a <br>: #77)
+		const pb = wsProseBlock(lines, i, o);
+		i = pb.end;
+		parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(pb.text).replace(/\n/g, '<br>') + '</p>');
 		firstPara = false;
 	}
 }
@@ -4842,7 +5255,7 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 			i += 2;
 			for (; i < lines.length && /^\|/.test(lines[i].trim()); i++) rows.push(cellsOf(lines[i]));
 			i--;
-			out.push(wsTable(rows));
+			out.push(wsTable(rows, opts));
 			firstPara = true;
 			continue;
 		}
@@ -4923,7 +5336,8 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 		// the text either side stays prose, each picture its own centered
 		// paragraph from the build's figure writer.
 		const figs = wsSplitFigures(t, o.imgs);
-		if (!figs) { prose(t); continue; }
+		// (the lines that run on into it, each break Word's own: #77)
+		if (!figs) { const pb = wsProseBlock(lines, i, o); i = pb.end; prose(pb.text); continue; }
 		for (const piece of figs) {
 			if (typeof piece === 'string') { if (piece.trim()) prose(piece.trim()); continue; }
 			const fig = o.docxFigure ? o.docxFigure(piece) : [wsPara([{ text: '[Image: ' + piece.name + ']' }], 'WsBody', { noIndent: true })];
@@ -4963,7 +5377,8 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 	// problem, the missing second boundary was. Body prose only: a list or
 	// a table cell already has its own separation.
 	// …AND A WHOLE EMPTY LINE WHEN ASKED (A756): the line at the font's size and the chosen spacing, in twentieths of a point
-	const gap  = o.paraBlank ? Math.round((o.pt || 12) * line / 12) : o.indent === false ? 120 : 0;
+	// (…and Keep line breaks' blank lines, #77: a blank line in the note is one here)
+	const gap  = (o.paraBlank || o.keepLineBreaks) ? Math.round((o.pt || 12) * line / 12) : o.indent === false ? 120 : 0;
 	// ── WIDOWS AND ORPHANS ──────────────────────────────────────────────
 	//
 	// An ORPHAN is the first line of a paragraph left alone at the foot of
@@ -5046,7 +5461,8 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		// is `half * 10` twips, 240 at 12pt, which is the 1em the page leaves.
 		+ [1,2,3,4,5,6].map(n => st('WsHeading' + n, 'heading ' + n,
 			spacing + '<w:keepNext/><w:outlineLvl w:val="' + (n - 1) + '"/>'
-			+ '<w:jc w:val="' + (n <= 2 ? 'center' : 'left') + '"/>'
+			// levels 1 and 2 centered, unless the writer turned Center headings off (#76)
+			+ '<w:jc w:val="' + (n <= 2 && o.centerHeads !== false ? 'center' : 'left') + '"/>'
 			+ '<w:spacing w:before="' + half * 10 + '" w:line="' + line + '" w:lineRule="auto"/>',
 			'<w:b/><w:sz w:val="' + Math.round(wsHeadSizeEm(n) * half) + '"/>')).join('')
 		+ '</w:styles>';
@@ -5128,13 +5544,13 @@ export function wsTocPagesMeasure(doc: Document): Record<string, number> {
 	const was = root.classList.contains('is-flow');
 	if (was) root.classList.remove('is-flow');
 	try {
-		const across = flow.clientWidth + (parseFloat(view.getComputedStyle(flow).columnGap) || 0);
-		if (across <= 0) return out;
-		const origin = flow.getBoundingClientRect().left - flow.scrollLeft;
+		// (the column in one unit at every zoom, `wsColumnOf`: a preview at a fitted zoom numbered its contents short)
+		const colOf = wsColumnOf(view, flow);
+		if (!colOf) return out;
 		for (const a of Array.from(flow.querySelectorAll('ol.toc a'))) {
 			const id = decodeURIComponent((a.getAttribute('href') || '').replace(/^#/, ''));
 			const t = id ? doc.getElementById(id) : null;
-			if (t) out[id] = Math.floor((t.getBoundingClientRect().left - origin + 1) / across) + 1;
+			if (t) out[id] = colOf(t.getBoundingClientRect()) + 1;
 		}
 	} finally { if (was) root.classList.add('is-flow'); }
 	return out;
@@ -5151,6 +5567,9 @@ export function wsTocPagesApply(doc: Document, pages: Record<string, number>) {
 // the preview's: once a document, when its contents has numbers to show
 export function wsTocPagesFill(doc: Document | null) {
 	if (!doc || !doc.documentElement || doc.documentElement.hasAttribute('data-ws-toc-pages') || !doc.querySelector('ol.toc .pg')) return;
+	// NOT BEFORE A WORD FILE'S NOTES ARE AT THE FOOT OF THEIR PAGES (#72): they move the text, so every chapter after the
+	// first note begins later; read before, the numbers are latched short
+	if (doc.documentElement.hasAttribute('data-ws-fnfoot') && !doc.documentElement.hasAttribute('data-ws-fn-placed')) return;
 	wsTocPagesApply(doc, wsTocPagesMeasure(doc));
 	doc.documentElement.setAttribute('data-ws-toc-pages', '');
 }
@@ -5275,7 +5694,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// writes it: an entry a paragraph, a link to its chapter's bookmark, stepped in by its level, its page (the
 		// preview's, which the PDF prints) after a dotted tab at the text's right edge; Word recomputes them on update
 		const tp = wsPaperOf(o), tabAt = Math.max(1440, tp.w - 2 * tp.mar);
-		const stepOf = wsTocSteps(o, sections), pageOf = o.tocPageOf || {}, showPg = o.tocPages !== false;
+		const stepOf = wsTocSteps(o, sections), pageOf = o.tocPageOf || {};
 		const instr = '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
 			// \o collects a RANGE of outline levels, \h makes the entries
 			// links, \z hides the page numbers in web layout, \u uses the
@@ -5289,11 +5708,11 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// level is exactly the line between the two, and with folder headings
 			// off it computes to 2.
 			+ '<w:r><w:instrText xml:space="preserve"> TOC \\o "1-'
-			// (\n: no page numbers, when the writer says so, A751)
-			+ wsDeepestLevel(o, sections) + '"' + (o.tocPages === false ? ' \\n' : '') + ' \\h \\z \\u </w:instrText></w:r>'
+			// (always its page numbers: A751's \n, "no page numbers", gone with its switch, the writer's word)
+			+ wsDeepestLevel(o, sections) + '" \\h \\z \\u </w:instrText></w:r>'
 			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
 		sections.forEach((sec, i) => {
-			const id = wsAnchorId(sec.title, i), pg = showPg && pageOf[id] ? String(pageOf[id]) : '';
+			const id = wsAnchorId(sec.title, i), pg = pageOf[id] ? String(pageOf[id]) : '';
 			body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + tabAt + '"/></w:tabs>'
 				+ '<w:ind w:left="' + (stepOf(sec) * 440) + '" w:firstLine="0"/></w:pPr>'
 				+ (i === 0 ? instr : '')
@@ -6569,7 +6988,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.3';
+export const WS_PLUGIN_VERSION = '1.8.4';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -7420,6 +7839,10 @@ export const DEFAULT_SETTINGS = {
 	// THE DEADLINE CELL SHOWS the date and the working days left, "20 Oct 2026 · 8d" (A735, the writer: "show the deadline
 	// date too and 8d"), or one of them: 'both' | 'days' | 'date'. One column (A731), not a Days left that hung on it.
 	orgDeadlineCell: 'both',
+	// WHERE THE ORGANIZER, EXPORT AND HISTORY OPEN (#73, Maja-Nune: "I prefer it opens a new tab in the current
+	// workspace"): 'split', a split to the right of the note, as they always have; or 'tab', a new tab in the note's own
+	// group. A second of ours joins the first's group either way.
+	paneOpenIn: 'split',
 	// ── THE ORGANISER'S OWN ICONS, ONE SWITCH EACH ──────────────────────
 	//
 	// TWO KEYS, NOT ONE, like the pair they are modelled on:
@@ -7843,6 +8266,10 @@ export const DEFAULT_SETTINGS = {
 	// formatted to extremely narrow columns that I cannot reverse".
 	markersEnabled:           false,
 	markTabs:                 false,
+	// THE NO-BREAK SPACES, as ° (the writer, 2026-10-15: "do the french spaces toggle and the non-breaking space marker"):
+	// U+00A0 and the narrow U+202F, which Language spacing types and which look like any space; on with the markers.
+	// A NEW NAME: A768's `markNbsp` is deleted on load since A780
+	markNoBreak:              true,
 	markParagraphs:           false,
 	markEndOfLines:           false,
 	markBlankLines:           true,
@@ -7891,6 +8318,9 @@ export const DEFAULT_SETTINGS = {
 	checkDialogueCustom:      '',
 	// the plugin's own folder out of sight, its files where they are (A733): the Organizer, the explorer, Export
 	hideOwnFolder:            false,
+	// …and what the switch put into Obsidian's Excluded files to keep the folder out of the graph and search (#71): the
+	// entries it added, the only ones it ever takes out again
+	ownExcluded:              [] as string[],
 	checkRhythm:              false,
 	// SENTENCE RHYTHM'S TINTS, THE THEME'S UNLESS PICKED (A782, the writer: "put the same colors for sentence rythm
 	// too"): empty is the theme's yellow, red and green, as Word frequency's bands; a color picked is the writer's
@@ -7960,6 +8390,8 @@ export const DEFAULT_SETTINGS = {
 	typoCloseSingle:          "\u2019",
 	typoApostrophe:           "\u2019",
 	typoQuotesFromLanguage:   true,      // a language pack's own marks are typed (A615)
+	// THE LANGUAGE'S SPACES (the writer, 2026-10-15: "do the french spaces toggle"): its pack's `## Spaces`, typed; off
+	typoLanguageSpaces:       false,
 	typoQuoteStyle:           'us',      // the usual marks: US “ ” outside, UK ‘ ’ outside (A694)
 	typoEllipsis:             true,
 	typoDashes:               true,

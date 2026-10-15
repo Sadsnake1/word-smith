@@ -34,15 +34,16 @@ import {
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
 	wsCursorMarkSvg, wsHueRotate, wsWheelStep, wsIconPick, wsDayKey, wsDayOf, wsWorkDaysLeft, wsGoalPlan,
 	POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
+	wsMaskCitations, wsCiteKeyText, wsEpubCss, wsFootNotes, wsColumnOf, wsTocPagesFill,
 } from './core/preamble';
-import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
+import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackSpaces, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
 import { wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER } from './editor/cite-suggest';
 import { wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
 import { WS_LOCALES } from './core/ui-locales';
 import { wsCiteEntryText } from './core/citations';
 import { wsCiteSections } from './core/citations';
-import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS } from './core/citations';
+import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS, wsCiteMissing } from './core/citations';
 
 export default Object.assign(WordSmith, {
 	// the 47 the slices exported
@@ -74,7 +75,7 @@ export default Object.assign(WordSmith, {
 	// the tagger's own words, for the accents suite (A482)
 	tokenizeLine, tagTokens, countSyllables, splitSentences, posBucket,
 	// the language packs' reader (A571)
-	wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS,
+	wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackSpaces, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS,
 	wsPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom,
 	// English's own lists and its pack engine (A691): what ws-dev/gen-english-packs.js writes the English packs from
 	// the settings in Obsidian's language (A692)
@@ -82,7 +83,7 @@ export default Object.assign(WordSmith, {
 	wsEnglishPackEngine, POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 	// citations (A572)
 	wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER, wsCiteEntryText,
-	wsCiteSections,
+	wsCiteSections, wsCiteMissing, wsMaskCitations, wsCiteKeyText, wsEpubCss, wsFootNotes, wsColumnOf, wsTocPagesFill,
 	wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS,
 	// onload's phases, driven by the phases suite (A488)
 	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,

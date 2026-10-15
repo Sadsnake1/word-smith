@@ -56,7 +56,7 @@
 import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon, apiVersion } from 'obsidian';
 import { WS_WHATS_NEW } from '../core/whats-new';
 import { wsWhatsNewInto, WS_README_URL, WS_ISSUES_URL, WS_CURSOR_SMITH_URL, WS_FUNDING_URL } from './welcome';
-import { WS_PACKS_URL, wsPackCovers } from '../core/language';
+import { WS_PACKS_URL, wsPackCovers, wsPackSpaces } from '../core/language';
 import { wsT, wsTq, wsUiLang, wsUiEchoOn, wsUiJoin, wsUiLocale } from '../core/ui-text';
 import { wsPackGradeName, wsPackGradeFrom } from '../core/lang-engine';
 import { WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_SAMPLES, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, wsCiter } from '../core/citations';
@@ -84,9 +84,10 @@ import {
 	wsModKeyName,
 	wsSvgInto,
 	wsThemeHex,
+	wsPageNumAt,
 } from '../core/preamble';
 import type WordSmith from './plugin';
-import type { WordSmithSettings } from '../core/settings';
+import type { WordSmithSettings, WsExportBoolKey } from '../core/settings';
 
 type Key = keyof WordSmithSettings;
 type Def = SettingDefinition<Key>;
@@ -1957,6 +1958,21 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	}
 
 	// ── TEXT ────────────────────────────────────────────────────────────────
+	// LANGUAGE SPACING, SAID FOR THE LANGUAGE IN USE (the writer: "this needs to be per language so no confusion"): its pack's
+	// marks and words, in the pack's own order, and its name
+	spacingSay(): string {
+		const pack = this.plugin.packActive();
+		const sp = wsPackSpaces(pack);
+		if (!pack || !sp) return wsT('No-break spaces as your language sets them.');
+		const parts: string[] = [];
+		const before = Object.keys(sp.before), after = Object.keys(sp.after), words = Object.keys(sp.words);
+		if (before.length) parts.push(wsT('before {marks}', { marks: before.join(' ') }));
+		if (after.length) parts.push(wsT('after {marks}', { marks: after.join(' ') }));
+		if (words.length) parts.push(wsT('after {words}', { words: wsUiJoin(words) }));
+		const where = parts.length > 1 ? wsT('{a} and {b}', { a: parts.slice(0, -1).join(', '), b: parts[parts.length - 1] }) : parts[0];
+		return wsT('The space you type {where} turns no-break, as your {language} pack sets it.', { where, language: pack.name });
+	}
+
 	// Markers, Typography and Layout.
 	pageText(on: Pred): Page {
 		const s = this.plugin.settings;
@@ -2020,6 +2036,16 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Open single', desc: 'Replaces the straight single quote at the start.', control: { type: 'text', key: 'typoOpenSingle' }, visible: quotes },
 				{ name: 'Close single', desc: 'And at the end.', control: { type: 'text', key: 'typoCloseSingle' }, visible: quotes },
 				{ name: 'Apostrophe', desc: 'Used mid-word, where it is not a quote at all.', control: { type: 'text', key: 'typoApostrophe' }, visible: quotes },
+				// THE LANGUAGE'S SPACES (the writer, 2026-10-15: "do the french spaces toggle"): its pack's `## Spaces`, typed.
+				// PER LANGUAGE (the writer: "this needs to be per language so no confusion"): the row says what the pack in use
+				// sets, and nothing of another language's, and is there only for a language whose pack sets some
+				rendered({ name: 'Language spacing', desc: 'No-break spaces as your language sets them.', visible: all(ty, () => !!wsPackSpaces(this.plugin.packActive())), render: (st) => {
+					st.setDesc(this.spacingSay());
+					st.addToggle((t) => t.setValue(!!s.typoLanguageSpaces).onChange((v) => { void (async () => {
+						s.typoLanguageSpaces = v;
+						await this.plugin.saveSettings(true);
+					})(); }));
+				} }, ['typoLanguageSpaces']),
 				{ name: 'Ellipsis', desc: '... becomes …', control: { type: 'toggle', key: 'typoEllipsis' }, visible: ty },
 				{ name: 'Dashes', desc: '-- becomes –, --- becomes —', control: { type: 'toggle', key: 'typoDashes' }, visible: ty },
 				{ name: 'Arrows', desc: '-> →, <- ←, => ⇒', control: { type: 'toggle', key: 'typoArrows' }, visible: ty },
@@ -2032,6 +2058,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Show hidden markers', desc: 'Draws the characters you cannot normally see. Your text is untouched.', control: { type: 'toggle', key: 'markersEnabled' } },
 				{ name: 'Tabs', desc: 'Shown as →', control: { type: 'toggle', key: 'markTabs' }, visible: marks },
 				{ name: 'Spaces', desc: 'Shown as ·', control: { type: 'toggle', key: 'markSpaces' }, visible: marks },
+				{ name: 'NBSP', desc: 'No-break spaces, shown as °', control: { type: 'toggle', key: 'markNoBreak' }, visible: marks },
 				{ name: 'End of lines', desc: 'Shown as ↵', control: { type: 'toggle', key: 'markEndOfLines' }, visible: marks },
 				{ name: 'Paragraphs', desc: 'Shown as ¶', control: { type: 'toggle', key: 'markParagraphs' }, visible: marks },
 				{ name: 'End of buffer', desc: 'Tildes down the empty space after your last line.', control: { type: 'toggle', key: 'markBlankLines' }, visible: marks },
@@ -2103,6 +2130,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Sections', [this.railRow('manuscript', RAIL)]),
 			this.section('Organizer', [
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
+				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer
+				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab' } } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
 				// A731: the deadline's two halves, one column
 				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (20 Oct 2026 \u00b7 8d)', days: 'Days left (8d)', date: 'The date (20 Oct 2026)' } }, visible: org },
@@ -2250,12 +2279,23 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		const value = () => (opts().footnotePlace === 'end' ? wsT('Notes at the end') : wsT('Footnotes at the foot'));
 		// the window's defaults, set where they are missing, so a row reads what an export would (A574)
 		try { plugin.exportOptionDefaults(); } catch (_) { wsCatch('pageExport: exportOptionDefaults', _); }
-		const flag = (key: 'roundWordCount' | 'smartQuotes') => (st: Setting) => {
+		// (each a change an open Export preview redraws for: `exportOptsChanged`)
+		const flag = (key: WsExportBoolKey) => (st: Setting) => {
 			st.addToggle((t) => t.setValue(!!opts()[key]).onChange((v) => { void (async () => {
 				opts()[key] = v;
 				await plugin.saveSettings();
+				plugin.exportOptsChanged();
 			})(); }));
 		};
+		const words = (key: 'headerText' | 'tocTitle', ph: () => string) => (st: Setting) => {
+			st.addText((t) => t.setPlaceholder(ph()).setValue(String(opts()[key] || '')).onChange((v) => { void (async () => {
+				opts()[key] = v;
+				await plugin.saveSettings();
+				plugin.exportOptsChanged();
+			})(); }));
+		};
+		const NUM_AT: [string, string][] = [['top-left', 'Top left'], ['top-center', 'Top center'], ['top-right', 'Top right'],
+			['bottom-left', 'Bottom left'], ['bottom-center', 'Bottom center'], ['bottom-right', 'Bottom right'], ['none', 'None']];
 		// TWO PILLS (A634, the writer: "the citations needs to be in a pill in the export page. so two
 		// pills there Options Citations or something like that")
 		const RAIL: RailEntry[] = [
@@ -2274,6 +2314,35 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						})(); }));
 					} },
 				{ name: 'Round the word count', desc: '“About 90,000 words” on the title page, as a publisher expects. Off prints it exactly.', render: flag('roundWordCount') },
+			], this.railed('export', 'options')),
+			// THE PAGES, THE HEADINGS AND THE PARAGRAPHS, DECIDED ONCE (the writer: "think of what options hould we put in the
+			// export page settings as they are too many options in the export tab", their pick "Six plus paragraph look"):
+			// moved out of the Export tab, which says where they went
+			this.section('Pages', [
+				{ name: 'Header text', desc: 'Along the top of every page. Empty, your surname and the title.',
+					render: words('headerText', () => (opts().author ? String(opts().author).split(/\s+/).pop() + ' / ' : '') + (String(opts().titleText || '').trim() || wsT('Title')) + ' /') },
+				{ name: 'Page numbers', desc: 'Where the number goes on each page.',
+					render: (st) => {
+						st.addDropdown((d) => {
+							for (const [id, label] of NUM_AT) d.addOption(id, wsT(label));
+							d.setValue(wsPageNumAt(opts())).onChange((v) => { void (async () => {
+								opts().pageNumberAt = v;
+								await plugin.saveSettings();
+								plugin.exportOptsChanged();
+							})(); });
+						});
+					} },
+				{ name: 'Contents title', desc: 'Over the list of files at the front.', render: words('tocTitle', () => wsT('Contents')) },
+			], this.railed('export', 'options')),
+			this.section('Headings', [
+				// ("in exports": Text › Layout has a Center headings of its own, for the editor; one name a row, as Curly quotes in exports)
+				{ name: 'Center headings in exports', desc: 'Headings in the middle of the line. Off sets them at the start, like the text. The title page stays centered.', render: flag('centerHeads') },
+				{ name: '--- starts a new page', desc: 'A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.', render: flag('dashPageBreak') },
+			], this.railed('export', 'options')),
+			this.section('Paragraphs', [
+				{ name: 'Indent paragraphs', desc: 'A half-inch first line, as a manuscript has. Off, a space between paragraphs instead.', render: flag('indent') },
+				{ name: 'Paragraph spacing', desc: 'An empty line after every paragraph, indented or not.', render: flag('paraBlank') },
+				{ name: 'Keep line breaks', desc: 'Blank lines and line breaks as your note has them.', render: flag('keepLineBreaks') },
 			], this.railed('export', 'options')),
 			this.section('Text', [
 				{ name: 'Curly quotes in exports', desc: 'Straight quotes turn curly as the file is compiled; your notes keep what you typed.', render: flag('smartQuotes') },
@@ -2577,7 +2646,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				fileRow('Settings copy file', () => s.settingsMirror !== false ? plugin.settingsMirrorPathFor() : null, 'Machine settings and other vaults’ paths are skipped on restore.'),
 				fileRow('History file', () => plugin.historyStorePath(), 'Every day you have written; the only copy.'),
 				// A733: the folder out of sight
-				{ name: 'Hide the Word-Smith folder', desc: 'Its files stay where they are; the Organizer, the file explorer and the compiled book leave the folder out.', control: { type: 'toggle', key: 'hideOwnFolder' } },
+				{ name: 'Hide the Word-Smith folder', desc: 'Its files stay where they are. The Organizer, file explorer, graph, search and compiled book skip it.', control: { type: 'toggle', key: 'hideOwnFolder' } },
 			]),
 			this.section('Notes', [
 				this.subheadRow('Good to know'),

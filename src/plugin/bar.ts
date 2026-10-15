@@ -2431,7 +2431,7 @@ export const barMethods = {
 	buildMarkersIndicator(this: WordSmith) {
 		const s = this.settings;
 		const any = !!s.markersEnabled &&
-			(s.markSpaces || s.markTabs || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
+			(s.markSpaces || s.markTabs || s.markNoBreak || s.markParagraphs || s.markEndOfLines || s.markBlankLines);
 		return this.buildBarButton(
 			'ws-barbtn-markers' + (any ? '' : ' is-off'),
 			// THE MENU'S PILCROW ICON, or the word.
@@ -2450,6 +2450,8 @@ export const barMethods = {
 		const defs: { key: WsBoolKey; label: string }[] = [
 			{ key: 'markTabs',       label: '\u2192 ' + wsT('Tabs')          },
 			{ key: 'markSpaces',     label: '\u00b7 ' + wsT('Spaces')        },
+			// (the no-break spaces, as °: A773's name for the row, the writer's)
+			{ key: 'markNoBreak',    label: '\u00b0 ' + wsT('NBSP')          },
 			{ key: 'markEndOfLines', label: '\u21b5 ' + wsT('Line ends')     },
 			{ key: 'markParagraphs', label: '\u00b6 ' + wsT('Paragraphs')    },
 			{ key: 'markBlankLines', label: '~ ' + wsT('End of buffer')  }

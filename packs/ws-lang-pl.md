@@ -5,7 +5,7 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## O pakiecie (About)
 - language: pl
 - name: Polski
-- pack: 1.0
+- pack: 1.1
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -14,6 +14,11 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - apostrophe: ’
 - dialogue-dash: — –
 - ordinal-dot: yes
+
+## Spacje (Spaces)
+| znak | strona | spacja |
+|------|--------|--------|
+| a, i, o, u, w, z | word | nbsp |
 
 ## Liczebniki (Numbers)
 - zero, jeden, jedna, jedno, jednego, jednej, jednemu, jednym, jedną, dwa, dwie, dwóch, dwoma, dwu, dwom, trzy, trzech, trzem, trzema, cztery, czterech, czterem, czterema

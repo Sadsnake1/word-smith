@@ -8,12 +8,11 @@
 import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage } from '../core/settings';
-import { wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill } from '../core/preamble';
+import { wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill, wsFootNotes } from '../core/preamble';
 import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
 import type { WsWheelAcc } from '../core/preamble';
 import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
 import { wsT, wsUiJoin } from '../core/ui-text';
-import { wsUnderIndex } from '../organizer/org-index';
 import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
@@ -317,7 +316,21 @@ function wsPreviewFlowApply(a: { apply: () => void; docOf: () => Document | null
 	// THE POSITION READ-OUT IS THE READER'S, and leaves with it. It is
 	// in the footer beside the zoom, not on a rail of its own.
 	try { if (pv.readPage) pv.readPage.toggleClass('is-gone', !pv.flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: if (readPage) readPage.toggleClass(\'is-gone\', !flow);', _); }
+	// …and its page arrows (a desktop's) with it
+	try { if (pv.readPage && pv.readPage.parentElement) for (const b of Array.from(pv.readPage.parentElement.querySelectorAll('.ws-export-readstep'))) b.toggleClass('is-gone', !pv.flow); } catch (_) { wsCatch('exportPreviewInto / flowApply: the page arrows', _); }
 	try { if (pv.readFile) { pv.readFile.toggleClass('is-gone', !pv.flow); if (pv.flow) readFileSay(); } } catch (_) { wsCatch('exportPreviewInto / flowApply: readFile.toggleClass(is-gone)', _); }
+	// THE ZOOM AFTER THE PAGE ARROWS (the writer: "in expanded view put the zoom dropdown after the page arrows to be more in
+	// line with the normal export tab"): the paged row reads ‹ 1 / ~259 › and the zoom; the reader's, the file list,
+	// ‹ 6 / 766 › and the zoom, Collapse last. Its group moved into the reader's before Collapse, and back on the way out
+	try {
+		const zoomBox = pv.pct ? pv.pct.closest<HTMLElement>('.ws-export-zoom') : null;
+		const view = pv.readPage ? pv.readPage.parentElement : null;
+		const xb = view ? view.querySelector('.ws-export-expand') : null;
+		if (zoomBox && view && xb && view.parentElement) {
+			if (pv.flow) view.insertBefore(zoomBox, xb);
+			else if (zoomBox.parentElement === view) view.parentElement.insertBefore(zoomBox, view);
+		}
+	} catch (_) { wsCatch('exportPreviewInto / flowApply: the zoom after the page arrows', _); }
 	if (pv.flowSay) { try { pv.flowSay(); } catch (_) { wsCatch('exportPreviewInto / flowApply: flowSay();', _); } }
 }
 
@@ -354,8 +367,8 @@ function wsPreviewReadSay(plugin: WordSmith, a: { docOf: () => Document | null; 
 		// NOTHING RATHER THAN A GUESS. A paragraph the map does not know
 		// — one drawn after the map was taken — has no page, and saying a
 		// wrong one is worse than saying none.
-		pv.readPage.setText(n == null || !pagesTotal
-			? '' : wsT('p. {page} of {pages}', { page: n + 1, pages: pagesTotal }));
+		// NUMBERS ONLY, as the paged view's `1 / ~259` (the writer: "just 6/766"; it read "p. 6 of 766")
+		pv.readPage.setText(n == null || !pagesTotal ? '' : (n + 1) + ' / ' + pagesTotal);
 	} catch (_) { wsCatch('exportPreviewInto / readSay: const sheet = pool[0];', _); }
 }
 
@@ -486,8 +499,8 @@ function wsPreviewSyncPages(plugin: WordSmith, a: { fillPool: (m: WsPoolMetrics)
 }
 
 // The preview painted at the current zoom (lifted out of exportPreviewInto, A488).
-function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; armScroll: () => void; asText: boolean; docOf: () => Document | null; fileStep: (by: number) => boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; frame: HTMLIFrameElement; html: string; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; restoreArm: () => void; syncPages: () => void; topTo: (el: HTMLElement | null) => void }) {
-	const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages, topTo } = a;
+function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; armScroll: () => void; asText: boolean; docOf: () => Document | null; fileStep: (by: number) => boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; footSoon: () => void; frame: HTMLIFrameElement; html: string; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; restoreArm: () => void; syncPages: () => void; topTo: (el: HTMLElement | null) => void }) {
+	const { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, footSoon, frame, html, pv, restoreArm, syncPages, topTo } = a;
 	try {
 		const doc = frame.contentDocument
 			|| (frame.contentWindow && frame.contentWindow.document);
@@ -523,12 +536,14 @@ function wsPreviewPaint(plugin: WordSmith, a: { apply: () => void; applyDark: ()
 	// once for the common case; this asks again on the next frame, for
 	// the manuscript long enough that it did not.
 	try { window.requestAnimationFrame(() => syncPages()); } catch (_) { wsCatch('exportPreviewInto / paint: window.requestAnimationFrame(() => syncPages());', _); }
+	// …and a Word file's notes to the foot of their page, once the paints settle (#72)
+	footSoon();
 }
 
 // THE FLIPPER, first in the preview's foot: previous, the page, next, the
 // zoom and the flow (lifted out of exportPreviewInto, A488).
-function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; asText: boolean; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; foot: HTMLDivElement; iconBtn: (into: HTMLElement, cls: string, names: string[], glyph: string, aria: string, fn: (ev: MouseEvent) => void) => HTMLButtonElement; jumpTo: (path: string) => boolean; o: WsExportRun; onRefresh: () => void; pv: { zoom: number; flowZoom: number; flowFit?: boolean; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; setZoom: (z: number, keep?: boolean) => void; showPage: (n: number) => void }) {
-	const { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage } = a;
+function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: () => void; asText: boolean; docOf: () => Document | null; fitZoom: () => number; flowApply: () => void; flowSet: (on: boolean) => void; foot: HTMLDivElement; iconBtn: (into: HTMLElement, cls: string, names: string[], glyph: string, aria: string, fn: (ev: MouseEvent) => void) => HTMLButtonElement; jumpTo: (path: string) => boolean; o: WsExportRun; onRefresh: () => void; pv: { zoom: number; flowZoom: number; flowFit?: boolean; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; setZoom: (z: number, keep?: boolean) => void; showPage: (n: number) => void }) {
+	const { apply, applyDark, asText, docOf, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage } = a;
 	if (!asText) {
 		// ── THE FLIPPER, FIRST IN THE ROW ────────────────────
 		//
@@ -654,7 +669,24 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		rfile.addEventListener('change', () => {
 			try { jumpTo(rfile.value); } catch (_) { wsCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
 		});
+		// PAGE BY PAGE IN THE READER TOO, on a desktop (the writer: "put arrows on desktop for pages in expanded view"): the
+		// next page's top, or back to this page's own top and then the one before; a page's top is its seam's head. In the
+		// viewport's own units, as `topTo` reads them, so no zoom enters into it
+		const readStep = (by: number) => {
+			const doc = docOf();
+			const win = doc && doc.defaultView;
+			if (!doc || !win || !pv.flow) return;
+			const heads = Array.from(doc.querySelectorAll<HTMLElement>('.sheet:not([data-pooled]) .seam-head'));
+			if (!heads.length) return;
+			const tops = heads.map((h) => h.getBoundingClientRect().top);
+			let cur = 0;
+			for (let i = 0; i < tops.length; i++) if (tops[i] <= (win.innerHeight || 0) / 3) cur = i;
+			const to = Math.max(0, Math.min(heads.length - 1, by < 0 && tops[cur] < -2 ? cur : cur + by));
+			win.scrollTo(0, Math.max(0, tops[to] + (win.scrollY || 0)));
+		};
+		if (!Platform.isMobile) iconBtn(viewBox, 'ws-export-readstep is-prev is-gone', ['chevron-left'], '\u2039', wsT('Previous page'), () => readStep(-1));
 		pv.readPage = viewBox.createSpan({ cls: 'ws-export-readpage is-gone' });
+		if (!Platform.isMobile) iconBtn(viewBox, 'ws-export-readstep is-next is-gone', ['chevron-right'], '\u203a', wsT('Next page'), () => readStep(1));
 		const xb = viewBox.createEl('button',
 			{ cls: 'ws-export-mini ws-export-expand' });
 		const expandIcon = xb.createSpan({ cls: 'ws-export-ico-in' });
@@ -914,37 +946,12 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 			['runningHeaderOn', wsT('Running header'), wsT('Your surname, the title and the page number along the top of every page, so a printed manuscript can be put back in order.'), ['panel-top', 'arrow-up-to-line']],
 			['toc', wsT('Table of contents'), wsT('A list of the files at the front, each one a link that jumps to it.'),
 				['table-of-contents', 'list-ordered']],
-			// its pages (A751), a row of the same list while there are contents and pages
-			['tocPages', wsT('Contents page numbers'), wsT('Each file’s page beside it, as a printed book has them.'), ['hash', 'list-ordered']],
+			// (TOMBSTONE: A751's Contents page numbers; the writer: "table of contents always have page numbers, so remove that
+			// extra page numbers option for toc". `exportOpts.tocPages` is deleted on load)
 		];
-		pickList(grp, 'ws-export-front', () => FRONT.filter(([k]) => (k !== 'runningHeaderOn' || wsFormatHasPages(o.format || 'docx'))
-			&& (k !== 'tocPages' || (!!o.toc && wsFormatHasPages(o.format || 'docx')))),
-			wsT('No front matter'), (list) => (list ? wsT('Before the text: {list}. Press for the list.', { list }) : wsT('Before the text: nothing. Press for the list.')),
-			() => showPageRows());
-		// THE PAGES' OWN LINES (A751, the writer: "do 12 too with a contents text input"): your own running header,
-		// where the page number goes, the contents' title and its page numbers; each shown only while it can mean
-		// something, and shown or hidden at once as the list above is ticked
-		const paged = () => wsFormatHasPages(o.format || 'docx');
-		const hdrRow = textOpt(grp, 'headerText', wsT('Header text'),
-			(o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + (String(o.titleText || '').trim() || wsT('Title')) + ' /',
-			wsT('Along the top of every page. Empty, your surname and the title.')).parentElement;
-		const pnSel = selOpt(grp, 'pageNumberAt', wsT('Page numbers'), [
-			{ id: 'top-left', label: wsT('Top left') }, { id: 'top-center', label: wsT('Top center') }, { id: 'top-right', label: wsT('Top right') },
-			{ id: 'bottom-left', label: wsT('Bottom left') }, { id: 'bottom-center', label: wsT('Bottom center') }, { id: 'bottom-right', label: wsT('Bottom right') },
-			{ id: 'none', label: wsT('None') },
-		], () => { void plugin.saveSettings(); }, false, wsPageNumAt(o));
-		const pnRow = pnSel.parentElement;
-		const tocRow = textOpt(grp, 'tocTitle', wsT('Contents title'), wsT('Contents'), wsT('Over the list of files at the front.')).parentElement;
-		// PAGES: the format table's own sweep (`ws-export-pages`), so a format change hides them as it hides the rest;
-		// ON OR OFF: a class of their own, so the two never undo each other
-		for (const r of [hdrRow, pnRow]) if (r) { r.addClass('ws-export-pages'); r.toggleClass('is-gone', !paged()); }
-		const showPageRows = () => {
-			if (hdrRow) hdrRow.toggleClass('is-off', !o.runningHeaderOn);
-			if (tocRow) tocRow.toggleClass('is-off', !o.toc);
-			// UNCHOSEN, the number follows the header: the box says what will print
-			if (!o.pageNumberAt) pnSel.value = wsPageNumAt(o);
-		};
-		showPageRows();
+		pickList(grp, 'ws-export-front', () => FRONT.filter(([k]) => (k !== 'runningHeaderOn' || wsFormatHasPages(o.format || 'docx'))),
+			wsT('No front matter'), (list) => (list ? wsT('Before the text: {list}. Press for the list.', { list }) : wsT('Before the text: nothing. Press for the list.')));
+		// (TOMBSTONE: A751's Header text, Page numbers and Contents title rows (moved to Settings › Export on the writer's word, "Six plus paragraph look": they are decided once)
 		// ONE QUESTION, THREE ANSWERS: how does one file join the next? As two
 		// booleans it allowed both at once — a page break AND a divider —
 		// which no manuscript wants. TWO ROWS THAT READ AS SENTENCES: the
@@ -1046,18 +1053,13 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 		// pair's cells and leave the other empty.
 		toggle(structGrp, 'folderHeadings', wsT('Folder names as headings'),
 			wsT('A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.'));
-		// --- AS A PAGE BREAK (A502, the writer: "add another option in export
-		// that --- in markdown is a page break"). Inside a note, where "Each file"
-		// is between notes; hidden with the other page rows for Markdown.
-		toggle(structGrp, 'dashPageBreak', wsT('--- starts a new page'),
-			wsT('A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.'))
-			.addClass('ws-export-pages');
+		// (TOMBSTONE: Center headings, #76, and "--- starts a new page", A502 (moved to Settings › Export on the writer's word, "Six plus paragraph look": they are decided once)
 	}
 }
 
-// TYPESETTING: paper, font, size, spacing, the indent (lifted out of buildExportOptions, A669).
+// TYPESETTING: paper, font, size, spacing (lifted out of buildExportOptions, A669; the paragraphs' switches in Settings › Export since the writer's "Six plus paragraph look").
 function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) => HTMLInputElement; o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
-	const { fontOpt, o, optGroup, selOpt, toggle } = a;
+	const { fontOpt, o, optGroup, selOpt } = a;
 	{
 		const grp = optGroup(wsT('Typesetting'));
 		// BOTH HALVES OF THE SECTION. `optGroup` makes an eyebrow and then
@@ -1150,32 +1152,15 @@ function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLE
 			o.doubleSpaced = o.lineSpacing !== 'single';
 			void plugin.saveSettings();
 		}, true);
-		// INDENT PARAGRAPHS, BACK. It was removed because turning it
-		// off with double spacing on — the pairing a manuscript uses —
-		// left NO paragraph boundary at all, and the result read as a
-		// broken document rather than a styled one. The switch was
-		// never the fault; the missing second boundary was. Off now
-		// puts a half-line of air after each paragraph in all three
-		// targets (see `gap` in wsStylesXml), which is block-set prose
-		// — what a business letter, a blog post and most non-fiction
-		// use — rather than a document with its paragraph ends
-		// deleted. On by default, because the manuscript convention is
-		// still the default here.
-		toggle(grp, 'indent', wsT('Indent paragraphs'),
-			wsT('A half-inch first line on every paragraph but the first of a scene \u2014 the manuscript convention. Off sets them block style, with a space between instead.'));
-		// A BLANK LINE BETWEEN PARAGRAPHS (A756, the writer: "add option in export tab to include line breaks below indent
-		// paragraphs"): a full empty line after each, indented or not; over the half line block style gives
-		toggle(grp, 'paraBlank', wsT('Paragraph spacing'),
-			wsT('An empty line after every paragraph, indented or not.'));
-		// UNDER THE INDENT, not above the size. The two switches in this
-		// tab are the only two things here a writer flips rather than
-		// chooses from a list, and the grid lays toggles two to a row —
-		// so with one of them stranded at the top of the group and the
-		// other at the bottom, each sat alone on a line with a
-		// half-width hole beside it. Together they pair up, and the
-		// three drop-downs above them read as one run rather than as
-		// two runs with a switch wedged in the middle.
+		// (TOMBSTONE: Indent paragraphs, Paragraph spacing, A756, and Keep line breaks, #77 (moved to Settings › Export on the writer's word, "Six plus paragraph look": they are decided once)
 	}
+}
+
+// WHAT A FORMAT HIDES: every row that needs pages (`ws-export-pages`). Run by the format's change AND after every
+// redraw of the options, which builds them afresh: found with #76, a press on any switch under Markdown brought
+// Typesetting and the paper back. (`ws-export-styled` went with Center headings to Settings › Export.)
+function wsExportSweep(scope: ParentNode, format: string) {
+	for (const el of Array.from(scope.querySelectorAll<HTMLElement>('.ws-export-pages'))) el.toggleClass('is-gone', !wsFormatHasPages(format));
 }
 
 // ALSO INCLUDE: properties, comments, callouts, tags, highlights, footnotes (lifted out of buildExportOptions, A669).
@@ -1889,6 +1874,7 @@ export const exportMethods = {
 		o.keepHeadings  = o.chapterTitles === 'note';
 		dflt('font', 'Times New Roman'); dflt('pt', 12);
 		dflt('justify', false);   dflt('keepHeadings', true);
+		dflt('centerHeads', true);
 		dflt('smartQuotes', false); dflt('wordCountOnTitle', true);
 		dflt('roundWordCount', true);
 		// Which reading the list's right-hand column shows. Remembered,
@@ -1897,7 +1883,7 @@ export const exportMethods = {
 		dflt('pageNumbers', true);
 		dflt('outFolder', '');  dflt('toc', false);  dflt('lastScope', '');
 		// A751: the contents' page numbers on; the header's words and the contents' title empty (the defaults)
-		dflt('tocPages', true); dflt('headerText', ''); dflt('tocTitle', '');
+		dflt('headerText', ''); dflt('tocTitle', '');
 		dflt('titleText', '');
 		dflt('doubleSpaced', true); dflt('indent', true);
 		// SPACING, from the boolean it replaced — and written back to it on
@@ -1913,6 +1899,8 @@ export const exportMethods = {
 		dflt('footnotes', true);
 		// where Word puts them: at the foot of each page (#46), or at the end (Settings → Export)
 		dflt('footnotePlace', 'foot');
+		// every line a paragraph, as before #77
+		dflt('keepLineBreaks', false);
 		dflt('highlights', false);
 		// Which tab the column opens on, remembered: a writer setting up a
 		// proof is in Typesetting for six exports in a row.
@@ -1936,30 +1924,12 @@ export const exportMethods = {
 	// folders are the ones the tree shows ticked — every note under them
 	// going out; the notes are the ticked notes. No folder ticked, no
 	// folder figure.
-	// EACH FIGURE ITS OWN LINE (A695), the dot between them a mark and no word: the figure as
-	// `toLocaleString` writes it (`count`), the number itself (`n`) for a table's plural forms.
-	// "words" is one key, as the English never says "1 word" here.
-	exportFiguresText(this: WordSmith, fileCount: number, words: number | null, folderCount: number) {
-		const folders = typeof folderCount === 'number' && folderCount > 0
-			? (folderCount === 1 ? wsT('{count} folder', { n: folderCount, count: folderCount.toLocaleString() })
-				: wsT('{count} folders', { n: folderCount, count: folderCount.toLocaleString() })) + ' \u00b7 '
-			: '';
-		return folders + (fileCount === 1 ? wsT('{count} note', { n: fileCount, count: fileCount.toLocaleString() })
-			: wsT('{count} notes', { n: fileCount, count: fileCount.toLocaleString() }))
-			+ (words == null ? '' : ' \u00b7 ' + wsT('{count} words', { n: words, count: words.toLocaleString() }));
-	},
-
-	// The folders the tree shows ticked: every note under them is going out.
-	// Counted over the notes the tab gathers, so a folder outside the scope
-	// is not a folder here.
-	exportFoldersTicked(this: WordSmith, files: { path: string }[], ticks: { has: (p: string) => boolean } | null) {
-		if (!ticks) return 0;
-		const ix = wsUnderIndex(files || []);
-		let n = 0;
-		for (const [, under] of ix.byFolder) {
-			if (under.length && under.every((p) => ticks.has(p))) n++;
-		}
-		return n;
+	// THE NOTES ALONE (the writer, a circled shot of "1 note · 2,685 w…" beside Tick all: "here only show number of
+	// notes"): A414's folders and words are gone from the line, and the folder count that fed it with them (TOMBSTONE:
+	// exportFoldersTicked). The figure as `toLocaleString` writes it (`count`), the number itself (`n`) for the plural.
+	exportFiguresText(this: WordSmith, fileCount: number) {
+		return fileCount === 1 ? wsT('{count} note', { n: fileCount, count: fileCount.toLocaleString() })
+			: wsT('{count} notes', { n: fileCount, count: fileCount.toLocaleString() });
 	},
 
 	// "Tick all" until everything is, then "Untick all". One element,
@@ -2170,8 +2140,8 @@ export const exportMethods = {
 		return true;
 	},
 
-	exportPreviewInto(this: WordSmith, host: HTMLElement, sections: WsExportSection[], o: WsExportRun, fileCount: number, words: number, onExport: (() => unknown) & { label?: string } | null, headHost: HTMLElement | null,
-		folderCount: number, onRefresh: () => void) {
+	exportPreviewInto(this: WordSmith, host: HTMLElement, sections: WsExportSection[], o: WsExportRun, fileCount: number, onExport: (() => unknown) & { label?: string } | null, headHost: HTMLElement | null,
+		onRefresh: () => void) {
 		if (!host) return null;
 		// WHERE THE READER WAS, TAKEN NOW. The session's `flowScroll` is
 		// written on the reader's every scroll event — and a NEW frame fires
@@ -2203,7 +2173,7 @@ export const exportMethods = {
 			wsPlaceFigures(headHost, head);
 		}
 		head.createSpan({
-			text: this.exportFiguresText(fileCount, words, folderCount) });
+			text: this.exportFiguresText(fileCount) });
 		// A MARKDOWN EXPORT PREVIEWS AS MARKDOWN. Showing a typeset page for
 		// a .md file is a preview of a document that will not exist: none
 		// of the paper, the margins or the running header survives into
@@ -2218,7 +2188,10 @@ export const exportMethods = {
 		// standards mode; the page itself never goes through srcdoc — it would
 		// have to be HTML-escaped whole, and a manuscript is full of quotes and
 		// ampersands, one mistake there turning a page of prose into markup.
-		const frame = body.createEl('iframe',
+		// IN A BOX OF ITS OWN (#72): the box takes the column's room and clips; the frame fills it, and below the zoom floor
+		// is laid out larger and shrunk to it (`apply`). Sizes are the box's: the frame's may be the shrunk one's
+		const paperBox = body.createDiv({ cls: 'ws-export-paperbox' + (asText ? ' is-plain' : '') });
+		const frame = paperBox.createEl('iframe',
 			{ cls: 'ws-export-paper' + (asText ? ' is-plain' : ''), attr: { srcdoc: WS_FRAME_SHELL } });
 		const html = asText
 			? this.exportPreviewMarkdown(this.exportToMarkdown(sections, o))
@@ -2249,10 +2222,10 @@ export const exportMethods = {
 		const paperHighPx = () => (wsPaperOf(o).h / 1440) * 96;
 		// THE READER'S FIT (A804): the page's width and its ground's air (36px a side) across the frame's width, a scrollbar's
 		// worth spared
-		const flowFitZoom = () => Math.max(0.2, Math.min(2.5, ((frame.clientWidth || 640) - 72 - 16) / paperPx()));
+		const flowFitZoom = () => Math.max(0.2, Math.min(2.5, ((paperBox.clientWidth || 640) - 72 - 16) / paperPx()));
 		const fitZoom = () => {
-			const w = frame.clientWidth || 640;
-			const h = frame.clientHeight || 0;
+			const w = paperBox.clientWidth || 640;
+			const h = paperBox.clientHeight || 0;
 			const byW = (w - 28) / paperPx();
 			// A frame with no measured height yet must not fit to nothing.
 			const byH = h > 40 ? (h - 24) / paperHighPx() : byW;
@@ -2350,13 +2323,18 @@ export const exportMethods = {
 				const doc = frame.contentDocument
 					|| (frame.contentWindow && frame.contentWindow.document);
 				if (!doc || !doc.documentElement) return;
-				// `zoom` rather than a transform: a transform scales the
-				// painted result and leaves the scrollable area the size it
-				// was, so the bottom of a long manuscript becomes
-				// unreachable. Zoom relays out, which is what a page wants.
 				// (the reader at the page's width, fitted to the window's while no zoom is chosen, A804)
 				if (pv.flow && pv.flowFit) pv.flowZoom = flowFitZoom();
-				doc.documentElement.style.zoom = String(pv.flow ? pv.flowZoom : pv.zoom);
+				// THE FRAME SCALED, THE PAGE NEVER ZOOMED (#72): laid out 1/zoom of its box and scaled to fill it, so the page
+				// inside is set at 100%, as the file is, at every zoom. A CSS zoom on the page relaid its text: 58 pages at 110%
+				// to 150% where the book has 61, and a phone draws no text under 8px, so its fit, a fifth, ran twice as long.
+				// (TOMBSTONE: "`zoom` rather than a transform", for a transform on the DOCUMENT, which leaves its scrollable
+				// area the size it was; this one is on the frame, which scrolls inside itself, so the book's foot is reached.
+				// And WS_PREVIEW_ZOOM_FLOOR, a zoom down to three quarters and a shrink below: the half that zoomed is gone.)
+				const z = pv.flow ? pv.flowZoom : pv.zoom;
+				doc.documentElement.style.removeProperty('zoom');
+				if (Math.abs(z - 1) > 0.001) frame.setCssStyles({ width: (100 / z) + '%', height: (100 / z) + '%', transform: 'scale(' + z + ')' });
+				else frame.setCssStyles({ width: '', height: '', transform: '' });
 			} catch (_) { wsCatch('exportPreviewInto / apply: const doc = frame.contentDocument', _); }
 			if (pv.pct) pv.pct.setText(Math.round((pv.flow ? pv.flowZoom : pv.zoom) * 100) + '%');
 			if (pv.fitSay) pv.fitSay();
@@ -2396,17 +2374,17 @@ export const exportMethods = {
 				let box = '';
 				const refit = new fw.ResizeObserver(() => {
 					if (!frame.isConnected) { refit.disconnect(); return; }
-					const now = frame.clientWidth + 'x' + frame.clientHeight;
+					const now = paperBox.clientWidth + 'x' + paperBox.clientHeight;
 					if (now === box) return;
 					box = now;
-					if (!(frame.clientWidth > 0)) return;
+					if (!(paperBox.clientWidth > 0)) return;
 					// (the reader follows the window's width the same way, A804)
 					if (pv.flow) { if (pv.flowFit) apply(); return; }
 					if (this._exportZoom != null || !pv.zoom) return;
 					const z = fitZoom();
 					if (Math.abs(z - pv.zoom) > 0.005) setZoom(z, false);
 				});
-				refit.observe(frame);
+				refit.observe(paperBox);
 			}
 		} catch (_) { wsCatch('exportPreviewInto: the fit follows the frame', _); }
 
@@ -2793,7 +2771,26 @@ export const exportMethods = {
 		// markup on screen. The click wiring goes on the frame's document,
 		// once — the document persists across paints (the swap below keeps
 		// it), so the wiring's latch lives on it.
-		const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, frame, html, pv, restoreArm, syncPages, topTo });
+		// THE NOTES AT THE FOOT OF THEIR PAGE (#72), placed once the paints below have settled: each swaps the page in, and
+		// placing is the costly part (0.64 s for 375 pages and 520 notes, measured in Edge). The pooled copies were made
+		// from the page before the notes moved: they go first (a copy is a whole book every layout would pay for), and
+		// the pool fills again from the page as it now stands; the reader's seams and the contents' pages are read again
+		let footTimer = 0;
+		const footSoon = () => {
+			if (footTimer) window.clearTimeout(footTimer);
+			footTimer = window.setTimeout(() => {
+				footTimer = 0;
+				const doc = docOf();
+				if (!doc || !doc.documentElement || !doc.documentElement.hasAttribute('data-ws-fnfoot')) return;
+				for (const c of pool.slice(1)) c.remove();
+				pool = [];
+				try { wsFootNotes(doc); } catch (_) { wsCatch('exportPreviewInto / footSoon: wsFootNotes(doc)', _); }
+				pageMap();
+				syncPages();
+				if (pv.flow) { try { wsPageStarts(doc); wsTocPagesFill(doc); } catch (_) { wsCatch('exportPreviewInto / footSoon: the reader', _); } }
+			}, 40);
+		};
+		const paint = () => wsPreviewPaint(this, { apply, applyDark, armScroll, asText, docOf, fileStep, fitZoom, flowApply, flowSet, footSoon, frame, html, pv, restoreArm, syncPages, topTo });
 		// ── WRITTEN BEFORE THE EMPTY FRAME CAN BE PAINTED ───────────────
 		//
 		// An option change rebuilds the pane, so a NEW iframe is created, and
@@ -2832,7 +2829,7 @@ export const exportMethods = {
 		// A MARKDOWN PREVIEW HAS NO PAGE TO FIT, so it has no zoom: the
 		// controls would be there to shrink a column of plain text, which
 		// is a thing a reader can do to no purpose.
-		wsPreviewFlipper(this, { apply, applyDark, asText, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage });
+		wsPreviewFlipper(this, { apply, applyDark, asText, docOf, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage });
 		// The button runs the export the pane is already set up for, in the
 		// format its own drop-down is showing.
 		//
@@ -2909,7 +2906,7 @@ export const exportMethods = {
 			.filter((e) => !!e.label);
 		return wsBuildEpub(this.exportToHtml(sections, o, false), {
 			title: o.title || 'Untitled', author: o.author || '', lang: this.settings.language || 'en',
-			nav, indent: o.indent !== false, paraBlank: !!o.paraBlank, tocTitle: wsTocTitle(o),
+			nav, indent: o.indent !== false, paraBlank: !!(o.paraBlank || o.keepLineBreaks), tocTitle: wsTocTitle(o), centerHeads: o.centerHeads !== false,
 		});
 	},
 
@@ -2939,7 +2936,7 @@ export const exportMethods = {
 		if (o.toc && sections.length > 1) {
 			parts.push('<section class="page"><h2>' + esc(wsTocTitle(o)) + '</h2><ol class="toc">');
 			// EACH ENTRY'S PAGE (A751), where there are pages: measured before a file is written, filled in by the preview
-			const tocPg = o.tocPages !== false && wsFormatHasPages(o.format || 'docx');
+			const tocPg = wsFormatHasPages(o.format || 'docx');
 			const pageOf = o.tocPageOf || {};
 			// INDENTED BY THE LEVEL THE ENTRY WILL CARRY. A CLASS, not an
 			// inline style: this markup is also what the print path lays out,
@@ -3119,10 +3116,14 @@ export const exportMethods = {
 		// Air between paragraphs when there is no indent to separate them —
 		// see wsStylesXml. Half a line, matching the .docx's 120 twips.
 		// (a whole line when asked, A756: `lh`, the paragraph's own line height)
-		const pgap = o.paraBlank ? '1lh' : o.indent === false ? '0.5em' : '0';
+		// (…and the note's blank lines shown as blank lines with Keep line breaks, the writer: "show the blank lines in preview
+		// and expanded view too")
+		const pgap = (o.paraBlank || o.keepLineBreaks) ? '1lh' : o.indent === false ? '0.5em' : '0';
 		// (THE READER'S SEAMS read the running header, where the number goes and whether a title page leads, A804: on the
 		// preview's root, never in a file)
-		return '<!doctype html><html' + (forScreen ? ' data-ws-head="' + (o.runningHeader ? esc(o.runningHeader).replace(/"/g, '&quot;') : '') + '" data-ws-pn="' + pnAt + '"' + (o.titlePage ? ' data-ws-tp=""' : '') : '')
+		return '<!doctype html><html' + (forScreen ? ' data-ws-head="' + (o.runningHeader ? esc(o.runningHeader).replace(/"/g, '&quot;') : '') + '" data-ws-pn="' + pnAt + '"' + (o.titlePage ? ' data-ws-tp=""' : '')
+			// A WORD FILE'S NOTES AT THE FOOT OF THEIR PAGE (#72): `wsFootNotes` moves them there once the page is laid out
+			+ ((o.format || 'docx') === 'docx' && o.footnotePlace !== 'end' && notesOut.length ? ' data-ws-fnfoot=""' : '') : '')
 			+ '><head><meta charset="utf-8">'
 			+ '<title>' + esc(o.title || 'Manuscript') + '</title><style>'
 			// ── THE MARGIN BOX IS THE PRINTED HEADER ────────────────────
@@ -3241,7 +3242,20 @@ export const exportMethods = {
 				//
 				// `--sheet-gap` IS DECLARED HERE AND READ BY THE PANE, so the air
 				// between sheets has one writer.
-				? ':root { --sheet-gap: 18px; }'
+				// (and `--page-ch`, the text's height on a page, which the reader's pages are made up to: `wsSeamFill`)
+				? ':root { --sheet-gap: 18px; --page-ch: ' + ch + '; }'
+					// THE NOTES AT THE FOOT OF THEIR PAGE (#72) as Word's FootnoteText sets them: single spaced (this sheet's
+					// single), two points smaller, the number raised, under Word's short rule; a page's block closing its
+					// page. A paragraph cut for them goes on unindented, its first half's last line set full
+					+ '.fnfoot { break-after: column; text-indent: 0; font-size: ' + (Math.max(8, pt - 2) / pt).toFixed(4) + 'em; line-height: 1.45; }'
+					+ '.fnfoot::before { content: ""; display: block; width: 2in; max-width: 33%; border-top: 1px solid currentColor; opacity: 0.6; margin: 0 0 0.35em; }'
+					+ '.fnfoot p.fn { margin: 0; text-indent: 0; }'
+					// (and a paragraph cut where a page begins, for the reader, `wsPageCut`: the same, and joined again)
+					+ 'p.fncont, p.pgcont { text-indent: 0; } p.fnsplit, p.pgsplit { margin-bottom: 0;' + (o.justify ? ' text-align-last: justify;' : '') + ' }'
+					// (the placing's own: a box of the column's width to weigh a block in, a sheet out of sight to lay pages in)
+					+ '.fnmeasure { position: absolute; left: 0; top: 0; visibility: hidden; width: ' + cw + '; }'
+					+ '.sheet[data-ws-scratch] { visibility: hidden; left: -30000px; } .flow.is-placing { display: none; }'
+					+ '.seam-probe { position: absolute; visibility: hidden; width: 1px; height: var(--page-ch); }'
 					+ '.stack { position: relative; width: ' + pw + '; margin: 0 auto; }'
 					+ '.sheet { position: absolute; left: 0; top: 0;'
 					+ ' box-sizing: border-box;'
@@ -3307,7 +3321,7 @@ export const exportMethods = {
 					// margins and a shadow, on a darker ground, as page mode draws a note; a
 					// narrow pane narrows it rather than scrolling sideways. The paper keeps
 					// its colour (`background: none` once put #111 text on the frame's dark).
-					+ 'html.is-flow { background: #6b6e72; } html.is-dark.is-flow { background: #121315; }'
+					+ 'html.is-flow { --ground: #6b6e72; background: var(--ground); } html.is-dark.is-flow { --ground: #121315; }'
 					// THE PAGE'S WIDTH KEPT (A804, the writer: "the expanded view doesn't care about what page I set it just wraps
 					// the text to the zoom size"): no cap at the window, so a line holds what the page's line holds at every zoom;
 					// the reader opens fitted to the window's width, and a zoom past that scrolls sideways
@@ -3322,7 +3336,9 @@ export const exportMethods = {
 					// holds what a printed line holds
 					+ 'html.is-flow .flow { height: auto; columns: auto;'
 					+ ' overflow: visible; max-width: none; margin: 0;'
-					+ ' padding: ' + pm + '; }'
+					// (the sides only: a page's top and bottom margins are its seams, so each page is the paper's height)
+					+ ' padding: 0 ' + pm + '; }'
+
 					// …AND WHERE EACH PRINTED PAGE BEGINS: the page's seam (A804, below; a faint rule and the bare number
 					// until then), on the block `wsPageStarts` stamped
 					// ONE RULE, NOT TWO (A618): a file that opens a printed page wears the page's
@@ -3333,12 +3349,26 @@ export const exportMethods = {
 					// (at the foot, left, centre or right), a dashed cut, and the next page's running header with its number as
 					// the file heads it; none on a title page. `wsPageStarts` puts the seams in; they show in the reader alone
 					+ '.seam { display: none; }'
-					+ 'html.is-flow .seam { display: block; margin: 1.2em -' + pm + ' 1em; text-indent: 0; font-size: 0.9em; line-height: 1.3; }'
-					+ 'html.is-flow .seam-foot, html.is-flow .seam-head { display: grid; grid-template-columns: 1fr auto 1fr; padding: 0 ' + pm + '; min-height: 1.3em; }'
-					+ 'html.is-flow .seam .is-left { grid-column: 1; justify-self: start; }'
-					+ 'html.is-flow .seam .is-center { grid-column: 2; }'
-					+ 'html.is-flow .seam .is-right, html.is-flow .seam-hdr { grid-column: 3; justify-self: end; }'
-					+ 'html.is-flow .seam-cut { border-top: 1px dashed rgba(127,127,127,0.55); margin: 0.9em 0; }'
+					// A SHEET A PAGE (the writer: "for expanded view add those spaces between pages. So the preview and expanded
+					// look the same"): the seam is the page's bottom margin with its number, the paged view's air between two
+					// sheets, and the next page's top margin with its header, each where the sheet in pages draws it (half a
+					// margin in); the fill before it makes the page the paper's height (`wsSeamFill`). TOMBSTONE: the dashed cut
+					// between two rows of text (A804), a page break drawn on one long sheet.
+					+ 'html.is-flow .seam { display: block; margin: 0 -' + pm + '; text-indent: 0; font-size: 0.9em; line-height: 1.3; }'
+					+ 'html.is-flow .seam-foot, html.is-flow .seam-head { position: relative; height: ' + pm + '; }'
+					+ 'html.is-flow .seam-foot > span { position: absolute; bottom: calc(' + pm + ' / 2); }'
+					+ 'html.is-flow .seam-head > span { position: absolute; top: calc(' + pm + ' / 2); }'
+					+ 'html.is-flow .seam .is-left { left: ' + pm + '; }'
+					+ 'html.is-flow .seam .is-center { left: 0; right: 0; text-align: center; }'
+					+ 'html.is-flow .seam .is-right, html.is-flow .seam-hdr { right: ' + pm + '; }'
+					// the air: the ground, wider than the sheet so the sheet's shadow does not run through it, its edges shaded
+					// the air: the ground, THE PAPER'S WIDTH EXACTLY, its edges shaded. Wider (48px past the paper each side, to hide
+					// the sheet's side shadow) it read as a grey bar, then, unshaded, as two light notches in the shadow beside the
+					// paper (the writer's two circled shots); two real sheets cast that shadow there too
+					+ 'html.is-flow .seam-cut { height: var(--sheet-gap); background: var(--ground);'
+					+ ' box-shadow: inset 0 7px 8px -7px rgba(0,0,0,0.45), inset 0 -7px 8px -7px rgba(0,0,0,0.45); }'
+					// where the engine broke inside a file, the next block's top margin goes, as the page drops it
+					+ 'html.is-flow .seam.is-soft + * { margin-top: 0; }'
 					// A SECTION NO LONGER OPENS A PAGE, because there are none.
 					// `break-before` has to go here or the engine keeps a column break in
 					// a document with one column and drops everything after it.
@@ -3349,14 +3379,13 @@ export const exportMethods = {
 					// every file runs into the next with one blank line between them. AIR
 					// FIRST, because that is what a book uses — a chapter opening is
 					// mostly white space and a reader knows it without being told.
-					+ 'html.is-flow section + section { margin-top: 4em; }'
+					// TOMBSTONE (the writer: "So the preview and expanded look the same"): `section + section { margin-top: 4em }`
+					// and a two-pixel dashed line above each file. The reader has pages now, and a file that opens one opens it
+					// as in the paged view; one that runs on runs on there too, after its divider if the export has one.
 					// ── AND A DASHED LINE BETWEEN FILES ──────────────
 					//
 					// `currentColor` at low strength, so the mark belongs to the page and
 					// needs no second declaration for the other theme.
-					+ 'html.is-flow section + section::before { content: "";'
-					+ ' display: block; border-top: 2px dashed currentColor;'
-					+ ' opacity: 0.28; margin: 0 0 3.2em; }'
 					// THE FIRST LINE AFTER A BREAK IS NOT INDENTED, which is the
 					// same typographic rule `p.first` already states for the top of
 					// a page — it just has nothing to key on here, because in flow
@@ -3366,7 +3395,10 @@ export const exportMethods = {
 					// is too short"). It was `height: auto` and a little padding, so the reader did not open on a
 					// page of nothing above the first line; read as one text, the first chapter then started half a page
 					// down the title's sheet. The paged view's content height, its three lines centred in it as there.
-					+ 'html.is-flow .tp { height: ' + ch + '; padding: 0; }'
+					// (#72: the centring moves onto its inner block, a page tall, so the page's top margin, the seam that heads
+					// it, stands above the page rather than centred with its three lines)
+					+ 'html.is-flow .tp { height: auto; padding: 0; }'
+					+ 'html.is-flow .tp > .tpinner { height: ' + ch + '; display: flex; flex-direction: column; justify-content: center; }'
 					// THE PRINTED DOCUMENT IS NOT THE SCREEN ONE: a drop shadow is a
 					// compositing effect, and asked to print one Chromium rasterises the
 					// page it cannot describe in vector terms — a PDF that is a picture of
@@ -3451,7 +3483,15 @@ export const exportMethods = {
 			+ 'p.li.l1 { margin-left: 0.5in; } p.li.l2 { margin-left: 0.75in; } p.li.l3 { margin-left: 1in; }'
 			+ 'pre.code, pre.math { font-family: ui-monospace, Menlo, Consolas, monospace;'
 			+ ' font-size: 0.85em; line-height: 1.35; white-space: pre-wrap; margin: 0.6em 0; }'
-			+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; }'
+			// A TABLE AS WORD SETS IT (the writer: "i think we need to resize tables to fit"): the text's width, its columns equal
+			// and fixed, a cell's words wrapped inside it (a long one broken), single spaced (Word's table cell); a table wider
+			// than the page ran into the next page's column
+			+ 'table.tbl { border-collapse: collapse; margin: 0.8em auto; width: 100%; table-layout: fixed; }'
+			// (a table cut where a page begins in it, for the reader: the two halves meet with no air, `wsTableSplit`)
+			+ 'table.tbl.tbsplit { margin-bottom: 0; } table.tbl.tbcont { margin-top: 0; }'
+			// A ROW NEVER SPLIT ACROSS TWO PAGES (Word's `cantSplit` on each, the same): a row broken by a page, part here
+			// and part there, could not be cut between rows in the reader, which held it whole and ran its page long
+			+ 'table.tbl tr { break-inside: avoid; page-break-inside: avoid; }'
 			// A PICTURE (A568): centered on the column, its own size, never wider
 			// than the column nor taller than 85% of the page (so its caption fits
 			// under it), and never split across a page or a column.
@@ -3460,10 +3500,16 @@ export const exportMethods = {
 			+ 'figure.fig figcaption { font-style: italic; font-size: 0.9em; margin-top: 0.3em; }'
 			// A NOTE: its number raised in the text, the notes at the back a list.
 			+ 'sup.fnref a { color: inherit; text-decoration: none; }'
+			// A RAISED MARK TAKES NO HEIGHT FROM ITS LINE (#72): a line holding a note's number stood a pixel or two taller
+			// than its neighbours, by an amount that changed with the zoom, so the preview's pages broke differently at each
+			// size; the lines are even now, as Word sets them
+			+ 'sup, sub { line-height: 0; }'
 			+ 'ol.notes { padding-left: 1.6em; } ol.notes li { text-indent: 0; margin: 0 0 0.4em; font-size: 0.92em; }'
-			+ 'table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; }'
+			+ 'table.tbl th, table.tbl td { border: 1px solid #888; padding: 2px 8px; text-indent: 0; line-height: 1.45; vertical-align: top; overflow-wrap: anywhere; }'
 			+ 'html.is-dark table.tbl th, html.is-dark table.tbl td { border-color: #55565a; }'
-			+ 'h1, h2, h3 { text-align: center; page-break-after: avoid; font-weight: 700; }'
+			// CENTERED unless the writer turned Center headings off (#76: "the headings insist on being centered"), then at
+			// the line's start whatever the text's justification; the title page keeps its own centering below
+			+ 'h1, h2, h3 { text-align: ' + (o.centerHeads === false ? 'start' : 'center') + '; page-break-after: avoid; font-weight: 700; }'
 			// THE SAME SIZES THE FILE USES, from the same helper — see
 			// `wsHeadSizeEm`. These were 1.5em / 1.15em / 1em, which matched the
 			// .docx at exactly one level out of three.
@@ -3519,7 +3565,7 @@ export const exportMethods = {
 			+ ' .folderhead.is-tight + h3, .folderhead.is-tight + h4,'
 			+ ' .folderhead.is-tight + h5, .folderhead.is-tight + h6'
 			+ ' { margin-top: 0; }'
-			+ '.folderhead { margin: 0 0 1em; text-align: center;'
+			+ '.folderhead { margin: 0 0 1em; text-align: ' + (o.centerHeads === false ? 'start' : 'center') + ';'
 			+ ' font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;'
 			+ ' font-size: ' + wsHeadSizeEm(1).toFixed(4) + 'em;'
 			+ ' page-break-after: avoid; }'
@@ -3570,7 +3616,7 @@ export const exportMethods = {
 	// frame out of sight and read the way the preview reads them; none where the contents carries none. The frame
 	// is filled as the preview's is, its root swapped, never written.
 	async exportTocPagesFor(this: WordSmith, sections: WsExportSection[], o: WsExportRun): Promise<Record<string, number>> {
-		if (!o.toc || o.tocPages === false || sections.length < 2 || !wsFormatHasPages(o.format || 'docx')) return {};
+		if (!o.toc || sections.length < 2 || !wsFormatHasPages(o.format || 'docx')) return {};
 		const frame = document.body.createEl('iframe', { cls: 'ws-export-measure', attr: { srcdoc: WS_FRAME_SHELL, 'aria-hidden': 'true', tabindex: '-1' } });
 		try {
 			await new Promise<void>((done) => { frame.addEventListener('load', () => done(), { once: true }); window.setTimeout(done, 1500); });
@@ -3581,6 +3627,8 @@ export const exportMethods = {
 			if (doc.documentElement) doc.replaceChild(root, doc.documentElement); else doc.appendChild(root);
 			await new Promise<void>((done) => { window.requestAnimationFrame(() => window.requestAnimationFrame(() => done())); window.setTimeout(done, 400); });
 			try { await doc.fonts.ready; } catch (_) { wsCatch('exportTocPagesFor: fonts', _); }
+			// the notes at the foot of their page first, as Word sets them, or every page after the first note is counted short (#72)
+			if (doc.documentElement.hasAttribute('data-ws-fnfoot')) wsFootNotes(doc);
 			return wsTocPagesMeasure(doc);
 		} catch (_) { wsCatch('exportTocPagesFor', _); return {}; }
 		finally { frame.remove(); }
@@ -3877,13 +3925,9 @@ export const exportMethods = {
 			// window open on another format must not have its section hidden by
 			// this one.
 			const scope = into.closest('.ws-uni-body') || into.ownerDocument;
-			// EVERYTHING THAT NEEDS PAGES, in one sweep. The class is stamped
-			// where each control is built; the format table above says whether
-			// the target has pages at all.
-			for (const el of Array.from<HTMLElement>(
-				scope.querySelectorAll('.ws-export-pages'))) {
-				el.toggleClass('is-gone', !f.pages);
-			}
+			// EVERYTHING THAT NEEDS PAGES, in one sweep (`wsExportSweep`, which the options' redraw runs too). The class
+			// is stamped where each control is built.
+			wsExportSweep(scope, f.id);
 			// …and each list's button says again what is on: no running header where there are no pages (A625)
 			for (const el of Array.from<HTMLElement>(scope.querySelectorAll('.ws-export-picklist'))) {
 				const say = wsPickSay.get(el);
@@ -4036,7 +4080,7 @@ export const exportMethods = {
 	// arguments because a second positional one added later is how a
 	// shared builder starts growing callers that pass them in the wrong
 	// order.
-	buildExportOptions(this: WordSmith, into: HTMLElement, ctx: { scope: () => string; compileList?: () => TFile[]; total?: () => number; folders?: () => number }) {
+	buildExportOptions(this: WordSmith, into: HTMLElement, ctx: { scope: () => string; compileList?: () => TFile[]; total?: () => number }) {
 		// Same reason as the act line: a panel that draws switches for options
 		// that have no value draws them all off.
 		this.exportOptionDefaults();
@@ -4133,7 +4177,7 @@ export const exportMethods = {
 						const actRow0 = into.querySelector('.ws-export-top');
 						if (actRow0) {
 							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
-							head0.createSpan({ text: this.exportFiguresText(0, 0, 0) });
+							head0.createSpan({ text: this.exportFiguresText(0) });
 							wsPlaceFigures(actRow0, head0);
 							this.exportTickAllSay(actRow0, 0,
 								typeof ctx.total === 'function' ? ctx.total() : 0);
@@ -4165,8 +4209,7 @@ export const exportMethods = {
 							const stale = actRow0.querySelector('.ws-export-prevhead');
 							if (stale) stale.remove();
 							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
-							head0.createSpan({ text: this.exportFiguresText(picked.length, null,
-								typeof ctx.folders === 'function' ? ctx.folders() : 0) });
+							head0.createSpan({ text: this.exportFiguresText(picked.length) });
 							wsPlaceFigures(actRow0, head0);
 							this.exportTickAllSay(actRow0, picked.length,
 								typeof ctx.total === 'function' ? ctx.total() : 0);
@@ -4223,9 +4266,7 @@ export const exportMethods = {
 						const had = row0 && row0.querySelector('.ws-export-prevhead');
 						if (row0 && had) {
 							had.empty();
-							had.createSpan({ text: this.exportFiguresText(
-								picked.length, words,
-								typeof ctx.folders === 'function' ? ctx.folders() : 0) });
+							had.createSpan({ text: this.exportFiguresText(picked.length) });
 							this.exportTickAllSay(row0, picked.length,
 								typeof ctx.total === 'function' ? ctx.total() : 0);
 						}
@@ -4250,9 +4291,8 @@ export const exportMethods = {
 				this.exportTickAllSay(actRow, picked.length,
 					typeof ctx.total === 'function' ? ctx.total() : 0);
 				prevHandle = this.exportPreviewInto(prevCol, secs,
-					this.exportOptsFor(ctx.scope(), o, words), picked.length, words,
+					this.exportOptsFor(ctx.scope(), o, words), picked.length,
 					null, actRow || null,
-					typeof ctx.folders === 'function' ? ctx.folders() : 0,
 					// THE FOOT'S REFRESH: the same recompile, asked for by hand.
 					// `refreshPreview` excuses the foot's clicks, so this is the one way a
 					// press there reaches it.
@@ -4261,6 +4301,12 @@ export const exportMethods = {
 				try { if (split._wsFit) split._wsFit(); } catch (_) { wsCatch('buildExportOptions / refreshPreview: split._wsFit();', _); }
 			}, 220);
 		};
+		// (…and a change in Settings › Export redraws it, while this pane is on the page: `exportOptsChanged`)
+		const fromSettings = () => {
+			if (!into.isConnected) { if (this._exportRefreshers) this._exportRefreshers.delete(fromSettings); return; }
+			refreshPreview();
+		};
+		(this._exportRefreshers || (this._exportRefreshers = new Set())).add(fromSettings);
 		into.addEventListener('change', refreshPreview);
 		into.addEventListener('click', refreshPreview);
 		into.addEventListener('input', refreshPreview);
@@ -4483,9 +4529,10 @@ export const exportMethods = {
 			const ti = textOpt(who, 'titleText', wsT('Title'),
 				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || wsT('Untitled'), undefined, true);
 			ti.addClass('ws-export-wideinput');
-			// DECIDED ONCE (A574): your name, curly quotes and the word count's rounding
-			// moved to Settings → Export; said here, where a writer looks for them
-			grp.createDiv({ cls: 'ws-export-moved', text: wsT('Your name, curly quotes and the word count’s rounding are set once, in Settings → Export.') });
+			// DECIDED ONCE (A574, and the writer's "Six plus paragraph look"): your name, the header, the page numbers, the
+			// headings and the paragraphs in Settings → Export; ONE SHORT LINE under the title says so (the writer: "Remove that
+			// comment under title. Say more option in export settings something like that")
+			grp.createDiv({ cls: 'ws-export-moved', text: wsT('More options in Settings → Export.') });
 		}
 
 		// THE PANEL EVERYTHING BELOW DRAWS INTO. `optGroup` routes through it —
@@ -4518,6 +4565,8 @@ export const exportMethods = {
 		// items, because what these three share is not what they ARE but
 		// that the export drops them.
 		wsExportOptsAlso({ optGroup, pickList });
+		// what the format hides, hidden again in the rows just built
+		wsExportSweep(rightCol, o.format || 'docx');
 
 		// ("Save into" is in the footer,
 		// beside "Export as": where a file lands is part of the ACT of
@@ -4715,6 +4764,14 @@ export const exportMethods = {
 	//
 	// It is desktop only, and the format is absent on a phone rather than
 	// present and failing.
+	// A CHANGE IN SETTINGS › EXPORT REACHES AN OPEN EXPORT TAB (eight options moved there on the writer's word): each
+	// pane hands its preview's refresh in (`buildExportOptions`), and one gone from the page drops itself out
+	exportOptsChanged(this: WordSmith) {
+		const set = this._exportRefreshers;
+		if (!set) return;
+		for (const fn of Array.from(set)) { try { fn(); } catch (_) { wsCatch('exportOptsChanged', _); } }
+	},
+
 	exportPdfOptions(this: WordSmith, o: WsExportRun) {
 		const paper = wsPaperOf(o);
 		const m = wsPaperMicrons(paper);
@@ -4821,10 +4878,16 @@ export const exportMethods = {
 			// document for the rest of the session.
 			// A big book takes longer: twenty seconds, and two more a megabyte
 			// (12 MB measured at 15 s).
-			const bail = window.setTimeout(() => {
+			// THE LOAD'S LIMIT, NOT THE PRINT'S (the writer, 2026-10-15: "the export ended in an error"). It ran on through
+			// the print, and a print takes as long as its book, not as long as a load: the showcase's 40 notes, 444 pages
+			// with 24,000 Chinese, Japanese and Korean letters in them, printed in 22.8 s of a 23 s limit (17.5 s headless,
+			// 2.9 s with those letters taken out: the fonts embedded for them). Once printing starts the engine answers by
+			// itself; the guard it is given then is only for one that never does.
+			const late = () => {
 				done();
 				reject(new Error(wsT('the print engine did not answer in time')));
-			}, 20000 + Math.round(html.length / 524288) * 1000);
+			};
+			let bail = window.setTimeout(late, 20000 + Math.round(html.length / 524288) * 1000);
 			let written = false;
 			view.addEventListener('did-fail-load', () => {
 				window.clearTimeout(bail); done();
@@ -4848,6 +4911,9 @@ export const exportMethods = {
 					// it costs nothing next to a compile.
 					await new Promise((r) => window.setTimeout(r, 500));
 					if (typeof view.printToPDF !== 'function') throw new Error(wsT('the print engine has no {call}', { call: 'printToPDF' }));
+					// (printing: ten minutes for a print that never answers, the load's limit done with)
+					window.clearTimeout(bail);
+					bail = window.setTimeout(late, 600000);
 					const buf = await view.printToPDF(this.exportPdfOptions(o));
 					window.clearTimeout(bail); done();
 					if (!buf || !buf.length) {
