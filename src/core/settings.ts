@@ -60,8 +60,8 @@ export interface WsExportOpts {
 	/** the first line's indent, a size with its unit, '0.5in' or '1.25cm' (`WS_INDENT_SIZES`; half an inch by default) */
 	indentSize?: string;
 	// words
-	author?: string; titleText?: string; subtitleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
-	format?: string; footnotePlace?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
+	author?: string; titleText?: string; subtitleText?: string; outFolder?: string; font?: string; divider?: string;
+	format?: string; footnotePlace?: string; joinMode?: string; lineSpacing?: string; paperId?: string;
 	/** A751: the running header's own words, where the page number goes, the contents' title */
 	headerText?: string; pageNumberAt?: string; tocTitle?: string;
 	/** #81: the header on the left (off, the right); your contact lines, for the title page's corner and the header's tokens */
@@ -71,7 +71,6 @@ export interface WsExportOpts {
 	// numbers
 	pt?: number;
 	/** the last export, remembered so the panel can offer it again */
-	lastRun?: { scope: string; format: string; into: string; files: number; name: string; at: number };
 }
 // the keys of T whose value is a V: an optional key counts, a retired one
 // (`?: never`, which reads as `undefined` alone) does not
@@ -81,7 +80,9 @@ type KeysOf<T, V> = { [K in keyof T]-?: [Exclude<T[K], undefined>] extends [neve
 export type WsFileLike = { path: string; children?: TAbstractFile[] };
 // What the Organizer hands a row's menu: how to say a result, reveal the row,
 // report on a note, rename one (`orgMenuCtx`).
-export interface WsOrgMenuCtx { said?: (msg: string, bad: boolean) => void; reveal?: () => void; report?: (item: TAbstractFile) => void; opens?: boolean; rename?: (item: { path: string; kind: string }) => void }
+export interface WsOrgMenuCtx { said?: (msg: string, bad: boolean) => void; reveal?: () => void; report?: (item: TAbstractFile) => void; opens?: boolean;
+	/** a flag and a folder's colour set from a row's right-click, through the window's journal and its selection (A869) */
+	flag?: (path: string, id: string) => Promise<void>; colour?: (path: string, id: string) => Promise<void>; rename?: (item: { path: string; kind: string }) => void }
 // The ticks' door on a window: whether the tree wants them, a row's state, a toggle.
 export interface WsTicksDoor { wanted: () => boolean; state: (path: string | null, kind: string) => { mine: number; all: boolean; some: boolean } | null; toggle: (path: string | null, kind: string) => boolean }
 // An open Organizer window as the tree's right-click, the menus and the ticks

@@ -2,12 +2,12 @@
 // migrations, the scope, the ribbon. The areas' methods are in their own
 // modules (see the class top).
 
-import { Plugin, MarkdownView, TFile, Menu, Modal, Notice, setIcon, Platform, addIcon } from 'obsidian';
+import { Plugin, MarkdownView, TFile, Menu, Modal, Notice, setIcon, Platform, addIcon, editorInfoField } from 'obsidian';
 import { WsWelcomeModal } from './welcome';
 import type { Command, Events, WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 import type { Text as CmText } from '@codemirror/state';
-import type { WordSmithSettings, WsTextStats, WsBoolKey, WsNumberKey, WsStructRow, WsOrgDoor, WsRawSettings } from '../core/settings';
+import type { WordSmithSettings, WsTextStats, WsBoolKey, WsNumberKey, WsStructRow, WsOrgDoor, WsOrgMenuCtx, WsRawSettings } from '../core/settings';
 import { wsCompat } from '../core/obsidian-internals';
 import {
 	type WsOrgIndexMap,
@@ -171,6 +171,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._scopeGen        = 0;      // bumped on file/layout change; keys the per-editor scope cache
 	plugin._lastScopeInScope = null;  // last known scope state of the active file
 	plugin._lastPaneScope   = null;   // 'any:anyTw' of the panes on screen, as last stamped
+	plugin._lastNoteKeys    = null;   // what the open notes' own keys add up to, as last applied (A862)
 
 	// ── Scroll / resize handlers ──────────────────────────────────────────
 	plugin.currentScroller  = null;
@@ -494,6 +495,8 @@ export function wsWireWorkspace(plugin: WordSmith) {
 	plugin.onAppEvent(plugin.app.workspace, 'file-open', (file: TAbstractFile) => {
 		// THE NOTE YOU OPEN IS FOLLOWED by every open Organizer.
 		plugin.orgTreeFollow(file && file.path);
+		// …AND WEIGHED, if History has never seen it, so its first edit counts (A863)
+		void plugin.historyNoteOpened(file);
 		plugin.syncScope();
 		plugin.applyEditorFont();
 		plugin.applyVimMotionMaps();
@@ -819,8 +822,12 @@ export function wsWireVault(plugin: WordSmith) {
 		plugin.treeOrderAdopt(file);
 	});
 	plugin.onAppEvent(plugin.app.metadataCache, 'changed', (file: TAbstractFile) => {
+		// A NOTE'S OWN KEYS EDITED (A862): its editors and the colors follow at once, not at the next keystroke there
+		const keysWere = file && file.path && plugin._fmCache && Object.prototype.hasOwnProperty.call(plugin._fmCache, file.path)
+			? JSON.stringify(plugin._fmCache[file.path]) : null;
 		if (plugin._fmCache && file && file.path) delete plugin._fmCache[file.path];
 		plugin._scopeGen++;
+		if (keysWere !== null && JSON.stringify(plugin.getOverrides(file)) !== keysWere && plugin.settings.pluginEnabled) plugin.noteKeysApply();
 		// {backlinks} caches a walk of the whole vault against this.
 		plugin._linkGen = (plugin._linkGen || 0) + 1;
 		// The heading tokens read this cache, and it is the only thing on
@@ -954,6 +961,8 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	if (!plugin.settings.pluginEnabled) return;
 	const t0 = performance.now();
 	plugin.refresh();
+	// THE NOTE OPEN AT THE START weighed as one opened later is (A863)
+	try { void plugin.historyNoteOpened(plugin.app.workspace.getActiveFile()); } catch (_) { wsCatch('onLayoutReady: historyNoteOpened', _); }
 	// THE LANGUAGE PACKS, read after the start, never in it (A571)
 	void plugin.packsScan();
 	// THE CITATION LIBRARY, read after the start too (A572)
@@ -1066,6 +1075,7 @@ export default class WordSmith extends Plugin {
 	declare historyCapture: HistoryMethods["historyCapture"];
 	declare historyRecord: HistoryMethods["historyRecord"];
 	declare historyNoteCreated: HistoryMethods["historyNoteCreated"];
+	declare historyNoteOpened: HistoryMethods["historyNoteOpened"];
 	declare historyHold: HistoryMethods["historyHold"];
 	declare historyQueueSave: HistoryMethods["historyQueueSave"];
 	declare historyFlush: HistoryMethods["historyFlush"];
@@ -1139,7 +1149,6 @@ export default class WordSmith extends Plugin {
 	declare exportEpubCheck: ExportMethods["exportEpubCheck"];
 	declare exportNotice: ExportMethods["exportNotice"];
 	declare exportDefaultScope: ExportMethods["exportDefaultScope"];
-	declare exportRemember: ExportMethods["exportRemember"];
 	declare countTasks: ExportMethods["countTasks"];
 	declare tagsOf: ExportMethods["tagsOf"];
 	declare tagsWithSource: ExportMethods["tagsWithSource"];
@@ -1546,14 +1555,11 @@ export default class WordSmith extends Plugin {
 	declare analyzeFolder: ReportMethods["analyzeFolder"];
 	declare buildGoalLiquid: ReportMethods["buildGoalLiquid"];
 	declare _rgbToHsl: ReportMethods["_rgbToHsl"];
-	declare reportFinderMatches: ReportMethods["reportFinderMatches"];
 	declare scopeFinderMatches: ReportMethods["scopeFinderMatches"];
 	declare scopeNoteCount: ReportMethods["scopeNoteCount"];
 	declare openReportModal: ReportMethods["openReportModal"];
 	declare buildReportFigures: ReportMethods["buildReportFigures"];
 	declare buildReportWords: ReportMethods["buildReportWords"];
-	declare selectionFiles: ReportMethods["selectionFiles"];
-	declare analyzeSelection: ReportMethods["analyzeSelection"];
 	// organizer-window.ts
 	declare fileMenuReportRow: OrganizerWindowMethods["fileMenuReportRow"];
 	declare fileMenuFor: OrganizerWindowMethods["fileMenuFor"];
@@ -1923,6 +1929,8 @@ export default class WordSmith extends Plugin {
 	_lastMdView: MarkdownView;
 	_lastScopeInScope: boolean | null;
 	_lastPaneScope: string | null;
+	_lastNoteKeys: string | null;
+	_explorerSortWas: boolean | null = null;
 	_lastTypo: { from: number; to: number; caret: number; glyph: string; original: string; time: number } | null;
 	// your own clichés as one pattern, and the box and language it was made from (A856)
 	_customClicheKey = '';
@@ -1966,6 +1974,7 @@ export default class WordSmith extends Plugin {
 	_orgFieldEditor: (td: HTMLElement, p: string, k: string) => HTMLInputElement | null;
 	_orgFit: () => void;
 	_orgFlagSet: (row: { path: string }, id: string, cell: HTMLElement | null) => Promise<void>;
+	_orgMenuCtx: WsOrgMenuCtx | null = null;
 	_orgGripAt: (host: HTMLElement, x: number, y: number) => HTMLElement | null;
 	_orgGripDrag: () => number;
 	_orgHist: { run: (what: string) => void; canUndo: () => boolean; canRedo: () => boolean; undoLabel: () => string; redoLabel: () => string } | null;
@@ -2573,11 +2582,10 @@ export default class WordSmith extends Plugin {
 		// object Obsidian goes on using. A disabled plugin must not be
 		// putting rows in somebody's menus.
 		try { for (const v of this.explorerViews()) this.unpatchExplorerSortMenu(v); } catch (_) { wsCatch('onunload: for (const v of this.explorerViews()) this.unpatchExplorerSortMenu(v);', _); }
-		// …and the sort button gets its own icon back.
-		try {
-			if (this.settings) this.settings.treeOrder = false;
-			this.paintExplorerSortIcon();
-		} catch (_) { wsCatch('onunload: if (this.settings) this.settings.treeOrder = false;', _); }
+		// …and the sort button gets its own icon back. TOLD, NOT WRITTEN INTO THE SETTING (A873, the writer: "sometimes it
+		// switches back to file name sort"): this set `treeOrder` off for the painter to read, and the History flush below
+		// saved it, so every reload, update or quit with History on came back with the custom order off
+		try { this.paintExplorerSortIcon(false); } catch (_) { wsCatch('onunload: this.paintExplorerSortIcon(false);', _); }
 		// Anything counted since the last lazy save, before the timers that
 		// would have written it are torn down. Synchronous-looking on purpose:
 		// the promise is not awaited because onunload cannot await, but the
@@ -2895,6 +2903,13 @@ export default class WordSmith extends Plugin {
 			this.settings.treeOrder = true;
 			this.settings.treeOrderForcedOn = true;
 		}
+		// …AND ONCE MORE (A873, the writer: "sometimes it switches back to file name sort"): every unload set it off and the
+		// History flush saved that, at each reload, update and quit, so a vault's off is mostly the fault's and not a choice.
+		// On again once, the same idiom; the switch is a switch from then on
+		if (!this.settings.treeOrderBackOnce) {
+			this.settings.treeOrder = true;
+			this.settings.treeOrderBackOnce = true;
+		}
 		// ── THE FILE ICONS GO, ONCE ──────────────────────────────────────
 		//
 		// Both keys already exist in older vaults, so a default cannot reach
@@ -3152,6 +3167,9 @@ export default class WordSmith extends Plugin {
 			}
 			if (eo.numberStyle === undefined && eo.numberHeads) eo.numberStyle = 'decimal';
 			delete eo.chapterTitles; delete eo.numberHeads; delete eo.numberSuffix;
+			// THE LAST EXPORT, NEVER READ (A872, Fable's review): `lastRun` written on every export for a "Set up again" never
+			// built, `lastScope` and `listColumn` a default and a check nothing read; gone, and gone from a vault that has them
+			delete eo.lastRun; delete eo.lastScope; delete eo.listColumn;
 		}
 		// A VAULT WITH SETTINGS BEFORE THE WELCOME HAS SEEN WORD-SMITH (A743): only a new install meets it; asked of the
 		// FILE, so it decides once
@@ -3999,8 +4017,58 @@ export default class WordSmith extends Plugin {
 	}
 
 	// And for whichever note a given editor is showing.
+	// (A862, Fable's review: "ws-syntax, ws-checks, ws-typography, ws-hemingway and ws-typewriter are documented and do
+	// nothing": the editors' builders read the switches and never this. They ask it now, on every keystroke)
 	optForView<K extends keyof WordSmithSettings>(cmView: EditorView & { cm?: WsCm5Facade }, key: K) {
-		return this.optFor(this.getFileForEditorView(cmView), key);
+		return this.optFor(this.fileOfEditor(cmView), key);
+	}
+
+	// THE NOTE AN EDITOR SHOWS (A862): Obsidian's own field in the editor's state first. It is there from the editor's
+	// first build, when the pane does not hold the editor yet (CodeMirror builds the plugins inside the editor's
+	// constructor), so a walk of the panes then finds nothing. Else the pane that holds it, kept for a generation once
+	// found and never kept unfound: one walk per editor per file or layout change
+	fileOfEditor(cmView: EditorView & { cm?: WsCm5Facade }): TFile | null {
+		try {
+			const info = editorInfoField && cmView.state ? cmView.state.field(editorInfoField, false) : null;
+			if (info && info.file) return info.file;
+		} catch { /* a state without Obsidian's field: a canvas card's, a test's */ }
+		const memo = cmView._wsFile;
+		if (memo && memo.gen === this._scopeGen) return memo.f;
+		const f = this.getFileForEditorView(cmView);
+		if (f) cmView._wsFile = { gen: this._scopeGen, f };
+		return f;
+	}
+
+	// WHETHER A SWITCH IS WANTED ANYWHERE (A862): on, or a note open in a pane turning it on in its frontmatter. What
+	// every editor shares asks this (the Typography and Hemingway handlers being built at all, the marks' colors on the
+	// body), and each editor then asks its own note.
+	notesWant<K extends keyof WordSmithSettings>(key: K): boolean {
+		if (this.settings[key] === true) return true;
+		let any = false;
+		try {
+			this.app.workspace.iterateAllLeaves((leaf) => {
+				const v = leaf && leaf.view;
+				if (any || !v || !v.getViewType || v.getViewType() !== 'markdown') return;
+				const f = (v as MarkdownView).file;
+				if (f && this.optFor(f, key) === true) any = true;
+			});
+		} catch (_) { wsCatch('notesWant: this.app.workspace.iterateAllLeaves(leaf =>', _); }
+		return any;
+	}
+
+	// …WHAT THE OPEN NOTES ADD UP TO (A862), one line: syncScope compares it, so a note with its own keys opened in a pane
+	// (or the focus moving between two that differ) puts the editors and the colors right
+	noteKeysSig(): string {
+		return (['posEnabled', 'checksEnabled', 'typographyEnabled', 'hemingwayEnabled'] as const).map((k) => (this.notesWant(k) ? '1' : '0')).join('')
+			+ (this.opt('hemingwayEnabled') ? 'h' : '') + (this.opt('enableTypewriter') ? 't' : '');
+	}
+
+	// …AND PUT RIGHT: the body's colors and classes, and every editor rebuilt with what it now reads
+	noteKeysApply() {
+		this._lastNoteKeys = this.noteKeysSig();
+		this.applyBodyClasses();
+		this.applyStyleProps();
+		this.reconfigureEditors();
 	}
 
 	// Obsidian keeps its right-to-left preference in appearance config, and
@@ -4401,8 +4469,11 @@ export default class WordSmith extends Plugin {
 		// closed); the body follows only when what they add up to has moved.
 		const before = this._lastPaneScope;
 		const panes = this.stampPaneScope();
-		if (inScope === this._lastScopeInScope && panes.any + ':' + panes.anyTw === before) return;
+		// (and the open notes' own keys, A862)
+		const keys = this.noteKeysSig();
+		if (inScope === this._lastScopeInScope && panes.any + ':' + panes.anyTw === before && keys === this._lastNoteKeys) return;
 		this._lastScopeInScope = inScope;
+		if (keys !== this._lastNoteKeys) { this._lastNoteKeys = keys; this.applyStyleProps(); }
 		this.applyBodyClasses();
 		this.reconfigureEditors();
 		this.applyVimMotionMaps();

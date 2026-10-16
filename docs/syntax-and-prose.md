@@ -24,8 +24,8 @@ A hand-written part-of-speech tagger. No API, no model, no bundled NLP library. 
 
 **Context.** The pass that fixes what the first two got wrong, using the words either side. After a determiner, a verb becomes a noun (*the work*). An unknown word between a determiner and a noun is an adjective (*her difficult book*). After *to*, it's an infinitive. A *this* or *which* standing alone is a pronoun (*this is*, *which works*); before a noun it points (*this house*).
 
-Results are drawn as editor decorations, so they never flicker while you type. The line you're writing in keeps its colors while you type, and catches up when you move to another line. On iPhone and iPad, redrawing the text under the caret makes the keyboard switch to capitals, so nothing there is redrawn while you type. Only the lines on screen are tagged, and code, frontmatter and maths are skipped.
+Results are drawn as editor decorations, so they never flicker while you type. On a desktop every line is colored as you type. On a phone or a tablet, redrawing the text under the caret makes the keyboard switch to capitals, so the line you're writing keeps its colors while you type and catches up when you move to another line. Only the lines on screen are tagged, and code, frontmatter and maths are skipped.
 
 ## What it gets wrong
 
-Roughly nine words in ten on ordinary prose, in my own testing, not benchmarked against a tagged corpus. Weakest on dialogue-heavy fiction, fragments, and unusual proper nouns. That's why it's a writing aid and not a grammar checker.
+Roughly nine words in ten: English scores 90% on the Universal Dependencies test sets, and every language's own figure is on the [language packs](language-packs.md) page. Weakest on dialogue-heavy fiction, fragments, and unusual proper nouns. That's why it's a writing aid and not a grammar checker.

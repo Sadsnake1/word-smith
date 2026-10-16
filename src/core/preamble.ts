@@ -5,7 +5,7 @@ import { FuzzySuggestModal, Menu, setIcon, Platform, ItemView, normalizePath, sa
 import type { App, FileStats, TAbstractFile, TFile, TFolder, WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsMenuRowSpec, WsMenuPickItem, WsExportOpts, WsExportRun, WsExportSection, WsExportBuild, WsImage, WsHost, WsVimApi } from './settings';
 import type WordSmith from '../plugin/plugin';
-import { wsT } from './ui-text';
+import { wsT, wsTIn, wsNumIn } from './ui-text';
 
 // what the property pickers list: a key and its label, how many notes carry
 // it and in how many spellings, or a row that would create it
@@ -976,7 +976,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 					if (h.row.run) void h.row.run();
 				})(); });
 			}
-			if (!hits.length) list.createDiv({ cls: 'ws-menu-empty', text: 'Nothing matches' });
+			if (!hits.length) list.createDiv({ cls: 'ws-menu-empty', text: wsT('Nothing matches') });
 		}
 
 		// The selection survives the redraw, clamped to what is left: a
@@ -3478,7 +3478,7 @@ export function wsBuildEpub(html: string, meta: WsEpubMeta) {
 	const doc = new DOMParser().parseFromString(html, 'text/html');
 	const ser = new XMLSerializer();
 	const lang = meta.lang || 'en';
-	const title = meta.title || 'Untitled';
+	const title = meta.title || wsTIn(lang, 'Untitled');
 	// THE FILES: a section that opens a page opens one; a section that runs on joins it
 	const parts: Element[][] = [];
 	for (const el of Array.from(doc.body.children)) {
@@ -3588,7 +3588,7 @@ export function wsBuildEpub(html: string, meta: WsEpubMeta) {
 		+ '<spine toc="ncx"' + (wsIsRtl(lang) ? ' page-progression-direction="rtl"' : '') + '>\n' + parts.map((_, i) => '<itemref idref="p' + (i + 1) + '"/>').join('\n') + '\n</spine>\n</package>\n';
 	return wsZip(files.concat([
 		{ name: 'OEBPS/content.opf', bytes: wsUtf8(opf) },
-		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>' + x(meta.tocTitle || 'Contents') + '</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
+		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>' + x(meta.tocTitle || wsTIn(lang, 'Contents')) + '</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
 		{ name: 'OEBPS/toc.ncx', bytes: wsUtf8(ncx) },
 		{ name: 'OEBPS/style.css', bytes: wsUtf8(wsEpubCss(meta)) },
 	], texts, media.map((m) => ({ name: 'OEBPS/' + m.href, bytes: m.bytes }))));
@@ -4462,10 +4462,12 @@ export function wsHeadSizeEm(n: number) {
 // expectations, and vaults have both kinds of reader — a competition entry
 // with a hard ceiling wants the exact number, and so does anyone whose
 // agent asked for one.
+// (IN THE BOOK'S LANGUAGE, A864: "environ 90 000 mots" on a French manuscript, its figure as French writes it)
 export function wsTitleWords(o: WsExportRun | null | undefined) {
-	const n = (o && o.wordCount) || 0;
-	if (o && o.roundWordCount === false) return n.toLocaleString() + ' words';
-	return 'about ' + wsRoundWords(n).toLocaleString() + ' words';
+	const n = (o && o.wordCount) || 0, lang = o && o.lang;
+	if (o && o.roundWordCount === false) return wsTIn(lang, '{count} words', { n, count: wsNumIn(lang, n) });
+	const r = wsRoundWords(n);
+	return wsTIn(lang, 'about {count} words', { n: r, count: wsNumIn(lang, r) });
 }
 
 // One id per section, shared by every target so a link means the same thing
@@ -5791,9 +5793,9 @@ export function wsPageNumAt(o: WsExportRun | null | undefined, asRun?: boolean) 
 	if (!o) return 'none';
 	return (asRun ? !!o.runningHeader : !!o.runningHeaderOn) ? 'top-right' : 'none';
 }
-// the contents' title: the writer's own words, else "Contents"
+// the contents' title: the writer's own words, else "Contents" in the book's language (A864)
 export function wsTocTitle(o: WsExportOpts | null | undefined) {
-	return String((o && o.tocTitle) || '').trim() || 'Contents';
+	return String((o && o.tocTitle) || '').trim() || wsTIn(o && o.lang, 'Contents');
 }
 // A HEADER OR A FOOTER LINE IN WORD, three places on one line: a centre tab stop at the column's middle and a
 // right one at its edge; the running header on the right, the page number (a field, so Word counts it) where
@@ -5925,7 +5927,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	let folderOpenedPage = false;
 
 	if (o.titlePage) {
-		const t = o.title || 'Untitled';
+		const t = o.title || wsTIn(o.lang, 'Untitled');
 		// NO DROP: the preview centres the block in the sheet, and a count of
 		// lines down to it cannot centre — 27 text lines less a 4-line block
 		// leaves 23, an odd number — so the title page is its own SECTION and
@@ -5941,7 +5943,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// THE SUBTITLE under it (the writer: "also add subtitle for the title page"), a size between the title's and the text's
 		const sub = String(o.subtitleText || '').trim();
 		if (sub) body.push(wsPara([{ text: sub, sz: Math.round((o.pt || 12) * 2 * WS_SUBTITLE_SIZE_EM) }], 'WsTitle', { noIndent: true, align: 'center' }));
-		if (o.author) body.push(wsPara([{ text: 'by ' + o.author }], 'WsTitle', { noIndent: true, align: 'center' }));
+		if (o.author) body.push(wsPara([{ text: wsTIn(o.lang, 'by {author}', { author: o.author }) }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.wordCount != null && o.wordCountOnTitle !== false) {
 			// NO BLANK LINE BEFORE THE COUNT: the preview's markup is three
 			// elements with no spacer between them. (A spacer once padded the drop
@@ -7410,7 +7412,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.5';
+export const WS_PLUGIN_VERSION = '1.8.6';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -8875,6 +8877,7 @@ export const DEFAULT_SETTINGS = {
 	// again — so a writer who switches it off keeps it off, from the
 	// settings tab or from the explorer's own sort menu.
 	treeOrderForcedOn:        false,
+	treeOrderBackOnce:        false,   // the custom order on again once after A873's unload bug
 	fileTreeFolderIcons:      true,
 	// THE SAME KIND GLYPH THE MANUSCRIPT WINDOW DRAWS, in Obsidian's own
 	// tree. OFF: this paints into somebody else's pane, and a plugin update

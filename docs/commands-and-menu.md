@@ -57,16 +57,18 @@ Move focus between panes with a direction key, sidebars included, which Obsidian
 
 ## Settings map
 
-One switch at the top turns everything on or off. Under it, nine pages; each opens on its own, on a phone as on a desktop, and says on its entry what it is set to. The long pages have a row of pills at the top that picks a section, or **All** for the whole page. Every section ends with a small **Reset** link for its own rows. The search box above the pages finds any setting.
+One switch at the top turns everything on or off. Under it, eleven pages; each opens on its own, on a phone as on a desktop, and says on its entry what it is set to. The long pages have a row of pills at the top that picks a section, or **All** for the whole page. Every section ends with a small **Reset** link for its own rows, and Export's options have one for them all. The search box above the pages finds any setting.
 
 | | |
 |---|---|
 | **Powermenu** | Floating or docked; what the pop-up and the panel show, each row with its icon |
 | **Powerline** | The switch and the presets (tap a bar to use it, Save, Import), then Rows, Look, Colors, Vim and Tokens, and the format reference |
-| **Themes** | The switch and the scheme shelf, then the options |
 | **Focus** | Zen, Letter box, Typewriter, Hemingway; each with its switch, a warning card under the ones that change the editor, and its hotkeys |
 | **Prose** | Syntax (parts of speech in color) and Checks |
 | **Text** | Layout (page mode, line width, indents, spacing, justification), Typography, Markers |
 | **Manuscript** | Organizer (the target column, date format, your flags and their shapes), File tree (custom order, counts, flags, icons in Obsidian's explorer), History |
+| **Export** | What every export does, decided once: the title page, the pages, the headings, the paragraphs, the text and the notes; and Citations |
 | **Navigation** | Quick panels, quick cycle, Vim motions |
+| **Themes** | The switch and the scheme shelf, then the options |
 | **Vault** | Where it applies (every note, some folders, or all but some), your settings as text (copy, paste, undo), a repair, the files the plugin keeps, where to add more fonts |
+| **About** | What's new, the welcome again, the documentation, an issue with your versions filled in |

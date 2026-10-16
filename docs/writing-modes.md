@@ -62,4 +62,4 @@ If Obsidian's Vim mode is on, Word-Smith stays out of its way and fills a few ga
 
 ## Right-to-left
 
-If Obsidian or the note is right-to-left, indents, padding and markers mirror. Word counting handles Hebrew, Arabic and Persian. Syntax coloring and prose checks are English only, and in another script they mark nothing rather than marking it wrongly.
+If Obsidian or the note is right-to-left, indents, padding and markers mirror. Word counting handles Hebrew, Arabic and Persian. Syntax coloring and the prose checks read the language of the pack you pick, Arabic and Persian among them; a script with no pack in use marks nothing rather than marking it wrongly.

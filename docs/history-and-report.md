@@ -13,9 +13,9 @@
 
 Off until you switch it on, under **Settings → Word-Smith → Manuscript → History**, or with the **Start counting** button in the History pane.
 
-Then it counts how much you write each day and draws it at four zooms: day, month, year, and a calendar. Words you added rise from the center line, words you cut fall below it. A hard day of editing shows as work, not a gap. Above the chart: total, daily average, best day, active days, streak.
+Then it counts how much you write each day and draws it at four zooms: day, month, year, and a calendar. Words you added rise from the center line, words you cut fall below it. A hard day of editing shows as work, not a gap. Above the chart, for the zoom you're on: the net words, the average, the best day (or month, or year), how many were active, and by day and by month the streak.
 
-Type a note or folder name and the whole pane scopes to it. `ch3scene` finds `My Book/Part One/Ch 03/Scene 2.md`.
+It counts whatever the Organizer is on: pick a folder or a note there, or a folder in the line at the top, and History follows.
 
 Two kindnesses in the numbers. A day counts if you wrote or cut, so cutting won't break your streak. And the average divides by the days you actually wrote, so days off don't drag it down.
 
@@ -23,7 +23,7 @@ Pasted and cut text are left out, so moving text around doesn't show as writing.
 
 ## Your history is an ordinary note
 
-A table, one row per day:
+A table for each year, one row per day:
 
 ```markdown
 | Date | Added | Deleted | Net |
@@ -31,7 +31,9 @@ A table, one row per day:
 | 2026-08-01 | 912 | 142 | 770 |
 ```
 
-A new vault gets it at `Word-Smith/ws-history.md`. Move it, rename it, keep it next to the manuscript. Word-Smith finds it by the markers inside it and leaves anything you write outside them alone. It's the only copy, so back it up with your vault.
+With **Remember which notes** on, a **By note** table follows, a row per note per day.
+
+A new vault gets it at `Word-Smith/ws-history.md`. Move it, rename it, keep it next to the manuscript. Word-Smith finds it by the markers inside it and leaves anything you write outside them alone. Word-Smith keeps a copy in its own folder too (`backup/`), but back it up with your vault.
 
 Nothing before the day you switch it on can be reconstructed. A file only knows when it was touched, not how much went into it.
 
@@ -47,8 +49,8 @@ Prose only. Frontmatter, `%%` and HTML comments, code blocks, maths, link target
 
 <img width="570" alt="The writing report" src="https://github.com/user-attachments/assets/809fc7a8-1d85-4a8e-9ea4-a03e6bff0cfd" />
 
-`{report}` on the bar, the menu, or right-click a row in the Organizer. Words against the target, with a gauge, then characters, syllables, sentences, paragraphs, pages, read time and a reading grade. Hover a figure and it explains itself.
+`{report}` on the bar, the menu, or right-click a row in the Organizer. Words against the note's target, with a gauge (a note with none under a folder that has one shows the folder's, named), then characters, syllables, sentences, paragraphs, pages, read time and a reading grade. Hover a figure and it explains itself.
 
-The path under the title is a breadcrumb of every folder above the note. Click one to total that level. How long is this chapter and will the book land are one click apart. A report on an Organizer selection totals just those rows.
+For a folder's numbers, right-click the folder in the file explorer or the Organizer and choose **Report on this**.
 
 Under the figures, **Words frequency**: every word in the note, how often it appears, and its share as a bar in the same colors the Organizer's target cells use. Common words (the, and, of) stay out until you tick **Common words**. Type in **Find a word** to narrow the list to the words that contain it — "walk" shows walk, walked and walking with their counts — and click **Word**, **Count** or **Frequency** to sort by it; a second click turns the order around. A share too small for two decimals shows as many as it needs, so a word that is there never reads as 0.00%.

@@ -7,7 +7,7 @@
 
 import { Menu, Notice, setIcon, getAllTags, Platform, ItemView } from 'obsidian';
 import type { Events, WorkspaceLeaf, TAbstractFile, Modifier, KeymapEventListener, MenuItem } from 'obsidian';
-import type { WsFlagDef, WsHost, WsFileLike, WsOrgDoor, WordSmithSettings } from '../core/settings';
+import type { WsFlagDef, WsHost, WsFileLike, WsOrgDoor, WsOrgMenuCtx, WordSmithSettings } from '../core/settings';
 import { wsCountFootnotes, wsOrgAgg, wsOrgCounts, wsOrgDistinct, wsOrgIndex, wsOrgPathsUnder, wsOrgPut, wsOrgRemove, wsOrgRename, wsOrgStale } from './org-index';
 import type { WsOrgIndexMap } from './org-index';
 import { wsOrgCellsMake } from './organizer-cells';
@@ -1171,7 +1171,7 @@ export const organizerWindowMethods = {
 			.onClick(() => { try { this.openReportModal(path); } catch (_) { wsCatch('fileMenuReportRow: this.openReportModal(path);', _); } }));
 	},
 
-	fileMenuFor(this: WordSmith, menu: Menu, file: WsFileLike) {
+	fileMenuFor(this: WordSmith, menu: Menu, file: WsFileLike, org?: WsOrgMenuCtx) {
 		if (!file || !file.path) return;
 		const isFolder = !!file.children;
 		// ── NOT ON EMPTY SPACE ──────────────────────────────────────────────
@@ -1194,6 +1194,8 @@ export const organizerWindowMethods = {
 		const store = 'fileStatus';
 		const nowFlag = (this.settings[store] || {})[path] || '';
 		const setFlag = async (id: string) => {
+			// (from an Organizer row, through its journal and selection: A869)
+			if (org && org.flag) { await org.flag(path, id); return; }
 			const all = Object.assign({}, this.settings[store] || {});
 			if (id) all[path] = id; else delete all[path];
 			this.settings[store] = all;
@@ -1223,6 +1225,7 @@ export const organizerWindowMethods = {
 
 		const nowColour = (this.settings.folderColors || {})[path] || '';
 		const setColour = async (id: string) => {
+			if (org && org.colour) { await org.colour(path, id); return; }
 			const all = Object.assign({}, this.settings.folderColors || {});
 			if (id) all[path] = id; else delete all[path];
 			this.settings.folderColors = all;
@@ -2698,6 +2701,10 @@ export const organizerWindowMethods = {
 			get ownerWin() { return ownerWin; },
 			get panel() { return panel; },
 			get said() { return said; },
+			get orgFlagSet() { return orgFlags.orgFlagSet; },
+			get orgBulkPaths() { return orgBulkPaths; },
+			get orgHistOn() { return orgHistOn; },
+			get drawPanel() { return drawPanel; },
 		});
 		const orgFlags = wsOrgFlagsMake({
 			plugin: this,
@@ -2900,6 +2907,8 @@ export const organizerWindowMethods = {
 		this._orgPropListSet = (p: string, k: string, v: unknown, before: unknown) => orgPropListSet(p, k, v, before);
 		// THE CELL TOO: a test driving the one-cell fast path hands the cell in.
 		this._orgFlagSet = (row: { path: string }, id: string, cell: HTMLElement | null) => orgFlagSet(row, id, cell || null);
+		// AND WHAT A ROW'S RIGHT-CLICK IS HANDED (A869): its flag and its folder's colour go through these
+		this._orgMenuCtx = orgRename.orgMenuCtx;
 		// AND THE FIELD EDITOR, opened on a live cell by a test, which cannot
 		// keep one open across the redraws the index sends.
 		this._orgFieldEditor = (td: HTMLElement, p: string, k: string) => orgFieldEditor(td, p, k, false);
@@ -3138,8 +3147,8 @@ export const organizerWindowMethods = {
 		// ── The keyboard ────────────────────────────────────────────────────
 		//
 		// The file explorer's, because that is the tree this window stands in
-		// for: up and down to move, right and left to open and shut a folder,
-		// Enter to open the note, space to flag it. Not while the writer is
+		// for: up and down to move (Alt with them to move the row), Enter to
+		// open the note, space to flag it. Not while the writer is
 		// typing: every target box is inside this scope, and a down-arrow in a
 		// text field means "go to the end of the line" everywhere else in the
 		// app.
@@ -3806,16 +3815,7 @@ export const organizerWindowMethods = {
 			// ── the summary strip ────
 			// THE ONE SUBJECT LINE: the window draws it the same on every tab.
 			ctx.drawSubject();
-			// ── TODAY'S NET UNDER THIS FOLDER ──
-			// The history store is loaded on demand the first time the
-			// Organizer draws; until it answers, the figure simply is not
-			// there — unknown is not zero.
-			if (this.settings.historyTracking && !this._historyReady) {
-				void (async () => {
-					try { await this.historyLoad(); } catch (_) { wsCatch('orgDrawHistoryFigures: await this.historyLoad();', _); return; }
-					if (ctx.tab === 'organizer') ctx.drawPanel();
-				})();
-			}
+			// (TOMBSTONE, A872: the history store loaded for a "today's net" figure no draw read any more)
 			// N OF M IS ABOUT NOTES: a folder is a row and not a note, and so is one
 			// of the plugin's own store notes (`ws-structure.md`, `ws-settings.md`,
 			// `ws-history.md`), which the index leaves out through `isFileCounted`.
@@ -4617,6 +4617,13 @@ export const organizerWindowMethods = {
 	},
 
 	orgTicksRepaint(this: WordSmith) {
+		// THE TREE IN THE BOOK'S ORDER WHILE EXPORT SHOWS (A873): asked here because this runs as Export opens, closes,
+		// or goes behind another tab; the sort applied or taken off when the answer moves
+		const sortWant = this.explorerSortWanted();
+		if (sortWant !== this._explorerSortWas) {
+			this._explorerSortWas = sortWant;
+			try { this.patchExplorerSort(); } catch (_) { wsCatch('orgTicksRepaint: this.patchExplorerSort();', _); }
+		}
 		const door = this.orgTicksDoor();
 		if (!door) { this.orgTicksClear(); return 0; }
 		let n = 0;

@@ -21,7 +21,7 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 Readings the frontmatter can't give you: word count, target, deadline (the date and the days left), vocabulary, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
-- **Filter** is a text search plus chips: pick a property, pick a value. Chips stack. No query language. The same button picks which kinds of file show up. The search box sits above the tabs, so it's there on Export and History too.
+- **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.
 - Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
 - Folder rows add up what's inside them, folded or not (their Vocabulary counts each word once), and a **Total** row at the foot adds up everything you're looking at.
 - **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter.
@@ -45,7 +45,7 @@ Give a note a word count to aim for, and a folder one of its own: the whole book
 
 Any note or folder can have a deadline too, in the Deadline column. The cell shows the date and the working days left, `20 Oct 2026 · 8d`, or just one of them (Settings → Word-Smith → Manuscript → **Deadline column shows**); hover it for the sentence. Sort by Deadline to see the nearest first: the days left run in the same order. A PDF or any other file can have one too. The words a day that get you there (what was left when today began, over the working days left) are on the bar: put `{target}` in a row and press it. Settings → Word-Smith → Manuscript → **Working days** picks the days that count. Targets count words.
 
-Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to cycle it, or press space on the row. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
+Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
@@ -65,6 +65,6 @@ Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 -
 
 ## In Obsidian's explorer
 
-Under **Settings → Word-Smith → Manuscript → File tree**: word counts (folders total what's inside), flags, tasks left, goal percentage, folder icons, file-kind icons. **Outline counts** put a word count beside each heading, so you can see which scene ran long.
+Under **Settings → Word-Smith → Manuscript → File tree**: word counts (folders total what's inside), flags, tasks left and folder icons. **Outline counts** put a word count beside each heading, so you can see which scene ran long.
 
 **Hide the Word-Smith folder** (Settings → Word-Smith → Vault) keeps the plugin's own folder out of the Organizer, the file explorer, the graph, search and the compiled book. While it's on, the folder is listed in Obsidian's **Excluded files** (Settings → Files and links), which is how the graph and search leave it out. The files stay where they are and still sync.

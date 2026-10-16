@@ -11,6 +11,8 @@ import type { WsBarTheme, WsThemeHalf } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
+// THE CHECKBOX SHAPES a look dresses the body with, one list for dressing and undressing (A870)
+const WS_CB_SHAPES = ['circle', 'square', 'retro', 'markdown'];
 export const themesMethods = {
 
 	// ═════════════════════════════════════════════════════════════════════════
@@ -245,7 +247,7 @@ export const themesMethods = {
 		// The checkbox shape, like borderless, is a LOOK: it works under
 		// Default and dies with the kill switch. One class per shape rather
 		// than a data attribute, to match every other look here.
-		for (const shape of ['circle', 'square', 'retro', 'markdown']) {
+		for (const shape of WS_CB_SHAPES) {
 			want('ws-cb-' + shape,
 				this.settings.barThemeEnabled !== false
 				&& this.settings.barThemeCheckbox === shape);
@@ -698,7 +700,8 @@ export const themesMethods = {
 				if (cls.indexOf('ws-theme-') === 0) document.body.classList.remove(cls);
 			}
 			document.body.classList.remove('ws-borderless', 'ws-glass', 'ws-simpletabs');
-			for (const shape of ['circle', 'square', 'retro', 'pill']) {
+			// (every shape it dresses, from the one list, and `pill`, an older one's: A870, `markdown` was dressed and never undressed)
+			for (const shape of WS_CB_SHAPES.concat(['pill'])) {
 				document.body.classList.remove('ws-cb-' + shape);
 			}
 		} catch (_) { wsCatch('barThemeUndress: const body = document.body.style;', _); }

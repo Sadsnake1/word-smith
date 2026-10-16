@@ -66,8 +66,8 @@ export function wsUiLang(): string { return WS_UI_LANG; }
 /** the lines asked for that the language does not have, since it was set */
 export function wsUiMissed(): string[] { return Array.from(WS_UI_MISSED); }
 
-// a translation's plural forms, the one the browser's rules pick for `n`
-function wsUiPlural(s: string, n: number): string {
+// a translation's plural forms, the one the browser's rules pick for `n` (in the interface's language, or `locale`'s)
+function wsUiPlural(s: string, n: number, locale?: string): string {
 	if (!WS_PLURAL_CAT.test(s)) return s;
 	const forms: Record<string, string> = {};
 	for (const part of s.split(/;\s*(?=(?:zero|one|two|few|many|other)\s*:)/)) {
@@ -75,8 +75,33 @@ function wsUiPlural(s: string, n: number): string {
 		if (m) forms[m[1]] = m[2].trim();
 	}
 	let cat = 'other';
-	try { cat = new Intl.PluralRules(wsUiLocale()).select(n); } catch { cat = 'other'; }
+	try { cat = new Intl.PluralRules(locale || wsUiLocale()).select(n); } catch { cat = 'other'; }
 	return forms[cat] ?? forms.other ?? s;
+}
+
+/** A LINE OF WORD-SMITH'S OWN IN THE BOOK'S LANGUAGE (A864, Fable's review: "by", "about N words", "Notes" and "Untitled"
+ *  printed in English on a French manuscript): the table of `code` (a pack's code, read as `wsUiPick` reads Obsidian's),
+ *  whatever language the settings are in; English where there is none (Hindi) or the table lacks the line */
+export function wsTIn(code: string | null | undefined, en: string, vars?: Record<string, string | number>): string {
+	const lang = wsUiPick(String(code || ''));
+	const core = en.trim().normalize('NFC');
+	let hit = '';
+	for (const t of [lang ? WS_LOCALES[lang] : null, lang === 'pt-BR' ? WS_LOCALES.pt : null]) {
+		if (hit || !t) continue;
+		const v = t[core] ?? t[en.trim()];
+		if (v && v.trim()) hit = v.normalize('NFC');
+	}
+	let s = hit ? en.slice(0, en.length - en.trimStart().length) + hit + en.slice(en.trimEnd().length) : en.replace(WS_UI_CTX, '$1');
+	if (vars) {
+		if (typeof vars.n === 'number') s = wsUiPlural(s, vars.n, hit ? (lang === 'pt' ? 'pt-PT' : lang) : 'en');
+		s = s.replace(/\{(\w+)\}/g, (m: string, k: string) => (Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
+	}
+	return s;
+}
+/** a figure as the book's language writes it (A864): 90 000 in French, 90.000 in German, 90,000 in English */
+export function wsNumIn(code: string | null | undefined, n: number): string {
+	const c = String(code || '').trim();
+	try { return n.toLocaleString(c && !/^en(-|$)/i.test(c) ? (c === 'pt' ? 'pt-PT' : c) : 'en'); } catch { return n.toLocaleString('en'); }
 }
 
 // THE ECHO (ws-dev/ui-pseudo.js, a tool's, never the plugin's): every line asked for is kept, and comes back

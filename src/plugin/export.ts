@@ -12,7 +12,7 @@ import { wsIsRtl, wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, ws
 import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsMdImageLink, wsRelPath, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
 import type { WsWheelAcc } from '../core/preamble';
 import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
-import { wsT, wsUiJoin } from '../core/ui-text';
+import { wsT, wsTIn, wsUiJoin } from '../core/ui-text';
 import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
@@ -1023,6 +1023,9 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 		// two both work. THE STORED VALUE IS LEFT ALONE and `run` is shown
 		// instead, which is also what .md actually does with `page`. Flick to
 		// Markdown and back and the Word setting is exactly where it was.
+		// …BUT AN E-BOOK HAS ITS PAGE (A866, Fable's review: it showed Runs straight on while the book still began a file a
+		// chapter): `wsBuildEpub` opens a file for every section that opens a page, and the reader begins each file on a new
+		// page, so it is offered the page and says what its book does
 		selOpt(joins, 'joinMode', wsT('Each file'), [
 			{ id: 'page',    label: wsT('Starts a new page'),
 				hint: wsT('Every file begins at the top of a fresh page \u2014 how a book starts a chapter, and what a submission expects.') },
@@ -1030,7 +1033,7 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 				hint: wsT('Files run on down the same page, with the mark below centered between them \u2014 a scene break.') },
 			{ id: 'run',     label: wsT('Runs straight on'),
 				hint: wsT('Nothing between one file and the next: the prose reads as though it were all one note.') }
-		].filter((c) => c.id !== 'page' || wsFormatHasPages(o.format || '')), () => {
+		].filter((c) => c.id !== 'page' || wsFormatHasPages(o.format || '') || o.format === 'epub'), () => {
 			o.pageBreaks = o.joinMode === 'page';
 			o.starBetween = o.joinMode === 'divider';
 			void plugin.saveSettings();
@@ -1174,7 +1177,7 @@ function wsExportOptsAlso(a: { optGroup: (label: string) => HTMLDivElement; pick
 		// there is one somewhere else. THE HINTS are each switch's own title,
 		// which is where every other switch on this pane keeps its explanation.
 		const grp = optGroup(wsT('Also include'));
-		// Marked so a wide column lays these seven three or four across.
+		// Marked so a wide column lays these six three or four across.
 		grp.addClass('is-also');
 		const ALSO: [WsExportBoolKey, string, string][] = [
 			['keepFrontmatter', wsT('Properties'),
@@ -1780,10 +1783,10 @@ export const exportMethods = {
 	exportToMarkdown(this: WordSmith, sections: WsExportSection[], o: WsExportRun) {
 		const parts = [];
 		if (o.titlePage) {
-			parts.push('# ' + (o.title || 'Untitled'));
+			parts.push('# ' + (o.title || wsTIn(o.lang, 'Untitled')));
 			// (the subtitle, #81)
 			if (String(o.subtitleText || '').trim()) parts.push('## ' + String(o.subtitleText).trim());
-			if (o.author) parts.push('*by ' + o.author + '*');
+			if (o.author) parts.push('*' + wsTIn(o.lang, 'by {author}', { author: o.author }) + '*');
 			if (o.wordCount != null) {
 				parts.push('*' + wsTitleWords(o) + '*');
 			}
@@ -1934,11 +1937,8 @@ export const exportMethods = {
 		dflt('centerHeads', true);
 		dflt('smartQuotes', false); dflt('wordCountOnTitle', true);
 		dflt('roundWordCount', true);
-		// Which reading the list's right-hand column shows. Remembered,
-		// because a writer who works by flags works by flags every time.
-		if (['words', 'flag', 'pct'].indexOf(String(o.listColumn)) === -1) o.listColumn = 'words';
 		dflt('pageNumbers', true);
-		dflt('outFolder', '');  dflt('toc', false);  dflt('lastScope', '');
+		dflt('outFolder', '');  dflt('toc', false);
 		// A751: the contents' page numbers on; the header's words and the contents' title empty (the defaults)
 		dflt('headerText', ''); dflt('tocTitle', '');
 		// (#81)
@@ -2204,7 +2204,7 @@ export const exportMethods = {
 		return true;
 	},
 
-	exportPreviewInto(this: WordSmith, host: HTMLElement, sections: WsExportSection[], o: WsExportRun, fileCount: number, onExport: (() => unknown) & { label?: string } | null, headHost: HTMLElement | null,
+	exportPreviewInto(this: WordSmith, host: HTMLElement, sections: WsExportSection[], o: WsExportRun, fileCount: number, headHost: HTMLElement | null,
 		onRefresh: () => void) {
 		if (!host) return null;
 		// WHERE THE READER WAS, TAKEN NOW. The session's `flowScroll` is
@@ -2894,28 +2894,8 @@ export const exportMethods = {
 		// controls would be there to shrink a column of plain text, which
 		// is a thing a reader can do to no purpose.
 		wsPreviewFlipper(this, { apply, applyDark, asText, docOf, fitZoom, flowApply, flowSet, foot, iconBtn, jumpTo, o, onRefresh, pv, setZoom, showPage });
-		// The button runs the export the pane is already set up for, in the
-		// format its own drop-down is showing.
-		//
-		// AT THE RIGHT-HAND END, past the zoom. The zoom controls change
-		// what you are LOOKING at; this ends the looking. Reading the
-		// footer left to right is the order the two are used in.
-		if (onExport) {
-			const go = foot.createEl('button', { cls: 'mod-cta ws-export-prevgo' });
-			// ONE WORD, as the pane's button; a caller with a word of its own
-			// passes it as `label`. (The pane passes no `onExport`, so this button
-			// is on no screen today.)
-			wsGlyphWord(go, ['file-output', 'download'], onExport.label || wsT('Export'));
-			go.addEventListener('click', () => { void (async () => {
-					go.disabled = true;
-					// THE PREVIEW STAYS OPEN. The file is written and the
-					// window that reported it is still on the page a writer was
-					// reading — closing it here would answer a question nobody
-					// asked, and they can close it themselves in one gesture.
-					try { await onExport(); } finally { go.disabled = false; }
-				})();
-});
-		}
+		// (TOMBSTONE (A872): the preview's own Export button, drawn only for a caller that passed `onExport`, and none did:
+		// the pane has its own, and one act offered twice on a screen asks which one is the real one)
 		// ── AND A WAY IN ─────────────────────────────────────────
 		//
 		// This returns the body element, and it carries the jump as well, so
@@ -2970,7 +2950,7 @@ export const exportMethods = {
 		const nav = sections.map((sec: WsExportSection, i: number) => ({ id: wsAnchorId(sec.title, i), label: sec.title && !sec.book ? wsNumbered(nums[i], sec.title) : '', level: stepOf(sec) }))
 			.filter((e) => !!e.label);
 		return wsBuildEpub(this.exportToHtml(sections, o, false), {
-			title: o.title || 'Untitled', author: o.author || '', lang: this.settings.language || 'en',
+			title: o.title || wsTIn(o.lang, 'Untitled'), author: o.author || '', lang: this.settings.language || 'en',
 			nav, indent: o.indent !== false, paraBlank: wsParaSpacing(o) === 'line', paraHalf: wsParaSpacing(o) === 'half', tocTitle: wsTocTitle(o), centerHeads: o.centerHeads !== false,
 		});
 	},
@@ -2996,10 +2976,10 @@ export const exportMethods = {
 			parts.push('<section class="page tp">'
 				+ (contact.length ? '<div class="tpcontact">' + contact.map((l) => '<p>' + esc(l) + '</p>').join('') + '</div>' : '')
 				+ '<div class="tpinner">'
-				+ '<h1>' + esc(o.title || 'Untitled') + '</h1>'
+				+ '<h1>' + esc(o.title || wsTIn(o.lang, 'Untitled')) + '</h1>'
 				// the subtitle under it (the writer: "also add subtitle for the title page")
 				+ (sub ? '<p class="tpsub">' + esc(sub) + '</p>' : '')
-				+ (o.author ? '<p>by ' + esc(o.author) + '</p>' : '')
+				+ (o.author ? '<p>' + esc(wsTIn(o.lang, 'by {author}', { author: o.author })) + '</p>' : '')
 				+ (o.wordCount != null && o.wordCountOnTitle !== false
 					? '<p>' + esc(wsTitleWords(o)) + '</p>' : '')
 				+ '</div></section>');
@@ -3162,7 +3142,7 @@ export const exportMethods = {
 		// in the text links to (#46). A PDF keeps them here: notes at the foot of
 		// a printed page would mean laying the pages out ourselves.
 		if (notesOut.length) {
-			parts.push('<section class="page notes"><h2>Notes</h2><ol class="notes">' + notesOut.join('') + '</ol></section>');
+			parts.push('<section class="page notes"><h2>' + esc(wsTIn(o.lang, 'Notes')) + '</h2><ol class="notes">' + notesOut.join('') + '</ol></section>');
 		}
 		// THE LIST OF SOURCES (A572 step 4), after the notes as Chicago has it: a page of its own under the style's
 		// heading, each entry hanging, its titles in italics
@@ -3485,6 +3465,9 @@ export const exportMethods = {
 					// it, stands above the page rather than centred with its three lines)
 					+ 'html.is-flow .tp { height: auto; padding: 0; }'
 					+ 'html.is-flow .tp > .tpinner { height: ' + ch + '; display: flex; flex-direction: column; justify-content: center; }'
+					// …AND THE CONTACT LINES BELOW THAT SEAM (A860, the writer: "in expanded view this is too high"): the title
+					// page's top margin is the seam inside it here, so its corner is a margin down, as the pages set it
+					+ 'html.is-flow .tp > .tpcontact { top: ' + pm + '; }'
 					// THE PRINTED DOCUMENT IS NOT THE SCREEN ONE: a drop shadow is a
 					// compositing effect, and asked to print one Chromium rasterises the
 					// page it cannot describe in vector terms — a PDF that is a picture of
@@ -3744,33 +3727,7 @@ export const exportMethods = {
 		return '';
 	},
 
-	// ── The last export ─────────────────────────────────────────────────────
-	//
-	// Written at each SUCCESS, not when the button is pressed: a run that
-	// failed on a name collision or a missing folder is not something to
-	// offer to do again, and recording the intention rather than the outcome
-	// is how a window ends up cheerfully proposing to repeat a mistake.
-	//
-	// Everything needed to put the window back where it was — except what
-	// was TICKED, which is already remembered per scope in the export store
-	// and comes back on its own the moment the scope does. That is the whole
-	// reason this holds a scope rather than a list of paths: the list would
-	// be a second copy of something already kept, and two copies of a set of
-	// ticks is one of them going stale.
-	exportRemember(this: WordSmith, scope: string, kind: string, opt: WsExportOpts, count: number, name: string) {
-		try {
-			if (!this.settings || !this.settings.exportOpts) return;
-			this.settings.exportOpts.lastRun = {
-				scope: String(scope || ''),
-				format: kind,
-				into: String((opt && opt.outFolder) || ''),
-				files: count || 0,
-				name: String(name || ''),
-				at: Date.now()
-			};
-			void this.saveSettings();
-		} catch (_) { wsCatch('exportRemember: if (!this.settings || !this.settings.exportOpts) return;', _); }
-	},
+	// (TOMBSTONE (A872): `exportRemember` and the `lastRun` it wrote, for a "Set up again" never built; nothing read them)
 
 	// TASKS IN A NOTE: `- [ ]` open, anything else in the box done.
 	//
@@ -3877,7 +3834,7 @@ export const exportMethods = {
 		const title = typed
 			|| (String(scope || '').split('/').pop() || '').replace(/\.md$/, '')
 			|| (this.vaultName && this.vaultName())
-			|| 'Untitled';
+			|| wsTIn(this.settings && this.settings.language, 'Untitled');
 		// THE HEADER'S TOKENS FILLED (#81, A845): the title, the time on a 12- and a 24-hour clock, the day's date in parts
 		const dp = this.dateParts(new Date()), hr = Number(dp.hh);
 		const typedHead = wsHeadFill(String(o.headerText || '').trim(), { title,
@@ -3978,10 +3935,10 @@ export const exportMethods = {
 			(ctx.compileList ? ctx.compileList() : []).length,
 			typeof ctx.total === 'function' ? ctx.total() : 0);
 		fmt.createSpan({ cls: 'ws-export-fmtlabel', text: wsT('Export as') });
-		// FOUR FORMATS, and each one is a different question answered: Word
+		// FIVE FORMATS, and each one is a different question answered: Word
 		// for the person who asked for the manuscript, PDF for a page that is
-		// final, HTML for anyone with a browser, Markdown for the writer's own
-		// pipeline. PDF is desktop only — ABSENT rather than present-and-
+		// final, HTML for anyone with a browser, the e-book for a reader's
+		// device, Markdown for the writer's own pipeline. PDF is desktop only — ABSENT rather than present-and-
 		// refusing where there is no engine: a choice that fails when taken is
 		// worse than a choice that was never offered, and this is the one
 		// format whose availability is a fact about the machine rather than
@@ -4008,13 +3965,13 @@ export const exportMethods = {
 			{ id: 'epub', label: wsT('E-book'), ext: '.epub', pages: wsFormatHasPages('epub') },
 			{ id: 'md',   label: 'Markdown', ext: '.md', pages: wsFormatHasPages('md') }
 		].filter(f => !f.desktopOnly || this.exportPdfAvailable());
-		// Held so that paintFmt can put them back when "Set up again" writes
-		// the options from outside the controls that normally own them.
+		// Held so that paintFmt can put them back when the options are written
+		// from outside the controls that normally own them.
 		let fmtSel: { value: string; } | null = null, intoInput: { value: string; } | null = null;
 		const paintFmt = () => {
 			const f = FORMATS.filter(x => x.id === o.format)[0] || FORMATS[0];
-			// THE DROP-DOWN ITSELF: "Set up again" writes `o.format` from outside
-			// it, and a window whose menu says Word while the options say .html is
+			// THE DROP-DOWN ITSELF: a write from outside it reaches `o.format`
+			// too, and a window whose menu says Word while the options say .html is
 			// worse than one that had never offered to help.
 			if (fmtSel && fmtSel.value !== o.format) fmtSel.value = o.format || 'docx';
 			if (intoInput && intoInput.value !== (o.outFolder || '')) {
@@ -4347,7 +4304,9 @@ export const exportMethods = {
 				let words = 0;
 				for (const sec of secs) words += this.countWords(sec.markdown);
 				// the citations as the export will write them, the list at the back (A572 step 4); after the count
-				this.exportCite(secs);
+				// …AND A MARKDOWN EXPORT WRITES NONE (A867, Fable's review): it keeps [@key] for whoever compiles it next, so its
+				// preview shows the keys as the file will have them
+				if (o.format !== 'md') this.exportCite(secs);
 				// ── THE SAME DOCUMENT IS NOT REDRAWN ─────────────────
 				//
 				// THE PROSE ITSELF, not a count of it. Lengths collide — an edit that
@@ -4383,9 +4342,6 @@ export const exportMethods = {
 				}
 				prevSig = sig;
 				prevCol.empty();
-				// NO `onExport`: the pane has its own button, and the same act
-				// offered twice on one screen is a question about which one is
-				// the real one.
 				// THE ACT ROW IF THERE IS ONE, and the old line goes first: the
 				// preview column is emptied on every refresh, but the act row is
 				// not ours to empty — it holds the format, the folder, the count
@@ -4400,7 +4356,7 @@ export const exportMethods = {
 					typeof ctx.total === 'function' ? ctx.total() : 0);
 				prevHandle = this.exportPreviewInto(prevCol, secs,
 					this.exportOptsFor(ctx.scope(), o, words), picked.length,
-					null, actRow || null,
+					actRow || null,
 					// THE FOOT'S REFRESH: the same recompile, asked for by hand.
 					// `refreshPreview` excuses the foot's clicks, so this is the one way a
 					// press there reaches it.
@@ -4726,7 +4682,7 @@ export const exportMethods = {
 		let words = 0;
 		for (const s of sections) words += this.countWords(s.markdown);
 		const folder = await this.exportEnsureFolder(o.outFolder || '');
-		// A FREE NAME, ALWAYS. The stamp is dd-mm-yyyy hhmm, so two
+		// A FREE NAME, ALWAYS. The stamp is dd-mm-yyyy hh-mm, so two
 		// exports inside the same minute asked the vault for a path that
 		// already existed — and `vault.create` throws on that, so the
 		// second one FAILED with "File already exists" rather than making
@@ -4766,14 +4722,10 @@ export const exportMethods = {
 			await this.exportImages(sections, kind === 'docx' ? 'docx' : 'page');
 		}
 		try {
-			// WHAT WAS DONE, remembered — see `exportRemember` below for why
-			// it is written HERE, at each success, rather than where the
-			// button is pressed.
 			if (kind === 'md') {
 				const name = into(this.exportFileName(scope, 'md', opt.title));
 				// (each picture linked where it lives, A842)
 				await this.app.vault.create(name, this.exportToMarkdown(this.exportMdImages(sections, name), opt));
-				this.exportRemember(scope, kind, opt, files.length, name);
 				new Notice('Word-Smith: ' + wsT('exported {name}', { name }));
 				return;
 			}
@@ -4793,7 +4745,6 @@ export const exportMethods = {
 					// `.buffer` is the whole file: the render resolves with a fresh
 					// `new Uint8Array(buf)`, offset 0, no pool behind it.
 					await this.app.vault.createBinary(pdfName, bytes.buffer);
-					this.exportRemember(scope, kind, opt, files.length, pdfName);
 					new Notice('Word-Smith: ' + wsT('exported {name}', { name: pdfName }));
 					return;
 				} catch (e) {
@@ -4820,7 +4771,6 @@ export const exportMethods = {
 				const htmlName = into(this.exportFileName(scope, 'html', opt.title));
 				opt.tocPageOf = await this.exportTocPagesFor(sections, opt);
 				await this.app.vault.create(htmlName, this.exportToHtml(sections, opt, false));
-				this.exportRemember(scope, kind, opt, files.length, htmlName);
 				new Notice('Word-Smith: ' + wsT('exported {name}', { name: htmlName }));
 				return;
 			}
@@ -4828,7 +4778,6 @@ export const exportMethods = {
 				const epubName = into(this.exportFileName(scope, 'epub', opt.title));
 				const book = this.exportToEpub(sections, opt);
 				await this.app.vault.createBinary(epubName, book.buffer);
-				this.exportRemember(scope, kind, opt, files.length, epubName);
 				// THE BOOK CHECKED (A654): written either way, and what a store would refuse said, the first in the
 				// notice and every one in the console
 				const wrong = this.exportEpubCheck(book);
@@ -4846,7 +4795,6 @@ export const exportMethods = {
 			await this.app.vault.createBinary(name, bytes.buffer);
 			// Word is the default format, so the export a writer actually repeats
 			// is the one that most needs remembering.
-			this.exportRemember(scope, kind, opt, files.length, name);
 			new Notice('Word-Smith: ' + wsT('exported {name}', { name }));
 		} catch (e) {
 			console.error('Word-Smith export failed', e);

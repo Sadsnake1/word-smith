@@ -445,11 +445,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// A section of a page: a group whose heading is not shown (the page's
 	// title, or the rail's pill, is it). Its keys are read off its rows for
 	// the reset link at its end.
-	// (EXPORT VALUES, A855: a Settings › Export section's rows keep theirs in `exportOpts`, which keysOf cannot see; the
-	// section names them, and its link resets them too)
-	section(title: string, items: Row[], visible?: Pred | RailSlot, reset = true, exportKeys: string[] = []): Group {
+	// (EXPORT VALUES, A855: a Settings › Export section's rows keep theirs in `exportOpts`, which keysOf cannot see; since
+	// A859 the Export page names them and resets them all from one row, `resetLinkRow`'s export keys)
+	section(title: string, items: Row[], visible?: Pred | RailSlot, reset = true): Group {
 		const keys = WordSmithSettingTab.keysOf(items);
-		if (reset && (keys.length || exportKeys.length)) items.push(this.resetLinkRow(title, keys, exportKeys));
+		if (reset && keys.length) items.push(this.resetLinkRow(title, keys));
 		const slot = typeof visible === 'object' ? visible : null;
 		const gate = slot ? slot.visible : (typeof visible === 'function' ? visible : undefined);
 		return { type: 'group', heading: title, cls: 'ws-set-section' + (slot ? ' ' + slot.cls : ''), items, visible: gate };
@@ -2026,7 +2026,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Only in Zen', desc: 'The layout turns on with Zen and off when you leave it.', control: { type: 'toggle', key: 'layoutZenOnly' }, visible: text },
 				{ name: 'Page mode', desc: 'Your text as a page, outlined on a darker ground. The Modes menu switches it for now without changing this.', control: { type: 'toggle', key: 'pageView' }, visible: text },
 				{ name: 'Horizontal padding', desc: 'Pixels between the text and the pane’s edges, in and out of Zen. The Letter Box’s sides drag it too.', control: { type: 'slider', key: 'editorPaddingH', min: 0, max: 400, step: 10 }, visible: text },
-				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does. Reading view only.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
+				{ name: 'Paragraph indent', desc: 'The first line of each paragraph set in, as a book does.', control: { type: 'toggle', key: 'enableParagraphIndent' }, visible: text },
 				{ name: 'Indent trigger', desc: 'What starts a paragraph in your writing: a blank line, or every new line.',
 					control: { type: 'dropdown', key: 'paragraphIndentMode', options: { double: 'A blank line (double Enter)', single: 'Every line (single Enter)' } }, visible: all(text, () => !!s.enableParagraphIndent) },
 				{ name: 'Indent size', desc: 'In em.', control: { type: 'slider', key: 'paragraphIndentEm', min: 0.5, max: 8, step: 0.5 }, visible: all(text, () => !!s.enableParagraphIndent) },
@@ -2331,8 +2331,15 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				plugin.exportOptsChanged();
 			})(); }));
 		};
-		// A SECTION OF THIS PAGE AND THE EXPORT VALUES IT RESETS (A855)
-		const ex = (title: string, keys: string[], items: Row[], slot: RailSlot) => this.section(title, items, slot, true, keys);
+		// A SECTION OF THIS PAGE AND THE EXPORT VALUES IT OWNS (A855)
+		// …ONE RESET FOR THEM ALL (A859, the writer: "one single reset to export options"): no section ends on a link of its
+		// own; the Options pill's last row puts every section's values back, its settings and its export values both
+		const optKeys: string[] = [], optSettings: Key[] = [];
+		const ex = (title: string, keys: string[], items: Row[], slot: RailSlot) => {
+			optKeys.push(...keys);
+			optSettings.push(...WordSmithSettingTab.keysOf(items));
+			return this.section(title, items, slot, false);
+		};
 		const NUM_AT: [string, string][] = [['top-left', 'Top left'], ['top-center', 'Top center'], ['top-right', 'Top right'],
 			['bottom-left', 'Bottom left'], ['bottom-center', 'Bottom center'], ['bottom-right', 'Bottom right'], ['none', 'None']];
 		// TWO PILLS (A634, the writer: "the citations needs to be in a pill in the export page. so two
@@ -2348,8 +2355,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Author', desc: 'Your name on the title page and in the running header.',
 					render: (st) => {
 						st.addText((t) => t.setPlaceholder('A. Writer').setValue(String(opts().author || '')).onChange((v) => { void (async () => {
+							// (an open preview redrawn, as every row here does: A865)
 							opts().author = v;
 							await plugin.saveSettings();
+							plugin.exportOptsChanged();
 						})(); }));
 					} },
 				{ name: 'Round the word count', desc: '“About 90,000 words” on the title page, as a publisher expects. Off prints it exactly.', render: flag('roundWordCount') },
@@ -2445,9 +2454,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 							.onChange((v) => { void (async () => {
 								opts().footnotePlace = v === 'end' ? 'end' : 'foot';
 								await plugin.saveSettings();
+								plugin.exportOptsChanged();
 							})(); }));
 					} },
 			], this.railed('export', 'options')),
+			// (after every section above, so the lists are full)
+			this.section('Options', [this.resetLinkRow('Options', optSettings, optKeys)], this.railed('export', 'options'), false),
 			this.citationsSection(this.railed('export', 'citations')),
 		], value, on);
 	}

@@ -1264,7 +1264,8 @@ export const focusMethods = {
 
 		// Positioning (masks AND/OR retro bar width) needs the scroll/resize
 		// wiring whenever either feature is visible.
-		if (((this.settings.enableTypewriter || this.letterboxActive()) && scoped) || this.retroBarActive()) {
+		// (the note in focus's own ws-typewriter, A862)
+		if (((this.opt('enableTypewriter') || this.letterboxActive()) && scoped) || this.retroBarActive()) {
 			this.attachScrollHandler();
 			this.attachResizeHandler();
 			this.scheduleMaskPosition();
@@ -1489,7 +1490,8 @@ export const focusMethods = {
 	// pause later arrives in a commit of its own. Caret moves that are not
 	// edits (a tap, an arrow key) still scroll in the next frame.
 	typewriterRequest(this: WordSmith, cm: EditorView, cause: 'edit' | 'move' = 'move') {
-		if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
+		// (the editor's own note says, ws-typewriter over the switch: A862)
+		if (!this.settings.pluginEnabled || !this.optForView(cm, 'enableTypewriter')) return;
 		if (!this.isEditorInScope(cm)) return;
 		if (cause === 'edit' && this.isIosApp()) {
 			const win = cm.dom.ownerDocument.defaultView || window;
@@ -1514,7 +1516,7 @@ export const focusMethods = {
 			const v = this._twView;
 			this._twView = null;
 			if (!v || !v.dom.isConnected) return;
-			if (!this.settings.pluginEnabled || !this.settings.enableTypewriter) return;
+			if (!this.settings.pluginEnabled || !this.optForView(v, 'enableTypewriter')) return;
 			try {
 				const coords = v.coordsAtPos(v.state.selection.main.head);
 				if (!coords) return;
@@ -2086,7 +2088,7 @@ export const focusMethods = {
 			const k = Math.round((sHeight - 2 * (maskH + overhang)) / lineH);
 			const snapped = (sHeight - k * lineH) / 2 - overhang;
 			if (k >= 1 && snapped >= WS_MASK_MIN_PX && snapped <= this._maskMaxPx(sHeight)) arrowH = snapped;
-			const caret = this.settings.enableTypewriter ? this._lbCaretTop(view) : null;
+			const caret = this.opt('enableTypewriter') ? this._lbCaretTop(view) : null;
 			if (caret != null) {
 				const off = (((caret - (sTop + arrowH + overhang)) % lineH) + lineH) % lineH;
 				const d = off > lineH / 2 ? off - lineH : off;
@@ -2252,7 +2254,7 @@ export const focusMethods = {
 		// THE PADDING MOVES THE TEXT (A673): a pass that changed it lined the band up on where the caret's line WAS
 		// (MEASURED live: 295.6, then 424.6 once the padding was in); one more pass lines it up on where it is. The
 		// padding hangs on the mask's height alone, so the next pass changes nothing and asks for no other.
-		if (this.settings.enableTypewriter && padWas !== scrollPad) this.scheduleMaskPosition();
+		if (this.opt('enableTypewriter') && padWas !== scrollPad) this.scheduleMaskPosition();
 	},
 
 	scheduleMaskPosition(this: WordSmith) {

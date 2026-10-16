@@ -921,7 +921,7 @@ export const menuMethods = {
 					});
 				}
 				if (!flat.length) {
-					list.createDiv({ cls: 'ws-menu-empty', text: 'Nothing matches' });
+					list.createDiv({ cls: 'ws-menu-empty', text: wsT('Nothing matches') });
 				}
 				at = Math.min(at, Math.max(0, flat.length - 1));
 				paint();

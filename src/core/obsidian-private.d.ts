@@ -37,7 +37,7 @@ export interface WsCm5Facade {
 
 // the scope answer an editor keeps between generations (`isEditorInScope`)
 declare module '@codemirror/view' {
-	interface EditorView { _wsScope?: { gen: number; in: boolean }; _wsPack?: { gen: number; on: boolean } }
+	interface EditorView { _wsScope?: { gen: number; in: boolean }; _wsPack?: { gen: number; on: boolean }; _wsFile?: { gen: number; f: TFile | null } }
 }
 
 declare module 'obsidian' {

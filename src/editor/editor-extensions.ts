@@ -80,7 +80,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 		build(view: EditorView) {
 			const s = plugin.settings;
-			if (!s.pluginEnabled || !s.enableTypewriter || !s.dimUnfocusedEnabled) return Decoration.none;
+			// (the note's own ws-typewriter over the switch, A862)
+			if (!s.pluginEnabled || !s.dimUnfocusedEnabled || !plugin.optForView(view, 'enableTypewriter')) return Decoration.none;
 			if (!plugin.isEditorInScope(view)) return Decoration.none;
 			// Nothing is "unfocused" when you are not in the editor at
 			// all. Alt-tabbing away used to leave the whole note dimmed
@@ -291,13 +292,15 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		build(view: EditorView) {
 			const s = plugin.settings;
 			if (!s.pluginEnabled) return Decoration.none;
+			// THE NOTE'S OWN SAY (A862): `ws-syntax` and `ws-checks` in its frontmatter over the two switches
+			const posHere = !!plugin.optForView(view, 'posEnabled'), checksHere = !!plugin.optForView(view, 'checksEnabled');
 			// Word classes and writing checks are independent now: either
 			// can run without the other.
-			const posOn: Record<string, boolean> = s.posEnabled ? {
+			const posOn: Record<string, boolean> = posHere ? {
 				noun: s.posNoun, verb: s.posVerb, adj: s.posAdjective,
 				adv:  s.posAdverb, conj: s.posConjunction, pron: s.posPronoun
 			} : {};
-			const checksOn = s.checksEnabled && (s.checkFiller || s.checkPassive ||
+			const checksOn = checksHere && (s.checkFiller || s.checkPassive ||
 				s.checkIllusion || s.checkMisused || s.checkPronoun ||
 				s.checkRhythm || s.checkRepetition || s.checkDialogue || s.checkCliche);
 			if (!Object.keys(posOn).some(k => posOn[k]) && !checksOn) return Decoration.none;
@@ -331,8 +334,11 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					pos = line.to + 1;
 					if (skip && skip.has(line.number)) continue;
 					if (!line.text.trim()) continue;
-					let got = lineMarks.get(line.text);
-					if (!got) { got = markLine(line.text); lineMarks.set(line.text, got); }
+					// (the line's marks kept under this note's own two switches too, A862: the same line in a note with ws-syntax:
+					// false beside one without is two answers)
+					const key = (posHere ? 'p' : '-') + (checksHere ? 'c' : '-') + '\n' + line.text;
+					let got = lineMarks.get(key);
+					if (!got) { got = markLine(line.text); lineMarks.set(key, got); }
 					const base = line.from;
 					for (const [from, to, deco] of got.marks) out.push(deco.range(base + from, base + to));
 					if (got.marks.length) marked.add(base);

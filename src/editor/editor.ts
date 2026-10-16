@@ -119,8 +119,10 @@ export const editorMethods = {
 	// TYPOGRAPHY
 	// ════════════════════════════════════════════════════════════════════════
 
+	// (A862: built while a note open anywhere wants it, `ws-typography: true` with the switch off; each editor then asks
+	// its own note, so `ws-typography: false` types plain beside a note that does not)
 	buildTypographyExtension(this: WordSmith) {
-		if (!CM || !CM.EditorView || !this.settings.typographyEnabled) return [];
+		if (!CM || !CM.EditorView || !this.notesWant('typographyEnabled')) return [];
 
 		// Prec.highest matters here. Obsidian's own "auto pair brackets" is an
 		// input handler too, and it claims the quote keys — at default
@@ -129,7 +131,7 @@ export const editorMethods = {
 		const handler = CM.EditorView.inputHandler.of((view, from, to, text) => {
 			if (text.length !== 1) return false;                 // paste, IME, multi-char
 			const s = this.settings;
-			if (!s.pluginEnabled || !this.isEditorInScope(view)) return false;
+			if (!s.pluginEnabled || !this.isEditorInScope(view) || !this.optForView(view, 'typographyEnabled')) return false;
 			if (this.isEditorPack(view)) return false;
 
 			const doc  = view.state.doc;
@@ -366,7 +368,7 @@ export const editorMethods = {
 	// exactly what was inserted, the cursor still sitting after it, and the
 	// substitution being recent — otherwise Backspace behaves normally.
 	buildTypographyRevertKeymap(this: WordSmith) {
-		if (!CM || !CM.keymap || !this.settings.typographyEnabled) return [];
+		if (!CM || !CM.keymap || !this.notesWant('typographyEnabled')) return [];
 		const km = CM.keymap.of([{ key: 'Backspace', run: (view) => {
 			const t = this._lastTypo;
 			if (!t || Date.now() - t.time > 5000) return false;
@@ -389,8 +391,9 @@ export const editorMethods = {
 	// HEMINGWAY LOCK
 	// ════════════════════════════════════════════════════════════════════════
 
+	// (A862: built while a note open anywhere wants it; a key is blocked only in an editor whose own note is locked)
 	buildHemingwayExtensions(this: WordSmith) {
-		if (!CM || !CM.keymap || !this.settings.hemingwayEnabled) return [];
+		if (!CM || !CM.keymap || !this.notesWant('hemingwayEnabled')) return [];
 		const { keymap, EditorView, Prec } = CM;
 
 		// Returning false means "not handled", so the keystroke falls through
@@ -399,7 +402,7 @@ export const editorMethods = {
 		// "backspace", "the arrow keys". The flash says no; the line says
 		// what and where.
 		const blocked = (view: EditorView, what: string) => {
-			if (view && !this.isEditorInScope(view)) return false;
+			if (view && (!this.isEditorInScope(view) || !this.optForView(view, 'hemingwayEnabled'))) return false;
 			this.flashHemingway();
 			this.hemingwaySay(what);
 			return true;   // handled → CodeMirror calls preventDefault for us
@@ -415,7 +418,7 @@ export const editorMethods = {
 			if (/Home|End|Page/.test(key)) return 'the jump keys';
 			return 'that key';
 		};
-		const locked = (view: EditorView) => this.isEditorInScope(view);
+		const locked = (view: EditorView) => this.isEditorInScope(view) && !!this.optForView(view, 'hemingwayEnabled');
 
 		// Collected in a Set because several keys belong to more than one lock
 		// (Shift-Delete is both a delete and the legacy cut), and a duplicate

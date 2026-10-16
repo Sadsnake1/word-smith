@@ -4,6 +4,7 @@
 import type { TAbstractFile } from 'obsidian';
 import { wsCatch } from '../core/preamble';
 import { wsT } from '../core/ui-text';
+import { TFolder } from 'obsidian';
 import type WordSmith from '../plugin/plugin';
 import type { wsOrgPropsMake } from './organizer-props';
 import type { WsOrgJournalEntry } from './organizer-journal';
@@ -34,6 +35,11 @@ export interface OrgRenameDeps {
 	readonly ownerWin: () => typeof window;
 	readonly panel: HTMLDivElement;
 	readonly said: (msg: string, bad?: boolean, offer?: { run: () => unknown; label: string }) => void;
+	// (a row's flag and a folder's colour from its right-click, A869)
+	readonly orgFlagSet: (row: { path: string }, id: string, cell: HTMLElement | null) => Promise<void>;
+	readonly orgBulkPaths: (row: { path: string; kind?: string } | null | undefined) => string[];
+	readonly orgHistOn: (paths: string[], what: string) => string;
+	readonly drawPanel: () => void;
 }
 
 export const wsOrgRenameMake = (d: OrgRenameDeps) => {
@@ -114,7 +120,29 @@ const orgMenuCtx = {
 	// row, and the rename's edit guard holds the vault's own redraw off
 	// while the name is typed.
 	opens: false,
-	rename: (item: { path: string; kind: string }) => orgRenameRow(item)
+	rename: (item: { path: string; kind: string }) => orgRenameRow(item),
+	// A ROW'S FLAG AND A FOLDER'S COLOUR FROM ITS RIGHT-CLICK (A869, Fable's review: they "write settings directly, so
+	// they skip undo and the bulk selection"): the flag through the cell's own setter, the colour the same way, one
+	// step of the journal each and on every row the selection holds
+	flag: (p: string, id: string) => d.orgFlagSet({ path: p }, id, null),
+	colour: async (p: string, id: string) => {
+		const isFolder = (x: string) => d.plugin.app.vault.getAbstractFileByPath(x) instanceof TFolder;
+		const paths = d.orgBulkPaths({ path: p, kind: 'folder' }).filter(isFolder);
+		if (!paths.length) paths.push(p);
+		const now = d.plugin.settings.folderColors || {};
+		const before: [string, string][] = paths.map((x) => [x, now[x] || '']), after: [string, string][] = paths.map((x) => [x, id || '']);
+		const apply = async (pairs: [string, string][]) => {
+			const all = Object.assign({}, d.plugin.settings.folderColors || {});
+			for (const [x, v] of pairs) { if (v) all[x] = v; else delete all[x]; }
+			d.plugin.settings.folderColors = all;
+			await d.plugin.saveSettings();
+			try { void d.plugin.patchExplorerDOM(); } catch (_) { wsCatch('orgMenuCtx / colour: patchExplorerDOM', _); }
+			try { d.plugin.treeOrderChanged(); } catch (_) { wsCatch('orgMenuCtx / colour: treeOrderChanged', _); }
+			d.drawPanel();
+		};
+		d.orgHistPush({ label: d.orgHistOn(paths, wsT('Folder color')), undo: () => apply(before), redo: () => apply(after) });
+		await apply(after);
+	},
 };
 
 	return { orgMenuCtx };

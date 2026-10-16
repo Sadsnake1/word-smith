@@ -40,7 +40,7 @@ import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, w
 import { WS_RULES_EN } from './core/rules-en';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsPhraseRe, wsPhraseSpans, wsPhraseSpansFor, wsPhraseFold, wsPackLearned, wsPackRules, wsApplyRules, wsEnglishTagWith, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
 import { wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER } from './editor/cite-suggest';
-import { wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
+import { wsT, wsTq, wsTIn, wsNumIn, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
 import { WS_LOCALES } from './core/ui-locales';
 import { wsCiteEntryText } from './core/citations';
 import { wsCiteSections } from './core/citations';
@@ -81,7 +81,7 @@ export default Object.assign(WordSmith, {
 	wsPackEngine, WS_ENGLISH_ENGINE, WS_RULES_EN, wsPhraseRe, wsPhraseSpans, wsPhraseSpansFor, wsPhraseFold, wsPackLearned, wsPackRules, wsApplyRules, wsEnglishTagWith, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom,
 	// English's own lists and its pack engine (A691): what ws-dev/gen-english-packs.js writes the English packs from
 	// the settings in Obsidian's language (A692)
-	wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale, WS_LOCALES,
+	wsT, wsTq, wsTIn, wsNumIn, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale, WS_LOCALES,
 	wsEnglishPackEngine, POS_LEX, FILLER_STRONG, WS_CLICHES_EN, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 	// citations (A572)
 	wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER, wsCiteEntryText,

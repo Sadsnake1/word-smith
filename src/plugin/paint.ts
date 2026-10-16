@@ -363,9 +363,10 @@ export const paintMethods = {
 		// The dimming's rules reach only lines an in-scope editor marked, so they
 		// follow the panes too: a click into a reference note does not wash the
 		// manuscript beside it back to full ink.
-		body.classList.toggle('ws-pos-dim',                 laid && this.settings.posEnabled && this.settings.posDimOthers);
-		body.classList.toggle('ws-ck-dim',                  laid && this.settings.checksEnabled && this.settings.checkDimOthers);
-		body.classList.toggle('ws-hemingway-active',        scoped && this.settings.hemingwayEnabled);
+		// (a note's own keys, A862: on wherever an open note turns it on, the note in focus for Hemingway's selection)
+		body.classList.toggle('ws-pos-dim',                 laid && this.notesWant('posEnabled') && this.settings.posDimOthers);
+		body.classList.toggle('ws-ck-dim',                  laid && this.notesWant('checksEnabled') && this.settings.checkDimOthers);
+		body.classList.toggle('ws-hemingway-active',        scoped && !!this.opt('hemingwayEnabled'));
 		if (zen) body.setAttribute('data-zen-focused-file', String(this.settings.focusedFileMode));
 		else body.removeAttribute('data-zen-focused-file');
 		this.tagMainTitlebar();
@@ -666,7 +667,8 @@ export const paintMethods = {
 		// the indent lands on. The amount is --ws-para-indent, beside it on body
 		// (it was on :root, which a pop-out window never gets, A701).
 		cls['ws-para-single'] = this.textOpt('enableParagraphIndent', false) && s.paragraphIndentMode === 'single';
-		props['--ws-para-indent'] = (s.paragraphIndentEm || 2) + 'em';
+		// (the size's one default, the settings' own: it fell back to 2 against their 4, A870)
+		props['--ws-para-indent'] = (s.paragraphIndentEm || DEFAULT_SETTINGS.paragraphIndentEm) + 'em';
 		if (this.textOpt('limitLineLength', false)) {
 			// ch is the width of a "0", which is the conventional stand-in for
 			// a character in a proportional face. The horizontal padding is
@@ -714,15 +716,18 @@ export const paintMethods = {
 		// that does not exist.
 		const posStyle = s.syntaxStyle || 'text';
 		const ckStyle = s.checkStyle || 'line';
+		// (ON WHEREVER A NOTE WANTS IT, A862: the switch, or an open note's ws-syntax / ws-checks; a note that turns them off
+		// gets no marks, so a colour here is never a mark there)
+		const posAny = this.notesWant('posEnabled'), ckAny = this.notesWant('checksEnabled');
 		for (const st of STYLE_KINDS) {
-			cls['ws-pos-' + st] = !!s.posEnabled && posStyle === st;
-			cls['ws-ck-' + st] = !!(s.posEnabled || s.checksEnabled) && ckStyle === st;
+			cls['ws-pos-' + st] = posAny && posStyle === st;
+			cls['ws-ck-' + st] = (posAny || ckAny) && ckStyle === st;
 		}
 		const paint = (cls: string, color: string | boolean) => {
 			props['--' + cls + '-color'] = String(color);
 			props['--' + cls + '-bg'] = this.hexToRgba(String(color), 0.22);
 		};
-		if (s.posEnabled) {
+		if (posAny) {
 			for (const [k, on, color] of [
 				['noun', s.posNoun,        s.posNounColor],
 				['verb', s.posVerb,        s.posVerbColor],
@@ -732,7 +737,7 @@ export const paintMethods = {
 				['pron', s.posPronoun,     s.posPronounColor]
 			]) if (on) paint('ws-pos-' + k, color);
 		}
-		if (s.checksEnabled) {
+		if (ckAny) {
 			for (const [k, on, color] of [
 				['filler',   s.checkFiller,   s.checkFillerColor],
 				['passive',  s.checkPassive,  s.checkPassiveColor],

@@ -256,11 +256,11 @@ export const barMethods = {
 		const presets = this.getBarPresets();
 		const names = Object.keys(presets);
 		if (!names.length) {
-			new Notice('Word-Smith: no bar presets saved yet.');
+			new Notice('Word-Smith: ' + wsT('No bar presets saved yet.'));
 			return;
 		}
 		if (!this.settings.enableRetroStatus) {
-			new Notice('Word-Smith: the Powerline bar is off.');
+			new Notice('Word-Smith: ' + wsT('The Powerline bar is off.'));
 			return;
 		}
 		// indexOf returns -1 for an unknown or absent name, which is exactly
@@ -268,7 +268,7 @@ export const barMethods = {
 		const at = names.indexOf(this._activeBarPreset);
 		const next = names[(at + direction + names.length) % names.length];
 		await this.loadBarPreset(next);
-		new Notice('Word-Smith: bar preset ' + next + '.');
+		new Notice('Word-Smith: ' + wsT('Bar preset {name}.', { name: next }));
 	},
 
 	async deleteBarPreset(this: WordSmith, name: string) {
@@ -2348,12 +2348,16 @@ export const barMethods = {
 		return wrap;
 	},
 
+	// (THE KEY'S LEGEND AS THE LANGUAGE'S KEYBOARDS PRINT IT, A870: Verr Maj in French, Bloq Mayús in Spanish; one pair, its
+	// two words the keycap's two rows)
 	buildCapsIndicator(this: WordSmith) {
-		return this.buildKeyGlyph('Caps', 'Lock', wsT('Caps Lock is on'));
+		const [a, b] = wsT('keycap::Caps Lock').split(/\s+/);
+		return this.buildKeyGlyph(a || 'Caps', b || '', wsT('Caps Lock is on'));
 	},
 
 	buildNumIndicator(this: WordSmith) {
-		return this.buildKeyGlyph('Num', 'Lock', wsT('Num Lock is on'));
+		const [a, b] = wsT('keycap::Num Lock').split(/\s+/);
+		return this.buildKeyGlyph(a || 'Num', b || '', wsT('Num Lock is on'));
 	},
 
 	// The writing checks get their own token, so the syntax picker can stay

@@ -284,10 +284,9 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 		// declared in `COLS` has nothing to delete, and a vault property that
 		// is not a column yet was never added — and drawing the cell either
 		// way keeps the grid's cells aligned (a missing fourth cell puts 8px
-		// between the two). WHAT IS LOST, AND IT IS REAL: nothing prunes
-		// `uniUserCols`, so a key added once is offered for ever, and the
-		// chosen TYPE lives on that entry; if the list grows unwieldy the
-		// answer is one prune in the settings tab, away from the table.
+		// between the two). `pruneUserCols` takes
+		// a key no file carries any more off `uniUserCols`, its chosen TYPE
+		// with it.
 		const del = row.createSpan({ cls: 'ws-org-pdel is-dead' });
 		void del;
 		drew++;

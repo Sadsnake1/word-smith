@@ -45,7 +45,7 @@ function wsChartReadout(chart: HTMLElement, under: HTMLElement, hint: string) {
 }
 // HOW LONG THEY RUN (A629): the chart's eight columns, short to long, in words
 const WS_REPORT_BUCKETS: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40], [41, Infinity]];
-import { wsMonotoneTangents, CJK_CHAR, READ_WPM, wsPagesOf, wsDayKey, wsDayOf, wsGoalPlan, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsIsFile, wsErrMsg } from '../core/preamble';
+import { wsMonotoneTangents, CJK_CHAR, READ_WPM, wsPagesOf, wsDayKey, wsDayOf, wsGoalPlan, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsErrMsg } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
@@ -4192,34 +4192,6 @@ export const reportMethods = {
 		return [hue, s * 100, l * 100];
 	},
 
-	// The REPORT's finder searches the vault itself, not the writing
-	// record: the history can only offer paths it has seen you write in,
-	// and "how long is that other chapter" is a fair question about a
-	// note this plugin has never watched. Same fuzzy scorer, same
-	// folders-first nudge, so the two finders rank the same way — only
-	// the pool of candidates differs. Scope rules still apply: a note
-	// the plugin is told to ignore is not offered here either.
-	reportFinderMatches(this: WordSmith, query: string, limit?: number) {
-		const files = [];
-		const folders = new Set<string>();
-		try {
-			for (const f of this.app.vault.getMarkdownFiles()) {
-				if (!this.isFileCounted(f)) continue;
-				files.push(f.path);
-				let cut = f.path.lastIndexOf('/');
-				while (cut > 0) {
-					folders.add(f.path.slice(0, cut));
-					cut = f.path.lastIndexOf('/', cut - 1);
-				}
-			}
-		} catch (_) { wsCatch('reportFinderMatches: for (const f of this.app.vault.getMarkdownFiles())', _); }
-		const tag = (list: string[], kind: string) => this.historyFuzzy(query, list)
-			.map(m => ({ path: m.path, score: m.score + (kind === 'folder' ? 1.5 : 0), kind }));
-		const all = tag(Array.from(folders).sort(), 'folder').concat(tag(files.sort(), 'file'));
-		all.sort((a, b) => b.score - a.score || a.path.length - b.path.length);
-		return all.slice(0, limit || 8);
-	},
-
 	// A centred report rather than a bar popup: eight figures and a
 	// gauge, twice over, is more than a strip above the status bar can
 	// hold legibly.
@@ -4398,6 +4370,8 @@ export const reportMethods = {
 				});
 			};
 			let stats: WsTextStats | null = null, target = 0, freq: Map<string, number> | null = null;
+			// (a note with no target: its folder's goal, counted as the folder, A868)
+			let folderGoal: { name: string; target: number; done: number } | null = null;
 			// THE SENTENCES, read only when the bars are asked for (A593)
 			let sentencesOf: WsSentencesOf | null = null;
 			if (active === 'note') {
@@ -4428,6 +4402,16 @@ export const reportMethods = {
 				// are different numbers and showing one under the other's name
 				// made the ring meaningless.
 				target = this.fileGoalFor(repFile.path);
+				// …AND WITHOUT ONE, THE NEAREST FOLDER'S ABOVE IT (A868, Fable's review: a scene with no target showed nothing
+				// under a book that has one, while {target} follows the folder's): the folder's gauge, the folder's own words,
+				// and its name under it, so it is never read as the note's; the note's figures stay the note's
+				if (!(target > 0)) {
+					const f = this.goalFolderAbove(notePath);
+					if (f !== null) {
+						const ft = await this.analyzeFolder(f === '' ? '/' : f);
+						folderGoal = { name: f === '' ? (this.vaultName ? this.vaultName() : '') : (f.split('/').pop() || f), target: this.folderTargetFor(f), done: this.goalCount(ft) };
+					}
+				}
 			} else {
 				stats  = await this.analyzeFolder(folderSel);
 				freq   = await this.wordFreqFor(this.filesInFolder(folderSel, true).filter((f) => this.isFileCounted(f)));
@@ -4449,16 +4433,18 @@ export const reportMethods = {
 
 			// THE GOAL'S GAUGE, ONLY WHERE THERE IS A GOAL (the writer: "remove this message for if no goal is set. is ugly for
 			// non-goal notes"): without one the figures stand alone (TOMBSTONE: "No goal set for this note yet" and its hint)
-			if (target > 0) {
+			const gauge = target > 0 ? { done: stats.words, of: target } : folderGoal && folderGoal.target > 0 ? { done: folderGoal.done, of: folderGoal.target } : null;
+			if (gauge) {
 				const ringWrap = body.createDiv({ cls: 'ws-report-ring' });
-				const ratio = Math.min(stats.words / target, 1);
-				const holder = ringWrap.createSpan({ cls: 'ws-goal ws-goal-heat' + (stats.words >= target ? ' is-met' : '') });
+				const ratio = Math.min(gauge.done / gauge.of, 1);
+				const holder = ringWrap.createSpan({ cls: 'ws-goal ws-goal-heat' + (gauge.done >= gauge.of ? ' is-met' : '') });
 				// Heat ramp: ember red at nothing, amber in the middle, green
 				// at the goal. currentColor carries it into the liquid. The HUE is
 				// a variable and the color the sheet's (A504, the plugin
 				// guidelines: no hardcoded styling), so a theme can restyle it.
 				holder.style.setProperty('--ws-goal-hue', String(Math.round(8 + ratio * 122)));
 				holder.appendChild(this.buildGoalLiquid(ratio));
+				if (!(target > 0) && folderGoal) body.createDiv({ cls: 'ws-report-ring-label is-muted', text: wsT('{folder}: {done} of {target}', { folder: folderGoal.name, done: folderGoal.done.toLocaleString(), target: folderGoal.target.toLocaleString() }) });
 			}
 
 			this.buildReportFigures(body, stats, target, freq, sentencesOf);
@@ -4963,80 +4949,6 @@ export const reportMethods = {
 			say(open);
 		});
 		return box;
-	},
-
-	selectionFiles(this: WordSmith, rows: { kind: string; path: string }[]) {
-		const out = new Map<string, TFile>();
-		const add = (f: TAbstractFile | null) => {
-			try { if (f && f.path && wsIsFile(f) && this.isFileCounted(f)) out.set(f.path, f); } catch (_) { wsCatch('selectionFiles / add: if (f && f.path && this.isFileCounted(f)) out.set(f.path, f);', _); }
-		};
-		// THE WRITING WHEN THERE IS ONE, the vault when there is not — the
-		// same rule the window's tree draws by, so a report on "everything"
-		// and a tree of "everything" are the same everything.
-		const wholeVault = () => {
-			for (const f of this.filesInFolder('/', true)) {
-				add(f);
-			}
-		};
-		if (!rows || !rows.length) { wholeVault(); return Array.from(out.values()); }
-		for (const it of rows) {
-			if (!it) continue;
-			if (it.kind === 'folder') {
-				// '' and '/' are the same place — the root — and callers
-				// disagree about which they say. The report drew "Vault ›
-				// Vault" the last time that went unhandled.
-				for (const f of this.filesInFolder(it.path ? it.path : '/', true)) add(f);
-				continue;
-			}
-			let f = null;
-			try { f = this.app.vault.getAbstractFileByPath(it.path); } catch (_) { wsCatch('selectionFiles: f = this.app.vault.getAbstractFileByPath(it.path);', _); }
-			add(f);
-		}
-		return Array.from(out.values());
-	},
-
-	// …and what those files add up to.
-	//
-	// Summed from the PER-FILE cache the folder pass already keeps, rather
-	// than by adding up folder totals: the cache is keyed on path and mtime,
-	// so a selection that overlaps a folder read a moment ago costs nothing,
-	// and the union above cannot be undone by summing at a coarser grain.
-	//
-	// THE GRADE IS RECOMPUTED, never averaged. Every word in the selection
-	// over every sentence in it — a two-line scene would otherwise weigh the
-	// same as a four-thousand-word chapter, which is the same rule a folder's
-	// own grade follows and the reason it is stated on the row's hover.
-	async analyzeSelection(this: WordSmith, rows: { kind: string; path: string }[]) {
-		if (!this.wordCountCache) this.wordCountCache = new Map();
-		const files = this.selectionFiles(rows);
-		const total: WsTextStats & { tasksDone?: number; tasksAll?: number } = { words: 0, chars: 0, charsNoSpaces: 0, charsWithSpaces: 0,
-			syllables: 0, sentences: 0, paragraphs: 0, lines: 0, pages: 0, grade: 0, files: files.length };
-		for (const file of files) {
-			let stats = null;
-			const hit = this.wordCountCache.get('stats:' + file.path);
-			if (hit && file.stat && hit.mtime === file.stat.mtime) stats = hit.stats;
-			if (!stats) {
-				try {
-					stats = this.analyzeText(await this.app.vault.cachedRead(file));
-					if (file.stat) {
-						this.wordCountCache.set('stats:' + file.path,
-							{ mtime: file.stat.mtime, stats });
-					}
-				} catch { continue; }
-			}
-			total.words           += stats.words || 0;
-			total.chars           += stats.chars || 0;
-			total.charsNoSpaces   += stats.charsNoSpaces || 0;
-			total.charsWithSpaces += stats.charsWithSpaces || 0;
-			total.syllables       += stats.syllables || 0;
-			total.sentences       += stats.sentences || 0;
-			total.paragraphs      += stats.paragraphs || 0;
-			total.lines           += stats.lines || 0;
-			this.addReadSums(total, stats);
-		}
-		total.pages = wsPagesOf(total.words);
-		total.grade = this.gradeOfTotal(total);
-		return total;
 	},
 
 };

@@ -370,6 +370,26 @@ export const historyMethods = {
 		base[file.path] = 0;
 	},
 
+	// A NOTE YOU OPEN IS WEIGHED THEN (A863, Fable's review: "History drops the first edit of every note"): the first
+	// look only weighs a note (historyRecord), and that look was the first save after an edit, so the edit went into the
+	// weight and counted for nothing. Opened in an editor and never weighed, a note is weighed now, before a key is typed.
+	// One that changes without being opened (a sync, an import) is still only weighed on its first save
+	async historyNoteOpened(this: WordSmith, file: TAbstractFile | null) {
+		try {
+			if (!this.settings.historyTracking) return;
+			if (!(file instanceof TFile) || !/\.md$/i.test(file.path)) return;
+			if (file.path === this._historyPath || !this.isFileCounted(file)) return;
+			if (!this._historyReady) await this.historyLoad();
+			const base = this.historyBaselines();
+			if (Object.prototype.hasOwnProperty.call(base, file.path)) return;
+			const text = await this.app.vault.cachedRead(file);
+			// (a save that got there first has weighed it already)
+			if (Object.prototype.hasOwnProperty.call(base, file.path)) return;
+			base[file.path] = this.countWords(text);
+			this.historyQueueSave();
+		} catch (_) { wsCatch('historyNoteOpened', _); }
+	},
+
 	// PASTED AND CUT TEXT, HELD OUT of the next count of its note unless the
 	// writer counts pasted text (History, "Count pasted text", off by default):
 	// moving text is a cut and a paste, and neither is writing. The editor

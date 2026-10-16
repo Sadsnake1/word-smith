@@ -147,6 +147,18 @@ key([[], ' '], async () => {
 // that": not this rename, not this search, not this selection. Closing
 // on the first press makes the key too expensive to use, so nobody
 // uses it.
+// A SELECTION LET GO, the rung both halves of the ladder stand on
+const releaseSel = () => {
+	if (!(d.sel.size || d.orgSel.cursorDrives)) return false;
+	d.sel.clear();
+	d.orgSel.lastPicked = null;
+	// …and the cursor stops speaking for the window too. Escape here means "never mind, show me everything", and
+	// clearing a selection only to land on whichever row the cursor happened to be resting against would be a
+	// different note's report arriving unasked.
+	d.orgSel.cursorDrives = false;
+	d.drawPanel();
+	return true;
+};
 const escapeLadder = (ev: KeyboardEvent) => {
 	if (ev.key !== 'Escape') return false;
 	// ── A RENAME IN PROGRESS IS CANCELLED HERE ──────────────────
@@ -171,23 +183,15 @@ const escapeLadder = (ev: KeyboardEvent) => {
 		// into its search box did not start inside `host` at all.
 		if (d.orgPropPopEl()) { d.orgPropPopClose(); return true; }
 		if (d.orgLensOn()) { d.orgLensClear(); return true; }
+		// …THEN A SELECTION LETS GO (A869, Fable's review: the ladder returned before the rung below, on this tab alone,
+		// while the docs say "a plain click or Escape lets it go")
+		if (releaseSel()) return true;
 		// The TREE search clears next — through the one writer, so the terms
 		// go with the text.
 		if (d.host.closes === false) return true;
 		return false;
 	}
-	if (d.sel.size || d.orgSel.cursorDrives) {
-		d.sel.clear();
-		d.orgSel.lastPicked = null;
-		// …and the cursor stops speaking for the window too. Escape
-		// here means "never mind, show me everything", and clearing a
-		// selection only to land on whichever row the cursor happened
-		// to be resting against would be a different note's report
-		// arriving unasked.
-		d.orgSel.cursorDrives = false;
-		d.drawPanel();
-		return true;
-	}
+	if (releaseSel()) return true;
 	// ── NOTHING LEFT TO BACK OUT OF ─────────────────────────────
 	//
 	// In a MODAL the key is handed back and the window closes, which

@@ -251,8 +251,8 @@ const orgFlagCell = (td: HTMLElement, row: WsOrgRow, text: string) => {
 	more.setAttribute('aria-label', wsT('Choose a flag'));
 	more.title = wsT('Choose a flag');
 	more.addEventListener('click', (ev: Event) => {
-		// THE CELL BELOW IT CYCLES. Without this the caret would set a
-		// flag on the way to offering the menu.
+		// THE CELL UNDER IT OPENS THE SAME MENU: stopped here, or one press
+		// would open two.
 		ev.stopPropagation();
 		orgFlagMenu(ev as MouseEvent, row, td);
 	});

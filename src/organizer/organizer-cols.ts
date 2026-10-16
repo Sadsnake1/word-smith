@@ -304,7 +304,6 @@ const BUILTIN_SORTS = [
 	{ id: 'vocab',  label: 'Vocabulary', icon: wsIconPick(['letters', 'letter-text', 'whole-word']) },
 	{ id: 'mark',   label: 'Where it is up to', icon: 'flag' },
 	{ id: 'grade',  label: 'Reading grade', icon: 'graduation-cap' },
-	{ id: 'pct',    label: 'How close to target', icon: 'percent' },
 	{ id: 'goal',   label: 'Target', icon: 'target' },
 	// the soonest first, the fewest days, the largest share (A700)
 	{ id: 'deadline', label: 'Deadline', icon: wsIconPick(['calendar-clock', 'calendar']) },

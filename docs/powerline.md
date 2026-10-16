@@ -19,7 +19,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{readtime}` | How long the note takes to read |
 | `{pages}` | How many pages the note fills, 250 words to a page, as in the Report |
 | `{tasks}` | Tasks ticked over tasks in the note, `[3/7]`, as the Organizer shows them. Nothing when there are none |
-| `{target}` | How far you are toward your target, `43%`, `2,145/5,000`, `2,855 to go`, a small bar or just an icon (pick one under **Powerline → Tokens**). With a deadline the same shapes measure today's share and add the working days left, `412/850 · 23d` or `48% · 23d`. A deadline goal comes first, then the note's own target, then its folder's; **Which target** can keep it on one of them. Click it for more. A goal met gets a check after it until midnight. Set a target and a deadline in the Organizer, on a note or a folder. Nothing when there is none |
+| `{target}` | How far you are toward your target: `2,145/5,000`, `43%`, a small bar or just an icon, or **Words to go today**, `500`, today's share of the nearest deadline (pick one under **Powerline → Tokens**). The note's own target, else its folder's. Click it for more. Set a target and a deadline in the Organizer, on a note or a folder. Nothing when there is none |
 | `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
 | `{time}` `{clock}` | The time, written or drawn as a dial. `{time}` reads `14:05` or `2:05 PM` (pick one under **Powerline → Tokens**) |
@@ -27,12 +27,12 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{wpm}` | Your typing speed in words a minute, with a small gauge whose needle rests five seconds after your last key. The Momentum gauge, a dial alone, follows your last few seconds instead. Or today's average (pick one under **Powerline → Tokens**). Click it to start again from zero. It shows the number alone; type `wpm` after it if you want the word. Only what you type counts, never a paste |
 | `{battery}` `{caps}` `{num}` | Battery; caps and num lock, only when on |
 | `{vim}` | Which Vim mode you're in |
-| `{mode}` | A Modes button: letter box, typewriter, Hemingway, right on the bar |
+| `{mode}` | A Modes button: letter box, typewriter, Hemingway, page and Zen, right on the bar |
 | `{flag}` | The flag of the note you're in. Click to change it |
 | `{obsidian}` | A small Obsidian crystal |
 | `{#>}` | The heading path: `Chapter 3 › The Ferry › Beat 2` |
 
-**Your target.** `{target}` follows the goal you're working toward: a deadline first (the note's own, then the nearest folder's), else the note's target, else its folder's. With a deadline it reads today's words over today's share and the days left; without one, `43%`, `2,145/5,000` or a small bar. Click it for a panel: a row for the note and one for its folder, each with its bar, its numbers, a ✓ once met, and the days left. **{target} panel** under Powerline → Tokens picks what the rows count: today's share while a deadline runs, or always the whole goal.
+**Your target.** `{target}` follows the note's target, else its folder's: `2,145/5,000`, `43%` or a small bar. **Words to go today** reads today's share of the nearest deadline instead. Click it for a panel: a row for the note and one for its folder, each with its bar, its numbers, a ✓ once met, and the days left. **{target} panel** under Powerline → Tokens picks what the rows count: today's share while a deadline runs, or always the whole goal.
 
 ## Buttons
 

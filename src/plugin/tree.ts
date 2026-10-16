@@ -599,7 +599,7 @@ export const treeMethods = {
 		// row too, so both trees answer a right-click the same way. It used to
 		// be added here and not there, and the same gesture did different
 		// things depending on which tree the row was in.
-		try { this.fileMenuFor(menu, file || { path, children: isFolder ? [] : undefined }); } catch (_) { wsCatch('outlinerRowMenu: this.fileMenuFor(menu, file || path, children: isFolder ? [] : …', _); }
+		try { this.fileMenuFor(menu, file || { path, children: isFolder ? [] : undefined }, c); } catch (_) { wsCatch('outlinerRowMenu: this.fileMenuFor(menu, file || path, children: isFolder ? [] : …', _); }
 		menu.addSeparator();
 
 		// ── RENAME AND DELETE, THROUGH OBSIDIAN'S OWN COMMANDS ──────────────
@@ -762,9 +762,13 @@ export const treeMethods = {
 	// once, and anything the sort itself throws returns Obsidian's own answer.
 	// A tree that will not draw is a vault a writer cannot navigate, which is
 	// a far worse failure than a tree in the wrong order.
+	// …AND WHILE EXPORT SHOWS, whatever the switch says (A873, the writer: "when export is on, the custom order in obsidian
+	// file tree must be on"): the tree's order is the book's order there, and its ticks are read in it
 	explorerSortWanted(this: WordSmith) {
 		const s: Partial<WordSmithSettings> = this.settings || {};
-		return !!(s.pluginEnabled && s.treeOrder);
+		if (!s.pluginEnabled) return false;
+		if (s.treeOrder) return true;
+		try { return this.orgTicksWanted(); } catch (_) { wsCatch('explorerSortWanted: orgTicksWanted', _); return false; }
 	},
 
 	// Every file-explorer view currently open. There is normally one; there
@@ -1157,7 +1161,8 @@ export const treeMethods = {
 					// happen now. The write lands a tick later and the
 					// unpatch below does not wait for it.
 					void this.saveSettings();
-					this.unpatchExplorerSort();
+					// (the patch asked again rather than taken off: while Export shows the tree keeps the book's order, A873)
+					this.patchExplorerSort();
 				}
 				return origSort.call(view, order);
 			};
@@ -1854,8 +1859,8 @@ export const treeMethods = {
 	// no stable order or class of their own, but the sort one carries an
 	// aria-label; a build that labels it in another language simply does not
 	// match, and then nothing is marked and nothing is broken.
-	paintExplorerSortIcon(this: WordSmith) {
-		const on = !!(this.settings && this.settings.treeOrder);
+	// (`on` given by an unload, which takes the mark off without touching the switch, A873)
+	paintExplorerSortIcon(this: WordSmith, on: boolean = this.explorerSortWanted()) {
 		const hosts = document.querySelectorAll(
 			'.workspace-leaf-content[data-type="file-explorer"] .nav-buttons-container');
 		for (const host of Array.from(hosts)) {
@@ -2176,7 +2181,8 @@ export const treeMethods = {
 			const start = h.position.end.offset;
 			const end   = (i + 1 < heads.length) ? heads[i + 1].position.start.offset : text.length;
 			const slice = text.slice(start, end).trim();
-			counts.set('plain:' + h.heading, slice === '' ? 0 : slice.split(/\s+/).length);
+			// (the one counter, as the bar and the note count it: a split on spaces disagreed with the note's own, A870)
+			counts.set('plain:' + h.heading, slice === '' ? 0 : this.countWords(slice));
 		});
 		outlineRoot.querySelectorAll('.tree-item-self').forEach((node: HTMLElement) => {
 			const inner = node.querySelector('.tree-item-inner');
