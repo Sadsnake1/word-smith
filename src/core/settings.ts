@@ -42,16 +42,32 @@ export interface WsExportOpts {
 	/** the headings in the middle of the line (#76), on by default; off, at the start like the text */
 	centerHeads?: boolean;
 	/** an empty line after every paragraph, indented or not (A756) */
+	/** read once into `paraSpacing` and deleted on load (A834); a run may still carry it */
 	paraBlank?: boolean;
+	/** the space between paragraphs: 'auto', 'half', 'line' or 'note' (Your blank lines), `wsParaSpacing` */
+	paraSpacing?: string;
 	/** (#77's dropdown, never released: Keep line breaks since the writer's "in dont like this dropdown"; deleted on load) */
 	paraStart?: never;
-	/** KEEP LINE BREAKS (#77): a blank line starts a paragraph, a single line break stays one inside it; off, every line a paragraph */
+	/** KEEP LINE BREAKS (#77): every line a paragraph, a blank line kept as an empty one, the paragraph after it flush */
 	keepLineBreaks?: boolean;
+	/** the structure's numbers, from the file tree (#79): 'none', 'decimal' 1.1.2, 'decimalDot' 1.1.2., 'outline' I. A. 1.,
+	 * 'chapter' Chapter 1 and Part I (`wsNumberStyle`) */
+	numberStyle?: string;
+	/** the first paragraph under a heading indented too, as French books set it */
+	indentAfterHeads?: boolean;
+	/** every blank line an empty line, the first between two paragraphs too, for notes written a paragraph a line (A851) */
+	keepBlankLines?: boolean;
+	/** the first line's indent, a size with its unit, '0.5in' or '1.25cm' (`WS_INDENT_SIZES`; half an inch by default) */
+	indentSize?: string;
 	// words
-	author?: string; titleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
-	format?: string; footnotePlace?: string; chapterTitles?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
+	author?: string; titleText?: string; subtitleText?: string; lastScope?: string; outFolder?: string; font?: string; divider?: string;
+	format?: string; footnotePlace?: string; joinMode?: string; lineSpacing?: string; paperId?: string; listColumn?: string;
 	/** A751: the running header's own words, where the page number goes, the contents' title */
 	headerText?: string; pageNumberAt?: string; tocTitle?: string;
+	/** #81: the header on the left (off, the right); your contact lines, for the title page's corner and the header's tokens */
+	headerLeft?: boolean; address?: string; phone?: string; email?: string; contactOnTitle?: boolean;
+	/** the language the book is written in (the pack in use), its direction with it (A846) */
+	lang?: string;
 	// numbers
 	pt?: number;
 	/** the last export, remembered so the panel can offer it again */
@@ -111,6 +127,10 @@ export interface WsExportRun extends WsExportOpts, WsExportBuild { title?: strin
 	tocPageOf?: Record<string, number> }
 // One section of a compiled book: a folder heading, or a note with its text.
 export interface WsExportSection { title: string; markdown: string; path: string; depth: number; folder?: boolean; images?: Map<string, WsImage>;
+	/** the book's own folder (A848): its heading in the text, never in the contents */
+	book?: boolean;
+	/** its folders under the export's root, a folder's own chain, a file's folder's: whether they print or not (#79's numbers) */
+	dirs?: string[];
 	/** the list of sources at the back (A572 step 4): its heading the title, one entry a source */
 	bib?: boolean; entries?: string[] }
 export type WsExportBoolKey = KeysOf<WsExportOpts, boolean>;

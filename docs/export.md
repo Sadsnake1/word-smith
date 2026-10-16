@@ -22,12 +22,12 @@ It opens on it. Title page, `Surname / Title / page` running header, each file o
 
 Everything else is a switch:
 
-- **Front matter**: title page (with the word count, rounded if you like), running header, table of contents with working links.
-- **Structure**: each file starts a new page, follows a divider, or runs straight on. Insert the file's name, the note's own heading, or nothing. Folder names as headings.
-- **Typesetting**: paper, font, size (10 to 24pt: past 14 is a large-print reading copy, with headings that grow with the text), spacing.
+- **Front matter**: title page (with a subtitle if you give one, and the word count, rounded if you like), running header, table of contents with working links.
+- **Structure**: each file starts a new page, follows a divider, or runs straight on. **Headings** is one list: Folders (a folder becomes a heading where it begins; the book's own folder opens the text but is left out of the contents), File names, and Note headings (your own `#` headings, under the file's name when both are on), any of them together or none. **Numbers** puts 1.1.2, 1.1.2., I. A. 1. or Chapter 1 (with Part I for a top folder) before the folder and file headings, counted by your folders whether they print or not, in the contents too; a note's own headings are never numbered.
+- **Typesetting**: paper, font, size (10 to 24pt: past 14 is a large-print reading copy, with headings that grow with the text), spacing, and **Justify text** for straight edges on both sides.
 - **Also include**: properties, `%%` comments, callouts, `#tags`, `==highlights==`, image placeholders, footnotes as endnotes. Tags and footnotes are on by default, the rest off. Turn Tags off to keep your tags in your notes and out of the manuscript.
 
-What you decide once lives in **Settings → Export**: your name, the header text, where the page numbers go, the contents' title, **Center headings in exports** (on by default; off, headings start at the left like the text, and the title page stays centered), **--- starts a new page** (a line of three dashes in a note breaks the page there, while `***` and `___` stay scene breaks), **Indent paragraphs**, **Paragraph spacing**, **Keep line breaks** (your blank lines and line breaks as the note has them; off, every line is a paragraph), curly quotes, and where Word puts the footnotes. A change there shows in an open preview at once.
+What you decide once lives in **Settings → Export**: your name, your address (a box of up to four lines), phone and email (**Contact on the title page** puts them in its top left corner), the header text, written with tokens (`{title}` `{page}` `{time12}` `{time24}` `{dd}` `{mm}` `{yyyy}` `{yy}`, so `Doe | {title} | {page}` or `{dd}-{mm}-{yy}` read as you type them; a `{page}` of its own puts the number there), **Header on the left**, where the page numbers go, the contents' title, **Center headings in exports** (on by default; off, headings start at the left like the text, and the title page stays centered), **--- starts a new page** (a line of three dashes in a note breaks the page there, while `***` and `___` stay scene breaks), **Indent paragraphs** and its **First-line indent** (a quarter inch to one inch, or 0.5 to 2 cm), **Indent after headings** (the first paragraph under a heading indented too, as French books set it), **Paragraph spacing** (Auto, Half a line or One line; every line of a note is its own paragraph, and each blank line past the first between two paragraphs is kept as one empty line, the paragraph after it starting flush), **Keep every blank line** (the first blank line too, for notes written one paragraph a line), curly quotes, and where Word puts the footnotes. A change there shows in an open preview at once.
 
 Nine paper sizes: Letter, A4, Legal, Executive, B5, A5, plus the trim sizes a novel is actually printed at: trade paperback, digest and mass market. Margins scale with the paper.
 
@@ -39,7 +39,7 @@ The manuscript as pages, at the paper size you chose, before a single file is wr
 
 For a Word file, footnotes sit at the foot of the page that cites them, under a short rule, the way Word sets them, so the pages you see are the pages Word prints. With **Notes at the end** (Settings → Word-Smith → Export), and for a PDF or a web page, they're at the back.
 
-Press **Expand** and the preview takes the whole pane, your pages one under the other with a little space between them, the same as the preview: each page the paper's size, with its margins, running header, page number and footnotes where the file prints them. It opens fitted to the window; zoom in and it scrolls sideways rather than rewrapping. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. That's the fastest way to read your book back.
+Press **Expand** and the preview takes the whole pane, your pages one under the other with a little space between them, the same as the preview: each page the paper's size, with its margins, running header, page number and footnotes where the file prints them. It opens fitted to the window; zoom in and it scrolls sideways rather than rewrapping. Click a paragraph and the note opens beside the reader with the caret on it. A drop-down at the foot jumps to any note in the manuscript, and `[` and `]` step through them. Left and Right, or Page Up and Page Down, turn a page; Home and End go to the ends; Escape collapses. That's the fastest way to read your book back.
 
 ## The formats
 
@@ -49,7 +49,7 @@ Word, web page, e-book and Markdown work on phones too. For a PDF on a phone, ex
 - **Word** is a real `.docx` with styles.
 - **Web page** is the same document with its page rules built in. Print it from any browser and you get the PDF again.
 - **E-book** is an EPUB for any e-reader: a file a chapter, the contents, the notes and the pictures inside. The reader sets the pages, the font and the line spacing, so paper, margins, the font and the spacing don't apply.
-- **Markdown** is the plain compile. Also the way to glue a few notes into one file.
+- **Markdown** is the plain compile. Also the way to glue a few notes into one file. Your pictures stay where they are, and the Markdown links to each one there, so pandoc can find and size them.
 
 ## Citations
 

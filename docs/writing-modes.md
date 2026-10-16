@@ -18,7 +18,7 @@ Two masks in the note's own background color, so it reads as a narrowing page, n
 
 ## Typewriter
 
-Keeps the line you're writing in the middle of the screen. It can tint that line, and dim everything outside the paragraph or sentence you're in.
+Keeps the line you're writing in the middle of the screen. It can mark that line: a tint behind it, or a line on top, at the bottom or both (1 to 3 px, solid, dashed or dotted, at the row you're typing on), and dim everything outside the paragraph or sentence you're in.
 
 ## Hemingway
 

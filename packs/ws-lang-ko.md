@@ -3,9 +3,11 @@
 Add words under any heading, comma separated or one per line. Keep the English name in each heading's brackets.
 
 ## 정보 (About)
+- learned: open
 - language: ko
 - name: 한국어
-- pack: 1.0
+- pack: 1.2
+- source: the learned parts from Tatoeba sentences (CC BY 2.0 FR), tagged for Word-Smith; see THIRD-PARTY-NOTICES.md
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -251,6 +253,71 @@ Add words under any heading, comma separated or one per line. Keep the English n
 | 어줍잖은 | 어쭙잖은 |
 | 옛부터 | 예부터 |
 
+## 상투어 (Cliches)
+### sayings
+- 가는 말이 고와야, 낮말은 새가 듣고, 원숭이도 나무에서, 등잔 밑이 {어둡다|어둡다고|어둡다더니|어둡다는|어두운|어둡지}, 백지장도 맞들면, 티끌 모아, 고생 끝에 낙이, 세 살 버릇 여든까지
+- 소 잃고 외양간{|을}, 발 없는 말이 천 리{|를}, {하늘이 무너져도 |}솟아날 구멍{|이|은|도}, 천 리 길도 한 걸음{부터|부터다|부터라고|부터라는|부터야}, 호랑이도 제 말 하면, 아니 땐 굴뚝에
+- 올챙이 적 생각{|을|도|은}, 꿩 먹고 알 먹{고|기|기다|기였다}, 돌다리도 두들겨, 믿는 도끼에 발등{|을|이}, 남의 떡이 {더 |}커, 빈 수레가 요란{하다|한|하다고|하다더니|하지|했다}
+- 말이 씨가 {된다|된다고|된다는|됐다|되었다|될|되는}, 금강산도 식후경{|이다|이라고|이지|이라는|이라더니}, 사공이 많으면, 가는 날이 장날{|이다|이라고|이었다|이라더니}, 개천에서 용{|이|은|도}
+- 아는 {것이|게} 힘{|이다|이라고|이라는|이야}, 시작이 반{|이다|이라고|이라는|이야|이지}, 피는 물보다 진{하다|하다고|하다는|한|했다}, 세상에 공짜는 {없다|없다고|없다는|없어|없지|없는}
+- {인생은|인간만사} 새옹지마{|다|라고|라는|라더니}, 작은 고추가 {더 |}{맵다|맵다고|맵다는|매운|맵지}, 고래 싸움에 새우 등{|이}, 모르는 {게|것이} 약{|이다|이라고|이야|이지|일}
+- 시간이 약{|이다|이라고|이라는|이야|이지|이었다}, 시간이 해결해 {줄|준다|줬다|주겠지|주리라}, 로마는 하루아침에, 첫술에 배부{르랴|를까|를 수는|를 리|르겠냐}
+- 엎질러진 물{|이다|이었다|이야|이라|이지}, 배보다 배꼽이, 실패는 성공의 어머니{|다|라고|라는|라지만}, 위기{는|가} {곧 |}기회{|다|이다|라고|라는}, 피할 수 없으면 즐{겨라|기라|겨}
+- 노력은 배신하지 {않는다|않아|않는다고|않는다는}, 인생은 한 번{뿐|뿐이다|뿐이야|뿐이니까|뿐이라고}, 세월{은|이} {유수와|화살과} 같{다|아|아서|이|은}, 급할수록 돌아가{라|라고|라는|야}
+- 도둑이 제 발 {저리다|저린|저린다|저려서|저렸는지}, 눈에서 멀어지면 마음{에서도|도}, {부부 싸움은 |부부싸움은 |}칼로 물 베기{|다|지|였다|라}
+### idioms
+- 발등에 불이, 눈코 뜰 새, 손에 땀을 쥐{게|는|고|었다|며|었던}, 입이 귀에, 눈에 넣어도 아프지, 하늘의 별 따기{|다|였다|지|라|만큼}
+- 그림의 떡{|이|을|은|이다|이었다|이라|이라고|인|일|이지}, 빙산의 일각{|이|을|에|이다|이었다|이라|일|인|이지}, 터널 끝의 빛{|이|을|이었다|처럼}, 폭풍 전의 고요{|가|를|였다|처럼|함}
+- {마른하늘에|마른 하늘에} 날벼락{|이|을|이다|이었다|이라|처럼|같은}, 우물 안 개구리{|가|를|는|의|다|였다|라|처럼|같은}, 눈 깜짝할 {사이에|새에|사이|새}
+- 새 발의 피{|다|였다|지|에|일|라}, 누워서 떡 먹기{|다|였다|지|야|라}, 식은 죽 먹기{|다|였다|지|야|라}, 뜨거운 감자{로|다|였다|가 됐다|가 되었다|가 된}
+- 도마 위에 {올랐다|오른|오르다|오르며|올라|오를}, 첫 단추를 {잘|잘못|제대로} 끼{워야|웠다|운|우면|워|우는|우지}, 두 마리 토끼를, 물 {건너갔다|건너간|건너가다|건너가고|건너가는}
+- {눈이|목이|목} 빠지게, 쥐구멍에라도 {숨고|들어가고}, 약방의 감초{|다|처럼|였다|같은|라}, 산 넘어 산{|이다|이었다|이라더니|이야}, 엎친 데 덮친 격{|이다|이었다|으로|이라}
+- 갈수록 태산{|이다|이었다|이라더니|이야}, {가뭄에|가뭄 끝의|가뭄의} 단비{|다|였다|같은|처럼|가|를}, 꼬리에 꼬리를 {물고|무는|물었다|물며}, 밑 빠진 독에 물{|을}
+- {바다에서|모래밭에서|모래사장에서} 바늘 찾기{|다|였다|지}, 독 안에 든 쥐{|다|였다|야|처럼|지}, 두 팔 벌려 {환영|환영했다|환영한다|환영하는|맞이했다|반겼다}
+### similes
+- {얼음처럼|얼음장처럼|얼음장같이} {차가운|차가웠다|차갑게|차갑다|싸늘한|싸늘하게}, {백지장처럼|종잇장처럼|백지장같이} {하얀|하얗게|창백한|창백하게|하얘졌다|질렸다|질린}
+- 쥐 죽은 {듯이|듯|듯한|듯했다}, 비가 {억수같이|억수처럼|양동이로 퍼붓듯}, 빛의 속도로, 황금 같은 {마음|기회|시간|휴일|주말|마음을|기회를|시간을}, 손바닥 뒤집듯{|이}
+- 불 보듯 {뻔하다|뻔한|뻔했다|뻔하지|뻔하게|훤하다}, 날개 돋친 {듯|듯이}, 벌집을 쑤셔 놓은, 물 만난 {고기|고기처럼|고기였다|고기같이|물고기처럼}, {찬물을|물을} 끼얹은 {듯|듯이|듯한|듯했다}
+- 청천벽력 같은 {소식|소식이|소식을|말|일}, 거짓말처럼 {사라졌다|나았다|멈췄다|사라진|조용해졌다}, {천둥|우레|우레와} 같은 {박수|박수가|박수를|함성|함성이}
+- 비 오듯 {쏟아졌다|쏟아지는|흘렀다|흐르는|쏟아지고}, 꿈만 {같았다|같은|같다|같아}, {칠흑 같은|칠흑같이} {어둠|어둠이|어둠을|어둠은|어둠에|밤|밤이었다|어두운}
+- 한 폭의 {그림 같은|그림 같았다|그림 같다|그림처럼|그림이었다|수채화 같은|동양화 같은}, 천사 같은 {미소|미소를|미소가|얼굴|얼굴로}, 조각 같은 {외모|얼굴|몸매|외모의|외모를|얼굴이}
+- 백옥 같은 {피부|피부가|피부를|피부의|얼굴}, 앵두 같은 {입술|입술을|입술이|입술로}, 실낱같은 {희망|희망이|희망을|희망에}, 주마등처럼 {스쳐|스쳤다|스치는|스치고|지나갔다|지나가는|흘러갔다}
+- {세월이|시간이} 쏜살같이 {흘렀다|흘러|흘러갔다|지나갔다|지나|흐른다}, {얼굴이 |}홍당무가 {되었다|됐다|되어|된|되며|돼}
+### fiction
+- 첫눈에 {반했다|반한|반해|반하고|반했던|반하는|반했어}, 운명의 {장난|장난이었다|장난처럼|장난인지|장난일까|장난이라}, 어둡고 폭풍우 치는 {밤|밤이었다|밤에|밤이}, 옛날 옛적에
+- {그 후로 |}오래오래 행복하게 {살았습니다|살았다|살았답니다}, 시간이 멈춘 {듯|듯했다|듯한|것 같았다|것만 같았다|것처럼}
+- 심장이 {멎을|멎는|멎은|터질|멈출} {듯|듯이|듯했다|듯한|것 같았다|것만 같았다}, {가슴이|심장이} 철렁{|했다|하는|한|하고|해서|하며}
+- {가슴이|심장이} {두근거렸다|두근거리는|두근거리기|두근두근|두근댔다|쿵쾅거렸다|쿵쾅댔다|요동쳤다|요동치는}, {온몸에 |팔에 |}소름이 {돋았다|돋는|돋을|돋아|쫙|끼쳤다|끼치는}
+- 등골이 {오싹|서늘}{|했다|해졌다|한|하게|해}, 눈앞이 {캄캄|캄캄했다|캄캄해졌다|캄캄한|깜깜했다|깜깜해졌다|하얘졌다}, {머릿속이|머리가} {하얘졌다|새하얘졌다|하얗게|새하얗게|백지가 됐다}
+- 피가 거꾸로, 이를 {악물었다|악물고|악물며|악문|악물다|악물었지}, 주먹을 불끈 {쥐었다|쥐고|쥐며|쥔}, 입술을 {깨물었다|깨물며|깨물고|지그시|잘근}
+- 고개를 {갸웃|갸웃했다|갸웃거렸다|갸웃하며|갸웃거리며|갸우뚱했다|갸우뚱하며}, {깊은|긴} 한숨을 {내쉬었다|내쉬며|내쉬고|토해냈다}
+- {참았던|참고 있던|멈췄던|멎었던} 숨을 {내쉬었다|내쉬며|토해냈다|몰아쉬었다|내뱉었다}, {마른 |}침을 꿀꺽 {삼켰다|삼키며|삼키고}
+- {무거운 |어색한 |}{정적이|침묵이} {흘렀다|흐르는|흐르고|감돌았다|감도는}, 눈물이 앞을 {가렸다|가려|가리는|가려서}, 눈시울이 {붉어졌다|붉어지는|붉어지며|뜨거워졌다|뜨거워지는|시큰해졌다|촉촉해졌다}
+- 코끝이 {찡했다|찡해졌다|찡해지는|찡하다|찡해 왔다|시큰했다|시큰해졌다}, 가슴이 {미어졌다|미어지는|미어질|미어지듯|미어지게|찢어질|찢어지는|찢어졌다|찢어지게|찢어지듯|먹먹했다|먹먹해졌다|먹먹한}
+- {하늘이|세상이} {무너지는|무너질|무너져 내리는} {듯|듯한|듯했다|것 같았다|것만 같았다}, 얼굴이 {새빨개졌다|새빨갛게|화끈|화끈거렸다|화끈거리는|달아올랐다|붉게}
+- 입가에 {미소가|웃음이} {번졌다|번지는|번지며|떠올랐다|걸렸다|감돌았다|피어올랐다}, 입꼬리가 {올라갔다|올라가며|올라가는|씰룩였다|슬며시|살짝|말려 올라갔다}
+- {싸늘한|비릿한|씁쓸한|쓸쓸한} {미소|미소를|미소가|웃음을|웃음이}, {칼날 같은|싸늘한|서늘한|차가운} 눈빛{|으로|이|을}, {눈빛이|눈동자가} {흔들렸다|흔들리며|흔들리는|세차게|거세게}
+- 알 수 없는 {감정|감정이|감정에|감정을|감정이었다|기분이}, 가슴 {한구석이|한켠이|한편이}, 불길한 {예감|예감이|예감은|예감에|예감을}, 그때는 {미처 |}{몰랐다|몰랐었다|알지 못했다}
+- 꿈에도 {몰랐다|모른|몰랐던|생각지 못했다|생각하지 못했다}, 마지막{이 될|일} 줄은, 꿈인지 생시인지, {나도|그도|그녀도|자신도} 모르게
+- 그 자리에 {얼어붙었다|얼어붙은|얼어붙어|얼어붙고|못 박힌 듯|굳어 버렸다}, {숨|숨이} 막힐 {듯|듯이|듯한|듯했다|정도로}, 만감이 {교차했다|교차하는|교차하며|교차한|교차하다}
+- {정신을 차려|눈을 떠} 보니, 한 줄기 {빛|빛이|빛을|빛처럼|희망|희망이|희망을}
+### crutch
+- 어느 날 갑자기, 그러던 어느 날, 아니나 다를까, 그도 그럴 것이, {두말할|말할} 것도 없이, 그럼에도 불구하고, {결론적으로|결론부터|솔직히|단도직입적으로|한마디로} 말{하자면|해서}, 때는 바야흐로
+- 이루 말할 수 {없이|없는|없을|없었다}, 말로 {표현할|다 할|형언할} 수 {없는|없을|없이|없었다}, 과언이 {아니다|아닐|아니었다|아니라|아닙니다}, 하루가 다르게
+- 바로 그 {순간|순간에|순간이었다|때|때였다}, {아무튼|어쨌든|어찌 됐든|어찌 되었든} 간에, {앞서|앞에서|위에서} {말했듯이|언급했듯이|말한 바와 같이|언급한 바와 같이}
+- 무엇보다{|도} 중요한 {것은|건}, 그렇게 {시간이|세월이} {흘러|흘렀다|흐르고|흘러갔다}
+### dialogue
+- 우리 {얘기|이야기} 좀 {해|하자|해요|합시다|할까}, {네가|니가|당신이} 생각하는 {그런 거|그런 게} {아니야|아니에요|아니라고}, 오해하지 {마|마세요|말아 줘|말아요}
+- {날|나를|절|저를} 믿어{|요|줘|봐|주세요}, {넌|너는|당신은} 혼자가 {아니야|아니에요|아니라고}, 내 눈에 흙이, {어디서 |}감히 {네가|니가|네까짓 게}
+- 이 돈 {받고|먹고} {떨어져|헤어져|떠나|사라져}, {너|당신} {없인|없이는|없으면} 못 {살아|살아요|산다}, {다 |}{잘될|잘 될} {거야|거예요|거라고|거니까}
+- 이게 끝이 {아니야|아니다|아닐|아니라고|아닙니다}, 어디 두고 {보자|봐}, 후회하게 될 {거야|거다|거예요|거라고}, {내가|제가} 누군지 {알아|알아요|아세요|알고|몰라}
+- 어떻게 이럴 {수가|수 있어|수 있니|수 있어요}, {너를|널|당신을} 지켜 {줄게|줄게요|주겠어|줄 거야}, 다 {너를|널|너} 위해서{|야|였어|라고|예요}
+- 이 은혜는 {꼭|반드시|평생|잊지|죽어도|결코}
+### jargon
+- {패러다임의|패러다임} {전환|전환을|전환이|변화|변화를|시프트}, 새로운 지평을 {열다|열었다|여는|열어|연|열}, 시너지 {효과|효과를|효과가|효과로}, 선택과 집중{|이|을|의|으로|이다}
+- 발상의 {전환|전환이|전환을|전환은|전환으로}, 틀을 {깨는|깬|깨다|깨고|벗어난|벗어나}, {적극적으로|긍정적으로} {검토하겠습니다|검토하겠다|검토하고|검토할|검토 중}
+- 한 단계 {업그레이드|업그레이드된|도약|도약하는|도약할|성장하는}, {윈윈|윈-윈} {전략|효과|게임}
+
 ## 피동 (Passive)
 - marks: …되다, …되었다, …됐다, …된다, …되는, …된, …될, …되어, …되며, …되고, …어지다, …어졌다, …아지다, …아졌다, …여지다, …받다, …받았다, …당하다, …당했다
 - not: 안되다, 잘되다, 못되다, 오래된, 오래되다
@@ -279,12 +346,14 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - Adverbs: 부사
 - Adjectives: 형용사
 - Conjunctions: 접속사
+- Pronouns: 대명사
 - Filler words: 군말
 - Passive voice: 피동
 - Loose pronouns: 모호한 대명사
 - Repetition radar: 반복
 - Commonly misused: 자주 틀리는 말
 - Lexical illusions: 겹친 말
+- Clichés: 상투어
 - Dialogue: 대화
 - Sentence rhythm: 문장 리듬
 
@@ -299,3 +368,6409 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - filler: 솔직히
 - passive: 지어졌다
 - sentences: 3
+
+## 품사 쌍 (Class pairs)
+| after | noun | verb | adj | adv | pron | prep | conj | art | num | part | aux | x |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| start | 39 | 2 | 2 | 6 | 40 | 0 | 0 | 9 | 2 | 0 | 0 | 1 |
+| noun | 33 | 33 | 13 | 10 | 6 | 0 | 0 | 1 | 4 | 0 | 0 | 0 |
+| verb | 43 | 11 | 3 | 3 | 3 | 0 | 0 | 1 | 1 | 0 | 34 | 0 |
+| adj | 61 | 15 | 4 | 4 | 4 | 0 | 0 | 1 | 1 | 0 | 10 | 0 |
+| adv | 21 | 41 | 19 | 8 | 7 | 0 | 0 | 1 | 1 | 0 | 0 | 0 |
+| pron | 42 | 20 | 7 | 13 | 13 | 0 | 0 | 4 | 2 | 0 | 0 | 0 |
+| prep | 26 | 30 | 11 | 5 | 4 | 0 | 0 | 1 | 23 | 0 | 0 | 1 |
+| conj | 38 | 4 | 2 | 21 | 28 | 0 | 0 | 3 | 2 | 0 | 0 | 0 |
+| art | 94 | 1 | 2 | 0 | 0 | 0 | 0 | 1 | 2 | 0 | 0 | 0 |
+| num | 77 | 8 | 2 | 2 | 0 | 4 | 0 | 0 | 4 | 0 | 3 | 0 |
+| aux | 45 | 17 | 5 | 7 | 5 | 0 | 1 | 1 | 0 | 0 | 18 | 0 |
+| x | 23 | 5 | 1 | 8 | 21 | 8 | 0 | 11 | 1 | 0 | 2 | 20 |
+| all | 40 | 21 | 8 | 8 | 12 | 0 | 0 | 3 | 2 | 0 | 6 | 0 |
+
+## 어미 비율 (Ending shares)
+- -시겠습니까: verb 92, adj 4, aux 4
+- -이었습니다: noun 70, verb 25, adj 3, aux 3
+- -겠습니다: verb 92, adj 7
+- -났습니다: verb 90, adj 7
+- -렸습니다: verb 90, adj 7
+- -셨습니까: verb 72, aux 21, adj 6
+- -시겠어요: verb 75, aux 21, adj 2, adv 2
+- -았습니다: verb 75, aux 18, adj 6
+- -었습니까: adj 47, verb 46, aux 5
+- -었습니다: verb 62, noun 24, adj 8, aux 6
+- -에서부터: noun 94, pron 6
+- -이었어요: noun 66, verb 26, aux 6, adj 2
+- -하기에는: verb 85, noun 9, pron 6
+- -하시나요: verb 74, adj 25
+- -하십니까: verb 90, adj 6, noun 3
+- -해졌어요: adj 81, verb 18
+- -했습니다: verb 90, adj 9
+- -'라고: noun 61, pron 21, verb 14
+- -갔어요: verb 90, adj 4, aux 3
+- -거라고: verb 71, adj 14, noun 13
+- -거에요: noun 33, adj 22, verb 22, aux 22
+- -것이다: verb 41, noun 37, adj 20
+- -게까지: noun 58, adv 19, adj 19
+- -겠는데: verb 66, adj 26, aux 4, noun 3
+- -겠다고: verb 70, adj 17, aux 12
+- -겠어요: verb 61, aux 23, adj 9, adv 8
+- -겠지만: verb 56, aux 24, adj 11, noun 6
+- -고기를: noun 87, verb 10
+- -구에게: noun 75, pron 25
+- -구하고: verb 73, pron 21, adj 4
+- -기까지: adj 43, noun 30, pron 22, adv 3
+- -기에는: verb 63, noun 21, pron 16
+- -기에서: noun 82, pron 17
+- -까지는: noun 74, verb 20, adj 5
+- -께서는: noun 90, verb 7
+- -납니다: verb 84, noun 9, adj 6
+- -났는지: verb 92, adj 4
+- -났어요: verb 70, noun 22, adj 4, aux 3
+- -냈어요: verb 90, adj 4, aux 3
+- -는거야: verb 62, aux 27, adj 7, pron 3
+- -는데도: verb 79, adj 15, pron 2, noun 2
+- -는지는: verb 54, pron 15, aux 15, noun 10, adj 6
+- -는지를: verb 43, noun 35, aux 23
+- -니다만: adj 55, verb 30, aux 7, noun 6
+- -다고는: verb 55, aux 24, noun 17
+- -다니까: adj 69, verb 20, noun 6, aux 3
+- -달라고: verb 85, noun 12
+- -대하지: verb 91, adj 8
+- -더라도: adj 39, noun 32, verb 24, pron 4
+- -더라면: adj 43, noun 24, aux 21, verb 5, pron 5
+- -되었다: verb 98
+- -되었어: verb 83, noun 10, adj 5
+- -됩니다: verb 90, noun 6, adj 4
+- -들었다: verb 93, noun 5
+- -때문에: noun 74, adj 25
+- -라고는: noun 57, verb 35, aux 4
+- -렸어요: verb 96
+- -릅니다: verb 59, adj 33, noun 7
+- -리라고: verb 59, noun 26, adj 14
+- -리라는: noun 51, verb 27, aux 21
+- -릴게요: verb 92, aux 5
+- -릴까요: verb 63, aux 23, adj 6, noun 6, pron 3
+- -립니다: verb 86, noun 8, adj 5
+- -면서도: adj 39, noun 35, verb 23, adv 3
+- -버려서: verb 90, adj 5, noun 5
+- -보다는: noun 46, verb 31, aux 17, adj 6
+- -보다도: pron 57, noun 36, verb 4
+- -보세요: verb 91, aux 4, adj 3, noun 2
+- -보았다: verb 94, adj 5
+- -뿐이야: noun 79, pron 20
+- -사하고: verb 95, adj 3
+- -서라면: verb 45, noun 44, pron 5, adj 3
+- -셨어요: verb 95
+- -습니까: verb 66, adj 17, aux 13, noun 4
+- -습니다: verb 74, adj 18, noun 4, aux 4
+- -시에서: noun 79, num 20
+- -신가요: adj 32, noun 30, aux 25, verb 7, pron 7
+- -신에게: noun 55, pron 44
+- -신이다: noun 77, pron 20
+- -실래요: verb 52, aux 40, noun 4, x 3
+- -십니까: verb 69, adj 19, noun 10
+- -십니다: verb 84, noun 9, adj 6
+- -아있는: verb 83, noun 10, adj 7
+- -아지는: verb 55, noun 34, adj 9
+- -았는데: verb 55, adj 22, aux 20, noun 3
+- -았다고: verb 63, adj 22, aux 15
+- -았어요: verb 73, aux 24, adj 2
+- -았으면: verb 47, adj 28, aux 21
+- -았지만: verb 56, aux 24, adj 11, noun 6
+- -야겠다: verb 95
+- -야겠어: verb 95, adj 3
+- -어서는: verb 69, noun 28, pron 2
+- -어졌다: verb 84, aux 12, adj 4
+- -었는데: verb 33, noun 32, aux 22, adj 13
+- -었는지: verb 60, adj 37
+- -었다고: adj 47, verb 41, aux 12
+- -었다는: adj 48, verb 43, noun 4, aux 4
+- -었다면: adj 41, verb 34, noun 19, aux 5
+- -었어요: verb 66, aux 14, noun 14, adj 5
+- -었잖아: verb 31, aux 30, adj 27, noun 12
+- -에게는: pron 59, noun 38
+- -에게도: pron 47, noun 33, adj 14, adv 4
+- -에서는: noun 95, pron 3
+- -에서도: noun 84, verb 6, adj 6, adv 3
+- -영이는: noun 83, verb 12, adj 4
+- -용하고: verb 73, adj 24
+- -우니까: adj 69, verb 20, noun 6, aux 3
+- -워하지: verb 91, adj 8
+- -유하고: verb 73, adj 24
+- -으니까: verb 43, adj 35, aux 16, noun 4
+- -으려고: verb 79, aux 21
+- -으로는: noun 77, num 17, adv 4
+- -으로도: noun 55, verb 22, prep 20
+- -으면서: verb 58, adj 27, aux 13
+- -으므로: verb 27, aux 27, adj 27, noun 12, conj 7
+- -을거야: adj 37, verb 34, aux 15, pron 13
+- -을지도: verb 65, adj 30, aux 3
+- -을텐데: verb 49, adj 44, aux 5
+- -이기도: noun 80, verb 14, adj 5
+- -이니까: noun 46, aux 23, verb 20, adj 9
+- -이라고: noun 97, verb 2
+- -이라는: noun 96, verb 3
+- -이라도: noun 70, adv 16, verb 6, adj 5, pron 3
+- -이라면: noun 86, pron 10, verb 2
+- -이세요: verb 59, noun 35, aux 3, adj 2
+- -이었다: noun 92, verb 7
+- -이었어: noun 90, verb 8
+- -이에요: noun 97, num 3
+- -이잖아: noun 72, verb 11, aux 10, adj 7
+- -이지만: noun 63, aux 12, adv 10, verb 8, adj 5
+- -인가요: noun 41, pron 39, adj 10, verb 6, aux 4
+- -인다고: verb 41, adj 35, aux 23
+- -인지는: noun 54, pron 21, verb 16, adj 9
+- -인하지: verb 91, adj 8
+- -입니까: noun 59, pron 23, verb 11, adj 5
+- -입니다: noun 91, num 3, pron 3
+- -있다고: adj 75, verb 21, aux 4
+- -있어요: verb 59, adj 36, aux 2
+- -있었다: verb 92, noun 6
+- -자들을: noun 92, pron 7
+- -자라고: noun 81, verb 14
+- -자라는: noun 90, verb 7
+- -자보다: noun 92, pron 6
+- -자에게: noun 97, pron 3
+- -전하지: verb 51, adj 48
+- -정하고: verb 54, adj 44
+- -졌어요: adj 52, verb 44
+- -주세요: verb 90, aux 9
+- -주었다: verb 85, aux 11, noun 4
+- -줬으면: verb 92, adj 5
+- -하기도: adj 46, verb 37, noun 16
+- -하기로: verb 89, noun 8
+- -하기를: verb 73, noun 13, adj 12
+- -하나요: verb 89, aux 9
+- -하는데: verb 90, adj 4, aux 3, noun 2
+- -하는지: verb 97
+- -하다고: adj 93, verb 6
+- -하다는: adj 68, verb 23, noun 4, aux 4
+- -하다면: adj 70, verb 21, aux 6, noun 2
+- -하더라: verb 90, adj 6, aux 2
+- -하도록: verb 92, aux 3
+- -하라고: verb 81, noun 15
+- -하면서: verb 96
+- -하여야: verb 85, num 7, noun 7
+- -하였다: verb 93, noun 6
+- -하지는: verb 63, adj 24, noun 12
+- -하지도: adj 47, verb 44, aux 4, noun 3
+- -하지만: adj 61, verb 31, noun 4, aux 2
+- -한다고: verb 90, aux 6, adj 4
+- -한다는: verb 91, adj 4, noun 2
+- -한다면: verb 76, aux 16, adj 6
+- -한테도: pron 57, noun 36, verb 4
+- -할거야: verb 68, adj 23, aux 6, pron 2
+- -합니까: verb 63, adj 31, noun 4
+- -합니다: verb 69, adj 30
+- -합시다: verb 94, adj 3, aux 2
+- -해서는: verb 83, noun 15
+- -해졌다: adj 68, verb 30
+- -해지고: adj 64, verb 35
+- -해하고: verb 95, adj 3
+- -해하지: verb 91, adj 8
+- -했나요: verb 93, aux 4, adj 3
+- -했는데: verb 86, adj 6, aux 4, noun 3
+- -했다고: verb 82, aux 11, adj 7
+- -했다는: verb 86, adj 7, noun 4, aux 3
+- -했어야: verb 93, noun 4
+- -했어요: verb 89, aux 10
+- -했었다: verb 90, noun 7
+- -했었어: verb 63, adj 25, noun 10
+- -했으며: adj 49, verb 44, aux 6
+- -했지만: verb 68, adj 22, noun 5, aux 3
+- -화하지: verb 91, adj 8
+- -'는: noun 82, verb 14
+- -가가: noun 72, pron 27
+- -가고: verb 95, adj 2
+- -가는: verb 51, noun 38, pron 6, adv 5
+- -가다: noun 69, verb 24, adj 5
+- -가도: verb 75, noun 17, pron 3, adj 3
+- -가를: noun 58, pron 40
+- -가면: verb 84, noun 7, adj 5
+- -가서: verb 64, noun 17, pron 15, adj 3
+- -가야: verb 55, noun 41
+- -가에: noun 73, pron 26
+- -가요: adj 30, noun 24, verb 17, pron 17, aux 12
+- -간다: verb 90, noun 6, adj 3
+- -간에: noun 79, pron 11, verb 10
+- -감을: noun 98
+- -갔다: verb 95, noun 3
+- -갔어: verb 92, noun 3, adj 3
+- -같아: noun 64, adj 22, verb 11, aux 3
+- -같이: noun 68, adv 30
+- -거나: verb 59, adj 11, aux 10, pron 10, noun 8
+- -거는: noun 73, pron 15, verb 10
+- -거든: adj 39, verb 34, noun 17, aux 8
+- -거야: verb 54, adj 17, aux 17, pron 7, noun 4
+- -거운: adj 90, verb 5, noun 5
+- -거지: verb 45, noun 27, aux 21, adj 5
+- -것에: pron 34, verb 34, noun 31
+- -것을: noun 35, verb 23, pron 21, aux 20
+- -것이: pron 41, noun 37, adj 20
+- -게는: pron 46, noun 39, adj 8, verb 5
+- -게도: adj 35, noun 34, pron 18, adv 9, verb 4
+- -게서: noun 74, pron 15, verb 7, adj 3
+- -게요: verb 81, aux 12, adj 3, noun 3
+- -겠네: adj 55, verb 34, noun 4, aux 4
+- -겠니: verb 69, aux 20, noun 6, adj 4
+- -겠다: verb 84, adj 7, aux 6, noun 3
+- -겠지: adj 47, aux 23, noun 15, verb 14
+- -격한: verb 52, adj 45
+- -겼다: verb 91, noun 5, adj 3
+- -겼어: verb 93, noun 3, adj 3
+- -계는: noun 89, verb 9
+- -고기: noun 75, verb 21, adj 2
+- -고는: noun 43, verb 37, aux 10, pron 5, prep 5
+- -고도: verb 41, adj 19, noun 17, prep 17, pron 3
+- -고자: verb 90, noun 8
+- -곳에: pron 41, noun 37, verb 21
+- -곳은: pron 61, noun 35
+- -과는: noun 90, verb 8
+- -교는: noun 85, verb 12
+- -구나: adj 39, noun 24, verb 16, adv 8, aux 7, pron 7
+- -구는: noun 84, pron 9, verb 6
+- -구야: noun 61, pron 21, verb 15
+- -구의: noun 84, pron 15
+- -국어: noun 70, verb 25, adj 3
+- -국에: noun 87, adv 11
+- -기가: noun 73, verb 26
+- -기고: verb 93, adj 3, noun 3
+- -기는: noun 70, verb 21, aux 6, pron 3
+- -기다: verb 44, noun 29, pron 20, adj 5
+- -기도: verb 42, noun 40, adj 16
+- -기로: verb 50, noun 34, pron 8, adj 4, aux 4
+- -기를: noun 61, verb 30, adj 5
+- -기만: verb 44, noun 23, adj 16, pron 14
+- -기야: noun 58, verb 25, pron 15
+- -기에: noun 58, verb 28, aux 9, pron 5
+- -기엔: verb 88, noun 12
+- -기의: noun 82, pron 18
+- -기지: verb 85, noun 7, adj 5
+- -기한: verb 52, adj 25, noun 21
+- -까봐: verb 92, aux 2, noun 2, x 2
+- -까지: noun 75, adv 8, adj 6, verb 4, pron 4
+- -께서: noun 90, verb 6, adj 2
+- -끼야: noun 80, verb 15
+- -나가: noun 76, num 20, verb 2
+- -나게: verb 83, adj 9, noun 6
+- -나고: verb 93, adj 3, noun 2
+- -나는: verb 52, noun 39, num 8
+- -나면: verb 89, noun 5, adj 3
+- -나서: verb 81, noun 15, adj 2
+- -나야: verb 55, num 20, noun 20
+- -나요: verb 79, aux 11, adj 10
+- -나지: verb 90, noun 4, adj 3
+- -난다: verb 89, noun 7, adj 4
+- -났다: verb 89, noun 7, adj 4
+- -났어: verb 93, noun 3, adj 3
+- -내고: verb 90, adj 5, noun 4
+- -내는: verb 75, noun 23
+- -내자: verb 90, noun 8
+- -낸다: verb 84, noun 9, adj 5
+- -냈다: verb 89, noun 7, adj 4
+- -냈어: verb 92, noun 3, adj 3
+- -냐고: verb 56, adj 38, noun 4
+- -네가: noun 76, pron 21, verb 2
+- -네요: adj 46, verb 26, aux 19, noun 9
+- -년에: noun 77, num 20
+- -느라: verb 92, noun 4
+- -는가: verb 41, adj 30, noun 18, aux 10
+- -는건: verb 51, adj 25, noun 16, pron 4, adv 4
+- -는걸: verb 63, aux 19, adj 8, noun 5, pron 2, art 2
+- -는게: verb 66, adj 13, noun 12, aux 8
+- -는다: verb 96, noun 2
+- -는데: verb 66, adj 15, aux 11, noun 8
+- -는지: verb 80, adj 11, pron 3, aux 3
+- -능한: adj 66, noun 21, verb 12
+- -니는: noun 71, verb 27
+- -님께: noun 91, pron 6
+- -다가: verb 51, noun 27, conj 14, aux 7
+- -다고: verb 52, adj 37, aux 9
+- -다는: verb 58, adj 20, noun 11, aux 9
+- -다니: verb 57, aux 26, noun 8, adj 8
+- -다도: pron 43, noun 41, verb 10, adj 3
+- -다만: adj 38, verb 25, aux 18, noun 14
+- -다면: verb 52, adj 24, aux 16, noun 6, conj 3
+- -단다: adj 38, verb 37, aux 17, noun 8
+- -대가: noun 79, pron 18
+- -대는: noun 68, verb 29
+- -대로: noun 58, adv 41
+- -대의: noun 84, pron 15
+- -대한: adj 79, adv 13, verb 7
+- -더니: verb 79, adj 14, noun 4, aux 2
+- -더라: verb 76, adj 16, aux 6
+- -던데: verb 47, aux 37, adj 9, noun 6
+- -데도: verb 59, adj 20, pron 11, noun 9
+- -데요: verb 51, aux 32, adj 13, noun 3
+- -도는: noun 91, verb 7
+- -도록: verb 82, aux 8, adj 5, adv 4
+- -동안: noun 68, adv 29, adj 2
+- -돼요: verb 69, adv 17, adj 6, noun 5, aux 3
+- -됐다: verb 80, adj 14, noun 5
+- -됐어: verb 70, adv 21, noun 4, adj 4
+- -되는: verb 87, noun 11
+- -되어: verb 97
+- -되지: verb 90, adv 6, noun 2
+- -된다: verb 87, adv 7, noun 3
+- -두고: verb 90, adj 4, noun 3
+- -든다: verb 70, adv 17, noun 8, adj 4
+- -든요: verb 43, adj 27, noun 26, aux 3
+- -든지: verb 54, adv 17, pron 17, noun 6, adj 4
+- -들고: verb 73, adv 17, adj 5, noun 4
+- -들도: noun 67, pron 19, verb 8, adj 3
+- -들어: verb 69, adj 15, adv 13, noun 3
+- -들을: noun 82, pron 18
+- -듯이: verb 50, noun 31, adj 17
+- -라고: noun 53, verb 35, adj 4, aux 3, pron 3
+- -라는: noun 76, verb 17, adj 2, aux 2, prep 2
+- -라면: noun 59, verb 14, pron 13, adj 7, aux 4, adv 3
+- -라서: verb 35, noun 32, adv 20, conj 10
+- -라야: noun 67, verb 30
+- -라질: verb 59, noun 29, adj 11
+- -란다: verb 64, adj 25, noun 9
+- -람이: noun 85, pron 13
+- -랐다: verb 86, adj 10, noun 4
+- -래도: noun 41, adv 21, conj 20, verb 10, pron 3, adj 3
+- -래요: verb 56, aux 20, noun 12, x 9, adj 3
+- -러는: noun 82, verb 14
+- -러야: verb 63, noun 34
+- -러운: adj 94, verb 3, noun 3
+- -러워: adj 95, verb 4
+- -럼은: noun 75, prep 20
+- -럽게: adj 87, verb 6, noun 5
+- -럽다: adj 71, verb 20, noun 8
+- -럽지: adj 65, verb 25, noun 7
+- -렀다: verb 92, noun 5, adj 3
+- -렀어: verb 90, noun 4, adj 4
+- -려고: verb 92, aux 5, adj 2
+- -려는: verb 71, noun 14, aux 13
+- -려던: verb 90, adj 4, aux 4, noun 2
+- -려도: verb 64, aux 15, noun 15, pron 2, adj 2
+- -려면: verb 93, noun 3
+- -려서: verb 75, adj 12, noun 12
+- -려요: verb 88, adj 5, noun 4, aux 2
+- -려해: verb 86, adj 10, noun 2
+- -렵지: adj 65, verb 25, noun 7
+- -렸다: verb 93, adj 5
+- -렸어: verb 98
+- -렸을: verb 63, noun 35
+- -로는: noun 70, adv 16, num 8, verb 5
+- -로도: noun 67, verb 17, prep 11
+- -로서: noun 86, verb 8, adj 3
+- -로운: adj 92, verb 4, noun 3
+- -로울: adj 79, verb 14, noun 6
+- -롭게: adj 79, verb 11, noun 8
+- -류는: noun 82, verb 14
+- -르게: adj 63, verb 27, noun 8
+- -르고: verb 86, adj 11
+- -르기: verb 88, noun 8, adj 2
+- -르는: verb 73, noun 26
+- -르다: adj 71, verb 20, noun 8
+- -르면: verb 87, noun 6, adj 4
+- -르지: verb 83, noun 13, adj 3
+- -른다: verb 84, noun 9, adj 5
+- -름을: noun 82, adj 15, verb 2
+- -리가: noun 99
+- -리게: verb 61, adj 29, noun 8
+- -리고: verb 84, adj 10, aux 5
+- -리곤: verb 93, noun 6
+- -리기: verb 81, noun 17
+- -리다: adj 45, noun 29, verb 24
+- -리도: noun 72, pron 17, verb 7, adj 2
+- -리며: verb 89, noun 5, adj 4
+- -리면: verb 87, noun 6, adj 4
+- -리아: noun 80, verb 11, adj 5, aux 3
+- -리야: noun 86, verb 11
+- -리지: verb 89, adj 8, noun 2
+- -린다: verb 95, noun 3
+- -마는: noun 90, verb 8
+- -마다: noun 78, adv 13, verb 8
+- -마자: verb 90, noun 7
+- -면서: verb 84, adj 8, noun 4, aux 4
+- -명의: noun 58, num 41
+- -명이: noun 63, num 36
+- -모로: noun 76, adv 21
+- -무는: noun 68, verb 29
+- -문에: noun 86, adj 13
+- -물을: noun 98
+- -므로: noun 30, verb 18, aux 17, conj 17, adj 17
+- -미는: noun 92, verb 6
+- -받고: verb 90, adj 5, noun 4
+- -받지: verb 85, noun 7, adj 5
+- -버린: verb 86, noun 8, adj 6
+- -보고: verb 79, noun 9, pron 8, adj 2
+- -보다: noun 82, pron 14, verb 4
+- -보단: noun 60, pron 24, verb 7, adj 5, adv 4
+- -보지: verb 85, noun 7, adj 5
+- -복한: verb 52, adj 45
+- -복할: verb 80, adj 19
+- -본다: verb 84, noun 9, adj 5
+- -봐도: verb 70, noun 21, pron 3, adj 3
+- -봐야: verb 83, noun 15
+- -봤다: verb 89, noun 7, adj 4
+- -봤어: verb 87, adv 9
+- -부는: noun 90, verb 8
+- -분은: noun 68, pron 29
+- -분을: noun 79, pron 17, verb 3
+- -분이: noun 64, pron 34
+- -비는: noun 82, verb 14
+- -뿐만: noun 77, verb 10, adj 6
+- -쁘다: adj 71, verb 20, noun 8
+- -사가: noun 99
+- -사는: noun 93, verb 5
+- -사야: noun 84, verb 13
+- -상을: noun 98
+- -생은: noun 97
+- -생일: noun 90, verb 6, adv 3
+- -서는: noun 68, verb 22, pron 5
+- -서만: noun 57, num 22, verb 10, adj 6
+- -서야: noun 34, verb 30, adj 18, adv 17
+- -석은: noun 75, adj 22
+- -성은: noun 98
+- -세요: verb 79, aux 9, adj 7, noun 6
+- -셔서: verb 30, adj 24, noun 23, aux 21
+- -셔요: verb 83, adj 7, noun 6, aux 3
+- -셨다: verb 87, aux 7, noun 3
+- -셨어: verb 92, noun 3, adj 3
+- -소는: noun 85, verb 12
+- -소리: noun 90, adv 8
+- -수는: noun 84, verb 14
+- -수도: noun 41, verb 30, aux 21, pron 3, adj 3
+- -스는: noun 95, verb 4
+- -스와: noun 96
+- -시기: verb 54, aux 34, noun 8, adj 2
+- -시는: verb 51, noun 41, adv 7
+- -시다: verb 80, adj 9, aux 7, noun 3
+- -시면: verb 52, adj 28, aux 14, noun 4
+- -시아: noun 76, verb 14, adj 6, aux 4
+- -시에: noun 81, num 17
+- -시오: verb 67, aux 30, noun 3
+- -시해: verb 86, adj 10, noun 2
+- -신다: verb 91, noun 5, adj 3
+- -신에: noun 57, pron 41
+- -신은: noun 75, pron 21
+- -신을: noun 79, pron 17, verb 3
+- -실은: noun 97
+- -싶어: verb 90, noun 4, adj 4
+- -씨는: noun 85, verb 12
+- -아가: noun 68, verb 30
+- -아는: noun 91, verb 7
+- -아도: verb 50, adj 17, aux 15, noun 15, pron 2
+- -아라: verb 79, aux 14, noun 5
+- -아로: noun 76, verb 21
+- -아서: verb 50, adj 35, noun 8, aux 7
+- -아야: verb 59, aux 16, noun 16, adj 8
+- -아요: verb 58, adj 38, noun 2
+- -안에: noun 77, adv 20
+- -았나: aux 42, adj 24, noun 17, verb 10, adv 4
+- -았니: verb 63, aux 24, noun 7, adj 4
+- -았다: verb 81, adj 15, aux 2
+- -았던: verb 75, adj 20, aux 3
+- -았을: verb 58, noun 19, adj 11, aux 11
+- -았지: verb 65, aux 21, noun 7, adj 5
+- -애가: noun 79, art 17
+- -야만: verb 84, noun 9, adj 3
+- -야지: verb 92, noun 3, adj 3
+- -야해: verb 86, adj 10, noun 2
+- -어나: verb 50, noun 37, adj 4, adv 4, aux 2
+- -어날: verb 68, adj 19, noun 8, adv 2, art 2
+- -어는: noun 94, verb 4
+- -어도: noun 43, verb 36, adj 10, adv 5, aux 5
+- -어라: verb 90, noun 5, aux 2
+- -어로: noun 99
+- -어만: noun 77, verb 10, adj 6
+- -어본: verb 81, adj 16, noun 3
+- -어봐: verb 72, aux 23, noun 2, x 2
+- -어서: verb 64, adj 28, noun 5, aux 4
+- -어야: verb 81, noun 12, adj 3, aux 3
+- -어와: noun 75, verb 24
+- -어요: verb 76, adj 10, aux 8, noun 4, adv 3
+- -어진: verb 90, adj 4, noun 3
+- -어해: verb 72, aux 17, adj 9
+- -없는: adj 51, noun 41, verb 7
+- -없다: adj 65, verb 24, noun 9
+- -없어: adj 53, verb 25, noun 20
+- -없이: adv 55, noun 44
+- -었고: verb 67, noun 25, adj 6
+- -었나: verb 70, noun 17, adj 4, adv 4, aux 2
+- -었니: verb 43, adj 24, aux 24, noun 7
+- -었다: verb 76, noun 18, aux 4, adj 3
+- -었어: verb 57, noun 26, adj 13, aux 4
+- -었을: verb 56, adj 18, noun 16, aux 9
+- -었지: verb 56, adj 17, aux 16, noun 10
+- -에게: noun 87, pron 12
+- -에겐: pron 55, noun 41, verb 3
+- -에는: noun 90, verb 7, pron 3
+- -에도: noun 77, verb 19
+- -에만: noun 73, pron 14, verb 6, adj 4
+- -에서: noun 97, pron 2
+- -에선: noun 84, pron 11, adj 2
+- -에요: noun 82, adj 5, aux 5, verb 4, pron 2, num 2
+- -여야: verb 63, num 17, noun 17
+- -였다: verb 66, noun 29, aux 4
+- -였어: verb 57, noun 28, aux 13, adj 2
+- -예요: noun 71, verb 9, pron 9, aux 5, adv 4
+- -오고: verb 87, adj 6, noun 5
+- -오는: verb 79, noun 19
+- -오를: noun 81, verb 18
+- -오면: verb 70, adv 18, noun 6, adj 4
+- -와는: noun 73, pron 15, verb 10
+- -와서: verb 58, noun 19, adv 17, adj 3
+- -왔다: verb 94, noun 3
+- -왔어: verb 79, adv 15, noun 3, adj 3
+- -요일: noun 84, art 10, verb 3
+- -우고: verb 93, adj 3, noun 3
+- -우는: verb 52, noun 46
+- -우지: verb 85, noun 7, adj 5
+- -운데: adj 59, noun 23, verb 14, aux 4
+- -울까: adj 49, verb 41, noun 5, aux 3
+- -움을: noun 84, adj 13, verb 2
+- -워서: adj 65, verb 23, noun 11
+- -워야: verb 63, adj 18, noun 17
+- -워요: adj 76, verb 19, noun 3
+- -워해: verb 89, adj 9
+- -원에: noun 86, num 13
+- -원은: noun 97
+- -웠다: verb 60, adj 35, noun 4
+- -웠어: verb 92, noun 3, adj 3
+- -위는: noun 82, verb 14
+- -으나: verb 30, adj 24, aux 22, noun 17, adv 4
+- -으니: adj 53, verb 39, noun 4, aux 3
+- -으며: verb 59, adj 23, aux 15, noun 3
+- -으면: verb 68, adj 19, noun 4, aux 4, adv 4
+- -은데: adj 57, aux 28, verb 10, noun 4
+- -은지: adj 47, verb 32, aux 15, noun 5
+- -을게: adj 35, verb 33, aux 21, noun 10
+- -을까: verb 70, adj 19, aux 9
+- -을지: adj 54, verb 38, noun 6
+- -음과: noun 82, adj 17
+- -음에: noun 84, adj 14
+- -이가: noun 98
+- -이고: noun 66, verb 28, num 4
+- -이기: noun 56, verb 41
+- -이나: noun 86, adv 5, pron 5, verb 2
+- -이네: noun 47, adj 20, aux 14, adv 12, verb 8
+- -이니: noun 76, verb 16, adj 3, aux 3
+- -이다: noun 92, num 4, verb 3
+- -이도: noun 51, adv 18, art 17, verb 8, pron 3, adj 3
+- -이라: noun 82, verb 15
+- -이란: noun 94, adj 3
+- -이며: noun 77, verb 17, adj 4
+- -이면: noun 57, verb 25, adv 8, pron 8
+- -이서: noun 43, num 40, verb 10, adj 4
+- -이야: noun 97
+- -이지: noun 61, verb 29, adj 5, adv 4
+- -인가: noun 78, pron 21
+- -인데: noun 81, adv 7, verb 6, adj 4
+- -인은: noun 98
+- -인을: noun 98
+- -인지: noun 76, pron 11, verb 7, num 5
+- -일은: noun 98
+- -일이: noun 87, verb 11
+- -있게: adj 55, verb 33, noun 10
+- -있는: verb 57, noun 24, adj 18
+- -있다: verb 72, adj 19, adv 6, noun 3
+- -있어: verb 68, adj 29
+- -있지: verb 85, noun 7, adj 5
+- -자가: noun 99
+- -자고: verb 93, adj 3, noun 2
+- -자는: noun 94, verb 4
+- -자야: noun 90, verb 8
+- -자와: noun 96
+- -잖아: noun 29, verb 28, aux 26, adj 17
+- -잡을: verb 53, noun 46
+- -장은: noun 98
+- -장을: noun 98
+- -적인: noun 99
+- -정도: noun 67, art 17, verb 8, pron 3, adj 3
+- -제는: noun 79, adv 11, verb 8
+- -제도: noun 80, verb 10, pron 3, adj 3
+- -제로: noun 76, adv 21
+- -제야: noun 41, pron 21, adv 20, verb 15
+- -져서: verb 57, adj 27, noun 15
+- -져요: adj 55, verb 36, noun 5, aux 3
+- -졌다: verb 75, adj 20, aux 3
+- -졌어: verb 73, adj 24, noun 2
+- -주고: verb 90, adj 5, noun 4
+- -주는: verb 57, noun 31, adv 10
+- -주실: verb 92, noun 6
+- -주지: verb 94, noun 3, adj 2
+- -준다: verb 74, aux 15, noun 7, adj 4
+- -줄게: verb 77, adj 12, noun 8
+- -줄래: verb 75, aux 16, noun 6
+- -줘서: verb 70, noun 23, adj 4
+- -줬다: verb 91, noun 5, adj 3
+- -줬어: verb 93, noun 3, adj 3
+- -지고: verb 55, adj 43
+- -지기: adj 41, verb 33, noun 15, adv 10
+- -지는: verb 39, noun 35, adj 21, pron 3
+- -지도: verb 60, adj 18, aux 11, noun 7, pron 4
+- -지마: verb 88, noun 7, adv 5
+- -지만: verb 40, adj 27, noun 16, aux 10
+- -지면: verb 90, noun 4, adj 3
+- -지야: noun 67, verb 30
+- -지요: adj 47, aux 23, verb 23, noun 6
+- -지의: noun 82, num 17
+- -지지: verb 87, adj 10, noun 3
+- -진다: verb 60, adj 18, aux 15, noun 7
+- -쪽에: noun 64, pron 34
+- -차는: noun 85, verb 12
+- -체는: noun 82, verb 14
+- -쳐서: verb 70, noun 23, adj 4
+- -쳤다: verb 92, noun 5, adj 3
+- -쳤어: verb 94, noun 3, adj 2
+- -츠는: noun 82, verb 14
+- -치게: verb 66, adj 25, noun 7
+- -치고: verb 93, adj 3, noun 3
+- -치는: verb 59, noun 26, adj 13
+- -치지: verb 75, noun 19, adj 4
+- -친다: verb 90, noun 6, adj 3
+- -켰다: verb 92, noun 5, adj 3
+- -켰어: verb 90, noun 4, adj 4
+- -코는: noun 82, verb 14
+- -크는: noun 89, verb 9
+- -키는: verb 53, noun 44
+- -킨다: verb 84, noun 9, adj 5
+- -터는: noun 90, verb 8
+- -테는: noun 42, pron 21, art 20, verb 14
+- -테도: pron 43, noun 41, verb 10, adj 3
+- -테서: noun 59, pron 29, verb 7, adj 3
+- -텐데: verb 48, adj 32, aux 15, noun 4
+- -토는: noun 82, verb 14
+- -트는: noun 93, verb 5
+- -트도: noun 80, verb 10, pron 3, adj 3
+- -파는: noun 82, verb 14
+- -파서: adj 64, noun 23, verb 10
+- -판을: noun 75, num 20, verb 3
+- -프다: adj 65, verb 24, noun 9
+- -피는: noun 82, verb 14
+- -하게: adj 75, verb 21, noun 2
+- -하고: verb 84, adj 9, pron 3, noun 2
+- -하기: verb 90, adj 8
+- -하길: adj 47, verb 45, noun 4, aux 3
+- -하네: adj 57, verb 39
+- -하는: verb 95
+- -하니: verb 93, noun 3
+- -하다: adj 86, verb 7, aux 6
+- -하던: verb 93, adj 3, aux 3
+- -하러: verb 97
+- -하려: verb 94, noun 2
+- -하며: verb 80, noun 15, adj 3
+- -하면: verb 78, adj 15, conj 5
+- -하신: verb 84, noun 9, adv 3, aux 3
+- -하실: verb 88, noun 9
+- -하자: verb 90, noun 7
+- -하지: verb 78, adj 21
+- -하진: verb 65, adj 26, noun 5, aux 2
+- -학교: noun 92, verb 5
+- -학생: noun 93, adv 4, verb 2
+- -학을: noun 98
+- -한다: verb 94
+- -한대: verb 76, noun 12, adj 6, aux 5
+- -한데: adj 82, verb 10, noun 4, aux 3
+- -한텐: noun 50, pron 44, verb 4
+- -할게: verb 73, adj 15, noun 10
+- -할까: verb 70, adj 24, noun 2
+- -할지: verb 78, aux 13, noun 4, adj 3
+- -함이: noun 57, adj 40
+- -해도: verb 55, adj 12, adv 11, aux 11, noun 10
+- -해라: verb 87, noun 7, aux 3, adj 2
+- -해본: verb 94, noun 3
+- -해서: verb 58, adj 34, noun 8
+- -해야: verb 91, pron 3, adv 3, noun 3
+- -해요: verb 55, adj 40, aux 4
+- -해져: verb 52, adj 46
+- -해질: adj 76, verb 16, noun 7
+- -했고: verb 79, aux 13, adj 4, noun 3
+- -했다: verb 91, adj 8
+- -했던: verb 89, adj 9
+- -했을: verb 74, noun 16, adj 9
+- -했지: verb 61, noun 19, adv 15, adj 4
+- -혔다: verb 89, noun 7, adj 4
+- -화는: noun 85, verb 12
+- -화한: verb 52, adj 45
+- -회는: noun 82, verb 14
+- -히는: verb 54, noun 22, adv 20
+- -히지: verb 85, noun 7, adj 5
+- -e: x 60, noun 21, verb 13, adj 3
+- -l: noun 41, x 40, verb 13, adj 3
+- -m: noun 41, x 40, verb 13, adj 3
+- -r: noun 41, x 40, verb 13, adj 3
+- -t: x 67, noun 17, verb 11, adj 3
+- -y: x 57, noun 29, verb 9, adj 2
+- -가: noun 88, verb 6, pron 4
+- -각: noun 58, adv 29, verb 9, adj 2
+- -갈: verb 86, noun 10
+- -강: noun 81, verb 13, adj 3
+- -개: noun 76, num 13, verb 8, adj 2
+- -거: noun 36, verb 33, adj 8, aux 7, pron 7, x 7
+- -건: noun 40, verb 26, adj 12, pron 10, adv 10
+- -걸: verb 40, adj 23, noun 15, pron 7, aux 7, art 7
+- -것: pron 29, noun 29, verb 23, aux 15, adj 2
+- -게: adj 37, verb 31, noun 25, pron 4, aux 2
+- -겐: pron 44, noun 44, verb 9, adj 2
+- -겨: verb 83, noun 13, adj 2
+- -경: noun 92, verb 5
+- -계: noun 86, verb 9, adj 2
+- -고: verb 68, adj 15, noun 12, aux 3
+- -곤: verb 82, noun 16
+- -과: noun 96
+- -관: noun 86, verb 9, adj 2
+- -교: noun 81, verb 13, adj 3
+- -구: noun 87, num 7, verb 4
+- -국: noun 91, verb 6
+- -군: noun 41, verb 33, aux 21, adj 3
+- -굴: noun 61, adv 21, verb 13, adj 3
+- -권: noun 67, num 22, verb 7
+- -근: noun 61, adj 23, verb 13
+- -금: noun 58, adv 29, verb 9, adj 2
+- -급: noun 81, verb 13, adj 3
+- -기: verb 63, noun 24, adj 7, aux 3
+- -긴: verb 55, adj 26, pron 9, noun 9
+- -길: verb 63, adj 18, noun 11, aux 7
+- -까: verb 53, adj 22, noun 12, aux 7, pron 2, adv 2
+- -께: noun 73, pron 19, verb 6
+- -난: verb 64, adj 21, noun 14
+- -날: verb 54, noun 25, adj 7, adv 7, art 6
+- -내: verb 52, noun 34, adv 12
+- -낸: verb 77, noun 17, adj 3
+- -낼: verb 88, noun 10
+- -냐: adj 32, verb 26, noun 20, aux 10, adv 10
+- -네: adj 38, verb 34, aux 11, noun 11, pron 4
+- -년: noun 55, num 28, adv 10, verb 6
+- -니: verb 58, noun 18, adj 11, aux 11
+- -닐: noun 41, verb 33, adj 23
+- -님: noun 76, conj 12, verb 8, adj 2
+- -다: verb 60, noun 23, adj 13
+- -단: noun 51, verb 16, adj 12, adv 10, pron 10
+- -달: noun 68, num 17, verb 11, adj 3
+- -당: noun 76, num 13, verb 8, adj 2
+- -대: verb 41, noun 31, adj 16, aux 12
+- -던: verb 75, adj 10, aux 10, noun 6
+- -데: verb 40, adj 26, noun 18, aux 12
+- -독: noun 61, adv 21, verb 13, adj 3
+- -동: noun 88, verb 8, adj 2
+- -돼: verb 70, adv 13, noun 13, adj 2
+- -된: verb 84, adj 10, noun 5
+- -될: verb 82, adv 8, noun 8
+- -둔: verb 73, noun 21, adj 3
+- -드: noun 93, verb 5
+- -든: verb 39, adj 25, noun 16, pron 13, adv 3, aux 3
+- -들: noun 73, pron 18, verb 5, adj 3
+- -디: noun 86, verb 9, adj 2
+- -때: verb 57, noun 30, adj 12
+- -라: verb 66, noun 18, aux 7, adj 5
+- -락: noun 90, verb 6
+- -란: noun 71, adj 13, verb 7, pron 4, prep 4
+- -람: noun 84, verb 11, adj 3
+- -랑: noun 90, pron 6
+- -래: verb 51, noun 24, aux 14, adv 7, pron 4
+- -러: verb 83, noun 10, adj 3, adv 2, pron 2
+- -런: art 40, adj 23, noun 21, verb 13
+- -럼: noun 84, pron 5, adv 3, conj 3, prep 3
+- -려: verb 77, noun 8, adj 6, aux 6, adv 3
+- -력: noun 91, verb 6
+- -렴: verb 61, aux 17, noun 17, adj 3
+- -령: noun 58, adv 29, verb 9, adj 2
+- -로: noun 89, verb 4, adv 3, pron 2
+- -록: verb 70, noun 9, adj 6, aux 6, adv 6, conj 3
+- -료: noun 84, verb 11, adj 3
+- -루: noun 72, num 15, verb 9, adj 2
+- -른: adj 44, verb 26, adv 15, noun 8, num 7
+- -를: noun 92, verb 5
+- -름: noun 90, verb 6
+- -리: noun 73, adv 21, pron 4
+- -린: verb 64, noun 20, adj 14
+- -릴: verb 73, adj 9, aux 8, noun 4, pron 4
+- -림: noun 84, verb 11, adj 3
+- -릿: noun 61, adv 21, verb 13, adj 3
+- -마: verb 51, noun 27, adv 20
+- -말: noun 86, verb 9, adj 2
+- -망: noun 81, verb 13, adj 3
+- -머: noun 61, x 20, verb 13, adj 3
+- -며: verb 61, noun 19, adj 15, aux 5
+- -면: verb 60, noun 17, adj 12, aux 4, pron 3, adv 3
+- -명: noun 41, adv 21, num 20, verb 13, adj 3
+- -모: noun 68, aux 17, verb 11, adj 3
+- -무: noun 63, adv 13, num 13, verb 8, adj 2
+- -문: noun 90, verb 7
+- -물: noun 84, verb 14
+- -미: noun 90, verb 6
+- -민: noun 84, verb 11, adj 3
+- -바: noun 84, verb 11, adj 3
+- -발: noun 58, adv 15, num 15, verb 9, adj 2
+- -밤: noun 84, verb 11, adj 3
+- -방: noun 68, adv 17, verb 11, adj 3
+- -배: noun 81, verb 13, adj 3
+- -백: noun 68, num 17, verb 11, adj 3
+- -번: noun 41, adv 21, num 20, verb 13, adj 3
+- -법: noun 61, adv 21, verb 13, adj 3
+- -본: verb 84, noun 10, adj 6
+- -볼: verb 83, noun 13, adj 2
+- -봐: verb 80, aux 6, noun 6, x 6
+- -부: noun 91, verb 6
+- -분: noun 45, pron 23, adv 12, num 11, verb 7
+- -블: noun 81, verb 13, adj 3
+- -비: noun 88, verb 8, adj 2
+- -빛: noun 81, verb 13, adj 3
+- -빠: noun 51, adj 36, verb 11
+- -쁜: adj 69, noun 17, verb 11
+- -사: noun 94, verb 4
+- -산: noun 88, verb 8, adj 2
+- -살: noun 41, verb 33, num 20, adj 3
+- -상: noun 76, adv 17, verb 5
+- -새: noun 61, adv 21, verb 13, adj 3
+- -색: noun 94, verb 4
+- -생: noun 82, adv 10, verb 6
+- -석: noun 81, verb 13, adj 3
+- -선: noun 70, adj 11, verb 8, pron 5, adv 5
+- -성: noun 95, verb 3
+- -세: noun 51, pron 17, num 17, verb 11, adj 3
+- -셔: verb 70, pron 13, noun 13, adj 2
+- -션: noun 84, verb 11, adj 3
+- -소: noun 86, verb 9, adj 2
+- -속: noun 84, verb 11, adj 3
+- -술: noun 81, verb 13, adj 3
+- -스: noun 96, verb 3
+- -시: adv 38, noun 38, num 14, verb 8
+- -식: noun 90, verb 6
+- -신: verb 53, noun 28, adv 9, aux 9
+- -실: verb 69, noun 22, adj 4, adv 4
+- -심: noun 86, verb 9, adj 2
+- -십: num 63, noun 26, verb 8, adj 2
+- -씨: noun 86, verb 9, adj 2
+- -씩: noun 51, adv 30, num 10, verb 6
+- -아: noun 40, verb 34, adj 15, aux 9
+- -악: noun 61, adv 21, verb 13, adj 3
+- -안: noun 70, adv 16, adj 9, verb 5
+- -애: noun 72, adj 17, verb 9
+- -양: noun 84, verb 11, adj 3
+- -어: verb 76, noun 10, adj 9
+- -업: noun 90, verb 6
+- -에: noun 93, pron 3
+- -여: verb 84, adj 8, noun 8
+- -연: noun 61, adv 21, verb 13, adj 3
+- -영: noun 68, adv 17, verb 11, adj 3
+- -오: verb 53, aux 23, noun 23
+- -온: verb 53, noun 41, adj 3
+- -올: verb 70, noun 26, adj 2
+- -와: noun 86, verb 6, pron 6
+- -외: noun 86, verb 9, adj 2
+- -요: verb 57, adj 17, noun 15, aux 8
+- -용: noun 91, verb 6
+- -우: noun 76, adv 13, verb 8, adj 2
+- -운: adj 74, verb 14, noun 12
+- -울: adj 48, verb 35, noun 16
+- -웃: noun 81, verb 13, adj 3
+- -워: adj 73, verb 21, noun 6
+- -원: noun 80, num 10, verb 6
+- -위: noun 76, adv 13, verb 8, adj 2
+- -유: noun 84, verb 11, adj 3
+- -은: noun 87, verb 5, adj 4, pron 3
+- -을: noun 88, verb 8
+- -음: noun 79, adj 8, x 7, verb 5
+- -의: noun 94, pron 3
+- -이: noun 92, adv 3
+- -인: noun 88, verb 8, pron 3
+- -일: noun 73, verb 15, adv 6, num 3
+- -자: verb 68, noun 23, adv 3, conj 3
+- -작: noun 84, verb 11, adj 3
+- -장: noun 77, adv 16, verb 5
+- -저: adv 51, noun 34, verb 11, adj 3
+- -적: noun 84, verb 14
+- -전: noun 87, adv 7, verb 4
+- -점: noun 61, adv 21, verb 13, adj 3
+- -정: noun 84, adj 10, verb 5
+- -제: noun 93, verb 5
+- -져: verb 81, adj 15, noun 4
+- -조: noun 84, verb 11, adj 3
+- -좀: noun 81, verb 13, adj 3
+- -죠: noun 34, verb 31, adj 23, aux 11
+- -주: noun 62, adv 16, aux 8, num 8, verb 5
+- -준: verb 58, noun 38, adj 2
+- -줄: verb 94, noun 4
+- -줘: verb 81, noun 11, aux 6
+- -즈: noun 88, verb 8, adj 2
+- -지: verb 63, noun 17, adj 13, aux 2, pron 2
+- -진: verb 63, adj 16, noun 12, aux 6, pron 3
+- -질: verb 47, adj 26, noun 22, aux 4
+- -집: noun 84, verb 11, adj 3
+- -짝: adv 68, noun 17, verb 11, adj 3
+- -째: noun 44, num 43, verb 9, adj 2
+- -쪽: noun 86, verb 9, adj 2
+- -쯤: noun 72, adv 15, verb 9, adj 2
+- -차: noun 83, adv 5, pron 5, prep 4, verb 3
+- -천: noun 61, num 20, verb 13, adj 3
+- -철: noun 81, verb 13, adj 3
+- -청: noun 84, verb 11, adj 3
+- -체: noun 67, adv 23, verb 7
+- -쳐: verb 77, noun 17, adj 3
+- -출: verb 53, noun 41, adj 3
+- -치: noun 50, verb 22, adv 17, adj 10
+- -친: verb 79, adj 11, noun 10
+- -칠: verb 76, noun 20
+- -켜: verb 73, noun 21, adj 3
+- -크: noun 90, verb 7
+- -큼: noun 79, verb 11, pron 5, adv 5
+- -키: noun 84, verb 11, adj 3
+- -킬: verb 66, adv 15, noun 15, adj 2
+- -타: noun 86, verb 9, adj 2
+- -탕: noun 81, verb 13, adj 3
+- -터: noun 90, pron 7
+- -턴: noun 61, prep 20, verb 13, adj 3
+- -테: noun 84, pron 14, verb 2
+- -텐: noun 51, pron 34, verb 11, adj 3
+- -통: noun 58, adv 15, num 15, verb 9, adj 2
+- -트: noun 97, verb 2
+- -틀: noun 81, verb 13, adj 3
+- -티: noun 86, verb 9, adj 2
+- -표: noun 86, verb 9, adj 2
+- -품: noun 88, verb 8, adj 2
+- -프: noun 90, verb 7
+- -픈: adj 53, noun 34, verb 11
+- -필: noun 81, verb 13, adj 3
+- -학: noun 94, verb 4
+- -한: adj 64, verb 30, noun 3
+- -할: verb 90, adj 7
+- -해: verb 66, adj 26, noun 5, adv 2
+- -행: noun 92, verb 5
+- -향: noun 81, verb 13, adj 3
+- -험: noun 84, verb 11, adj 3
+- -혀: verb 77, noun 17, adj 3
+- -형: noun 88, verb 8, adj 2
+- -호: noun 81, verb 13, adj 3
+- -혼: noun 81, verb 13, adj 3
+- -화: noun 91, verb 6
+- -회: noun 76, num 13, verb 8, adj 2
+- -히: adv 96, noun 2
+
+## 단어 비율 (Word shares)
+- 난: pron 99
+- 같아: adj 100
+- 줄: noun 83, verb 11, aux 6
+- 주세요: aux 80, verb 19
+- 그걸: pron 99
+- 했어: verb 62, aux 38
+- 아무도: pron 99
+- 싶어: aux 99
+- 우린: pron 99
+- 있었어: aux 68, adj 31
+- 나한테: pron 99
+- 뭘: pron 99
+- 그게: pron 99
+- 당신은: pron 99
+- 매일: adv 99
+- 아직도: adv 99
+- 넌: pron 99
+- 있지: aux 55, adj 41, x 2
+- 있나요: adj 87, aux 12
+- 싶지: aux 99
+- 아니야: adj 99
+- 절대: adv 96, noun 3
+- 해야: verb 99
+- 나에게: pron 99
+- 당신의: pron 99
+- 이건: pron 99
+- 마: aux 99
+- 알아: verb 99
+- 살: verb 58, noun 42
+- 그에게: pron 99
+- 이게: pron 99
+- 그건: pron 99
+- 아무것도: pron 99
+- 널: pron 99
+- 당신이: pron 98
+- 않았어: aux 98
+- 좋아: adj 99
+- 있습니까: adj 73, aux 26
+- 싶어요: aux 98
+- 너의: pron 98
+- 아니라: adj 98
+- 않아요: aux 98
+- 이걸: pron 98
+- 있는지: adj 68, aux 30
+- 너한테: pron 98
+- 자신이: pron 94, noun 6
+- 마세요: aux 98
+- 온: verb 77, art 21
+- 줘: aux 71, verb 27
+- 훨씬: adv 98
+- 보인다: verb 55, aux 44
+- 있니: adj 70, aux 28
+- 않으면: aux 98
+- 뭐야: pron 98
+- 있다고: adj 79, aux 20
+- 프랑스어: noun 98
+- 했는데: aux 88, verb 11
+- 말고: aux 59, verb 41
+- 하는지: verb 51, aux 49
+- 좋겠어: adj 98
+- 보여: aux 57, verb 43
+- 있을까: adj 98
+- 우리에게: pron 98, noun 2
+- 배우는: verb 89, noun 11
+- 않습니다: aux 97
+- 살아: verb 98
+- 너에게: pron 98, noun 2
+- 있다는: aux 65, adj 33
+- 거지: noun 98
+- 걔가: pron 97, noun 3
+- 텐데: noun 97
+- 없었어: adj 97
+- 못한다: aux 73, verb 27
+- 아버지는: noun 98
+- 싫어: adj 97, verb 2
+- 있어서: adj 98, verb 2
+- 내게: pron 97
+- 있는데: adj 78, aux 20, verb 2
+- 좋아요: adj 98
+- 자기가: pron 97, noun 2
+- 그녀에게: pron 97, noun 3
+- 근데: conj 97
+- 나랑: pron 97, noun 3
+- 죽을: verb 90, noun 10
+- 좋을: adj 97, noun 3
+- 한번: adv 97
+- 나와: pron 76, verb 21, noun 3
+- 돼요: aux 55, verb 43
+- 탈: verb 97
+- 배울: verb 98
+- 그럴: adj 82, verb 16
+- 좋지: adj 97, verb 2
+- 필요해: adj 97, verb 2
+- 좋겠다: adj 96, verb 3
+- 있다면: adj 90, aux 8
+- 내내: adv 97
+- 그래: x 52, adj 37, aux 8
+- 아니면: conj 96, verb 2
+- 우리한테: pron 97, noun 3
+- 어렸을: adj 96, verb 2
+- 당신을: pron 97, noun 3
+- 하나를: num 96, noun 3
+- 그렇지: adj 97, verb 2
+- 전부: adv 96, noun 3
+- 꼭: adv 96, noun 2
+- 침대: noun 97
+- 해도: verb 90, aux 8, noun 2
+- 싶습니다: aux 96, verb 3
+- 사고: verb 75, noun 24
+- 없이는: adv 96, noun 2
+- 알: verb 97, noun 2
+- 쓸: verb 97, noun 2
+- 영어: noun 96, verb 3
+- 건지: noun 96, verb 3
+- 했어요: verb 73, aux 26
+- 말한: verb 97, adj 3
+- 치는: verb 97, noun 2
+- 알게: verb 97
+- 다들: adv 96, noun 3
+- 말라고: aux 96, noun 2
+- 찾을: verb 96, noun 4
+- 저한테: pron 96, noun 4
+- 그때: noun 97, verb 2
+- 쉽지: adj 96, verb 3
+- 말았어야: aux 96, verb 4
+- 같아요: adj 97, verb 3
+- 며칠: noun 96, verb 4
+- 아내는: noun 96, verb 4
+- 뭐가: pron 95, noun 4
+- 하루종일: adv 67, noun 32
+- 분명: adv 96
+- 주십시오: aux 68, verb 32
+- 더이상: adv 96, noun 4
+- 어디로: pron 95, noun 4
+- 있어야: adj 76, aux 19, verb 4
+- 제대로: adv 97, noun 3
+- 누구도: pron 95, noun 2
+- 그치: adj 96, noun 2
+- 못해: verb 60, aux 38
+- 혼자서: adv 95, noun 2
+- 많아: adj 96
+- 힘든: adj 96
+- 없다고: adj 97, verb 2
+- 딱: adv 95, noun 2
+- 새로: adv 95, noun 4
+- 직접: adv 95, noun 2
+- 미안해: adj 96, verb 3
+- 나보다: pron 96, noun 4
+- 일본: noun 96, verb 4
+- 싫다: adj 96, verb 3
+- 될까요: verb 66, aux 32
+- 보지: verb 88, aux 11
+- 싶다고: aux 95, verb 3
+- 대: noun 87, verb 12
+- 믿을: verb 95, noun 5
+- 할지: aux 84, verb 14
+- 있었으면: adj 96, verb 4
+- 싶어한다: aux 95, verb 5
+- 건가요: noun 96
+- 없지만: adj 96, verb 2
+- 괜찮아: adj 95, noun 2
+- 이것을: pron 96
+- 도울: verb 97, adj 3
+- 할아버지는: noun 97, verb 2
+- 괜찮은: adj 95, noun 5
+- 한때: noun 76, adv 21, verb 3
+- 싶어해: aux 96, verb 4
+- 하려고: verb 68, aux 32
+- 당신에게: pron 97, noun 3
+- 걔: pron 95, noun 3
+- 줬어: verb 57, aux 42
+- 너와: pron 95, noun 5
+- 됐어: verb 78, aux 21
+- 아닌: adj 95, noun 3
+- 도와: verb 95, noun 5
+- 걔는: pron 95, noun 3
+- 싶어하지: aux 94, verb 5
+- 두고: verb 75, aux 24
+- 둬: aux 70, verb 25, noun 3
+- 저에게: pron 95, noun 5
+- 누구나: pron 94, adj 2
+- 필요: noun 95, verb 3
+- 언어: noun 95, verb 5
+- 무언가를: pron 96, noun 3
+- 언젠가: adv 94, noun 5
+- 한번이라도: noun 63, adv 36
+- 줄래: aux 95, verb 3
+- 않도록: aux 94, verb 5
+- 캐나다: noun 95, verb 4
+- 행복한: adj 97, verb 3
+- 제발: adv 95, noun 3
+- 당신과: pron 94, noun 6
+- 저도: pron 94, noun 3
+- 거다: noun 95, verb 4
+- 받을: verb 94, noun 5
+- 세상에: x 59, noun 41
+- 누군가가: pron 96, noun 4
+- 있었어요: aux 84, adj 12, verb 4
+- 그다지: adv 94, verb 4
+- 쓴: verb 96, noun 3
+- 읽을: verb 94, noun 5
+- 못했어: verb 52, aux 47
+- 니가: pron 94, noun 5
+- 한다고: aux 71, verb 27, adj 2
+- 가득: adv 94, noun 3
+- 너랑: pron 94, noun 5
+- 없다는: adj 95, verb 3
+- 그분은: pron 95, noun 5
+- 얻을: verb 94, noun 6
+- 가야: verb 95, noun 3
+- 무엇입니까: pron 95, noun 4
+- 싶었어: aux 93, verb 4
+- 어쩔: verb 95, noun 3
+- 여기에서: pron 94, noun 6
+- 좋았을: adj 94, verb 4
+- 보이지: verb 68, aux 27, noun 4
+- 커: adj 94, noun 3, verb 2
+- 잘못: adv 93, noun 3, verb 2
+- 있을까요: adj 94, verb 4
+- 있던: aux 54, adj 41, verb 5
+- 만한: aux 93, adj 4
+- 다시는: adv 94, verb 3, noun 3
+- 쳐: verb 95, noun 3
+- 하나는: num 94, verb 3, noun 3
+- 먹은: verb 93, noun 6
+- 겁니다: noun 95, verb 4
+- 남을: verb 54, noun 46
+- 아니라고: adj 93, noun 4, verb 2
+- 누구입니까: pron 95, noun 4
+- 어때: adj 94, verb 4, noun 2
+- 누구야: pron 95, noun 4
+- 몇몇: num 93, noun 3, verb 2
+- 대체: adv 95, noun 4
+- 참을: verb 94, noun 6
+- 남아: verb 95, noun 3
+- 같다고: adj 96, verb 4
+- 아니에요: adj 93, noun 5
+- 되었어: verb 84, aux 14
+- 뭐라고: pron 93, noun 4, verb 2
+- 써: verb 95, noun 3
+- 칠: verb 95, noun 3
+- 어려: adj 92, verb 6
+- 먹어도: verb 95, noun 3
+- 우릴: pron 92, verb 6
+- 계세요: verb 52, aux 47
+- 적어도: adv 92, noun 3, verb 3
+- 했다고: verb 66, aux 31, adj 3
+- 많아요: adj 95, verb 4
+- 겨울: noun 93, adj 4, verb 3
+- 하나도: num 92, noun 4, verb 2
+- 없으면: adj 94, verb 5
+- 해줘: verb 52, aux 47
+- 조금만: adv 92, noun 4, verb 2
+- 될까: aux 62, verb 35
+- 했는지: verb 83, aux 16
+- 준: verb 79, aux 16, noun 4
+- 얼마: noun 94, verb 4
+- 기뻐: adj 93, noun 4, verb 2
+- 있길: adj 63, aux 31, verb 5
+- 두지: aux 62, verb 36
+- 같진: adj 93, verb 5
+- 매년: adv 93, noun 4, num 2
+- 진짜로: adv 92, noun 7
+- 야: x 46, aux 46, noun 4, verb 2
+- 나서: aux 92, noun 4, verb 2
+- 바꿀: verb 95, noun 4
+- 하니: verb 51, aux 47
+- 필요합니다: adj 94, verb 5
+- 걸을: verb 93, noun 7
+- 죽는: verb 95, noun 4
+- 어째서: adv 92, noun 4, verb 2
+- 무엇이: pron 92, noun 7
+- 타는: verb 95, noun 4
+- 상자: noun 94, verb 5
+- 마라: aux 93, verb 5
+- 말아: aux 93, noun 3, verb 3
+- 만큼: noun 83, prep 15
+- 보자: verb 67, aux 31
+- 매주: adv 93, noun 5
+- 같지: adj 93, verb 5
+- 사: verb 95, noun 4
+- 그와: pron 91, noun 8
+- 저걸: pron 91, verb 4, adj 2
+- 잡을: verb 91, noun 8
+- 보게: verb 94, adj 3, noun 2
+- 죄송합니다: adj 93, verb 6
+- 되겠습니까: aux 74, verb 24
+- 편지는: noun 94, verb 4
+- 줄게: aux 73, verb 21, adj 3, noun 2
+- 어떡해: verb 79, x 18, adj 2
+- 안돼: adv 92, verb 6
+- 삼: num 91, noun 5, verb 3
+- 있었는지: adj 76, aux 18, verb 5
+- 작아: adj 92, noun 4, verb 3
+- 낫다: adj 92, verb 6, noun 2
+- 입은: verb 91, noun 8
+- 않는다면: aux 92, verb 5, adj 2
+- 많으면: adj 92, verb 6
+- 되면: verb 78, aux 19
+- 마치: adv 92, noun 5
+- 있었다고: adj 59, aux 38, verb 4
+- 너라면: pron 92, noun 5
+- 일본어: noun 92, verb 7
+- 좋다고: adj 94, verb 5
+- 입을: noun 63, verb 37
+- 충분하지: adj 93, verb 7
+- 않다는: aux 91, verb 5
+- 바빠서: adj 91, noun 5, verb 3
+- 하지마: verb 63, aux 36
+- 필요해요: adj 94, verb 5
+- 줘야: verb 94, noun 5
+- 여긴: pron 91, verb 5, adj 2
+- 올해: noun 91, verb 6, adj 2
+- 봤을: verb 91, noun 8
+- 없지: adj 92, verb 6
+- 피자: noun 93, verb 6
+- 않은데: aux 93, adj 5
+- 말하길: verb 95, adj 4
+- 그에: pron 91, noun 8
+- 있도록: adj 91, verb 7
+- 주시겠어요: aux 93, verb 7
+- 푹: adv 91, noun 5, verb 3
+- 웃는: verb 94, noun 5
+- 뭔가를: pron 94, noun 5
+- 오랜: art 90, noun 5, verb 3
+- 두는: verb 76, aux 18, noun 5
+- 멀리: adv 93, noun 7
+- 없었어요: adj 91, verb 6
+- 보려고: verb 81, aux 19
+- 가게는: noun 94, pron 4
+- 계신가요: aux 57, verb 37, adj 3, noun 3
+- 십: num 91, noun 5, verb 3
+- 않는다고: aux 91, verb 5, adj 3
+- 너희들: pron 92, noun 7
+- 있대: adj 56, aux 38, verb 4, noun 3
+- 됩니까: verb 78, aux 19
+- 그렇게나: adv 91, noun 5, verb 3
+- 걸까: noun 92, verb 5
+- 최신: noun 93, verb 5
+- 있어도: aux 91, noun 4, verb 3
+- 좋습니다: adj 92, verb 7
+- 여자다: noun 93, verb 6
+- 택시: noun 94, adv 3
+- 했지만: aux 55, verb 40, adj 2
+- 어릴: adj 91, verb 7
+- 달라: aux 55, adj 37, verb 6
+- 소프트웨어: noun 92, verb 7
+- 온화한: adj 95, verb 5
+- 달라고: aux 73, verb 21, noun 5
+- 않아서: aux 91, verb 5, adj 3
+- 너가: pron 91, noun 8
+- 보이네: aux 74, verb 19, noun 4
+- 도대체: adv 93, noun 6
+- 자: verb 76, x 18, noun 5
+- 사실은: noun 63, adv 36
+- 받아: verb 94, noun 4
+- 행복해: adj 93, verb 6
+- 누군가는: pron 91, verb 5, noun 3
+- 밤새: adv 75, verb 19, noun 6
+- 못하는: aux 73, verb 27
+- 궁금해: adj 93, verb 6
+- 그들에게: pron 92, noun 8
+- 죽일: verb 92, noun 7
+- 제게: pron 91, adj 3, verb 3, noun 2
+- 이젠: adv 89, noun 6, verb 4
+- 옛날: noun 91, verb 6
+- 했었어: verb 73, aux 23, noun 3
+- 싶다면: aux 90, verb 6, adj 3
+- 있었다면: adj 71, aux 23, verb 4, noun 2
+- 달리: adv 91, noun 8
+- 깊이: adv 90, noun 10
+- 어때요: adj 90, verb 6
+- 하나가: num 91, noun 8
+- 공기: noun 91, verb 7
+- 안하고: adv 89, verb 9
+- 그날: noun 91, verb 6
+- 우는: verb 92, noun 6
+- 재밌는: adj 90, noun 6, verb 4
+- 비디오: noun 91, verb 6, aux 2
+- 싶으면: aux 90, verb 8, adj 2
+- 겁니까: noun 90, verb 6, adj 2
+- 조그만: adj 68, art 22, noun 6, verb 4
+- 벌: verb 70, noun 28
+- 맛있는: adj 90, verb 6, noun 3
+- 보여요: verb 51, aux 45
+- 여기로: pron 90, verb 6, noun 4
+- 줬어요: verb 75, aux 23
+- 똑같은: adj 90, noun 10
+- 바쁠: adj 90, noun 6, verb 4
+- 마십시오: aux 92, verb 7
+- 신은: noun 76, verb 23
+- 인기: noun 91, verb 7
+- 어딘가에: pron 91, noun 8
+- 오랫동안: adv 92, noun 8
+- 죽게: verb 92, adj 4, noun 3
+- 울: verb 92, noun 6
+- 했을: verb 45, aux 44, noun 10
+- 가까이: adv 90, noun 10
+- 힘들어: adj 90, verb 8
+- 질: verb 92, noun 6
+- 좋겠다고: adj 90, verb 8
+- 버렸다: verb 55, aux 44
+- 너희들은: pron 90, noun 10
+- 보일: verb 90, noun 8
+- 늦을: verb 68, adj 22, noun 10
+- 누나는: noun 93, verb 6
+- 뭐든: pron 90, verb 4, adj 3
+- 어떠한: art 89, adj 7, verb 3
+- 나머지는: noun 93, verb 4, adj 2
+- 가져도: verb 92, noun 6
+- 않니: aux 90, verb 6
+- 있으세요: adj 90, verb 9
+- 작고: adj 90, verb 8
+- 아무래도: adv 91, noun 5, conj 2
+- 정오: noun 91, verb 6, aux 2
+- 네게: pron 90, adj 4, verb 4, noun 3
+- 가도: verb 92, noun 6
+- 맨날: adv 90, verb 6, noun 3
+- 하도록: verb 76, aux 23
+- 있을게: adj 70, aux 24, verb 4
+- 아니고: adj 90, verb 8
+- 하라고: verb 70, aux 23, noun 6
+- 합니까: verb 73, aux 23, adj 2
+- 마셔야: verb 92, noun 6
+- 만들: verb 90, noun 8
+- 피곤해서: adj 92, verb 6
+- 가끔씩: adv 92, noun 6
+- 좋았다: adj 90, verb 9
+- 않으려고: aux 91, verb 9
+- 이는: noun 50, pron 23, num 22, verb 4
+- 둘은: num 89, noun 10
+- 잠시: adv 71, noun 26
+- 입는: verb 92, noun 6
+- 너도: pron 89, noun 6, verb 4
+- 하세요: verb 76, aux 23
+- 어렵습니다: adj 90, verb 8
+- 못할: aux 89, verb 10
+- 심지어: adv 89, verb 8
+- 하나요: aux 68, verb 31
+- 떠: verb 92, noun 6
+- 않겠다고: aux 90, verb 8
+- 그녀와: pron 90, noun 10
+- 봐도: verb 70, aux 23, noun 6
+- 이제는: adv 90, noun 9
+- 있었을: adj 46, aux 45, verb 6
+- 알코올: noun 91, verb 8
+- 하는데: verb 52, aux 46
+- 어디에서: pron 89, noun 11
+- 재미있는: adj 90, verb 6, noun 3
+- 임신: noun 92, verb 6
+- 그나저나: adv 89, noun 6, verb 4
+- 여기는: pron 90, noun 8, verb 2
+- 맞아: verb 92, noun 5
+- 개다: noun 91, verb 7
+- 독일어: noun 87, verb 11
+- 비싼: adj 87, noun 8, verb 5
+- 말기: noun 61, aux 29, verb 9
+- 스스로: adv 86, noun 13
+- 있죠: aux 59, adj 32, noun 5, verb 4
+- 싶어해요: aux 86, verb 8, adj 6
+- 때로는: adv 88, noun 10
+- 누구랑: pron 87, noun 13
+- 생각한: verb 90, adj 9
+- 크고: adj 88, verb 10
+- 뻔했다: noun 57, aux 29, verb 13
+- 않을래: aux 88, verb 7, noun 3
+- 나면: verb 66, aux 29, noun 2
+- 좋겠어요: adj 87, verb 9, aux 3
+- 있기를: adj 86, noun 9, verb 4
+- 바라는: verb 88, noun 11
+- 말아줘: aux 87, verb 12
+- 열세: num 88, noun 7, pron 2
+- 억지로: adv 86, noun 13
+- 잊게: verb 90, adj 5, noun 4
+- 넘게: verb 90, adj 5, noun 4
+- 저기에: pron 86, noun 8, verb 4
+- 싫어요: adj 87, verb 11
+- 않았다고: aux 88, verb 9, adj 3
+- 나을: adj 57, verb 30, noun 12
+- 않습니까: aux 88, verb 9, adj 2
+- 바라고: verb 90, noun 8
+- 부를: verb 58, noun 42
+- 할거야: verb 65, aux 31, adj 2
+- 봅시다: aux 87, verb 11
+- 분위기: noun 90, verb 9
+- 아름답다고: adj 91, verb 8
+- 길이: noun 70, adv 29
+- 버리고: aux 58, verb 41
+- 더는: adv 86, noun 8, verb 5
+- 언제야: pron 60, adv 31, noun 6, verb 2
+- 낮아: adj 88, noun 6, verb 5
+- 외울: verb 90, adj 7, noun 2
+- 고온: noun 91, verb 8
+- 거울: noun 88, adj 7, verb 5
+- 멋진: adj 88, verb 9
+- 않기로: aux 86, verb 7, noun 5
+- 비행기로: noun 90, verb 7
+- 지는: verb 62, noun 36
+- 있었는데: aux 60, adj 30, verb 5, noun 5
+- 즐기는: verb 89, noun 10
+- 건데: noun 88, verb 6, adj 4
+- 많아서: adj 90, verb 7
+- 재미있다: adj 89, verb 10
+- 대해선: verb 87, noun 10
+- 해줄: verb 70, aux 29
+- 하나입니다: num 86, noun 13
+- 강아지: noun 88, verb 9
+- 이를: pron 58, noun 42
+- 못하고: aux 57, verb 41
+- 써서: verb 90, noun 8
+- 삶은: noun 70, verb 29
+- 보이고: verb 61, aux 29, noun 9
+- 우리들은: pron 86, noun 12
+- 아뇨: x 86, noun 8, verb 5
+- 싶었어요: aux 88, verb 9
+- 주지: verb 66, aux 29, noun 2
+- 하네: aux 59, verb 33, adj 6
+- 상하게: verb 89, adj 11
+- 않네: aux 87, adj 6, verb 5
+- 하지는: verb 63, aux 29, noun 5, adj 3
+- 뭐지: pron 86, verb 9, noun 2
+- 녹아: verb 90, noun 6, adj 2
+- 없다면: adj 89, verb 7, aux 2
+- 놀랄: verb 90, noun 8
+- 단어야: noun 88, verb 12
+- 한다는: aux 58, verb 37, adj 3
+- 걔네는: pron 86, noun 8, verb 5
+- 결혼한: verb 90, adj 9
+- 정말이지: adv 58, noun 37, verb 4
+- 우크라이나는: noun 91, verb 7
+- 좋으면: adj 89, verb 10
+- 이렇게나: adv 86, noun 8, verb 5
+- 없는지: adj 87, verb 11
+- 날마다: adv 88, noun 11
+- 아랍어: noun 87, verb 11
+- 많았다: adj 88, verb 12
+- 문자: noun 89, verb 10
+- 장기: noun 90, verb 9
+- 해주십시오: aux 61, verb 38
+- 누군지: pron 86, verb 9, noun 2
+- 풀: verb 90, noun 8
+- 오렌지는: noun 90, verb 6, adj 3
+- 바빴다: adj 88, verb 9, noun 3
+- 수면: noun 88, verb 9
+- 멈춰: verb 90, noun 8
+- 안했어: adv 86, verb 11
+- 쭉: adv 86, noun 8, verb 5
+- 있었습니다: aux 58, adj 30, verb 9, noun 3
+- 될거야: aux 59, verb 36, adj 2
+- 주셔서: aux 89, verb 4, adj 3, noun 3
+- 드는: verb 90, noun 8
+- 같습니다: adj 88, verb 11
+- 드릴까요: aux 61, verb 38
+- 싶을: aux 86, noun 12
+- 이러한: art 86, adj 9, verb 4
+- 하나의: num 86, noun 14
+- 싫지만: adj 90, verb 6, noun 2
+- 모를: verb 86, noun 13
+- 있으려고: aux 60, adj 29, verb 11
+- 싶어서: aux 86, verb 9, adj 4
+- 되나요: verb 68, aux 30
+- 잘자: adv 86, verb 10, noun 3
+- 맛있어: adj 90, verb 10
+- 재빨리: adv 89, noun 10
+- 없어서: adj 90, verb 9
+- 내는: verb 90, noun 8
+- 피는: verb 90, noun 8
+- 무엇이든: pron 88, verb 6, adj 4, noun 2
+- 두었다: verb 68, aux 29, noun 3
+- 다신: adv 87, verb 8, noun 4
+- 아니었다: adj 86, verb 11, noun 3
+- 몰: verb 90, noun 8
+- 강아지는: noun 90, verb 8
+- 했잖아: verb 90, noun 4, aux 4, adj 2
+- 미안: adj 58, x 29, noun 10, adv 2
+- 배우기에: verb 90, noun 8
+- 출: verb 90, noun 8
+- 없습니까: adj 88, verb 9
+- 뜰: verb 90, noun 8
+- 않지만: aux 87, verb 6, adj 4, noun 2
+- 뭐예요: pron 87, noun 10
+- 첫번째: num 92, noun 6
+- 우리랑: pron 87, noun 13
+- 위험해: adj 90, verb 9
+- 낡은: adj 86, noun 12
+- 당장: adv 88, noun 11
+- 두번째: num 92, noun 6
+- 얻는: verb 90, noun 8
+- 꽉: adv 86, noun 8, verb 5
+- 뭔가요: pron 88, adj 4, noun 3, verb 2
+- 꿔: verb 90, noun 8
+- 일한: verb 90, adj 9
+- 커서: verb 90, noun 8
+- 가져가: verb 87, noun 13
+- 도시는: noun 91, verb 7
+- 저희는: pron 86, noun 8, verb 5
+- 않을까: aux 87, verb 10, adj 3
+- 무엇인가요: pron 91, noun 6
+- 둘다: num 86, verb 9, noun 3
+- 싫다고: adj 91, verb 8
+- 찬: verb 90, noun 8
+- 재미있어요: adj 91, verb 8
+- 총: art 57, noun 36, verb 5
+- 많다고: adj 91, verb 8
+- 두면: verb 66, aux 29, noun 2
+- 이에요: aux 86, noun 12
+- 않았다면: aux 88, verb 7, adj 3
+- 그녀에: pron 86, noun 13
+- 재미있어: adj 90, verb 10
+- 된다고: verb 64, aux 30, adj 5
+- 뻔했어요: aux 58, noun 29, verb 13
+- 안된다: adv 87, verb 12
+- 무엇인지: pron 87, noun 11
+- 왔을: verb 87, noun 12
+- 걷는: verb 90, noun 8
+- 느낄: verb 90, noun 8
+- 있는게: adj 88, verb 9
+- 아닙니다: adj 88, verb 9, noun 3
+- 힘들다: adj 88, verb 9, noun 3
+- 적어: verb 68, adj 30
+- 라디오: noun 89, verb 8, aux 3
+- 고대: noun 90, verb 6, adj 2
+- 탁자: noun 89, verb 10
+- 졸려: adj 58, verb 39
+- 찍은: verb 86, noun 12
+- 받은: verb 86, noun 12
+- 걔네: pron 86, adj 6, verb 5
+- 비행기: noun 90, verb 9
+- 설마: adv 89, verb 7, noun 4
+- 가나: verb 86, noun 10
+- 톰아: noun 88, verb 7, adj 3
+- 필요하면: adj 83, verb 16
+- 일단: adv 82, noun 10, verb 3, adj 2, pron 2
+- 됐네: verb 87, adj 8, aux 2, noun 2
+- 봐야: verb 86, noun 10
+- 어딜: pron 80, noun 10, verb 6
+- 하는데요: verb 50, aux 46, adj 3
+- 있는거에요: adj 44, aux 44, noun 7, verb 4
+- 즉시: adv 88, noun 8, num 3
+- 언제부터: pron 41, adv 40, noun 18
+- 몰랐네: verb 87, adj 8, aux 2, noun 2
+- 없나요: adj 82, verb 16, aux 2
+- 단언컨대: verb 88, noun 6, adj 3, aux 2
+- 없거든: adj 88, verb 7, noun 3
+- 마주: adv 84, noun 12
+- 써도: verb 86, noun 10
+- 다녀: verb 86, noun 10
+- 평생: adv 82, noun 16
+- 때면: noun 84, verb 12, adj 2
+- 무엇에: pron 80, noun 19
+- 홀로: adv 81, noun 18
+- 길게: adj 87, verb 6, noun 5
+- 아닌가요: adj 86, noun 5, verb 3, pron 3, aux 2
+- 주시겠습니까: verb 58, aux 41
+- 먹지만: verb 88, adj 5, noun 3
+- 하나이다: num 81, noun 18
+- 너희는: pron 80, noun 10, verb 6
+- 과거: noun 87, verb 7
+- 여러분: pron 84, noun 9, adv 2, num 2
+- 너보다: pron 83, noun 16
+- 모르겠네: verb 87, adj 11
+- 되지만: verb 88, adj 5, noun 3
+- 어느덧: adv 80, noun 10, verb 6
+- 다를: verb 41, adj 40, noun 18
+- 가라고: verb 87, noun 11
+- 들떠: verb 86, noun 10
+- 않겠다: aux 81, verb 17
+- 재미있고: adj 83, verb 14, noun 2
+- 언제까지: adv 41, pron 41, noun 15
+- 계셔: verb 54, aux 40, noun 3, pron 3
+- 아닌지: adj 83, verb 12, noun 3
+- 않겠어: aux 80, verb 15, noun 2
+- 그도: pron 80, noun 10, verb 6
+- 저기서: pron 80, noun 10, verb 6
+- 놀란: verb 81, noun 14, adj 3
+- 계신지: verb 53, aux 41, noun 3, adj 3
+- 아스퍼거: noun 87, verb 7
+- 나날이: noun 58, adv 41
+- 좋아지고: adj 89, verb 11
+- 침실: noun 84, verb 14
+- 둘이서: num 88, noun 9, verb 2
+- 거기에는: pron 84, verb 12, noun 4
+- 있겠어: adj 82, verb 15, noun 2
+- 무엇인가를: pron 88, noun 12
+- 바랄: verb 86, noun 10
+- 어느정도: art 84, noun 13
+- 아까: adv 80, verb 11, adj 4, noun 2
+- 열어도: verb 87, noun 9, adj 2
+- 않기: aux 80, verb 13, noun 5
+- 쉽지는: adj 84, verb 8, noun 7
+- 언젠가는: adv 81, verb 10, noun 8
+- 많다는: adj 84, verb 12, noun 2
+- 알았으면: verb 90, adj 6, aux 4
+- 예쁘고: adj 83, verb 14, noun 2
+- 졌다: verb 52, aux 40, noun 5, adj 3
+- 눈보라: noun 84, verb 13
+- 아름답습니다: adj 84, verb 15
+- 기뻤어: adj 82, verb 15, noun 2
+- 나한텐: pron 89, noun 10
+- 행복했다: adj 82, verb 18
+- 만족해: adj 85, verb 13
+- 나빠도: adj 82, noun 10, verb 6
+- 스페인어: noun 82, verb 15
+- 있겠다: adj 81, verb 17
+- 주된: adj 82, verb 17
+- 얇고: adj 83, verb 14, noun 2
+- 싫었어: adj 83, verb 11, noun 5
+- 거대: noun 86, verb 8, adj 3, aux 2
+- 놀라서: verb 87, noun 6, adv 4, conj 2
+- 움직일: verb 83, noun 15
+- 푸시: noun 88, adv 8, num 3
+- 저의: pron 81, noun 19
+- 싶으세요: aux 82, verb 16
+- 거니: noun 84, verb 12, adj 2, aux 2
+- 않다고: aux 82, verb 10, adj 7
+- 도착한: verb 86, adj 13
+- 감사했다: verb 58, adj 41
+- 않을거야: aux 83, adj 7, verb 7, pron 3
+- 보인다고: aux 84, verb 8, adj 7
+- 하려는줄: verb 59, aux 40
+- 괜찮을까요: adj 84, verb 11, noun 3
+- 보다는: prep 80, verb 12, adj 4, noun 2
+- 가진것을: verb 84, noun 7, pron 4, aux 4
+- 일로: noun 58, adv 41
+- 뭔가가: pron 85, noun 14
+- 저번: noun 88, adv 4, num 4, verb 3
+- 하는지를: verb 49, aux 44, noun 7
+- 없어도: adj 82, noun 9, verb 7
+- 버텨: verb 86, noun 10
+- 같네요: adj 89, verb 5, aux 4
+- 마호가니: noun 84, verb 12, adj 2, aux 2
+- 재미있었어: adj 83, verb 11, noun 5
+- 되겠지: aux 44, verb 43, adj 9, noun 3
+- 사야: verb 86, noun 10
+- 어리지: adj 82, verb 18
+- 없었을: adj 84, verb 11, noun 3
+- 추는: verb 86, noun 10
+- 런던: noun 81, verb 15
+- 고로: conj 80, noun 18
+- email: x 88, noun 8, verb 3
+- com: x 88, noun 8, verb 3
+- 비싸: adj 82, noun 10, verb 6
+- 안할: adv 80, verb 18
+- 맛있어요: adj 87, verb 12
+- 바꿔야: verb 86, noun 10
+- 하니까: verb 51, aux 41, adj 4, noun 2
+- 있어봐: aux 84, verb 14
+- 나빠: adj 87, noun 10, verb 2
+- 있는데요: aux 46, adj 43, verb 10
+- 너네: pron 81, adj 8, verb 7, aux 2, noun 2
+- 불운: noun 83, adj 15, verb 3
+- 행운: noun 83, adj 15, verb 3
+- 죽이고: verb 85, noun 13
+- 일부러: adv 80, verb 17
+- 했나: verb 86, noun 10
+- 밝게: adj 87, verb 6, noun 5
+- 아만다는: noun 82, verb 12, adj 4
+- 자게: verb 86, adj 7, noun 5
+- 노는: verb 86, noun 10
+- 북한: noun 80, adj 13, verb 6
+- 없니: adj 82, verb 12, noun 4, aux 2
+- 거라니까: noun 83, verb 11, adj 4
+- 그리는: verb 86, noun 10
+- 놨다: aux 80, verb 12, noun 5, adj 3
+- 이야: aux 80, noun 10, verb 6
+- 너희들이: pron 80, noun 18
+- 늦은: adj 81, noun 17
+- 거기로: pron 82, verb 10, noun 7
+- 행복하지: adj 84, verb 16
+- 세다: adj 83, verb 12, noun 5
+- 거라곤: noun 84, verb 17
+- 겠어: aux 80, verb 15, noun 2
+- 말았다: aux 80, verb 16, adj 3
+- 저와: pron 81, noun 17
+- 말아야: aux 84, verb 12, noun 3
+- 무대: noun 86, verb 8, adj 3, aux 2
+- 가득했다: adj 82, verb 18
+- 있잖아: aux 45, adj 43, noun 6, verb 6
+- 누군가에게: pron 83, noun 17
+- 모르지만: verb 88, adj 5, noun 3
+- 좋았을텐데: adj 89, verb 10
+- 미리: adv 84, noun 15
+- 있더라도: adj 48, aux 40, noun 6, verb 5
+- 있었습니까: adj 90, verb 9
+- 알지만: verb 88, adj 5, noun 3
+- 피곤해: adj 85, verb 13
+- 어렵나요: adj 82, verb 16, aux 2
+- 한대: verb 48, aux 42, noun 6, adj 3
+- 러시아어: noun 82, verb 15
+- 등기로: noun 87, verb 10
+- 두렵다: adj 83, verb 12, noun 5
+- 매일같이: adv 86, noun 14
+- 되네: verb 87, adj 8, aux 2, noun 2
+- 좋아서: adj 87, verb 10
+- 그녀들은: pron 80, noun 17
+- 여러분을: pron 84, noun 16
+- 본인이: pron 80, noun 18
+- 베를린: noun 84, verb 13, adj 3
+- 하필이면: adv 82, noun 11, verb 5
+- 있었다는: adj 50, aux 41, verb 9
+- 두껍고: adj 83, verb 14, noun 2
+- 저에: pron 80, noun 19
+- 앉는: verb 86, noun 10
+- 나더러: pron 80, verb 17
+- 배우기를: verb 86, noun 12
+- 만약에: adv 80, noun 19
+- 줄거야: verb 51, aux 44, adj 3
+- 뭐했어: pron 80, verb 15, noun 2
+- 타: verb 86, noun 10
+- 그분이: pron 87, noun 13
+- 말자: aux 80, verb 14, noun 5
+- 있기: aux 80, verb 13, noun 5
+- 언제든지: adv 84, verb 11, pron 3
+- 싸고: adj 83, verb 14, noun 2
+- 대신: adv 82, verb 11, noun 6
+- 만엔이에요: num 80, noun 19
+- 했었지: aux 84, verb 11, adj 3, noun 2
+- 나은: adj 81, noun 17
+- 이봐: x 81, verb 16
+- 거기까지: pron 84, adj 9, noun 6
+- 들리는: verb 86, noun 10
+- 늦게까지: adj 84, noun 12, adv 4
+- 자기야: pron 83, noun 12, verb 5
+- 잠든: verb 88, adj 5, noun 3, pron 3
+- 스무: num 83, noun 13, adv 3
+- 쓰레기: noun 85, verb 13
+- 새해: noun 81, verb 13, adj 5
+- 못했을: verb 55, aux 40, noun 3
+- 보이네요: aux 84, adj 9, verb 5
+- 하나만: num 80, noun 10, verb 6
+- 유감스럽게도: adj 87, noun 7, pron 4
+- 없겠지: adj 90, aux 5, noun 3, verb 3
+- 즐거울: adj 90, verb 7, noun 3
+- 그들에: pron 80, noun 19
+- 잔뜩: adv 80, noun 10, verb 6
+- 중독자였어: noun 85, verb 11, aux 3
+- 있는데도: adj 83, verb 16
+- 마자: conj 81, verb 14, noun 5
+- 톰에게는: noun 88, pron 12
+- 괜찮지: adj 83, verb 12, noun 3
+- 있다니: adj 82, verb 11, aux 5
+- 싫은: adj 81, noun 17
+- 외롭다면: adj 84, verb 10, aux 3
+- 갈아: verb 87, noun 8, adj 3
+- 반갑게: adj 87, verb 6, noun 5
+- 두번째로: num 80, noun 18
+- 온화해서: adj 87, verb 12
+- 결정한: verb 86, adj 13
+- 어느날: art 81, verb 11, noun 5
+- 이제서야: adv 84, noun 7, verb 6, adj 4
+- 나로서는: pron 81, noun 14, verb 4
+- 빠지는: verb 88, noun 7, adj 4
+- 조금이라도: adv 84, noun 14
+- 보이기: verb 88, noun 11
+- 카메라: noun 84, verb 13
+- 메리에게는: noun 88, pron 12
+- 그보다: pron 83, noun 16
+- 감기: noun 85, verb 13
+- 우리와: pron 81, noun 17
+- 뿐더러: noun 82, verb 17
+- 싶지도: aux 82, verb 12, adj 4
+- 주시기: aux 87, verb 11
+- 저거보다: pron 83, noun 16
+- 사자: verb 54, noun 44
+- 자야: verb 86, noun 10
+- 좋을텐데: adj 89, verb 10
+- 왔다고: verb 51, aux 42, adj 7
+- 않았으면: aux 84, verb 9, adj 6
+- 있었니: adj 85, verb 9, aux 5
+- 혼자서는: adv 80, noun 14, verb 4
+- 못한: aux 80, adj 13, verb 6
+- 누군가를: pron 88, noun 12
+- 잘한: verb 86, adj 13
+- 여러분은: pron 86, noun 14
+- 아무거나: pron 82, verb 12, adj 2, aux 2
+- 꾸는: verb 86, noun 10
+- 받아들일: verb 83, noun 15
+- 드린: verb 53, aux 40, noun 4, adj 3
+- 믿을걸: verb 88, adj 5, noun 3
+- 있었겠지: adj 90, aux 5, noun 3, verb 3
+- 안타깝게도: adj 87, noun 7, pron 4
+- 마음껏: adv 80, noun 10, verb 6
+- 없잖아: adj 84, noun 6, verb 6, aux 5
+- 무언가: pron 81, noun 18
+- 예뻐요: adj 84, verb 11, noun 3
+- 한달: num 84, noun 14, verb 2
+- 한번도: noun 51, adv 40, verb 6
+- 소프트웨어야: noun 83, verb 16
+- 소위: adv 83, noun 15
+- 멋져: adj 83, verb 16
+- 않는게: aux 82, verb 13, adj 3, noun 2
+- 외롭다는: adj 84, verb 12, noun 2
+- 믿기지가: verb 81, noun 18
+- 달러: noun 82, verb 17
+- 괜찮다면: adj 84, verb 10, aux 3
+- 바지는: noun 87, verb 8, adj 4
+- 다니는: verb 85, noun 14
+- 힘들어요: adj 82, verb 15
+- 그사람이: pron 43, art 40, noun 17
+- 차고: verb 54, noun 42, adj 3
+- 상한: verb 86, adj 13
+- 짖는: verb 86, noun 10
+- 내놓은: verb 81, noun 17
+- 됐는데: verb 53, aux 42, adj 3
+- 아직은: adv 80, noun 17
+- 어리고: adj 82, verb 17
+- 움직이지: verb 86, noun 12
+- 중요해: adj 85, verb 13
+- 들어와: verb 84, noun 15
+- 뭔데: pron 80, verb 8, adj 5, noun 4, aux 2
+- 갔을: verb 82, noun 18
+- 있으신가요: adj 86, noun 6, aux 5
+- 예뻐: adj 82, noun 10, verb 6
+- 화가난: noun 83, verb 13, adj 4
+- 하나로: num 80, noun 18
+- 듯한: aux 80, adj 13, verb 6
+- 안들어: adv 83, verb 14, adj 3
+- 얼른: adv 83, adj 9, verb 5
+- 춥지: adj 83, verb 12, noun 3
+- 저건: pron 82, noun 8, verb 5, adj 2, adv 2
+- 매번: adv 84, noun 8, num 4, verb 3
+- 보이는데: verb 53, aux 42, adj 3
+- 아니었어: adj 83, verb 11, noun 5
+- 만명이다: num 81, noun 18
+- 이보다: pron 83, noun 16
+- 오렌지: noun 84, verb 12, adj 3
+- 싶습니까: aux 83, verb 13, adj 3
+- 강해: adj 85, verb 13
+- 걸어도: verb 87, noun 9, adj 2
+- 받게: verb 86, adj 7, noun 5
+- 뭐든지: pron 84, verb 11, adv 3
+- 너만큼: pron 81, noun 16, verb 2
+- 머무는: verb 86, noun 14
+- 싶니: aux 82, verb 12, noun 4, adj 2
+- 있을지도: adj 86, verb 13
+- 보였어: verb 51, aux 43, noun 6
+- 원치: verb 84, noun 10, adv 3
+- 많고: adj 83, verb 14, noun 2
+- 싶은지: aux 83, adj 9, verb 6
+- 젤렌스키는: noun 89, verb 11
+- 했지: verb 53, aux 41, noun 3, adj 3
+- 만하다: aux 81, adj 17
+- 없인: adv 80, noun 18
+- 말고는: verb 87, noun 9
+- 뭐라도: pron 80, noun 10, verb 6
+- 치워: verb 84, adj 15
+- 해고당한: verb 86, adj 13
+- 해주세요: verb 58, aux 42
+- 볼리비아: noun 88, verb 7, adj 3
+- 바다가: noun 85, verb 10, conj 3
+- 안되요: adv 80, verb 11, adj 3, noun 3
+- 별: art 80, noun 10, verb 6
+- 톰한테는: noun 89, pron 4, art 4, verb 3
+- 않으니까: aux 84, verb 9, adj 7
+- 갈게: verb 86, adj 7, noun 5
+- 저지른: verb 85, adj 9, adv 3
+- 어디를: pron 80, noun 18
+- 오픈: noun 87, adj 11, verb 2
+- 많습니다: adj 84, verb 15
+- 않았을: aux 82, verb 12, noun 4, adj 2
+- 같지는: adj 84, verb 8, noun 7
+- 친절함을: noun 58, adj 40
+- 잊을: verb 82, noun 18
+- 같아서: adj 87, verb 10
+- 돼서: aux 80, noun 10, verb 6
+- 한데: aux 42, adv 40, verb 8, adj 5, noun 4
+- 아닌데: adj 85, verb 8, noun 4, aux 2
+- 바빠: adj 87, noun 10, verb 2
+- 많지: adj 83, verb 12, noun 3
+- 아무나: pron 80, noun 10, verb 6
+- 편해: adj 85, verb 13
+- s: noun 51, x 40, verb 6
+- 점차: adv 81, noun 17
+- 뭐냐면: pron 80, verb 12, noun 3, adj 2
+- 남는: verb 86, noun 10
+- 계시나요: verb 55, aux 42
+- 소재지는: noun 87, verb 8, adj 4
+- 거래: noun 85, verb 10, aux 3
+- 이제까지: adv 82, noun 15
+- 실례합니다만: verb 86, adj 11
+- 자서: verb 86, noun 10
+- 했다면: verb 50, aux 43, adj 5
+- 배워요: verb 84, adj 15
+- 하얗게: adj 87, verb 6, noun 5
+- 우울해: adj 85, verb 13
+- 줘요: verb 51, aux 41, adj 3, noun 3
+- 좋겠는데: adj 85, verb 13
+- 보이지만: aux 42, verb 41, noun 13, adv 2
+- 커요: adj 84, verb 11, noun 3
+- 굳이: adv 80, noun 18
+- 말래: aux 83, verb 10, noun 5
+- 무조건: adv 82, noun 8, verb 5, adj 2, pron 2
+- 않아도: aux 83, verb 10, adj 3, noun 3
+- 나라도: noun 51, pron 40, verb 6
+- 안녕: x 80, noun 10, verb 6
+- 걔를: pron 80, noun 18
+- 뭐하는: pron 80, verb 19
+- 있으시면: adj 85, verb 11, aux 3
+- 어디서부터: pron 81, noun 18
+- 들일: verb 83, noun 15
+- 이것도: pron 80, noun 10, verb 6
+- 찾아서: verb 90, adj 7
+- 누구인지: pron 82, noun 15
+- 누구든: pron 83, verb 8, adj 5, noun 3
+- 않나요: aux 82, verb 16
+- 파면: noun 84, verb 12, adj 2
+- 주려고: aux 81, verb 18
+- 거꾸로: adv 81, noun 18
+- 주셨다: aux 82, verb 17
+- 느리게: adj 86, verb 12
+- 어려웠다: adj 87, verb 12
+- 멈추는: verb 86, noun 10
+- 배워: verb 84, adj 15
+- 궁금했다: adj 82, verb 18
+- 후루룩: adv 80, noun 10, verb 6
+- 있었지: adj 84, verb 11, aux 3, noun 2
+- 가능해: adj 85, verb 13
+- 작가는: noun 88, verb 10
+- 창백해: adj 85, verb 13
+- 그만둘: verb 86, noun 10
+- 어땠어: adj 82, verb 15, noun 2
+- 실험실: noun 84, verb 14
+- 깎을: verb 82, noun 18
+- 이예요: aux 81, noun 14
+- 할지를: aux 80, noun 18
+- 알리는: verb 86, noun 10
+- 열여섯: num 80, noun 10, verb 6
+- 빌려야: verb 86, noun 10
+- 았았다: verb 57, aux 41, adj 3
+- 했었는데: verb 47, aux 44, noun 6, adj 3
+- 저게: pron 81, adj 7, verb 6, noun 5
+- 옳았다: adj 83, verb 16
+- 해주는: verb 51, aux 40, noun 6, adv 2
+- 믿는: verb 86, noun 10
+- 커다란: adj 83, noun 14
+- 봐서는: verb 84, noun 14
+- 여기다: pron 84, verb 9, noun 6
+- 단어: noun 82, verb 15
+- 절: pron 80, noun 10, verb 6
+- 겪는: verb 86, noun 10
+- 이란: prep 81, noun 14, adj 3
+- 함께라면: adv 81, noun 12, verb 3, pron 3
+- 지나간: verb 77, noun 17, adj 3
+- 볼만: verb 77, noun 17, adj 3
+- 자랐네: verb 78, adj 13, aux 4, noun 4
+- 사용합니까: verb 88, adj 10
+- 흠: x 67, noun 17, verb 11, adj 3
+- 있군: aux 73, noun 14, verb 11
+- 혼자다: noun 74, verb 20, adj 4
+- 어딘가에있을거야: pron 71, adj 12, verb 11, aux 5
+- 비교해서: verb 86, adj 11, noun 3
+- 현대는: noun 90, verb 10
+- 생활: noun 84, verb 11, adj 3
+- 다다랐다고: verb 84, adj 12, aux 3
+- 속였어: verb 85, noun 9, aux 4
+- 해결했으면: verb 90, adj 6
+- 같지만: adj 76, verb 13, noun 5, aux 3
+- 영영: adv 73, noun 23, verb 4
+- 할것이다: verb 80, noun 12, adj 7
+- 복도: noun 84, verb 11, adj 3
+- 싶구먼: aux 67, noun 17, verb 11, adj 3
+- 수줍은: adj 68, noun 29
+- 쑥스러웠다: adj 79, verb 20
+- 왔는데: verb 89, adj 5, aux 4, noun 3
+- 고장난: verb 88, adj 7, noun 5
+- 잘살: verb 78, noun 14, num 7
+- 닫아로: verb 74, noun 25
+- 초등: noun 84, verb 11, adj 3
+- 목구멍: noun 84, verb 11, adj 3
+- 찔러넣기: verb 88, noun 8, adj 2
+- 공짜야: noun 84, verb 11, adj 3
+- 잊어버렸니: verb 86, noun 6, adj 4, aux 4
+- 베어지는: verb 79, noun 12, adj 7
+- 향수: noun 84, verb 11, adj 3
+- 맡을: verb 70, noun 29
+- 있었음에: adj 71, noun 28
+- 실례지만: noun 72, verb 13, adj 9, aux 3
+- 왕자병: noun 84, verb 11, adj 3
+- 수준: noun 79, verb 19
+- 생각하거든: verb 78, adj 13, noun 6, aux 3
+- 후에야: noun 84, verb 11, adj 3
+- 도착했지: verb 87, noun 6, adv 5
+- 돌봅니까: verb 84, adj 7, noun 4, aux 2
+- 취직: noun 84, verb 11, adj 3
+- 성공했구나: verb 72, adj 13, noun 8, adv 2, aux 2, pron 2
+- 나라든: noun 72, verb 13, adj 9, pron 4
+- 필요하시나요: adj 75, verb 25
+- 갖춘: verb 77, noun 17, adj 3
+- 대체하기가: verb 76, noun 24
+- 최고다: noun 74, verb 20, adj 4
+- 퍼: noun 84, verb 11, adj 3
+- 휩쓸은: verb 68, noun 29
+- 길고: adj 72, verb 23, noun 4
+- 들이고: verb 76, noun 22
+- 찌꺼기는: noun 90, verb 7
+- 학기에: noun 86, verb 9, aux 3
+- 배울까: verb 80, adj 16
+- 빨라: adj 68, verb 22, noun 6, aux 2
+- 있는것이: adj 73, pron 14, noun 12
+- 여겨질: verb 82, adj 9, noun 7
+- 미소지을: verb 70, noun 29
+- 땐: noun 84, verb 11, adj 3
+- 애썼다: verb 87, noun 8, adj 4
+- 사람이기: noun 85, verb 14
+- 오늘자: noun 74, verb 23
+- 빛으로만: noun 84, verb 11, adj 3
+- 할수: verb 77, noun 17, adj 3
+- 몰아낼수는: verb 71, noun 28
+- 다르죠: adj 74, noun 11, verb 10, aux 4
+- 왔냐: verb 76, adj 11, noun 7, aux 3, adv 3
+- 걸릴지: verb 88, noun 6, adj 4
+- 몰랐다는: verb 86, adj 7, noun 4, aux 3
+- 기분은: noun 90, pron 10
+- 아이에게까지: noun 86, adv 6, adj 6
+- 파는게: verb 89, adj 4, noun 4, aux 3
+- 꺼림직했지만: adj 74, verb 23
+- 내친구에게: pron 75, noun 25
+- 마찰: noun 84, verb 11, adj 3
+- 생기게: verb 77, adj 12, noun 8
+- 하지말라고: aux 68, noun 18, verb 12
+- 아이에게도: noun 78, pron 16, adj 5
+- 끓고: verb 90, adj 5, noun 4
+- 불규칙: noun 84, verb 11, adj 3
+- 필수: noun 84, verb 11, adj 3
+- 있을거란: adj 71, noun 24, verb 2
+- 잃을: verb 70, noun 29
+- 예년: noun 85, num 9, adv 3
+- 살펴야: verb 77, noun 17, adj 3
+- 믿어도: verb 79, noun 14, adj 3
+- 되겠니: verb 90, aux 7
+- 이따: adv 68, noun 17, verb 11, adj 3
+- 하자: verb 90, noun 8
+- 개의치: verb 74, noun 17, adv 6, adj 3
+- 넣으면: verb 90, adj 6
+- 썩: adv 68, noun 17, verb 11, adj 3
+- 브랜디는: noun 84, verb 11, adj 3
+- 무엇일까요: pron 67, verb 19, adj 6, noun 5, aux 3
+- 늘었으면: verb 90, adj 6
+- 소고기만: noun 74, verb 15, adj 5, pron 5
+- 대면: aux 68, verb 20, noun 6, adj 4
+- 버릴: aux 70, verb 24, adj 3
+- 어둠: noun 84, verb 11, adj 3
+- 웃게: verb 77, adj 12, noun 8
+- 유엔: noun 84, verb 11, adj 3
+- 였습니다: aux 68, verb 25, adj 6
+- 구천구백구십구: num 69, noun 29
+- 만이다: num 68, noun 31
+- 선선한: adj 88, verb 10
+- 불기를: verb 77, noun 20
+- 기대해요: verb 85, adj 13
+- 카나다는: noun 70, verb 19, adj 7, aux 3
+- 도와주겠다는: verb 86, adj 7, noun 4, aux 3
+- 견뎌야: verb 77, noun 17, adj 3
+- 추우니까: adj 90, verb 7
+- 두껍게: adj 79, verb 11, noun 8
+- 썼다니: verb 86, aux 9, noun 3, adj 3
+- 선우는: noun 82, verb 17
+- 지지해왔지만: verb 80, adj 9, noun 5, aux 3
+- 모: art 67, noun 17, verb 11, adj 3
+- 흔들리는: verb 77, noun 17, adj 3
+- 일이리라: noun 73, verb 22, aux 2
+- 나쁘다고: adj 79, verb 18, aux 3
+- 미루는: verb 77, noun 17, adj 3
+- 된지: verb 88, noun 6, adj 4
+- 창피해서: adj 78, verb 19, noun 3
+- 안해: adv 68, verb 22, adj 9
+- 빠졌는가: verb 80, adj 10, noun 6, aux 3
+- 시즌: noun 84, verb 11, adj 3
+- 트렌드는: noun 84, verb 11, adj 3
+- 섀도래요: noun 70, verb 19, aux 7, x 3
+- 적분: noun 82, pron 8, adv 4, num 4, verb 2
+- summe: x 87, noun 7, verb 4
+- 연상시키는: verb 84, noun 15
+- 늘여진: verb 88, adj 5, noun 4, aux 2
+- 고안했지: verb 87, noun 6, adv 5
+- 친구죠: noun 78, verb 10, adj 8, aux 4
+- 안다고: verb 84, adj 12, aux 3
+- 생각하진: verb 89, adj 9
+- 않는데: aux 70, verb 22, adj 5, noun 3
+- 탑: noun 84, verb 11, adj 3
+- 장만: noun 84, verb 11, adj 3
+- 팔십: num 88, noun 9, verb 3
+- 구: num 67, noun 17, verb 11, adj 3
+- 싶어하질: aux 68, verb 16, adj 9, noun 7
+- 않던데: aux 79, verb 16, adj 3
+- 편리한가요: adj 76, noun 8, verb 6, pron 6, aux 4
+- 괜찮아지기까지: adj 81, noun 10, pron 7
+- 졸라댔지만: verb 80, adj 9, noun 5, aux 3
+- 까악까악: adv 73, noun 20, verb 4
+- 이루고: verb 90, adj 5, noun 4
+- 않죠: aux 70, noun 11, verb 10, adj 8
+- 테니: noun 73, verb 19, adj 4, aux 4
+- 뜨거우니까: adj 90, verb 7
+- 화상입지: noun 73, verb 21, adj 4
+- 카드로도: noun 89, verb 6, prep 4
+- 국가다: noun 90, verb 8
+- 술취한: noun 68, adj 21, verb 10
+- 솔직해지세요: adj 69, verb 26, aux 3
+- 나한테는: pron 73, noun 14, art 7, verb 5
+- 똑같아: adj 74, noun 21, verb 4
+- 어리다는: adj 73, verb 19, noun 4, aux 3
+- 외동이었으면: noun 68, verb 23, adj 6
+- 숙제를하게: noun 68, adj 25, verb 7
+- 해주: aux 69, noun 21, adv 5, num 3
+- 십니다: aux 67, verb 20, noun 8, adj 4
+- 싸게는: adj 69, pron 16, noun 13
+- 부족함이: adj 80, noun 19
+- 토론해도: verb 85, adj 4, adv 4, aux 4, noun 3
+- 뿌리지도: verb 87, adj 6, aux 4, noun 2
+- 거두지도: verb 87, adj 6, aux 4, noun 2
+- 모아들이지도: verb 87, adj 6, aux 4, noun 2
+- 않으나: aux 74, verb 10, adj 8, noun 6
+- 너희의: pron 68, noun 31
+- 그것들을: pron 73, noun 27
+- 귀하지: adj 73, verb 26
+- 아니하냐: aux 70, adj 11, verb 9, noun 7, adv 3
+- 잘될거야: verb 84, adj 6, aux 6, pron 2
+- 됐대: verb 80, noun 10, adj 5, aux 4
+- 떠서: verb 77, noun 17, adj 3
+- 진다: verb 87, noun 8, adj 4
+- 나가지: verb 88, noun 6, adj 4
+- 칙나와판: noun 84, verb 11, adj 3
+- 경험이었습니다: noun 90, verb 8
+- 아니었다는: adj 83, verb 14
+- 불분명한: adj 88, verb 10
+- 내린다면: verb 84, adj 8, aux 5, noun 2
+- 수아: noun 80, verb 11, adj 5, aux 3
+- 씨: noun 84, verb 11, adj 3
+- 날씬해지셨네요: adj 82, verb 9, aux 6, noun 3
+- 묻지: verb 88, noun 6, adj 4
+- 배워서: verb 74, adj 22, noun 4
+- 아쉽구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 오래됐다: adj 71, verb 27
+- 타케토미라고: noun 84, verb 12
+- 하옵니다: verb 87, noun 8, adj 4
+- 성이고: noun 89, verb 9
+- 다가와서: verb 86, noun 6, adv 6
+- 걸기를: verb 77, noun 20
+- 기다리기보다는: verb 77, noun 15, aux 6
+- 다가가는: verb 84, noun 12
+- 고처야: verb 77, noun 17, adj 3
+- 바쁘지만: adj 76, verb 13, noun 5, aux 3
+- 인터뷰: noun 84, verb 11, adj 3
+- 조금이더라도: noun 77, adj 13, verb 8
+- 것보단: noun 87, pron 8, verb 2
+- 사준다고: verb 84, adj 12, aux 3
+- 속여가지고: verb 85, adj 14
+- 그분한테서: pron 76, noun 20, verb 2
+- 업서요: adj 72, verb 19, noun 5, aux 3
+- 거였나: noun 84, verb 11, adj 3
+- 생겼는데: verb 89, adj 5, aux 4, noun 3
+- 하마인지는: noun 84, pron 7, verb 5, adj 3
+- 초록옷: noun 84, verb 11, adj 3
+- 젤다죠: noun 78, verb 10, adj 8, aux 4
+- 공격한: verb 84, adj 15
+- 미수: noun 84, verb 11, adj 3
+- 무섭게: adj 79, verb 11, noun 8
+- 어떠세요: adj 69, verb 26, aux 3
+- 머무르실: verb 90, noun 7
+- 피곤하기: adj 70, verb 30
+- 쉬는: verb 77, noun 17, adj 3
+- 숨지고: verb 85, adj 14
+- 지나치게: adj 75, verb 22, noun 2
+- 똥만: noun 84, verb 11, adj 3
+- 자막: noun 84, verb 11, adj 3
+- 볼거다: verb 87, noun 8, adj 4
+- 만원: num 70, noun 27, verb 2
+- 깎아주는: verb 86, noun 10, adv 3
+- 가게도: noun 78, adj 12, pron 6, adv 3
+- 가령: adv 76, noun 19, verb 3
+- 가렵지: adj 89, verb 8, noun 2
+- 좋아지기를: adj 68, noun 20, verb 10
+- 댐: noun 84, verb 11, adj 3
+- 확인해: verb 89, adj 9
+- 다섯명: num 73, noun 14, adv 7, verb 4
+- 용서해주리라고: verb 86, noun 9, adj 5
+- 추워지는: adj 74, verb 13, noun 12
+- 절기를: noun 87, verb 10
+- 일한것에: verb 78, pron 11, noun 10
+- 미칩니다: verb 87, noun 8, adj 4
+- 비교해: verb 89, adj 9
+- 시켜도: verb 77, noun 17, adj 3
+- 모자라다니: verb 86, aux 9, noun 3, adj 3
+- 두었니: verb 81, adj 8, aux 8, noun 2
+- 비만이고: noun 89, verb 9
+- 참지: verb 88, noun 6, adj 4
+- 스웨덴: noun 84, verb 11, adj 3
+- 사람이세요: noun 79, verb 20
+- 한글: noun 84, verb 11, adj 3
+- 돌아가길: verb 88, adj 6, noun 4, aux 2
+- 있는걸: aux 73, verb 21, adj 3
+- 좀더: adv 68, noun 17, verb 11, adj 3
+- 꽃미남이래: noun 75, verb 17, aux 5, adv 2
+- 급우도: noun 84, verb 11, adj 3
+- 어딥니까: pron 68, verb 18, adj 7, noun 4, aux 2
+- 불어와: verb 75, noun 25
+- 마케팅: noun 84, verb 11, adj 3
+- 모르겠는데: verb 89, adj 9
+- 뜻밖에: adv 67, noun 31
+- 읽었어요: verb 89, aux 5, noun 5
+- 아퍼: adj 69, noun 17, verb 11
+- 인생도: noun 84, verb 11, adj 3
+- 수상기에: noun 86, verb 9, aux 3
+- 작성해: verb 89, adj 9
+- 여동생뿐: noun 84, verb 11, adj 3
+- 초대: noun 77, verb 14, adj 5, aux 4
+- 터프츠: noun 84, verb 11, adj 3
+- 대학교다: noun 74, verb 20, adj 4
+- 오늘밤엔: noun 84, verb 11, adj 3
+- 뭔지: pron 68, verb 21, noun 6, adj 4
+- 밝아: adj 72, noun 13, verb 11, aux 3
+- 갈아입고: verb 90, adj 5, noun 4
+- 올게: verb 77, adj 12, noun 8
+- 한가지만: num 67, verb 13, adj 9, noun 5, aux 3
+- 완벽해요: adj 80, verb 18
+- 맡길: verb 88, adj 6, noun 4, aux 2
+- 없으니까: adj 79, verb 14, aux 5
+- 소용없다: adj 89, verb 8, noun 3
+- 싫어하네: verb 79, adj 19
+- 싫어해요: verb 85, adj 13
+- 종교라고: noun 84, verb 12
+- 같았다: adj 72, verb 27
+- 깜빡한: verb 76, adj 21
+- 사람이지: noun 87, verb 10
+- 나빠서: adj 69, noun 17, verb 11
+- 끌었지: verb 85, adj 6, aux 5, noun 3
+- 선택될꺼야: verb 77, noun 17, adj 3
+- 하나야: num 73, verb 18, noun 7
+- 맞대면: verb 87, noun 6, adj 4
+- 쓰러질: verb 82, adj 9, noun 7
+- 아르노: noun 84, verb 11, adj 3
+- 했다니: aux 76, verb 19, noun 3, adj 3
+- 거고: noun 70, verb 23, adj 5
+- 나까지도: pron 68, verb 20, adj 6, aux 4, noun 2
+- 상대로: noun 86, adv 14
+- 지켜야: verb 77, noun 17, adj 3
+- 아니며: adj 72, verb 20, noun 6
+- 생각했지만: verb 90, adj 7
+- 공기없이는: noun 84, verb 11, adj 3
+- 겉옷: noun 84, verb 11, adj 3
+- 함께라서: adv 73, verb 12, noun 11, conj 3
+- 행복해요: adj 80, verb 18
+- 장담해: verb 89, adj 9
+- 돈이면: noun 85, verb 8, adv 3, pron 3
+- 주소하고: noun 68, verb 28, adj 3
+- 따라온다는: verb 86, adj 7, noun 4, aux 3
+- 알아차렸을: verb 88, noun 12
+- 막기: verb 88, noun 8, adj 2
+- 류샤는: noun 84, verb 11, adj 3
+- e: x 67, noun 17, verb 11, adj 3
+- x의: x 67, noun 31
+- 차려라: verb 89, noun 6, aux 2
+- 좋네요: adj 82, verb 9, aux 6, noun 3
+- 잤으므로: verb 76, aux 9, adj 9, noun 4, conj 2
+- 취소야: noun 84, verb 11, adj 3
+- 뻗어서: verb 88, adj 9
+- 옮긴: verb 85, adj 9, pron 3, noun 3
+- 미노그야: noun 84, verb 11, adj 3
+- 잠드는: verb 77, noun 17, adj 3
+- 멋있어: adj 76, verb 23
+- 신뢰는: noun 84, verb 11, adj 3
+- 스페인어도: noun 81, verb 12, adj 3
+- 서있는: verb 86, noun 8, adj 6
+- 물러설: verb 77, noun 17, adj 3
+- 킬킬: adv 72, verb 22, noun 5
+- 기쁘게: adj 79, verb 11, noun 8
+- 뒤져서: verb 85, adj 9, noun 5
+- 벗어나는: verb 84, noun 13, num 3
+- 다람쥐는: noun 84, verb 11, adj 3
+- 밴드는: noun 84, verb 11, adj 3
+- 연주해요: verb 85, adj 13
+- 양치기로: noun 78, verb 17, pron 3
+- 공부하지만: verb 77, adj 21
+- 필요없는: adj 84, noun 14, verb 2
+- 제때: noun 77, verb 19, adj 4
+- 기기를: noun 87, verb 10
+- 구매한: verb 76, adj 21
+- 실패한: verb 76, adj 21
+- 부족했기: adj 69, verb 21, noun 8
+- 되었으면: verb 90, adj 6
+- 증오는: noun 73, verb 26
+- 짊어지기에: verb 76, noun 19, aux 3
+- 불안해: adj 76, verb 22
+- 행복할: adj 73, verb 27
+- 가야되는데: verb 89, adj 5, aux 4, noun 3
+- 언제인지는: pron 74, noun 18, verb 5, adj 3
+- 느껴진다: verb 87, adj 6, aux 5, noun 2
+- 오냐오냐: adv 70, adj 11, verb 9, noun 7, aux 3
+- 키웠다는: verb 86, adj 7, noun 4, aux 3
+- 쉼쉬는: verb 77, noun 17, adj 3
+- 읽어봤었어요: verb 89, aux 5, noun 5
+- 흥미롭더라구요: adj 72, verb 19, noun 5, aux 3
+- 산토끼들에게는: noun 79, pron 20
+- 살입니까: noun 86, pron 8, verb 4
+- 제안합니다: verb 90, adj 10
+- 다습한: adj 88, verb 10
+- 높아졌어요: adj 84, verb 15
+- happy: x 86, noun 10, verb 3
+- birthday: x 86, noun 10, verb 3
+- 공부도: noun 84, verb 11, adj 3
+- 멈춰야: verb 77, noun 17, adj 3
+- 할까요: verb 85, adj 6, noun 5, aux 3
+- 기껏해야: adv 68, verb 30
+- 키웠다: verb 87, adj 12
+- 느낌도: noun 84, verb 11, adj 3
+- 못했었어요: aux 71, verb 22, noun 5
+- 뺄: verb 77, noun 17, adj 3
+- 싶어한다고: aux 68, verb 30
+- 도움없이: noun 81, adv 18
+- 맨: art 67, noun 17, verb 11, adj 3
+- 이루어지는: verb 79, noun 12, adj 7
+- 진: verb 77, noun 17, adj 3
+- 좋았어: adj 70, verb 25, noun 3
+- 뒷쪽에: noun 88, pron 11
+- 좋아지네요: adj 82, verb 9, aux 6, noun 3
+- 부정확한: adj 88, verb 10
+- 얼마인가요: noun 80, pron 13, adj 3
+- 차례대로: noun 86, adv 14
+- 빨래: noun 75, verb 17, aux 5, adv 2
+- 건조대는: noun 90, verb 10
+- 무기한: noun 73, verb 17, adj 8
+- 흔들며: verb 87, noun 6, adj 5
+- 떠난다고: verb 84, adj 12, aux 3
+- 고맙다: adj 71, verb 20, noun 8
+- 진한: adj 88, verb 10
+- 필수야: noun 84, verb 11, adj 3
+- 만났을: verb 70, noun 29
+- 기억나: verb 77, noun 17, adj 3
+- c: noun 84, verb 11, adj 3
+- 들었을: verb 85, adj 6, noun 5, aux 3
+- 글자도: noun 84, verb 11, adj 3
+- 다행스럽게도: adj 78, noun 11, pron 6, adv 3
+- 프로그래머: noun 87, x 7, verb 4
+- 뒀지: verb 88, noun 6, adj 4
+- 없네요: adj 82, verb 9, aux 6, noun 3
+- 머물: verb 71, noun 28
+- 계획이냐: noun 73, adj 11, verb 9, aux 3, adv 3
+- 반란죄: noun 84, verb 11, adj 3
+- 이쁜: adj 90, noun 6, verb 4
+- 오니까: verb 84, adj 7, noun 4, aux 2
+- 예민한: adj 88, verb 10
+- 숨쉴: verb 77, noun 17, adj 3
+- 본보기로: noun 78, verb 17, pron 3
+- 삼았듯이: verb 84, noun 10, adj 6
+- 솔직하고: adj 70, verb 28
+- 바쁘시지요: adj 82, aux 8, verb 8, noun 2
+- 성가실: adj 68, verb 23, noun 7
+- 연기를: noun 87, verb 10
+- 펑펑: adv 68, noun 17, verb 11, adj 3
+- 울었어요: verb 89, aux 5, noun 5
+- 문애서: noun 84, verb 11, adj 3
+- 복원되었고: verb 89, noun 8
+- 상태야: noun 84, verb 11, adj 3
+- 들어올려지는: verb 79, noun 12, adj 7
+- 적어서: adj 76, verb 21
+- 없어졌던: adj 70, verb 25, aux 3
+- 장점: noun 87, adv 7, verb 4
+- 일기쓰기를: noun 87, verb 10
+- 수준도: noun 84, verb 11, adj 3
+- 입수: noun 84, verb 11, adj 3
+- 가능합니까: adj 77, verb 21
+- 얼마야: noun 84, verb 11, adj 3
+- 분이면: noun 85, verb 8, adv 3, pron 3
+- 집에서나: noun 84, verb 11, adj 3
+- 한에서만: noun 85, num 7, verb 3
+- 확실해: adj 76, verb 22
+- 곱슬곱슬한: adj 88, verb 10
+- 안냈으면: adv 68, verb 23, adj 6
+- 좋겠을: adj 67, noun 29, verb 3
+- 떠나: verb 77, noun 17, adj 3
+- 시였다: noun 76, verb 22
+- 버거워졌다: adj 73, verb 25
+- 조용할: adj 69, verb 30
+- 멘나드는: noun 84, verb 11, adj 3
+- 정차합니다: verb 90, adj 10
+- 고령: noun 86, adv 10, verb 3
+- 메뚜기나: noun 84, verb 11, adj 3
+- 결혼한거: verb 78, noun 12, adj 3, aux 2, pron 2, x 2
+- 안했구나: adv 69, adj 13, noun 8, verb 5, aux 2, pron 2
+- 여보: x 67, noun 17, verb 11, adj 3
+- 닿지: verb 88, noun 6, adj 4
+- 가게까지: noun 86, adv 6, adj 6
+- 토: noun 84, verb 11, adj 3
+- 실수니까: noun 70, verb 18, adj 7, aux 2
+- 파벌: noun 84, verb 11, adj 3
+- 작지: adj 71, verb 21, noun 6
+- 그넘은: pron 68, noun 29
+- 버릇: noun 84, verb 11, adj 3
+- 비싸고: adj 72, verb 23, noun 4
+- 앉자: verb 90, noun 8
+- 강인했으며: adj 84, verb 15
+- 세살일: num 68, noun 24, verb 5, adv 2
+- 여기서는: pron 68, noun 23, verb 7
+- 물건: noun 80, verb 9, adj 4, pron 3, adv 3
+- 함부로: adv 68, noun 30
+- 버릇없고: adj 72, verb 23, noun 4
+- 부유하고: adj 75, verb 24
+- 차표는: noun 84, verb 11, adj 3
+- 파는: verb 77, noun 17, adj 3
+- 앉은: verb 68, noun 29
+- 풀도: noun 84, verb 11, adj 3
+- 찍었으면: verb 90, adj 6
+- 친절한: adj 88, verb 10
+- 어르신에게: noun 85, pron 15
+- 내려다보면: verb 87, noun 6, adj 4
+- 유명하네: adj 85, verb 13
+- 찾기: verb 88, noun 8, adj 2
+- 화분: noun 82, pron 8, adv 4, num 4, verb 2
+- 이달: noun 90, num 6, verb 4
+- 죽을지도: verb 89, adj 10
+- 맛있지만: adj 76, verb 13, noun 5, aux 3
+- 치아: noun 80, verb 11, adj 5, aux 3
+- 모욕한: verb 76, adj 21
+- 작년: noun 85, num 9, adv 3
+- 갔었습니까: verb 82, adj 16
+- 여섯시에: num 73, noun 27
+- 전엔: noun 84, verb 11, adj 3
+- 외워야: verb 88, adj 6, noun 6
+- 건너는: verb 77, noun 17, adj 3
+- 않을것을: aux 73, noun 12, verb 8, pron 7
+- 거거든: noun 72, adj 13, verb 11, aux 3
+- 알맞다: adj 71, verb 20, noun 8
+- 가영: noun 90, adv 6, verb 4
+- 스트라스부르는: noun 76, verb 24
+- 위치한: verb 76, adj 21
+- 훔쳤다고: verb 84, adj 12, aux 3
+- 돌아가셨을: verb 70, noun 29
+- 미신에: noun 86, pron 14
+- 성실하다기: adj 69, verb 21, noun 8
+- 들뜨게: verb 77, adj 12, noun 8
+- 독서: noun 84, verb 11, adj 3
+- 최고라고: noun 84, verb 12
+- 엄금합니다: verb 90, adj 10
+- 달러야: noun 78, verb 21
+- 익숙해질거야: adj 73, verb 18, aux 6, pron 2
+- 독특한: adj 88, verb 10
+- 있는지는: aux 72, verb 18, pron 5, noun 3, adj 2
+- 미스터리다: noun 76, adj 15, verb 8
+- 경치: noun 84, verb 7, adv 6, adj 3
+- 믿지는: verb 79, noun 12, adj 7
+- 넣는: verb 77, noun 17, adj 3
+- 충분하기를: adj 70, verb 24, noun 4
+- 끊고: verb 90, adj 5, noun 4
+- 잘못되었다고: verb 80, adj 16, aux 4
+- 번역하십시오: verb 89, aux 10
+- 미터야: noun 84, verb 11, adj 3
+- 들었는데: verb 78, noun 11, aux 7, adj 4
+- 그만둬야: verb 77, noun 17, adj 3
+- 생길: verb 88, adj 6, noun 4, aux 2
+- 이해했으면: verb 90, adj 6
+- 먹어두지: verb 88, noun 6, adj 4
+- 회는: noun 84, verb 11, adj 3
+- 넙니다: verb 87, noun 8, adj 4
+- 쉬울: adj 83, verb 12, noun 5
+- 유도: noun 84, verb 11, adj 3
+- 닦아요: verb 86, adj 13
+- 멈추고: verb 90, adj 5, noun 4
+- 움직이는: verb 77, noun 17, adj 3
+- 오리털: noun 84, verb 11, adj 3
+- 어디다: pron 67, verb 20, noun 8, adj 4
+- 세는: noun 84, verb 11, adj 3
+- 말하기와: verb 69, noun 29
+- 쓰기를: verb 77, noun 20
+- 뼈: noun 84, verb 11, adj 3
+- 근육: noun 84, verb 11, adj 3
+- 쑤시는: verb 84, noun 14, adv 2
+- 날이었는데: noun 77, verb 11, aux 7, adj 4
+- 있겠습니까: adj 73, verb 22, aux 4
+- 가겠습니까: verb 89, adj 6, aux 4
+- 똑똑합니다: adj 76, verb 23
+- 두시에서: num 73, noun 26
+- 세시: num 71, adv 13, noun 13, verb 3
+- 맞을: verb 70, noun 29
+- 모르는데: verb 89, adj 5, aux 4, noun 3
+- 최저: noun 78, adv 17, verb 4
+- 사라고: verb 79, noun 18
+- 죽으면: verb 90, adj 6
+- 세상도: noun 84, verb 11, adj 3
+- 사라질: verb 86, noun 10, adj 4
+- 알았었어: verb 86, noun 9, adj 4
+- 망상이지: noun 87, verb 10
+- 없이도: adv 73, noun 17, art 6, verb 3
+- 탱고: noun 70, verb 23, adj 5
+- 체재: noun 84, verb 11, adj 3
+- 대영: noun 90, adv 6, verb 4
+- 올때: verb 85, noun 10, adj 4
+- 할거에요: verb 74, noun 11, adj 7, aux 7
+- 수염: noun 84, verb 11, adj 3
+- 그쪽의: pron 68, noun 31
+- 중이었습니다: noun 90, verb 8
+- 설탕없이: noun 81, adv 18
+- 화난: verb 88, adj 7, noun 5
+- 힘들어서: adj 76, verb 21
+- 껍질: noun 74, verb 16, adj 9
+- 진하고: adj 70, verb 28
+- 기자회견: noun 84, verb 11, adj 3
+- 안든다: adv 73, verb 23, noun 3
+- 먹었으면: verb 90, adj 6
+- 스키타러: noun 70, verb 28
+- 죄송해요: adj 80, verb 18
+- 비웃었을: verb 85, adj 6, noun 5, aux 3
+- 뿐만: noun 84, verb 11, adj 3
+- 미치게: verb 89, adj 8, noun 2
+- 던져서: verb 85, adj 9, noun 5
+- 내버려둬: verb 77, noun 17, adj 3
+- 알고있길: verb 88, adj 6, noun 4, aux 2
+- 포함합니다: verb 90, adj 10
+- 좋나요: adj 70, verb 26, aux 4
+- 기간: noun 84, verb 11, adj 3
+- 있어본: adj 72, verb 27
+- 아래야: noun 84, verb 11, adj 3
+- 배고픈데: adj 76, verb 14, noun 6, aux 4
+- 궁금해하던데: verb 82, aux 12, adj 3
+- 역사가다: noun 90, verb 8
+- 공전합니다: verb 90, adj 10
+- 생각만: noun 84, verb 11, adj 3
+- 출발한: verb 76, adj 21
+- 지났습니까: verb 89, adj 6, aux 4
+- 어디론가: pron 68, noun 29
+- 슬펐어: adj 70, verb 25, noun 3
+- 보고싶다: verb 87, noun 8, adj 4
+- 유지되고: verb 90, adj 5, noun 4
+- 괜찮으시다면: adj 75, verb 17, aux 5, noun 2
+- 영어로도: noun 89, verb 6, prep 4
+- 가능해요: adj 80, verb 18
+- 중요하지: adj 73, verb 26
+- 거라서: noun 77, verb 12, adv 7, conj 3
+- 의심했대: verb 80, noun 10, adj 5, aux 4
+- 기회도: noun 84, verb 11, adj 3
+- 피곤해보인다고: adj 79, verb 14, aux 8
+- 딱이야: adv 67, noun 32
+- 여시면: verb 84, adj 9, aux 5
+- 슬프게: adj 79, verb 11, noun 8
+- 다그치지말고: verb 90, adj 5, noun 4
+- 묻었을까: verb 90, adj 6, aux 3
+- 도우리라고: verb 86, noun 9, adj 5
+- 설거지: noun 76, verb 15, aux 7
+- 매주일요일: art 70, noun 28
+- 필리포는: noun 84, verb 11, adj 3
+- 떠났을: verb 70, noun 29
+- 누렇게: adj 79, verb 11, noun 8
+- 바랜: verb 77, noun 17, adj 3
+- 그것뿐입니다: pron 68, noun 30
+- 실수였다: noun 76, verb 22
+- 깎아주면: verb 87, noun 6, adj 4
+- 않았니: aux 75, verb 21, noun 2
+- 그에게서: pron 72, noun 25, verb 2
+- 밀리는: noun 84, verb 11, adj 3
+- 칠흑같이: noun 90, adv 10
+- 괜찮으시면: adj 76, verb 18, aux 5
+- 야채곱창: noun 84, verb 11, adj 3
+- 요앞에: art 67, noun 31
+- 신장개업했대요: verb 85, adj 6, noun 5, aux 3
+- 찍을: verb 70, noun 29
+- 우리것보다: pron 71, noun 27
+- 뛰어나다: adj 71, verb 20, noun 8
+- 서투르네: adj 79, verb 11, aux 4, noun 4
+- 밭: noun 84, verb 11, adj 3
+- 봉지: noun 73, verb 21, adj 4
+- 맛만: noun 84, verb 11, adj 3
+- 맛있어서: adj 76, verb 21
+- 없었거든: adj 79, verb 11, noun 6, aux 3
+- 공포: noun 84, verb 11, adj 3
+- 살아나는: verb 84, noun 13, num 3
+- 지지합니다: verb 90, adj 10
+- 다리는: noun 84, verb 11, adj 3
+- 갔다고: verb 84, adj 12, aux 3
+- 걔네가: pron 74, noun 25
+- 생일이네요: noun 70, adj 15, verb 9, aux 6
+- 관해서라면: verb 82, noun 15
+- 가든지는: verb 79, noun 12, adj 7
+- 결정해: verb 89, adj 9
+- 하는가: aux 70, verb 14, adj 10, noun 6
+- 손상시킨다는: verb 86, adj 7, noun 4, aux 3
+- 어디있는지: pron 68, verb 27, adj 4
+- 갈거래: verb 84, noun 8, aux 5, adv 2
+- 이십오야: num 67, noun 17, verb 11, adj 3
+- 드릴: aux 70, verb 24, adj 3
+- 모르겠네요: verb 76, adj 15, aux 6, noun 3
+- 지나친: adj 70, verb 26, noun 3
+- 당신들을: pron 73, noun 27
+- 이쪽에: pron 78, noun 21
+- 그들사이의: pron 68, noun 31
+- 웃으면서: verb 86, adj 9, aux 4
+- 고딕: noun 84, verb 11, adj 3
+- 전체: noun 89, adv 8, verb 2
+- 불가능하단: adj 70, noun 17, verb 5, adv 3, pron 3
+- 운전하게: verb 74, adj 25
+- 해줄래: aux 72, verb 25, noun 2
+- 길어: adj 70, verb 25, noun 3
+- 보내고싶은데요: verb 84, aux 11, adj 4
+- 선생님이어도: noun 81, verb 12, adj 3
+- 틀리는: verb 77, noun 17, adj 3
+- 신기에는: verb 88, noun 7, pron 5
+- 크네요: adj 82, verb 9, aux 6, noun 3
+- 들렸을: verb 88, noun 12
+- 적합한: adj 88, verb 10
+- 기입해: verb 89, adj 9
+- 주시면: aux 71, verb 18, adj 9
+- 심각하지: adj 73, verb 26
+- 지켜보기만: verb 81, noun 8, adj 5, pron 5
+- 줄기: verb 88, noun 8, adj 2
+- 좋아져서: adj 76, verb 19, noun 5
+- 너네들: pron 73, noun 25
+- 같았으면: adj 76, verb 16, aux 7
+- 숨쉬기가: verb 76, noun 24
+- 모형비행기: noun 75, verb 21, adj 2
+- 만들기를: verb 77, noun 20
+- 해라: verb 89, noun 6, aux 2
+- 안전할: adj 69, verb 30
+- 이동시킬: verb 89, adv 5, noun 5
+- 맛있게: adj 85, verb 11, noun 3
+- 빨라요: adj 72, verb 19, noun 5, aux 3
+- 울리는: verb 77, noun 17, adj 3
+- 이어진다: verb 87, adj 6, aux 5, noun 2
+- 반쪽이라도: noun 90, adv 5, verb 2
+- 났을텐데: verb 83, adj 15
+- 냉장고: noun 70, verb 23, adj 5
+- 여지: noun 73, verb 21, adj 4
+- 오늘날: noun 75, verb 18, adj 2, adv 2, art 2
+- 주었어: verb 86, noun 9, adj 4
+- 애석하게도: adj 78, noun 11, pron 6, adv 3
+- 말해준: verb 86, noun 13
+- 도울거야: verb 84, adj 6, aux 6, pron 2
+- 찾은: verb 68, noun 29
+- 말하지는: verb 88, adj 8, noun 4
+- 있을거라고: adj 71, verb 24, noun 4
+- 높였다: verb 89, noun 10
+- 맞았니: verb 88, aux 8, noun 2
+- 삼년: num 76, noun 18, adv 3
+- 년간: noun 84, verb 11, adj 3
+- 발음표시는: noun 80, verb 17, adv 2
+- 있으십니까: adj 73, verb 23, noun 3
+- 몇시라고: num 67, noun 18, verb 12
+- 올라가서: verb 88, noun 6, pron 5
+- 내려가는: verb 84, noun 12
+- 사이좋게: adj 79, verb 11, noun 8
+- 멀쩡할: adj 69, verb 30
+- 밟지: verb 88, noun 6, adj 4
+- 척하는: aux 67, verb 32
+- 멉니까: adj 74, verb 18, noun 4, aux 2
+- 꿈틀대는: verb 76, noun 23
+- 짜요: adj 72, verb 19, noun 5, aux 3
+- 보기보다: verb 68, noun 27, pron 5
+- 어렵지는: adj 74, verb 13, noun 12
+- 길어요: adj 70, verb 25, aux 2
+- 공개할꺼야: verb 77, noun 17, adj 3
+- 못한다면: aux 72, verb 25
+- 않았다더라: aux 68, verb 26, adj 5
+- 뛰어난: adj 73, verb 21, noun 5
+- 기억했으면: verb 90, adj 6
+- 펴시오: verb 89, aux 10
+- 비닐봉투는: noun 84, verb 11, adj 3
+- 접어서: verb 88, adj 9
+- 自由로우며: adj 72, verb 20, noun 6
+- 賦與받았으며: verb 86, adj 8, aux 5
+- 열었습니다: verb 87, noun 8, adj 3, aux 2
+- 설명이: noun 88, num 12
+- 먹는다면: verb 84, adj 8, aux 5, noun 2
+- 먹을게: verb 78, adj 12, aux 7, noun 3
+- 믿니: verb 86, noun 6, adj 4, aux 4
+- 몇년: num 76, noun 18, adv 3
+- 더없이: adv 85, noun 15
+- 작지만: adj 76, verb 13, noun 5, aux 3
+- 아름답고: adj 72, verb 23, noun 4
+- 평화롭습니다: adj 73, verb 25
+- 도야: noun 84, verb 11, adj 3
+- 늦었어: verb 86, noun 9, adj 4
+- 됐으면: verb 90, adj 6
+- 악기: noun 75, verb 21, adj 2
+- 오늘하는: noun 67, verb 32
+- 티켓: noun 84, verb 11, adj 3
+- 갔을때는: verb 77, noun 17, adj 3
+- 열심이었지만: noun 72, verb 13, adj 9, aux 3
+- 지난후: verb 77, noun 17, adj 3
+- 피우기: verb 88, noun 8, adj 2
+- 도넛: noun 84, verb 11, adj 3
+- 웃은: verb 68, noun 29
+- 사는구나: verb 72, adj 13, noun 8, adv 2, aux 2, pron 2
+- 낫게: verb 77, adj 12, noun 8
+- 싶다던가: aux 67, noun 29
+- 우아함으로: adj 67, noun 30
+- 활짝: adv 89, noun 6, verb 4
+- 펴고: verb 90, adj 5, noun 4
+- 들이면: verb 75, noun 19, adv 3, pron 3
+- 익은: verb 68, noun 29
+- 늙었을지도: verb 89, adj 10
+- 안보이네: adv 70, noun 16, adj 7, aux 5, verb 2
+- 않았습니다: aux 73, verb 25
+- 새하얀: adj 69, noun 17, verb 11
+- 적발: noun 86, adv 5, num 5, verb 3
+- 나와의: pron 68, noun 31
+- 웃기다: verb 81, noun 10, pron 7
+- 나라다: noun 74, verb 20, adj 4
+- 죽지: verb 88, noun 6, adj 4
+- 알았습니까: verb 89, adj 6, aux 4
+- 우리에겐: pron 85, noun 14
+- 민권: noun 89, num 7, verb 2
+- 죽어도: verb 79, noun 14, adj 3
+- 반지는: noun 79, verb 13, adj 7
+- 헤어지고: verb 85, adj 14
+- 사귀는: verb 77, noun 17, adj 3
+- 이유만: noun 84, verb 11, adj 3
+- 괜찮은지: adj 82, verb 11, aux 5
+- 줄게요: aux 70, verb 27
+- 명확하고: adj 70, verb 28
+- 적절한: adj 88, verb 10
+- 어려울까: adj 83, verb 14
+- 도통: adv 72, noun 19, num 5, verb 3
+- 종잡을: verb 84, noun 15
+- 불안할: adj 69, verb 30
+- 판다: verb 87, noun 8, adj 4
+- 되네요: verb 76, adj 15, aux 6, noun 3
+- 악기를: noun 87, verb 10
+- 훈련시킬: verb 89, adv 5, noun 5
+- 망신: noun 76, verb 18, adv 3, aux 3
+- 대고: verb 90, adj 5, noun 4
+- 비건: noun 80, verb 9, adj 4, pron 3, adv 3
+- 만들어내기: verb 88, noun 8, adj 2
+- tv나: noun 84, verb 11, adj 3
+- 완전하지: adj 83, verb 17
+- 법니다: verb 87, noun 8, adj 4
+- 소홀함때문에: adj 75, noun 25
+- 그걸로: pron 67, noun 30
+- 사라졌다는: verb 86, adj 7, noun 4, aux 3
+- 된다면: aux 72, verb 17, adj 8, noun 2
+- 갖는: verb 77, noun 17, adj 3
+- 있으니까: adj 79, verb 14, aux 5
+- 데워: verb 73, adj 24
+- 수리하게: verb 74, adj 25
+- 충심어린: noun 73, verb 21, adj 5
+- 차례: noun 84, verb 11, adj 3
+- 임무: noun 88, adv 4, num 4, verb 3
+- nasa이서: noun 81, num 13, verb 3
+- 할인해: verb 89, adj 9
+- 주기를: aux 67, noun 20, verb 10
+- 참고하라는: verb 73, noun 25
+- 많았어: adj 70, verb 25, noun 3
+- 행해지고: verb 79, adj 21
+- 유독: adv 73, noun 20, verb 4
+- 옷차림을하세요: noun 68, verb 26, aux 3, adj 2
+- 물주는: noun 77, verb 19, adv 3
+- 잘못한: verb 76, adj 21
+- 받아들였다: verb 89, noun 10
+- 많나요: adj 70, verb 26, aux 4
+- 외롭다고: adj 79, verb 18, aux 3
+- 싹: adv 68, noun 17, verb 11, adj 3
+- 가시잖아: verb 76, noun 10, aux 9, adj 6
+- 말아주세요: aux 70, verb 30
+- 돌리는: verb 77, noun 17, adj 3
+- 깨웠니: verb 86, noun 6, adj 4, aux 4
+- 뜻인가요: noun 80, pron 13, adj 3
+- 싱긋: adv 68, noun 17, verb 11, adj 3
+- 그야: pron 68, noun 17, verb 11, adj 3
+- 차려지는: verb 79, noun 12, adj 7
+- 요리이기는: noun 90, verb 7
+- 조리되었다는: verb 81, adj 16
+- 읽으라고: verb 79, noun 18
+- 솔직했다: adj 69, verb 30
+- 찍힌: verb 77, noun 17, adj 3
+- 이곳에선: pron 70, noun 28
+- 오시니: verb 86, noun 6, adj 4, aux 4
+- 걸지: verb 88, noun 6, adj 4
+- 했음에도: verb 73, noun 26
+- 진지한: adj 88, verb 10
+- 당신처럼: pron 68, noun 28
+- 똑똑해지고: adj 88, verb 12
+- 쿠키는: noun 81, verb 18
+- 어울리네요: verb 76, adj 15, aux 6, noun 3
+- 사천: noun 87, num 7, verb 4
+- 석궁: noun 84, verb 11, adj 3
+- 들다니: verb 86, aux 9, noun 3, adj 3
+- 전염병: noun 84, verb 11, adj 3
+- 수천명의: num 80, noun 19
+- 편리하지만: adj 87, verb 10
+- pcr: noun 80, x 13, verb 4
+- 안아: verb 78, noun 13, adj 5, aux 3
+- 나눴다: verb 87, noun 8, adj 4
+- 서있을: verb 70, noun 29
+- 안녕하세요: adj 69, verb 26, aux 3
+- 했는데요: verb 84, aux 11, adj 4
+- 제이름은: pron 68, noun 29
+- 확인카드는: noun 84, verb 11, adj 3
+- 여기있습니다: pron 67, verb 25, adj 6
+- 손해: noun 68, verb 22, adj 9
+- 것인지는: noun 84, pron 7, verb 5, adj 3
+- 판과도: noun 84, verb 11, adj 3
+- 쓰러지는: verb 79, noun 12, adj 7
+- 하나여야: num 73, verb 21, noun 6
+- 바꾸는: verb 77, noun 17, adj 3
+- 세개: num 71, noun 25, verb 3
+- 평등해: adj 76, verb 22
+- 피울: verb 79, adj 16, noun 5
+- 거면: noun 73, verb 20, adj 4
+- 피워: verb 73, adj 24
+- 이상하고: adj 70, verb 28
+- 몇몇은: num 67, noun 29
+- 닫았을: verb 86, noun 7, adj 4, aux 4
+- 결정도: noun 89, art 6, verb 3
+- 복숭아: noun 80, verb 11, adj 5, aux 3
+- 일어나는지는: verb 84, pron 5, aux 5, noun 3, adj 2
+- 모르겠지만: verb 85, aux 8, adj 4, noun 2
+- 싶은거: aux 69, noun 12, verb 11, adj 3, pron 2, x 2
+- 무르고: adj 70, verb 29
+- 전자우편: noun 84, verb 11, adj 3
+- 노래는: noun 84, verb 11, adj 3
+- 쓰거나: verb 86, adj 4, aux 3, pron 3, noun 3
+- 베르베르어: noun 70, verb 25, adj 3
+- 한동안: adv 76, noun 23
+- 봤지: verb 88, noun 6, adj 4
+- 쿠키도: noun 84, verb 11, adj 3
+- 어렵다는건: adj 75, verb 17, noun 5
+- 않으셨습니까: aux 73, verb 24
+- 말했지만: verb 90, adj 7
+- 위험합니다: adj 76, verb 23
+- 이해안되는게: verb 89, adj 4, noun 4, aux 3
+- 보이니까: aux 74, noun 15, verb 7, adj 3
+- 신세야: noun 84, verb 11, adj 3
+- 않고는: aux 70, noun 15, verb 12
+- 있었으므로: aux 76, verb 9, adj 9, noun 4, conj 2
+- 여자애보다는: noun 82, verb 10, aux 6
+- 진단받아: verb 78, noun 13, adj 5, aux 3
+- 했거든요: verb 81, adj 9, noun 9
+- 이제야: adv 73, noun 14, pron 7, verb 5
+- 참여하기는: verb 74, noun 23
+- 커녕: prep 67, noun 17, verb 11, adj 3
+- 따라가지도: verb 87, adj 6, aux 4, noun 2
+- 두번다시: num 71, adv 13, noun 13, verb 3
+- 누구가: pron 68, noun 29
+- 아이지: noun 87, verb 10
+- 제외한: verb 76, adj 21
+- 부자라서: noun 77, verb 12, adv 7, conj 3
+- 터질: verb 82, adj 9, noun 7
+- 창피해해: verb 89, adj 9
+- 나보고: pron 69, verb 26, noun 3
+- 결정하게: verb 74, adj 25
+- 하다니: aux 76, verb 19, noun 3, adj 3
+- 잔인하구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 금지하기도: verb 79, adj 15, noun 5
+- 잡어치웠다: verb 87, adj 12
+- 남자애는: noun 84, verb 11, adj 3
+- 싶은데요: aux 77, verb 17, adj 4
+- 뛰어든: verb 79, adj 9, noun 5, pron 4
+- 위기는: noun 90, verb 7
+- 좋았었어: adj 71, verb 19, noun 9
+- 제법: adv 73, noun 20, verb 4
+- 궁금합니다: adj 76, verb 23
+- 낭비일까: noun 70, verb 18, adj 7, aux 2
+- 있나: adj 69, noun 17, verb 11
+- 벌였지: verb 88, noun 6, adj 4
+- 로맨틱했어: adj 70, verb 25, noun 3
+- 전부니: noun 73, verb 19, adj 4, aux 4
+- 필요한가요: adj 76, noun 8, verb 6, pron 6, aux 4
+- 닭: noun 84, verb 11, adj 3
+- 사용자: noun 74, verb 23
+- 되시기: verb 85, aux 11, noun 3
+- 그럭저럭: adv 68, noun 17, verb 11, adj 3
+- 닛폰: noun 84, verb 11, adj 3
+- 초보자도: noun 84, verb 11, adj 3
+- 좋으시다: adj 70, verb 27, aux 2
+- 귀엽다: adj 71, verb 20, noun 8
+- 향기롭다: adj 71, verb 20, noun 8
+- 민감해: adj 76, verb 22
+- 스키타는: noun 84, verb 11, adj 3
+- 못하리라는: aux 73, noun 17, verb 9
+- 초보이지만: noun 88, aux 4, adv 3, verb 3
+- 싶어한단다: aux 73, adj 12, verb 12, noun 3
+- 자기로: verb 84, noun 11, pron 3
+- 탈출한: verb 76, adj 21
+- 해안: noun 90, adv 5, adj 3
+- 남자애야: noun 84, verb 11, adj 3
+- 노래야: noun 84, verb 11, adj 3
+- 우울하면서도: adj 79, noun 12, verb 8
+- 엿: noun 84, verb 11, adj 3
+- 기쁩니다: adj 71, verb 20, noun 8
+- 배울수록: verb 90, noun 3, adj 2, adv 2
+- 숙박: noun 84, verb 11, adj 3
+- 높아요: adj 79, verb 19
+- 성격: noun 84, verb 11, adj 3
+- 사람이면: noun 85, verb 8, adv 3, pron 3
+- 타게: verb 77, adj 12, noun 8
+- 되었던: aux 70, verb 25, adj 3
+- 글썽였다: verb 89, noun 10
+- 후련하지: adj 73, verb 26
+- 당신이다: pron 73, noun 26
+- 기억나는: verb 84, noun 13, num 3
+- 살이고: noun 89, verb 9
+- 후일까요: noun 72, verb 19, adj 6, aux 3
+- 기회라도: noun 84, verb 11, adj 3
+- 바닐라: noun 73, verb 22, aux 2
+- 졸업합니다: verb 90, adj 10
+- 대만: noun 84, verb 11, adj 3
+- 무언가가: pron 76, noun 24
+- 대단한: adj 88, verb 10
+- 같애: adj 72, noun 24, verb 3
+- 이룰: verb 77, noun 17, adj 3
+- 반대였다: noun 76, verb 22
+- 대답하기에: verb 76, noun 19, aux 3
+- 긴장되어서: verb 88, adj 9
+- 왠: art 67, noun 17, verb 11, adj 3
+- 신호야: noun 84, verb 11, adj 3
+- 정치가는: noun 79, verb 17
+- 직권: noun 89, num 7, verb 2
+- 형제분은: noun 90, pron 10
+- 갖고있어: verb 90, adj 10
+- 준다는: verb 86, adj 7, noun 4, aux 3
+- 디저트만: noun 84, verb 11, adj 3
+- 느릿느릿: adv 73, noun 20, verb 4
+- 토닉: noun 84, verb 11, adj 3
+- 여름과도: noun 84, verb 11, adj 3
+- 느끼게: verb 77, adj 12, noun 8
+- 해주었다: aux 70, verb 28
+- 불편한: adj 88, verb 10
+- 세바틱: noun 84, verb 11, adj 3
+- 감기는: noun 90, verb 7
+- 없으면서: adj 76, verb 20, aux 4
+- 창피한: adj 88, verb 10
+- 책이지: noun 87, verb 10
+- 책이요: noun 72, verb 19, adj 6, aux 3
+- 바꿨니: verb 86, noun 6, adj 4, aux 4
+- 많지는: adj 74, verb 13, noun 12
+- 곁들인: verb 69, noun 30
+- 구운: verb 71, adj 25, noun 4
+- 지내: verb 84, noun 11, adv 4
+- 팔텐데: verb 83, adj 11, aux 5
+- 크리스토퍼: noun 84, verb 11, adj 3
+- 배나: noun 84, verb 11, adj 3
+- 크기를: noun 87, verb 10
+- 배고프지: adj 71, verb 21, noun 6
+- 박사다: noun 74, verb 20, adj 4
+- 이기게: verb 77, adj 12, noun 8
+- 패배할지라도: verb 77, noun 17, adj 3
+- 생리대보다는: noun 82, verb 10, aux 6
+- 탐폰보다는: noun 82, verb 10, aux 6
+- 나아요: adj 79, verb 19
+- 지나도: verb 77, noun 17, adj 3
+- 정면: noun 73, verb 20, adj 4
+- 살해: noun 68, verb 22, adj 9
+- 다르거든: adj 79, verb 11, noun 6, aux 3
+- 온난한: adj 88, verb 10
+- 지내지: verb 88, noun 6, adj 4
+- 섀도우는: noun 82, verb 17
+- 덧발라야: verb 76, noun 22
+- 나와요: verb 85, adj 6, noun 5, aux 3
+- 동정심도: noun 84, verb 11, adj 3
+- 동정심따윈: noun 84, verb 11, adj 3
+- 충고: noun 70, verb 23, adj 5
+- 가끔씩만: adv 68, noun 17, verb 11, adj 3
+- 늘고: verb 90, adj 5, noun 4
+- 감기에: noun 86, verb 9, aux 3
+- 먹고야: verb 77, noun 17, adj 3
+- 말았어: aux 67, verb 25, noun 3, adj 3
+- 방법이었습니다: noun 90, verb 8
+- 반갑습니다: adj 73, verb 25
+- 붕괴: noun 84, verb 11, adj 3
+- 모은다: verb 87, noun 8, adj 4
+- 일했었지: verb 85, adj 6, aux 5, noun 3
+- 낮으면: adj 73, verb 23
+- 끓는: verb 77, noun 17, adj 3
+- 점도: noun 84, verb 11, adj 3
+- 썩었어요: verb 89, aux 5, noun 5
+- 자살: noun 80, verb 11, num 7
+- 보기는: aux 68, noun 23, verb 7
+- 시작한: verb 76, adj 21
+- 구입: noun 84, verb 11, adj 3
+- 여성이고: noun 89, verb 9
+- 하는지도: verb 87, adj 6, aux 4, noun 2
+- 과연: adv 73, noun 20, verb 4
+- 그럴까: adj 74, verb 18, noun 4, aux 2
+- 기독교인이지만: noun 88, aux 4, adv 3, verb 3
+- 돼지: noun 73, verb 21, adj 4
+- 고기는: noun 90, verb 7
+- 고맙습니다: adj 73, verb 25
+- 살아있는거라면: verb 71, noun 20, pron 4, adj 2
+- 그사람한테는: art 73, noun 14, pron 7, verb 5
+- 싫어합니다: verb 90, adj 10
+- 일어날려나: verb 77, noun 17, adj 3
+- 게임기에: noun 86, verb 9, aux 3
+- 꽂았을: verb 86, noun 7, adj 4, aux 4
+- 더러우면: adj 70, verb 20, noun 6
+- 않을수도: aux 73, noun 14, verb 10
+- 짠다: verb 87, noun 8, adj 4
+- 표준: noun 79, verb 19
+- 겁먹을: verb 70, noun 29
+- 것이라고는: noun 86, verb 12
+- 울었는지를: verb 81, noun 12, aux 8
+- 벗지: verb 88, noun 6, adj 4
+- 끊었어: verb 86, noun 9, adj 4
+- 다행히도: adv 68, noun 17, verb 11, adj 3
+- 심해지기: adj 80, verb 11, noun 5, adv 3
+- 그랬지: verb 88, noun 6, adj 4
+- 미적대지말고: verb 90, adj 5, noun 4
+- 빨리해: adv 68, verb 22, adj 9
+- 마시게: verb 77, adj 12, noun 8
+- 늦어서는: verb 90, noun 9
+- 그들과: pron 67, noun 32
+- 못하게: aux 67, adj 25, verb 7
+- 살기로: verb 84, noun 11, pron 3
+- 달콤하지만: adj 87, verb 10
+- 느끼하지: adj 73, verb 26
+- 잔잔한: adj 88, verb 10
+- 당신에: pron 80, noun 19
+- 싶네요: aux 73, adj 15, verb 9, noun 3
+- 메리라고: noun 76, verb 20, adj 5
+- 다니며: verb 87, noun 6, adj 5
+- 주커: noun 84, verb 11, adj 3
+- 지나: verb 77, noun 17, adj 3
+- 배고파서: adj 88, noun 8, verb 3
+- 어두워지고: adj 81, verb 18
+- 올거지: verb 82, noun 9, aux 7
+- 나가: verb 68, noun 29
+- 검고: adj 72, verb 23, noun 4
+- 하얗다: adj 71, verb 20, noun 8
+- 종류다: noun 74, verb 20, adj 4
+- 젊고: adj 72, verb 23, noun 4
+- 빠져있다면: verb 84, adj 8, aux 5, noun 2
+- 보일거야: aux 73, verb 18, adj 6, pron 2
+- 어렵지만: adj 76, verb 13, noun 5, aux 3
+- 그녀을: pron 67, noun 29, verb 3
+- 그런것이다: adj 73, verb 14, noun 12
+- 짓는다는: verb 86, adj 7, noun 4, aux 3
+- 오실지는: verb 79, noun 12, adj 7
+- 나아졌어: adj 75, verb 24
+- 운좋게도: noun 78, adj 12, pron 6, adv 3
+- 오류도: noun 84, verb 11, adj 3
+- 까주실래요: verb 84, aux 13
+- 잔인한: adj 88, verb 10
+- 능숙해서: adj 78, verb 19, noun 3
+- 없애기: verb 88, noun 8, adj 2
+- 늦진: verb 88, adj 5, noun 4, aux 2
+- 조지는: noun 79, verb 13, adj 7
+- 늦니: verb 86, noun 6, adj 4, aux 4
+- 떠들면: verb 87, noun 6, adj 4
+- 무너진: verb 88, adj 5, noun 4, aux 2
+- 달라질: verb 86, noun 10, adj 4
+- 꼭대기에: noun 86, verb 9, aux 3
+- 여태: adv 68, noun 17, verb 11, adj 3
+- 뇌는: noun 84, verb 11, adj 3
+- 신체: noun 89, adv 8, verb 2
+- 에너지: noun 73, verb 21, adj 4
+- 소비해: verb 89, adj 9
+- 뛴다: verb 87, noun 8, adj 4
+- 똑똑: adv 68, noun 17, verb 11, adj 3
+- 여우는: noun 82, verb 17
+- 있다가: aux 69, verb 17, noun 9, conj 5
+- 설탕있는: noun 75, verb 19, adj 6
+- 두가지의: num 73, noun 27
+- 멈출: verb 84, noun 14
+- 뻔했고: aux 71, verb 26
+- 숙모는: noun 84, verb 11, adj 3
+- 되었습니다: verb 87, noun 8, adj 3, aux 2
+- 기고만장했습니다: adj 70, verb 30
+- 띄었습니다: verb 87, noun 8, adj 3, aux 2
+- 이거야: pron 69, verb 18, adj 6, aux 6
+- 올수: verb 77, noun 17, adj 3
+- 없을지: adj 85, verb 12
+- 결점만: noun 84, verb 11, adj 3
+- 완벽했을: adj 70, verb 25, noun 5
+- 선택하다: verb 69, adj 29, aux 2
+- 놔두지: verb 88, noun 6, adj 4
+- 꼴보기: noun 75, verb 21, adj 2
+- 회수라면: noun 86, verb 5, pron 4, adj 2
+- 어디보다도: pron 86, noun 12
+- 넘은: verb 68, noun 29
+- 작곡가는: noun 79, verb 17
+- 갈아타는: verb 77, noun 17, adj 3
+- 실수한: verb 76, adj 21
+- 이대로는: adv 72, noun 23, num 3
+- 요리사다: noun 74, verb 20, adj 4
+- 매월: adv 68, noun 17, verb 11, adj 3
+- 번씩: noun 84, adv 10, num 3, verb 2
+- 고프지않다고: adj 79, verb 18, aux 3
+- 중국인이고: noun 89, verb 9
+- 사랑합니다: verb 90, adj 10
+- 황당할: adj 69, verb 30
+- 낮네: adj 79, verb 11, aux 4, noun 4
+- 초기: noun 75, verb 21, adj 2
+- 나체: noun 89, adv 8, verb 2
+- 빠졌나: verb 77, noun 17, adj 3
+- 칠은: num 67, noun 29
+- 삼십오이다: num 68, noun 31
+- 참석했었어요: verb 89, aux 5, noun 5
+- 허리띠는: noun 84, verb 11, adj 3
+- 공부해봐도: verb 90, noun 7
+- 하진: verb 88, adj 5, noun 4, aux 2
+- 가리는: verb 77, noun 17, adj 3
+- 그렸을까: verb 90, adj 6, aux 3
+- 내탓인: pron 68, noun 30, verb 3
+- 수백만: num 67, noun 17, verb 11, adj 3
+- 알찬: adj 69, noun 17, verb 11
+- 올려도: verb 88, aux 5, noun 5
+- 되겠는데: verb 89, adj 9
+- 아삭한: adj 88, verb 10
+- 익지: verb 88, noun 6, adj 4
+- 좋더라: adj 72, verb 26
+- 가능하면: adj 72, verb 26
+- 씩씩하되: adj 69, noun 17, verb 11
+- 다투지: verb 88, noun 6, adj 4
+- 무리짓되: verb 77, noun 17, adj 3
+- 살빼는: noun 84, verb 11, adj 3
+- 해와: verb 69, noun 29
+- 젊지: adj 71, verb 21, noun 6
+- 있는거지: aux 73, verb 15, noun 9
+- 먼다고: verb 84, adj 12, aux 3
+- 여러분들이: pron 67, noun 31
+- 똑똑하다는: adj 90, verb 8
+- 그만뒀다: verb 87, noun 8, adj 4
+- 어디계셔: pron 71, verb 23, noun 4
+- 바쁘다니까: adj 90, verb 7
+- 되십니까: verb 90, adj 6, noun 3
+- 낳고: verb 90, adj 5, noun 4
+- 기묘해: adj 76, verb 22
+- 쓰여져있어서: verb 88, adj 9
+- 읽기가: verb 76, noun 24
+- 도도한: adj 88, verb 10
+- 정확한: adj 88, verb 10
+- 로그오프한: verb 76, adj 21
+- 봅니다: verb 87, noun 8, adj 4
+- 아기다: noun 76, verb 15, pron 7
+- 없는데: adj 72, verb 22, aux 4, noun 3
+- 친하느냐에: adj 67, noun 31
+- 기체: noun 89, adv 8, verb 2
+- 컴백: noun 90, num 6, verb 4
+- 그동안: noun 89, adv 10
+- 지냈는가: verb 80, adj 10, noun 6, aux 3
+- 성적도: noun 84, verb 11, adj 3
+- 당신들은: pron 68, noun 29
+- 볼게: aux 67, adj 12, verb 11, noun 8
+- 쯤: noun 84, verb 11, adj 3
+- 경찰: noun 84, verb 11, adj 3
+- 환영해: verb 89, adj 9
+- 시간이고: noun 89, verb 9
+- 의문시: noun 79, adv 13, num 5, verb 3
+- 용기는: noun 90, verb 7
+- 겟테르: noun 84, verb 11, adj 3
+- 분씩: noun 84, adv 10, num 3, verb 2
+- 들여놓지: verb 88, noun 6, adj 4
+- 대놓고: adv 67, verb 23, adj 5, noun 4
+- 말하마: verb 84, noun 9, adv 7
+- 뭐를: pron 67, noun 31
+- 기대하냐고: verb 85, adj 13
+- 물었어: verb 86, noun 9, adj 4
+- 돌리는것은: verb 68, noun 29
+- 옳지: adj 71, verb 21, noun 6
+- 지식인한텐: noun 84, pron 15
+- 로지반만: noun 84, verb 11, adj 3
+- 나쁘지: adj 71, verb 21, noun 6
+- 치지: verb 88, noun 6, adj 4
+- 듣게: verb 77, adj 12, noun 8
+- 실망시켜요: verb 85, adj 6, noun 5, aux 3
+- 똥: noun 84, verb 11, adj 3
+- 돌아와야: verb 77, noun 17, adj 3
+- 느리다: adj 82, noun 10, verb 8
+- 좋습니까: adj 73, verb 22, aux 4
+- 소개팅: noun 84, verb 11, adj 3
+- 뚱뚱해요: adj 80, verb 18
+- 많아지고: adj 81, verb 18
+- 삼백만: num 67, noun 17, verb 11, adj 3
+- and의: x 67, noun 31
+- 필요할: adj 69, verb 30
+- 여자치곤: noun 72, verb 28
+- 미유는: noun 84, verb 11, adj 3
+- 이해되게: verb 77, adj 12, noun 8
+- 하기는: aux 68, noun 23, verb 7
+- 자랑스러울: adj 83, verb 12, noun 5
+- 비켜가기: verb 88, noun 8, adj 2
+- 틀었을: verb 85, adj 6, noun 5, aux 3
+- 큰일날: verb 84, noun 8, adj 2, adv 2, art 2
+- 뻔했네: aux 70, adj 13, verb 11, noun 4
+- 따라잡을: verb 84, noun 15
+- 돕는: verb 77, noun 17, adj 3
+- 말하기는: verb 74, noun 23
+- 만으로도: prep 73, noun 19, verb 7
+- 풍부한: adj 88, verb 10
+- 여자애들도: noun 89, pron 6, verb 3
+- 알았죠: verb 77, noun 11, adj 8, aux 4
+- 강변: noun 84, verb 11, adj 3
+- 의미합니다: verb 90, adj 10
+- 가르쳐요: verb 85, adj 6, noun 5, aux 3
+- 기술자이고: noun 89, verb 9
+- 하느라고: verb 79, noun 18
+- 바빠요: adj 72, verb 19, noun 5, aux 3
+- 머물고: verb 90, adj 5, noun 4
+- 어디에요: pron 68, noun 27
+- 공항: noun 84, verb 11, adj 3
+- 대합니다: verb 90, adj 10
+- 저녁이네: noun 83, adj 7, aux 5, adv 4, verb 2
+- 글쓰기는: noun 90, verb 7
+- 도와주리라는: verb 76, noun 17, aux 7
+- 알았니: verb 88, aux 8, noun 2
+- 덤불: noun 84, verb 11, adj 3
+- 취한: verb 76, adj 21
+- 일본인이지만: noun 88, aux 4, adv 3, verb 3
+- 말할때: verb 85, noun 10, adj 4
+- 틀릴때가: verb 68, noun 29
+- 따: verb 77, noun 17, adj 3
+- 쉐이크야: noun 84, verb 11, adj 3
+- 흑: x 67, noun 17, verb 11, adj 3
+- 헌혈해: verb 89, adj 9
+- 두명이: num 79, noun 21
+- 한심한: adj 88, verb 10
+- 아이디어라고: noun 84, verb 12
+- 마치고는: verb 79, noun 15, aux 3
+- 부릅니까: verb 84, adj 7, noun 4, aux 2
+- 잃었어요: verb 89, aux 5, noun 5
+- 조나는: noun 79, verb 17, num 3
+- 지은: verb 68, noun 29
+- 돌아오자: verb 90, noun 8
+- 지내는지는: verb 84, pron 5, aux 5, noun 3, adj 2
+- 조심하십시오: verb 89, aux 10
+- 가치: noun 84, verb 7, adv 6, adj 3
+- 경제적이지: noun 87, verb 10
+- 어려서: adj 70, verb 25, noun 4
+- 데다가: noun 76, verb 17, conj 5, aux 2
+- 얼굴도: noun 84, verb 11, adj 3
+- 말했지: verb 87, noun 6, adv 5
+- 층: noun 84, verb 11, adj 3
+- 들어간: verb 77, noun 17, adj 3
+- 울잖아: verb 76, noun 10, aux 9, adj 6
+- 않으신: aux 70, verb 18, noun 9, adv 3
+- 되어서야: verb 76, noun 11, adj 6, adv 6
+- 컸다: adj 71, verb 20, noun 8
+- 무거웠다: adj 79, verb 20
+- 죽거나: verb 86, adj 4, aux 3, pron 3, noun 3
+- 돌봐줄까: verb 84, adj 7, noun 4, aux 2
+- 알고있었지: verb 85, adj 6, aux 5, noun 3
+- 준다고: verb 84, adj 12, aux 3
+- 한올을: num 67, noun 29, verb 3
+- 않았지만: aux 75, verb 19, adj 4, noun 2
+- 잃은: verb 68, noun 29
+- 식사한: verb 76, adj 21
+- 경악스럽다고도: adj 73, verb 14, noun 6, prep 6
+- 있겠네: adj 85, verb 11
+- 들었습니다: verb 87, noun 8, adj 3, aux 2
+- 나하고: pron 68, verb 28, adj 3
+- 바쁘신데도: adj 73, verb 20, pron 4, noun 3
+- 그만한: adj 88, verb 10
+- 스포츠다: noun 74, verb 20, adj 4
+- 팔: num 67, noun 17, verb 11, adj 3
+- 모셔오라: verb 89, noun 6, aux 2
+- 동무이기: noun 85, verb 14
+- 주변: noun 84, verb 11, adj 3
+- 우선: adv 68, noun 23, adj 4, verb 3
+- 행복해져야: adj 69, noun 17, verb 11
+- 무지한: adj 88, verb 10
+- 오만한: adj 88, verb 10
+- 나갈까: verb 84, adj 7, noun 4, aux 2
+- 쪽이든: noun 72, verb 13, adj 9, pron 4
+- 상관없다: adj 89, verb 8, noun 3
+- 그와의: pron 68, noun 31
+- 쇠막대기로: noun 78, verb 17, pron 3
+- 우리도: pron 72, noun 24, verb 2
+- 자유로우며: adj 72, verb 20, noun 6
+- 부여받았으며: verb 86, adj 8, aux 5
+- 실은: adv 67, noun 29
+- 바쁘거든요: adj 76, verb 14, noun 9
+- 동아: noun 80, verb 11, adj 5, aux 3
+- 범현: noun 84, verb 11, adj 3
+- 정욱: noun 84, verb 11, adj 3
+- 연결되었으며: verb 86, adj 8, aux 5
+- 브라질: noun 76, verb 20, adj 4
+- 군대는: noun 90, verb 10
+- 셔츠: noun 84, verb 11, adj 3
+- 째: noun 84, verb 11, adj 3
+- 선생님도: noun 84, verb 11, adj 3
+- 돈만: noun 84, verb 11, adj 3
+- 잡기: verb 88, noun 8, adj 2
+- 피곤하네: adj 85, verb 13
+- 한시간: num 67, noun 17, verb 11, adj 3
+- 살거야: verb 84, adj 6, aux 6, pron 2
+- 찾으실: verb 90, noun 7
+- 껍데기는: noun 90, verb 7
+- 부서지기: verb 78, adj 14, noun 5, adv 3
+- 빠블로는: noun 90, adv 5, num 3
+- 정글: noun 84, verb 11, adj 3
+- 얘기한: verb 84, adj 8, noun 7
+- 깎아서: verb 84, adj 12, noun 3, aux 2
+- 이러다: verb 87, noun 8, adj 4
+- 학교야: noun 84, verb 11, adj 3
+- 함빡: adv 68, noun 17, verb 11, adj 3
+- 젖었었어: verb 86, noun 9, adj 4
+- 이렇다: adj 71, verb 20, noun 8
+- 기울일: verb 72, noun 24, adv 2
+- 조금이나마: adv 73, verb 17, noun 9
+- 끝낸다는: verb 86, adj 7, noun 4, aux 3
+- 바쁩니다: adj 71, verb 20, noun 8
+- 붙이는거: verb 78, noun 12, adj 3, aux 2, pron 2, x 2
+- 자자: verb 90, noun 8
+- 동방: noun 90, adv 6, verb 4
+- 바뀌듯: verb 77, noun 17, adj 3
+- 언어도: noun 81, verb 12, adj 3
+- 변화해: verb 89, adj 9
+- 익다: adj 71, verb 20, noun 8
+- 염분이: noun 88, pron 11
+- 열어서: verb 88, adj 9
+- 옳을지도: adj 76, verb 22
+- 비타민c: noun 84, verb 11, adj 3
+- 그녀만: pron 68, noun 17, verb 11, adj 3
+- 신경쓸: verb 77, noun 17, adj 3
+- 밟기를: verb 77, noun 20
+- 최대한: adv 71, adj 26, verb 2
+- 강화한: verb 84, adj 15
+- 지고: verb 90, adj 5, noun 4
+- 식으면: verb 90, adj 6
+- 퇴근: noun 87, adj 8, verb 4
+- 도와드릴까요: verb 88, aux 8
+- 말이죠: noun 78, verb 10, adj 8, aux 4
+- 잃어버렸는데: verb 89, adj 5, aux 4, noun 3
+- 놓았나: aux 81, adj 8, noun 6, verb 3
+- 해서요: verb 85, adj 6, noun 5, aux 3
+- 걸립니까: verb 84, adj 7, noun 4, aux 2
+- 꽤나: adv 68, noun 17, verb 11, adj 3
+- 핸드백: noun 90, num 6, verb 4
+- 넣었군: verb 78, noun 14, aux 7
+- 흥미로웠다고: adj 79, verb 18, aux 3
+- 축구경기는: noun 90, verb 7
+- 야자: noun 74, verb 23
+- 심고: verb 90, adj 5, noun 4
+- 안된다는: adv 67, verb 19, adj 7, noun 4, aux 3
+- 그리워합니다: verb 90, adj 10
+- 돌아오라고: verb 79, noun 18
+- 말이라도: noun 90, adv 5, verb 2
+- 있냐고: adj 79, verb 19
+- 속는: verb 77, noun 17, adj 3
+- 화려한: adj 88, verb 10
+- 꿈꿔: verb 77, noun 17, adj 3
+- 키는: noun 84, verb 11, adj 3
+- 작아도: adj 72, verb 17, aux 5, noun 5
+- 순수한: adj 88, verb 10
+- 당장이라도: noun 90, adv 5, verb 2
+- 그래요: x 70, verb 19, aux 7, noun 4
+- 뜨기까지는: verb 73, noun 25
+- 과학단지는: noun 79, verb 13, adj 7
+- 외지: noun 73, verb 21, adj 4
+- 배야: noun 84, verb 11, adj 3
+- 처지야: noun 89, verb 10
+- 톰하고: noun 68, verb 28, adj 3
+- 많을까: adj 73, verb 23, aux 3
+- 내밀지: verb 88, noun 6, adj 4
+- 알지도: verb 87, adj 6, aux 4, noun 2
+- 헉: x 67, noun 17, verb 11, adj 3
+- 진실했었다고: adj 83, verb 14, aux 4
+- 여느: art 67, noun 17, verb 11, adj 3
+- 유용합니다: adj 76, verb 23
+- 어떻게든: adv 68, verb 13, adj 9, noun 5, pron 4
+- 축축: adv 68, noun 17, verb 11, adj 3
+- 처지는게: verb 89, adj 4, noun 4, aux 3
+- 맛난: adj 73, verb 21, noun 5
+- 거듭할수록: verb 90, noun 3, adj 2, adv 2
+- 주실수: aux 67, noun 17, verb 11, adj 3
+- 있읍니까: adj 74, verb 18, noun 4, aux 2
+- 너였으면: pron 67, verb 23, adj 6
+- 지금부터다라고: noun 84, verb 12
+- 먹었습니다: verb 87, noun 8, adj 3, aux 2
+- 나라였는데: noun 69, verb 22, adj 5, aux 4
+- 할아버지한테서: noun 87, pron 10, verb 2
+- 착하고: adj 70, verb 28
+- 성실할: adj 69, verb 30
+- 수어도: noun 81, verb 12, adj 3
+- 망설이지: verb 76, noun 20
+- 편안하고: adj 70, verb 28
+- 교양있는: noun 75, verb 19, adj 6
+- 출까: verb 84, adj 7, noun 4, aux 2
+- 공부한: verb 76, adj 21
+- 아팠는데: adj 72, verb 22, aux 4, noun 3
+- 괜찮았어: adj 70, verb 25, noun 3
+- 빠지기는: verb 74, noun 23
+- 나라면: pron 71, noun 20, verb 5, adj 2
+- 넣었을텐데: verb 83, adj 15
+- 전부였다: noun 76, verb 22
+- 꺼: verb 77, noun 17, adj 3
+- 재능있는: noun 75, verb 19, adj 6
+- 행복해지는: adj 74, verb 13, noun 12
+- 살았다는: verb 86, adj 7, noun 4, aux 3
+- 만들기: verb 88, noun 8, adj 2
+- 유능하고: adj 70, verb 28
+- 고결하고: adj 70, verb 28
+- 자비로워지는: adj 74, verb 13, noun 12
+- 라고는: prep 68, noun 15, verb 12, aux 3
+- 전파해서: verb 86, adj 11, noun 3
+- 우니까: verb 84, adj 7, noun 4, aux 2
+- 과자라도: noun 84, verb 11, adj 3
+- 스피릿: noun 87, adv 7, verb 4
+- 독일어도: noun 81, verb 12, adj 3
+- 경고는: noun 81, verb 12, aux 3
+- 없었습니까: adj 82, verb 15
+- 갖지: verb 88, noun 6, adj 4
+- 방대했어: adj 70, verb 25, noun 3
+- 발레는: noun 84, verb 11, adj 3
+- 소년들도: noun 89, pron 6, verb 3
+- 동등해: adj 76, verb 22
+- 일이놀랍다고: noun 67, verb 18, adj 12, aux 3
+- 기절해서: verb 86, adj 11, noun 3
+- 붙잡아야: verb 87, aux 5, noun 5, adj 3
+- 상해있어: verb 90, adj 10
+- 중독시키지: verb 88, noun 6, adj 4
+- 너무도: adv 68, noun 17, verb 11, adj 3
+- 그것으로: pron 67, noun 30
+- 이른: adj 81, verb 9, adv 5, noun 2, num 2
+- 인사한: verb 76, adj 21
+- 없었네요: adj 82, verb 9, aux 6, noun 3
+- 노래도: noun 80, adv 7, conj 7, verb 3
+- 춤도: noun 84, verb 11, adj 3
+- 배고픈: adj 84, noun 11, verb 4
+- 복잡해: adj 76, verb 22
+- 좋기: adj 69, verb 21, noun 8
+- 어디야: pron 68, noun 17, verb 11, adj 3
+- 갈테니까: verb 84, adj 7, noun 4, aux 2
+- 어딘지: pron 68, verb 21, noun 6, adj 4
+- 담당하게: verb 74, adj 25
+- 목마른: adj 81, verb 9, adv 5, noun 2, num 2
+- 벌어지는가: verb 80, adj 10, noun 6, aux 3
+- 온종일: adv 69, noun 24, verb 5
+- 샜다: verb 87, noun 8, adj 4
+- 사용하셔도: verb 77, noun 17, adj 3
+- 동등합니다: adj 76, verb 23
+- 영원한: adj 88, verb 10
+- 그곳에는: pron 68, noun 30, verb 2
+- 과잉이지: noun 87, verb 10
+- 중세: noun 84, pron 6, num 6, verb 4
+- 심었어요: verb 89, aux 5, noun 5
+- 되기로: verb 84, noun 11, pron 3
+- 이해한: verb 76, adj 21
+- 여기있는지: pron 68, verb 27, adj 4
+- 바쁘지는: adj 74, verb 13, noun 12
+- 악수: noun 84, verb 11, adj 3
+- 철도: noun 84, verb 11, adj 3
+- 일했으면: verb 90, adj 6
+- 안됬다: adv 67, verb 20, noun 8, adj 4
+- 했든간에: verb 70, noun 26, pron 4
+- 형제야: noun 80, pron 7, adv 7, verb 5
+- 데이모스라고: noun 84, verb 12
+- 합의도: noun 84, verb 11, adj 3
+- 길어졌습니다: adj 73, verb 25
+- 계약해서: verb 86, adj 11, noun 3
+- 쟤네를: pron 67, noun 31
+- 막으면: verb 90, adj 6
+- 잊는: verb 77, noun 17, adj 3
+- 파지: verb 88, noun 6, adj 4
+- 마제요: aux 70, verb 19, adj 6, noun 5
+- 무릎: noun 84, verb 11, adj 3
+- 달래고: verb 90, adj 5, noun 4
+- 간파한: verb 76, adj 21
+- deutschland: x 67, noun 17, verb 11, adj 3
+- 획기적이지는: noun 79, verb 13, adj 7
+- 걔처럼: pron 68, noun 28
+- 일합니다: verb 90, adj 10
+- 그곳의: pron 68, noun 31
+- 누구보다: pron 71, noun 27
+- 걔들: pron 73, noun 25
+- 귀여웠는데: adj 72, verb 22, aux 4, noun 3
+- 자판기: noun 75, verb 21, adj 2
+- 저이: pron 67, noun 31
+- 고기도: noun 80, verb 14, adj 5
+- 생선도: noun 84, verb 11, adj 3
+- 해산물도: noun 84, verb 11, adj 3
+- 수프도: noun 84, verb 11, adj 3
+- 안먹어요: adv 68, verb 25, adj 3, aux 2
+- 유해할: adj 69, verb 30
+- 살아남지: verb 88, noun 6, adj 4
+- 국내: noun 78, verb 17, adv 4
+- 날았을: verb 86, noun 7, adj 4, aux 4
+- 친구였었지: noun 70, verb 19, adj 6, aux 5
+- 삶이었던: noun 68, verb 25, adj 3, aux 3
+- 들어갔을: verb 70, noun 29
+- 쉬는게: verb 89, adj 4, noun 4, aux 3
+- 재미있습니다: adj 73, verb 25
+- 수영: noun 90, adv 6, verb 4
+- 빌리는: verb 77, noun 17, adj 3
+- 도와주다니: verb 86, aux 9, noun 3, adj 3
+- 친절하네: adj 85, verb 13
+- 괜찮아요: adj 79, verb 19
+- 차드는: noun 84, verb 11, adj 3
+- 맞대고: verb 90, adj 5, noun 4
+- 처럼은: prep 73, noun 25
+- 어떤지: adj 71, verb 21, noun 6
+- 뱉는: verb 77, noun 17, adj 3
+- 어두워진: adj 72, verb 21, noun 4, aux 2
+- 무해해: adj 76, verb 22
+- 풍부합니다: adj 76, verb 23
+- 나한테서: pron 76, noun 20, verb 2
+- 떼: verb 77, noun 17, adj 3
+- 회기는: noun 90, verb 7
+- 해주는데: verb 89, adj 5, aux 4, noun 3
+- 갑부였다면: noun 68, verb 17, adj 8, aux 5
+- 말이지: noun 87, verb 10
+- 상관없어: adj 84, verb 8, noun 7
+- 세명이: num 79, noun 21
+- 바이킹: noun 84, verb 11, adj 3
+- 호는: noun 84, verb 11, adj 3
+- 착륙한: verb 76, adj 21
+- 뛰었고: verb 89, noun 8
+- 누구지: pron 68, verb 21, noun 6, adj 4
+- 익어: adj 70, verb 25, noun 3
+- 갈수록: adv 68, verb 23, noun 3, adj 2
+- 틀렸다는: verb 86, adj 7, noun 4, aux 3
+- 씹는: verb 77, noun 17, adj 3
+- 걔들도: pron 73, noun 22, verb 3
+- 탐욕스럽고: adj 72, verb 23, noun 4
+- 오만하기까지: adj 81, noun 10, pron 7
+- 깔끔한: adj 88, verb 10
+- 오로지: adv 67, verb 21, noun 6, adj 4
+- 중요한걸: adj 74, verb 13, noun 5, pron 2, aux 2, art 2
+- 싶다는데: aux 70, verb 22, adj 5, noun 3
+- 훗: x 67, noun 17, verb 11, adj 3
+- 안통한다: adv 67, verb 31
+- 장미꽃: noun 84, verb 11, adj 3
+- 슬론: noun 84, verb 11, adj 3
+- 뜻입니까: noun 86, pron 8, verb 4
+- 고되게: adj 79, verb 11, noun 8
+- 미움: noun 84, verb 11, adj 3
+- 좋죠: adj 74, noun 11, verb 10, aux 4
+- 뿐이라고만: noun 84, verb 11, adj 3
+- 그러다보니: conj 67, verb 19, noun 6, adj 4, aux 4
+- 어울려다니는: verb 76, noun 24
+- 열게: verb 77, adj 12, noun 8
+- 셋은: num 67, noun 29
+- 논바이너리세요: noun 68, verb 26, aux 3, adj 2
+- 져야: verb 77, noun 17, adj 3
+- 대부분은: noun 90, pron 10
+- 빠르다고: adj 79, verb 18, aux 3
+- 싶다는: aux 70, verb 19, adj 7, noun 4
+- 어쩐: art 67, noun 17, verb 11, adj 3
+- 꽁꽁: adv 68, noun 17, verb 11, adj 3
+- 얼어붙은: verb 68, noun 29
+- 걸어다닙니다: verb 87, noun 8, adj 4
+- 안전했으면: adj 73, verb 23
+- 헤엄치는: verb 86, noun 9, adj 4
+- 표도르는: noun 76, verb 24
+- 심리학자였다는: noun 70, verb 19, adj 7, aux 3
+- 잡지였다: noun 76, verb 22
+- 따는: verb 77, noun 17, adj 3
+- 내디뎠다: verb 87, noun 8, adj 4
+- 여기만: pron 71, verb 15, noun 8, adj 5
+- 좁습니다: adj 73, verb 25
+- 마시고는: verb 79, noun 15, aux 3
+- 샌: verb 77, noun 17, adj 3
+- 작습니다: adj 73, verb 25
+- 논다: verb 87, noun 8, adj 4
+- 쇼핑: noun 84, verb 11, adj 3
+- 가야되요: verb 85, adj 6, noun 5, aux 3
+- 생긴다면: verb 84, adj 8, aux 5, noun 2
+- 뭘해야: pron 68, verb 30
+- 일어난다니: verb 86, aux 9, noun 3, adj 3
+- 하느니: verb 86, noun 6, adj 4, aux 4
+- 나아: adj 72, noun 13, verb 11, aux 3
+- 바쁘다고: adj 79, verb 18, aux 3
+- 세뇌당한: verb 76, adj 21
+- 닮지: verb 88, noun 6, adj 4
+- 가봤지: verb 88, noun 6, adj 4
+- 졸린: adj 71, verb 21, noun 7
+- 있긴: adj 76, verb 18, pron 3, noun 3
+- 경험해: verb 89, adj 9
+- 현실같다'고: noun 70, verb 23, adj 5
+- 깨어난: verb 88, adj 7, noun 5
+- 기이한: adj 88, verb 10
+- 요리해: verb 89, adj 9
+- 많아진다: adj 73, verb 20, aux 5, noun 2
+- 쐈다: verb 87, noun 8, adj 4
+- 예르지: noun 71, verb 28
+- 감기로: noun 78, verb 17, pron 3
+- 속아: verb 78, noun 13, adj 5, aux 3
+- 끊임없이: adv 85, noun 15
+- 길이세요: noun 79, verb 20
+- 계산하게: verb 74, adj 25
+- 오게: verb 77, adj 12, noun 8
+- 왕조는: noun 84, verb 11, adj 3
+- 길었다: adj 68, verb 25, noun 6
+- 고려: noun 69, verb 26
+- 거실: noun 74, verb 23
+- 일회: num 71, noun 25, verb 3
+- 사이버: noun 84, verb 11, adj 3
+- 챔피언: noun 84, verb 11, adj 3
+- 열릴지: verb 88, noun 6, adj 4
+- 빠졌었죠: verb 77, noun 11, adj 8, aux 4
+- 의무는: noun 90, verb 10
+- 바뀌었어: verb 86, noun 9, adj 4
+- 알아듣지: verb 88, noun 6, adj 4
+- 높다고: adj 79, verb 18, aux 3
+- 메시지: noun 73, verb 21, adj 4
+- 수년간: noun 84, verb 11, adj 3
+- 왔기에: aux 70, noun 19, verb 9
+- ami: noun 84, verb 11, adj 3
+- 있거든: adj 79, verb 11, noun 6, aux 3
+- 개교한: verb 76, adj 21
+- 자폐증이래: noun 75, verb 17, aux 5, adv 2
+- 아끼기: verb 88, noun 8, adj 2
+- 될수: verb 77, noun 17, adj 3
+- 다나카: noun 84, verb 11, adj 3
+- 합격한: verb 84, adj 15
+- 멀어요: adj 70, verb 25, aux 2
+- 한번씩: adv 77, noun 17, num 3, verb 2
+- 된대: aux 70, verb 14, noun 10, adj 5
+- 오늘따라: noun 73, verb 22, aux 2
+- 멀어져: adj 72, verb 27
+- 올라탔다: verb 87, noun 8, adj 4
+- 러시아가: noun 90, verb 10
+- 버리라고: verb 86, noun 9, adj 5
+- 재미없다고: adj 79, verb 18, aux 3
+- 싫어했었다니: verb 86, aux 9, noun 3, adj 3
+- 인가요: aux 70, adj 10, noun 8, verb 6, pron 6
+- 할일이: verb 70, noun 29
+- 생판: adv 68, noun 17, verb 11, adj 3
+- 쓸래: verb 84, noun 8, aux 5, adv 2
+- 찍었습니다: verb 87, noun 8, adj 3, aux 2
+- 뭐하고: pron 68, verb 28, adj 3
+- 싶어하나요: aux 70, verb 30
+- 분명해: adj 76, verb 22
+- 닫히는: verb 84, noun 7, adv 7
+- 위안거리니: noun 73, verb 19, adj 4, aux 4
+- 날지: verb 88, noun 6, adj 4
+- 종도: noun 84, verb 11, adj 3
+- 덥네요: adj 82, verb 9, aux 6, noun 3
+- 기다렸다가: verb 84, noun 9, conj 5, aux 2
+- 나가요: verb 73, adj 10, noun 8, pron 6, aux 4
+- 천연: noun 87, adv 7, verb 4
+- 아닐: adj 74, noun 14, verb 11
+- 말했습니까: verb 89, adj 6, aux 4
+- 돌아간: verb 77, noun 17, adj 3
+- 섞으면: verb 90, adj 6
+- 흐려져요: adj 85, verb 12
+- 빠졌고: verb 90, adj 5, noun 4
+- 아담한: adj 88, verb 10
+- 끝내야: verb 77, noun 17, adj 3
+- 여자엔: noun 84, verb 11, adj 3
+- 벨소리는: noun 84, verb 11, adj 3
+- 골라준: verb 86, noun 13
+- 맞춰서: verb 77, noun 17, adj 3
+- 쓰였다: verb 89, noun 10
+- 론스쿠: noun 84, verb 11, adj 3
+- 여쭐: verb 77, noun 17, adj 3
+- 맡겨진: verb 88, adj 5, noun 4, aux 2
+- 피울수: verb 77, noun 17, adj 3
+- 않았다는: aux 70, verb 19, adj 7, noun 4
+- 뽑아도: verb 84, adj 6, aux 5, noun 5
+- 나와보라고: verb 79, noun 18
+- 봐라: verb 89, noun 6, aux 2
+- 쉽냐: adj 77, verb 9, noun 7, aux 3, adv 3
+- 갈만한: verb 76, adj 21
+- 되자: verb 90, noun 8
+- 대도시: noun 79, adv 13, num 5, verb 3
+- 무관심함이: adj 80, noun 19
+- 만나기: verb 88, noun 8, adj 2
+- 탈리아야: noun 72, verb 20, aux 5, adj 3
+- 있네: aux 70, adj 13, verb 11, noun 4
+- 너말고는: pron 68, noun 15, verb 12, aux 3
+- 아무와도: pron 68, noun 17, verb 11, adj 3
+- 재밌네: adj 79, verb 11, aux 4, noun 4
+- 안타까울: adj 83, verb 12, noun 5
+- 파리구나: noun 75, adj 13, verb 5, adv 2, aux 2, pron 2
+- 갈자: verb 90, noun 8
+- 비둘기: noun 75, verb 21, adj 2
+- 마신: verb 84, noun 9, adv 3, aux 3
+- 시쯤에야: noun 84, verb 11, adj 3
+- 끄덕였다: verb 89, noun 10
+- 잘먹는: verb 77, noun 17, adj 3
+- 가능하지는: adj 75, verb 21, noun 4
+- 흐리고: adj 70, verb 28
+- 죽은지: verb 77, adj 16, aux 5
+- 몰라도: verb 77, noun 17, adj 3
+- 우리들만의: pron 68, noun 31
+- 꾸는거야: verb 87, aux 9, adj 2
+- 누운: verb 71, adj 25, noun 4
+- 와야: verb 77, noun 17, adj 3
+- 만화나: noun 84, verb 11, adj 3
+- 말하다가: verb 84, noun 9, conj 5, aux 2
+- 드라이브였어요: noun 68, verb 25, adj 3, aux 2
+- 딸꾹질: noun 74, verb 16, adj 9
+- 까맣게: adj 79, verb 11, noun 8
+- 벌었어요: verb 89, aux 5, noun 5
+- 음식점: noun 87, adv 7, verb 4
+- 붐벼: verb 77, noun 17, adj 3
+- 비슷합니다: adj 76, verb 23
+- 년정도: noun 89, art 6, verb 3
+- 까짓거: x 69, noun 12, verb 11, adj 3, aux 2, pron 2
+- 누워서: verb 74, adj 22, noun 4
+- 단답: noun 84, verb 11, adj 3
+- 새라면: noun 86, verb 5, pron 4, adj 2
+- 않는지: aux 68, verb 27, adj 4
+- 물었습니다: verb 87, noun 8, adj 3, aux 2
+- 생각지도: verb 87, adj 6, aux 4, noun 2
+- 있었더라면: adj 81, noun 8, aux 7
+- 상처: noun 84, verb 11, adj 3
+- 당황해서: verb 86, adj 11, noun 3
+- 빨개졌다: adj 73, verb 25
+- 안전할까: adj 75, verb 23
+- 삼킬: verb 89, adv 5, noun 5
+- 이야기한: verb 84, adj 8, noun 7
+- 파수꾼'이지: noun 87, verb 10
+- 담요: noun 72, verb 19, adj 6, aux 3
+- 줄래요: verb 85, aux 7, noun 4, x 3
+- 올레그는: noun 84, verb 11, adj 3
+- 갔고: verb 90, adj 5, noun 4
+- 이것들: pron 73, noun 25
+- 피곤해지고: adj 88, verb 12
+- 탄다: verb 87, noun 8, adj 4
+- 잡초: noun 84, verb 11, adj 3
+- 뽑는: verb 77, noun 17, adj 3
+- 젊었을: adj 73, verb 19, noun 5, aux 3
+- 대개혁: noun 84, verb 11, adj 3
+- 톰네: noun 70, adj 13, verb 11, aux 4
+- 마주해서: verb 86, adj 11, noun 3
+- 계십니까: verb 90, adj 6, noun 3
+- 하나만으로는: num 72, noun 26
+- 뛰기: verb 88, noun 8, adj 2
+- 다녀요: verb 85, adj 6, noun 5, aux 3
+- 여러가지: noun 73, verb 21, adj 4
+- 숨긴다는: verb 86, adj 7, noun 4, aux 3
+- 다름없다고: adj 79, verb 18, aux 3
+- 찾아야: verb 87, aux 5, noun 5, adj 3
+- 적절하지: adj 73, verb 26
+- 닫는: verb 77, noun 17, adj 3
+- 총기: noun 75, verb 21, adj 2
+- 만연한: adj 88, verb 10
+- 도전하지: verb 84, adj 16
+- 설렌다: verb 87, noun 8, adj 4
+- 칼: noun 84, verb 11, adj 3
+- 잠들수: verb 77, noun 17, adj 3
+- 예쁜걸: adj 74, verb 13, noun 5, pron 2, aux 2, art 2
+- 나온: verb 84, noun 14
+- 행복하냐고: adj 79, verb 19
+- 괴롭히고: verb 90, adj 5, noun 4
+- 생각하기에: verb 76, noun 19, aux 3
+- 펼쳐라: verb 89, noun 6, aux 2
+- 막히면: verb 87, noun 6, adj 4
+- 써야: verb 77, noun 17, adj 3
+- 난처해졌다: adj 90, verb 10
+- 간지: noun 73, verb 21, adj 4
+- 페르난도: noun 84, verb 11, adj 3
+- 읽어보길: verb 88, adj 6, noun 4, aux 2
+- 만들어졌어요: verb 81, adj 18
+- 갈까: verb 84, adj 7, noun 4, aux 2
+- 유괴: noun 84, verb 11, adj 3
+- 당한: verb 76, adj 21
+- 아멜리아가: noun 90, verb 10
+- 알아챈: verb 77, noun 17, adj 3
+- 프로그램: noun 84, verb 11, adj 3
+- 풀었어요: verb 89, aux 5, noun 5
+- 쓰지만: verb 80, adj 9, noun 5, aux 3
+- 이해하지는: verb 88, adj 8, noun 4
+- 튤립만: noun 84, verb 11, adj 3
+- 일하시는: verb 84, noun 14, adv 2
+- 봤으면: verb 90, adj 6
+- 든거야: verb 84, adj 6, aux 6, pron 2
+- 사람인지야: noun 89, verb 10
+- 멎을: verb 70, noun 29
+- 집어든: verb 79, adj 9, noun 5, pron 4
+- 몇시간이고: num 68, noun 22, verb 9
+- 손목: noun 84, verb 11, adj 3
+- 단련한: verb 76, adj 21
+- 넓고: adj 72, verb 23, noun 4
+- 안엔: noun 84, verb 11, adj 3
+- 셋이: num 67, noun 31
+- 이루자: verb 90, noun 8
+- 새빨간데: adj 76, verb 14, noun 6, aux 4
+- 어렵고: adj 72, verb 23, noun 4
+- 졸다가: verb 84, noun 9, conj 5, aux 2
+- 불법도: noun 84, verb 11, adj 3
+- 도덕적이지도: noun 69, verb 20, adj 6, aux 4
+- 않으며: aux 72, verb 20, adj 8
+- 속합니다: verb 90, adj 10
+- 키도: noun 84, verb 11, adj 3
+- 힘도: noun 84, verb 11, adj 3
+- 그곳은: pron 87, noun 12
+- 별로야: noun 84, verb 11, adj 3
+- 지치게: verb 89, adj 8, noun 2
+- 그곳에서: pron 68, noun 32
+- 그대의: pron 72, noun 28
+- 꼴찌야: noun 84, verb 11, adj 3
+- 하나코라고: noun 84, verb 12
+- 마르크화다: noun 74, verb 20, adj 4
+- 바꾸게: verb 77, adj 12, noun 8
+- 중요하진: adj 76, verb 22
+- 타자기: noun 75, verb 21, adj 2
+- 써보신: verb 84, noun 9, adv 3, aux 3
+- 톰보다도: noun 79, pron 19
+- 낫고: adj 72, verb 23, noun 4
+- 쓰네: verb 78, adj 13, aux 4, noun 4
+- 실력있는: adj 73, verb 19, noun 8
+- 드러머다: noun 74, verb 20, adj 4
+- 들었다고: verb 80, adj 16, aux 4
+- 냈다: verb 87, noun 8, adj 4
+- 음악가다: noun 90, verb 8
+- 생각했니: verb 86, noun 6, adj 4, aux 4
+- 흔들어: verb 90, adj 5, adv 4
+- 적게: adj 79, verb 11, noun 8
+- 피워야: verb 88, adj 6, noun 6
+- 소개시켜줘야: verb 77, noun 17, adj 3
+- 그러한: art 67, adj 21, verb 10
+- 낀: verb 77, noun 17, adj 3
+- 그한테: pron 71, noun 28
+- 들렸다고: verb 84, adj 12, aux 3
+- 흔들리는거: verb 78, noun 12, adj 3, aux 2, pron 2, x 2
+- 막을까: verb 90, adj 6, aux 3
+- 성숙해: adj 76, verb 22
+- 계시네요: aux 73, adj 15, verb 9, noun 3
+- 밟는: verb 77, noun 17, adj 3
+- 최악: noun 87, adv 7, verb 4
+- 넣은: verb 68, noun 29
+- 교실도: noun 84, verb 11, adj 3
+- 기숙사도: noun 84, verb 11, adj 3
+- 어렸기: adj 69, verb 21, noun 8
+- 용서: noun 84, verb 11, adj 3
+- 뜨고: verb 90, adj 5, noun 4
+- 푼: noun 84, verb 11, adj 3
+- 안좋아: adv 67, noun 13, verb 11, adj 5, aux 3
+- 출석한: verb 76, adj 21
+- 싶고: aux 68, verb 23, adj 5, noun 4
+- 그러기: verb 88, noun 8, adj 2
+- 죽이는: verb 77, noun 17, adj 3
+- 흠잡을: verb 84, noun 15
+- 삼고: verb 90, adj 5, noun 4
+- 생일이네: noun 83, adj 7, aux 5, adv 4, verb 2
+- 않았기에: aux 70, noun 19, verb 9
+- 띄지: verb 88, noun 6, adj 4
+- 정도만: noun 84, verb 11, adj 3
+- 이루었어: verb 86, noun 9, adj 4
+- 하는것에: verb 78, pron 11, noun 10
+- 실제로는: noun 90, adv 5, num 3
+- 들진: verb 88, adj 5, noun 4, aux 2
+- 거창하기도: adj 82, verb 12, noun 5
+- 챙겨봐요: verb 85, adj 6, noun 5, aux 3
+- 자기들끼리: pron 68, noun 24, adv 7
+- 제꿈은: pron 68, noun 29
+- 경찰서: noun 84, verb 11, adj 3
+- 조언도: noun 84, verb 11, adj 3
+- 에어컨: noun 84, verb 11, adj 3
+- 하루도: noun 84, verb 11, adj 3
+- 버틸: verb 77, noun 17, adj 3
+- 사고는: noun 81, verb 12, aux 3
+- 벌어지기: verb 78, adj 14, noun 5, adv 3
+- 본받아: verb 78, noun 13, adj 5, aux 3
+- 십이간지: noun 73, verb 21, adj 4
+- 면허: noun 84, verb 11, adj 3
+- 불가능한: adj 89, noun 7, verb 4
+- 악화되기: verb 88, noun 8, adj 2
+- 심해져: adj 82, verb 17
+- 놓아: verb 78, noun 13, adj 5, aux 3
+- 번식기는: noun 90, verb 7
+- 너한텐: pron 82, noun 17
+- 올리브: noun 84, verb 11, adj 3
+- 사과면: noun 73, verb 20, adj 4
+- 반해: verb 89, adj 9
+- 버렸었다: aux 68, verb 25, noun 6
+- 진가를: noun 86, pron 13
+- 발휘할때: verb 85, noun 10, adj 4
+- 든든한: adj 88, verb 10
+- 듭니다: verb 87, noun 8, adj 4
+- 걸어서: verb 88, adj 9
+- 나쁠: adj 69, noun 17, verb 11
+- 친구다: noun 74, verb 20, adj 4
+- 모레: noun 84, verb 11, adj 3
+- 헝가리어: noun 70, verb 25, adj 3
+- egérfogó: x 67, noun 17, verb 11, adj 3
+- 쥐덫: noun 84, verb 11, adj 3
+- 말한것은: verb 68, noun 29
+- 미뤘다: verb 87, noun 8, adj 4
+- 구찌: noun 84, verb 11, adj 3
+- 냉각: noun 86, adv 10, verb 3
+- 웃기: verb 88, noun 8, adj 2
+- 정직하다면: adj 90, verb 7, aux 2
+- 결혼했다면: verb 84, adj 8, aux 5, noun 2
+- 나가서: verb 88, noun 6, pron 5
+- 놀아: verb 78, noun 13, adj 5, aux 3
+- 안돼요: adv 73, verb 23
+- 대비해서: verb 86, adj 11, noun 3
+- 공부할래요: verb 85, aux 7, noun 4, x 3
+- 당해도: verb 85, adj 4, adv 4, aux 4, noun 3
+- 냉정하고: adj 81, verb 18
+- 열차나: noun 84, verb 11, adj 3
+- 못했다고: aux 70, verb 28, adj 2
+- 비서는: noun 90, verb 7
+- 예쁘기만: adj 72, verb 15, noun 8, pron 5
+- 영어도: noun 81, verb 12, adj 3
+- 생명이: noun 88, num 12
+- 충실하기: adj 70, verb 30
+- 노어권: noun 89, num 7, verb 2
+- 중앙: noun 84, verb 11, adj 3
+- 난방기를: noun 87, verb 10
+- 약속해놓고: verb 90, adj 5, noun 4
+- 굴: noun 84, verb 11, adj 3
+- 배우야: noun 84, verb 11, adj 3
+- 말할거야: verb 90, adj 8
+- 마셔서: verb 76, adj 8, noun 8, aux 7
+- 깨질: verb 82, adj 9, noun 7
+- 아파요: adj 72, verb 19, noun 5, aux 3
+- 거였다: noun 76, verb 22
+- 놀랄걸: verb 80, adj 8, noun 5, pron 2, aux 2, art 2
+- 겪었습니다: verb 87, noun 8, adj 3, aux 2
+- 놀: verb 77, noun 17, adj 3
+- 금주: noun 87, adv 5, aux 3, num 3
+- 시도: noun 84, verb 11, adj 3
+- 댔을: verb 70, noun 29
+- 강렬해서: adj 78, verb 19, noun 3
+- 신자들아: noun 80, verb 11, adj 5, aux 3
+- 태어나신: verb 84, noun 9, adv 3, aux 3
+- 사와: num 67, noun 29, verb 2
+- 육: num 67, noun 17, verb 11, adj 3
+- 그런면에서: art 67, noun 32
+- 몰랐다면: verb 84, adj 8, aux 5, noun 2
+- 모르는거야: verb 87, aux 9, adj 2
+- 통역해: verb 89, adj 9
+- 완벽하지: adj 73, verb 26
+- 맛있는데: adj 72, verb 22, aux 4, noun 3
+- 것이냐다: noun 74, verb 20, adj 4
+- 여러모로: adv 74, noun 25
+- 뛰지: verb 88, noun 6, adj 4
+- 될만큼: verb 70, noun 26
+- 명에겐: noun 80, pron 18
+- 개나: noun 84, verb 11, adj 3
+- 있지요: aux 74, adj 16, verb 8, noun 2
+- 받기를: verb 77, noun 20
+- 맛있거든: adj 79, verb 11, noun 6, aux 3
+- 어쩜: adv 68, noun 17, verb 11, adj 3
+- 잘하게: verb 74, adj 25
+- 우리'라고: pron 74, noun 20, verb 5
+- 우리'란: pron 68, noun 24, adj 4, verb 2
+- 거니까: noun 70, verb 18, adj 7, aux 2
+- 바라보는: verb 77, noun 17, adj 3
+- 졸릴: adj 70, verb 24, aux 3
+- 자신한테: pron 71, noun 28
+- 풀지: verb 88, noun 6, adj 4
+- 회색이었고: noun 75, verb 22
+- 넥타이는: noun 84, verb 11, adj 3
+- 해볼게: verb 77, adj 12, noun 8
+- 톰한텐: noun 84, pron 15
+- 않길: aux 69, verb 21, adj 6, noun 4
+- 그렇다니까: adj 90, verb 7
+- 따랐으면: verb 90, adj 6
+- 강력한: adj 88, verb 10
+- 무기야: noun 86, verb 8, pron 5
+- 누군가에: pron 76, noun 24
+- 솔직해져: adj 82, verb 17
+- 덮인: verb 69, noun 30
+- 버려진: verb 88, adj 5, noun 4, aux 2
+- 해줄거에요: aux 74, noun 11, adj 7, verb 7
+- 아테네는: noun 84, verb 11, adj 3
+- 개씩: noun 84, adv 10, num 3, verb 2
+- 보내니: verb 86, noun 6, adj 4, aux 4
+- 오늘도: noun 84, verb 11, adj 3
+- 찍었어: verb 86, noun 9, adj 4
+- 빠를지도: adj 73, verb 20, aux 4, noun 2
+- 놀게: verb 77, adj 12, noun 8
+- 약속해: verb 89, adj 9
+- 날아가: verb 76, noun 23
+- 유용하지: adj 73, verb 26
+- 처벌받았을: verb 86, noun 7, adj 4, aux 4
+- 해줄래요: verb 85, aux 7, noun 4, x 3
+- 그치면: verb 87, noun 6, adj 4
+- 바뀐: verb 77, noun 17, adj 3
+- 무엇인가가: pron 76, noun 24
+- 꿰맸다: verb 87, noun 8, adj 4
+- 따라가며: verb 87, noun 6, adj 5
+- 말리는: noun 84, verb 11, adj 3
+- 팀: noun 84, verb 11, adj 3
+- 살아남을: verb 70, noun 29
+- 열살이: num 67, noun 31
+- 아팠어: adj 70, verb 25, noun 3
+- 아무데도: pron 70, verb 20, adj 7, noun 3
+- 부쳐야: verb 77, noun 17, adj 3
+- 자그마치: adv 73, noun 17, verb 7, adj 3
+- 고파: adj 69, noun 17, verb 11
+- 태블릿: noun 87, adv 7, verb 4
+- 지원합니다: verb 90, adj 10
+- 칠해도: verb 85, adj 4, adv 4, aux 4, noun 3
+- 되: aux 67, noun 17, verb 11, adj 3
+- 괜찮다니까: adj 90, verb 7
+- 싸구려: noun 69, verb 26
+- 팬: noun 84, verb 11, adj 3
+- 완벽한: adj 88, verb 10
+- 즉각: adv 76, noun 19, verb 3
+- 설명한: verb 76, adj 21
+- 겪은: verb 68, noun 29
+- 팝콘: noun 84, verb 11, adj 3
+- 건강해지시길: adj 73, verb 21, noun 4, aux 2
+- 고통받았다고: verb 88, adj 7, aux 5
+- 정도면: noun 73, verb 20, adj 4
+- 삼일전에: num 67, noun 31
+- 끝냈다고: verb 84, adj 12, aux 3
+- 저스틴: noun 84, verb 11, adj 3
+- 숨도: noun 84, verb 11, adj 3
+- 우리회사에게: pron 70, noun 29
+- 달다: adj 71, verb 20, noun 8
+- 늘었어: verb 86, noun 9, adj 4
+- 배달: noun 90, num 6, verb 4
+- 하던: aux 70, verb 25, adj 3
+- 그로부터: pron 69, noun 30
+- 같고: adj 72, verb 23, noun 4
+- 높이는: noun 84, verb 11, adj 3
+- 수다: noun 74, verb 20, adj 4
+- 떠드는: verb 77, noun 17, adj 3
+- 찌고: verb 90, adj 5, noun 4
+- 공정하지: adj 73, verb 26
+- 않대: aux 70, verb 14, noun 10, adj 5
+- 바쁜지: adj 71, verb 21, noun 6
+- 대야: noun 84, verb 11, adj 3
+- 오다니: verb 86, aux 9, noun 3, adj 3
+- 자러갈까: verb 84, adj 7, noun 4, aux 2
+- 참이었었는데: noun 77, verb 11, aux 7, adj 4
+- 닫고: verb 90, adj 5, noun 4
+- 즐거운가: adj 67, noun 29
+- 피곤하여: adj 70, verb 28, noun 3
+- 오를: verb 68, noun 31
+- 허락없이: noun 81, adv 18
+- 들어가지: verb 88, noun 6, adj 4
+- 안들어요: adv 68, verb 25, adj 3, aux 2
+- 캐럴: noun 84, verb 11, adj 3
+- silent: x 89, noun 6, verb 4
+- night: x 89, noun 6, verb 4
+- joy: x 86, noun 10, verb 3
+- to: x 67, noun 17, verb 11, adj 3
+- world: x 67, noun 17, verb 11, adj 3
+- first: x 89, noun 6, verb 4
+- noel: x 80, noun 14, verb 4
+- away: x 86, noun 10, verb 3
+- in: x 67, noun 17, verb 11, adj 3
+- manger: x 80, noun 14, verb 4
+- 허물없이: adv 85, noun 15
+- 지내진: verb 88, adj 5, noun 4, aux 2
+- unionpay: noun 76, x 19, verb 3
+- 유명해지길: adj 73, verb 21, noun 4, aux 2
+- 소리만: noun 84, verb 11, adj 3
+- 개인: verb 69, noun 30
+- 서녘: noun 84, verb 11, adj 3
+- 마시니까: verb 84, adj 7, noun 4, aux 2
+- 잘라서: verb 79, noun 11, adv 7, conj 3
+- 한조각씩: num 70, noun 17, adv 10, verb 2
+- 눈꺼풀: noun 84, verb 11, adj 3
+- 덧바릅니다: verb 86, adj 11, noun 2
+- 하지않아도: verb 84, adj 6, aux 5, noun 5
+- 될것: aux 72, pron 10, noun 10, verb 8
+- 없대: adj 72, verb 14, noun 10, aux 4
+- 주실래요: aux 80, verb 17
+- 싶어진다: aux 72, verb 20, adj 6, noun 2
+- 않았나: aux 81, adj 8, noun 6, verb 3
+- 좋았는데: adj 74, verb 18, aux 7
+- 안해도: adv 70, verb 18, adj 4, aux 4, noun 3
+- 될것같다는: aux 70, verb 19, adj 7, noun 4
+- 누워있는: verb 86, noun 8, adj 6
+- 얘기해보자: verb 90, noun 8
+- 사기를: verb 77, noun 20
+- 목소리는: noun 84, verb 11, adj 3
+- 시야: noun 84, verb 11, adj 3
+- 벗어날: verb 90, adj 6, noun 3
+- 데이모스야: noun 84, verb 11, adj 3
+- 관련없는: noun 80, adj 17, verb 2
+- 유명하니깐: adj 69, noun 17, verb 11
+- 요령: noun 86, adv 10, verb 3
+- 대나무: noun 88, adv 4, num 4, verb 3
+- 통화해서: verb 86, adj 11, noun 3
+- 연결: noun 84, verb 11, adj 3
+- 대기: noun 75, verb 21, adj 2
+- 선고: noun 70, verb 23, adj 5
+- 버려도: aux 72, verb 21, noun 5
+- 무기로: noun 78, verb 17, pron 3
+- 차례야: noun 84, verb 11, adj 3
+- 다같이: adv 77, noun 23
+- 여쭤봐도: verb 90, noun 7
+- 낯선: adj 70, noun 23, verb 3
+- 주차한곳에: verb 73, pron 14, noun 12
+- 예술이지: noun 87, verb 10
+- 보내게: verb 77, adj 12, noun 8
+- 지독한: adj 88, verb 10
+- 심해지고: adj 88, verb 12
+- 테지: noun 73, verb 21, adj 4
+- 읽습니까: verb 89, adj 6, aux 4
+- 너야: pron 68, noun 17, verb 11, adj 3
+- 그렇게도: adv 70, adj 12, noun 11, pron 6
+- 걷기만: verb 81, noun 8, adj 5, pron 5
+- 심심해서: adj 78, verb 19, noun 3
+- 깨고: verb 90, adj 5, noun 4
+- 봄하고: noun 68, verb 28, adj 3
+- 파랗고: adj 72, verb 23, noun 4
+- 멀리서: adv 68, noun 17, verb 11, adj 3
+- 펼쳐진: verb 88, adj 5, noun 4, aux 2
+- 싫어서: adj 76, verb 21
+- 용서하리라고는: verb 78, noun 19
+- 이라고도: prep 73, verb 14, adj 6, noun 6
+- 강요하지는: verb 88, adj 8, noun 4
+- 않겠지만: aux 75, verb 19, adj 4, noun 2
+- 개같이: noun 90, adv 10
+- 벌어서: verb 88, adj 9
+- 정승같이: noun 90, adv 10
+- 버려: aux 68, verb 26, noun 3
+- 다릅니다: adj 78, verb 20, noun 2
+- 다닐때: verb 85, noun 10, adj 4
+- 백그루: num 71, noun 24, verb 3
+- 먹었지: verb 85, adj 6, aux 5, noun 3
+- 시중드는: verb 77, noun 17, adj 3
+- 필요없었습니다: noun 75, verb 21, adj 3, aux 2
+- 닦을: verb 70, noun 29
+- 아까는: adv 68, noun 17, verb 11, adj 3
+- 나머지: noun 73, verb 21, adj 4
+- 만나기를: verb 77, noun 20
+- 블렌딩해: verb 89, adj 9
+- 자살하게: verb 74, adj 25
+- 튼튼한: adj 88, verb 10
+- 않으면서: aux 71, verb 20, adj 9
+- 도구야: noun 87, pron 7, verb 5
+- 그것들은: pron 68, noun 29
+- 대단치는: adj 71, verb 20, noun 9
+- 무거워서: adj 89, verb 8, noun 4
+- 만족: noun 84, verb 11, adj 3
+- 먹보구나: noun 75, adj 13, verb 5, adv 2, aux 2, pron 2
+- 길면: adj 70, verb 20, noun 6
+- 이곳에: pron 80, noun 12, verb 7
+- 글쓰기: noun 75, verb 21, adj 2
+- 반이네: noun 83, adj 7, aux 5, adv 4, verb 2
+- 울면: verb 87, noun 6, adj 4
+- 나마저도: pron 68, noun 17, verb 11, adj 3
+- 싶어지잖아: aux 76, noun 10, verb 9, adj 6
+- 크지: adj 71, verb 21, noun 6
+- 어떨지: adj 71, verb 21, noun 6
+- 아프리카는: noun 84, verb 11, adj 3
+- 느꼈으면: verb 90, adj 6
+- 뒷모습만: noun 84, verb 11, adj 3
+- 불타오르는걸: verb 88, aux 6, adj 3
+- 이래라: verb 89, noun 6, aux 2
+- 저래라: verb 89, noun 6, aux 2
+- 빼앗아: verb 78, noun 13, adj 5, aux 3
+- 터뜨렸고: verb 90, adj 5, noun 4
+- 곧잘: adv 68, noun 17, verb 11, adj 3
+- 해댔다: verb 87, noun 8, adj 4
+- 젊었다: adj 68, verb 25, noun 6
+- 열일곱째: num 81, noun 15, verb 3
+- 숨길: verb 88, adj 6, noun 4, aux 2
+- 되어서도: verb 77, noun 17, adj 3
+- 자제해: verb 89, adj 9
+- 간단합니다: adj 76, verb 23
+- 오크어: noun 70, verb 25, adj 3
+- 있었으니: adj 84, verb 13
+- 망정이지: noun 87, verb 10
+- 혼자였으면: noun 68, verb 23, adj 6
+- 다고: prep 67, verb 23, adj 5, noun 4
+- 줄지도: aux 70, verb 20, adj 6, noun 2
+- 계신: aux 70, verb 18, noun 9, adv 3
+- 전부다: noun 74, verb 20, adj 4
+- 줄이는: verb 77, noun 17, adj 3
+- 그녀보다: pron 71, noun 27
+- 놀라게: verb 77, adj 12, noun 8
+- 나가게: verb 77, adj 12, noun 8
+- 풀어주라고: verb 79, noun 18
+- 만엔입니다: num 68, noun 30
+- 받았지만: verb 85, aux 8, adj 4, noun 2
+- 옳다고: adj 79, verb 18, aux 3
+- 카드뮴: noun 84, verb 11, adj 3
+- 언덕: noun 84, verb 11, adj 3
+- 위에서라면: noun 81, verb 15
+- 별로라서: adv 73, verb 12, noun 11, conj 3
+- 진정시킨거: verb 78, noun 12, adj 3, aux 2, pron 2, x 2
+- 아프지는: adj 74, verb 13, noun 12
+- 당신도: pron 68, noun 17, verb 11, adj 3
+- 알다싶피: verb 77, noun 17, adj 3
+- 불평: noun 84, verb 11, adj 3
+- 참는: verb 77, noun 17, adj 3
+- 돌아와요: verb 85, adj 6, noun 5, aux 3
+- 땄다: verb 87, noun 8, adj 4
+- 귀찮은: adj 68, noun 29
+- 문제네요: noun 70, adj 15, verb 9, aux 6
+- 아닙니다만: adj 85, verb 10, aux 2
+- 레오나르도: noun 84, verb 11, adj 3
+- 백명의: num 80, noun 19
+- 자주는: adv 70, verb 19, noun 10
+- 눈치챘다: verb 87, noun 8, adj 4
+- 밀치며: verb 87, noun 6, adj 5
+- 프랑스어로만: noun 84, verb 11, adj 3
+- 줄이세요: verb 86, noun 12
+- 나만: pron 68, noun 17, verb 11, adj 3
+- 추천: noun 87, num 7, verb 4
+- 도서: noun 84, verb 11, adj 3
+- 따끈한: adj 88, verb 10
+- 커피야: noun 84, verb 11, adj 3
+- 걸어버렸네: verb 78, adj 13, aux 4, noun 4
+- 인도: noun 84, verb 11, adj 3
+- 놔: verb 77, noun 17, adj 3
+- 두세요: aux 70, verb 26, adj 2
+- 다음달: noun 90, num 6, verb 4
+- 톰하고는: noun 81, verb 12, aux 3
+- 특히나: adv 68, noun 17, verb 11, adj 3
+- 걱정시키고: verb 90, adj 5, noun 4
+- 싶진: aux 68, verb 21, adj 5, noun 4
+- 물어서는: verb 90, noun 9
+- 반올림한: verb 76, adj 21
+- 나중에서야: noun 78, verb 10, adj 6, adv 6
+- 나아지는: verb 85, noun 11, adj 3
+- 앞서: verb 77, noun 17, adj 3
+- 갚지: verb 88, noun 6, adj 4
+- 않았는데: aux 73, verb 18, adj 7
+- 충분했더라면: adj 81, noun 8, aux 7
+- 얼면: verb 87, noun 6, adj 4
+- 영수증: noun 84, verb 11, adj 3
+- 뜬다: verb 87, noun 8, adj 4
+- 안됐어: adv 73, verb 23
+- 원고는: noun 81, verb 12, aux 3
+- 민사소송법: noun 87, adv 7, verb 4
+- 신청합니다: verb 90, adj 10
+- 소스야: noun 84, verb 11, adj 3
+- 안되는지: adv 67, verb 27, adj 4
+- 쏠: verb 77, noun 17, adj 3
+- 실시간: noun 84, verb 11, adj 3
+- 그거는: pron 72, noun 24, verb 3
+- 낭비고요: noun 72, verb 19, adj 6, aux 3
+- 외로운데: adj 86, noun 8, verb 5
+- 아니라는: adj 68, noun 25, verb 6
+- 수리받아야: verb 87, aux 5, noun 5, adj 3
+- 진실합니다: adj 76, verb 23
+- 지기: verb 88, noun 8, adj 2
+- 머물지: verb 88, noun 6, adj 4
+- 얼어붙을: verb 70, noun 29
+- 자동판매기는: noun 90, verb 7
+- 테러리스트라고: noun 84, verb 12
+- 담고: verb 90, adj 5, noun 4
+- 죄송합니다만: adj 85, verb 10, aux 2
+- 좋고: adj 72, verb 23, noun 4
+- 싫음: adj 70, noun 26, x 2
+- 먹으십시오: verb 89, aux 10
+- 나오면: verb 90, adv 6
+- 전이었다면: noun 73, adj 14, verb 11
+- 이론도: noun 84, verb 11, adj 3
+- 인정받는: verb 77, noun 17, adj 3
+- 없었겠지: adj 83, aux 8, noun 5, verb 5
+- 많니: adj 70, verb 19, noun 6, aux 4
+- 가라는: verb 73, noun 25
+- 지내야: verb 77, noun 17, adj 3
+- 심는: verb 77, noun 17, adj 3
+- 쓰고습니까: verb 89, adj 6, aux 4
+- 접시는: noun 80, verb 17, adv 2
+- 깨끗하지: adj 73, verb 26
+- 닫아요: verb 86, adj 13
+- 얼마지: noun 73, verb 21, adj 4
+- 가능하지: adj 73, verb 26
+- 셔츠만: noun 84, verb 11, adj 3
+- 등록: noun 70, verb 23, adj 2, adv 2
+- 아드리아노는: noun 84, verb 11, adj 3
+- 바베큐: noun 84, verb 11, adj 3
+- 먹을거야: verb 78, adj 12, aux 5, pron 4
+- 사진찍는: noun 84, verb 11, adj 3
+- a: noun 84, verb 11, adj 3
+- 유년: noun 85, num 9, adv 3
+- 거리는: noun 84, verb 11, adj 3
+- 깨끗합니다: adj 76, verb 23
+- 살지만: verb 80, adj 9, noun 5, aux 3
+- 났다고: verb 84, adj 12, aux 3
+- 따라온다: verb 87, noun 8, adj 4
+- 집회며: noun 73, verb 20, adj 5
+- 아프시대: adj 72, verb 14, noun 10, aux 4
+- 장만하셨대: verb 80, noun 10, adj 5, aux 4
+- 되는지: aux 68, verb 27, adj 4
+- 터졌을: verb 70, noun 29
+- 이끄는: verb 77, noun 17, adj 3
+- 많이는: adv 68, noun 17, verb 11, adj 3
+- 다양하다는: adj 90, verb 8
+- 출발합니다: verb 90, adj 10
+- 몇살인지: num 68, noun 25, pron 4, verb 2
+- 쟤: pron 68, noun 17, verb 11, adj 3
+- 맹그로브는: noun 84, verb 11, adj 3
+- 흡수해요: verb 85, adj 13
+- 지하: noun 84, verb 11, adj 3
+- 가보는: noun 84, verb 11, adj 3
+- 당신께: pron 73, noun 24
+- 만들지는: verb 79, noun 12, adj 7
+- 만날까요: verb 85, adj 6, noun 5, aux 3
+- 그렇죠: adj 74, noun 11, verb 10, aux 4
+- 본다면: verb 84, adj 8, aux 5, noun 2
+- 울게: verb 77, adj 12, noun 8
+- 만나: verb 77, noun 17, adj 3
+- 강렬했다: adj 69, verb 30
+- 일하고도: verb 80, adj 6, noun 6, prep 6
+- 나오는데: verb 89, adj 5, aux 4, noun 3
+- 누구는: pron 70, noun 28
+- 게으르게: adj 88, verb 9, noun 3
+- 소유자분이십니까: noun 70, verb 23, adj 6
+- 수용되고: verb 90, adj 5, noun 4
+- 배웁니다: verb 87, noun 8, adj 4
+- 여러분께: pron 73, noun 24
+- 가르치게: verb 89, adj 8, noun 2
+- 기뻐요: adj 72, verb 19, noun 5, aux 3
+- 주저하지마시고: verb 90, adj 5, noun 4
+- 바보스런: adj 74, art 13, noun 7, verb 4
+- 아이였다: noun 76, verb 22
+- 맞서: verb 77, noun 17, adj 3
+- 그곳을: pron 67, noun 29, verb 3
+- 호루라기를: noun 87, verb 10
+- 손톱: noun 84, verb 11, adj 3
+- 나기: verb 88, noun 8, adj 2
+- 예나: noun 84, verb 11, adj 3
+- 화난다고: verb 84, adj 12, aux 3
+- 엄청난: adj 73, verb 21, noun 5
+- 많은데: adj 85, aux 9, verb 3
+- 어렵다는: adj 73, verb 19, noun 4, aux 3
+- 차일피일: adv 69, noun 24, verb 5
+- 아님: conj 71, noun 25, verb 3
+- 달랐다: adj 70, verb 29
+- 접속해서: verb 86, adj 11, noun 3
+- 버리는: verb 77, noun 17, adj 3
+- 어울리는: verb 77, noun 17, adj 3
+- 전통: noun 86, adv 5, num 5, verb 3
+- 카아마탄: noun 84, verb 11, adj 3
+- 기념하다: verb 69, adj 29, aux 2
+- 대도: noun 84, verb 11, adj 3
+- 아직까지: adv 69, noun 25, adj 2
+- 녹지: verb 88, noun 6, adj 4
+- 손잡고: verb 90, adj 5, noun 4
+- 말았어요: aux 75, verb 24
+- 피곤한지: adj 71, verb 21, noun 6
+- 보여줘라: verb 89, noun 6, aux 2
+- 눕기: verb 88, noun 8, adj 2
+- 잠궈: verb 77, noun 17, adj 3
+- 두시기: aux 78, verb 18, noun 3
+- 창기: noun 75, verb 21, adj 2
+- 서며: verb 87, noun 6, adj 5
+- 물어보기를: verb 77, noun 20
+- 채운: verb 71, adj 25, noun 4
+- 다룰: verb 77, noun 17, adj 3
+- 클: adj 69, noun 17, verb 11
+- 깎아주시면: verb 84, adj 9, aux 5
+- 처진다: verb 87, adj 6, aux 5, noun 2
+- 깊다고: adj 79, verb 18, aux 3
+- 디즈니: noun 73, verb 19, adj 4, aux 4
+- 모레면: noun 73, verb 20, adj 4
+- 이곳에서: pron 68, noun 32
+- 산란했어: adj 70, verb 25, noun 3
+- 집중도: noun 84, verb 11, adj 3
+- 배고픔도: noun 84, verb 11, adj 3
+- 매는: verb 77, noun 17, adj 3
+- 높이: adv 68, noun 31
+- 이동합니다: verb 90, adj 10
+- 봤거든: verb 78, adj 13, noun 6, aux 3
+- 향한: verb 76, adj 21
+- 오해해: verb 89, adj 9
+- 있었지만: aux 70, verb 13, adj 9, noun 5
+- 자신에: pron 80, noun 19
+- 도와준다고: verb 84, adj 12, aux 3
+- 울어댔다: verb 87, noun 8, adj 4
+- 먹어보지도: verb 87, adj 6, aux 4, noun 2
+- 시작했음에도: verb 73, noun 26
+- 맞고: verb 90, adj 5, noun 4
+- 왔다는: verb 86, adj 7, noun 4, aux 3
+- 발칸: noun 84, verb 11, adj 3
+- 마시지는: verb 79, noun 12, adj 7
+- 걱정하고: verb 84, adj 15
+- 세우는: verb 84, noun 15
+- 문제다: noun 74, verb 20, adj 4
+- dos: noun 84, verb 11, adj 3
+- 어디에다: pron 67, verb 20, noun 8, adj 4
+- 나지: verb 88, noun 6, adj 4
+- 궁금한: adj 88, verb 10
+- 생기는데: verb 89, adj 5, aux 4, noun 3
+- 출시되었을: verb 85, adj 6, noun 5, aux 3
+- 살이었어요: noun 89, verb 9
+- 웃기예요: verb 70, noun 24, pron 3
+- 쌀쌀한: adj 88, verb 10
+- 까먹기: verb 88, noun 8, adj 2
+- 적어두는: verb 77, noun 17, adj 3
+- 줄도: noun 84, verb 11, adj 3
+- 히잡을: noun 82, verb 18
+- 있었어서: adj 76, verb 21
+- 놀라: verb 89, noun 6, aux 2
+- 싸울: verb 79, adj 16, noun 5
+- 결투야: noun 84, verb 11, adj 3
+- 안아서: verb 84, adj 12, noun 3, aux 2
+- 것이고: noun 89, verb 9
+- 너희들을: pron 73, noun 27
+- 갤럭시: noun 79, adv 13, num 5, verb 3
+- 손쉽게: adj 79, verb 11, noun 8
+- 사도: verb 77, noun 17, adj 3
+- 괜찮을: adj 67, noun 29, verb 3
+- 끝낼걸요: verb 85, adj 6, noun 5, aux 3
+- 닷새: noun 87, adv 7, verb 4
+- 사계절: noun 84, verb 11, adj 3
+- 느낄지: verb 88, noun 6, adj 4
+- 좌회전하셔야: verb 77, noun 17, adj 3
+- 만족시키기가: verb 76, noun 24
+- 구독: noun 87, adv 7, verb 4
+- 전화기: noun 75, verb 21, adj 2
+- 빌려도: verb 88, aux 5, noun 5
+- 싸운: verb 71, adj 25, noun 4
+- 막지: verb 88, noun 6, adj 4
+- 읽으십시오: verb 89, aux 10
+- 멀리까지: adv 69, noun 25, adj 2
+- 유명하여: adj 70, verb 28, noun 3
+- 닿으면: verb 90, adj 6
+- 길어서: adj 76, verb 21
+- 지루했다: adj 69, verb 30
+- 배고프다고: adj 79, verb 18, aux 3
+- 변기: noun 75, verb 21, adj 2
+- 아니란다: adj 75, verb 21, noun 3
+- 권장하지만: verb 77, adj 21
+- 알았엇지: verb 88, noun 6, adj 4
+- 다다른: verb 76, adj 15, adv 5, noun 2, num 2
+- 같대: adj 72, verb 14, noun 10, aux 4
+- 걔도: pron 68, noun 17, verb 11, adj 3
+- 되잖아: aux 76, noun 10, verb 9, adj 6
+- 고운: noun 70, adj 25, verb 5
+- 가실래요: verb 84, aux 13
+- 죽였어: verb 85, noun 9, aux 4
+- 쓸까: verb 84, adj 7, noun 4, aux 2
+- 보이냐: verb 76, adj 11, noun 7, aux 3, adv 3
+- 너무나: adv 68, noun 17, verb 11, adj 3
+- 열두: num 67, noun 17, verb 11, adj 3
+- 부서: noun 84, verb 11, adj 3
+- 대규모: noun 90, aux 6, verb 4
+- 하시네요: verb 76, adj 15, aux 6, noun 3
+- 색깔없는: noun 80, adj 17, verb 2
+- 잠잔다: verb 87, noun 8, adj 4
+- 들었으니: verb 79, adj 18
+- 몇권: num 74, noun 22, verb 2
+- 베이킹: noun 84, verb 11, adj 3
+- 소다라고: noun 84, verb 12
+- 좋을지: adj 85, verb 12
+- 누구인가요: pron 79, noun 14, adj 3
+- 한판을: num 73, noun 25
+- 천원에: num 71, noun 29
+- 한명당: num 71, noun 25, verb 3
+- 못산다: adv 67, verb 20, noun 8, adj 4
+- 싶기: aux 68, verb 21, noun 8, adj 2
+- 그리스어: noun 70, verb 25, adj 3
+- 밟고: verb 90, adj 5, noun 4
+- 행복하길: adj 83, verb 15
+- 없다고해도: adj 70, verb 18, adv 4, aux 4, noun 3
+- 세기: noun 75, verb 21, adj 2
+- 국가를: noun 86, pron 13
+- 독수리는: noun 84, verb 11, adj 3
+- 않았지: aux 73, verb 22, noun 2
+- 나지만: verb 80, adj 9, noun 5, aux 3
+- 둬야: verb 77, noun 17, adj 3
+- 모으고: verb 90, adj 5, noun 4
+- 맞추기가: verb 76, noun 24
+- 훔치다가: verb 84, noun 9, conj 5, aux 2
+- 똑같이: adv 77, noun 23
+- 유용하네: adj 85, verb 13
+- 다르니까: adj 74, verb 18, noun 4, aux 2
+- 훔쳤다는: verb 86, adj 7, noun 4, aux 3
+- 현금만: noun 84, verb 11, adj 3
+- 맑아질: adj 76, verb 16, noun 7
+- 익숙하지: adj 73, verb 26
+- 슬퍼보이는: adj 69, noun 17, verb 11
+- 만엔이다: num 68, noun 31
+- 결국에: adv 70, noun 29
+- 될것이다: verb 80, noun 12, adj 7
+- 먹힌다: verb 87, noun 8, adj 4
+- 석탄: noun 84, verb 11, adj 3
+- 태울: verb 79, adj 16, noun 5
+- 질투날: verb 84, noun 8, adj 2, adv 2, art 2
+- 안그럼: adv 68, noun 28
+- 놓칠수도: verb 76, noun 14, aux 7
+- 농부였고: noun 70, verb 23, adj 5
+- 저마다: adv 71, noun 26, verb 3
+- 다르다는: adj 73, verb 19, noun 4, aux 3
+- 어디가: pron 68, noun 29
+- 아픈지: adj 71, verb 21, noun 6
+- 공손하구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 언제쯤: adv 72, noun 24, verb 3
+- 별로인데: adv 69, noun 27
+- 이루길: verb 88, adj 6, noun 4, aux 2
+- 주요: noun 72, verb 19, adj 6, aux 3
+- 궁금해서: adj 78, verb 19, noun 3
+- 힘들: adj 68, noun 25, pron 6
+- 입니까: aux 69, verb 18, adj 7, noun 4
+- 흥미로운가요: adj 76, noun 8, verb 6, pron 6, aux 4
+- 틀렸거나: verb 86, adj 4, aux 3, pron 3, noun 3
+- 어색하다면: adj 90, verb 7, aux 2
+- 고쳐주시기: verb 85, aux 11, noun 3
+- 자신조차: pron 68, noun 28
+- 살금살금: adv 76, noun 19, verb 3
+- 아니라도: adj 69, noun 17, verb 11
+- 피곤하셔서: adj 75, verb 10, noun 8, aux 7
+- ram: noun 80, x 13, verb 4
+- 꼈넼: verb 77, noun 17, adj 3
+- 겨뤘고: verb 90, adj 5, noun 4
+- 관리자: noun 74, verb 23
+- 전문가야: noun 80, verb 18
+- 못해도: aux 70, verb 18, adj 4, adv 4, noun 3
+- 나가는: verb 84, noun 12
+- 년이고: noun 89, verb 9
+- 보네: aux 70, adj 13, verb 11, noun 4
+- 했기: verb 88, noun 8, adj 2
+- 넘었을거야: verb 78, adj 12, aux 5, pron 4
+- 이거예요: pron 70, noun 24, verb 3
+- 정신적으로도: noun 85, verb 7, prep 7
+- 있다보니: aux 70, verb 19, noun 6, adj 4
+- 정도야: noun 84, verb 11, adj 3
+- 돌아가: verb 76, noun 23
+- 가치는: noun 76, verb 20, adj 4
+- 높아져요: adj 85, verb 12
+- 몽골어: noun 70, verb 25, adj 3
+- 없었으므로: adj 76, verb 9, aux 9, noun 4, conj 2
+- 지진: noun 70, verb 21, adj 5, aux 2
+- 깨: verb 77, noun 17, adj 3
+- 넘어서: verb 88, adj 9
+- 숙면: noun 73, verb 20, adj 4
+- 알려주는게: verb 89, adj 4, noun 4, aux 3
+- 좋을거야: adj 79, verb 11, aux 5, pron 4
+- 대처하신다면: verb 84, adj 8, aux 5, noun 2
+- 톰에겐: noun 80, pron 18
+- 신선해: adj 76, verb 22
+- 남겨둬요: verb 85, adj 6, noun 5, aux 3
+- 반짝: adv 89, noun 6, verb 4
+- 하다가: verb 84, noun 9, conj 5, aux 2
+- 관두는: verb 77, noun 17, adj 3
+- 락: noun 84, verb 11, adj 3
+- 이해해: verb 89, adj 9
+- 학교에가는: noun 79, verb 17
+- kaisha: x 67, noun 17, verb 11, adj 3
+- 모르겠으면: verb 90, adj 6
+- 현명하지: adj 73, verb 26
+- 읽으면: verb 90, adj 6
+- 이탈리안: noun 90, adv 5, adj 3
+- 복된: adj 70, verb 28
+- 수록: conj 68, verb 23, noun 3, adj 2, adv 2
+- 졸립지: adj 71, verb 21, noun 6
+- 앗아간: verb 77, noun 17, adj 3
+- 되다니: aux 76, verb 19, noun 3, adj 3
+- 소는: noun 84, verb 11, adj 3
+- 음메: x 67, noun 17, verb 11, adj 3
+- 꼬꼬댁: x 67, noun 17, verb 11, adj 3
+- 꼬꼬: x 67, noun 17, verb 11, adj 3
+- 돼지는: noun 79, verb 13, adj 7
+- 꿀꿀: x 67, noun 17, verb 11, adj 3
+- 오리는: noun 84, verb 11, adj 3
+- 꽥꽥: x 67, noun 17, verb 11, adj 3
+- 야옹: x 67, noun 17, verb 11, adj 3
+- 배고팠어: adj 70, verb 25, noun 3
+- dna: noun 84, verb 11, adj 3
+- 위였어: noun 76, verb 19, aux 4
+- 더워서: adj 89, verb 8, noun 4
+- 쓰인다: verb 87, noun 8, adj 4
+- 맛없게: adj 79, verb 11, noun 8
+- 사탕줘: noun 70, verb 27
+- 말해버렸답니다: verb 87, noun 8, adj 4
+- 카페는: noun 84, verb 11, adj 3
+- 조명이: noun 88, num 12
+- 타이어: noun 70, verb 25, adj 3
+- 하든지: verb 84, adv 6, pron 6
+- 공수도: noun 80, verb 10, aux 7
+- 빨강색도: noun 84, verb 11, adj 3
+- 예쁘지만: adj 76, verb 13, noun 5, aux 3
+- 따라가요: verb 73, adj 10, noun 8, pron 6, aux 4
+- 돕겠니: verb 90, aux 7
+- 저쪽에: pron 78, noun 21
+- 무엇으로: pron 67, noun 30
+- 고르든: verb 79, adj 9, noun 5, pron 4
+- 말하게: verb 74, adj 25
+- 기어다니고: verb 90, adj 5, noun 4
+- 멜로디는: noun 84, verb 11, adj 3
+- 살리는: verb 77, noun 17, adj 3
+- 신청할거야: verb 90, adj 8
+- 원한: verb 76, adj 21
+- 잠: noun 84, verb 11, adj 3
+- 먹는데: verb 89, adj 5, aux 4, noun 3
+- 이번엔: noun 84, verb 11, adj 3
+- 그분의: pron 68, noun 31
+- 주셨다고: aux 70, verb 18, adj 12
+- 천만: num 67, noun 17, verb 11, adj 3
+- 않잖아: aux 76, noun 10, verb 9, adj 6
+- 와도: verb 77, noun 17, adj 3
+- 자신에게: pron 82, noun 18
+- 쓸모: noun 90, aux 6, verb 4
+- 물건만: noun 84, verb 11, adj 3
+- 사요: verb 85, adj 6, noun 5, aux 3
+- 부탁하기가: verb 76, noun 24
+- 부끄럽네요: adj 82, verb 9, aux 6, noun 3
+- 낫또는: noun 84, verb 11, adj 3
+- 독하지만: adj 87, verb 10
+- 후레자식아: noun 80, verb 11, adj 5, aux 3
+- 인권: noun 89, num 7, verb 2
+- 낯가리는: verb 77, noun 17, adj 3
+- 찌기: verb 88, noun 8, adj 2
+- 시작했네: verb 78, adj 13, aux 4, noun 4
+- 내기를: noun 87, verb 10
+- 너와는: pron 72, noun 24, verb 3
+- 더욱: adv 68, noun 17, verb 11, adj 3
+- 졌지: verb 88, noun 6, adj 4
+- 짜야: verb 77, noun 17, adj 3
+- 엔딩: noun 84, verb 11, adj 3
+- 사기만: verb 81, noun 8, adj 5, pron 5
+- 선두는: noun 84, verb 11, adj 3
+- 이끌고: verb 90, adj 5, noun 4
+- 무척이나: adv 68, noun 29
+- 나뭇잎: noun 84, verb 11, adj 3
+- 걸릴까: verb 84, adj 7, noun 4, aux 2
+- 애같이: noun 90, adv 10
+- 텍사스나: noun 84, verb 11, adj 3
+- 그쯤에서: pron 68, noun 32
+- 쓸모없었어: adj 71, verb 19, noun 9
+- 카메라야: noun 89, verb 10
+- 있을려고: adj 68, verb 31
+- 쓰인: verb 69, noun 30
+- 정확하지: adj 73, verb 26
+- 않았음을: aux 67, noun 29, verb 3
+- 학습: noun 84, verb 11, adj 3
+- 조개껍데기를: noun 87, verb 10
+- 있단다: adj 79, verb 12, aux 6, noun 3
+- 단호했다: adj 69, verb 30
+- 받아들였어: verb 85, noun 9, aux 4
+- 좋아지기: adj 80, verb 11, noun 5, adv 3
+- 태권도: noun 84, verb 11, adj 3
+- 물게: verb 77, adj 12, noun 8
+- 감동적이었어요: noun 89, verb 9
+- 반년동안: noun 89, adv 10
+- 뭐할래: pron 68, verb 17, noun 8, aux 5, adv 2
+- 선보이고: verb 76, noun 22
+- 쏟아지는: verb 85, noun 11, adj 3
+- 박수: noun 84, verb 11, adj 3
+- 뽐내듯: verb 77, noun 17, adj 3
+- 싸웠다는: verb 86, adj 7, noun 4, aux 3
+- 시작한지: verb 88, noun 6, adj 4
+- 야채: noun 84, verb 11, adj 3
+- 최대: noun 77, verb 14, adj 5, aux 4
+- 자택: noun 84, verb 11, adj 3
+- 지키지: verb 88, noun 6, adj 4
+- 부드러워서: adj 89, verb 8, noun 4
+- 쉬지: verb 88, noun 6, adj 4
+- 열정적이지: noun 87, verb 10
+- 싫어하거든: verb 78, adj 13, noun 6, aux 3
+- 축하합니다: verb 90, adj 10
+- 있다고는: aux 75, verb 18, noun 6
+- 사전입니까: noun 86, pron 8, verb 4
+- 연락해: verb 89, adj 9
+- 악한: adj 88, verb 10
+- 보지도: verb 87, adj 6, aux 4, noun 2
+- 듣지도: verb 87, adj 6, aux 4, noun 2
+- 말하지도: verb 81, adj 16
+- 말라: aux 69, verb 22, noun 6
+- 찾으십시: verb 69, adv 13, noun 13, num 5
+- 그것만: pron 68, noun 17, verb 11, adj 3
+- 변해요: verb 85, adj 13
+- 아니지: adj 71, verb 21, noun 6
+- 정복한: verb 84, adj 15
+- 일년에: num 73, noun 26
+- 서너번: num 73, noun 14, adv 7, verb 4
+- 어렸다: adj 68, verb 31
+- 틀렸다고는: verb 85, aux 8, noun 6
+- 생리는: noun 84, verb 11, adj 3
+- 정신없을: adj 67, noun 29, verb 3
+- 터지는: verb 79, noun 12, adj 7
+- 할지도: aux 70, verb 20, adj 6, noun 2
+- 밀쳐질: verb 82, adj 9, noun 7
+- 해옵니다: verb 87, noun 8, adj 4
+- 어른이되면: noun 73, verb 20, adj 4
+- 교사가되고: noun 70, verb 23, adj 5
+- 행진해갈게: verb 77, adj 12, noun 8
+- 언젠간: adv 68, noun 17, verb 11, adj 3
+- 밝혀지게: verb 77, adj 12, noun 8
+- 친해졌다: adj 90, verb 10
+- 좋았던: adj 73, verb 25
+- 주신: verb 84, noun 9, adv 3, aux 3
+- 받아들이지: verb 76, noun 20
+- 고르게: adj 88, verb 9, noun 3
+- 나와서: verb 86, noun 6, adv 6
+- 편해요: adj 80, verb 18
+- 모기: noun 75, verb 21, adj 2
+- 종: noun 84, verb 11, adj 3
+- 짙은: adj 68, noun 29
+- 음료는: noun 84, verb 11, adj 3
+- 훤해졌구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 굽기는: noun 90, verb 7
+- 해드릴까요: verb 88, aux 8
+- 멋있다: adj 73, verb 24
+- 내려질: verb 82, adj 9, noun 7
+- 안좋아해: adv 68, verb 22, adj 9
+- 했을까: verb 90, adj 6, aux 3
+- 밥도: noun 84, verb 11, adj 3
+- 안벅고: adv 67, verb 23, adj 5, noun 4
+- 두십시오: aux 76, verb 22
+- 중간: noun 84, verb 11, adj 3
+- 반신반의합니다: verb 90, adj 10
+- 어리석은: adj 74, noun 25
+- 조롱합니다: verb 90, adj 10
+- 도'라고: noun 87, pron 7, verb 5
+- 꺼도: verb 77, noun 17, adj 3
+- 우리들하고: pron 68, verb 28, adj 3
+- 않으실래요: aux 80, verb 17
+- 즐거웠던: adj 70, verb 25, aux 3
+- 읽으면서도: verb 74, adj 13, noun 12
+- 즐거웠으면: adj 73, verb 23
+- 어디라고: pron 68, noun 18, verb 12
+- 사람한테서: noun 87, pron 10, verb 2
+- 오른: verb 76, adj 15, adv 5, noun 2, num 2
+- 안들고: adv 73, verb 24
+- 준다면: aux 72, verb 17, adj 8, noun 2
+- 설거지는: noun 79, verb 13, adj 7
+- 할게: verb 77, adj 12, noun 8
+- 들어온: verb 84, noun 14
+- 양모: noun 90, aux 6, verb 4
+- 로렌조는: noun 84, verb 11, adj 3
+- 봤군요: verb 85, adj 6, noun 5, aux 3
+- 내려졌어요: verb 81, adj 18
+- 맑아서: adj 78, verb 17, noun 3, aux 2
+- 전화해서: verb 86, adj 11, noun 3
+- 실종되었다고: verb 80, adj 16, aux 4
+- 특별: noun 84, verb 11, adj 3
+- 설: verb 77, noun 17, adj 3
+- 있으나: adj 75, verb 10, aux 7, noun 6
+- 걷지: verb 88, noun 6, adj 4
+- 열지: verb 88, noun 6, adj 4
+- 히말라야: noun 89, verb 10
+- 반대도: noun 84, verb 11, adj 3
+- 떨어지고: verb 85, adj 14
+- 불게: adj 79, verb 11, noun 8
+- 물드는: verb 77, noun 17, adj 3
+- 참치: noun 84, verb 7, adv 6, adj 3
+- 아껴: verb 77, noun 17, adj 3
+- 드려도: verb 88, aux 5, noun 5
+- 꺾을: verb 70, noun 29
+- 당시: noun 79, adv 13, num 5, verb 3
+- 열세살일: num 68, noun 24, verb 5, adv 2
+- 두살: num 73, noun 14, verb 11
+- 고를: verb 68, noun 31
+- 도와줘야: verb 77, noun 17, adj 3
+- 흐음: x 69, noun 26, adj 3
+- 보기에는: verb 88, noun 7, pron 5
+- 왔을지도: verb 89, adj 10
+- 한마리와: num 67, noun 29, verb 2
+- 키운다: verb 87, noun 8, adj 4
+- 여기에는: pron 72, verb 21, noun 7
+- 화내진: verb 88, adj 5, noun 4, aux 2
+- 이것보다: pron 71, noun 27
+- 필요할거야: adj 74, verb 23
+- 잠들어: verb 90, adj 5, adv 4
+- 주의하라: verb 89, noun 6, aux 2
+- 청증: noun 84, verb 11, adj 3
+- 생: noun 84, verb 11, adj 3
+- 한발: num 71, noun 19, adv 5, verb 3
+- 변화함을: verb 70, noun 29
+- 비닐: noun 80, verb 11, adj 8
+- 버렸는데: verb 89, adj 5, aux 4, noun 3
+- 높아야: adj 69, verb 20, aux 5, noun 5
+- 할텐데: aux 72, verb 16, adj 11
+- 달엔: noun 84, verb 11, adj 3
+- 공기는: noun 90, verb 7
+- 친구이기: noun 85, verb 14
+- 주시는: verb 84, noun 14, adv 2
+- 인터넷: noun 84, verb 11, adj 3
+- 퍼덕이는: verb 77, noun 17, adj 3
+- 빗고: verb 90, adj 5, noun 4
+- 움직였다: verb 89, noun 10
+- 시작이길: noun 70, verb 21, adj 6, aux 2
+- 외딴: art 67, noun 17, verb 11, adj 3
+- 일기예보는: noun 84, verb 11, adj 3
+- 꼬시는: verb 84, noun 14, adv 2
+- 어서: adv 68, noun 17, verb 11, adj 3
+- 숨기는: verb 74, noun 23
+- 찌꺼기: noun 75, verb 21, adj 2
+- 처리기를: noun 87, verb 10
+- 바꾸기: verb 88, noun 8, adj 2
+- 탄다고: verb 84, adj 12, aux 3
+- 후야: noun 84, verb 11, adj 3
+- 잡기로: verb 84, noun 11, pron 3
+- 뭐라: pron 67, verb 22, noun 6, aux 2
+- 기다려야: verb 77, noun 17, adj 3
+- 밤새도록: adv 68, verb 27, aux 3
+- 지불한: verb 76, adj 21
+- 룰: noun 84, verb 11, adj 3
+- 무관한: adj 88, verb 10
+- 들어맞을: verb 70, noun 29
+- 안되지: adv 68, verb 30
+- 귀여운데: adj 86, noun 8, verb 5
+- 어이: x 67, noun 31
+- 사귀든: verb 79, adj 9, noun 5, pron 4
+- 마음대로잖아: noun 76, verb 9, aux 9, adj 6
+- 존슨: noun 84, verb 11, adj 3
+- 제안했으며: verb 81, adj 17
+- 줄였다고: verb 84, adj 12, aux 3
+- 힘들었어: adj 71, verb 19, noun 9
+- 싶었다고: aux 70, adj 16, verb 14
+- 믿겠어요: verb 87, aux 8, adj 3, adv 3
+- 이긴다고: verb 84, adj 12, aux 3
+- 낮다는: adj 73, verb 19, noun 4, aux 3
+- 잠만: noun 84, verb 11, adj 3
+- 옳은: adj 68, noun 29
+- 커플: noun 84, verb 11, adj 3
+- 여럿이: num 67, noun 31
+- 빌려준: verb 86, noun 13
+- 안왔고: adv 67, verb 23, adj 5, noun 4
+- 제인도: noun 84, verb 11, adj 3
+- 안왔어: adv 72, verb 26
+- 받으실: verb 90, noun 7
+- 그녀눈: pron 68, noun 17, verb 11, adj 3
+- 바빴다고: adj 79, verb 18, aux 3
+- 아니겠어: adj 70, verb 25, noun 3
+- 닿게: verb 77, adj 12, noun 8
+- 변기는: noun 90, verb 7
+- 이쪽은: pron 68, noun 29
+- 달라져요: verb 79, adj 18
+- 등했지: noun 73, verb 20, adv 5
+- 티타늄: noun 84, verb 11, adj 3
+- 가볍다: adj 71, verb 20, noun 8
+- 에어백: noun 90, num 6, verb 4
+- 리콜: noun 84, verb 11, adj 3
+- 주라: verb 89, noun 6, aux 2
+- 시기에는: noun 74, verb 21, pron 5
+- 데려오기도: verb 81, noun 13, adj 5
+- 맺을: verb 70, noun 29
+- 끝냈을: verb 70, noun 29
+- 자기의: pron 73, noun 27
+- 작성했는지는: verb 84, pron 5, aux 5, noun 3, adj 2
+- 떠들지: verb 88, noun 6, adj 4
+- 말아주렴: aux 73, verb 20, noun 6
+- 여자라면: noun 86, verb 5, pron 4, adj 2
+- 니뽕: noun 84, verb 11, adj 3
+- 부릅니다: verb 86, adj 11, noun 2
+- 방긋: adv 68, noun 17, verb 11, adj 3
+- 왔었어: verb 86, noun 9, adj 4
+- 설득해: verb 89, adj 9
+- 계산합니까: verb 88, adj 10
+- 불가능할: adj 69, verb 30
+- 생겼네: verb 78, adj 13, aux 4, noun 4
+- 십억엔의: num 67, noun 31
+- 일으켜서: verb 77, noun 17, adj 3
+- 피고는: noun 81, verb 12, aux 3
+- 기대했니: verb 86, noun 6, adj 4, aux 4
+- 그녀로의: pron 68, noun 31
+- 쫌: adv 68, noun 17, verb 11, adj 3
+- 느꼈지만: verb 80, adj 9, noun 5, aux 3
+- 곰곰이: adv 68, noun 31
+- 소유한: verb 76, adj 21
+- 널리: adv 73, noun 24
+- 의사라고: noun 84, verb 12
+- 없었습니다: adj 69, verb 21, noun 8, aux 2
+- 추웠다더라: adj 72, verb 26
+- 보였기: verb 88, noun 8, adj 2
+- 아름다운지: adj 71, verb 21, noun 6
+- 못잤어요: adv 68, verb 25, adj 3, aux 2
+- 이야기에: noun 86, verb 9, aux 3
+- 그만하면: adj 72, verb 26
+- 주먹밥: noun 84, verb 11, adj 3
+- 없어지기: adj 80, verb 11, noun 5, adv 3
+- 즐길: verb 88, adj 6, noun 4, aux 2
+- 잔돈: noun 84, verb 11, adj 3
+- 가스파초는: noun 84, verb 11, adj 3
+- 식혀먹는: verb 77, noun 17, adj 3
+- 토마토: noun 84, verb 11, adj 3
+- 음악듣고: noun 70, verb 23, adj 5
+- 기억해요: verb 85, adj 13
+- 뒤엎지: verb 88, noun 6, adj 4
+- 오랫동안에: adv 73, noun 26
+- 않았어야: aux 68, verb 27, noun 4
+- 두시: num 71, adv 13, noun 13, verb 3
+- 쏘는: verb 77, noun 17, adj 3
+- 다녀야: verb 77, noun 17, adj 3
+- 추천해: verb 89, adj 9
+- 많구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 굴지마라: verb 89, noun 6, aux 2
+- 인접해: verb 89, adj 9
+- 스틱: noun 84, verb 11, adj 3
+- 곤란했다: adj 69, verb 30
+- 안했으면: adv 68, verb 23, adj 6
+- 멋대로: adv 80, noun 19
+- 좋아하게: verb 74, adj 25
+- 뿐이니까: noun 82, aux 8, verb 7, adj 3
+- 구차함이: noun 86, adj 13
+- 없어야한다: adj 67, verb 31
+- 두통: noun 86, adv 5, num 5, verb 3
+- 참거라: verb 89, noun 6, aux 2
+- 저것도: pron 68, noun 17, verb 11, adj 3
+- 자랑거리는: noun 84, verb 11, adj 3
+- 독파한: verb 76, adj 21
+- 띄어쓰기는: noun 90, verb 7
+- 까다로울까: adj 83, verb 14
+- 늦습니까: verb 89, adj 6, aux 4
+- 상어: noun 70, verb 25, adj 3
+- 멸종: noun 84, verb 11, adj 3
+- 위기에: noun 86, verb 9, aux 3
+- 미래는: noun 84, verb 11, adj 3
+- 것이지만: noun 88, aux 4, adv 3, verb 3
+- 카이트리오나는: noun 79, verb 17, num 3
+- 소: noun 84, verb 11, adj 3
+- 도둑: noun 84, verb 11, adj 3
+- 후진: noun 70, verb 21, adj 5, aux 2
+- 경기는: noun 90, verb 7
+- 어떠십니까: adj 73, verb 23, noun 3
+- 카리스마: noun 76, verb 17, adv 7
+- 넓어: adj 70, verb 25, noun 3
+- 없을까: adj 73, verb 23, aux 3
+- 않았었더라면: aux 74, adj 14, noun 8
+- 놀랐다는: verb 86, adj 7, noun 4, aux 3
+- 찾았지만: verb 85, aux 8, adj 4, noun 2
+- 아닌거: adj 70, noun 12, verb 11, aux 2, pron 2, x 2
+- 좋아진: adj 72, verb 21, noun 4, aux 2
+- 남겼고: verb 90, adj 5, noun 4
+- 놀라며: verb 87, noun 6, adj 5
+- 무의미했다: adj 69, verb 30
+- 이와: pron 68, noun 29, verb 2
+- 일어났는데: verb 89, adj 5, aux 4, noun 3
+- 걷기가: verb 76, noun 24
+- 귀찮다: adj 71, verb 20, noun 8
+- 싶어했어요: aux 70, verb 30
+- 엄격한: adj 82, verb 17
+- 섞인: verb 69, noun 30
+- 탐지기: noun 72, adj 14, verb 11, adv 3
+- 찾게: verb 77, adj 12, noun 8
+- 법이지: noun 87, verb 10
+- 같으니: adj 84, verb 13
+- 오거나: verb 86, adj 4, aux 3, pron 3, noun 3
+- 돌아가기: verb 88, noun 8, adj 2
+- 어려워졌다: adj 73, verb 25
+- 동굴: noun 87, adv 7, verb 4
+- 발음합니까: verb 88, adj 10
+- 가보기: verb 88, noun 8, adj 2
+- 거잖아: noun 76, verb 9, aux 9, adj 6
+- 중요해요: adj 80, verb 18
+- 떠날거야: verb 84, adj 6, aux 6, pron 2
+- 잘합니다: verb 90, adj 10
+- 그것의: pron 68, noun 31
+- 생각했었어: verb 88, adj 8, noun 3
+- 곳이라니: noun 73, verb 19, adj 4, aux 4
+- 겁나: adv 68, noun 17, verb 11, adj 3
+- 재미없는: adj 84, noun 14, verb 2
+- 이주: num 69, noun 21, adv 5, aux 3
+- 연다: verb 87, noun 8, adj 4
+- 조심스레: adv 68, noun 17, verb 11, adj 3
+- 환자: noun 74, verb 23
+- 건강해: adj 76, verb 22
+- 보였습니다: aux 68, verb 25, adj 6
+- 팍팍: adv 68, noun 17, verb 11, adj 3
+- 옮겨야할지가: verb 68, noun 29
+- 혼란스럽지: adj 89, verb 8, noun 2
+- 반이면: noun 85, verb 8, adv 3, pron 3
+- 도쿄: noun 84, verb 11, adj 3
+- 타워: noun 68, adj 24, verb 7
+- 본적: verb 71, noun 28
+- 먹기도: verb 81, noun 13, adj 5
+- 마시기도: verb 81, noun 13, adj 5
+- 돕기: verb 88, noun 8, adj 2
+- 아웃리치: noun 84, verb 7, adv 6, adj 3
+- 일정하지: adj 73, verb 26
+- 뿔: noun 84, verb 11, adj 3
+- 잡아야: verb 87, aux 5, noun 5, adj 3
+- 평가받는: verb 77, noun 17, adj 3
+- 살게: verb 77, adj 12, noun 8
+- 파리는: noun 84, verb 11, adj 3
+- 간다고: verb 84, adj 12, aux 3
+- 몰랐니: verb 86, noun 6, adj 4, aux 4
+- 언제일까: adv 68, verb 18, adj 7, noun 4, aux 2
+- 녹아내린듯이: verb 84, noun 10, adj 6
+- 선한: adj 88, verb 10
+- 태국어도: noun 81, verb 12, adj 3
+- 말동무는: noun 90, verb 10
+- 월이면: noun 85, verb 8, adv 3, pron 3
+- 있었나요: aux 70, verb 26, adj 3
+- 통해서: verb 86, adj 11, noun 3
+- 치러야: verb 88, noun 11
+- 치밀한: adj 88, verb 10
+- 외래어: noun 70, verb 25, adj 3
+- 불필요한: adj 88, verb 10
+- 부담만: noun 84, verb 11, adj 3
+- 것이거든요: noun 76, verb 14, adj 9
+- 같았나: adj 75, aux 14, noun 6, verb 3
+- 마다: prep 67, verb 20, noun 8, adj 4
+- 가오슝: noun 84, verb 11, adj 3
+- 발령받았는데: verb 85, adj 7, aux 7
+- 있구나: adj 79, noun 8, verb 5, adv 2, aux 2, pron 2
+- 언어야: noun 70, verb 27
+- 선생님이었었어: noun 76, verb 19, adj 4
+- 약해: adj 76, verb 22
+- 말씀하시는: verb 84, noun 14, adv 2
+- what: x 89, noun 6, verb 4
+- car: x 80, noun 14, verb 4
+- 퍼즐: noun 84, verb 11, adj 3
+- 결합한: verb 76, adj 21
+- 아주머니깨서: noun 84, verb 11, adj 3
+- 와서는: verb 74, noun 23
+- 이아이도: art 73, noun 17, adv 6, verb 3
+- 아이한테도: noun 79, pron 19
+- 팔라고: verb 79, noun 18
+- 탐: noun 84, verb 11, adj 3
+- 이것들이: pron 67, noun 31
+- 걸려있는: verb 86, noun 8, adj 6
+- 당신이라면: pron 70, noun 29
+- 인접: noun 84, verb 11, adj 3
+- 밧줄도: noun 84, verb 11, adj 3
+- 우리팀이: pron 67, noun 31
+- 사람이군: noun 80, verb 11, aux 7
+- 서류: noun 84, verb 11, adj 3
+- 신중하길: adj 83, verb 15
+- 필요했던: adj 70, verb 30
+- 베면: verb 87, noun 6, adj 4
+- 찌지: verb 88, noun 6, adj 4
+- 누군가인: pron 68, noun 30, verb 3
+- 많을수록: adj 69, verb 23, noun 3, adv 2
+- 자애로워질: adj 76, verb 16, noun 7
+- 낮아서: adj 78, verb 17, noun 3, aux 2
+- 켜고: verb 90, adj 5, noun 4
+- 대지: verb 88, noun 6, adj 4
+- 깨어있는: verb 86, noun 8, adj 6
+- 꿈꾸고: verb 90, adj 5, noun 4
+- 뭘로: pron 67, noun 30
+- 때렸니: verb 86, noun 6, adj 4, aux 4
+- 기쁨도: noun 84, verb 11, adj 3
+- 슬픔도: noun 84, verb 11, adj 3
+- 계속되지는: verb 79, noun 12, adj 7
+- 개도: noun 84, verb 11, adj 3
+- 닷새만: noun 84, verb 11, adj 3
+- 당신에게는: pron 86, noun 13
+- 신주는: noun 77, verb 19, adv 3
+- 강해서: adj 78, verb 19, noun 3
+- 별명이: noun 88, num 12
+- 덮으면: verb 90, adj 6
+- 얘기해드렸잖아요: verb 86, adj 13
+- 메뚜기도: noun 80, verb 14, adj 5
+- 물벌레도: noun 84, verb 11, adj 3
+- 고파서: adj 88, noun 8, verb 3
+- 전기: noun 75, verb 21, adj 2
+- 승리합니다: verb 90, adj 10
+- 없더라도: adj 79, noun 11, verb 8
+- 잃지: verb 88, noun 6, adj 4
+- 행복해하네: verb 79, adj 19
+- cd: noun 84, verb 11, adj 3
+- 처리할겁니다: verb 87, noun 8, adj 4
+- 보기만큼: verb 70, noun 26
+- 저런걸: art 69, verb 13, adj 8, noun 5, pron 2, aux 2
+- 있으리라고: adj 71, verb 20, noun 9
+- 나서는: aux 67, noun 23, verb 7
+- 못봤어: adv 70, verb 29
+- 멋있게: adj 85, verb 11, noun 3
+- 하와이안: noun 90, adv 5, adj 3
+- 반바지: noun 73, verb 21, adj 4
+- 좋아했지만: verb 90, adj 7
+- 익숙해졌다: adj 90, verb 10
+- 귀찮습니다: adj 73, verb 25
+- 먹어봤네요: verb 76, adj 15, aux 6, noun 3
+- 맛있네요: adj 82, verb 9, aux 6, noun 3
+- 평가서도: noun 84, verb 11, adj 3
+- 해서든: verb 79, adj 9, noun 5, pron 4
+- 한명이: num 79, noun 21
+- 본인: pron 68, noun 30, verb 3
+- 왔었을: verb 85, adj 6, noun 5, aux 3
+- 재미있지는: adj 74, verb 13, noun 12
+- 그래야: verb 77, noun 17, adj 3
+- 울었어: verb 86, noun 9, adj 4
+- 신경쓰지: noun 73, verb 21, adj 4
+- 형성되었는지를: verb 81, noun 12, aux 8
+- 교통대: noun 77, verb 14, adj 5, aux 4
+- 고장났었다: noun 73, verb 25
+- 수칙: noun 84, verb 11, adj 3
+- 빼어날: adj 73, verb 23, noun 3
+- 자세히는: adv 73, verb 18, noun 7
+- 바뀌었습니다: verb 87, noun 8, adj 3, aux 2
+- 성황묘: noun 84, verb 11, adj 3
+- 야시장도: noun 84, verb 11, adj 3
+- 들를: verb 68, noun 31
+- 미끄러우니까: adj 90, verb 7
+- 좋아보이지: adj 68, noun 20, verb 10
+- 팝: noun 84, verb 11, adj 3
+- 누구인가: pron 73, noun 26
+- 잃어버렸지만: verb 80, adj 9, noun 5, aux 3
+- 선물만: noun 84, verb 11, adj 3
+- 받아도: verb 84, adj 6, aux 5, noun 5
+- 가기도: verb 81, noun 13, adj 5
+- 비밀: noun 84, verb 11, adj 3
+- 주기: verb 88, noun 8, adj 2
+- 사기도: verb 81, noun 13, adj 5
+- 줬는데: verb 89, adj 5, aux 4, noun 3
+- 얘도: pron 68, noun 17, verb 11, adj 3
+- 줬네: verb 78, adj 13, aux 4, noun 4
+- 일치지: noun 73, verb 25
+- 기기에: noun 86, verb 9, aux 3
+- 받아서: verb 84, adj 12, noun 3, aux 2
+- 호걸: noun 72, verb 13, adj 8, pron 2, aux 2, art 2
+- 쳐다보는: verb 77, noun 17, adj 3
+- 먹으며: verb 86, adj 8, aux 5
+- 있는가: adj 77, verb 14, noun 6, aux 3
+- 마리만: noun 84, verb 11, adj 3
+- 소수: noun 84, verb 11, adj 3
+- 폴더: noun 84, verb 11, adj 3
+- 행합니다: verb 90, adj 10
+- 화면: noun 73, verb 20, adj 4
+- 머물러야: verb 88, noun 11
+- 버렸길: aux 69, verb 21, adj 6, noun 4
+- 익숙해: adj 76, verb 22
+- 더워서라기: adj 69, verb 21, noun 8
+- 습해서야: adj 73, noun 11, verb 10, adv 6
+- 지게: verb 77, adj 12, noun 8
+- 수정해서: verb 86, adj 11, noun 3
+- 말해주는: verb 86, noun 10, adv 3
+- 유럽: noun 84, verb 11, adj 3
+- 연합: noun 84, verb 11, adj 3
+- 공용어: noun 70, verb 25, adj 3
+- 오해: noun 68, verb 22, adj 9
+- 잠겨있어서: verb 88, adj 9
+- 물어보던데: verb 82, aux 12, adj 3
+- 온수: noun 84, verb 11, adj 3
+- 담을: verb 70, noun 29
+- 노랑머리는: noun 84, verb 11, adj 3
+- 디에고는: noun 81, verb 12, aux 3
+- 감고: verb 90, adj 5, noun 4
+- 자랑스럽단다: adj 79, verb 12, aux 6, noun 3
+- 아들아: noun 80, verb 11, adj 5, aux 3
+- 하십시오: verb 89, aux 10
+- 서고: verb 90, adj 5, noun 4
+- 양동이는: noun 84, verb 11, adj 3
+- 떠났지: verb 88, noun 6, adj 4
+- 직업도: noun 84, verb 11, adj 3
+- 잃었지: verb 85, adj 6, aux 5, noun 3
+- 사실이야--그: noun 84, verb 11, adj 3
+- 까지만: prep 67, verb 13, adj 9, noun 5, aux 3
+- 상사였거든: noun 72, adj 13, verb 11, aux 3
+- 새하얗고: adj 72, verb 23, noun 4
+- 피부야: noun 84, verb 11, adj 3
+- 구워: verb 73, adj 24
+- 모닝콜: noun 84, verb 11, adj 3
+- 자기방에만: pron 71, noun 24, verb 2
+- 앉지: verb 88, noun 6, adj 4
+- 나가자: verb 90, noun 8
+- 보이던데: aux 79, verb 16, adj 3
+- 뜨니: verb 86, noun 6, adj 4, aux 4
+- 속인: verb 69, noun 30
+- 나무란다: verb 88, adj 8, noun 3
+- scam: x 80, noun 14, verb 4
+- 시작하나: verb 77, noun 17, adj 3
+- 알아챘다: verb 87, noun 8, adj 4
+- 않았나요: aux 70, verb 26, adj 3
+- 읽을수록: verb 90, noun 3, adj 2, adv 2
+- 도우려고요: verb 85, adj 6, noun 5, aux 3
+- 속도: noun 84, verb 11, adj 3
+- 유지하느라고: verb 79, noun 18
+- 힘들었다더라: adj 72, verb 26
+- 무시무시한: adj 88, verb 10
+- 행해지는: verb 79, noun 12, adj 7
+- 안겨주자: verb 90, noun 8
+- 워: x 67, noun 17, verb 11, adj 3
+- 좋겠습니다: adj 69, verb 31
+- 드리겠어요: aux 74, verb 20, adj 3, adv 3
+- 다가와: verb 69, noun 29
+- 부재중이라고해서: noun 69, verb 19, adj 11
+- 느낀다고: verb 84, adj 12, aux 3
+- 둥근: adj 74, noun 20, verb 4
+- 외워두렴: verb 87, aux 6, noun 6
+- 횝쓸고: verb 90, adj 5, noun 4
+- 있씁니다: aux 67, verb 20, noun 8, adj 4
+- 마련해: verb 89, adj 9
+- 집어주십시오: verb 89, aux 10
+- 정도나: noun 84, verb 11, adj 3
+- 다름을: adj 72, noun 28
+- 쓰인다고는: verb 85, aux 8, noun 6
+- 모르겠단다: verb 79, adj 12, aux 6, noun 3
+- 조각씩: noun 84, adv 10, num 3, verb 2
+- 확실해요: adj 80, verb 18
+- 안드레아: noun 80, verb 11, adj 5, aux 3
+- 치인: verb 69, noun 30
+- 하던데요: verb 84, aux 11, adj 4
+- 목표야: noun 84, verb 11, adj 3
+- 답해: verb 89, adj 9
+- 그랬다: verb 87, noun 8, adj 4
+- 외로워서: adj 89, verb 8, noun 4
+- 보잘것: verb 74, pron 10, noun 10, aux 5
+- 과도한: adj 88, verb 10
+- 맞게: verb 77, adj 12, noun 8
+- 해질: noun 74, verb 16, adj 9
+- 물들어: verb 90, adj 5, adv 4
+- 시연하게: verb 74, adj 25
+- 해주라: aux 69, verb 22, noun 6
+- 말없이: adv 85, noun 15
+- 들어오면: verb 90, adv 6
+- 깨끗이: adv 68, noun 31
+- 양치질도: noun 84, verb 11, adj 3
+- 그닥이지만: adv 70, noun 21, aux 4, verb 3
+- 노력한: verb 76, adj 21
+- 그랬다고: verb 84, adj 12, aux 3
+- 누구하고: pron 74, verb 24
+- 는다: verb 87, noun 8, adj 4
+- 비싸보이는: adj 69, noun 17, verb 11
+- 쳤는데: verb 89, adj 5, aux 4, noun 3
+- 노력해: verb 89, adj 9
+- 보세요: aux 70, verb 26, adj 2
+- 고맙다고: adj 79, verb 18, aux 3
+- 스르륵: adv 68, noun 17, verb 11, adj 3
+- 튀기면: verb 87, noun 6, adj 4
+- 바삭해져요: adj 85, verb 12
+- 궁금해요: adj 80, verb 18
+- 싶었는데: aux 74, verb 11, noun 11, adj 4
+- 나왔냐고: verb 85, adj 13
+- 바빴는지: adj 70, verb 27
+- 젊었으면: adj 73, verb 23
+- 잃었음을: verb 70, noun 29
+- 떠나라는: verb 73, noun 25
+- 계속하게: verb 74, adj 25
+- 저쪽입니다: pron 68, noun 30
+- 위로해: verb 89, adj 9
+- 불량: noun 84, verb 11, adj 3
+- 운전면허: noun 84, verb 11, adj 3
+- 나올겁니다: verb 87, noun 8, adj 4
+- 춤추기: verb 88, noun 8, adj 2
+- 번역했습니까: verb 89, adj 6, aux 4
+- 액체: noun 89, adv 8, verb 2
+- 끓일: verb 72, noun 24, adv 2
+- 치러질: verb 82, adj 9, noun 7
+- 않는거야: aux 76, verb 21, adj 2
+- 부럽다고: adj 79, verb 18, aux 3
+- 얼어있어서: verb 88, adj 9
+- 해준다: aux 72, verb 25, noun 2
+- 불가능합니다: adj 76, verb 23
+- 털어놓기를: verb 77, noun 20
+- 걸었대: verb 80, noun 10, adj 5, aux 4
+- 엽서: noun 84, verb 11, adj 3
+- 엿보였다: verb 89, noun 10
+- 예정이었다는게: noun 70, verb 22, adj 4, aux 3
+- 시키는: verb 84, noun 15
+- 다듬는: verb 77, noun 17, adj 3
+- 늑대: noun 77, verb 14, adj 5, aux 4
+- 아니어도: adj 70, noun 14, verb 12
+- 주겠니: aux 73, verb 23
+- 폭풍설: noun 84, verb 11, adj 3
+- 매고: verb 90, adj 5, noun 4
+- 사람있습니까: noun 68, verb 22, adj 6, aux 4
+- 한잔: noun 84, verb 11, adj 3
+- 아프세요: adj 69, verb 26, aux 3
+- 지루하지: adj 73, verb 26
+- 할수있게: verb 78, adj 18, noun 3
+- 많네: adj 79, verb 11, aux 4, noun 4
+- 모름지기: adv 70, adj 14, verb 11, noun 5
+- 갈거다: verb 87, noun 8, adj 4
+- 낸다: verb 87, noun 8, adj 4
+- 아파: adj 69, noun 17, verb 11
+- 타고난: verb 88, adj 7, noun 5
+- 생각보단: noun 87, pron 8, verb 2
+- 날짜는: noun 84, verb 11, adj 3
+- 생각하네: verb 79, adj 19
+- 누구로부터야: pron 68, noun 17, verb 11, adj 3
+- 고상해: adj 76, verb 22
+- 보이진: aux 68, verb 21, adj 5, noun 4
+- 나네요: verb 76, adj 15, aux 6, noun 3
+- 이러면: verb 87, noun 6, adj 4
+- 한기를: noun 87, verb 10
+- 느껴서: verb 77, noun 17, adj 3
+- 켰다: verb 87, noun 8, adj 4
+- 읽어보십시오: verb 89, aux 10
+- 떠들썩한: adj 88, verb 10
+- 인터넷만: noun 84, verb 11, adj 3
+- 풍덩: adv 68, noun 17, verb 11, adj 3
+- 그렇다: adj 71, verb 20, noun 8
+- 하더라도: verb 75, adj 13, noun 11
+- 날엔: noun 84, verb 11, adj 3
+- 놀아요: verb 86, adj 13
+- 안전하지: adj 83, verb 17
+- 틈새: noun 87, adv 7, verb 4
+- 슬쩍: adv 68, noun 17, verb 11, adj 3
+- 생각이신가요: noun 76, adj 11, aux 8, verb 2, pron 2
+- 들어가: verb 68, noun 29
+- 배우게: verb 77, adj 12, noun 8
+- 지긋지긋해: adj 76, verb 22
+- 구성없게: noun 75, adj 12, verb 11
+- 너로: pron 67, noun 30
+- 낭시는: noun 80, verb 17, adv 2
+- 주면: verb 87, noun 6, adj 4
+- 춤출: verb 84, noun 14
+- 선: noun 84, verb 11, adj 3
+- 불타서: verb 77, noun 17, adj 3
+- 가는게: verb 89, adj 4, noun 4, aux 3
+- 제외하고는: verb 79, noun 15, aux 3
+- 얼어있는: verb 86, noun 8, adj 6
+- 쫓겨난: verb 88, adj 7, noun 5
+- 이곳을: pron 67, noun 29, verb 3
+- 여자아이였다: noun 76, verb 22
+- 굽는건: verb 84, adj 8, noun 5
+- 쳤네: verb 78, adj 13, aux 4, noun 4
+- 웃긴: verb 85, adj 9, pron 3, noun 3
+- 쓸데없어: adj 84, verb 8, noun 7
+- 노란선: adj 70, noun 23, verb 3
+- 안쪽에: noun 88, pron 11
+- 배고프다: adj 89, verb 8, noun 3
+- 감동한: verb 76, adj 21
+- 솔잎차라면: noun 86, verb 5, pron 4, adj 2
+- 학교도: noun 84, verb 11, adj 3
+- 소금도: noun 84, verb 11, adj 3
+- 짜다: adj 71, verb 20, noun 8
+- 른: x 67, noun 17, verb 11, adj 3
+- 빠: x 67, noun 17, verb 11, adj 3
+- 나온다는: verb 86, adj 7, noun 4, aux 3
+- 좋아보였는데: adj 72, verb 22, aux 4, noun 3
+- 커보인다더니: adj 71, verb 26
+- 좋아보이네: adj 73, noun 16, aux 5, adv 4, verb 2
+- 쇼핑해: verb 89, adj 9
+- 같은지: adj 82, verb 11, aux 5
+- 농담하는게: verb 89, adj 4, noun 4, aux 3
+- 무섭니: adj 70, verb 19, noun 6, aux 4
+- 푸릅니다: adj 78, verb 20, noun 2
+- 춘다고: verb 84, adj 12, aux 3
+- 한가운데: noun 74, adj 20, verb 5
+- 퇴치해: verb 89, adj 9
+- 너무너무: adv 71, noun 21, num 4, verb 3
+- 미안해서: adj 78, verb 19, noun 3
+- 안될: adv 69, verb 27, noun 3
+- 리더는: noun 84, verb 11, adj 3
+- 졸업해: verb 89, adj 9
+- 싶어졌고: aux 68, verb 23, adj 5, noun 4
+- 싶어졌으며: aux 72, verb 20, adj 8
+- 싶어졌다: aux 70, verb 28
+- 미치는: verb 86, noun 9, adj 4
+- 붙었어: verb 86, noun 9, adj 4
+- 생기: noun 75, verb 21, adj 2
+- 젊어: adj 70, verb 25, noun 3
+- 벚나무: noun 88, adv 4, num 4, verb 3
+- 잭슨: noun 84, verb 11, adj 3
+- 받았을: verb 86, noun 7, adj 4, aux 4
+- 유용해요: adj 80, verb 18
+- 돌아: verb 78, noun 13, adj 5, aux 3
+- 왔어죠: verb 77, noun 11, adj 8, aux 4
+- 노래할래: verb 84, noun 8, aux 5, adv 2
+- 나한테도: pron 86, noun 12
+- 아팠다: adj 71, verb 20, noun 8
+- 고치는: verb 86, noun 9, adj 4
+- 불가능해: adj 76, verb 22
+- 우리들을: pron 73, noun 27
+- 느렸었는지: adj 79, verb 20
+- 그대가: pron 73, noun 26
+- 많지만: adj 76, verb 13, noun 5, aux 3
+- 그에겐: pron 85, noun 14
+- 많이있다: adv 68, verb 24, adj 6
+- 얇은: adj 68, noun 29
+- 먹었잖아: verb 77, aux 10, adj 9, noun 4
+- 들이세요: verb 86, noun 12
+- 계좌: noun 84, verb 11, adj 3
+- 알려주시면: verb 84, adj 9, aux 5
+- 의욕: noun 84, verb 11, adj 3
+- 정체불명의: noun 86, num 14
+- 뭘했든간에: pron 70, noun 26, verb 3
+- 뭉툭해졌어: adj 75, verb 24
+- 넣고: verb 90, adj 5, noun 4
+- 연착: noun 84, verb 11, adj 3
+- 체코슬로바키아: noun 80, verb 11, adj 5, aux 3
+- 벗어나야: verb 85, num 7, noun 7
+- 어렸었는데: adj 71, verb 11, noun 11, aux 7
+- 하나랑: num 67, noun 30
+- 다퉜다: verb 87, noun 8, adj 4
+- 않겠어요: aux 74, verb 20, adj 3, adv 3
+- 전화기를: noun 87, verb 10
+- 쾅: adv 68, noun 17, verb 11, adj 3
+- 고수입: noun 84, verb 11, adj 3
+- 잘생겼고: verb 90, adj 5, noun 4
+- 싶다니: aux 76, verb 19, noun 3, adj 3
+- 개념도: noun 84, verb 11, adj 3
+- 예시나: noun 84, verb 11, adj 3
+- 활용해: verb 89, adj 9
+- 알기: verb 88, noun 8, adj 2
+- 쉬움을: adj 71, noun 28
+- 여기에서는: pron 68, noun 32
+- 또다른: adv 71, adj 15, verb 9, noun 2, num 2
+- 해결: noun 84, verb 11, adj 3
+- 한껏: adv 68, noun 17, verb 11, adj 3
+- 낮게: adj 79, verb 11, noun 8
+- 마셔도: verb 77, noun 17, adj 3
+- 검토했지만: verb 90, adj 7
+- 그애가: art 72, noun 26
+- 걔라면: pron 71, noun 20, verb 5, adj 2
+- 깨물고도: verb 80, adj 6, noun 6, prep 6
+- 애라고: noun 84, verb 12
+- 이유도: noun 84, verb 11, adj 3
+- 나오니: verb 86, noun 6, adj 4, aux 4
+- 막는지야: verb 76, noun 22
+- 카드도: noun 84, verb 11, adj 3
+- 계좌도: noun 84, verb 11, adj 3
+- 내년이면: noun 85, verb 8, adv 3, pron 3
+- 살아있을까: verb 90, adj 6, aux 3
+- 뭔: art 67, noun 17, verb 11, adj 3
+- 넘었거든: verb 78, adj 13, noun 6, aux 3
+- 중독자였다니: noun 70, verb 19, aux 9, adj 3
+- 집에가는: noun 79, verb 17
+- 넘는: verb 77, noun 17, adj 3
+- 멍청하지도: adj 83, verb 15
+- 둔하지도: adj 83, verb 15
+- 어리석다: adj 71, verb 20, noun 8
+- 그때는: noun 84, verb 11, adj 3
+- 몰랐어서: verb 88, adj 9
+- 죽이기: verb 80, noun 19
+- 없었지: adj 73, verb 19, aux 5, noun 3
+- 차마: adv 73, verb 17, noun 9
+- 잇지: verb 88, noun 6, adj 4
+- 만무하지: adj 73, verb 26
+- 않나: aux 67, noun 17, verb 11, adj 3
+- 게을러: adj 68, verb 28, noun 3
+- 지려는: aux 71, verb 24, noun 5
+- 만났을까: verb 90, adj 6, aux 3
+- 걸까요: noun 72, verb 19, adj 6, aux 3
+- 넣고있어요: verb 86, adj 12
+- 싫은데: adj 85, aux 9, verb 3
+- 옮기기에는: verb 88, noun 7, pron 5
+- 무겁다: adj 71, verb 20, noun 8
+- 로그오프합니다: verb 90, adj 10
+- 와주었다면: verb 78, adj 14, noun 6
+- 반짝이는: verb 77, noun 17, adj 3
+- 찌푸린: verb 88, noun 7, adj 5
+- 나가야: verb 85, noun 14
+- 외로웠다고: adj 79, verb 18, aux 3
+- 익었어요: verb 89, aux 5, noun 5
+- 달렸다면: verb 84, adj 8, aux 5, noun 2
+- 있으라고: adj 68, noun 18, verb 12
+- 매: adv 68, noun 17, verb 11, adj 3
+- 것같아: noun 88, adj 7, verb 4
+- 시간째: noun 81, num 14, verb 3
+- 한참: adv 68, noun 17, verb 11, adj 3
+- 양: noun 84, verb 11, adj 3
+- 이것들은: pron 68, noun 29
+- 인사도: noun 84, verb 11, adj 3
+- 보이는구나: aux 69, adj 13, noun 8, verb 5, adv 2, pron 2
+- 모금: noun 86, adv 10, verb 3
+- 슬프네: adj 79, verb 11, aux 4, noun 4
+- 가수같다: noun 74, verb 20, adj 4
+- 체포되었지: verb 85, adj 6, aux 5, noun 3
+- 편안했다: adj 69, verb 30
+- 고장났어요: noun 74, verb 23
+- 씻기는: verb 74, noun 23
+- 기간동안: noun 89, adv 10
+- 빠리에서만: noun 85, num 7, verb 3
+- 짧게: adj 79, verb 11, noun 8
+- 머물렀기: verb 88, noun 8, adj 2
+- 아쉬웠다: adj 79, verb 20
+- 나눠: verb 77, noun 17, adj 3
+- 둘둘: adv 68, noun 17, verb 11, adj 3
+- 둘러싼: verb 77, noun 17, adj 3
+- 발생한: verb 76, adj 21
+- 사건: noun 80, verb 9, adj 4, pron 3, adv 3
+- 감시카메라: noun 73, verb 22, aux 2
+- 샅샅이: adv 68, noun 31
+- 둔한: adj 88, verb 10
+- 걸기: verb 88, noun 8, adj 2
+- 넣어서: verb 88, adj 9
+- 재밌기도: adj 72, verb 14, noun 13
+- 영리하기도: adj 82, verb 12, noun 5
+- 같음과: adj 73, noun 27
+- 통찰력도: noun 84, verb 11, adj 3
+- 가지기도: verb 81, noun 13, adj 5
+- 주기도: verb 81, noun 13, adj 5
+- 넣지: verb 88, noun 6, adj 4
+- 찌를: verb 68, noun 31
+- 뿌리뽑는: verb 77, noun 17, adj 3
+- 무덥고: adj 72, verb 23, noun 4
+- 저들에게: pron 70, noun 29
+- 어기는: verb 74, noun 23
+- 말아야할지: aux 71, verb 26
+- 하시나: verb 77, noun 17, adj 3
+- 불편할까: adj 75, verb 23
+- 드려: aux 68, verb 26, noun 3
+- 사라져서: verb 85, adj 9, noun 5
+- 넘겨받아야: verb 87, aux 5, noun 5, adj 3
+- 할지모: aux 73, noun 23, verb 4
+- 하거나: verb 86, adj 4, aux 3, pron 3, noun 3
+- 특정한: adj 88, verb 10
+- 갖게: verb 77, adj 12, noun 8
+- 몇명이: num 79, noun 21
+- 싫습니다: adj 73, verb 25
+- 베고: verb 90, adj 5, noun 4
+- 들면: verb 87, noun 6, adj 4
+- 식탁: noun 84, verb 11, adj 3
+- 먹을지도: verb 89, adj 10
+- 불안정하고: adj 81, verb 18
+- 웰컴: noun 84, verb 11, adj 3
+- 오르간: noun 84, verb 11, adj 3
+- 답: noun 84, verb 11, adj 3
+- 괴롭힌다고: verb 84, adj 12, aux 3
+- 하신다면: verb 84, adj 8, aux 5, noun 2
+- 교과서: noun 84, verb 11, adj 3
+- 문제나: noun 84, verb 11, adj 3
+- 야스쿠니: noun 73, verb 19, adj 4, aux 4
+- 일고: verb 90, adj 5, noun 4
+- 건조한: adj 88, verb 10
+- 생각이니까: noun 82, aux 8, verb 7, adj 3
+- 누구에게도: pron 83, noun 11, adj 5
+- 자그마한: adj 88, verb 10
+- 있으면서도: adj 79, noun 12, verb 8
+- 수백개의: num 67, noun 31
+- 흥미롭다: adj 71, verb 20, noun 8
+- 어디가서: pron 72, verb 21, noun 6
+- 세기에: noun 86, verb 9, aux 3
+- 하츠모우데는: noun 84, verb 11, adj 3
+- 한다라는: verb 73, noun 25
+- 굳었어: verb 86, noun 9, adj 4
+- 괜찮으면: adj 73, verb 23
+- 저녁밥: noun 84, verb 11, adj 3
+- 안하니까: adv 68, verb 18, adj 7, noun 4, aux 2
+- 들려준: verb 86, noun 13
+- 인데: aux 70, verb 14, adj 9, noun 6
+- 없었잖아: adj 76, verb 10, aux 10, noun 4
+- 건널: verb 77, noun 17, adj 3
+- 진수: noun 84, verb 11, adj 3
+- 도와주신: verb 84, noun 9, adv 3, aux 3
+- 끔찍해: adj 76, verb 22
+- 임금: noun 86, adv 10, verb 3
+- 소득: noun 84, verb 11, adj 3
+- 집값: noun 84, verb 11, adj 3
+- 빈곤도: noun 84, verb 11, adj 3
+- 계속되자: verb 90, noun 8
+- 들어도: verb 79, noun 14, adj 3
+- 쓸모없는: adj 84, noun 14, verb 2
+- 안좋다: adv 67, verb 20, noun 8, adj 4
+- 전시되기: verb 88, noun 8, adj 2
+- 건너: verb 77, noun 17, adj 3
+- 구스타보는: noun 84, verb 11, adj 3
+- 본래: adv 69, verb 17, noun 8, aux 5
+- 묶였다: verb 89, noun 10
+- 계곡: noun 84, verb 11, adj 3
+- 엷은: adj 68, noun 29
+- 피어올라: verb 89, noun 6, aux 2
+- 섬머: noun 87, x 7, verb 4
+- 만드네: verb 78, adj 13, aux 4, noun 4
+- 싶던: aux 70, verb 25, adj 3
+- 남지: verb 88, noun 6, adj 4
+- 않았어요: aux 75, verb 24
+- 짓는: verb 77, noun 17, adj 3
+- 코빼기도: noun 80, verb 14, adj 5
+- 믿길: verb 88, adj 6, noun 4, aux 2
+- 순진해: adj 76, verb 22
+- 차이는: noun 84, verb 11, adj 3
+- 말만: noun 84, verb 11, adj 3
+- 류현진: noun 70, verb 21, adj 5, aux 2
+- 그렸나: verb 77, noun 17, adj 3
+- 낯선이를: adj 67, noun 31
+- 그랬듯이: verb 84, noun 10, adj 6
+- 유치했었어: adj 75, verb 21, noun 3
+- 갔는데: verb 89, adj 5, aux 4, noun 3
+- 감동해서: verb 86, adj 11, noun 3
+- 프로듀서: noun 84, verb 11, adj 3
+- 에요: aux 70, verb 19, adj 6, noun 5
+- 최근엔: noun 84, verb 11, adj 3
+- 실컷: adv 68, noun 17, verb 11, adj 3
+- 얻어먹지도: verb 87, adj 6, aux 4, noun 2
+- 했었잖아: aux 77, verb 10, adj 9, noun 4
+- 그렇긴: adj 76, verb 18, pron 3, noun 3
+- 목욕: noun 84, verb 11, adj 3
+- 톰보고: noun 70, verb 26, pron 3
+- 출까요: verb 85, adj 6, noun 5, aux 3
+- 즐기자: verb 90, noun 8
+- 읽는것만으로도: verb 74, noun 19, prep 7
+- 심각했는지: adj 70, verb 27
+- 주었어요: verb 89, aux 5, noun 5
+- 빠르네: adj 79, verb 11, aux 4, noun 4
+- 십까지: num 67, noun 25, adv 3, adj 2
+- 셀: verb 77, noun 17, adj 3
+- 안좋은: adv 67, noun 29
+- 납니다: verb 87, noun 8, adj 4
+- 멍청해: adj 76, verb 22
+- 삼아: verb 78, noun 13, adj 5, aux 3
+- 말했잖아요: verb 86, adj 13
+- 회의실이지: noun 87, verb 10
+- 일어날까: verb 84, adj 7, noun 4, aux 2
+- 오가는: verb 84, noun 12
+- 들으니: verb 79, adj 18
+- 넷이다: num 68, noun 31
+- 실제다: noun 74, verb 20, adj 4
+- 뛰어나다고: adj 79, verb 18, aux 3
+- 사줬니: verb 86, noun 6, adj 4, aux 4
+- 긋는: verb 77, noun 17, adj 3
+- 들으며: verb 86, adj 8, aux 5
+- 건너다가: verb 84, noun 9, conj 5, aux 2
+- 치일: verb 72, noun 24, adv 2
+- 부었어: verb 86, noun 9, adj 4
+- 토대로: noun 86, adv 14
+- 머리는: noun 84, verb 11, adj 3
+- 젊습니다: adj 73, verb 25
+- 별것: noun 76, pron 10, verb 8, aux 5
+- 차갑게: adj 79, verb 11, noun 8
+- 구는: verb 77, noun 17, adj 3
+- 그녀도: pron 68, noun 17, verb 11, adj 3
+- 묽어요: adj 70, verb 25, aux 2
+- 끓여서: verb 77, noun 17, adj 3
+- 졸이면: verb 75, noun 19, adv 3, pron 3
+- 고기에: noun 86, verb 9, aux 3
+- 모셔라: verb 89, noun 6, aux 2
+- 재단사이고: noun 89, verb 9
+- 먹을까: verb 90, adj 6, aux 3
+- 맛있다: adj 73, verb 24
+- 먹니: verb 86, noun 6, adj 4, aux 4
+- 교회야: noun 84, verb 11, adj 3
+- 발라도: verb 77, noun 17, adj 3
+- 표현돼요: verb 90, adv 6
+- 할아버지라니: noun 73, verb 19, adj 4, aux 4
+- 버스로는: noun 90, adv 5, num 3
+- 포도주나: noun 84, verb 11, adj 3
+- 봉투: noun 84, verb 11, adj 3
+- 특별할: adj 69, verb 30
+- 시골: noun 84, verb 11, adj 3
+- 불고: verb 90, adj 5, noun 4
+- 떠올리게: verb 87, adj 10, noun 3
+- 뚱뚱했으며: adj 84, verb 15
+- 육십: num 88, noun 9, verb 3
+- 지울: verb 79, adj 16, noun 5
+- 순: noun 84, verb 11, adj 3
+- 너네도: pron 68, noun 17, verb 11, adj 3
+- 덥지는: adj 74, verb 13, noun 12
+- 될때까지: verb 68, noun 25, adv 3, adj 2
+- 많든: adj 75, verb 13, noun 5, pron 4
+- 적든: adj 75, verb 13, noun 5, pron 4
+- 중궈'라고: noun 87, pron 7, verb 5
+- 두려워해요: verb 85, adj 13
+- 잃으셨대요: verb 85, adj 6, noun 5, aux 3
+- 화내: verb 84, noun 11, adv 4
+- 안됀다고: adv 67, verb 18, adj 12, aux 3
+- 본적이: aux 67, noun 31
+- 울부짖으면서: verb 86, adj 9, aux 4
+- 데굴데굴: adv 73, noun 20, verb 4
+- 구르게: verb 76, adj 21, noun 3
+- 되거든: aux 69, adj 13, verb 11, noun 6
+- 차이도: noun 84, adv 6, art 6, verb 3
+- 충만한: adj 88, verb 10
+- 눕혔을: verb 70, noun 29
+- 들리는가: verb 80, adj 10, noun 6, aux 3
+- 대담한: adj 88, verb 10
+- 밝지는: adj 74, verb 13, noun 12
+- 놓을지: verb 79, adj 18
+- 약해지지: adj 70, verb 29
+- 되풀이하게: verb 74, adj 25
+- 앉기: verb 88, noun 8, adj 2
+- 말해줬니: verb 86, noun 6, adj 4, aux 4
+- 꾼: verb 77, noun 17, adj 3
+- 보여줘요: verb 85, adj 6, noun 5, aux 3
+- 테니까: noun 70, verb 18, adj 7, aux 2
+- 보충해: verb 89, adj 9
+- 필요했다: adj 69, verb 30
+- 밟은: verb 68, noun 29
+- 바야: noun 84, verb 11, adj 3
+- 무너지고: verb 85, adj 14
+- 기쁜데: adj 76, verb 14, noun 6, aux 4
+- 고기능: noun 84, verb 11, adj 3
+- 의학용어나: noun 79, verb 17
+- 진단명이: noun 88, num 12
+- 둥지: noun 73, verb 21, adj 4
+- 피곤해가지고: adj 81, verb 18
+- 감기네: verb 78, adj 13, aux 4, noun 4
+- 적당하다면: adj 90, verb 7, aux 2
+- 무의미했어: adj 70, verb 25, noun 3
+- 검소한: adj 88, verb 10
+- 당연한: adj 88, verb 10
+- 헛간: noun 84, verb 11, adj 3
+- 싫지: adj 71, verb 21, noun 6
+- 린: noun 84, verb 11, adj 3
+- 없는가: adj 77, verb 14, noun 6, aux 3
+- 하마터면: adv 68, verb 20, noun 6, adj 4
+- 뻔했어: noun 70, verb 25, adj 3
+- 깊게: adj 79, verb 11, noun 8
+- 의자: noun 74, verb 23
+- 보이지는: verb 79, noun 12, adj 7
+- 추울: adj 83, verb 12, noun 5
+- 보잉: noun 84, verb 11, adj 3
+- 사용합니다: verb 90, adj 10
+- 수락하게: verb 74, adj 25
+- 커보인다: adj 71, verb 20, noun 8
+- 밤조차도: noun 84, verb 11, adj 3
+- 떠오를: verb 73, noun 27
+- 주라고: aux 68, noun 18, verb 12
+- 준대: aux 70, verb 14, noun 10, adj 5
+- 보기가: verb 76, noun 24
+- 서투른: adj 81, verb 9, adv 5, noun 2, num 2
+- 느껴: verb 77, noun 17, adj 3
+- 여는: verb 77, noun 17, adj 3
+- 지원이는: noun 84, verb 11, adj 3
+- h는: noun 84, verb 11, adj 3
+- 즐겁다: adj 71, verb 20, noun 8
+- 쓰다니: verb 86, aux 9, noun 3, adj 3
+- 역겹다: adj 71, verb 20, noun 8
+- 화장실: noun 74, verb 23
+- 차지다: noun 74, verb 20, adj 4
+- 내가가진: pron 68, verb 21, adj 5, noun 4, aux 2
+- 쓰레기를: noun 87, verb 10
+- 복잡합니다: adj 76, verb 23
+- 않거나: aux 70, verb 20, adj 4, pron 3, noun 3
+- 얻기: verb 88, noun 8, adj 2
+- 이따금씩: adv 77, noun 17, num 3, verb 2
+- 십오분: num 70, noun 15, pron 8, adv 4, verb 2
+- 그릇: noun 84, verb 11, adj 3
+- 마음먹기에: verb 76, noun 19, aux 3
+- 하죠: verb 77, noun 11, adj 8, aux 4
+- 경우없는: noun 80, adj 17, verb 2
+- 버리세요: aux 70, verb 26, adj 2
+- 자랐니: verb 86, noun 6, adj 4, aux 4
+- 제공합니다: verb 90, adj 10
+- 싸게: adj 79, verb 11, noun 8
+- 아니까: verb 84, adj 7, noun 4, aux 2
+- 일어났니: verb 86, noun 6, adj 4, aux 4
+- 같네: adj 79, verb 11, aux 4, noun 4
+- 튼다: verb 87, noun 8, adj 4
+- 라이벌: noun 84, verb 11, adj 3
+- 갱단: noun 84, verb 5, adj 4, adv 3, pron 3
+- 잡은다음애는: verb 77, noun 17, adj 3
+- 필요없어: noun 73, adj 18, verb 8
+- 기침한: verb 76, adj 21
+- 그분는: pron 68, noun 17, verb 11, adj 3
+- 총리는: noun 84, verb 11, adj 3
+- 시면: noun 73, verb 20, adj 4
+- 났었는지: verb 87, adj 12
+- 어려워야: adj 73, verb 21, noun 6
+- 도망치자: verb 90, noun 8
+- 굽는: verb 77, noun 17, adj 3
+- 실수했었단: verb 72, noun 17, adj 4, adv 3, pron 3
+- 아무말도: art 67, noun 17, verb 11, adj 3
+- 안했지: adv 72, verb 20, noun 6
+- 놓아야: aux 72, verb 20, noun 5, adj 3
+- 많으니: adj 84, verb 13
+- 밤새우게: verb 77, adj 12, noun 8
+- 생겼네요: aux 73, adj 15, verb 9, noun 3
+- 변기에: noun 86, verb 9, aux 3
+- 뜨개질: noun 74, verb 16, adj 9
+- 불행해: adj 76, verb 22
+- 버리는건: verb 84, adj 8, noun 5
+- 옳습니다: adj 73, verb 25
+- 뭉게뭉게: adv 67, adj 12, verb 11, noun 8
+- 약혼한: verb 76, adj 21
+- 아무일도: art 67, noun 17, verb 11, adj 3
+- 없었던듯이: adj 73, verb 17, noun 10
+- 안오면: adv 73, verb 23
+- 할퀴었어: verb 86, noun 9, adj 4
+- 마주치자: verb 90, noun 8
+- 잡아: verb 78, noun 13, adj 5, aux 3
+- 몇명이서: num 80, noun 15, verb 3
+- 메추리알: noun 84, verb 11, adj 3
+- 탄: verb 77, noun 17, adj 3
+- 놀라겠는걸: verb 88, aux 6, adj 3
+- 한통: num 71, noun 19, adv 5, verb 3
+- 직역한: verb 76, adj 21
+- 관광: noun 84, verb 11, adj 3
+- 언제예요: adv 68, noun 24, verb 3, pron 3
+- 화가는: noun 79, verb 17
+- 드물다: adj 71, verb 20, noun 8
+- 내주: noun 87, adv 5, aux 3, num 3
+- 알맞고: adj 72, verb 23, noun 4
+- 사정도: noun 89, art 6, verb 3
+- 깨닫게: verb 77, adj 12, noun 8
+- 캐치해: verb 89, adj 9
+- 낸: aux 67, noun 17, verb 11, adj 3
+- 것이겠지: noun 72, adj 16, aux 8, verb 5
+- 표현하자면: verb 87, noun 6, adj 4
+- 크네: adj 79, verb 11, aux 4, noun 4
+- 컵케익: noun 84, verb 11, adj 3
+- 먼: adj 69, noun 17, verb 11
+- 거나: noun 84, verb 11, adj 3
+- 생기길: verb 88, adj 6, noun 4, aux 2
+- 주소라면: noun 86, verb 5, pron 4, adj 2
+- 썅: x 67, noun 17, verb 11, adj 3
+- 믿을수: verb 77, noun 17, adj 3
+- 놈이네: noun 83, adj 7, aux 5, adv 4, verb 2
+- 잃는: verb 77, noun 17, adj 3
+- 자라지: verb 88, noun 6, adj 4
+- 늦어서: verb 88, adj 9
+- 집어먹고: verb 90, adj 5, noun 4
+- 가지나물도: noun 84, verb 11, adj 3
+- 먹어보렴: verb 87, aux 6, noun 6
+- 조류: noun 84, verb 11, adj 3
+- 자신만: pron 68, noun 17, verb 11, adj 3
+- 당신은요: pron 67, verb 19, adj 6, noun 5, aux 3
+- 산책시켜요: verb 85, adj 6, noun 5, aux 3
+- 속이고: verb 76, noun 22
+- 튜브: noun 84, verb 11, adj 3
+- 치는데: verb 89, adj 5, aux 4, noun 3
+- 알러지: noun 73, verb 21, adj 4
+- 거라고는: noun 86, verb 12
+- 성배는: noun 84, verb 11, adj 3
+- 낼: aux 67, noun 17, verb 11, adj 3
+- 있겠지: adj 83, aux 8, noun 5, verb 5
+- 여러분들: pron 73, noun 25
+- 돕는데에: verb 67, noun 31
+- 만났네: verb 78, adj 13, aux 4, noun 4
+- 아무한테도: pron 86, noun 12
+- 않을게: aux 73, adj 12, verb 11, noun 3
+- 히로시는: noun 80, verb 17, adv 2
+- 브랜드는: noun 84, verb 11, adj 3
+- 출시해요: verb 85, adj 13
+- 특기: noun 75, verb 21, adj 2
+- 도중: noun 84, verb 11, adj 3
+- 달아나는: verb 84, noun 13, num 3
+- 닌자지: noun 73, verb 21, adj 4
+- 예쁘다는: adj 73, verb 19, noun 4, aux 3
+- 사실이지만: noun 88, aux 4, adv 3, verb 3
+- 전해주고싶은: verb 68, noun 29
+- 거기뿐: pron 68, noun 17, verb 11, adj 3
+- 가서있어: verb 90, adj 10
+- 카피: noun 84, verb 11, adj 3
+- 만들어져서: verb 85, adj 9, noun 5
+- 갔지만: verb 80, adj 9, noun 5, aux 3
+- 배신: noun 76, verb 18, adv 3, aux 3
+- 저희들을: pron 73, noun 27
+- 수년: num 76, noun 18, adv 3
+- 여러분이: pron 78, noun 21
+- 전등: noun 84, verb 11, adj 3
+- 꼴: noun 84, verb 11, adj 3
+- 보오이다: verb 68, noun 31
+- 떠났을까: verb 90, adj 6, aux 3
+- 떠나라고: verb 79, noun 18
+- 잡니다: verb 87, noun 8, adj 4
+- 그녀한테: pron 71, noun 28
+- 묻는: verb 77, noun 17, adj 3
+- 뽑아와도: verb 77, noun 17, adj 3
+- 중독: noun 87, adv 7, verb 4
+- 원래대로라면: noun 86, verb 5, pron 4, adj 2
+- 정신없이: adv 85, noun 15
+- 흘러가는: verb 84, noun 12
+- 달이지: noun 87, verb 10
+- 룩: noun 84, verb 11, adj 3
+- 란: prep 67, noun 17, verb 11, adj 3
+- 다닌: verb 77, noun 17, adj 3
+- 짧았다: adj 72, verb 27
+- 우표는: noun 84, verb 11, adj 3
+- 우체국에서라도: noun 84, verb 11, adj 3
+- 건강해져서: adj 76, verb 19, noun 5
+- 벗은: verb 68, noun 29
+- 후손: noun 84, verb 11, adj 3
+- 뭐였지: pron 68, verb 21, noun 6, adj 4
+- 크면: verb 87, noun 6, adj 4
+- 노래하진: verb 89, adj 9
+- 솔직하지: adj 73, verb 26
+- 끈질긴: adj 76, verb 18, pron 3, noun 3
+- 센트럴: noun 84, verb 11, adj 3
+- 갈아타기: verb 88, noun 8, adj 2
+- 편합니까: adj 77, verb 21
+- 읽으렴: verb 87, aux 6, noun 6
+- 부지런한: adj 88, verb 10
+- 이것보단: pron 75, noun 20, verb 2
+- 똑똑할: adj 69, verb 30
+- 무죄야: noun 84, verb 11, adj 3
+- 가난하다는: adj 90, verb 8
+- 용납가능한: noun 73, adj 22, verb 4
+- 직장인이고: noun 89, verb 9
+- 아내이자: noun 74, verb 23
+- 나온다: verb 87, noun 8, adj 4
+- 저희에게: pron 70, noun 29
+- 투자로도: noun 89, verb 6, prep 4
+- 아니게: adj 79, verb 11, noun 8
+- 내익: noun 84, verb 11, adj 3
+- 늙고: verb 90, adj 5, noun 4
+- 귀기울여: noun 69, verb 28, adj 3
+- 이곳의: pron 68, noun 31
+- 분위기는: noun 90, verb 7
+- 풀기: verb 88, noun 8, adj 2
+- 좋아하네: verb 79, adj 19
+- 우리끼리: pron 68, noun 24, adv 7
+- 이야기지만: noun 72, verb 13, adj 9, aux 3
+- 회복한: verb 84, adj 15
+- 같지가: adj 67, noun 29
+- 신나있어요: verb 86, adj 12
+- 생신: noun 76, verb 18, adv 3, aux 3
+- 축하: noun 84, verb 11, adj 3
+- muiriel: noun 80, x 13, verb 4
+- 뛰어다니고: verb 90, adj 5, noun 4
+- 어디든: pron 71, verb 13, adj 9, noun 5
+- 멀거나: adj 70, verb 20, aux 3, pron 3, noun 3
+- 묻고: verb 90, adj 5, noun 4
+- 사랑한: verb 76, adj 21
+- 둔다는: verb 86, adj 7, noun 4, aux 3
+- 그렇게까지: adv 73, noun 19, adj 6
+- 있던데요: aux 77, verb 17, adj 4
+- 참고: verb 90, adj 5, noun 4
+- 좋을걸: adj 74, verb 13, noun 5, pron 2, aux 2, art 2
+- 줄까: aux 69, verb 18, adj 7, noun 4
+- 좋은지: adj 82, verb 11, aux 5
+- 희귀합니다: adj 76, verb 23
+- 늦었기: verb 88, noun 8, adj 2
+- 가다가: verb 84, noun 9, conj 5, aux 2
+- 과목: noun 84, verb 11, adj 3
+- 듣긴: verb 85, adj 9, pron 3, noun 3
+- 같더라구요: adj 72, verb 19, noun 5, aux 3
+- 공개돼요: verb 90, adv 6
+- 어려웠는지: adj 70, verb 27
+- 방문해요: verb 85, adj 13
+- 케이트야: noun 84, verb 11, adj 3
+- 춤출래: verb 84, noun 8, aux 5, adv 2
+- 쉽지만은: adj 68, noun 29
+- 악명: noun 80, adv 7, num 7, verb 4
+- 높았다: adj 72, verb 27
+- 지금도: noun 84, verb 11, adj 3
+- 부턴: prep 73, noun 20, verb 4
+- 미워하겠니: verb 90, aux 7
+- 흥미롭고: adj 72, verb 23, noun 4
+- 설명할거야: verb 90, adj 8
+- 이봐라: x 67, verb 22, noun 6, aux 2
+- 천한: adj 88, verb 10
+- 장치: noun 84, verb 7, adv 6, adj 3
+- 걸려있다는: verb 86, adj 7, noun 4, aux 3
+- 속인다고: verb 80, adj 12, aux 8
+- 자신이나: pron 68, noun 29
+- 속이지: verb 76, noun 20
+- 어지간한: adj 88, verb 10
+- 리는: noun 84, verb 11, adj 3
+- 외바퀴: noun 84, verb 11, adj 3
+- 채웠다: verb 87, adj 12
+- 봤을때: verb 85, noun 10, adj 4
+- 유명해요: adj 80, verb 18
+- 이후엔: noun 84, verb 11, adj 3
+- 어머니만: noun 84, verb 11, adj 3
+- 좋았다고: adj 74, verb 21, aux 5
+- 갔습니까: verb 89, adj 6, aux 4
+- 음식만: noun 84, verb 11, adj 3
+- 팔아: verb 78, noun 13, adj 5, aux 3
+- 기어올라서: verb 79, noun 11, adv 7, conj 3
+- 지적받은: verb 68, noun 29
+- 혼자서도: adv 68, noun 17, verb 11, adj 3
+- 조용하고: adj 75, verb 24
+- 깨끗해요: adj 80, verb 18
+- 평균: noun 84, verb 11, adj 3
+- 정도입니까: noun 86, pron 8, verb 4
+- 넘어졌을: verb 70, noun 29
+- 쳤을: verb 70, noun 29
+- 예뻐서: adj 69, noun 17, verb 11
+- 억수: noun 84, verb 11, adj 3
+- 죽이지: verb 76, noun 20
+- 일반: noun 84, verb 11, adj 3
+- 후보라고: noun 84, verb 12
+- 있네요: aux 73, adj 15, verb 9, noun 3
+- 지루해: adj 76, verb 22
+- 내렸을: verb 88, noun 12
+- 아닐까: adj 74, verb 18, noun 4, aux 2
+- 닮았다고: verb 88, adj 7, aux 5
+- 못찾겠어요: adv 69, verb 20, aux 8, adj 3
+- 깬: verb 77, noun 17, adj 3
+- 아프지: adj 71, verb 21, noun 6
+- 말하는걸: verb 88, aux 6, adj 3
+- 싶은데: aux 76, adj 19, verb 3
+- 이걸로: pron 67, noun 30
+- 여러분도: pron 68, noun 17, verb 11, adj 3
+- 배우자: verb 90, noun 8
+- 불행할지언정: adj 70, noun 28
+- 시카고: noun 70, verb 23, adj 5
+- 에르나: noun 84, verb 11, adj 3
+- 취했잖아: verb 76, noun 10, aux 9, adj 6
+- 메리라면: noun 86, verb 5, pron 4, adj 2
+- 열길래: verb 84, noun 8, aux 5, adv 2
+- 그쯤이면: pron 69, noun 19, verb 8, adv 3
+- 늦어도: verb 79, noun 14, adj 3
+- 구수한: adj 88, verb 10
+- 어디선가: pron 68, noun 29
+- 소련: noun 84, verb 11, adj 3
+- 있었는데요: adj 71, verb 17, aux 11
+- 영어할: noun 67, verb 30, adj 2
+- 부는: verb 77, noun 17, adj 3
+- 알겠어요: verb 87, aux 8, adj 3, adv 3
+- 키워: verb 73, adj 24
+- 다닐: verb 78, noun 14, adj 8
+- 나쁘니까: adj 74, verb 18, noun 4, aux 2
+- 오지않는: verb 77, noun 17, adj 3
+- 모습: noun 84, verb 11, adj 3
+- 골아서: verb 84, adj 12, noun 3, aux 2
+- 개이고: noun 89, verb 9
+- 너네한테: pron 71, noun 28
+- 할꺼니: verb 86, noun 6, adj 4, aux 4
+- 지키는데: verb 89, adj 5, aux 4, noun 3
+- 다섯권: num 74, noun 22, verb 2
+- 않으셨나요: aux 70, verb 26, adj 3
+- 하지도: verb 87, adj 6, aux 4, noun 2
+- 귀엽네: adj 79, verb 11, aux 4, noun 4
+- 저곳은: pron 87, noun 12
+- 붐빈다: verb 87, noun 8, adj 4
+- 조처는: noun 84, verb 11, adj 3
+- 마디도: noun 84, verb 11, adj 3
+- 이해: noun 68, verb 22, adj 9
+- 해보기야: verb 75, noun 19, pron 5
+- 했다만: aux 73, adj 13, verb 8, noun 5
+- 없죠: adj 74, noun 11, verb 10, aux 4
+- 전화한: verb 84, adj 15
+- 미세먼지: noun 73, verb 21, adj 4
+- 쉴: verb 77, noun 17, adj 3
+- 비슷하네요: adj 82, verb 9, aux 6, noun 3
+- 버는: verb 77, noun 17, adj 3
+- 팝니다: verb 87, noun 8, adj 4
+- 어른이면서도: noun 78, adj 13, verb 8
+- 어른답게: adj 79, verb 11, noun 8
+- 당연하잖아: adj 72, noun 10, verb 9, aux 9
+- 정직하기: adj 70, verb 30
+- 탔다는: verb 86, adj 7, noun 4, aux 3
+- 긴급한: adj 88, verb 10
+- 않다기보다는: aux 73, noun 15, verb 10
+- 대기는: noun 90, verb 7
+- 보도록: aux 70, verb 27
+- 공부할까요: verb 85, adj 6, noun 5, aux 3
+- 겪을: verb 70, noun 29
+- 사기에는: verb 88, noun 7, pron 5
+- 부족하네: adj 85, verb 13
+- 괜찮다고: adj 79, verb 18, aux 3
+- 잡는: verb 77, noun 17, adj 3
+- 있기로: adj 68, verb 17, noun 11, pron 3
+- 엎은: verb 68, noun 29
+- 뭐니: pron 67, verb 19, noun 6, adj 4, aux 4
+- 빨갰어: adj 70, verb 25, noun 3
+- 곧장: adv 72, noun 26
+- 사람들도: noun 89, pron 6, verb 3
+- 말아라: aux 71, verb 26
+- 자제하라는: verb 73, noun 25
+- 되었니: aux 75, verb 14, adj 8, noun 2
+- ne: x 87, noun 7, verb 4
+- 함으로써: verb 77, noun 17, adj 3
+- 아이구나: noun 75, adj 13, verb 5, adv 2, aux 2, pron 2
+- 캐묻지: verb 88, noun 6, adj 4
+- 누워있어: verb 90, adj 10
+- 그만두라고: verb 79, noun 18
+- 예정이었는데: noun 77, verb 11, aux 7, adj 4
+- 달리기를: noun 87, verb 10
+- 나뿐이야: pron 73, noun 26
+- 그녀에세: pron 73, noun 17, num 6, verb 4
+- 절도다: noun 74, verb 20, adj 4
+- 용감한: adj 88, verb 10
+- 끄지: verb 88, noun 6, adj 4
+- 잊으면: verb 90, adj 6
+- 외로워있을거야: adj 79, verb 11, aux 5, pron 4
+- 치게: verb 77, adj 12, noun 8
+- 로씨야: noun 84, verb 11, adj 3
+- 힘들게: adj 79, verb 11, noun 8
+- 식기를: noun 87, verb 10
+- 편안하지: adj 73, verb 26
+- 리더십: noun 75, num 21, verb 3
+- 존경합니다: verb 90, adj 10
+- 파랗게: adj 79, verb 11, noun 8
+- 힘드네: adj 79, verb 11, aux 4, noun 4
+- 자신은: pron 73, noun 25
+- 할수록: verb 90, noun 3, adj 2, adv 2
+- 결심했대: verb 80, noun 10, adj 5, aux 4
+- 읽을만한: verb 76, adj 21
+- 얘길: noun 70, verb 21, adj 6, aux 2
+- 열쇠는: noun 84, verb 11, adj 3
+- 읽은: verb 68, noun 29
+- 사람같아: noun 88, adj 7, verb 4
+- 해주었어: aux 68, verb 19, noun 9, adj 4
+- 구웠다: verb 87, adj 12
+- 걱정했었어: verb 88, adj 8, noun 3
+- 몰랐지: verb 88, noun 6, adj 4
+- 봤지만: verb 80, adj 9, noun 5, aux 3
+- 앉게: verb 77, adj 12, noun 8
+- 사흘: noun 84, verb 11, adj 3
+- 무엇이었는지는: pron 72, verb 18, aux 5, noun 3, adj 2
+- 괴롭히는: verb 84, noun 7, adv 7
+- 톰이죠: noun 78, verb 10, adj 8, aux 4
+- 주자: verb 90, noun 8
+- 키로메터다: noun 74, verb 20, adj 4
+- 확실하지: adj 73, verb 26
+- 기다리는게: verb 89, adj 4, noun 4, aux 3
+- 싶어했어: aux 67, verb 25, noun 3, adj 3
+- 타이루거: noun 79, verb 11, adj 3, aux 2, pron 2, x 2
+- 희생자분들을애도하며: noun 72, verb 27
+- 삼가: adv 67, noun 29
+- 빕니다: verb 87, noun 8, adj 4
+- 쥐고: verb 90, adj 5, noun 4
+- 놓아주는: verb 86, noun 10, adv 3
+- 쌓일: verb 72, noun 24, adv 2
+- 생각도: noun 84, verb 11, adj 3
+- 했으니까: verb 81, adj 12, aux 5
+- 치운답시고: verb 90, adj 5, noun 4
+- 아니었다고: adj 83, verb 14, aux 4
+- 아까운데: adj 86, noun 8, verb 5
+- 가능할런지요: adj 82, aux 8, verb 8, noun 2
+- 조심스럽고: adj 72, verb 23, noun 4
+- 한가지에: num 67, noun 31
+- 내일도: noun 84, verb 11, adj 3
+- 부탁해요: verb 85, adj 13
+- 연루되고: verb 90, adj 5, noun 4
+- 나섰다: verb 87, noun 8, adj 4
+- 있냐: adj 77, verb 9, noun 7, aux 3, adv 3
+- 이실직고해: verb 89, adj 9
+- 불렀으면: verb 90, adj 6
+- 달리기: noun 72, verb 27
+- 두기에: verb 76, noun 19, aux 3
+- 적합하지: adj 73, verb 26
+- 입으니까: verb 81, adj 12, aux 5
+- 안나: noun 84, verb 11, adj 3
+- 소심한: adj 88, verb 10
+- 성공: noun 84, verb 11, adj 3
+- 가볍고: adj 72, verb 23, noun 4
+- 둥둥: adv 68, noun 17, verb 11, adj 3
+- 옵니까: verb 84, adj 7, noun 4, aux 2
+- 있으면서: adj 76, verb 20, aux 4
+- 걸어다니십니까: verb 90, adj 6, noun 3
+- 어두워질: adj 76, verb 16, noun 7
+- 기다릴게: verb 77, adj 12, noun 8
+- 시도해봤으나: verb 76, adj 8, aux 7, noun 6
+- 적어놨다면: verb 84, adj 8, aux 5, noun 2
+- 깨어나: verb 84, noun 12
+- 보니: aux 70, verb 19, noun 6, adj 4
+- 생생해: adj 76, verb 22
+- 부끄럽지: adj 89, verb 8, noun 2
+- 갇힌거야: verb 84, adj 6, aux 6, pron 2
+- 할아버지같아: noun 88, adj 7, verb 4
+- 삶아서: verb 84, adj 12, noun 3, aux 2
+- 싶었었지: aux 72, verb 19, adj 6, noun 3
+- 빈: verb 77, noun 17, adj 3
+- 껍데기야: noun 86, verb 8, pron 5
+- 같니: adj 70, verb 19, noun 6, aux 4
+- 가능: noun 84, verb 11, adj 3
+- 가지는: noun 79, verb 13, adj 7
+- 이야기해: verb 89, adj 9
+- 대해서라면: verb 82, noun 15
+- 돌아가겠지만: verb 85, aux 8, adj 4, noun 2
+- 걸어서는: verb 90, noun 9
+- 깰: verb 77, noun 17, adj 3
+- 크지는: adj 74, verb 13, noun 12
+- 천에: num 67, noun 31
+- 백을: num 67, noun 29, verb 3
+- 천백이: num 67, noun 31
+- 큽니까: adj 74, verb 18, noun 4, aux 2
+- 않겠지: aux 74, adj 16, noun 5, verb 5
+- 못와서: adv 73, verb 19, noun 6
+- 아쉽습니다: adj 73, verb 25
+- 정해져: verb 84, adj 15
+- 찾는거죠: verb 77, noun 11, adj 8, aux 4
+- 미터다: noun 74, verb 20, adj 4
+- 둘이서만: num 74, noun 19, verb 3
+- 노란색이지만: noun 88, aux 4, adv 3, verb 3
+- 유망한: adj 88, verb 10
+- 부도덕합니다: adj 76, verb 23
+- 치지만: verb 80, adj 9, noun 5, aux 3
+- 마찬가지인걸요: noun 72, verb 19, adj 6, aux 3
+- 있었는가: adj 77, verb 14, noun 6, aux 3
+- 병원가기: noun 75, verb 21, adj 2
+- 치실: noun 74, verb 23
+- 어렵다고: adj 79, verb 18, aux 3
+
+## 규칙 (Rules)
+| word | from | to | when | of |
+|---|---|---|---|---|
+| 있다 | aux | adj | after | noun |
+| 있어 | aux | adj | after | noun |
+| 너 | num | pron | start |  |
+| 네 | part | pron | before | noun |
+| 없다 | aux | adj | after | noun |
+| 있는 | aux | adj | after | noun |
+| 없어 | aux | adj | after | noun |
+| 적 | verb | noun | before | aux |
+| 있어요 | aux | adj | after | noun |
+| 있습니다 | aux | adj | after | noun |
+| 있어 | aux | adj | after | noun |
+| 대해 | prep | verb | after | noun |
+| 동안 | prep | noun | after | noun |
+| 없었다 | aux | adj | after | noun |
+| 없는 | aux | adj | before | noun |
+|  | verb | noun | before word | 없어 |
+| 없어 | aux | adj | after | noun |
+| 지난 | adj | verb | before | noun |
+| 있을 | aux | adj | before | noun |
+| 지금 | adv | noun | start |  |
+| 지금 | adv | noun | after | noun |
+| 위해 | prep | verb | before | noun |
+|  | verb | noun | before word | 하고 |
+| 없습니다 | aux | adj | after | noun |
+| 지금 | adv | noun | after | pron |
+|  | verb | noun | before word | 하지 |
+| 아무 | pron | art | before | noun |
+| 중 | prep | noun | after | noun |
+| 는 | part | prep | after | num |
+| 있었다 | aux | adj | after | noun |
+|  | verb | noun | before word | 할 |
+| 이번 | adj | noun | before | noun |
+| 아니다 | aux | adj | after | noun |
+| 없다 | aux | adj | after | verb |
+| 대한 | prep | verb | after | noun |
+| 언제 | pron | adv | before | verb |
+| 없어요 | aux | adj | after | noun |
+| 줄 | noun | verb | before | noun |
+| 위해 | prep | verb | after | verb |
+| 은 | part | prep | after | num |
+| 있어 | aux | adj | after | pron |
+| 엄청 | noun | adv | after | noun |
+| 필요가 | verb | noun | after | verb |
+| 비해 | prep | verb | after | noun |
+| 가지 | noun | verb | after | noun |
+| 아니다 | aux | adj | after | verb |
+| 위한 | prep | verb | before | noun |
+|  | verb | noun | before word | 없다 |
+|  | verb | noun | after word | 한 |
+| 곧 | conj | adv | before | noun |
+| 라고 | aux | prep | before | verb |
+| 있다 | aux | adj | after | noun |
+|  | verb | noun | before word | 아니다 |
+| 의 | part | prep | before | noun |
+|  | verb | noun | before word | 없이 |
+| 없이 | aux | adv | after | noun |
+| 서 | num | verb | before | aux |
+| 대부분의 | adv | noun | before | noun |
+| 산 | noun | verb | before | noun |
+| 모두가 | adv | noun | start |  |
+| 있고 | aux | adj | after | noun |
+| 관한 | prep | verb | after | noun |
+| 밖에 | part | prep | after | noun |
+| 위해 | prep | verb | after | noun |
+| 언제 | pron | adv | before | noun |
+| 처음 | noun | adv | before | verb |
+| 지금은 | adv | noun | start |  |
+| 대해서 | prep | verb | after | noun |
+| 없어 | aux | adj | after | adv |
+| 대해 | prep | verb | before | verb |
+| 가치가 | verb | noun | before | aux |
+| 늦게 | adv | adj | before | verb |
+| 너 | num | pron | after | noun |
+| 척 | verb | noun | before | aux |
+| 를 | part | prep | before | verb |
+| 있다 | aux | adj | after | num |
+| 가지고 | adj | verb | after | noun |
+| 있을 | adj | aux | after | verb |
+| 현재 | verb | noun | after | noun |
+| 참을 | adv | verb | before | noun |
+| 모두들 | adv | noun | start |  |
+| 동안 | prep | noun | after | verb |
+| 없을 | aux | adj | before | noun |
+| 따라 | prep | verb | after | noun |
+| 가 | part | verb | after | pron |
+| 없었다 | aux | adj | after | verb |
+| 종종 | noun | adv | after | noun |
+| 가기로 | noun | verb | after | noun |
+| 있다 | aux | adj | after | noun |
+| 게 | verb | noun | before | aux |
+| 있어 | aux | adj | after | noun |
+| 있다 | aux | adj | after | adv |
+| 이라고 | aux | prep | after | verb |
+| 해야 | noun | verb | before | aux |
+| 나중에 | adv | noun | start |  |
+| 처음으로 | adv | noun | after | noun |
+| 채로 | adv | noun | before | verb |
+| 가 | part | verb | after | adv |
+|  | verb | noun | before word | 없었다 |
+| 입은 | noun | verb | after | noun |
+| 곧 | conj | adv | before | verb |
+| 중 | prep | noun | before | num |
+| 있었던 | aux | adj | before | noun |
+| 와 | part | verb | after | adv |
+| 있어요 | aux | adj | after | pron |
+| 동안 | prep | noun | after | aux |
+| 있는 | aux | adj | after | adv |
+|  | verb | noun | before word | 없는 |
+| 사실 | noun | adv | start |  |
+| 있는 | aux | adj | after | pron |
+| 세상에 | noun | x | start |  |
+| 곧 | conj | adv | start |  |
+| 명 | verb | noun | after | num |
+|  | verb | noun | after word | 개의 |
+| 없어요 | aux | adj | after | verb |
+| 마약 | verb | noun | after | noun |
+| 없었다 | aux | adj | after | adv |
+|  | verb | noun | after word | 다음 |
+|  | verb | adj | before word | 않다 |
+| 있어 | aux | adj | after | adv |
+| 생각이 | verb | noun | before | adj |
+| 들을 | noun | verb | before | noun |
+| 생각이 | verb | noun | before | verb |
+| 너 | num | pron | before | noun |
+| 지난 | adj | verb | before | num |
+| 없어 | aux | adj | after | pron |
+| 모두를 | adv | noun | after | pron |
+| 수영을 | verb | noun | after | adv |
+| 인해 | prep | verb | after | noun |
+|  | verb | noun | before word | 드라마를 |
+| 가 | part | verb | after | noun |
+| 언제 | pron | adv | before | pron |
+| 위해 | prep | verb | before | verb |
+| 최근 | adj | noun | after | noun |
+| 밖에 | part | noun | start |  |
+| 가게 | noun | verb | before | aux |
+| 잘 | adv | verb | before | noun |
+|  | verb | pron | before word | 대해 |
+| 대해 | prep | verb | after | pron |
+| 에 | part | prep | after | num |
+| 있으면 | aux | adj | after | noun |
+| 있고 | aux | adj | before | aux |
+| 즐겁게 | verb | adj | before | aux |
+| 저 | art | pron | before | adv |
+|  | noun | adj | before word | 보일 |
+| 게임 | verb | noun | after | noun |
+| 늙은 | adj | verb | before | noun |
+| 가지 | noun | verb | before | aux |
+| 지금 | adv | noun | before | verb |
+| 실례합니다 | adj | verb | start |  |
+| 차 | noun | verb | after word | 가득 |
+| 입는 | noun | verb | after | noun |
+| 있지만 | aux | adj | after | noun |
+| 씨는 | verb | noun | after | noun |
+| 완전 | noun | adv | after | pron |
+| 돌아올 | noun | verb | before | noun |
+| the | noun | x | after | x |
+| 한 | num | verb | before word | 적이 |
+| 있는 | aux | adj | after | noun |
+| 들은 | noun | verb | before | noun |
+| 아니 | part | verb | after word | 줄 |
+| 있을 | adj | aux | after | verb |
+| 간에 | verb | noun | before | noun |
+| 적도 | verb | noun | before | aux |
+| 제 | pron | art | before word | 시간에 |
+| 관한 | prep | verb | after | pron |
+| 다치게 | noun | verb | before | aux |
+| 세 | num | noun | after | num |
+| 아니다 | aux | adj | after | pron |
+| 오십 | noun | num | after | noun |
+| 형제가 | verb | noun | after | noun |
+| 있다 | aux | adj | after | noun |
+| 있어 | aux | adj | after | num |
+| 완전 | noun | adv | after | noun |
+|  | adv | noun | after word | 네 |
+| 사실 | noun | adv | after | pron |
+| 또한 | conj | adv | before | noun |
+| 나중에 | adv | noun | before | verb |
+| 나 | pron | verb | after word | 안 |
+| 단 | conj | adj | after | noun |
+| 있을 | adj | aux | after | aux |
+| 와 | part | verb | after | pron |
+| 반드시 | noun | adv | before | noun |
+| 없고 | aux | adj | before | noun |
+| 없다 | aux | adj | after | adv |
+| 거 | verb | noun | before | aux |
+| 중독성 | verb | noun | before | aux |
+| 있어 | aux | adj | after | noun |
+| 한 | num | verb | before word | 적 |
+| 처음 | noun | adv | before | noun |
+| 오후 | verb | noun | before | noun |
+| 모두에게 | adv | noun | after | pron |
+|  | verb | noun | before word | 없어요 |
+| 듯 | adv | noun | before | verb |
+| 없는 | aux | adj | after | noun |
+| 한 | num | verb | before word | 것 |
+| 질문을 | verb | noun | before | aux |
+|  | verb | adj | after word | 수 |
+| 대한 | prep | verb | after | pron |
+|  | x | aux | after | num |
+| 대해서 | prep | verb | after | pron |
+| 을 | part | prep | before | verb |
+| 날 | noun | verb | before word | 수 |
+| 중 | prep | noun | before | pron |
+| 일 | noun | num | before word | 년에는 |
+| 를 | part | prep | before | noun |
+| 인간 | verb | noun | after | noun |
+| 간의 | verb | noun | after | noun |
+| 없다 | aux | adj | after | pron |
+| 지금 | adv | noun | after | verb |
+| 혼자가 | adv | noun | before | aux |
+| 한 | num | noun | after | adj |
+| 전화를 | verb | noun | before | aux |
+| 종종 | noun | adv | after | pron |
+| 인기가 | verb | noun | before | aux |
+| 지 | verb | pron | after | noun |
+| 오랜만에 | adv | noun | start |  |
+| 의해 | prep | verb | before | verb |
+| 약간의 | adv | noun | before | noun |
+|  | verb | noun | after word | 몇 |
+| 있어요 | aux | adj | after | noun |
+| 한 | num | verb | after word | 짓을 |
+| 귀찮게 | noun | adj | before | aux |
+| 대하여 | prep | verb | after | noun |
+| 이번에 | adj | noun | start |  |
+| 모두가 | adv | noun | before | adj |

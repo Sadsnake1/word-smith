@@ -28,10 +28,11 @@
 // · THE GRADE by the pack's formula, from sums a folder can add up, always as a
 //   school grade so the rhythm thresholds mean one thing in every language.
 
-import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart } from './preamble';
+import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, WS_CLICHES_EN, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart } from './preamble';
 import type { WsToken, WsDialogueMarks } from './preamble';
 import type { WsPack } from './language';
 import { WS_PACK_FORMULAS, wsPackQuotes } from './language';
+import { WS_RULES_EN } from './rules-en';
 
 export interface WsSpan { from: number; to: number }
 export interface WsSentence { from: number; to: number; text: string }
@@ -49,6 +50,8 @@ export interface WsEngine {
 	passive(tokens: WsToken[], masked: string): WsSpan[];
 	illusions(tokens: WsToken[]): WsSpan[];
 	misused(tokens: WsToken[], masked: string): WsSpan[];
+	/** the language's stock phrases in a line (A839) */
+	cliches(tokens: WsToken[], masked: string): WsSpan[];
 	vague(t: WsToken, next: WsToken | null): boolean;
 	sentences(masked: string): WsSentence[];
 	/** one sentence's grade, or null for a fragment (under four words) */
@@ -68,6 +71,73 @@ export interface WsEngine {
 	/** what the engine could not use in the pack, said on the Language page */
 	notes: string[];
 }
+
+// CLICHÉS (A839): a list's phrases found in a line, whole words, any case, a straight or a curly apostrophe, the longest
+// first; one span a phrase. WITHOUT EDGES for a script written without spaces, where a phrase of several characters
+// is its own edge
+// A PHRASE AS A PATTERN (A856): `{a|b}` any of these words (an empty choice makes them optional, its space inside it),
+// `{*}` any one word; a space between words takes a comma, a semicolon or a colon in the text as well ("easy come,
+// easy go"), and a hyphen between words either a hyphen or a space ("game changer", "game-changer"); an apostrophe
+// either one; the Arabic script's comma and semicolon (، ؛) a comma and a semicolon too, and Persian's half-space
+// (U+200C) inside a word a part of it (چهره‌اش)
+const WS_PHRASE_GAP = '(?:\\s*[,;:\\u060c\\u061b]\\s*|\\s*-\\s*|\\s+)';
+const WS_PHRASE_WORD = "[\\p{L}\\p{M}\\p{N}\\u200c'’-]+";
+export function wsPhrasePattern(p: string): string {
+	const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/['’]/g, "['’]").replace(/\s*-\s*|\s+/g, WS_PHRASE_GAP);
+	let out = '', last = 0;
+	const slot = /\{([^{}]*)\}/g;
+	let m: RegExpExecArray | null;
+	while ((m = slot.exec(p))) {
+		out += esc(p.slice(last, m.index));
+		// (a slot's choices LONGEST FIRST: tried as written, {mimpi|mimpi belaka} took mimpi, the space after it an edge)
+		out += m[1].trim() === '*' ? WS_PHRASE_WORD : '(?:' + m[1].split('|').sort((a, b) => b.length - a.length).map(esc).join('|') + ')';
+		last = m.index + m[0].length;
+	}
+	return out + esc(p.slice(last));
+}
+export function wsPhraseRe(list: string[], edges = true): RegExp | null {
+	const alts = list.map((p) => p.trim()).filter(Boolean).sort((a, b) => b.length - a.length).map(wsPhrasePattern);
+	if (!alts.length) return null;
+	// (the edge before a phrase a group of its own, not a lookbehind: iOS before 16.4 has none; a mark is a word's too,
+	// a Devanagari vowel sign after a consonant: चाँद never matched inside चाँदी; and Persian's half-space, نگاه inside نگاه‌ها)
+	return edges ? new RegExp('(^|[^\\p{L}\\p{M}\\p{N}\\u200c])(' + alts.join('|') + ')(?![\\p{L}\\p{M}\\p{N}\\u200c])', 'giu') : new RegExp('()(' + alts.join('|') + ')', 'giu');
+}
+// two lists of spans as one, in order, an overlap kept once (the first, the longer when they start together)
+export function wsSpansUnion(a: WsSpan[], b: WsSpan[]): WsSpan[] {
+	const all = a.concat(b).sort((x, y) => x.from - y.from || (y.to - y.from) - (x.to - x.from));
+	const out: WsSpan[] = [];
+	for (const s of all) if (!out.length || s.from >= out[out.length - 1].to) out.push(s);
+	return out;
+}
+// …OVER THE TEXT FOLDED AS THE PACK FOLDS ITS WORDS (wsPhraseFold), each span mapped back to the characters it came
+// from: a case-blind pattern folds by Unicode's simple folding, where İ folds to nothing and I to i (İçi missed içi),
+// and a vowel mark or a Persian yeh typed as the Arabic one stopped a pattern its plain twin matched. A mark folded
+// away after a span's last letter is the span's
+export function wsPhraseSpansFor(re: RegExp | null, masked: string, lang: string): WsSpan[] {
+	if (!re || !/^(tr|az|ar|fa|ur|ps|ckb)(-|$)/i.test(lang)) return wsPhraseSpans(re, masked);
+	let folded = '';
+	const at: number[] = [];
+	for (let i = 0; i < masked.length; i++) {
+		const f = wsPhraseFold(masked[i], lang);
+		for (let k = 0; k < f.length; k++) { folded += f[k]; at.push(i); }
+	}
+	at.push(masked.length);
+	return wsPhraseSpans(re, folded).map((s) => ({ from: at[s.from], to: at[s.to] > at[s.to - 1] ? at[s.to] : at[s.to - 1] + 1 }));
+}
+export function wsPhraseSpans(re: RegExp | null, masked: string): WsSpan[] {
+	const out: WsSpan[] = [];
+	if (!re) return out;
+	re.lastIndex = 0;
+	let m: RegExpExecArray | null;
+	while ((m = re.exec(masked))) {
+		const from = m.index + m[1].length, to = from + m[2].length;
+		if (to <= from) { re.lastIndex = m.index + 1; continue; }
+		out.push({ from, to });
+		re.lastIndex = to;
+	}
+	return out;
+}
+const WS_CLICHE_RE_EN = wsPhraseRe(WS_CLICHES_EN);
 
 // ── ENGLISH, as it always was ─────────────────────────────────────────────
 //
@@ -90,14 +160,23 @@ const wsEnglishFiller = (tokens: WsToken[], masked: string, soft: boolean): WsSp
 	return out;
 };
 
+// ENGLISH'S WORDS AND THEN ITS LEARNED RULES (A840): the hand-written tagger, then the rules (WS_RULES_EN built in,
+// a pack's own Rules part in their place), a rule with no word changing only a word the lexicon does not hold
+export function wsEnglishTagWith(masked: string, rules: WsRule[]): WsToken[] {
+	const tokens = tagTokens(tokenizeLine(masked), masked);
+	if (rules.length) wsApplyRules(tokens, tokens.map((t) => !!t.guess), rules);
+	return tokens;
+}
+
 export const WS_ENGLISH_ENGINE: WsEngine = {
 	lang: 'en',
 	segmented: false,
-	tag: (masked) => tagTokens(tokenizeLine(masked), masked),
+	tag: (masked) => wsEnglishTagWith(masked, WS_RULES_EN),
 	filler: wsEnglishFiller,
 	passive: (tokens) => findPassive(tokens),
 	illusions: (tokens) => findIllusions(tokens),
 	misused: (tokens, masked) => findMisused(tokens, masked),
+	cliches: (tokens, masked) => wsPhraseSpans(WS_CLICHE_RE_EN, masked),
 	vague: (t, next) => isVaguePronoun(t, next),
 	sentences: (masked) => splitSentences(masked),
 	wordsIn: (text) => tokenizeLine(text).length,
@@ -144,15 +223,23 @@ export function wsEnglishPackEngine(pack: WsPack): WsEngine {
 	for (const [k, v] of Array.from(over)) if (!v) over.delete(k);
 	const hasFiller = L('filler words').length > 0 || L('soft filler').length > 0;
 	const hasMisused = !!(pack.tables.misused && pack.tables.misused.length);
+	// (its own clichés where it lists them, English's built-in otherwise, as for the filler)
+	const hasCliches = L('cliches').length > 0 || L('clichés').length > 0;
+	// (its own Rules part where it has one, English's built-in otherwise)
+	const ownRules = wsPackRules(pack);
+	const enRules = (pack.tables.rules || []).length ? ownRules : WS_RULES_EN;
 	const e: WsEngine = {
 		...WS_ENGLISH_ENGINE,
 		lang: pack.lang || 'en',
 		tag: (masked) => {
 			const tokens = tagTokens(tokenizeLine(masked), masked);
-			if (over.size) for (const t of tokens) { const o = over.get(t.lw); if (o) t.tag = o; }
+			// (a word the pack places is the pack's, never a guess)
+			if (over.size) for (const t of tokens) { const o = over.get(t.lw); if (o) { t.tag = o; t.guess = false; } }
+			if (enRules.length) wsApplyRules(tokens, tokens.map((t) => !!t.guess), enRules);
 			return tokens;
 		},
 		filler: (tokens, masked, soft) => (hasFiller ? P.filler(tokens, masked, soft) : WS_ENGLISH_ENGINE.filler(tokens, masked, soft)),
+		cliches: (tokens, masked) => (hasCliches ? P.cliches(tokens, masked) : WS_ENGLISH_ENGINE.cliches(tokens, masked)),
 		// the context rules' hits, then the pack's table (its words and its phrases), one span each
 		misused: hasMisused ? (tokens, masked) => {
 			const ruled = findMisused(tokens, masked, new Set<string>(), []);
@@ -299,10 +386,26 @@ const WS_DEFAULT_VOWELS = 'aeiouy\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5\u00e6\u00e
 // never has): `lang` is the pack's; without one (the English engine, a formula's name) it reads as it always did
 const wsLower = (w: string, lang?: string) => {
 	const s = (lang && /^(tr|az)(-|$)/i.test(lang) ? w.toLocaleLowerCase('tr') : w.toLowerCase()).replace(/[\u2019\u02bc]/g, "'").normalize('NFC').replace(/\u0301/g, '');
+	if (lang && WS_ARABIC_SCRIPT.test(lang)) return wsArabicFold(s, lang);
 	return lang && !/^ro(-|$)/i.test(lang) ? s : s.replace(/\u015f/g, '\u0219').replace(/\u0163/g, '\u021b');
 };
+// ARABIC SCRIPT FOLDED (A846): a word's vowel marks and its stretch gone; Persian's and Urdu's yeh and kaf one letter
+// whichever keyboard typed them. Arabic's hamza seats stay apart: its Misused table's errors are them (an alef with its hamza)
+const WS_ARABIC_SCRIPT = /^(ar|fa|ur|ps|ckb)(-|$)/i;
+const wsArabicFold = (s: string, lang: string) => {
+	const bare = s.replace(/[\u064b-\u065f\u0670\u0640]/g, '');
+	return /^ar(-|$)/i.test(lang) ? bare : bare.replace(/\u064a/g, '\u06cc').replace(/\u0643/g, '\u06a9');
+};
+// A PHRASE'S LETTERS FOLDED AS A PACK'S WORDS ARE (A856): Turkish case by its rules, the Arabic script's marks gone and its
+// letters one; a pattern's own syntax ({a|b}, {*}) comes through untouched. Every other language as written, the
+// pattern's case-blind match is its fold
+export function wsPhraseFold(w: string, lang: string): string {
+	let s = /^(tr|az)(-|$)/i.test(lang) ? w.toLocaleLowerCase('tr') : w;
+	if (WS_ARABIC_SCRIPT.test(lang)) s = wsArabicFold(s, lang);
+	return s;
+}
 const wsEsc = (s: string) => s.replace(/[\\\]^-]/g, '\\$&');
-const wsListOfKeyed = (v: string | undefined) => String(v || '').split(/[,\uff0c\u3001]/).map((x) => x.trim()).filter(Boolean);
+const wsListOfKeyed = (v: string | undefined) => String(v || '').split(/[,\uff0c\u3001\u060c]/).map((x) => x.trim()).filter(Boolean);
 const wsNum = (v: string | undefined) => { const x = parseFloat(String(v == null ? '' : v).replace(',', '.')); return isFinite(x) ? x : null; };
 // a phrase as the matcher keys it: lower case, one space where any ran
 const wsPhraseKey = (s: string, lang?: string) => wsLower(s, lang).replace(/\s+/g, ' ').trim();
@@ -335,9 +438,142 @@ export function wsPackEngine(pack: WsPack): WsEngine {
 	return e;
 }
 
+// ── LEARNED CLASSES (A840) ──
+// A pack may carry what was learned from text we tagged ourselves (language-eval/train, free text only): which class
+// follows which (`## Class pairs`, a row a class, the columns in WS_LEARN_COLS's order, "start" opening a sentence,
+// "all" the classes' own shares), and how often an ending or a word is each class (`## Ending shares`, `## Word
+// shares`: "- -ность: noun 97, adj 2"), in whole percents. The lists and the pack's rules decide first, exactly as
+// without them; the model then chooses the class of every word still a guess, left to right with one word of
+// lookahead. A pack without the parts reads as before, and deleting them is the way back.
+export interface WsLearned {
+	/** log P(class | the class before), 'BOS' opening a sentence */
+	trans: Record<string, Record<string, number>>;
+	/** log P(class | word), the words the tagged text saw that no list holds */
+	words: Record<string, Record<string, number>>;
+	/** log P(class | ending), the longest ending that matches */
+	ends: Record<string, Record<string, number>>;
+	/** log P(class) */
+	prior: Record<string, number>;
+	maxEnd: number;
+	/** an ending's guess one of the four open classes (`- learned: open` in the pack's About) */
+	openOnly: boolean;
+}
+export const WS_LEARN_COLS = ['NOUN', 'VERB', 'ADJ', 'ADV', 'PRON', 'PREP', 'CONJ', 'DET', 'NUM', 'PART', 'AUX', 'X'];
+const WS_LEARN_NAME: Record<string, string> = { noun: 'NOUN', verb: 'VERB', adj: 'ADJ', adv: 'ADV', pron: 'PRON', prep: 'PREP', conj: 'CONJ', art: 'DET', num: 'NUM', part: 'PART', aux: 'AUX', x: 'X' };
+// a whole percent as a log share; a 0 is a half percent, never impossible
+const wsLearnLog = (pct: number) => Math.log(Math.max(pct, 0.5) / 100);
+const wsLearnShares = (v: string): Record<string, number> => {
+	const o: Record<string, number> = {};
+	for (const bit of v.split(',')) {
+		const m = /^\s*([a-z]+)\s+(\d+(?:\.\d+)?)\s*$/.exec(bit);
+		if (m && WS_LEARN_NAME[m[1]]) o[WS_LEARN_NAME[m[1]]] = wsLearnLog(Number(m[2]));
+	}
+	return o;
+};
+export function wsPackLearned(pack: WsPack): WsLearned | null {
+	const rows = pack.tables['class pairs'] || [];
+	const trans: Record<string, Record<string, number>> = {};
+	let prior: Record<string, number> | null = null;
+	for (const r of rows) {
+		const head = (r[0] || '').toLowerCase();
+		const from = head === 'start' ? 'BOS' : head === 'all' ? 'ALL' : WS_LEARN_NAME[head];
+		if (!from) continue;
+		const o: Record<string, number> = {};
+		WS_LEARN_COLS.forEach((c, k) => { const n = Number(r[k + 1]); if (r[k + 1] !== undefined && r[k + 1] !== '' && Number.isFinite(n)) o[c] = wsLearnLog(n); });
+		if (from === 'ALL') prior = o; else trans[from] = o;
+	}
+	if (!trans.BOS || !prior) return null;
+	const ends: Record<string, Record<string, number>> = {}, words: Record<string, Record<string, number>> = {};
+	let maxEnd = 0;
+	for (const [k, v] of Object.entries(pack.keyed['ending shares'] || {})) {
+		const e = wsLower(k.replace(/^-/, ''), pack.lang);
+		if (!e) continue;
+		ends[e] = wsLearnShares(v);
+		maxEnd = Math.max(maxEnd, e.length);
+	}
+	for (const [k, v] of Object.entries(pack.keyed['word shares'] || {})) words[wsLower(k, pack.lang)] = wsLearnShares(v);
+	return { trans, words, ends, prior, maxEnd, openOnly: /\bopen\b/.test(String(pack.props.learned || '')) };
+}
+// ── LEARNED RULES (A840): `## … (Rules)`, a row a rule, applied in order after everything else ──
+// | word | from | to | when | of |: a word of the class `from` becomes `to` when the word before (after) is of the class
+// `of`, or is the word `of` (after word, before word), or opens the sentence (start). A row with no word changes only a
+// word still a guess, so the lists keep their words; a row naming its word changes that word wherever the rule says,
+// which the pack states in plain sight. Learned from text we tagged (language-eval/train/brill.cjs), Brill's way.
+export interface WsRule { word: string; from: string; to: string | null; when: string; of: string }
+const WS_RULE_WHEN = new Set(['after', 'before', 'after word', 'before word', 'start']);
+export function wsPackRules(pack: WsPack): WsRule[] {
+	const out: WsRule[] = [];
+	for (const r of pack.tables.rules || []) {
+		const [word, from, to, when, of] = r.map((c) => (c || '').trim());
+		const lw = (s: string) => wsLower(s, pack.lang);
+		const f = WS_LEARN_NAME[lw(from)], t = WS_LEARN_NAME[lw(to)], w = lw(when);
+		if (!f || !t || !WS_RULE_WHEN.has(w)) continue;
+		const ofTag = w === 'after' || w === 'before' ? WS_LEARN_NAME[lw(of)] : '';
+		if ((w === 'after' || w === 'before') && !ofTag) continue;
+		if ((w === 'after word' || w === 'before word') && !of) continue;
+		out.push({ word: lw(word), from: f, to: t === 'X' ? null : t, when: w, of: ofTag || lw(of) });
+	}
+	return out;
+}
+// the rules over a line's tokens, in place, each rule left to right; `guessed[i]` a word no list placed
+// (`locked`: the words of a pack's own phrase, whose class the pack decided; no rule moves them)
+export function wsApplyRules(tokens: WsToken[], guessed: boolean[], rules: WsRule[], locked?: Set<number>) {
+	// (English's own tags read as the pack's classes: a modal an auxiliary, the infinitive's "to" a particle)
+	const cls = (t: WsToken | null) => (!t ? '' : !t.tag || t.tag === 'ABBR' ? 'X' : t.tag === 'MOD' ? 'AUX' : t.tag === 'TO' ? 'PART' : t.tag);
+	for (const r of rules) {
+		for (let i = 0; i < tokens.length; i++) {
+			const t = tokens[i];
+			if (locked && locked.has(i)) continue;
+			if (r.word ? t.lw !== r.word : !guessed[i]) continue;
+			if (cls(t) !== r.from) continue;
+			const pv = i > 0 && !t.first ? tokens[i - 1] : null, nx = i + 1 < tokens.length && !tokens[i + 1].first ? tokens[i + 1] : null;
+			const hit = r.when === 'start' ? !pv
+				: r.when === 'after' ? cls(pv) === r.of
+				: r.when === 'before' ? cls(nx) === r.of
+				: r.when === 'after word' ? !!pv && pv.lw === r.of
+				: !!nx && nx.lw === r.of;
+			if (hit) t.tag = r.to;
+		}
+	}
+}
+const WS_LEARN_FLOOR = -12;
+function wsDecodeLearned(tokens: WsToken[], guessed: boolean[], m: WsLearned) {
+	const dist = (lw: string) => {
+		const w = m.words[lw];
+		if (w) return w;
+		for (let n = Math.min(m.maxEnd, lw.length - 1); n >= 1; n--) { const e = m.ends[lw.slice(-n)]; if (e) return e; }
+		return m.prior;
+	};
+	const norm = (t: string | null | undefined) => (!t || t === 'ABBR' ? 'X' : t);
+	// a class's evidence from the word: log P(class|word) less log P(class), so a common class is not counted twice
+	const em = (i: number): [string, number][] => {
+		if (!guessed[i]) return [[norm(tokens[i].tag), 0]];
+		const own = m.words[tokens[i].lw];
+		const d = dist(tokens[i].lw);
+		const keys = Object.keys(d).filter((c) => own || !m.openOnly || WS_OPEN_TAGS.has(c));
+		return (keys.length ? keys : Object.keys(d)).map((c): [string, number] => [c, d[c] - (m.prior[c] ?? 0)]);
+	};
+	const tr = (a: string, b: string) => { const r = m.trans[a]; return r && r[b] !== undefined ? r[b] : WS_LEARN_FLOOR; };
+	for (let i = 0; i < tokens.length; i++) {
+		if (!guessed[i] || !/\p{L}/u.test(tokens[i].w)) continue;
+		const prev = tokens[i].first || i === 0 ? 'BOS' : norm(tokens[i - 1].tag);
+		const next = i + 1 < tokens.length && !tokens[i + 1].first ? em(i + 1) : null;
+		let best = '', score = -Infinity;
+		for (const [c, e] of em(i)) {
+			let s = e + tr(prev, c);
+			if (next) { let la = -Infinity; for (const [c2, e2] of next) la = Math.max(la, tr(c, c2) + e2); s += la; }
+			if (s > score) { score = s; best = c; }
+		}
+		if (best) tokens[i].tag = best === 'X' ? null : best;
+	}
+}
+
 function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// (lower case by the pack's language, A769)
 	const lower = (w: string) => wsLower(w, pack.lang);
+	// what the pack learned (A840), read once
+	const learned = wsPackLearned(pack);
+	const rules = wsPackRules(pack);
 	const notes: string[] = [];
 	const L = (k: string) => pack.lists[k] || [];
 	const segmented = String(pack.props.words || '').trim().toLowerCase() === 'segmenter';
@@ -388,7 +624,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	// after which such a word is an adjective when the word before them is one ("fuerte y amargo")
 	// …and "no verb after" (A677, Russian and Ukrainian): classes no verb follows ("в берете", "свої орбіти"),
 	// where a word an ending alone called a verb takes the "after" rule's class instead
-	const CTX_LISTS = /^(verb after|infinitive after|infinitive endings|not infinitive|article endings|capitalized over|article before|adjective after|coordination|no verb after)$/;
+	const CTX_LISTS = /^(verb after|infinitive after|infinitive endings|not infinitive|article endings|capitalized over|article before|adjective after|coordination|no verb after|pronoun alone|relative after noun|infinitive marker|verb before)$/;
 	const ctxList = (k: string) => String(ctx[k] || '').split(',').map((x) => lower(x.trim()).replace(/^[-\u2026]+/, '')).filter(Boolean);
 	const verbAfter = new Set(ctxList('verb after'));
 	const infAfter = new Set(ctxList('infinitive after'));
@@ -397,6 +633,19 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 	const articled = new Set(ctxList('article endings'));
 	const capOver = new Set(ctxList('capitalized over').map((c) => WS_TAG_OF[c] || WS_TAG_OF[c.replace(/s$/, '')]).filter((t) => !!t && WS_OPEN_TAGS.has(t)));
 	const artBefore = new Set(ctxList('article before'));
+	// …and the other way round (A840): an article the pack names standing alone is the pronoun ("det är", "die ich
+	// kenne", "это хорошо", "je l'aime")
+	const pronAlone = new Set(ctxList('pronoun alone'));
+	// THE RELATIVE (A840): a word the pack names right after a noun or a pronoun, a comma allowed between, is the
+	// relative pronoun ("la casa que compré", "huset som", "то, что"); elsewhere it joins clauses as listed
+	const relAfter = new Set(ctxList('relative after noun'));
+	// THE INFINITIVE MARKER (A840): a word the pack names right before a verb is a particle, uncolored as English
+	// "to" is ("att komma", "zu tun"); elsewhere it is what its list says ("att det regnar")
+	const infMark = new Set(ctxList('infinitive marker'));
+	// A VERB BY THE WORD AFTER IT (A846, Hindi: "खेल रहे", "कर सकता"): a word the pack names right after a noun, an
+	// adjective or a guess makes that word its verb, as `verb after` does the other way
+	const verbBefore = new Set(ctxList('verb before'));
+	const doubling = /^(yes|true|on)$/i.test(String(pack.props.doubling || '').trim());
 	const adjAfter = new Set(ctxList('adjective after'));
 	const andWords = new Set(ctxList('coordination'));
 	const noVerbAfter = new Set(ctxList('no verb after').map((c) => (WS_LEX_ORDER.find(([h]) => h === c) || [])[1] || WS_TAG_OF[c] || WS_TAG_OF[c.replace(/s$/, '')]).filter((t): t is string => !!t));
@@ -522,7 +771,8 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 
 	// WORDS
 	// an ordinal in letters is its figure's (19e, 1er, 3ème, 2nd) (A614)
-	const WORDS = /(?![\u00ba\u00aa])\p{L}[\p{L}\p{M}'\u2019-]*|\d+(?:[.,:]\d+)*(?:\.?[\u00ba\u00aa])?(?:\p{Ll}{1,3}(?!\p{L}))?%?/gu;
+	// (A846: Persian's half-space and a joiner inside the word, می‌روم one word; a figure in any script's digits, ۱۴۰۲ and २०२४)
+	const WORDS = /(?![\u00ba\u00aa])\p{L}(?:[\p{L}\p{M}'\u2019-]|\u200c|\u200d)*|\p{Nd}+(?:[.,:]\p{Nd}+)*(?:\.?[\u00ba\u00aa])?(?:\p{Ll}{1,3}(?!\p{L}))?%?/gu;
 	const push = (out: WsToken[], w: string, at: number) => { if (w) out.push({ w, lw: lower(w), from: at, to: at + w.length, tag: null }); };
 	const tokenize = (text: string): WsToken[] => {
 		const out: WsToken[] = [];
@@ -540,7 +790,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		WORDS.lastIndex = 0;
 		let m;
 		while ((m = WORDS.exec(text))) {
-			const w = m[0].replace(/[-'\u2019]+$/, '');
+			const w = m[0].replace(/(?:[-'\u2019]|\u200c|\u200d)+$/, '');
 			if (!w) continue;
 			// an elision, its own word: l'homme is l' and homme
 			const ap = w.search(/['\u2019]/);
@@ -571,6 +821,8 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		const starts = sentences(text).map((s) => s.from);
 		let si = 0;
 		const guessed: boolean[] = [];
+		// (the words of a pack's phrases: their class is the pack's, and the learned rules leave it)
+		const locked = new Set<number>();
 		for (const t of tokens) {
 			let first = false;
 			while (si < starts.length && starts[si] <= t.from) { first = true; si++; }
@@ -628,9 +880,9 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			t.tag = capVerb ? null : en || null;
 			guessed.push(true);
 		}
-		// A PHRASE OF A CLASS (A621): every word of it that class, the longest first
+		// A PHRASE OF A CLASS (A621): every word of it that class, the longest first; locked against the learned rules
 		for (const r of match(tokens, text, lexPm)) {
-			for (let i = 0; i < tokens.length; i++) if (tokens[i].from >= r.from && tokens[i].to <= r.to) { tokens[i].tag = r.kind; guessed[i] = false; }
+			for (let i = 0; i < tokens.length; i++) if (tokens[i].from >= r.from && tokens[i].to <= r.to) { tokens[i].tag = r.kind; guessed[i] = false; locked.add(i); }
 		}
 		// A VERB BY ITS MARKER (A621)
 		if (verbAfter.size || infAfter.size) for (let i = 0; i + 1 < tokens.length; i++) {
@@ -648,6 +900,13 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			if (/^\p{Lu}/u.test(t.w) || closed.has(t.lw) || lex.get(t.lw) === 'ADV' || (t.tag && !WS_OPEN_TAGS.has(t.tag))) continue;
 			if (inf && (!infEnds.some((e) => t.lw.length > e.length + 1 && t.lw.endsWith(e)) || notInf.some((e) => t.lw.endsWith(e)))) continue;
 			t.tag = 'VERB'; guessed[j] = false;
+		}
+		// …AND BY THE WORD AFTER IT (verb before, A846): an open-class word or a guess, never a capital or a closed word
+		if (verbBefore.size) for (let i = 0; i + 1 < tokens.length; i++) {
+			const t = tokens[i], nx = tokens[i + 1];
+			if (!verbBefore.has(nx.lw) || nx.first || !/^\s+$/.test(text.slice(t.to, nx.from))) continue;
+			if (/^\p{Lu}/u.test(t.w) || closed.has(t.lw) || (t.tag && !WS_OPEN_TAGS.has(t.tag))) continue;
+			t.tag = 'VERB'; guessed[i] = false;
 		}
 		// AN ARTICLE BY WHAT FOLLOWS IT (A674): a listed pronoun right before an adjective, a noun or a
 		// figure is that word's article ("det nye Tilbygg", "den drik", "de 3"); before a verb, an
@@ -686,6 +945,25 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		if (unknownTag) for (let i = 0; i < tokens.length; i++) {
 			if (guessed[i] && !tokens[i].tag && /\p{L}/u.test(tokens[i].w)) tokens[i].tag = unknownTag;
 		}
+		if (learned) wsDecodeLearned(tokens, guessed, learned);
+		// THE CLOSED WORDS BY THEIR NEIGHBORS (A840), last, so the words around them are settled: nothing but space
+		// between two words (an elision's none: "l'aime"), a sentence's first word never read across its stop
+		if (pronAlone.size || relAfter.size || infMark.size) {
+			const joined = (a: WsToken, b: WsToken) => !b.first && /^\s*$/.test(text.slice(a.to, b.from));
+			for (let i = 0; i < tokens.length; i++) {
+				const t = tokens[i], nx = i + 1 < tokens.length ? tokens[i + 1] : null, pv = i > 0 ? tokens[i - 1] : null;
+				if (t.tag === 'DET' && pronAlone.has(t.lw)) {
+					const af = i + 2 < tokens.length ? tokens[i + 2] : null;
+					const points = nx && nx.tag === 'ADV' && af && joined(nx, af) && /^(NOUN|ADJ|NUM)$/.test(af.tag || '');
+					if (!nx || !joined(t, nx) || (/^(VERB|AUX|PREP|CONJ|PRON|PART|ADV)$/.test(nx.tag || '') && !points)) t.tag = 'PRON';
+				}
+				if (relAfter.has(t.lw) && pv && !t.first && (pv.tag === 'NOUN' || pv.tag === 'PRON') && /^\s*,?\s*$/.test(text.slice(pv.to, t.from))) t.tag = 'PRON';
+				if (infMark.has(t.lw) && nx && joined(t, nx) && nx.tag === 'VERB') t.tag = 'PART';
+			}
+		}
+		if (rules.length) wsApplyRules(tokens, guessed, rules, locked);
+		// a word still a guess says so (A840: what a learner of rules may change), only where it is
+		for (let i = 0; i < tokens.length; i++) if (guessed[i]) tokens[i].guess = true;
 		return tokens;
 	};
 
@@ -701,7 +979,8 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		}
 		return { map, longest };
 	};
-	const match = (tokens: WsToken[], text: string, pm: { map: Map<string, string>; longest: number }) => {
+	// (`loose`: a comma, a semicolon or a colon between two words of a phrase, as a cliché is written in the text, A856)
+	const match = (tokens: WsToken[], text: string, pm: { map: Map<string, string>; longest: number }, loose = false) => {
 		const out: { from: number; to: number; kind: string }[] = [];
 		if (!pm.map.size) return out;
 		for (let i = 0; i < tokens.length;) {
@@ -709,7 +988,7 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			for (let j = i; j < tokens.length && j - i < pm.longest; j++) {
 				if (j > i) {
 					const gap = text.slice(tokens[j - 1].to, tokens[j].from);
-					if (!/^\s*$/.test(gap)) break;
+					if (!(loose ? /^\s*[,;:\u060c\u061b]?\s*$/ : /^\s*$/).test(gap)) break;
 					key += gap ? ' ' : '';
 				}
 				key += tokens[j].lw;
@@ -722,6 +1001,14 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		return out;
 	};
 	const fillerPm = phraseMap([[L('soft filler'), 'soft'], [L('filler words'), 'strong'], [L('hedges'), 'strong']]);
+	// the pack's stock phrases (A839), `## Clichés (Cliches)`
+	// (A856: an entry with a slot, `{a|b}` or `{*}`, by its pattern; the plain ones by the words, as before)
+	const clicheAll = L('cliches').concat(L('clichés'));
+	const clichePm = phraseMap([[clicheAll.filter((w) => w.indexOf('{') === -1), 'cliche']]);
+	const clicheSlotRe = segmented ? null : wsPhraseRe(clicheAll.filter((w) => w.indexOf('{') !== -1).map((w) => wsPhraseFold(w, pack.lang)));
+	// …IN A SEGMENTED SCRIPT BY THE TEXT ITSELF: the segmenter's cut moves with what follows (時が解決する before と
+	// reads 解決|すると), so the phrase's last token is not always a token
+	const clicheRe = segmented ? wsPhraseRe(clicheAll, false) : null;
 	// the classes' own phrases (A621), the first heading in WS_LEX_ORDER winning as for a word
 	// …AND IN A SEGMENTED SCRIPT EVERY LISTED WORD OF TWO CHARACTERS OR MORE (A624): the segmenter cuts listed
 	// words in two (网民 as 网|民, 読売新聞 as 読|売|新聞), and the pieces joined are the word
@@ -842,10 +1129,14 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		segmented,
 		tag,
 		filler: (tokens, text, soft) => match(tokens, text, fillerPm).filter((h) => soft || h.kind !== 'soft').map((h) => ({ from: h.from, to: h.to })),
+		cliches: (tokens, text) => (clicheRe ? wsPhraseSpans(clicheRe, text)
+			: wsSpansUnion(match(tokens, text, clichePm, true).map((h) => ({ from: h.from, to: h.to })), wsPhraseSpansFor(clicheSlotRe, text, pack.lang))),
 		passive,
 		illusions: (tokens) => {
 			const out: WsSpan[] = [];
-			if (segmented) return out;   // a doubled word is grammar there (看看, 時々)
+			// a doubled word is grammar there (看看, 時々), and where the pack says so (`- doubling: yes`, A846: Hindi's
+			// धीरे धीरे, कभी कभी); a doubled function word is never flagged anyway
+			if (segmented || doubling) return out;
 			for (let i = 1; i < tokens.length; i++) {
 				const a = tokens[i - 1], b = tokens[i];
 				if (a.lw === b.lw && b.lw.length >= 2 && !closed.has(b.lw) && !/^\d/.test(b.lw)) out.push({ from: a.from, to: b.to });

@@ -57,6 +57,8 @@ export const WS_PACK_PARTS: Record<string, 'list' | 'table' | 'keyed' | 'text' |
 	'endings': 'table', 'context': 'keyed', 'inflections': 'list', 'elisions': 'list', 'numbers': 'list', 'units': 'list',
 	// the prose checks' words
 	'filler words': 'list', 'soft filler': 'list', 'hedges': 'list', 'misused': 'table',
+	// stock phrases (A839): `## Clichés (Cliches)`, the accent or none
+	'cliches': 'list', 'clichés': 'list',
 	'passive': 'keyed', 'speech verbs': 'list', 'repetition ignore': 'list',
 	// sentences, and the reading grade
 	'abbreviations': 'list', 'readability': 'keyed', 'common characters': 'list', 'loose pronouns': 'list',
@@ -64,6 +66,9 @@ export const WS_PACK_PARTS: Record<string, 'list' | 'table' | 'keyed' | 'text' |
 	'test': 'text', 'expect': 'keyed',
 	// the spaces the language sets beside its marks, a row a mark (French's before ; : ! ? and inside « »)
 	'spaces': 'table',
+	// WHAT THE PACK LEARNED (A840) from text we tagged: which class follows which, and the shares of a class an
+	// ending or a word has (lang-engine's wsPackLearned)
+	'class pairs': 'table', 'ending shares': 'keyed', 'word shares': 'keyed', 'rules': 'table',
 	// the category names Word-Smith shows while the pack is in use, by their English (A600)
 	'names': 'keyed',
 	// THE PACK'S FACTS (language, name, version, quotes…) in the body, not as properties:
@@ -83,7 +88,8 @@ export function wsPackCode(s: unknown): string {
 // One list line's words: split on commas (and the full-width and ideographic
 // ones a Chinese or Japanese pack writes), each trimmed and in one Unicode form.
 function wsPackWords(line: string): string[] {
-	return line.split(/[,\uFF0C\u3001]/).map((w) => w.trim().normalize('NFC')).filter((w) => w.length > 0);
+	// (and the Arabic comma, A846: a Persian or an Arabic pack's lists written as the language writes them)
+	return line.split(/[,\uFF0C\u3001\u060C]/).map((w) => w.trim().normalize('NFC')).filter((w) => w.length > 0);
 }
 
 // A PACK'S FILE, BY ITS NAME: `ws-lang-<code>.md`, in any folder. Known by
@@ -139,6 +145,20 @@ export function wsPackSpaces(pack: WsPack | null | undefined): WsPackSpaces | nu
 	return any ? out : null;
 }
 
+// WHERE A MARK TYPED WITH NO SPACE TAKES ONE (#59, brg-2000: "inserts a non-breaking space, even if the spacebar is not
+// pressed"; Typography's Add the space for you): straight after a word, a number or a closing mark, never after a space
+// or another mark (one space for a group: Oh!! is Oh !!); never a colon after a digit (10:30) or a bracket ([^1]:), and
+// never in a web address or a link being typed (https:, www., a.fr/?q, an open [[, ]( or {{)
+export function wsSpaceForYouFits(before: string, mark: string): boolean {
+	const prev = before.slice(-1);
+	if (!/[\p{L}\p{N})’"»*_]/u.test(prev)) return false;
+	if (mark === ':' && /\p{N}/u.test(prev)) return false;
+	const word = (/\S*$/.exec(before) || [''])[0];
+	if (/:\/\/|^www\.|\.[a-z]{2,}\//i.test(word) || /^(https?|ftp|mailto|file|obsidian)$/i.test(word)) return false;
+	if (before.lastIndexOf('[[') > before.lastIndexOf(']]') || before.lastIndexOf('](') > before.lastIndexOf(')') || before.lastIndexOf('{{') > before.lastIndexOf('}}')) return false;
+	return true;
+}
+
 // THE READING FORMULAS the engine knows, by the name a pack's `## Readability`
 // gives under `formula`, with the coefficients each starts from; a pack writes a
 // coefficient under its own name to change it (lang-engine.ts says what each is).
@@ -162,6 +182,7 @@ export function wsPackCovers(pack: WsPack): { feature: string; on: boolean }[] {
 	return [
 		{ feature: 'Syntax', on: syntax },
 		{ feature: 'Filler words', on: has('filler words') || has('soft filler') || has('hedges') },
+		{ feature: 'Clichés', on: has('cliches') || has('clichés') },
 		{ feature: 'Passive voice', on: passive },
 		// named as the Prose checks are, so the page and the checks say one name (A603)
 		{ feature: 'Commonly misused', on: !!(pack.tables.misused && pack.tables.misused.length) },

@@ -12,6 +12,8 @@ import { WS_INTERNALS } from '../core/obsidian-internals';
 import { Platform } from 'obsidian';
 import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsVimOf } from '../core/preamble';
 import { wsMakeCiteSuggest } from './cite-suggest';
+import { wsPhraseFold, wsPhraseRe } from '../core/lang-engine';
+import { wsSpaceForYouFits } from '../core/language';
 import type WordSmith from '../plugin/plugin';
 
 export const editorMethods = {
@@ -22,6 +24,21 @@ export const editorMethods = {
 	// no-op (CM6 keeps the old instances), and swapping without
 	// updateOptions() never reaches the editors. With the plugin disabled
 	// the array is emptied, which fully removes the decorations.
+	// YOUR OWN CLICHÉS (A856, the writer: "do 3 too"): the box's lines as one pattern, the slots a pack's ({a|b}, {*}),
+	// made again only when the box or the language changes; words apart where a language spaces them, the text itself in
+	// Chinese and Japanese. A line opening with # is a note to yourself
+	// (in the language of the engine marking the text, folded its way, wsPhraseFold: a Turkish İ, a Persian yeh)
+	customClicheRe(this: WordSmith, engineLang?: string): RegExp | null {
+		const src = String(this.settings.customCliches || ''), lang = String(engineLang || this.settings.language || 'en');
+		const key = lang + '\n' + src;
+		if (this._customClicheKey === key) return this._customClicheRe;
+		const lines = src.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => wsPhraseFold(l, lang));
+		this._customClicheKey = key;
+		try { this._customClicheRe = lines.length ? wsPhraseRe(lines, !/^(zh|ja)(-|$)/i.test(lang)) : null; }
+		catch (_) { wsCatch('customClicheRe', _); this._customClicheRe = null; }
+		return this._customClicheRe;
+	},
+
 	reconfigureEditors(this: WordSmith) {
 		if (CM && this.editorExtensions) {
 			this.editorExtensions.length = 0;
@@ -193,6 +210,14 @@ export const editorMethods = {
 			if (spc && spc.before[text] && before.length >= 2 && before.endsWith(' ') && !/\s/.test(before.charAt(before.length - 2))) {
 				this.applyTypography(view, from, to, text, ' ' + text, spc.before[text] + text);
 				return true;
+			}
+			// …AND WITH NONE TYPED (#59, brg-2000: "even if the spacebar is not pressed"; the writer's "Add the space for you",
+			// off by default): the mark typed straight after a word takes its space, where `wsSpaceForYouFits` says; a second
+			// colon takes the first one's back (Dataview's key::). Ctrl+Z and Backspace take the space back, as every change here
+			if (spc && s.typoSpaceForYou) {
+				const colon = spc.before[':'];
+				if (text === ':' && colon && before.endsWith(colon + ':')) { this.applyTypography(view, from, to, text, colon + '::', '::'); return true; }
+				if (spc.before[text] && wsSpaceForYouFits(before, text)) { this.applyTypography(view, from, to, text, text, spc.before[text] + text); return true; }
 			}
 			if (s.typoSmartQuotes && (text === '"' || text === "'")) {
 				const prev  = lookback.charAt(lookback.length - 1);

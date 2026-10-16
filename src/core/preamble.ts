@@ -28,12 +28,12 @@ import type { WsLensSort, WsLensChip } from '../organizer/organizer-lens';
 // one of them. A name added to applyStyleProps that is not here is written
 // and never cleared.
 export const STYLE_KINDS = ['text', 'highlight', 'line'];
-export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-dim-active']
+export const STYLE_CLASSES = ['ws-para-single', 'ws-line-spacing', 'ws-line-hl', 'ws-line-ul', 'ws-dim-active']
 	.concat(STYLE_KINDS.map((k) => 'ws-pos-' + k), STYLE_KINDS.map((k) => 'ws-ck-' + k));
-export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line-hl-color', '--ws-dim-opacity',
+export const STYLE_PROPS = ['--ws-line-measure', '--ws-line-spacing', '--ws-line-hl-color', '--ws-line-top-h', '--ws-line-bot-h', '--ws-line-ul-period', '--ws-line-ul-dash', '--ws-dim-opacity',
 	'--ws-ck-hard-bg', '--ws-ck-veryhard-bg', '--ws-ck-short-bg', '--ws-ck-mid-bg', '--ws-mask-opacity', '--ws-para-indent']
-	.concat(['noun', 'verb', 'adj', 'adv', 'conj'].flatMap((k) => ['--ws-pos-' + k + '-color', '--ws-pos-' + k + '-bg']),
-		['filler', 'passive', 'illusion', 'misused', 'pronoun', 'dialogue', 'repeat'].flatMap((k) => ['--ws-ck-' + k + '-color', '--ws-ck-' + k + '-bg']));
+	.concat(['noun', 'verb', 'adj', 'adv', 'conj', 'pron'].flatMap((k) => ['--ws-pos-' + k + '-color', '--ws-pos-' + k + '-bg']),
+		['filler', 'passive', 'illusion', 'misused', 'pronoun', 'dialogue', 'repeat', 'cliche'].flatMap((k) => ['--ws-ck-' + k + '-color', '--ws-ck-' + k + '-bg']));
 
 // THE USER AGENT, READ IN ONE PLACE. Two things need it and neither is OS
 // detection: the INSTALLER version — the `obsidian/x.y.z` token, which is
@@ -1135,7 +1135,7 @@ export const POS_LEX: Record<string, string> = Object.create(null) as Record<str
 		evening week month hour minute moment reason question answer problem
 		sense mind heart voice face body kind sort part end side form order
 		matter fact view level rate area field course result effect chance
-		change nothing everything something anything president student
+		change president student
 		resident agent parent patient client moment accident incident
 		continent talent tenant servant assistant consultant restaurant
 		elephant infant merchant giant opponent component ingredient
@@ -1238,7 +1238,7 @@ export const WORD_RE = /(?![\u00ba\u00aa])\p{Script=Latin}[\p{Script=Latin}\p{M}
 
 // One word of a line as the checks see it: the text, lowered, its span, the
 // tag the tagger gives it, and whether it opens a sentence.
-export interface WsToken { w: string; lw: string; from: number; to: number; tag: string | null; first?: boolean }
+export interface WsToken { w: string; lw: string; from: number; to: number; tag: string | null; first?: boolean; guess?: boolean }
 export function tokenizeLine(text: string) {
 	const out: WsToken[] = [];
 	WORD_RE.lastIndex = 0;
@@ -1344,11 +1344,13 @@ export function tagTokens(tokens: WsToken[], text: string) {
 			if (cm) dyn = (cm[1] === 'll' || cm[1] === 'd') ? 'MOD' : 'AUX';
 		}
 		t.tag = lex || dyn || suffixTag(t.lw);
+		// a word the lexicon does not hold is a guess (A840: what a learned rule with no word may change)
+		if (!lex && !dyn) t.guess = true;
 		// THE PIECES OF A FIGURE OR AN ABBREVIATION (A674): "the 15th century" is a figure and its
 		// letters, "e.g." two letters with stops; none of them is a word to color.
 		const before = i > 0 ? tokens[i - 1] : null;
-		if (/^(st|nd|rd|th)$/.test(t.lw) && before && before.tag === 'NUM' && before.to === t.from) t.tag = 'NUM';
-		else if (t.lw.length === 1 && text.charAt(t.to) === '.' && (!/^[aio]$/.test(t.lw) || /\p{L}/u.test(text.charAt(t.to + 1)))) t.tag = 'ABBR';
+		if (/^(st|nd|rd|th)$/.test(t.lw) && before && before.tag === 'NUM' && before.to === t.from) { t.tag = 'NUM'; t.guess = false; }
+		else if (t.lw.length === 1 && text.charAt(t.to) === '.' && (!/^[aio]$/.test(t.lw) || /\p{L}/u.test(text.charAt(t.to + 1)))) { t.tag = 'ABBR'; t.guess = false; }
 		// A sentence ends when the character right after this token is a
 		// terminator (the tokenizer never swallows punctuation).
 		const after = text.slice(t.to, t.to + 2);
@@ -1390,7 +1392,10 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		}
 		// "WHICH BECAME" (A674): after "which" or "what" a past or a third person
 		// is the clause's verb, not a thing the word points at ("which book").
-		const relVerb = !!prev && /^(which|what|whatever|whichever)$/.test(prev.lw) &&
+		// The relative "that" too, "the house that stood" (A839), unless a thing
+		// follows and the word modifies it ("that painted wall").
+		const relVerb = !!prev && (/^(which|what|whatever|whichever)$/.test(prev.lw) ||
+			(prev.lw === 'that' && !(next && next.tag === 'NOUN' && linked(t, next)))) &&
 			(/(ed|[^s]s)$/.test(t.lw) || WS_IRREGULAR_PAST.has(t.lw));
 		if (t.tag === 'ADJ' && t.lw.includes('-') && /ed$/.test(t.lw) && prev && prev.tag === 'PRON' && SUBJECT_PRONOUNS.has(prev.lw)) {
 			t.tag = 'VERB';
@@ -1599,6 +1604,20 @@ export function tagTokens(tokens: WsToken[], text: string) {
 		}
 	}
 
+	// A POINTING WORD STANDING ALONE IS A PRONOUN (A839): "this is", "which
+	// works", "those who", "what it means", "the house that stood" hold a
+	// noun's place; before a thing or a quality they point ("this house",
+	// "which one", "this very room"). A "that" joining clauses is a
+	// conjunction already, decided above.
+	for (let i = 0; i < tokens.length; i++) {
+		const t = tokens[i];
+		if (t.tag !== 'DET' || !/^(this|that|these|those|which|what|whichever|whatever)$/.test(t.lw)) continue;
+		const next = tokens[i + 1], after = tokens[i + 2];
+		if (next && /^(one|ones)$/.test(next.lw)) continue;
+		if (next && next.tag === 'ADV' && after && linked(next, after) && (after.tag === 'NOUN' || after.tag === 'ADJ')) continue;
+		if (!next || !linked(t, next) || /^(AUX|MOD|VERB|PREP|CONJ|TO|PRON|ADV)$/.test(next.tag || '')) t.tag = 'PRON';
+	}
+
 	// "to" is an infinitive marker before a verb and a preposition everywhere
 	// else. Decided last, so the infinitive promotion above has already run
 	// and "to write" is distinguishable from "to the shop".
@@ -1627,6 +1646,164 @@ export function posBucket(tag: string) {
 // scripts: filler words, passive voice, lexical illusions, commonly misused
 // words, and pronouns with loose referents. All of it is list-and-rule based
 // and runs on the visible lines only.
+
+// CLICHÉS, ENGLISH'S OWN (A839, the writer's pick "Clichés", "do these for all language packs"): stock phrases a reader
+// has met too often to see; a pack lists its language's under `## Clichés (Cliches)`, and ws-lang-en.md shows these
+// ENGLISH'S STOCK PHRASES (A839; A856, the writer: "bigger lists, verbal and written cliches, idioms and all that", with
+// their 98 sayings and "a breath of fresh air", "love at first sight", "better safe than sorry"): written for Word-Smith,
+// never copied from a published list. SLOTS (wsPhrasePattern): {a|b} any of these words, an empty choice optional, {*}
+// any one word; a space takes a comma, so "easy come easy go" finds "easy come, easy go". A saying is stored as the
+// core a writer reuses ("judge a book by its cover" finds "don't judge…" and "you can't judge…"). Left to Filler words:
+// "needless to say", "each and every", "first and foremost" (the four both lists held before stay)
+const WS_POSS = '{my|your|his|her|its|our|their}';
+export const WS_CLICHES_EN: string[] = [
+	// ── sayings: proverbs, adages, maxims, platitudes, truisms ──
+	'absence makes the heart grow fonder', 'a friend in need is a friend indeed', 'age is just a number',
+	"leopard {can't|cannot|doesn't|does not|never} {change|changes} its spots", "all's well that ends well",
+	'an apple a day keeps the doctor away', 'actions speak louder than words', 'picture is worth a thousand words',
+	'rolling stone gathers no moss', 'stitch in time saves nine', 'watched pot never boils',
+	'beauty is in the eye of the beholder', 'beauty is only skin deep', 'better late than never', 'better safe than sorry',
+	'birds of a feather', 'blood is thicker than water', '{bark|barks|barking|barked} up the wrong tree', 'break a leg',
+	'{burn|burns|burning|burned|burnt} the midnight oil', 'curiosity killed the cat', "diamonds are a girl's best friend",
+	'bite the hand that feeds {you|him|her|them|us|me}', 'count ' + WS_POSS + ' chickens before they hatch',
+	'{cry|cries|crying|cried} over {spilled|spilt} milk', 'all ' + WS_POSS + ' eggs in one basket',
+	'{throw|throws|throwing|threw|thrown} the baby out with the {bathwater|bath water}',
+	'{put|puts|putting} the cart before the horse', 'easy come easy go', 'every cloud has a silver lining',
+	'every dog has its day', 'every man for himself', 'every rose has its thorn', 'fools rush in',
+	'good things come to those who wait', 'great minds think alike', 'haste makes waste', 'honesty is the best policy',
+	"if it ain't broke", 'ignorance is bliss', 'takes two to tango', '{raining|rained|rains} cats and dogs',
+	'keep your friends close', '{kill|kills|killing|killed} two birds with one stone', 'laughter is the best medicine',
+	'{let|lets|letting} the cat out of the bag', 'look before you leap', 'love is blind', 'hay while the sun shines',
+	'misery loves company', "money {doesn't|does not} grow on trees", 'look a gift horse in the mouth', 'no pain no gain',
+	'old habits die hard', 'once in a blue moon', 'opportunity knocks', 'out of sight out of mind',
+	'out of the frying pan', 'practice makes perfect', "rome {wasn't|was not} built in a day", 'seeing is believing',
+	'silence is golden', 'while the iron is hot', "apple {doesn't|does not|never} {fall|falls} far from the tree",
+	'ball is in ' + WS_POSS + ' court', 'best of both worlds', 'the bigger they are the harder they fall',
+	'early bird catches the worm', 'grass is always greener', 'the more the merrier', 'pen is mightier than the sword',
+	'pot calling the kettle black', 'road to hell is paved with good intentions', 'the show must go on',
+	"{there's|there is} no place like home", 'no smoke without fire', "time flies when you're having fun", 'how time flies',
+	'time heals all wounds', 'too many cooks', "two wrongs {don't|do not} make a right", 'variety is the spice of life',
+	'when in rome', 'when one door closes', 'when the going gets tough', "where there's smoke",
+	'have ' + WS_POSS + ' cake and eat it', 'judge a book by its cover', 'make an {omelette|omelet} without breaking',
+	'teach an old dog new tricks', 'kiss a lot of frogs', 'reap what {you|they|we|he|she|i} {sow|sowed|sown}',
+	'apple of {my|your|his|her|our|their} eye', 'everything happens for a reason', 'it is what it is',
+	'you get what you pay for', 'time waits for no {one|man}', 'boys will be boys', "it's a small world", 'life goes on',
+	"{life is|life's} too short", 'it could be worse', "what {doesn't|does not} kill you makes you stronger",
+	'this too shall pass', "{there's|there is} a first time for everything", "{it's|it is} never too late",
+	'follow ' + WS_POSS + ' heart', 'live and learn', 'live and let live', 'to each {their|his|her} own', 'enough is enough',
+	'what will be will be', 'all good things {must |}come to an end', 'no news is good news', 'home is where the heart is',
+	'the truth will set you free', "what's done is done", "{it's|it is} the thought that counts",
+	'slow and steady wins the race', 'you only live once', 'knowledge is power', "money {can't|cannot} buy happiness",
+	'patience is a virtue', 'the best things in life are free', 'all that glitters is not gold',
+	"beggars {can't|cannot} be choosers", "all's fair in love and war", 'you can lead a horse to water',
+	'what goes around comes around', 'the devil is in the details', 'the pen is mightier', 'the rest is history',
+	'only time will tell', 'stood the test of time', 'time heals', 'easier said than done',
+	// ── idioms ──
+	'at the drop of a hat', 'add insult to injury', 'back to square one', 'back to the drawing board',
+	'{beat|beats|beating|beaten} a dead horse', 'bend over backwards', 'between a rock and a hard place',
+	'{bite|bit|bites|biting|bitten} off more than {*} {can|could} chew', 'blow off steam', 'break the bank',
+	'{burn|burned|burnt|burning} ' + WS_POSS + ' bridges', 'by the book', 'call it a day', 'cost an arm and a leg',
+	'an arm and a leg', 'cross that bridge when', 'cut corners', 'cut to the chase', "devil's advocate", 'down to earth',
+	'like a fish out of water', 'a fish out of water', 'get out of hand', 'get the ball rolling',
+	'the benefit of the doubt', 'go the extra mile', 'hang in there', '{hit|hits|hitting} the ground running',
+	'hit the sack', 'in hot water', 'in the same boat', 'jump on the bandwagon', 'keep ' + WS_POSS + ' chin up',
+	'let sleeping dogs lie', 'miss the boat', 'leave no stone unturned', 'off the hook', 'on thin ice',
+	'once in a lifetime', 'out of the woods', 'over the moon', 'play it by ear', '{pull|pulling|pulled} ' + WS_POSS + ' leg',
+	'rule of thumb', 'see eye to eye', '{spill|spilled|spilt|spilling} the beans', 'steal ' + WS_POSS + ' thunder',
+	'with a grain of salt', 'the last straw', 'the whole nine yards', 'throw caution to the wind', 'turn a blind eye',
+	'under the radar', 'up in the air', 'wild goose chase', 'window of opportunity',
+	'worth ' + WS_POSS + ' weight in gold', 'your guess is as good as mine', 'tip of the iceberg', 'a drop in the bucket',
+	'a dime a dozen', 'a far cry from', 'a level playing field', 'a matter of time', 'a race against time',
+	'a slippery slope', 'a sight for sore eyes', 'a tough nut to crack', "all in a day's work", 'as old as the hills',
+	'at the crack of dawn', 'at the end of ' + WS_POSS + ' rope', '{bite|bit|bites|biting|bitten} the dust',
+	'the black sheep', 'bone of contention', 'born with a silver spoon', 'bring home the bacon',
+	'burn the candle at both ends', 'by leaps and bounds', 'the forest for the trees', 'the wood for the trees',
+	'caught red-handed', 'a change of heart', 'chip on ' + WS_POSS + ' shoulder', 'clear as mud', 'cold feet',
+	'come rain or shine', 'come full circle', 'cry wolf', 'cut and dried', 'dead in the water', 'down the rabbit hole',
+	'draw the line', '{drop|dropped|dropping} the ball', 'every fiber of ' + WS_POSS + ' being', 'fall on deaf ears',
+	'fell on deaf ears', 'tooth and nail', 'fits like a glove', 'a flash in the pan', 'from rags to riches',
+	'from the bottom of ' + WS_POSS + ' heart', 'get ' + WS_POSS + ' act together', 'go down in flames',
+	'go with the flow', 'head in the clouds', 'heart on ' + WS_POSS + ' sleeve', 'high and dry', 'hold all the cards',
+	'in a nutshell', 'in the nick of time', 'not rocket science', 'jump the gun',
+	'keep ' + WS_POSS + ' eyes peeled', '{kick|kicked|kicks|kicking} the bucket', 'knock on wood', 'know the ropes',
+	'larger than life', 'like a moth to a flame', 'like clockwork', "like there's no tomorrow",
+	'lose ' + WS_POSS + ' marbles', 'make ends meet', 'method to the madness', 'method in ' + WS_POSS + ' madness',
+	'nip {it|this|that} in the bud', 'not ' + WS_POSS + ' cup of tea', 'on the same page',
+	'once and for all', 'out of ' + WS_POSS + ' league', 'par for the course', 'pass the buck', 'pie in the sky',
+	'play with fire', 'pull out all the stops', 'put ' + WS_POSS + ' foot down', 'rain on ' + WS_POSS + ' parade',
+	'hit rock bottom', 'rub salt in the wound', 'run of the mill', 'sell like hotcakes', 'set in stone',
+	'shoot {myself|yourself|himself|herself|itself|ourselves|themselves} in the foot', 'sit on the fence', 'so far so good',
+	'sour grapes', 'speak of the devil', '{stand|stands|standing|stood} ' + WS_POSS + ' ground', 'start from scratch',
+	'like a sore thumb', "straight from the horse's mouth", 'take the bull by the horns', 'the bottom line',
+	'the calm before the storm', 'calm before the storm', 'the moment of truth', 'the name of the game', 'the real deal',
+	"{the sky's|the sky is} the limit", 'the tables {have|had} turned', 'turn the tables', 'the world is ' + WS_POSS + ' oyster',
+	'through the roof', 'under the bus', 'tie the knot', 'long story short', 'touch and go', 'tried and true',
+	'turn over a new leaf', 'until the cows come home', 'up the creek', 'walking on eggshells', 'walk on eggshells',
+	'water under the bridge', 'weather the storm', 'when pigs fly', 'with flying {colors|colours}', 'beat around the bush',
+	'bite the bullet', '{bit|bites|biting|bitten} the bullet', 'break the ice', 'face the music', 'head over heels',
+	'in the heat of the moment', 'heart of gold', 'a heart of stone', '{hit|hits|hitting} the nail on the head',
+	'needle in a haystack', 'out of the blue', 'piece of cake', 'plenty of fish in the sea',
+	'{read|reading|reads} between the lines', 'think outside the box', 'through thick and thin', 'under the weather',
+	'without a shadow of a doubt', 'at the speed of light', 'all walks of life', 'as luck would have it',
+	'a blessing in disguise', 'the writing on the wall', 'once upon a time', 'the elephant in the room', 'a perfect storm',
+	'the perfect storm', 'against all odds', 'at a loss for words', 'by the skin of ' + WS_POSS + ' teeth',
+	'nerves of steel', 'on cloud nine', 'safe and sound', 'avoid like the plague', 'crystal clear', 'at the end of the day',
+	'for all intents and purposes', 'few and far between', 'when all is said and done', 'it goes without saying',
+	'last but not least', 'light at the end of the tunnel', 'in this day and age', 'the tip of the iceberg',
+	'{take|takes|taking|took|taken} it with a grain of salt',
+	// ── similes ──
+	'busy as a bee', 'blind as a bat', 'brave as a lion', 'clean as a whistle', 'clear as day', 'clear as a bell',
+	'cold as ice', 'cool as a cucumber', 'cute as a button', 'dead as a doornail', 'deaf as a post', 'dry as a bone',
+	'dull as dishwater', 'easy as pie', 'flat as a pancake', 'free as a bird', 'fresh as a daisy', 'good as gold',
+	'happy as a clam', 'hard as nails', 'hard as a rock', 'light as a feather', 'mad as a hatter', 'neat as a pin',
+	'plain as day', 'pleased as punch', 'pretty as a picture', 'proud as a peacock', 'quick as a flash',
+	'quick as lightning', 'quiet as a mouse', 'red as a beet', 'right as rain', 'sharp as a tack', 'sick as a dog',
+	'silent as the grave', 'sly as a fox', 'smooth as silk', 'snug as a bug in a rug', 'solid as a rock',
+	'steady as a rock', 'stubborn as a mule', 'sweet as honey', 'thick as thieves', 'tough as nails', 'ugly as sin',
+	'white as a ghost', 'white as a sheet', 'white as snow', 'wise as an owl', 'fit as a fiddle', 'strong as an ox',
+	'slow as molasses', '{sleep|sleeps|sleeping|slept} like a {log|baby|rock}', '{run|runs|running|ran} like the wind',
+	'like a deer in {the |}headlights', 'like a bat out of hell', 'like a bull in a china shop', 'like a house on fire',
+	'like a ton of bricks', 'two peas in a pod', 'like a broken record', 'like a well-oiled machine',
+	'like a kid in a candy store', 'eyes like saucers',
+	// ── fiction: what stories overuse ──
+	'love at first sight', 'a breath of fresh air', 'time stood still', 'little did {they|he|she|i|we|you} know',
+	'{a chill|chills|a shiver|shivers} {ran|run|runs|running|went|crept} down ' + WS_POSS + ' spine',
+	'{sent|sends|sending} {a shiver|shivers|a chill|chills} down ' + WS_POSS + ' spine',
+	"{let out|released|exhaled} a breath {*} {didn't|did not|hadn't|had not} {know|known|realized|realised} {*} {was|were|had been} holding",
+	'heart {pounded|pounding|hammered|hammering|raced|racing} in ' + WS_POSS + ' chest', 'heart skipped a beat',
+	'blood ran cold', 'a dark and stormy night', 'all a dream', '{woke|wakes|waking|awoke} {up |}in a cold sweat',
+	'jaw dropped', 'eyes widened in {surprise|shock|horror|disbelief}',
+	'a single tear {rolled|ran|slid|trickled} down ' + WS_POSS + ' cheek', 'deafening silence', 'silence was deafening',
+	'an eerie silence', 'all hell broke loose', 'dead of night', 'in the blink of an eye', 'out of nowhere',
+	'too good to be true', 'happily ever after', 'the end of an era', 'a force to be reckoned with',
+	'fate had other plans', 'world came crashing down', 'the moment {i|he|she|they|we} laid eyes on',
+	'never in ' + WS_POSS + ' wildest dreams', 'the stuff of {legends|legend|nightmares}', 'a sea of faces',
+	'a wave of {relief|panic|nausea|guilt|emotion|fear} washed over', 'butterflies in ' + WS_POSS + ' stomach',
+	'weak at the knees', 'the hairs on the back of ' + WS_POSS + ' neck', "smile {that|which} {didn't|did not|never} reach " + WS_POSS + ' eyes',
+	'what {felt|seemed} like an eternity', 'lost in thought', 'deep in thought', 'a mind of {its|her|his|their} own',
+	'the last thing {i|he|she|they|we} remembered', 'a twist of fate', 'life flashed before ' + WS_POSS + ' eyes',
+	'frozen {in|with} fear', 'paralyzed with fear', '{my|his|her|their|your} mind {raced|was racing}',
+	'cut the tension with a knife', '{their|our} eyes met across the {room|crowded room}', 'piercing {blue|green|grey|gray} eyes', 'raven {hair|locks}', '{a bead|beads} of sweat',
+	'more than meets the eye', 'scared to death', 'scared out of ' + WS_POSS + ' wits', 'bated breath',
+	'{held|holding|holds} ' + WS_POSS + ' breath in anticipation', 'a rush of adrenaline', 'electricity shot through',
+	"it was {all |}{just |}a dream",
+	// ── crutch phrases ──
+	'all of a sudden', 'at this point in time', 'by and large', 'in the final analysis', 'since the dawn of {time|man|mankind}',
+	"in today's {world|society}", 'first things first', "for what it's worth", 'all things considered',
+	'in the grand scheme of things', 'more often than not', 'time and time again', 'the time has come', 'now more than ever',
+	'the fact of the matter is', 'at the end of the road', 'when push comes to shove',
+	// ── dialogue: stock lines ──
+	'we need to talk', "{it's|it is} not what it looks like", 'i can explain', "you just {don't|do not} get it",
+	"is that all {you've|you have} got", "{i have|i've got|i've|i got} a bad feeling about this", 'over my dead body',
+	"{we've got|we have} company", "this {isn't|is not|ain't} over", "{you'll|you will} pay for this", 'too old for this',
+	'quiet too quiet', 'not so different {you and i|you and me|after all}', "{it's|it is} a trap",
+	'what could possibly go wrong', 'now or never', 'no time to explain', 'stop meeting like this',
+	'this changes everything', "not you {it's|it is} me", 'i was born ready', 'you complete me',
+	// ── jargon ──
+	'circle back', 'low-hanging fruit', 'move the needle', 'paradigm shift', 'touch base', 'game changer',
+	'a win-win', '{take|takes|taking|took|taken} {it|this|things} to the next level', 'level the playing field',
+	'push the envelope', 'bring to the table', 'deep dive',
+];
 
 // Hedges and intensifiers — filler in any register, always flagged.
 export const FILLER_STRONG = new Set(`very really quite rather somewhat fairly pretty
@@ -2518,7 +2695,9 @@ export const CJK_CHAR = /[\u3040-\u309f\u30a0-\u30ff\u3400-\u4dbf\u4e00-\u9fff\u
 // A FIGURE IS ONE WORD (A610), its separators inside it: 1.000, 3,5, 3.14, 10:30 and
 // 1.º were two each, in every language. A word processor counts each once. A figure
 // first, then a word; NO LOOKBEHIND, which an older iPhone's Safari cannot parse (smoke).
-export const WORDISH = /\p{N}+(?:[.,:]\p{N}+)*(?:\.?[\u00ba\u00aa])?[\p{L}\p{N}'\u2019_-]*|(?![\u00ba\u00aa])\p{L}[\p{L}\p{N}'\u2019_-]*/gu;
+// (A846: a word's own combining marks and joiners inside it, Hindi's vowel signs, Arabic's harakat, Persian's half-space:
+// किताब one word, not क|त|ब; می‌روم one, not می|روم)
+export const WORDISH = /\p{N}+(?:[.,:]\p{N}+)*(?:\.?[\u00ba\u00aa])?(?:[\p{L}\p{M}\p{N}'\u2019_-]|\u200c|\u200d)*|(?![\u00ba\u00aa])\p{L}(?:[\p{L}\p{M}\p{N}'\u2019_-]|\u200c|\u200d)*/gu;
 
 // Blanks out markup while preserving nothing but the prose. Unlike
 // maskMarkup (used for highlighting) this keeps inline code *content* — "the
@@ -2789,6 +2968,23 @@ function wsPageSplit(doc: Document, P: HTMLElement, at: [Text, number]): HTMLEle
 	P.classList.add('pgsplit');
 	return P2;
 }
+// …AND THE PAGE A PART IS ON (the writer: "when im in the middle of last page the page numbers dissapear"): a later part
+// (`pgcont`) is made after the reader's page map was taken, and made again at every zoom, so the map never knows it; each
+// part begins the page after the part before it, so its page is its first part's and one on for each part between; the
+// reader's seam between two parts (a page's foot, the next one's head) is passed over. Null where the first part is not in
+// the map either
+export function wsPageOfPart(el: Element, pageOf: WeakMap<HTMLElement, number>): number | null {
+	let k: Element = el, on = 0;
+	while (k.classList.contains('pgcont')) {
+		let pv = k.previousElementSibling;
+		while (pv && pv.classList.contains('seam')) pv = pv.previousElementSibling;
+		if (!pv || !pv.classList.contains('pgsplit')) return null;
+		k = pv;
+		on++;
+	}
+	const at = pageOf.get(k as HTMLElement);
+	return at == null ? null : at + on;
+}
 // A TABLE WHERE A PAGE BEGINS IN IT, likewise: its rows from that page on go to a second table after the first (the head
 // not repeated, as Word repeats one only when told), so the reader's page holds the rows the printed page holds
 function wsTableCutAt(table: Element, colOf: (r: DOMRect) => number, col: number): Element | null {
@@ -2909,6 +3105,8 @@ export function wsPageSeams(doc: Document, flow: Element, starts: [Element, numb
 	const root = doc.documentElement;
 	if (!root || !root.hasAttribute('data-ws-pn')) return 0;
 	const head = root.getAttribute('data-ws-head') || '', pn = root.getAttribute('data-ws-pn') || 'none', tp = root.hasAttribute('data-ws-tp');
+	// (the header's side and its own {page}, #81)
+	const left = root.getAttribute('data-ws-hside') === 'left', mine = left ? 'top-left' : 'top-right';
 	// (made with Obsidian's own helpers and handed to the frame's document, which adopts them: the review asks for
 	// createEl over createElement)
 	const seam = (parent: Node, before: Node | null, ends: number, begins: number) => {
@@ -2926,9 +3124,9 @@ export function wsPageSeams(doc: Document, flow: Element, starts: [Element, numb
 		if (begins > 0) {
 			const h = s.createDiv({ cls: 'seam-head' });
 			if (!(tp && begins === 1)) {
-				if (pn === 'top-left' || pn === 'top-center') h.createSpan({ cls: 'seam-num is-' + pn.slice(4), text: String(begins) });
-				const said = head + (pn === 'top-right' ? (head ? ' ' : '') + begins : '');
-				if (said) h.createSpan({ cls: 'seam-hdr', text: said });
+				if (pn.startsWith('top-') && pn !== mine) h.createSpan({ cls: 'seam-num is-' + pn.slice(4), text: String(begins) });
+				const said = head.split('{page}').join(String(begins)) + (pn === mine ? (head ? ' ' : '') + begins : '');
+				if (said) h.createSpan({ cls: 'seam-hdr' + (left ? ' is-left' : ''), text: said });
 			}
 		}
 		parent.insertBefore(s, before);
@@ -3207,7 +3405,7 @@ export function wsFootNotes(doc: Document): { notes: number; placed: number } {
 // EPUB 2 table of contents beside it for older readers; a store-only zip, the
 // mimetype first and alone, as the format asks.
 export interface WsEpubNav { id: string; label: string; level: number }
-export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; paraBlank?: boolean; modified?: string; tocTitle?: string; centerHeads?: boolean }
+export interface WsEpubMeta { title: string; author: string; lang: string; nav: WsEpubNav[]; indent: boolean; paraBlank?: boolean; paraHalf?: boolean; modified?: string; tocTitle?: string; centerHeads?: boolean }
 
 // the picture kinds every EPUB reader is bound to show
 const WS_EPUB_IMG: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
@@ -3253,7 +3451,9 @@ export function wsDataUrlBytes(url: string): { mime: string; bytes: Uint8Array }
 // shape: the indents, the headings, the breaks.
 export function wsEpubCss(meta: WsEpubMeta) {
 	return 'body { margin: 0; }\n'
-		+ 'p { margin: ' + (meta.paraBlank ? '0 0 1em 0' : meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
+		+ 'p { margin: ' + (meta.paraBlank ? '0 0 1em 0' : meta.paraHalf ? '0 0 0.5em 0' : meta.indent ? '0' : '0 0 0.6em 0') + '; text-indent: ' + (meta.indent ? '1.5em' : '0') + '; hyphens: auto; -webkit-hyphens: auto; }\n'
+		// (a kept blank line one line, no spacing of its own: A851)
+		+ 'p.blank { margin: 0; }\n'
 		+ 'p.first, p.div, p.cmt, p.li, blockquote p, figure p, li p, td p, th p { text-indent: 0; }\n'
 		// CENTERED unless the writer turned Center headings off (#76); the title page stays centered either way
 		+ 'h1, h2, h3, h4, h5, h6 {' + (meta.centerHeads === false ? '' : ' text-align: center;') + ' font-weight: bold; text-indent: 0; margin: 1.5em 0 1em; page-break-after: avoid; break-after: avoid; }\n'
@@ -3332,7 +3532,7 @@ export function wsBuildEpub(html: string, meta: WsEpubMeta) {
 	});
 	const x = wsXml;
 	const page = (head: string, body: string, css: string) => '<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n'
-		+ '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + x(lang) + '" xml:lang="' + x(lang) + '">\n'
+		+ '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="' + x(lang) + '" xml:lang="' + x(lang) + '"' + (wsIsRtl(lang) ? ' dir="rtl"' : '') + '>\n'
 		+ '<head>\n<meta charset="utf-8"/>\n<title>' + x(head) + '</title>\n<link rel="stylesheet" type="text/css" href="' + css + '"/>\n</head>\n'
 		+ '<body>\n' + body + '\n</body>\n</html>\n';
 	const xmlOf = (n: Node) => ser.serializeToString(n)
@@ -3385,7 +3585,7 @@ export function wsBuildEpub(html: string, meta: WsEpubMeta) {
 		+ '<dc:language>' + x(lang) + '</dc:language>\n'
 		+ '<meta property="dcterms:modified">' + x(modified) + '</meta>\n'
 		+ '</metadata>\n<manifest>\n' + items.join('\n') + '\n</manifest>\n'
-		+ '<spine toc="ncx">\n' + parts.map((_, i) => '<itemref idref="p' + (i + 1) + '"/>').join('\n') + '\n</spine>\n</package>\n';
+		+ '<spine toc="ncx"' + (wsIsRtl(lang) ? ' page-progression-direction="rtl"' : '') + '>\n' + parts.map((_, i) => '<itemref idref="p' + (i + 1) + '"/>').join('\n') + '\n</spine>\n</package>\n';
 	return wsZip(files.concat([
 		{ name: 'OEBPS/content.opf', bytes: wsUtf8(opf) },
 		{ name: 'OEBPS/nav.xhtml', bytes: wsUtf8(page(title, '<nav epub:type="toc" id="toc">\n<h1>' + x(meta.tocTitle || 'Contents') + '</h1>\n' + ol.join('') + '\n</nav>', 'style.css')) },
@@ -4522,6 +4722,8 @@ export interface WsRun { text: string; bold?: boolean; ital?: boolean; high?: bo
 // into half-points on the title's run, the page writes it as em. Bigger than
 // the chapter heading under it (the body plus 2pt), which it opens the book above.
 export const WS_TITLE_SIZE_EM = 1.5;
+// the title page's subtitle, a quarter larger than the text (#81, the writer: "also add subtitle for the title page")
+export const WS_SUBTITLE_SIZE_EM = 1.25;
 export function wsTitleHalfPoints(o: WsExportOpts | null | undefined) {
 	return Math.round(((o && o.pt) || 12) * 2 * WS_TITLE_SIZE_EM);
 }
@@ -4558,6 +4760,18 @@ export function wsHighlightColorAt(text: string, at: number) {
 // synchronous walkers one map per note, keyed by the reference as written:
 // the same ![[map.png]] resolves from the note it sits in.
 export const WS_IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'];
+// A PICTURE'S PLAIN MARKDOWN LINK (A842): its alt text, the path beside the exported file, each part URL-encoded so a
+// space or a parenthesis never ends the link early, as pandoc and every Markdown reader read one
+// A FILE'S PATH FROM ANOTHER'S FOLDER (A842): 'Out/Book.md' to 'img/a.png' is '../img/a.png', both in the vault
+export function wsRelPath(fromFile: string, toPath: string): string {
+	const from = String(fromFile).split('/').slice(0, -1), to = String(toPath).split('/');
+	let i = 0;
+	while (i < from.length && i < to.length - 1 && from[i] === to[i]) i++;
+	return from.slice(i).map(() => '..').concat(to.slice(i)).join('/');
+}
+export function wsMdImageLink(alt: string, rel: string): string {
+	return '![' + String(alt || '').replace(/[[\]]/g, '') + '](' + String(rel).split('/').map((p) => encodeURIComponent(p).replace(/[()]/g, (c) => (c === '(' ? '%28' : '%29'))).join('/') + ')';
+}
 export function wsImageRefRe() { return /!\[\[([^\]]+)\]\]|!\[([^\]]*)\]\(([^)]*)\)/g; }
 // One reference read: its target, its alt text, the width the note asked for,
 // and whether it points off the vault. Null when the embed is not a picture by
@@ -4803,15 +5017,19 @@ export function wsFootnoteDefs(md: string | null | undefined) {
 }
 
 // One paragraph of OOXML. `style` names a style defined in styles.xml.
-export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean; align?: string; pageBreakBefore?: boolean; hanging?: boolean }) {
+export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean; align?: string; pageBreakBefore?: boolean; hanging?: boolean; bodyLevel?: boolean; noSpace?: boolean }) {
 	const o = opts || {};
 	const pr = [];
 	if (style) pr.push('<w:pStyle w:val="' + style + '"/>');
 	if (o.pageBreakBefore) pr.push('<w:pageBreakBefore/>');
+	// no space before or after (a kept blank line, A851: one line, whatever the body's spacing)
+	if (o.noSpace) pr.push('<w:spacing w:before="0" w:after="0"/>');
 	if (o.align) pr.push('<w:jc w:val="' + o.align + '"/>');
 	// a hanging paragraph (the list of sources, A572 step 4): half an inch in, its first line out
 	if (o.hanging) pr.push('<w:ind w:left="720" w:hanging="720"/>');
 	else if (o.noIndent) pr.push('<w:ind w:firstLine="0"/>');
+	// a heading's look at the body's outline level (A848): no contents field collects it
+	if (o.bodyLevel) pr.push('<w:outlineLvl w:val="9"/>');
 	const body = (runs.length ? runs : [{ text: '' }]).map((r: WsRun) => {
 		// A NOTE'S REFERENCE in the text, and the note's own mark at its start:
 		// Word numbers both itself, from the id and the place.
@@ -4838,8 +5056,7 @@ export function wsPara(runs: WsRun[], style: string, opts?: { noIndent?: boolean
 		return '<w:r>' + (rpr.length ? '<w:rPr>' + rpr.join('') + '</w:rPr>' : '')
 			// xml:space, or Word eats the spaces at either end of a run and
 			// "**bold** word" comes out as "boldword".
-			// (a line broken inside a paragraph, #77: Word's own break between its pieces)
-			+ String(r.text).split('\n').map((x) => '<w:t xml:space="preserve">' + wsXml(x) + '</w:t>').join('<w:br/>') + '</w:r>';
+			+ '<w:t xml:space="preserve">' + wsXml(r.text) + '</w:t></w:r>';
 	}).join('');
 	return '<w:p>' + (pr.length ? '<w:pPr>' + pr.join('') + '</w:pPr>' : '') + body + '</w:p>';
 }
@@ -4913,7 +5130,9 @@ export function wsDropTags(md: string) {
 		if (fence || math) { out.push(line); continue; }
 		let kept = line.split(/(`[^`]*`)/).map((seg, k) => (k % 2 ? seg : seg.replace(WS_TAG_RE, ''))).join('');
 		if (kept === line) { out.push(line); continue; }
-		if (!kept.trim()) continue;
+		// a line of tags alone goes WITH the blank line after it, as a dropped heading does (wsDropHeadings): left, the
+		// blank lines either side of it would be a run of two, and the export keeps a blank line past the first (A849)
+		if (!kept.trim()) { if (i + 1 < lines.length && !lines[i + 1].trim()) i++; continue; }
 		if (!/^\s/.test(line)) kept = kept.replace(/^\s+/, '');
 		out.push(kept);
 	}
@@ -4979,26 +5198,33 @@ export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild) {
 		return x;
 	}).join('');
 }
-// A LINE THAT RUNS ON INTO THE PARAGRAPH BEFORE IT (#77, davidepicatto: "Blocks of text visually divided in .md by a
-// blank line are divided by a simple line break"; the writer's pick, a checkbox): with Keep line breaks on, a line of
-// prose goes on the one before it unless a blank line stands between; never a line a builder sets apart (a heading, a
-// list, a quote, a table, a fence, a rule, a note, a comment, a picture). Off, the default, every line a paragraph of
-// its own, as before
-export function wsProseGoesOn(line: string, o: WsExportOpts & WsExportBuild): boolean {
-	const t = line.trim();
-	if (!t) return false;
-	if (/^%%|^\[\^[^\]]+\]:|^(`{3,}|~{3,})|^\$\$|^\||^#{1,6}\s|^>/.test(t)) return false;
-	if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(t)) return false;
-	if (/^(\s*)([-*+]|\d+[.)])\s+/.test(line)) return false;
-	return !wsSplitFigures(t, o.imgs);
+// (TOMBSTONE: wsProseGoesOn and wsProseBlock, Keep line breaks' first meaning, lines joined into one paragraph with line
+// breaks: davidepicatto then wanted every line indented, "first line indentation only works after a blank line", and
+// the writer picked every line a paragraph, a blank line kept as one)
+
+// THE FIRST LINE'S INDENT, a size with its unit: a quarter, a half (the manuscript's, the default), three quarters and one
+// inch; and centimeters, as Europe sets them (the writer: "something that the europeans will use too"), 1.25 Word's own
+// there. The page reads the size as it is; Word in twips
+export const WS_INDENT_SIZES = ['0.25in', '0.5in', '0.75in', '1in', '0.5cm', '1cm', '1.25cm', '1.5cm', '2cm'];
+export function wsIndentSize(o: WsExportOpts | null | undefined): string {
+	const v = String((o && o.indentSize) || '');
+	return WS_INDENT_SIZES.includes(v) ? v : '0.5in';
 }
-// …and the paragraph from line i: its lines joined by '\n', which each builder writes as its own line break (a
-// trailing \ that broke the line in the note taken off), and the line it ends on
-export function wsProseBlock(lines: string[], i: number, o: WsExportOpts & WsExportBuild): { text: string; end: number } {
-	const out = [lines[i].trim()];
-	let j = i;
-	if (o.keepLineBreaks) while (j + 1 < lines.length && wsProseGoesOn(lines[j + 1], o)) out.push(lines[++j].trim());
-	return { text: out.map((l, k) => (k < out.length - 1 ? l.replace(/\\$/, '') : l)).join('\n'), end: j };
+// THE SPACE BETWEEN PARAGRAPHS, ONE CHOICE (the writer: "keep lines brakes just adds spacings for paragraphs. let me have
+// multiple options for paragraph spacings", the pick "One dropdown"): Auto (none when indented, 6pt when not, as always),
+// half a line or one line. A run without the choice reads the switch it replaced. (TOMBSTONE, A849: Your blank lines,
+// 'note', a blank line kept as one, which spaced every paragraph of a note that separates them by blank lines; the
+// writer: "your blank lines should be always kept. i a person adds more blank lines than one, they should be in export.
+// it should not matter for paragraph spacings". The blank lines past the first are kept always: wsHtmlBlocks)
+export const WS_PARA_SPACINGS = ['auto', 'half', 'line'];
+export function wsParaSpacing(o: WsExportOpts | null | undefined): string {
+	const v = String((o && o.paraSpacing) || '');
+	if (WS_PARA_SPACINGS.includes(v)) return v;
+	return o && o.paraBlank ? 'line' : 'auto';
+}
+export function wsIndentIn(o: WsExportOpts | null | undefined): number {
+	const v = wsIndentSize(o), n = parseFloat(v);
+	return v.endsWith('cm') ? n / 2.54 : n;
 }
 
 export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOpen: string, parts: string[]) {
@@ -5008,11 +5234,21 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 	const runsHtml = (text: string) => wsRunsHtml(text, o);
 	const lines = md.replace(/\r\n?/g, '\n').split('\n');
 	let inComment = false;
-	let firstPara = true;
+	let firstPara = !o.indentAfterHeads;
+	// (FLUSH AT THE START AND UNDER A HEADING, as an English book sets it; indented too with Indent after headings, as a
+	// French one does, the writer's pick. A scene break, a table, a kept blank line stay flush either way)
+	// YOUR BLANK LINES, ALWAYS (A849, the writer: "if a person adds more blank lines than one, they should be in export. it
+	// should not matter for paragraph spacings"): the first blank line between two paragraphs only parts them, as
+	// Markdown reads it, and the Paragraph spacing sets that space; each one past it is kept as an empty line, the
+	// paragraph after them flush, as a book sets a space break (#77). Never after a heading, a list or a picture (the
+	// paragraph pushed last must be prose), never at a file's start. `blankRun` counts the run, `lineRun` hands this
+	// line's run to its first paragraph
+	let lastProseAt = -1, blankRun = 0, lineRun = 0;
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		const t = line.trim();
-		if (!t) continue;   // …and the same in the printed target.
+		if (!t) { blankRun++; continue; }   // …and the same in the printed target.
+		lineRun = blankRun; blankRun = 0;
 		// A COMMENT BLOCK — opened on its own line, closed lines later, and
 		// therefore invisible to the inline stripper, which is why one used to
 		// leak into the manuscript a line at a time. Set apart when kept, so a
@@ -5085,7 +5321,7 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 				parts.push('<h' + Math.min(3, h[1].length) + '>' + esc(h[2])
 					+ '</h' + Math.min(3, h[1].length) + '>');
 			}
-			firstPara = true; continue;
+			firstPara = !o.indentAfterHeads; continue;
 		}
 		// QUOTES, AND CALLOUTS: a run of `>` lines, the marks taken off.
 		if (/^>/.test(t)) {
@@ -5120,11 +5356,13 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 			}
 			continue;
 		}
-		// (the lines that run on into it, each break a <br>: #77)
-		const pb = wsProseBlock(lines, i, o);
-		i = pb.end;
-		parts.push('<p' + (firstPara ? ' class="first"' : '') + '>' + runsHtml(pb.text).replace(/\n/g, '<br>') + '</p>');
+		// (KEEP EVERY BLANK LINE, A851: the first too, for a note written a paragraph a line)
+		const owed = parts.length === lastProseAt ? Math.max(0, o.keepBlankLines ? lineRun : lineRun - 1) : 0;
+		lineRun = 0;
+		for (let b = 0; b < owed; b++) parts.push('<p class="blank">\u00a0</p>');
+		parts.push('<p' + (firstPara || owed ? ' class="first"' : '') + '>' + runsHtml(t) + '</p>');
 		firstPara = false;
+		lastProseAt = parts.length;
 	}
 }
 
@@ -5148,7 +5386,10 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 	const out: string[] = [];
 	const notes = [];
 	let i = 0;
-	let firstPara = true;
+	let firstPara = !o.indentAfterHeads;
+	// (flush at the start and under a heading unless Indent after headings; see wsHtmlBlocks)
+	// (your blank lines past the first kept as empty paragraphs, always since A849; see wsHtmlBlocks)
+	let lastProseAt = -1, blankRun = 0, lineRun = 0;
 	// where a --- asked for a new page: the index of the block that opens it
 	const breaks = new Set<number>();
 
@@ -5182,7 +5423,8 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 		// The rule matters more than it looks: a manuscript indents every
 		// paragraph EXCEPT the first of a chapter or a scene, and getting it
 		// wrong is one of the few things an editor sees before reading a word.
-		if (!t) continue;
+		if (!t) { blankRun++; continue; }
+		lineRun = blankRun; blankRun = 0;
 
 		// A footnote definition: collected, not printed here.
 		const fn = t.match(/^\[\^([^\]]+)\]:\s*(.*)$/);
@@ -5280,10 +5522,10 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 			// has "# Chapter One" in the note as a working label, and
 			// leaving it in the manuscript as prose is worse than either
 			// keeping it as a heading or losing it.
-			if (o.keepHeadings === false) { firstPara = true; continue; }
+			if (o.keepHeadings === false) { firstPara = !o.indentAfterHeads; continue; }
 			out.push(wsPara(wsInlineRuns(head[2], o), 'WsHeading' + head[1].length,
 				{ noIndent: true }));
-			firstPara = true;
+			firstPara = !o.indentAfterHeads;
 			continue;
 		}
 
@@ -5329,15 +5571,20 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 		// Ordinary prose, a paragraph: its runs as the parser cut them, footnote
 		// markers already notes (wsInlineRuns), every flag a run arrived with kept.
 		const prose = (text: string) => {
-			out.push(wsPara(wsInlineRuns(text, o), 'WsBody', { noIndent: firstPara === false ? false : true }));
+			// (each blank line past the first kept as an empty paragraph, the one after them flush: A849)
+			const owed = out.length === lastProseAt ? Math.max(0, o.keepBlankLines ? lineRun : lineRun - 1) : 0;
+			lineRun = 0;
+			// (one line each, no spacing of its own: A851)
+			for (let b = 0; b < owed; b++) out.push(wsPara([], 'WsBody', { noIndent: true, noSpace: true }));
+			out.push(wsPara(wsInlineRuns(text, o), 'WsBody', { noIndent: firstPara === false && !owed ? false : true }));
 			firstPara = false;
+			lastProseAt = out.length;
 		};
 		// PICTURES: a line cut at each picture that travels (wsSplitFigures);
 		// the text either side stays prose, each picture its own centered
 		// paragraph from the build's figure writer.
 		const figs = wsSplitFigures(t, o.imgs);
-		// (the lines that run on into it, each break Word's own: #77)
-		if (!figs) { const pb = wsProseBlock(lines, i, o); i = pb.end; prose(pb.text); continue; }
+		if (!figs) { prose(t); continue; }
 		for (const piece of figs) {
 			if (typeof piece === 'string') { if (piece.trim()) prose(piece.trim()); continue; }
 			const fig = o.docxFigure ? o.docxFigure(piece) : [wsPara([{ text: '[Image: ' + piece.name + ']' }], 'WsBody', { noIndent: true })];
@@ -5368,7 +5615,8 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 	const font = o.font || 'Times New Roman';
 	const half = Math.round((o.pt || 12) * 2);            // half-points
 	const line = wsLineTwips(o);                          // 240 = single
-	const ind  = o.indent === false ? 0 : 720;            // twips, half inch
+	// (the first line's indent in twips: the writer's size, half an inch unless chosen, Settings › Export › Paragraphs)
+	const ind  = o.indent === false ? 0 : Math.round(wsIndentIn(o) * 1440);
 	// A PARAGRAPH NEEDS ONE BOUNDARY: an indent, or air. Turn the indent
 	// off with double spacing on — the pairing a manuscript uses — and
 	// there is nothing between one paragraph and the next at all, and the
@@ -5377,8 +5625,9 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 	// problem, the missing second boundary was. Body prose only: a list or
 	// a table cell already has its own separation.
 	// …AND A WHOLE EMPTY LINE WHEN ASKED (A756): the line at the font's size and the chosen spacing, in twentieths of a point
-	// (…and Keep line breaks' blank lines, #77: a blank line in the note is one here)
-	const gap  = (o.paraBlank || o.keepLineBreaks) ? Math.round((o.pt || 12) * line / 12) : o.indent === false ? 120 : 0;
+	// (the space between paragraphs, `wsParaSpacing`: a line at the size and spacing, half of one, or Auto)
+	const paraSp = wsParaSpacing(o), lineGap = Math.round((o.pt || 12) * line / 12);
+	const gap  = paraSp === 'line' ? lineGap : paraSp === 'half' ? Math.round(lineGap / 2) : o.indent === false ? 120 : 0;
 	// ── WIDOWS AND ORPHANS ──────────────────────────────────────────────
 	//
 	// An ORPHAN is the first line of a paragraph left alone at the foot of
@@ -5410,23 +5659,29 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		'<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/>'
 		+ '<w:pPr>' + extra + '</w:pPr>'
 		+ '<w:rPr>' + (rpr || '') + '</w:rPr></w:style>';
-	const spacing = '<w:spacing w:line="' + line + '" w:lineRule="auto" w:after="0"/>'
-		+ (o.justify ? '<w:jc w:val="both"/>' : '');
+	// (THE LINE ALONE for a style that sets its own alignment, the title page's, the scene divider's, the headings': with
+	// Justify text their pPr held two w:jc, "both" and their own, and the title page came out justified; the writer: "the
+	// justiify text justifies the title page too")
+	const lineOnly = '<w:spacing w:line="' + line + '" w:lineRule="auto" w:after="0"/>';
+	const spacing = lineOnly + (o.justify ? '<w:jc w:val="both"/>' : '');
+	const rtl = wsIsRtl(o.lang);
 	const bodySpacing = widow
 		+ '<w:spacing w:line="' + line + '" w:lineRule="auto" w:after="' + gap + '"/>'
 		+ (o.justify ? '<w:jc w:val="both"/>' : '');
 	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
 		+ '<w:docDefaults><w:rPrDefault><w:rPr>'
-		+ '<w:rFonts w:ascii="' + wsXml(font) + '" w:hAnsi="' + wsXml(font) + '"/>'
+		// (A846: a right-to-left book's runs right to left, in the face Word sets Arabic and Persian in, its complex-script one)
+		+ '<w:rFonts w:ascii="' + wsXml(font) + '" w:hAnsi="' + wsXml(font) + '"' + (rtl ? ' w:cs="' + wsXml(font) + '"' : '') + '/>'
+		+ (rtl ? '<w:rtl/>' : '')
 		+ '<w:sz w:val="' + half + '"/><w:szCs w:val="' + half + '"/>'
 		+ '</w:rPr></w:rPrDefault>'
 		// In the DEFAULTS as well as on the body style, so that every
 		// paragraph this writer emits — quotes, lists, the notes at the
 		// back — inherits it without each style having to remember.
-		+ '<w:pPrDefault><w:pPr>' + widow + spacing + '</w:pPr></w:pPrDefault></w:docDefaults>'
+		+ '<w:pPrDefault><w:pPr>' + (rtl ? '<w:bidi/>' : '') + widow + spacing + '</w:pPr></w:pPrDefault></w:docDefaults>'
 		+ st('WsBody', 'Body', bodySpacing + '<w:ind w:firstLine="' + ind + '"/>')
-		+ st('WsDivider', 'Scene divider', spacing + '<w:jc w:val="center"/>')
+		+ st('WsDivider', 'Scene divider', lineOnly + '<w:jc w:val="center"/>')
 		+ st('WsQuote', 'Quote', spacing + '<w:ind w:left="720" w:right="720"/>', '<w:i/>')
 		+ st('WsCode', 'Code', '<w:spacing w:line="240" w:lineRule="auto" w:after="0"/><w:ind w:left="360"/>',
 			'<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>')
@@ -5439,7 +5694,7 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		// title page wear WsTitle, so a <w:b/> in the STYLE would bold the
 		// author and the word count too; the title run sets bold: true itself.
 		// That is what the preview draws: an h1 and two ordinary paragraphs.
-		+ st('WsTitle', 'Title', spacing + '<w:jc w:val="center"/>')
+		+ st('WsTitle', 'Title', lineOnly + '<w:jc w:val="center"/>')
 		// A PICTURE'S PARAGRAPH, centered and single spaced so the line holds the
 		// picture and nothing else; its caption under it, italic, with a line of
 		// air before the prose resumes.
@@ -5460,7 +5715,7 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 		// ONE LINE OF THE TEXT ABOVE A HEADING, at any size: `half` half-points
 		// is `half * 10` twips, 240 at 12pt, which is the 1em the page leaves.
 		+ [1,2,3,4,5,6].map(n => st('WsHeading' + n, 'heading ' + n,
-			spacing + '<w:keepNext/><w:outlineLvl w:val="' + (n - 1) + '"/>'
+			lineOnly + '<w:keepNext/><w:outlineLvl w:val="' + (n - 1) + '"/>'
 			// levels 1 and 2 centered, unless the writer turned Center headings off (#76)
 			+ '<w:jc w:val="' + (n <= 2 && o.centerHeads !== false ? 'center' : 'left') + '"/>'
 			+ '<w:spacing w:before="' + half * 10 + '" w:line="' + line + '" w:lineRule="auto"/>',
@@ -5472,7 +5727,40 @@ export function wsStylesXml(opt: WsExportOpts | null | undefined) {
 // guidelines ask for. It is its own part with its own relationship — the one
 // place this writer has to keep two files agreeing, so the id is a constant
 // rather than a generated value.
+// THE HEADER'S TOKENS (#81, davidepicatto: "Export header"; the writer: "will be making this with tokens", "so add {dd}
+// {mm} {yyyy} and {yy}", "also add as options phone, adress, email"): the writer types the words and the dividers
+// around them. {page} is left for the page to fill; a token not in the list stays as it was typed
+// (the writer, 2026-10-15: "The tokens for header should be title page time12 time24 dd mm yyyy and yy. That's it. No
+// phone, email address and all")
+export const WS_HEAD_TOKENS = ['title', 'page', 'time12', 'time24', 'dd', 'mm', 'yyyy', 'yy'];
+export function wsHeadFill(text: string, v: Record<string, string | undefined>): string {
+	return String(text || '').replace(/\{([a-z]+\d*)\}/g, (m: string, k: string) =>
+		(k === 'page' || !WS_HEAD_TOKENS.includes(k) ? m : String(v[k] || '').replace(/\s+/g, ' ').trim()));
+}
+// A LANGUAGE WRITTEN RIGHT TO LEFT (A846, the writer: "A new user wants Persian lang pack and some rtl fixes"): Arabic,
+// Persian, Hebrew, Urdu and their neighbors; the exports set their direction by it
+export const wsIsRtl = (lang: string | null | undefined): boolean => /^(ar|fa|he|iw|ur|ps|sd|ug|yi|dv|ckb|syr)(-|$)/i.test(String(lang || '').trim());
+// the header's side: the right, as a manuscript has it, or the left (#81, the writer: "a toggle for the header left or right")
+export const wsHeadSide = (o: WsExportOpts | null | undefined): 'left' | 'right' => (o && o.headerLeft ? 'left' : 'right');
+// THE TITLE PAGE'S CONTACT LINES (#81, the writer's pick "Contact block"): your name, address, phone and email, the
+// ones you gave, each a line, while Contact on the title page is on
+export function wsContactLines(o: WsExportOpts | null | undefined): string[] {
+	if (!o || !o.contactOnTitle) return [];
+	// (the address one box, a line each: the writer, "just a text box that can have 3,4 lines for the adress")
+	return [o.author, ...String(o.address || '').split(/\r?\n/), o.phone, o.email].map((x) => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+// A HEADER'S WORDS IN WORD, each {page} a PAGE field (a number Word counts, never a literal one)
+const WS_PAGE_FIELD = '<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>';
+export function wsHeadRunsXml(text: string): string {
+	return String(text || '').split('{page}').map((s) => (s ? '<w:r><w:t xml:space="preserve">' + wsXml(s) + '</w:t></w:r>' : '')).join(WS_PAGE_FIELD);
+}
 export function wsHeaderXml(text: string, withPage: boolean) {
+	// (a header with its own {page}, #81: the number where the writer put it, and no second one after it)
+	if (String(text || '').includes('{page}')) {
+		return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+			+ '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+			+ '<w:p><w:pPr><w:jc w:val="right"/><w:ind w:firstLine="0"/></w:pPr>' + wsHeadRunsXml(text) + '</w:p></w:hdr>';
+	}
 	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
 		+ '<w:p><w:pPr><w:jc w:val="right"/><w:ind w:firstLine="0"/></w:pPr>'
@@ -5510,26 +5798,34 @@ export function wsTocTitle(o: WsExportOpts | null | undefined) {
 // A HEADER OR A FOOTER LINE IN WORD, three places on one line: a centre tab stop at the column's middle and a
 // right one at its edge; the running header on the right, the page number (a field, so Word counts it) where
 // it was asked. The header with its number top right keeps `wsHeaderXml`, the shape it has always had.
-export function wsHdrFtrXml(tag: 'hdr' | 'ftr', right: string, pageAt: string, contentW: number) {
+// THE HEADER ON THE LEFT (#81): the header's words at the line's start, the number where it was asked (beside them when
+// that is the left too); a {page} of the header's own is a field where it stands
+export function wsHdrFtrXml(tag: 'hdr' | 'ftr', right: string, pageAt: string, contentW: number, side?: 'left' | 'right') {
 	const page = '<w:fldSimple w:instr="PAGE"><w:r><w:t>1</w:t></w:r></w:fldSimple>';
 	const run = (s: string) => (s ? '<w:r><w:t xml:space="preserve">' + wsXml(s) + '</w:t></w:r>' : '');
 	const tab = '<w:r><w:tab/></w:r>';
+	const headAt = (slot: string) => (!right ? '' : right.includes('{page}') ? wsHeadRunsXml(right) : run(right + (pageAt === slot ? ' ' : '')));
 	return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 		+ '<w:' + tag + ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
 		+ '<w:p><w:pPr><w:tabs><w:tab w:val="center" w:pos="' + Math.round(contentW / 2) + '"/><w:tab w:val="right" w:pos="' + contentW + '"/></w:tabs><w:ind w:firstLine="0"/></w:pPr>'
-		+ (pageAt === 'left' ? page : '') + tab + (pageAt === 'center' ? page : '') + tab
-		+ run(right + (pageAt === 'right' && right ? ' ' : '')) + (pageAt === 'right' ? page : '')
+		+ (side === 'left' ? headAt('left') : '') + (pageAt === 'left' ? page : '') + tab + (pageAt === 'center' ? page : '') + tab
+		+ (side === 'left' ? '' : headAt('right')) + (pageAt === 'right' ? page : '')
 		+ '</w:p></w:' + tag + '>';
 }
 // THE PRINTED PAGE'S MARGIN BOXES: the running header top right, the page number where it was asked (beside the
 // header when that is top right too); `blank`, the same boxes emptied (the title page). The header's own words as a
 // CSS string: a quote or a backslash a writer types is escaped, and an ampersand stays an ampersand
-export function wsPageBoxesCss(header: string, at: string, blank?: boolean) {
-	const head = String(header || '').replace(/[\r\n]+/g, ' ').replace(/[\\"]/g, (c) => '\\' + c);
+export function wsPageBoxesCss(header: string, at: string, blank?: boolean, side?: 'left' | 'right') {
+	const flat = String(header || '').replace(/[\r\n]+/g, ' ');
+	const q = (s: string) => '"' + s.replace(/[\\"]/g, (c) => '\\' + c) + '"';
+	// (the header's box, top right or, with Header on the left, top left: #81)
+	const own = side === 'left' ? 'top-left' : 'top-right';
 	const boxes: Record<string, string> = {};
-	if (head) boxes['top-right'] = '"' + head + (at === 'top-right' ? ' " counter(page)' : '"');
-	else if (at === 'top-right') boxes['top-right'] = 'counter(page)';
-	if (at !== 'top-right' && at !== 'none') boxes[at] = 'counter(page)';
+	// (a {page} of the header's own, #81: the page's number where the writer put it, their words around it)
+	if (flat.includes('{page}')) boxes[own] = flat.split('{page}').map((s, i) => (i ? 'counter(page)' + (s ? ' ' + q(s) : '') : (s ? q(s) : ''))).filter(Boolean).join(' ');
+	else if (flat) boxes[own] = q(flat + (at === own ? ' ' : '')) + (at === own ? ' counter(page)' : '');
+	else if (at === own) boxes[own] = 'counter(page)';
+	if (at !== own && at !== 'none') boxes[at] = 'counter(page)';
 	return Object.keys(boxes).map((k) => ' @' + k + ' { content: ' + (blank ? 'none' : boxes[k]) + '; }').join('');
 }
 // THE PAGE EACH CONTENTS ENTRY LANDS ON, read off the paginating flow the preview draws (a column is a page, the
@@ -5634,7 +5930,17 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// lines down to it cannot centre — 27 text lines less a 4-line block
 		// leaves 23, an odd number — so the title page is its own SECTION and
 		// Word centres it.
+		// YOUR CONTACT LINES IN THE TOP LEFT CORNER (#81, the writer's pick "Contact block"): a frame held to the margin's
+		// corner, single spaced, so the section still centers the title; one frame, as Word joins paragraphs framed alike
+		for (const line of wsContactLines(o)) {
+			body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:framePr w:wrap="around" w:vAnchor="margin" w:hAnchor="margin" w:xAlign="' + (wsIsRtl(o.lang) ? 'right' : 'left') + '" w:yAlign="top"/>'
+				+ '<w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/><w:ind w:firstLine="0"/><w:jc w:val="' + (wsIsRtl(o.lang) ? 'right' : 'left') + '"/></w:pPr>'
+				+ '<w:r><w:t xml:space="preserve">' + wsXml(line) + '</w:t></w:r></w:p>');
+		}
 		body.push(wsPara([{ text: t, bold: true, sz: wsTitleHalfPoints(o) }], 'WsTitle', { noIndent: true, align: 'center' }));
+		// THE SUBTITLE under it (the writer: "also add subtitle for the title page"), a size between the title's and the text's
+		const sub = String(o.subtitleText || '').trim();
+		if (sub) body.push(wsPara([{ text: sub, sz: Math.round((o.pt || 12) * 2 * WS_SUBTITLE_SIZE_EM) }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.author) body.push(wsPara([{ text: 'by ' + o.author }], 'WsTitle', { noIndent: true, align: 'center' }));
 		if (o.wordCount != null && o.wordCountOnTitle !== false) {
 			// NO BLANK LINE BEFORE THE COUNT: the preview's markup is three
@@ -5695,6 +6001,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// preview's, which the PDF prints) after a dotted tab at the text's right edge; Word recomputes them on update
 		const tp = wsPaperOf(o), tabAt = Math.max(1440, tp.w - 2 * tp.mar);
 		const stepOf = wsTocSteps(o, sections), pageOf = o.tocPageOf || {};
+		// (the structure's numbers, #79)
+		const tocNums = wsHeadNumbers(o, sections);
 		const instr = '<w:r><w:fldChar w:fldCharType="begin" w:dirty="true"/></w:r>'
 			// \o collects a RANGE of outline levels, \h makes the entries
 			// links, \z hides the page numbers in web layout, \u uses the
@@ -5711,18 +6019,22 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// (always its page numbers: A751's \n, "no page numbers", gone with its switch, the writer's word)
 			+ wsDeepestLevel(o, sections) + '" \\h \\z \\u </w:instrText></w:r>'
 			+ '<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
-		sections.forEach((sec, i) => {
+		// (the book's own folder in the text, never in the contents: A848; the field opens on the first entry, ends on the last)
+		const listed = sections.map((sec, i) => ({ sec, i })).filter((e) => !e.sec.book);
+		listed.forEach(({ sec, i }, n) => {
 			const id = wsAnchorId(sec.title, i), pg = pageOf[id] ? String(pageOf[id]) : '';
 			body.push('<w:p><w:pPr><w:pStyle w:val="WsBody"/><w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + tabAt + '"/></w:tabs>'
 				+ '<w:ind w:left="' + (stepOf(sec) * 440) + '" w:firstLine="0"/></w:pPr>'
-				+ (i === 0 ? instr : '')
-				+ '<w:hyperlink w:anchor="' + wsXml(id) + '" w:history="1"><w:r><w:t xml:space="preserve">' + wsXml(sec.title || ('Section ' + (i + 1))) + '</w:t></w:r>'
+				+ (n === 0 ? instr : '')
+				+ '<w:hyperlink w:anchor="' + wsXml(id) + '" w:history="1"><w:r><w:t xml:space="preserve">' + wsXml(wsNumbered(tocNums[i], sec.title || ('Section ' + (i + 1)))) + '</w:t></w:r>'
 				+ (pg ? '<w:r><w:tab/></w:r><w:r><w:t>' + pg + '</w:t></w:r>' : '') + '</w:hyperlink>'
-				+ (i === sections.length - 1 ? '<w:r><w:fldChar w:fldCharType="end"/></w:r>' : '') + '</w:p>');
+				+ (n === listed.length - 1 ? '<w:r><w:fldChar w:fldCharType="end"/></w:r>' : '') + '</w:p>');
 		});
 	}
 
 	let bibAt = -1;
+	// (the structure's numbers, #79)
+	const nums = wsHeadNumbers(o, sections);
 	sections.forEach((sec, idx) => {
 		// the list of sources goes at the end (A572 step 4)
 		if (sec.bib) { bibAt = idx; return; }
@@ -5747,10 +6059,13 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// start another one; in Word the title page is its own SECTION and a
 			// section break already ends the page. A page break on top of it would
 			// insert a blank sheet.
-			const fbrk = !!(idx > 0 || o.toc) && o.pageBreaks !== false;
-			folderOpenedPage = fbrk;
-			body.push(wsPara([{ text: sec.title, bold: true }], 'WsHeading' + lv,
-				{ noIndent: true, pageBreakBefore: fbrk }));
+			// A FOLDER STRAIGHT AFTER A FOLDER (A848) stays on the page the first opened, as the page targets carry both
+			// headings onto one; it gave "Novel" a page with nothing else on it
+			const afterFolder = idx > 0 && !!sections[idx - 1].folder;
+			const fbrk = !afterFolder && !!(idx > 0 || o.toc) && o.pageBreaks !== false;
+			if (!afterFolder) folderOpenedPage = fbrk;
+			body.push(wsPara([{ text: wsNumbered(nums[idx], sec.title), bold: true }], 'WsHeading' + lv,
+				{ noIndent: true, pageBreakBefore: fbrk, bodyLevel: !!sec.book }));
 			if (o.toc) body.push('<w:bookmarkEnd w:id="' + (idx + 100) + '"/>');
 			return;
 		}
@@ -5789,7 +6104,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// ONE LEVEL BELOW ITS FOLDER when folder headings are on, and
 			// `WsHeading2` when they are off — which is what every export
 			// has done since this option existed.
-			body.push(wsPara([{ text: sec.title, bold: true }],
+			body.push(wsPara([{ text: wsNumbered(nums[idx], sec.title), bold: true }],
 				'WsHeading' + wsFileHeadLevel(o, sec),
 				{ noIndent: true,
 					pageBreakBefore: o.pageBreaks !== false && !first && !justAfterFolder }));
@@ -5807,8 +6122,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		} else if (o.titlePage && idx === 0) {
 			body.push(wsPara([], 'WsBody', { pageBreakBefore: true }));
 		}
-		// The note's own headings move down under the folder's — see
-		// `wsDemoteHeadings`. The other two targets do the same.
+		// The note's own headings move down under the folder's, or under the file's name with Both — see
+		// `wsNoteHeadings`. The other two targets do the same.
 		o.imgs = sec.images || null;
 		const defs = wsNotesKept(wsFootnoteDefs(sec.markdown), o);
 		const ids = new Map<string, number>();
@@ -5827,9 +6142,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			}
 			return { n, end: noteEnd };
 		};
-		const built = wsBlocksFromMarkdown(
-			o.folderHeadings ? wsDemoteHeadings(sec.markdown, sec.depth || 0)
-				: sec.markdown, o);
+		const built = wsBlocksFromMarkdown(wsNoteHeadings(o, sec, sec.markdown), o);
 		for (const b of built.blocks) body.push(b);
 	});
 	o.noteRef = null;
@@ -5941,7 +6254,10 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	const contentW = paper.w - 2 * paper.mar;
 	if (wantHeader) {
 		entries.push({ name: 'word/header1.xml',
-			bytes: wsUtf8(pnAt === 'top-left' || pnAt === 'top-center'
+			bytes: wsUtf8(wsHeadSide(o) === 'left'
+				// (on the left, #81: the words at the line's start, a number at the top where it was asked)
+				? wsHdrFtrXml('hdr', o.runningHeader || '', pnAt.startsWith('top-') ? pnAt.slice(4) : '', contentW, 'left')
+				: pnAt === 'top-left' || pnAt === 'top-center'
 				? wsHdrFtrXml('hdr', o.runningHeader || '', pnAt.slice(4), contentW)
 				: wsHeaderXml(o.runningHeader || '', pnAt === 'top-right' && o.pageNumbers !== false)) });
 	}
@@ -6821,6 +7137,111 @@ export function wsExportRoot(paths: string[], scope: string) {
 // block is a comment in somebody's shell script, and demoting it would
 // edit their code. The fence state is tracked rather than the lines
 // being matched blind.
+// THE STRUCTURE'S NUMBERS (#79, PhilemonRe: "use the folder/document-structure ... for numbering the headings"; the
+// writer: "i want the numbers heading to work for the full filetree so if i have nested folders they should have 1.1.2",
+// the picks "1.1.2, 1.1.2., I. A. 1., Chapter 1" and "From the tree"): each folder and file numbered by its place in the
+// file tree, counted among its folder's files and folders in the book's order, a folder counted whether it prints as a
+// heading or not, from below the folder every file shares (the book itself); shown where its heading prints (a folder's
+// with Folders, a file's name with File names), never on a note's own heading or the list of sources. Each index's
+// number with what follows it (1.1.2 and a space, Chapter 1 and a colon), '' where none shows
+export const WS_NUMBER_STYLES = ['none', 'decimal', 'decimalDot', 'outline', 'chapter'];
+export function wsNumberStyle(o: WsExportOpts | null | undefined): string {
+	const v = String((o && o.numberStyle) || '');
+	return WS_NUMBER_STYLES.includes(v) ? v : 'none';
+}
+export function wsRoman(n: number): string {
+	let out = '', v = Math.max(1, Math.floor(n));
+	for (const [d, s] of [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']] as [number, string][]) while (v >= d) { out += s; v -= d; }
+	return out;
+}
+// A, B ... Z, AA: the outline's letters
+function wsLetters(n: number): string {
+	let out = '', v = Math.max(1, Math.floor(n));
+	while (v > 0) { v--; out = String.fromCharCode(65 + (v % 26)) + out; v = Math.floor(v / 26); }
+	return out;
+}
+// a section's folders under the export's root: its own chain for a folder, its folder's for a file (from its path and
+// depth where the compile gave none)
+export function wsSecDirs(sec: WsExportSection): string[] {
+	if (sec.dirs) return sec.dirs;
+	const d = Math.max(0, sec.depth || 0), parts = String(sec.path || '').split('/');
+	if (!d) return [];
+	return (sec.folder ? parts : parts.slice(0, -1)).slice(-d);
+}
+export function wsHeadNumbers(o: WsExportOpts | null | undefined, sections: WsExportSection[]): string[] {
+	const out = sections.map(() => '');
+	const style = wsNumberStyle(o);
+	if (!o || style === 'none') return out;
+	const chains = sections.map((sec) => (sec.bib ? null : wsSecDirs(sec)));
+	// THE BOOK'S OWN FOLDERS, the ones every file sits in, are not counted: its parts are 1, 2, 3, not 1.1, 1.2
+	const fileChains = chains.filter((c, i): c is string[] => !!c && !sections[i].folder);
+	let common = fileChains.length ? fileChains[0].length : 0;
+	for (const c of fileChains) { let k = 0; while (k < common && k < c.length && c[k] === fileChains[0][k]) k++; common = k; }
+	// (one level at most: the compile's chains open with the book's folder; a single part under it is still a part)
+	common = Math.min(common, 1);
+	const count = new Map<string, number>(), pos = new Map<string, number[]>();
+	const next = (key: string, base: number[]) => { const n = (count.get(key) || 0) + 1; count.set(key, n); return base.concat([n]); };
+	const folderAt = (dirs: string[]) => {
+		let p: number[] = [];
+		for (let k = 0; k < dirs.length; k++) {
+			const key = dirs.slice(0, k + 1).join('/');
+			let got = pos.get(key);
+			if (!got) { got = next(dirs.slice(0, k).join('/'), p); pos.set(key, got); }
+			p = got;
+		}
+		return p;
+	};
+	const mark = (level: number, n: number) => (level === 1 ? wsRoman(n) : level === 2 ? wsLetters(n) : level === 4 ? wsLetters(n).toLowerCase() : level === 5 ? wsRoman(n).toLowerCase() : String(n));
+	let chapter = 0, part = 0;
+	sections.forEach((sec, i) => {
+		const c = chains[i];
+		if (!c || (sec.folder && c.length <= common)) return;
+		const dirs = c.slice(common);
+		// a file counted among its folder's children whether its name prints or not, so the next one keeps its place
+		const p = sec.folder ? folderAt(dirs) : next(dirs.join('/'), folderAt(dirs));
+		if (!sec.folder && !(o.sectionTitles && sec.title)) return;
+		if (style === 'decimal') out[i] = p.join('.') + ' ';
+		else if (style === 'decimalDot') out[i] = p.join('.') + '. ';
+		else if (style === 'outline') out[i] = mark(p.length, p[p.length - 1]) + '. ';
+		// CHAPTER 1 through the whole book, a file at any depth; PART I a top folder, a deeper folder none
+		else if (style === 'chapter') out[i] = sec.folder ? (p.length === 1 ? 'Part ' + wsRoman(++part) + ': ' : '') : 'Chapter ' + (++chapter) + ': ';
+	});
+	return out;
+}
+// …set before its title, what follows it its own
+export const wsNumbered = (num: string, title: string) => (num ? num + title : title);
+
+// A NOTE'S OWN HEADINGS, WHERE THEY SIT: under its folder's when Folders are headings (each moved down by the depth),
+// and under its file's name when File names and Note headings both are (#79: moved down below that heading's level, and
+// a first heading that is the file's name itself dropped, so the title is not set twice)
+export function wsNoteHeadings(o: WsExportOpts | null | undefined, sec: WsExportSection, md: string): string {
+	let text = String(md == null ? '' : md);
+	if (o && o.sectionTitles && o.keepHeadings !== false && sec.title) {
+		const lines = text.split('\n');
+		let i = 0;
+		if (/^---\s*$/.test(lines[0] || '')) { i = 1; while (i < lines.length && !/^---\s*$/.test(lines[i])) i++; i++; }
+		while (i < lines.length && !lines[i].trim()) i++;
+		const h = /^#{1,6}\s+(.*?)\s*#*\s*$/.exec(lines[i] || '');
+		if (h && h[1].trim().toLowerCase() === String(sec.title).trim().toLowerCase()) { lines.splice(i, 1); text = lines.join('\n'); }
+		return wsDemoteHeadings(text, wsFileHeadLevel(o, sec));
+	}
+	return o && o.folderHeadings ? wsDemoteHeadings(text, sec.depth || 0) : text;
+}
+
+// …AND LEFT OUT, in the Markdown target as the page and Word leave them out with Insert heading's The file's name or None
+// (the writer: "fix the markdown heading too"): each heading line and the blank line under it; a fence keeps its own
+export function wsDropHeadings(md: string): string {
+	let fence: string | null = null;
+	const lines = String(md == null ? '' : md).split('\n'), out: string[] = [];
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const f = /^\s*(```+|~~~+)/.exec(line);
+		if (f) { if (!fence) fence = f[1][0]; else if (f[1][0] === fence) fence = null; out.push(line); continue; }
+		if (!fence && /^#{1,6}\s/.test(line)) { if (i + 1 < lines.length && !lines[i + 1].trim()) i++; continue; }
+		out.push(line);
+	}
+	return out.join('\n');
+}
 export function wsDemoteHeadings(md: string, by: number) {
 	const n = Math.max(0, Math.floor(Number(by) || 0));
 	if (!n) return String(md == null ? '' : md);
@@ -6916,7 +7337,8 @@ export function wsDeepestLevel(o: WsExportRun, sections: WsExportSection[]) {
 // whatever its top is. Nothing has to know which case it is in.
 export function wsTocSteps(o: WsExportRun, sections: WsExportSection[]) {
 	let top = 6;
-	for (const sec of sections || []) top = Math.min(top, wsSecHeadLevel(o, sec));
+	// (the book's own folder is in no contents, so its parts are the contents' first level: A848)
+	for (const sec of sections || []) if (!sec.book) top = Math.min(top, wsSecHeadLevel(o, sec));
 	return (sec: WsExportSection) => Math.max(0, wsSecHeadLevel(o, sec) - top);
 }
 
@@ -6988,7 +7410,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.4';
+export const WS_PLUGIN_VERSION = '1.8.5';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -7983,6 +8405,16 @@ export const DEFAULT_SETTINGS = {
 	lineHighlightDarkColor:   "#a8a8a4",
 	lineHighlightLightColor:  "#707070",
 	lineHighlightOpacity:     0.15,
+	// THE CURRENT LINE MARKED UNDER (#82, Dalibor-P: "option to underline the current line, instead of filling the
+	// background of the line"; the writer: "line width 1-3 px, colors for dark and light, dashed, dotted, opacity … a
+	// dropdown highlight or underline"): the same colors and opacity as the tint
+	// …AND ONE ABOVE IT TOO (A850, the writer: "add option for top and bottom line too"), AS ONE CHOICE WITH TWO TICKS
+	// (A852: "a single option called line with toggles for top and bottom"): Line, a line on top and one at the bottom
+	lineHighlightStyle:       'fill',      // 'fill' | 'line'
+	lineTop:                  false,       // Line: a line above the row
+	lineBottom:               true,        // Line: a line under the row (the underline, #82)
+	lineUnderlineWidth:       2,           // px, 1 to 3
+	lineUnderlineStyle:       'solid',     // 'solid' | 'dashed' | 'dotted'
 	// WHERE THE CARET RESTS, as a percentage of the editor's height: 0 is
 	// the very top, 50 the middle, 100 the bottom.
 	//
@@ -8307,6 +8739,11 @@ export const DEFAULT_SETTINGS = {
 	checkMisusedColor:        "#e0913a",
 	checkPronoun:             true,
 	checkPronounColor:        "#4f9dde",
+	// stock phrases (A839, the writer's pick "Clichés"), off like every check added since
+	checkCliche:              false,
+	checkClicheColor:         "#e0b90f",
+	// YOUR OWN CLICHÉS (A856, the writer: "do 3 too"): one a line, the slots a pack's use ({a|b}, {*}); marked as the list's
+	customCliches:            '',
 	// Dialogue: everything between quotes, so speech can be found at a
 	// glance. Off by default like every other check — a plugin that starts
 	// colouring a manuscript before it is asked has overreached.
@@ -8377,6 +8814,9 @@ export const DEFAULT_SETTINGS = {
 	posAdverbColor:           "#e0913a",
 	posConjunction:           false,
 	posConjunctionColor:      "#9aa0a6",
+	// a sixth class (A839, the writer's pick "Pronouns in Syntax"): off, a pronoun is a noun as it always was
+	posPronoun:               false,
+	posPronounColor:          "#8466f0",
 
 	// ── Typography ────────────────────────────────────────────────────────────
 	// Off by default: it rewrites the document as you type, and that is not a
@@ -8392,6 +8832,8 @@ export const DEFAULT_SETTINGS = {
 	typoQuotesFromLanguage:   true,      // a language pack's own marks are typed (A615)
 	// THE LANGUAGE'S SPACES (the writer, 2026-10-15: "do the french spaces toggle"): its pack's `## Spaces`, typed; off
 	typoLanguageSpaces:       false,
+	// …and with no space typed (#59, "Add the space for you"): the mark straight after a word takes it; off
+	typoSpaceForYou:          false,
 	typoQuoteStyle:           'us',      // the usual marks: US “ ” outside, UK ‘ ’ outside (A694)
 	typoEllipsis:             true,
 	typoDashes:               true,

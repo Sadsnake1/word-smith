@@ -4447,8 +4447,10 @@ export const reportMethods = {
 
 			body.createEl('hr', { cls: 'ws-report-rule' });
 
-			const ringWrap = body.createDiv({ cls: 'ws-report-ring' });
+			// THE GOAL'S GAUGE, ONLY WHERE THERE IS A GOAL (the writer: "remove this message for if no goal is set. is ugly for
+			// non-goal notes"): without one the figures stand alone (TOMBSTONE: "No goal set for this note yet" and its hint)
 			if (target > 0) {
+				const ringWrap = body.createDiv({ cls: 'ws-report-ring' });
 				const ratio = Math.min(stats.words / target, 1);
 				const holder = ringWrap.createSpan({ cls: 'ws-goal ws-goal-heat' + (stats.words >= target ? ' is-met' : '') });
 				// Heat ramp: ember red at nothing, amber in the middle, green
@@ -4457,22 +4459,6 @@ export const reportMethods = {
 				// guidelines: no hardcoded styling), so a theme can restyle it.
 				holder.style.setProperty('--ws-goal-hue', String(Math.round(8 + ratio * 122)));
 				holder.appendChild(this.buildGoalLiquid(ratio));
-			} else {
-				const none = ringWrap.createDiv({ cls: 'ws-report-ring-label is-muted' });
-				none.createDiv({
-					text: active === 'note' ? wsT('No goal set for this note yet.')
-						: wsT('No goal set for this folder yet.')
-				});
-				// POINTED AT THE WINDOW, not at a settings pane: sending a writer to
-				// Settings to type a number into a list of paths is sending them past
-				// the thing built to answer this. THE SENTENCE NAMES A DOOR THAT IS
-				// THERE, and a test holds it ("no user-visible string names a window
-				// that is not there"), because a string nothing checks goes stale the
-				// next time something moves.
-				none.createDiv({
-					cls: 'ws-report-hint',
-					text: wsT('Set one in the Organizer \u2014 in the table, on the Target column.')
-				});
 			}
 
 			this.buildReportFigures(body, stats, target, freq, sentencesOf);

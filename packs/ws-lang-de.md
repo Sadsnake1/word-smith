@@ -3,9 +3,11 @@
 Add words under any heading, comma separated or one per line. Keep the English name in each heading's brackets.
 
 ## Paket (About)
+- learned: open
 - language: de
 - name: Deutsch
-- pack: 1.0
+- pack: 1.2
+- source: the learned parts from Tatoeba sentences (CC BY 2.0 FR), tagged for Word-Smith; see THIRD-PARTY-NOTICES.md
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -267,6 +269,8 @@ Add words under any heading, comma separated or one per line. Keep the English n
 %% A capital mid-sentence is a noun even where the word is listed as a verb, an adjective or an adverb: das Leben, die Deutschen, der Weg, am Morgen. %%
 - capitalized over: verbs, adjectives, adverbs
 - after articles: adjective
+- pronoun alone: der, die, das, dem, den, dies, diese, dieser, dieses, diesem, diesen
+- infinitive marker: zu
 
 ## Füllwörter (Filler words)
 - eigentlich, irgendwie, quasi, sozusagen, gewissermaßen, praktisch, im Grunde, letztendlich, letztlich, total, echt, wirklich, einfach, halt, eben, ziemlich, relativ, durchaus, sicherlich, natürlich, sehr
@@ -308,6 +312,82 @@ Add words under any heading, comma separated or one per line. Keep the English n
 | seid langem | seit Langem |
 | seid kurzem | seit Kurzem |
 
+## Floskeln (Cliches)
+### sayings
+- Zeit heilt alle Wunden, besser spät als nie, Ende gut alles gut, Übung macht den Meister, aller Anfang ist schwer
+- Lügen haben kurze Beine, wer zuletzt lacht lacht am besten, {Morgenstund|Morgenstunde} hat Gold im Mund
+- frühe Vogel fängt den Wurm, Schweigen ist Gold, Hochmut kommt vor dem Fall, lange währt wird endlich gut
+- {seines|ihres|meines|deines|unseres|eures} Glückes Schmied, {fällt|fiel} nicht weit vom Stamm, wo ein Wille ist
+- nicht an einem Tag erbaut, {Ausnahmen bestätigen|Ausnahme bestätigt} die Regel, stille Wasser sind tief
+- kein Meister vom Himmel gefallen, nicht umbringt macht {dich|mich|uns|einen|ihn|sie} stärker
+- Leben ist kein {Ponyhof|Wunschkonzert}, wer nicht wagt der nicht gewinnt, aus den Augen aus dem Sinn
+- Hoffnung stirbt zuletzt, Unglück kommt selten allein, jeder Topf {findet|hat} seinen Deckel
+- alles geschieht aus einem Grund, im Auge des Betrachters
+### idioms
+- wie aus heiterem Himmel, auf Herz und Nieren, Schnee von gestern, mit Haut und Haaren, auf Biegen und Brechen
+- Spitze des Eisbergs, Licht am Ende des Tunnels, {Nadel|Stecknadel} im Heuhaufen, mit offenen Armen
+- in den sauren Apfel, den Nagel auf den Kopf, um den heißen Brei, Katze aus dem Sack, Öl ins Feuer, auf Wolke sieben
+- im siebten Himmel, ins Fettnäpfchen, Teufel an die Wand, Kirche im Dorf, auf dem Holzweg, Hals über Kopf
+- zwei Fliegen mit einer Klappe, Kopf in den Sand, aus allen Wolken
+- Stein {vom|fiel ihr vom|fiel ihm vom|fiel mir vom|fällt mir vom|fällt ihr vom|fällt ihm vom} Herzen
+- Feuer und Flamme, Himmel und Hölle in Bewegung, {sein|ihr|mein|dein|euer|unser} blaues Wunder, Dorn im Auge
+- {Hand|Hände} ins Feuer, bis über beide Ohren, Wasser auf {die|seine|ihre|unsere} {Mühle|Mühlen}
+- vom Regen in die Traufe, Flinte ins Korn, reinen Wein, durch die Blume, Wald vor lauter Bäumen
+- alle Hebel in Bewegung, ins eigene Fleisch, {fuhr|fährt|fahre|fuhren|fährst} {fast |beinahe |}aus der Haut
+- Fass zum Überlaufen, Elefant im Raum, aus einer Mücke einen Elefanten, in vollen Zügen, auf Messers Schneide
+- {offenes|offenen} Geheimnis, Gras über die Sache, am seidenen Faden
+- kalte Füße {bekommen|bekam|bekommt|bekamen|gekriegt|kriegen|kriegt}
+- mit einem blauen Auge {davon|davongekommen|davonzukommen}
+### similes
+- kalt wie Eis, {weiß|bleich|blass} wie {die|eine} Wand
+- {stumm|schweigen|schwieg|schweigt|verschwiegen} wie ein {Fisch|Grab}, wie ein Murmeltier
+- {wie ein offenes Buch|wie in einem offenen Buch}, rot wie {eine Tomate|ein Krebs}, wie Sand am Meer
+- Elefant im Porzellanladen, Fels in der Brandung, Häufchen Elend, auf glühenden Kohlen, {begossener|begossene} Pudel
+- wie die Faust aufs Auge, wie Hund und Katze, Fisch auf dem Trockenen, wie ein Lauffeuer, wie im {Flug|Fluge}
+- wie Schuppen von den Augen, schwarz wie {die Nacht|Ebenholz|Pech}, weiß wie Schnee, leicht wie eine Feder
+- arm wie eine Kirchenmaus, klar wie Kloßbrühe, wie Espenlaub, wie ein Schlosshund, wie Pech und Schwefel
+- wie Tag und Nacht, wie am Schnürchen, vom Erdboden verschluckt, wie angewurzelt, wie vom Blitz getroffen
+- wie vom Donner gerührt
+### fiction
+- Liebe auf den ersten Blick, es war einmal, {dunkle|dunklen} und {stürmische|stürmischen} Nacht, Ruhe vor dem Sturm
+- {Herz|Herzen} aus Gold, {das|ihr|sein|mein|dein|unser} Blut {gefror|gefriert|stockte|stockt|gerann}
+- Blut in den Adern {gefrieren|gefror|gefroren|stocken|stockte|erstarren|erstarrte}, in letzter Sekunde
+- Zeit {stand still|steht still|schien stillzustehen|blieb stehen}
+- {stand|steht|schien} die Zeit {still|stillzustehen}, {kalt|eiskalt} den Rücken {hinunter|herunter|runter}
+- {Schauer|Schauder} {lief|läuft|jagte|rann|kroch} {*} über den Rücken, {Schauer|Schauder} über den Rücken
+- den Atem {an|angehalten|anhielt|anhielten|anzuhalten}
+- dass {*} {den Atem|die Luft} angehalten {hatte|hatten|hattest}
+- {schlug|klopfte|pochte|hämmerte} {ihr |ihm |mir |dir |uns |ihnen |}bis zum Hals, Herz bis zum Hals
+- Herz {setzte|setzt} {für |}einen Schlag aus, Schmetterlinge im Bauch, mit {klopfendem|pochendem|rasendem} Herzen
+- Tränen {liefen|rannen|kullerten|strömten|flossen} {*} über die {Wangen|Wange}, {ein|einen} Kloß im Hals
+- Stecknadel fallen hören, wie aus dem Nichts, umspielte {ihre|seine|meine|deine|die} {Lippen|Mundwinkel}
+- {sprach|sprachen|spricht|sprechen} Bände, wenn Blicke töten könnten
+- in diesem {Moment|Augenblick} wurde {ihr|ihm|mir|uns|ihnen|dir} klar
+- was {sie|er|ich|wir|niemand|keiner} {noch |}nicht {ahnte|wusste|ahnen konnte|wissen konnte}
+- {traute|traut|trauten|traue} {ihren|seinen|meinen|deinen|unseren|euren} Augen nicht, zu schön um wahr zu sein
+- wie in Zeitlupe, Bruchteil einer Sekunde, Leben zog an {ihr|ihm|mir|dir|uns|ihnen} vorbei
+- bis ans Ende {ihrer|seiner|unserer|meiner|aller} Tage
+- {ohrenbetäubende Stille|ohrenbetäubenden Stille|Stille war ohrenbetäubend}
+- {biss|beißt|bissen|beiße} sich auf die {Lippe|Unterlippe}, einzelne Träne
+- den {sie|er|ich|wir|du} nicht deuten {konnte|konnten|konntest}
+- als {hätte|hätten|hättest} {*} {einen Geist|ein Gespenst} gesehen, herrschte {Totenstille|Grabesstille}
+### crutch
+- im Großen und Ganzen, in Windeseile, im Handumdrehen, plötzlich und unerwartet, mit einem Mal, zu guter Letzt
+- wie dem auch sei, {unterm|unter dem} Strich, letzten Endes, versteht sich von selbst, ganz zu schweigen von
+- sage und schreibe, alles in allem, um es kurz zu machen, {es ist|ist es} kein Geheimnis dass, im Endeffekt
+### dialogue
+- wir müssen {mal |}reden, nicht so wie es aussieht, nicht {das |}wonach es aussieht, ich kann {alles|das} erklären
+- das wirst du {mir |}{noch |}{bereuen|büßen}, {es ist|das ist|es war|das war} nicht deine Schuld
+- {habe|hab} {da |}ein {ganz |}{schlechtes|ungutes|mieses} Gefühl, über meine Leiche, du hast ja keine Ahnung
+- jetzt oder nie, {habe|hatte|hab|hast|hattest|haben|hatten} keine andere Wahl, nur eine Frage der Zeit
+- lass uns {hier|von hier} verschwinden, was zum Teufel, {das ist|ist} eine lange Geschichte
+- bist nicht wie die anderen
+### jargon
+- über den Tellerrand, an einem Strang, ins Boot {holen|geholt|zu holen}, Synergien {nutzen|genutzt|schaffen|heben}
+- {tief|niedrig} {hängende|hängenden} Früchte, Mehrwert {schaffen|schafft|bieten|bietet|generieren}, Ball flach
+- Luft nach oben, gut aufgestellt, Rad {nicht |}neu {erfinden|erfunden|zu erfinden}, in trockenen Tüchern
+- unter Dach und Fach
+
 ## Passiv (Passive)
 - helpers: werden, wird, wurde, wurden, worden, werde, wirst, werdet, würde, würden
 - participle: ge…t, ge…en, …iert, be…t, ver…t, er…t, ent…t, zer…t
@@ -343,12 +423,14 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - Adverbs: Adverbien
 - Adjectives: Adjektive
 - Conjunctions: Konjunktionen
+- Pronouns: Pronomen
 - Filler words: Füllwörter
 - Passive voice: Passiv
 - Loose pronouns: Unklare Pronomen
 - Repetition radar: Wiederholungen
 - Commonly misused: Falsch verwendet
 - Lexical illusions: Doppelte Wörter
+- Clichés: Floskeln
 - Dialogue: Dialog
 - Sentence rhythm: Satzrhythmus
 
@@ -364,3 +446,5181 @@ Eigentlich wurde das alte Haus ausversehen sehr schnell gebaut. „Warum?“, fr
 - misused: ausversehen
 - sentences: 3
 - grade: 4.8
+
+## Wortartpaare (Class pairs)
+| after | noun | verb | adj | adv | pron | prep | conj | art | num | part | aux | x |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| start | 14 | 8 | 1 | 8 | 42 | 4 | 3 | 16 | 0 | 0 | 4 | 0 |
+| noun | 5 | 34 | 3 | 7 | 4 | 15 | 6 | 7 | 0 | 3 | 16 | 0 |
+| verb | 5 | 3 | 3 | 13 | 32 | 8 | 8 | 15 | 1 | 1 | 12 | 0 |
+| adj | 53 | 8 | 5 | 4 | 3 | 9 | 7 | 2 | 0 | 2 | 7 | 0 |
+| adv | 4 | 21 | 14 | 18 | 6 | 12 | 4 | 10 | 1 | 1 | 7 | 0 |
+| pron | 3 | 28 | 4 | 15 | 12 | 9 | 1 | 8 | 0 | 1 | 20 | 0 |
+| prep | 35 | 0 | 6 | 3 | 12 | 1 | 2 | 39 | 2 | 0 | 0 | 0 |
+| conj | 16 | 6 | 4 | 5 | 50 | 2 | 1 | 12 | 0 | 1 | 2 | 0 |
+| art | 82 | 0 | 16 | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
+| num | 76 | 6 | 3 | 2 | 1 | 4 | 2 | 2 | 1 | 0 | 2 | 0 |
+| part | 0 | 89 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 11 | 0 |
+| aux | 5 | 5 | 9 | 18 | 31 | 9 | 2 | 19 | 1 | 0 | 2 | 0 |
+| x | 8 | 13 | 1 | 11 | 22 | 3 | 4 | 6 | 1 | 0 | 6 | 25 |
+| all | 20 | 15 | 6 | 9 | 17 | 8 | 3 | 12 | 1 | 1 | 9 | 0 |
+
+## Endungsanteile (Ending shares)
+- -abend: noun 53, adj 44
+- -achen: verb 59, noun 34, adj 7
+- -achte: verb 95, noun 4
+- -acken: verb 75, noun 23
+- -aften: noun 81, adj 13, verb 5
+- -ahlen: verb 64, noun 35
+- -ahmen: noun 76, verb 24
+- -ainer: noun 84, adj 9, art 6
+- -allen: verb 66, noun 30, adj 4
+- -alter: noun 91, adj 9
+- -altet: verb 85, adj 12, aux 3
+- -ammen: verb 61, noun 19, adv 17, adj 2
+- -anden: verb 76, adj 12, pron 8, noun 4
+- -ander: adv 53, noun 28, pron 13, adj 6
+- -angen: verb 73, noun 18, adj 9
+- -anger: adj 77, noun 23
+- -annte: verb 57, noun 22, adj 21
+- -anten: noun 84, adj 10, verb 4
+- -anzig: num 87, adj 13
+- -arren: verb 90, noun 8
+- -arten: noun 60, verb 29, adj 12
+- -asche: noun 79, adj 20
+- -assen: verb 93, noun 6
+- -ative: adj 55, noun 43
+- -atsch: noun 90, adj 9
+- -atten: noun 63, verb 20, adj 15
+- -aucht: verb 73, noun 23, adj 3
+- -ausen: noun 90, verb 8
+- -auten: noun 44, verb 38, adj 17
+- -baren: adj 91, noun 4, verb 4
+- -bauen: verb 87, noun 7, adj 6
+- -bende: adj 92, noun 7
+- -benen: adj 87, verb 8, noun 5
+- -blich: adj 90, adv 8
+- -boten: verb 53, noun 46
+- -chaft: noun 99
+- -chend: adj 84, prep 11, adv 3
+- -chern: noun 91, verb 8
+- -chsen: verb 94, noun 5
+- -ckten: verb 55, adj 33, noun 11
+- -dchen: noun 72, adj 14, verb 13
+- -deckt: adj 52, verb 48
+- -deten: adj 56, noun 23, verb 21
+- -diger: adj 79, noun 20
+- -echen: verb 74, noun 20, adj 5
+- -ecken: verb 73, noun 26
+- -eeren: noun 72, verb 21, adj 6
+- -ehend: adj 48, adv 33, verb 17
+- -ehren: verb 55, noun 43, adj 2
+- -ehrer: noun 97, adj 3
+- -eiche: adj 57, noun 28, verb 14
+- -eicht: verb 76, noun 21, adj 2
+- -eigen: verb 81, adj 15, noun 3
+- -eihen: verb 88, noun 9, adj 3
+- -eiter: noun 94, adj 5
+- -ekten: adj 53, noun 31, verb 15
+- -elben: art 61, pron 20, adj 8, noun 6, verb 5
+- -eller: adj 63, noun 37
+- -elten: verb 76, adj 22, noun 2
+- -enden: adj 58, noun 24, verb 18
+- -ender: adj 50, noun 48
+- -endes: adj 91, noun 8
+- -endig: adj 76, adv 24
+- -enken: verb 58, noun 38, adj 4
+- -ennen: verb 86, noun 12
+- -enten: noun 94, verb 3
+- -erten: verb 46, adj 44, noun 9
+- -erter: adj 68, noun 32
+- -ertes: adj 87, noun 13
+- -erzen: noun 72, verb 23, adj 5
+- -essen: verb 41, noun 37, adv 14, adj 7
+- -esten: adj 72, noun 22, verb 4
+- -ester: noun 95, adj 5
+- -etten: noun 84, verb 11, adj 3, adv 2
+- -etter: noun 90, adj 10
+- -etzen: verb 84, noun 16
+- -etzte: verb 84, noun 13, adj 4
+- -fende: adj 92, noun 7
+- -ffeln: noun 92, verb 8
+- -finde: verb 84, noun 13, adj 4
+- -fisch: noun 80, adj 19
+- -flich: adj 91, adv 7
+- -freie: adj 88, verb 9, noun 3
+- -führt: verb 95, adj 5
+- -gaben: noun 85, verb 14
+- -geben: verb 99
+- -gisch: adj 59, noun 40
+- -glich: adj 50, adv 34, prep 8, verb 8
+- -gnete: verb 93, adj 4, noun 3
+- -gsten: adj 76, adv 12, noun 9, verb 3
+- -haben: verb 53, noun 47
+- -hauen: verb 89, noun 6, adj 5
+- -heben: verb 94, noun 5
+- -hende: adj 91, noun 9
+- -henen: adj 87, verb 8, noun 5
+- -higen: adj 68, verb 28, noun 3
+- -hlich: adj 65, adv 24, verb 10
+- -holen: verb 87, noun 10, adj 2
+- -hrten: noun 55, verb 35, adj 10
+- -hsten: adj 76, noun 16, verb 6
+- -htern: noun 44, verb 32, adj 21, adv 3
+- -htest: verb 76, noun 20, aux 4
+- -htete: verb 79, adj 21
+- -htige: adj 58, noun 21, verb 21
+- -htigt: adj 56, verb 44
+- -ichen: adj 67, verb 18, noun 13
+- -icher: adj 89, noun 7, art 4
+- -ichte: verb 51, noun 39, adj 10
+- -ichts: noun 57, prep 28, adv 16
+- -icken: verb 90, noun 9
+- -ickte: verb 94, adj 4, noun 2
+- -ieben: verb 97, noun 2
+- -ieder: noun 88, adv 5, conj 5
+- -iegen: verb 85, noun 10, adj 2
+- -ieher: noun 90, adj 8
+- -ieler: noun 92, art 5, adj 3
+- -ielle: adj 86, noun 12
+- -ienen: verb 73, adj 23, noun 4
+- -ieren: verb 90, noun 9
+- -ierst: verb 88, adv 9, noun 3
+- -iesen: verb 80, noun 19
+- -ieten: verb 65, noun 28, adj 7
+- -igend: adj 82, noun 7, verb 7, adv 3
+- -igere: verb 57, adj 41
+- -ignet: verb 74, adj 25
+- -igste: adj 94, noun 5
+- -igten: verb 90, noun 5, adj 4
+- -ildet: verb 74, adj 26
+- -immen: verb 73, adj 23, noun 3
+- -inden: verb 83, noun 12, adj 5
+- -inder: noun 84, adj 10, adv 5
+- -ingen: verb 90, noun 10
+- -inken: noun 52, verb 44, adj 4
+- -innen: noun 64, verb 30, adv 6
+- -inten: verb 48, noun 26, adv 23
+- -ische: adj 95, noun 5
+- -ismen: noun 92, verb 7
+- -issen: noun 63, verb 35
+- -isten: noun 76, verb 15, adj 9
+- -ister: noun 96, adj 4
+- -itern: noun 53, verb 45
+- -itten: verb 51, noun 37, adv 10
+- -karte: noun 88, verb 12
+- -kchen: noun 72, adj 14, verb 13
+- -kiert: verb 77, adj 23
+- -klagt: verb 92, adj 8
+- -klich: adj 90, adv 8
+- -komme: verb 90, noun 6, adj 4
+- -kraft: noun 90, verb 7, adj 3
+- -kunde: noun 92, adv 4, adj 3
+- -lafen: verb 55, noun 32, adj 13
+- -lagen: verb 79, noun 21
+- -lchen: noun 51, art 29, adj 10, verb 9
+- -ldete: verb 44, adj 39, noun 17
+- -leben: noun 53, verb 46
+- -legen: verb 59, adj 30, noun 9
+- -lesen: verb 67, noun 33
+- -licht: verb 53, noun 46
+- -liere: verb 91, noun 8
+- -ligen: verb 44, adj 35, noun 20
+- -linge: noun 85, verb 15
+- -llige: adj 72, noun 26
+- -llten: verb 59, noun 21, aux 17, adj 3
+- -logen: verb 54, noun 45
+- -losen: adj 63, noun 33, verb 4
+- -loser: adj 92, noun 8
+- -lumen: noun 85, verb 14
+- -marke: noun 90, adj 8
+- -maßen: adv 64, noun 26, verb 9
+- -mente: noun 91, verb 7
+- -meter: noun 84, adj 16
+- -miert: verb 81, adj 19
+- -milch: noun 92, adv 3, art 2
+- -misch: adj 79, noun 20
+- -mpfen: verb 84, noun 16
+- -nacht: noun 73, verb 25
+- -nchen: noun 86, adj 7, verb 6
+- -ndeln: verb 66, noun 34
+- -ndert: verb 48, num 34, adj 9, noun 9
+- -ndste: adj 92, noun 5, verb 2
+- -neren: adj 48, noun 26, verb 25
+- -ngere: adj 81, verb 17
+- -nigen: pron 34, verb 28, adj 18, art 17, noun 3
+- -nisch: noun 70, adj 30
+- -nisse: noun 96
+- -nnten: verb 40, noun 39, aux 18, adv 2
+- -nomen: noun 94, verb 5
+- -nsten: adj 63, noun 30, verb 5
+- -ntrum: noun 92, adv 6
+- -ochen: verb 71, noun 17, adv 7, adj 5
+- -ocken: noun 44, adj 35, verb 21
+- -offen: verb 64, adj 23, noun 12
+- -ohlen: verb 90, noun 10
+- -ollen: noun 44, verb 33, adj 23
+- -olles: adj 91, noun 8
+- -onale: adj 96, noun 4
+- -opfen: noun 60, verb 40
+- -orten: verb 55, noun 35, adj 10
+- -osten: noun 63, verb 22, adj 13
+- -perte: verb 54, noun 43, adj 2
+- -piele: noun 90, verb 10
+- -punkt: noun 95, verb 5
+- -rache: noun 98, adj 2
+- -racht: verb 75, noun 15, adj 10
+- -ragen: verb 92, noun 7
+- -raten: verb 52, noun 47
+- -rchen: noun 62, verb 30, adj 8
+- -recht: adj 44, verb 22, noun 19, adv 15
+- -reich: noun 72, adj 27
+- -reife: verb 59, noun 41
+- -reise: noun 89, adv 11
+- -rende: adj 95, noun 5
+- -renen: adj 67, noun 25, verb 8
+- -resse: noun 95, verb 4
+- -reten: verb 86, noun 11, adj 3
+- -rhaft: adj 70, noun 30
+- -rhalb: prep 64, adv 31, num 5
+- -rigen: adj 90, verb 6
+- -risch: adj 66, noun 34
+- -rolle: noun 89, adj 11
+- -rsten: noun 76, adj 15, verb 6
+- -rtest: verb 91, aux 5, noun 4
+- -rufen: verb 94, noun 5
+- -rzeit: noun 59, adv 41
+- -räger: noun 92, adj 7
+- -rüber: adv 88, noun 7, prep 5
+- -sagen: verb 44, noun 34, adv 21
+- -samer: adj 91, noun 9
+- -schen: adj 56, verb 28, noun 15
+- -scher: adj 81, noun 18
+- -schst: verb 92, adv 8
+- -schte: verb 95, noun 3
+- -seite: noun 71, adv 16, verb 6, adj 6
+- -selbe: art 59, pron 30, noun 7
+- -sende: noun 57, adj 43
+- -senen: adj 90, verb 6, noun 4
+- -sicht: noun 90, verb 9
+- -sisch: noun 88, adj 12
+- -ssend: adj 43, noun 22, verb 19, num 16
+- -ssern: verb 74, noun 26
+- -ssten: verb 47, aux 30, noun 11, adj 11
+- -stens: adv 86, noun 10, prep 3
+- -stern: noun 40, verb 32, adv 27
+- -stige: adj 90, noun 5, verb 5
+- -sucht: verb 68, noun 27, adj 4
+- -swert: adj 79, verb 11, noun 9
+- -sätze: noun 90, verb 9
+- -talen: adj 87, noun 9, verb 4
+- -tchen: noun 76, adj 12, verb 11
+- -tehen: verb 80, noun 20
+- -telle: noun 64, verb 18, adj 17
+- -temal: noun 83, adv 15
+- -teren: adj 63, noun 19, verb 18
+- -teste: adj 83, noun 17
+- -teten: verb 68, adj 28, noun 3
+- -tiere: verb 58, noun 41
+- -tigen: adj 50, verb 44, noun 5
+- -tiger: adj 98
+- -tigte: verb 80, adj 19
+- -tisch: adj 66, noun 29, adv 5
+- -toren: noun 87, adj 9, verb 4
+- -ttere: verb 49, adj 47, noun 4
+- -tunde: noun 93, adv 3, adj 3
+- -turen: noun 95, verb 3
+- -täten: noun 85, verb 12, adj 2
+- -uchen: verb 62, noun 33, adj 5
+- -ucher: noun 76, adj 22
+- -uchst: verb 90, adv 9
+- -uchte: verb 95, noun 4
+- -unden: verb 59, noun 30, adj 11
+- -ungen: noun 86, verb 13
+- -unter: adv 76, adj 17, noun 4, prep 3
+- -uscht: verb 76, adj 23
+- -usend: num 79, noun 13, adj 6
+- -utter: noun 90, adj 10
+- -wagen: noun 81, verb 18
+- -warze: adj 91, noun 8
+- -wegen: verb 46, adv 46, adj 4, noun 3
+- -weige: verb 59, noun 33, adj 7
+- -weise: adv 68, noun 32
+- -weite: noun 79, verb 9, adj 8, adv 3
+- -ystem: noun 93, adj 7
+- -zigen: adj 73, noun 17, verb 9
+- -zogen: verb 86, adj 9, noun 5
+- -ächen: noun 52, verb 33, adj 14
+- -ächst: verb 51, adv 49
+- -änder: noun 90, adj 6, adv 3
+- -ängen: verb 73, noun 26
+- -änger: noun 86, adj 14
+- -ätzen: noun 57, verb 41
+- -äumen: verb 81, noun 19
+- -ücher: noun 71, adj 27
+- -ückte: verb 53, adj 24, noun 22
+- -üllen: verb 59, noun 33, adj 7
+- -ünden: verb 65, noun 25, adj 10
+- -ützen: verb 89, noun 10
+- -aben: noun 64, verb 35
+- -aber: noun 86, adv 10, adj 2
+- -ache: noun 88, adj 11
+- -aden: noun 51, verb 45, adj 3
+- -afen: verb 48, noun 44, adj 8
+- -afft: verb 92, adj 4, noun 4
+- -agen: verb 62, noun 34, adv 3
+- -ager: noun 75, adj 25
+- -ails: noun 85, adv 14
+- -alen: adj 67, noun 23, verb 10
+- -aler: adj 74, noun 26
+- -ales: adj 58, noun 40, pron 3
+- -alle: noun 64, verb 23, adj 12
+- -alls: adv 54, noun 39, conj 6
+- -alog: noun 58, adj 29, verb 14
+- -alte: verb 72, adj 24, noun 4
+- -amen: noun 53, adj 30, verb 17
+- -amer: adj 68, noun 31
+- -ande: noun 58, adv 21, adj 17, verb 4
+- -ands: noun 92, adv 7
+- -andt: verb 61, adj 30, noun 9
+- -anen: noun 58, verb 33, adj 8
+- -aner: noun 87, adj 11
+- -ange: noun 59, verb 23, conj 18
+- -anne: noun 91, verb 5, aux 2
+- -aren: adj 58, noun 22, verb 19
+- -arer: adj 85, noun 14
+- -arte: noun 63, verb 35, adj 2
+- -arze: adj 79, noun 20
+- -asen: noun 57, verb 41
+- -asse: noun 64, verb 34
+- -aten: noun 57, verb 36, adj 7
+- -ater: noun 88, adj 10
+- -atet: verb 74, adj 23, aux 2
+- -atte: noun 53, verb 29, adj 18
+- -atze: noun 91, verb 7
+- -aute: verb 65, adj 23, noun 10
+- -aßen: adv 41, noun 29, verb 27, adj 3
+- -band: noun 92, verb 5
+- -bare: adj 72, noun 27
+- -baut: verb 95, noun 5
+- -bend: adj 60, noun 32, num 3, verb 3
+- -bene: adj 85, noun 11, verb 3
+- -biet: noun 76, verb 18, aux 6
+- -bten: verb 73, noun 22, adj 4
+- -bter: adj 61, noun 38
+- -chen: adj 35, verb 32, noun 30
+- -cher: adj 67, noun 28, pron 3
+- -dene: adj 85, noun 11, verb 3
+- -dere: verb 64, adv 17, adj 13, noun 5
+- -ders: noun 61, adv 36
+- -dert: verb 62, num 24, adj 8, noun 6
+- -dest: verb 79, adv 13, aux 4, noun 3
+- -dete: verb 54, adj 38, noun 8
+- -dien: noun 95, verb 4
+- -dige: verb 48, adj 36, noun 15
+- -dler: noun 86, adj 13
+- -dste: adj 80, noun 13, verb 5
+- -dten: noun 76, verb 16, adj 7
+- -eben: verb 82, noun 15
+- -eber: noun 89, adv 8
+- -echt: verb 37, adj 29, noun 25, adv 9
+- -eckt: verb 68, adj 32
+- -eder: noun 70, adv 13, conj 11, adj 4
+- -efen: verb 75, adj 15, noun 10
+- -egen: verb 63, adj 12, adv 12, noun 10, prep 3
+- -eger: noun 79, adj 20
+- -egte: verb 72, adj 28
+- -ehen: verb 91, noun 8
+- -eher: noun 76, adj 19, adv 3
+- -ehme: adj 51, verb 40, noun 10
+- -ehst: verb 96, adv 4
+- -eibe: verb 55, noun 44
+- -eich: noun 60, adj 36, adv 3
+- -eien: noun 52, verb 32, adj 15
+- -eige: verb 48, noun 33, adj 18
+- -eine: noun 42, adj 20, verb 18, art 18
+- -eint: verb 95, noun 3
+- -eise: noun 56, adv 43
+- -eist: verb 49, noun 49
+- -ekte: noun 45, verb 30, adj 25
+- -elbe: art 49, pron 25, noun 18, adj 5, verb 3
+- -elen: verb 58, noun 36, adj 5
+- -eler: noun 76, art 15, adj 9
+- -eles: noun 59, pron 23, adj 18
+- -elle: adj 50, noun 44, verb 5
+- -elnd: adj 90, noun 8
+- -elst: verb 96
+- -elte: verb 93, adj 6
+- -emal: noun 58, adv 38, adj 5
+- -emen: noun 71, verb 15, adj 14
+- -ende: adj 78, noun 21
+- -ends: adv 72, noun 28
+- -enen: adj 68, verb 19, noun 13
+- -ener: adj 71, noun 28
+- -enes: adj 89, noun 8
+- -enge: noun 90, verb 7
+- -enkt: verb 86, noun 12, adj 2
+- -enst: noun 73, verb 22, adv 3, adj 2
+- -ente: noun 70, verb 26, adj 4
+- -eren: verb 63, adj 19, noun 16, art 2
+- -erer: adj 71, noun 28
+- -erne: adj 60, noun 34, adv 2, x 2
+- -erte: verb 84, noun 8, adj 6
+- -este: adj 72, noun 26
+- -eten: verb 62, noun 19, adj 18
+- -ette: noun 92, adj 5, verb 3
+- -etzt: verb 76, adj 17, adv 8
+- -euen: verb 91, noun 6, adj 3
+- -euer: noun 90, adj 9
+- -eute: noun 52, verb 38, adj 7, adv 2
+- -eßen: verb 86, noun 10, adj 2
+- -fekt: adj 51, noun 45, verb 4
+- -feln: noun 80, verb 20
+- -fiel: verb 74, noun 18, art 4, adv 4
+- -form: noun 93, adj 6
+- -ften: noun 55, verb 24, adj 15, aux 6
+- -fter: adj 73, noun 25
+- -gabe: noun 95, verb 4
+- -gang: noun 98
+- -gehe: verb 94, adj 3, noun 2
+- -gene: adj 76, noun 22, verb 2
+- -gens: adv 50, noun 48
+- -gere: adj 53, verb 43, noun 3
+- -gern: verb 55, noun 44
+- -gert: verb 93, adj 4
+- -ging: verb 70, noun 28, adj 2
+- -gnen: verb 78, noun 15, adj 6
+- -gste: adj 80, noun 17, verb 3
+- -gten: verb 71, noun 16, adj 12
+- -haut: verb 94, noun 5
+- -hein: noun 94, adv 3
+- -hend: adj 68, adv 14, verb 8, prep 7
+- -hens: noun 91, adv 6
+- -here: adj 55, verb 37, noun 6
+- -hern: noun 74, verb 24
+- -hied: noun 73, verb 27
+- -hige: adj 84, verb 7, noun 7
+- -hine: noun 95, adj 2
+- -hlen: verb 74, noun 24
+- -hler: noun 92, adj 7
+- -hlte: verb 95, adj 3, noun 2
+- -hnen: verb 60, noun 37, adj 2
+- -hner: noun 87, adj 11
+- -hnet: verb 95, noun 3
+- -hnte: verb 68, adj 21, noun 11
+- -holz: noun 92, adj 8
+- -hren: verb 65, noun 28, adj 7
+- -hrer: noun 87, adj 13
+- -hrte: verb 89, noun 8, adj 3
+- -hsen: verb 78, noun 20
+- -hste: adj 63, noun 33, verb 3
+- -hten: verb 56, adj 24, noun 17, aux 3
+- -htes: adj 73, noun 26
+- -huhe: noun 96, adj 3
+- -iben: verb 77, noun 21
+- -iche: adj 79, noun 14, verb 6
+- -icht: noun 53, verb 41, adj 6
+- -ickt: verb 94, adj 5
+- -iden: verb 79, adj 16, noun 4
+- -ider: noun 56, adv 20, art 17, adj 6
+- -iele: noun 74, verb 25
+- -iene: verb 43, noun 31, adj 25
+- -iens: noun 87, adv 10, prep 2
+- -iere: verb 73, noun 23, adj 4
+- -iert: verb 92, adj 7
+- -ieße: verb 90, noun 7, adj 3
+- -ifen: noun 58, verb 41
+- -ifft: verb 90, adj 5, noun 4
+- -igen: adj 54, verb 32, noun 10, pron 3
+- -iger: adj 88, noun 9, art 3
+- -iges: adj 77, noun 23
+- -ihen: verb 70, noun 21, adj 8
+- -iken: noun 68, verb 21, adj 12
+- -iker: noun 94, adj 6
+- -ilch: noun 81, adv 7, art 6, adj 5
+- -ilen: verb 76, adj 20, noun 5
+- -ille: noun 84, adj 12, verb 3
+- -inde: verb 58, noun 32, adj 9
+- -inen: noun 68, verb 17, adj 9, art 6
+- -iner: noun 61, adj 24, art 15
+- -inge: noun 55, verb 44
+- -inkt: verb 69, adj 19, noun 12
+- -inst: verb 82, noun 13, adv 3, adj 2
+- -isen: verb 64, noun 34
+- -iten: noun 65, verb 31, adj 3
+- -iter: noun 83, adj 16
+- -itet: verb 97
+- -ißen: verb 53, adj 38, noun 6, adv 4
+- -ißig: adj 74, num 25
+- -jahr: noun 93, adj 5
+- -kale: noun 80, adj 19
+- -keit: noun 99
+- -kend: adj 87, noun 4, num 4, verb 3, adv 2
+- -kert: verb 71, adj 26
+- -kind: noun 94, adj 5
+- -knen: verb 53, noun 38, adj 8
+- -kten: verb 38, adj 33, noun 28
+- -land: noun 98
+- -lang: noun 32, adv 26, verb 15, conj 13, prep 13
+- -lben: art 34, adj 23, noun 17, verb 14, pron 11
+- -lder: noun 92, adj 5, adv 2
+- -lebt: verb 94, adj 6
+- -lein: noun 95, adv 2
+- -lern: noun 89, verb 10
+- -lgen: verb 59, noun 33, adj 6
+- -lied: noun 94, verb 6
+- -lien: noun 94, verb 4
+- -lige: adj 80, noun 15, verb 4
+- -ling: noun 92, verb 6
+- -list: noun 88, verb 8, adv 2
+- -lken: noun 55, verb 41, adj 4
+- -ller: noun 52, adj 48
+- -lles: adj 78, noun 20, pron 3
+- -llst: verb 71, aux 14, adj 14
+- -loge: noun 92, adj 4, verb 3
+- -loss: verb 90, noun 9
+- -lten: verb 76, noun 12, adj 9, aux 2
+- -ltet: verb 75, aux 16, adj 9
+- -male: adj 59, noun 40
+- -mals: adv 79, noun 19
+- -mann: noun 97
+- -mber: noun 86, adv 10, adj 2
+- -mens: noun 47, prep 22, adj 21, adv 10
+- -ment: noun 97
+- -mern: noun 53, verb 44
+- -mert: verb 71, adj 26
+- -mete: verb 91, adj 5, noun 3
+- -mmen: verb 84, noun 8, adj 7
+- -mmer: noun 87, adj 9, adv 4
+- -mmes: noun 87, adj 12
+- -mmte: verb 90, adj 9
+- -mpel: noun 75, verb 24
+- -mten: adj 53, verb 38, noun 8
+- -nach: adv 70, verb 17, noun 9, adj 4
+- -nale: adj 85, noun 15
+- -ndem: adj 54, pron 34, conj 5, adv 5
+- -ndes: adj 57, noun 42
+- -nere: adj 55, verb 37, noun 6
+- -nern: noun 77, verb 21
+- -nert: verb 71, adj 26
+- -ngen: noun 53, verb 44, adj 3
+- -nien: noun 95, verb 4
+- -nige: pron 41, adj 25, art 21, verb 7, noun 7
+- -nigt: verb 91, adj 9
+- -nkel: noun 67, adj 33
+- -nkte: verb 90, noun 5, adj 5
+- -nlos: adj 92, noun 7
+- -nnen: verb 51, noun 41, adv 3, prep 3
+- -nner: noun 80, adj 18
+- -nnte: verb 70, noun 17, adj 13
+- -nsen: noun 84, verb 15
+- -nste: adj 67, noun 30, verb 3
+- -nten: noun 66, verb 21, adv 6, adj 4, aux 3
+- -nter: adj 43, adv 39, noun 10, prep 8
+- -nzen: noun 54, verb 44
+- -nzig: num 67, adj 33
+- -oben: verb 65, adj 21, noun 11
+- -oden: noun 78, verb 15, adj 7
+- -ogen: verb 65, noun 29, adj 6
+- -ohen: verb 58, adj 31, noun 10
+- -olen: verb 68, noun 26, adj 6
+- -olge: noun 40, verb 29, prep 27, adj 3
+- -omen: noun 81, verb 17
+- -omme: verb 73, noun 16, adj 10
+- -onen: noun 90, verb 6, adj 5
+- -ophe: noun 91, adj 6
+- -oren: noun 61, adj 26, verb 12
+- -orte: verb 57, noun 40, adj 3
+- -osen: noun 48, adj 39, verb 13
+- -oser: adj 77, noun 23
+- -oten: noun 64, verb 31, adj 4
+- -oßen: verb 63, adj 25, noun 7, adv 5
+- -piel: noun 89, verb 6, art 3, adv 3
+- -rach: verb 84, adv 7, noun 6, adj 3
+- -rafe: noun 90, verb 9
+- -raft: noun 76, verb 18, adj 7
+- -rale: noun 84, adj 16
+- -rand: noun 94, verb 4
+- -rang: noun 52, verb 44, adv 2
+- -rank: noun 85, adj 9, verb 6
+- -rate: verb 56, noun 42
+- -raße: noun 95, verb 3, adj 3
+- -rche: noun 53, verb 24, adj 22
+- -rden: noun 53, verb 38, adj 9
+- -rdet: verb 55, aux 42, adj 3
+- -reie: adj 70, verb 22, noun 8
+- -rein: noun 70, adv 27
+- -reit: verb 51, noun 46
+- -rern: noun 84, verb 14
+- -rfen: verb 69, noun 19, aux 11
+- -rgen: noun 52, verb 22, adj 15, adv 12
+- -rger: noun 66, adj 33
+- -rher: adv 64, adj 22, noun 12
+- -rich: verb 44, noun 31, adj 19, adv 5
+- -rien: noun 96, verb 3
+- -riff: noun 93, verb 6
+- -rige: adj 84, verb 7, noun 7
+- -rist: noun 91, verb 6
+- -rkte: verb 92, noun 4, adj 4
+- -rmal: adv 66, adj 25, noun 9
+- -rner: noun 44, adj 33, adv 21
+- -rnte: verb 84, noun 11, adj 5
+- -rren: verb 76, noun 19, adj 4
+- -rsch: noun 83, adj 15
+- -rtes: adj 68, noun 32
+- -rtet: verb 79, adj 19, aux 2
+- -rund: noun 71, prep 20, adj 8
+- -rzen: noun 53, verb 31, adj 17
+- -same: adj 88, noun 10, verb 2
+- -sant: adj 63, noun 33, verb 4
+- -sche: adj 69, noun 25, verb 6
+- -scht: verb 90, adj 6, noun 4
+- -seln: verb 53, noun 47
+- -send: num 48, adj 28, noun 15, verb 8
+- -sens: noun 89, adv 8
+- -sern: verb 58, noun 40
+- -smen: noun 78, verb 20
+- -soße: noun 87, adj 10, verb 3
+- -ssen: verb 63, noun 28, adj 4, adv 3, art 3
+- -sser: noun 85, adj 15
+- -sste: verb 54, aux 17, adj 17, noun 11
+- -stem: noun 75, adj 25
+- -sten: noun 39, adj 39, verb 15, aux 4, adv 4
+- -ster: noun 84, adj 16
+- -tage: noun 78, adv 18, verb 4
+- -tags: adv 88, noun 12
+- -tand: noun 74, verb 25
+- -tein: noun 94, adv 3
+- -tend: adj 74, verb 17, noun 3, num 3
+- -tens: adv 59, noun 30, prep 10
+- -tere: adj 67, verb 22, noun 10
+- -tert: adj 54, verb 44
+- -tete: verb 92, adj 7
+- -tier: noun 95, adj 2
+- -tige: adj 73, noun 13, verb 13
+- -tigt: verb 59, adj 40
+- -tive: noun 58, adj 38, prep 4
+- -tler: noun 89, adj 11
+- -tner: noun 89, adj 9
+- -trum: noun 80, adv 14, x 5
+- -tsam: adj 94, adv 3
+- -tsch: noun 76, adj 22
+- -tten: noun 53, verb 31, adj 8, adv 7
+- -tter: noun 75, adj 24
+- -tzen: verb 66, noun 30, adj 4
+- -tzer: noun 80, adj 19
+- -tzig: adj 79, num 20
+- -uben: noun 57, verb 41
+- -uber: noun 72, adj 19, adv 8
+- -uche: verb 63, noun 26, adj 11
+- -ufen: verb 84, noun 16
+- -ugen: verb 85, noun 9, adj 5
+- -uger: noun 83, adj 17
+- -umen: noun 56, verb 43
+- -umte: verb 89, adj 10
+- -unde: noun 81, adv 10, adj 8, verb 2
+- -unft: noun 90, adj 6, verb 3
+- -unkt: noun 82, verb 17
+- -uren: noun 84, verb 12, adj 4
+- -usen: noun 76, verb 21
+- -uses: noun 88, adj 12
+- -usst: verb 75, adj 22, aux 2
+- -uten: noun 55, verb 34, adj 10
+- -viel: art 37, adv 37, noun 18, verb 8
+- -voll: adj 96, noun 3
+- -walt: noun 89, verb 8, adj 3
+- -wart: noun 81, verb 12, adv 3, art 3
+- -weit: noun 35, adv 21, adj 21, conj 20
+- -werb: noun 92, verb 7
+- -wert: adj 48, verb 28, noun 23
+- -wind: noun 93, adj 6
+- -wohl: noun 44, conj 27, x 27
+- -zahl: noun 95, verb 4
+- -zehn: num 93, noun 6
+- -zeit: noun 84, adv 15
+- -zept: noun 92, verb 5, adj 3
+- -zten: verb 53, adj 26, noun 20
+- -äche: noun 73, adj 22, verb 4
+- -äfte: noun 73, verb 16, adj 9, aux 2
+- -äger: noun 77, adj 22
+- -älle: noun 87, adj 10, verb 2
+- -änen: noun 78, verb 13, adj 8
+- -änge: noun 93, verb 5
+- -änke: noun 81, verb 15, adj 4
+- -ären: verb 58, adj 34, noun 8
+- -äten: noun 63, verb 30, adj 6
+- -äufe: noun 87, verb 13
+- -ören: verb 77, noun 20, adj 3
+- -ößte: adj 75, verb 19, aux 5
+- -über: adv 69, noun 16, prep 13
+- -ügen: verb 62, noun 33, adj 4
+- -ühen: verb 70, adj 22, noun 7
+- -ünde: verb 44, noun 38, adj 17
+- -ütze: noun 94, verb 5
+- -abe: noun 83, verb 15
+- -abt: verb 75, adj 24
+- -ach: verb 42, adv 25, noun 22, adj 11
+- -ade: noun 50, adj 33, adv 13, verb 4
+- -adt: noun 90, verb 7, adj 2
+- -aft: noun 76, adj 21, verb 3
+- -age: noun 83, verb 12, adv 4
+- -ags: adv 63, noun 36
+- -ahn: noun 93, num 5
+- -akt: noun 50, adj 27, verb 23
+- -alb: adv 40, prep 39, num 13, adj 4
+- -ald: noun 59, conj 18, adv 18, adj 4
+- -ale: noun 51, adj 48
+- -all: noun 94, adj 5
+- -als: adv 50, noun 49
+- -alt: noun 70, verb 21, adj 8
+- -ame: adj 63, noun 31, verb 6
+- -amm: noun 94, adj 4
+- -and: noun 81, verb 13
+- -ane: noun 63, verb 25, adj 10
+- -ang: noun 79, verb 9, adv 6, conj 3, prep 3
+- -ank: noun 64, adj 23, verb 14
+- -ans: noun 93, adv 4
+- -ant: noun 48, adj 40, verb 12
+- -arb: verb 77, noun 21
+- -are: adj 51, noun 43, verb 5
+- -ark: noun 58, adj 39, verb 3
+- -arm: noun 94, adj 4
+- -art: noun 52, verb 31, adv 7, art 7
+- -ass: noun 46, adj 25, verb 18, conj 12
+- -ast: noun 60, verb 37
+- -ate: noun 55, verb 40, adj 4
+- -ats: noun 87, adv 10, prep 2
+- -att: noun 53, conj 27, adj 17, verb 3
+- -aub: noun 69, verb 27, adj 3
+- -aue: verb 60, adj 29, noun 11
+- -auf: adv 51, noun 45, verb 4
+- -aum: noun 96
+- -aus: noun 64, adv 35
+- -aut: verb 82, noun 16
+- -aße: noun 84, verb 8, adj 8
+- -aßt: verb 72, adj 24, aux 4
+- -bar: adj 88, noun 5, adv 3, verb 3
+- -bau: noun 94, adj 3
+- -bel: noun 78, adj 21
+- -ben: verb 63, noun 28, adj 3, art 3
+- -ber: noun 65, adv 25, adj 6, prep 4
+- -bet: noun 45, verb 37, aux 16
+- -bot: noun 91, verb 4, adj 4
+- -bst: verb 85, noun 13
+- -bte: verb 87, noun 10, adj 2
+- -bus: noun 78, x 17, adv 4
+- -cen: noun 54, verb 39, adj 6
+- -ckt: verb 77, adj 22
+- -dem: adj 38, pron 19, conj 19, adv 19, noun 3
+- -der: noun 68, adj 18, adv 10
+- -dte: verb 53, noun 41, adj 6
+- -ebe: verb 73, noun 22, adj 2
+- -ede: noun 84, adj 11, verb 5
+- -een: noun 79, verb 16, adj 5
+- -ege: verb 70, noun 23, adj 6
+- -ehe: verb 83, adj 9, noun 7
+- -ehl: noun 91, verb 5
+- -ehn: num 78, noun 19, verb 2
+- -ehr: noun 68, adv 28, verb 3
+- -eht: verb 95, noun 4
+- -eie: adj 59, noun 25, verb 15
+- -eig: noun 63, adj 34, num 3
+- -ekt: noun 63, adj 28, verb 10
+- -eld: noun 92, adj 4
+- -ele: noun 59, verb 38, adj 3
+- -ell: adj 75, noun 12, verb 12
+- -els: noun 90, prep 7, adv 3
+- -eme: noun 83, verb 9, adj 8
+- -end: adj 60, noun 12, num 11, verb 9, adv 6
+- -ene: adj 64, noun 28, verb 8
+- -ent: noun 79, adj 11, verb 10
+- -ept: noun 80, verb 13, adj 7
+- -erb: noun 81, verb 17
+- -ere: verb 43, adj 38, noun 15
+- -erk: noun 90, adj 6, verb 4
+- -ert: verb 77, adj 14, noun 5, num 4
+- -ese: noun 92, adv 3, verb 3
+- -ess: noun 83, verb 12, adj 5
+- -est: verb 69, aux 16, noun 12, adv 3
+- -ete: verb 79, adj 14, noun 7
+- -ett: noun 93, adj 3
+- -eug: noun 95, verb 3
+- -eut: verb 53, adj 37, noun 9
+- -eße: verb 74, noun 18, adj 8
+- -eßt: verb 95, adj 2
+- -fel: noun 98
+- -fen: verb 61, noun 35, adj 4
+- -fer: noun 87, adj 12
+- -ffe: noun 93, verb 6
+- -fft: verb 76, adj 13, noun 11
+- -fst: verb 82, adv 12, noun 5
+- -fte: verb 41, noun 32, adj 22, aux 5
+- -gab: verb 63, adv 24, noun 13
+- -gal: noun 50, adj 41, adv 8
+- -gel: noun 99
+- -gem: adj 69, pron 19, noun 6, art 3
+- -ger: adj 50, noun 48
+- -gie: noun 98
+- -gig: adj 94, noun 3, num 2
+- -gst: verb 90, noun 6, adv 4
+- -gte: verb 88, adj 11
+- -hem: adj 79, art 13, noun 4
+- -hen: verb 46, adj 28, noun 25
+- -her: adj 56, noun 30, adv 10, pron 3
+- -hes: adj 70, noun 28, pron 2
+- -hig: adj 94, noun 3, num 2
+- -hin: adv 78, noun 21
+- -hle: noun 61, verb 35, adj 3
+- -hlt: verb 98
+- -hme: verb 49, adj 27, noun 24
+- -hne: noun 68, verb 28, adj 3
+- -hnt: verb 71, adj 24, noun 5
+- -hof: noun 91, adj 6
+- -hre: verb 59, noun 20, adj 20
+- -hst: verb 82, adv 16
+- -hte: verb 79, noun 13, adj 9
+- -hts: noun 48, adv 36, prep 16
+- -ich: adj 66, adv 17, noun 10, verb 5, prep 2
+- -ide: verb 71, noun 17, adj 11
+- -ieb: verb 63, noun 34, adj 2
+- -ied: noun 83, verb 17
+- -ief: verb 59, adj 30, noun 10
+- -ieg: noun 67, verb 30
+- -iel: noun 54, verb 23, art 11, adv 11
+- -ien: noun 81, verb 13, adj 3, aux 3
+- -ier: noun 84, adj 7, num 4, verb 4
+- -ies: noun 55, adj 44
+- -iet: verb 45, noun 39, aux 14
+- -ieß: verb 87, noun 11
+- -ife: noun 60, verb 39
+- -ift: noun 87, verb 9, adj 4
+- -ige: adj 61, verb 17, noun 17, pron 3
+- -ihe: verb 46, noun 34, adj 19
+- -ild: noun 92, adj 4
+- -ile: noun 71, verb 18, adj 11
+- -ils: noun 63, adv 35
+- -ilt: verb 98
+- -ima: noun 83, adj 16
+- -ind: noun 83, adj 14
+- -ine: noun 76, adj 10, verb 5, adv 4, art 4
+- -ing: noun 70, verb 24, adj 6
+- -inn: noun 94, verb 5
+- -ins: noun 49, pron 41, adv 7
+- -int: verb 84, noun 10, adj 5
+- -irn: noun 85, verb 12
+- -ise: noun 62, adv 33, adj 4
+- -iss: verb 40, noun 35, adj 25
+- -ist: noun 70, verb 20, adv 5, aux 5
+- -ita: noun 93, x 4, adj 3
+- -ite: noun 47, verb 29, adj 19, adv 6
+- -its: adv 50, noun 34, prep 16
+- -itt: noun 58, verb 24, num 12, adj 4
+- -ium: noun 97
+- -iße: adj 41, noun 35, verb 24
+- -kam: verb 65, adj 17, noun 15
+- -ker: noun 77, adj 22
+- -kes: noun 57, adj 41
+- -kst: verb 90, noun 6
+- -kte: verb 74, noun 13, adj 13
+- -kus: noun 94, adv 4
+- -lar: noun 82, adj 15
+- -lat: noun 68, x 21, verb 9
+- -lbe: noun 46, art 23, adj 12, pron 12, verb 7
+- -lch: noun 54, adv 17, art 14, adj 12, verb 2
+- -lde: verb 36, noun 34, adj 30
+- -lei: noun 82, art 16
+- -lem: adj 43, noun 28, pron 23, art 4
+- -lge: noun 51, verb 23, prep 17, adj 8
+- -lig: adj 97
+- -lin: noun 94, adv 3
+- -lls: noun 48, adv 35, conj 15
+- -lnd: adj 73, noun 19, verb 4
+- -log: noun 44, verb 34, adj 21
+- -los: adj 78, noun 22
+- -lst: verb 84, aux 6, adj 6, noun 2
+- -lte: verb 80, adj 11, noun 9
+- -lts: noun 89, adv 8, prep 2
+- -lug: noun 53, verb 45, adj 2
+- -luß: noun 92, verb 5
+- -mal: adv 64, noun 22, adj 14
+- -man: noun 88, adv 7, adj 3, verb 2
+- -mat: noun 88, verb 9
+- -men: verb 59, noun 34, adj 6
+- -mer: noun 73, adj 25, adv 3
+- -mes: noun 68, adj 31
+- -met: verb 76, noun 19, adj 2, aux 2
+- -mma: noun 76, x 22
+- -mme: noun 39, verb 34, adj 26
+- -mmt: verb 90, adj 9
+- -mst: verb 92, noun 5
+- -mte: verb 70, adj 26, noun 3
+- -mus: noun 97, adv 2
+- -mut: noun 70, verb 23, adj 5
+- -nal: noun 71, adj 21, adv 7
+- -ndt: verb 53, adj 24, noun 23
+- -nem: art 64, adj 23, noun 7, pron 3
+- -nen: noun 45, verb 33, adj 19
+- -nes: adj 60, noun 29, pron 5, art 5
+- -nft: noun 73, adj 18, verb 9
+- -nge: noun 76, verb 18, conj 4
+- -ngt: verb 95, adv 4
+- -nig: adj 67, noun 31
+- -nke: noun 53, verb 37, adj 10
+- -nkt: verb 58, noun 36, adj 6
+- -nne: noun 74, verb 15, aux 7, adj 3
+- -nnt: verb 90, adj 7, noun 4
+- -nny: noun 93, x 7
+- -nse: noun 90, adv 4, verb 4
+- -nst: verb 55, noun 32, adv 7, adj 6
+- -nte: verb 53, noun 33, adj 14
+- -nts: noun 87, adv 10, prep 2
+- -nzt: verb 97
+- -och: noun 54, adv 32, adj 12, verb 2
+- -ode: noun 80, adj 13, verb 6
+- -oge: noun 81, adj 10, verb 7
+- -ohl: noun 59, conj 18, x 18, verb 4
+- -ole: noun 87, adj 8, verb 5
+- -oll: adj 84, noun 13
+- -olz: noun 79, adj 20
+- -one: noun 83, adj 10, verb 5
+- -ort: noun 84, verb 12, adj 2
+- -ose: noun 70, adj 22, adv 4, verb 4
+- -oss: verb 73, noun 23, adj 3
+- -ost: verb 47, noun 28, adv 22
+- -oße: noun 68, adj 24, verb 8
+- -pen: noun 83, verb 16
+- -pft: verb 73, adj 14, noun 12
+- -phe: noun 79, adj 16, verb 5
+- -pte: verb 70, noun 24, adj 6
+- -r's: aux 41, pron 39, verb 13, noun 3
+- -ran: adv 66, noun 28, adj 3, verb 2
+- -rau: noun 94, adj 3
+- -rbe: verb 60, noun 35
+- -rde: noun 84, adj 11, verb 5
+- -rem: adj 45, art 31, noun 20
+- -rer: noun 49, adj 48, art 2
+- -res: noun 46, adj 41, pron 6, art 6
+- -rge: noun 86, adj 7, verb 5
+- -rgt: verb 75, adj 25
+- -rig: adj 97
+- -rin: noun 96, adv 4
+- -rkt: verb 62, noun 35, adj 3
+- -rme: noun 77, adj 18, verb 6
+- -rne: adj 41, noun 38, adv 9, x 9, verb 2
+- -rnt: verb 66, adj 23, noun 12
+- -rrt: verb 90, noun 5, adj 4
+- -rse: noun 90, adv 4, verb 4
+- -rst: verb 59, noun 18, adv 16, aux 6
+- -rte: verb 71, noun 20, adj 8
+- -rts: noun 56, adv 41, prep 2
+- -rum: noun 51, adv 35, x 12
+- -rze: noun 50, adj 47, verb 3
+- -rzt: verb 54, adj 23, noun 21
+- -rät: noun 59, verb 41
+- -sam: adj 84, adv 8, noun 6
+- -sch: noun 57, adj 38, verb 3
+- -sel: noun 98
+- -sen: verb 51, noun 41, adj 5
+- -ses: noun 68, adj 31
+- -sst: verb 87, aux 5, adj 5, noun 2
+- -sta: noun 73, x 24, adj 3
+- -ste: adj 51, noun 33, verb 13
+- -sum: noun 92, adv 4
+- -t's: verb 68, aux 24, pron 4
+- -tan: noun 49, adj 31, verb 16, adv 5
+- -tat: noun 88, verb 9
+- -tem: adj 61, noun 37
+- -tig: adj 99
+- -tin: noun 98
+- -tor: noun 92, adv 6
+- -tst: verb 87, noun 8, adv 2
+- -tte: noun 61, adj 23, verb 15
+- -tts: noun 87, adv 10, prep 2
+- -tum: noun 96
+- -tun: verb 64, noun 31, num 4
+- -tus: noun 94, adv 4
+- -tät: noun 96, verb 3
+- -tür: noun 88, adv 7, adj 4
+- -uch: noun 95, adj 3
+- -ude: noun 80, adj 13, verb 6
+- -uen: verb 69, noun 20, adj 10
+- -uft: verb 84, noun 12, adj 3
+- -ugt: verb 75, adj 25
+- -uhe: noun 84, adj 12, verb 4
+- -uhr: noun 83, verb 14, adv 2
+- -ukt: noun 50, verb 43, adj 7
+- -ule: noun 75, adj 21, verb 4
+- -ume: noun 92, verb 4, adj 4
+- -und: noun 63, adj 24, prep 9
+- -ure: noun 60, verb 29, adj 10
+- -urs: noun 94, adv 2
+- -urt: noun 66, verb 28, adj 5
+- -uss: noun 93, verb 4
+- -ust: verb 59, noun 38
+- -ute: verb 45, noun 30, adj 19, adv 6
+- -ven: noun 63, adj 26, verb 11
+- -vor: adv 76, noun 21
+- -was: pron 64, noun 34
+- -xen: noun 54, adj 26, verb 19
+- -zer: noun 52, adj 47
+- -zig: num 51, adj 48
+- -zin: noun 94, adv 3
+- -zte: verb 73, adj 16, noun 12
+- -zug: noun 97
+- -ßem: adj 83, noun 7, art 4, pron 3
+- -ßen: verb 58, noun 17, adj 13, adv 12
+- -ßes: adj 81, noun 17
+- -ßte: verb 46, adj 37, aux 11, noun 5
+- -äge: noun 86, adj 7, verb 5
+- -äne: noun 83, adj 10, verb 5
+- -äre: noun 60, verb 29, adj 10
+- -äte: noun 41, verb 36, adj 23
+- -öde: adj 53, noun 40, verb 6
+- -öre: verb 54, noun 32, adj 12
+- -ört: verb 94, noun 3, adj 2
+- -ügt: verb 97, adj 3
+- -ühl: noun 93, verb 3
+- -üre: verb 45, noun 44, adj 10
+- -ürt: verb 88, noun 6, adj 5
+- -üte: noun 74, verb 20, adj 6
+- -'s: verb 39, aux 22, pron 18, noun 10, adv 5, conj 4
+- -ab: noun 38, verb 37, adv 22
+- -ad: noun 91, adj 5
+- -af: noun 61, verb 34, adj 3
+- -ag: noun 91, verb 7
+- -ah: noun 46, verb 36, adj 13, adv 3
+- -ak: noun 75, verb 13, x 12
+- -al: noun 50, adv 25, adj 23, x 2
+- -am: adj 42, noun 36, verb 12, adv 4, x 4
+- -an: noun 70, adv 16, adj 7, verb 6
+- -ar: adj 54, noun 36, adv 4, verb 4
+- -as: noun 86, pron 11
+- -at: noun 68, verb 23, adj 4, x 4
+- -au: noun 84, adj 10, verb 5
+- -aß: noun 59, verb 37, adj 2
+- -be: noun 56, verb 31, adj 6, art 5, pron 2
+- -bs: noun 91, adj 5
+- -bt: verb 88, adj 10
+- -ce: noun 88, verb 7, adj 5
+- -da: noun 81, x 18
+- -de: noun 51, adj 33, verb 14, adv 3
+- -do: noun 93, adv 4
+- -ds: noun 68, adv 26, adj 4
+- -dt: noun 58, verb 32, adj 9
+- -eb: verb 52, noun 37, adj 9
+- -ed: noun 70, verb 24, adj 4
+- -ee: noun 90, verb 6, adj 4
+- -ef: verb 49, noun 25, adj 24
+- -eg: noun 67, verb 18, adv 6, prep 6, adj 3
+- -eh: verb 65, noun 22, adj 10, adv 2
+- -el: noun 88, adj 5, verb 4
+- -em: adj 58, noun 18, art 10, pron 7, adv 4, conj 3
+- -es: adj 53, noun 44, pron 2
+- -et: verb 80, noun 7, adj 7, aux 6
+- -eß: verb 68, noun 27, adj 3
+- -fe: noun 70, verb 26, adj 4
+- -ff: noun 79, verb 11, adj 9
+- -ft: noun 54, verb 31, adj 14
+- -ge: noun 52, adj 25, verb 18
+- -gs: adv 51, noun 46, adj 2
+- -gt: verb 87, adj 12
+- -he: adj 47, noun 36, verb 15
+- -hm: noun 58, adj 22, verb 15
+- -hn: noun 68, num 23, verb 8
+- -hr: noun 72, adv 11, verb 11, adj 6
+- -hs: noun 77, verb 9, num 8, adj 4
+- -ib: verb 55, noun 36, adv 4, adj 3, prep 2
+- -id: noun 91, adj 5
+- -ie: noun 89, adj 6, verb 2
+- -ig: adj 84, noun 8, num 7
+- -ih: verb 44, noun 36, adj 16, adv 4
+- -ik: noun 99
+- -im: adv 44, noun 30, adj 22
+- -in: noun 84, adv 10, adj 3
+- -io: noun 95, adv 3
+- -is: noun 98
+- -it: noun 86, adv 5, verb 4, adj 3
+- -iv: adj 77, noun 23
+- -iß: noun 37, verb 35, adj 25
+- -ke: noun 70, verb 21, adj 8
+- -ko: noun 96, adv 2
+- -ks: noun 77, adv 10, prep 9, adj 4
+- -ku: noun 90, adj 5, adv 3, verb 3
+- -lb: adv 29, prep 28, adj 20, num 9, noun 7, verb 7
+- -ld: noun 77, adj 12, adv 5, conj 5
+- -le: noun 62, adj 23, verb 14
+- -lf: noun 46, verb 34, num 15, adj 3
+- -ll: noun 54, adj 38, verb 3, part 3, num 3
+- -lm: noun 87, adj 8
+- -ln: noun 62, verb 38
+- -lo: noun 70, x 26, adv 3
+- -ls: noun 69, adv 23, prep 3, conj 3
+- -lt: verb 86, noun 9, adj 5
+- -me: noun 58, verb 22, adj 20
+- -mm: noun 74, adj 17, verb 7
+- -ms: noun 92, adj 4
+- -mt: verb 76, adj 15, noun 6, adv 4
+- -nd: noun 48, adj 33, verb 9, num 5, adv 3
+- -ne: noun 57, adj 24, verb 13
+- -ng: noun 94, verb 4
+- -nk: noun 69, verb 18, adj 12
+- -nn: noun 76, verb 21, adv 3
+- -no: noun 97
+- -ns: noun 72, adv 17, pron 3, prep 3, adj 2
+- -nt: verb 46, noun 36, adj 18
+- -of: noun 75, adj 17, verb 5
+- -og: verb 51, noun 34, adj 15
+- -on: noun 95, adv 3
+- -op: noun 92, adj 5, verb 2
+- -or: noun 64, adv 27, verb 5, adj 3
+- -os: noun 51, adj 48
+- -ot: noun 79, verb 10, adj 10
+- -oß: noun 41, verb 25, adj 18, adv 15
+- -pe: noun 91, verb 5, adj 4
+- -pf: noun 84, adj 11, verb 3
+- -ph: noun 76, adj 16, adv 4, verb 4
+- -ps: noun 90, adj 6, adv 2
+- -pt: noun 51, verb 31, adj 17
+- -rb: noun 53, verb 43
+- -rd: noun 81, aux 13, adj 3
+- -re: verb 36, noun 31, adj 30
+- -rg: noun 79, adj 18
+- -rk: noun 75, adj 16, verb 9
+- -rl: noun 91, adj 4
+- -rm: noun 84, adj 11, prep 4
+- -rn: noun 62, verb 31, adj 4
+- -ro: noun 96, adv 2
+- -rr: noun 64, verb 21, adj 12, adv 2
+- -rs: noun 84, adv 8, prep 5, adj 3
+- -rt: verb 69, noun 15, adj 12, num 2
+- -rz: noun 80, adj 18
+- -se: noun 76, adv 10, verb 9, adj 5
+- -so: adv 65, noun 33
+- -ss: noun 56, verb 30, adj 12, conj 2
+- -ta: noun 82, x 9, adj 9
+- -te: verb 59, noun 22, adj 17
+- -th: noun 76, adj 16, adv 4, verb 4
+- -ts: noun 68, adv 25, prep 6
+- -tt: noun 63, adj 17, verb 10, conj 6, num 3
+- -ub: noun 57, verb 31, adj 10
+- -ue: noun 42, verb 40, adj 17
+- -uf: noun 55, adv 28, verb 16
+- -ug: noun 82, verb 12, adj 6
+- -um: noun 80, adv 9, verb 5, x 4
+- -un: verb 43, noun 42, num 11, adj 3
+- -ur: noun 91, adj 5, verb 3
+- -us: noun 84, adv 12
+- -uß: noun 81, verb 12, adj 4
+- -ve: noun 55, adj 27, prep 11, verb 7
+- -ys: noun 90, adj 6, adv 2
+- -ze: noun 73, verb 15, adj 12
+- -zt: verb 87, adj 7, noun 4, adv 2
+- -zu: adv 63, noun 29, adj 5, verb 3
+- -ßt: verb 79, adj 9, aux 9, noun 2
+- -är: noun 44, adj 33, verb 21, adv 2
+- -ät: noun 76, verb 22
+- -üm: noun 85, adj 9
+- -ür: noun 70, adv 18, adj 10
+- -a: noun 93, x 4, adj 2
+- -d: noun 59, adj 24, verb 8, num 3, adv 2
+- -f: noun 62, verb 19, adj 10, adv 6, num 3
+- -g: noun 68, adj 23, verb 6
+- -h: adj 39, noun 39, adv 10, verb 10
+- -i: noun 91, x 3
+- -k: noun 87, verb 7, adj 4
+- -l: noun 76, adj 13, adv 5, verb 5
+- -m: noun 54, adj 27, adv 5, verb 4, art 3, pron 3
+- -n: verb 42, noun 41, adj 13
+- -o: noun 83, adv 11, x 4
+- -p: noun 82, adj 12, verb 5
+- -r: noun 60, adj 31, adv 5
+- -s: noun 62, adj 21, adv 7, verb 4, pron 2
+- -t: verb 60, noun 27, adj 9
+- -u: noun 73, adj 12, adv 8, verb 7
+- -v: adj 65, noun 31, verb 3
+- -w: noun 82, adv 10, verb 5, adj 3
+- -x: noun 75, adj 17, verb 7
+- -y: noun 88, x 9
+- -z: noun 90, verb 5, adj 3
+- -é: noun 79, verb 12, adj 7
+- -ō: noun 87, verb 7, adj 4
+
+## Wortanteile (Word shares)
+- bitte: adv 93, verb 3, noun 3
+- leben: noun 74, verb 26
+- daß: conj 99
+- menschen: noun 99
+- macht: verb 87, noun 13
+- essen: verb 70, noun 30
+- welt: noun 99
+- glaube: verb 97, noun 2
+- wissen: verb 92, noun 8
+- lernen: verb 90, noun 11
+- liebe: noun 56, verb 44
+- jahre: noun 99
+- lass: verb 99
+- problem: noun 99
+- angst: noun 99
+- geschichte: noun 99
+- fragen: verb 55, noun 45
+- nacht: noun 99
+- brief: noun 99
+- frage: noun 69, verb 31
+- paar: art 86, noun 10, pron 3
+- treffen: verb 87, noun 13
+- ganzen: adj 95, noun 4
+- johannes: noun 99
+- woche: noun 99
+- große: adj 95, noun 5
+- augen: noun 98
+- glauben: verb 95, noun 5
+- lesen: verb 88, noun 12
+- neue: adj 95, noun 5
+- junge: noun 72, adj 28
+- jahren: noun 99
+- wenig: pron 47, art 31, adv 16, adj 5
+- stunden: noun 98
+- trinken: verb 99
+- solltest: aux 98
+- mache: verb 98, noun 2
+- arbeiten: verb 84, noun 16
+- sprachen: noun 93, verb 6
+- leid: adj 93, noun 7
+- bisschen: pron 97
+- danke: verb 93, noun 7
+- kenne: verb 98
+- neuen: adj 97, verb 2
+- einzige: adj 84, noun 16
+- wert: adj 60, noun 38, verb 2
+- letzte: adj 76, noun 22, verb 2
+- hoffe: verb 97, noun 3
+- verliebt: adj 70, verb 30
+- bat: verb 98
+- reich: adj 81, verb 11, noun 7
+- nein: x 97, noun 2
+- arzt: noun 98
+- schwimmen: verb 88, noun 12
+- frauen: noun 98
+- stellen: verb 80, noun 19
+- denke: verb 98
+- möchtest: verb 57, aux 43
+- letzten: adj 98
+- worte: noun 98
+- stelle: noun 79, verb 20
+- ort: noun 97, verb 2
+- großer: adj 98
+- geboren: verb 97
+- guten: adj 90, noun 8
+- komm: verb 97, noun 2
+- stimme: noun 66, verb 33
+- überrascht: adj 69, verb 31
+- kleine: adj 97
+- art: noun 97, verb 2
+- schuld: noun 79, adj 21
+- wagen: noun 84, verb 16
+- esse: verb 97, noun 3
+- sachen: noun 98, verb 2
+- all: art 76, noun 23
+- bestimmt: adv 74, verb 18, adj 8
+- alleine: adv 96
+- name: noun 97, adj 2
+- neues: adj 84, noun 16
+- gutes: adj 61, noun 39
+- farbe: noun 98, verb 2
+- guter: adj 97, noun 2
+- deutschen: adj 84, noun 15
+- freue: verb 98
+- arm: noun 63, adj 38
+- haare: noun 98, adj 2
+- luft: noun 96, verb 3
+- schlechte: adj 80, noun 17, verb 3
+- vertrauen: verb 51, noun 49
+- lust: noun 97, verb 2
+- vereinigten: noun 96, verb 4
+- geist: noun 98
+- alten: adj 80, noun 17, verb 3
+- hut: noun 97, verb 2
+- gleiche: adj 66, noun 33
+- tagen: noun 97, verb 2
+- winter: noun 96
+- schöne: adj 81, noun 18
+- großen: adj 97, verb 3
+- fernsehen: noun 87, verb 13
+- könntest: aux 96, verb 3
+- alter: noun 81, adj 19
+- eingeladen: verb 98, noun 2
+- fing: verb 97, noun 3
+- kuchen: noun 97, verb 3
+- lerne: verb 96, adj 3
+- versprechen: noun 96, verb 3
+- reise: noun 63, verb 35
+- spreche: verb 96, adj 2
+- rauchen: noun 54, verb 46
+- interessiert: verb 61, adj 38
+- wieviel: art 68, pron 29
+- nett: adj 95, noun 4
+- kiste: noun 97, adj 2
+- sage: verb 96, noun 4
+- verrückt: adj 96, verb 4
+- abendessen: noun 97
+- handeln: verb 89, noun 11
+- küche: noun 97, adj 2
+- gedanken: noun 97, verb 2
+- leisten: verb 96, noun 4
+- kleinen: adj 96, noun 3
+- egal: adj 97, noun 3
+- finger: noun 97, adj 3
+- reparieren: verb 89, noun 11
+- lächeln: noun 66, verb 34
+- erinnere: verb 97, adj 3
+- erinnern: verb 96, noun 4
+- frieden: noun 97, verb 2
+- kunst: noun 96, verb 3
+- stolz: adj 96, noun 4
+- weihnachten: noun 96, verb 3
+- böse: adj 74, noun 25
+- plötzlich: adv 96, adj 3
+- nutzen: verb 56, noun 44
+- sorge: noun 68, verb 32
+- könig: noun 96, adj 4
+- hör: verb 95, noun 3
+- regen: noun 95, verb 3
+- blut: noun 96, verb 4
+- nehme: verb 96, adj 3
+- gewohnt: verb 51, adj 49
+- verletzt: verb 52, adj 48
+- hättet: aux 71, verb 28
+- verdient: verb 95, noun 5
+- flughafen: noun 97, verb 3
+- warte: verb 96, noun 4
+- wünsche: noun 49, verb 47, adj 4
+- geschickt: verb 64, adj 36
+- tiere: noun 95, verb 4
+- unbedingt: adv 94, verb 6
+- schaffen: verb 86, noun 14
+- leiden: verb 76, noun 24
+- folgen: verb 63, noun 37
+- schlechter: adj 96, noun 4
+- ach: x 70, noun 26, adj 2
+- japanische: adj 88, noun 12
+- lieben: verb 88, noun 12
+- deutsche: adj 86, noun 13
+- tages: noun 97, adj 3
+- nachmittag: noun 88, adv 12
+- übersetzen: verb 87, noun 13
+- jungen: noun 88, adj 12
+- reisen: verb 63, noun 37
+- hab: verb 49, aux 47, noun 2
+- weh: adj 83, adv 12, verb 4
+- klug: adj 94, noun 3, verb 3
+- dumm: adj 95, noun 4
+- tue: verb 96, noun 2
+- blöd: adj 95, noun 4
+- mühe: noun 96, adj 3
+- kochen: verb 71, noun 28
+- ohren: noun 95, verb 4
+- falsche: adj 84, noun 15
+- chef: noun 95, verb 3
+- könntet: aux 80, verb 19
+- kaufe: verb 95, noun 5
+- käme: verb 95, noun 4
+- schönen: adj 94, noun 3, verb 2
+- vermisse: verb 94, noun 5
+- letzter: adj 95, noun 4
+- lese: verb 93, noun 6
+- befreundet: adj 94, verb 5
+- sparen: verb 68, noun 28, adj 4
+- schweigen: verb 85, noun 14
+- rücken: noun 96, verb 3
+- gespräch: noun 96, adj 3
+- verheiratet: adj 95, verb 5
+- unternehmen: noun 69, verb 31
+- weise: noun 70, adj 27, adv 3
+- pass: noun 57, verb 41
+- hübsch: adj 96, noun 4
+- beeindruckt: adj 95, verb 5
+- lügen: verb 58, noun 42
+- reihe: noun 96, verb 3
+- mittagessen: noun 96, verb 3
+- internet: noun 94, verb 5
+- laufen: verb 85, noun 14
+- starke: adj 94, noun 5
+- katzen: noun 95, verb 4
+- helfe: verb 95, noun 5
+- verhalten: noun 81, verb 18
+- zahnarzt: noun 95, verb 4
+- dame: noun 95, adj 5
+- arbeite: verb 94, noun 4
+- tante: noun 95, verb 4
+- suche: verb 66, noun 33
+- tanzen: verb 96, noun 4
+- enttäuscht: adj 63, verb 36
+- träume: noun 68, verb 31
+- kümmern: verb 96, noun 4
+- üben: verb 82, noun 18
+- richtige: adj 66, noun 32
+- japanisch: noun 83, adj 18
+- wünschen: verb 64, noun 32, adj 4
+- muß: aux 77, verb 16, noun 6
+- wohne: verb 94, noun 5
+- süß: adj 93, noun 4, verb 2
+- reichen: verb 48, noun 32, adj 21
+- rechte: adj 63, noun 32, verb 6
+- schlechten: adj 94, verb 4
+- angezogen: verb 68, adj 31
+- fremde: noun 66, adj 33
+- fühle: verb 95, noun 5
+- rede: noun 84, verb 16
+- schade: adj 95, noun 4
+- dichter: noun 66, adj 33
+- hunger: noun 96, adj 4
+- beschäftigt: adj 95, verb 5
+- keller: noun 95, adj 5
+- fressen: verb 80, noun 18
+- schritt: noun 81, verb 17
+- offensichtlich: adj 66, adv 32
+- dach: noun 94, verb 3
+- schlimmste: noun 79, adj 19
+- vorbereitet: verb 69, adj 31
+- wesen: noun 95, verb 4
+- anders: adv 95, noun 5
+- langen: adj 93, verb 6
+- herbst: noun 93, verb 7
+- voller: adj 96, noun 4
+- retten: verb 92, noun 8
+- zeig: verb 91, noun 6, adj 3
+- gitarre: noun 94, verb 3, adj 3
+- obst: noun 92, verb 8
+- begriff: noun 63, verb 37
+- fremden: adj 74, noun 22, verb 4
+- nerven: noun 79, verb 19, adj 2
+- haar: noun 94, adj 5
+- verboten: verb 78, adj 18, noun 4
+- atem: noun 94, adj 6
+- betrunken: adj 92, verb 4, noun 4
+- verglichen: verb 92, adj 6
+- erzähl: verb 91, noun 7
+- drin: adv 91, noun 9
+- geöffnet: verb 80, adj 19
+- gewissen: noun 60, adj 36, verb 3
+- warme: adj 92, noun 7
+- landes: noun 95, adj 5
+- yen: noun 95, verb 4
+- wette: verb 55, noun 45
+- hallo: x 93, noun 6
+- halbe: adj 92, noun 4, art 2
+- ruf: verb 56, noun 41, adv 2
+- straßen: noun 93, adv 4, verb 2
+- unrecht: adj 59, noun 38
+- zuhause: adv 73, noun 25
+- englischen: adj 59, noun 38, verb 3
+- tu: verb 91, noun 7
+- irgendjemand: pron 91, noun 7
+- berühmte: adj 93, verb 6
+- erwarten: verb 93, noun 5
+- schlage: verb 92, noun 8
+- genügend: adj 78, adv 19
+- nähe: noun 94, adj 4
+- sterne: noun 94, adj 5
+- sauer: adj 94, noun 5
+- sekunden: noun 93, verb 5
+- schreien: verb 94, noun 5
+- zahlen: verb 61, noun 39
+- schönes: adj 60, noun 39
+- schwarzen: adj 92, noun 5, verb 3
+- französischen: noun 74, adj 23, verb 3
+- trinke: verb 94, noun 5
+- januar: noun 94, adj 5
+- armen: noun 76, adj 19, verb 5
+- interessante: adj 92, verb 5, noun 3
+- test: noun 92, verb 6
+- mut: noun 93, verb 5
+- teilen: verb 61, noun 37
+- wichtige: adj 73, noun 25, verb 2
+- dummen: adj 45, noun 45, verb 9
+- vertraut: verb 54, adj 44
+- rechten: adj 69, noun 24, verb 6
+- ernstes: adj 73, noun 27
+- ken: noun 93, verb 5
+- dingen: noun 90, verb 10
+- erwarte: verb 92, noun 7
+- oh: x 89, adj 4, noun 4
+- kosten: verb 69, noun 29
+- islam: noun 93, adj 5
+- wahre: adj 91, verb 7, noun 2
+- planeten: noun 91, verb 7, adj 2
+- ferne: noun 92, adj 7
+- nachdenken: noun 71, verb 29
+- laß: verb 93, noun 7
+- nachbar: noun 90, adj 10
+- gewöhnt: adj 91, verb 8
+- dicke: adj 68, noun 30, verb 2
+- würdet: aux 93, verb 6
+- kauf: noun 50, verb 45, adv 6
+- versteckt: verb 52, adj 48
+- gäste: noun 92, adj 6
+- wichtiges: adj 53, noun 47
+- geschichten: noun 90, verb 6, adj 3
+- erwachsene: noun 92, adj 7
+- betrat: verb 91, noun 8
+- gefaßt: adj 69, verb 30
+- vergnügen: noun 92, verb 7
+- heißen: verb 50, adj 49
+- städte: noun 93, verb 6
+- verbrechen: noun 91, verb 8
+- schau: verb 90, noun 9
+- reiche: adj 51, noun 25, verb 24
+- harten: adj 90, noun 7, verb 3
+- korrigieren: verb 76, noun 23
+- europäischen: adj 51, noun 46, verb 3
+- ärzte: noun 90, verb 8
+- wochen: noun 90, verb 8
+- schlimmer: adj 90, noun 10
+- drachen: noun 92, verb 7
+- halben: adj 91, art 4
+- warnen: verb 92, noun 5, adj 2
+- willen: noun 93, verb 5
+- vermissen: verb 93, noun 7
+- nervös: adj 91, noun 7
+- krieges: noun 94, adj 6
+- jahrhundert: noun 90, verb 5, num 4
+- mitten: adv 90, verb 6, noun 4
+- abwarten: verb 92, noun 7
+- bitter: adj 91, noun 8
+- türe: noun 94, verb 5
+- lauter: adj 48, art 44, noun 7
+- geschah: verb 93, noun 5
+- bergen: noun 73, verb 25
+- feinde: noun 92, verb 6
+- solltet: aux 90, verb 8
+- studieren: verb 76, noun 23
+- rote: adj 68, noun 25, verb 7
+- felsen: noun 93, verb 6
+- konzert: noun 90, verb 9
+- erfreut: adj 93, verb 6
+- worten: noun 93, verb 6
+- freien: adj 90, noun 6, verb 4
+- lauf: noun 94, adv 6
+- überzeugt: adj 70, verb 30
+- buches: noun 92, adj 8
+- gäbe: verb 92, noun 6
+- erfolgreich: adj 92, noun 8
+- bedeckt: adj 50, verb 50
+- teile: verb 68, noun 30
+- drüben: adv 89, verb 7, noun 3
+- liebsten: adv 45, noun 27, adj 26
+- schöner: adj 92, noun 7
+- freunden: noun 92, verb 7
+- wüste: noun 90, adj 7
+- insekten: noun 90, adj 8, verb 2
+- dumme: adj 90, noun 6, verb 5
+- dieb: noun 90, verb 9
+- erdbeben: noun 88, verb 12
+- schmerzen: noun 68, verb 32
+- bringe: verb 92, noun 8
+- bester: adj 86, noun 14
+- rechnen: verb 66, noun 34
+- tassen: noun 87, verb 13
+- stahl: verb 58, noun 39
+- schach: noun 89, verb 6, adv 4
+- bedarf: noun 66, verb 31
+- mutigen: noun 58, adj 36, verb 6
+- ticket: noun 87, verb 11
+- dicken: adj 86, verb 13
+- bißchen: pron 86, adj 5, verb 5, noun 4
+- übermorgen: adv 87, noun 7, verb 3, adj 2
+- ast: noun 90, verb 9
+- lehren: verb 65, noun 35
+- solch: adv 59, art 31, noun 8
+- einverstanden: adj 88, verb 11
+- soziale: adj 92, noun 7
+- erfrischt: verb 70, adj 30
+- grünen: adj 89, noun 6, verb 5
+- verlegen: adj 61, verb 37
+- nicken: noun 58, verb 41
+- wirt: noun 88, verb 10
+- mordes: noun 92, adj 8
+- früchte: noun 88, verb 11
+- verhandeln: verb 66, noun 34
+- arme: noun 68, adj 31
+- derart: adv 87, noun 7, verb 4
+- zurückgreifen: verb 91, noun 8
+- rennen: noun 88, verb 12
+- pflicht: noun 92, verb 8
+- zögern: verb 65, noun 35
+- regens: noun 92, adv 7
+- täten: verb 90, noun 9
+- stecken: verb 68, noun 32
+- kriege: noun 61, verb 39
+- angenehm: adj 89, noun 8, verb 2
+- geheilt: verb 71, adj 29
+- tatsachen: noun 90, verb 8
+- duschen: verb 90, adj 8, noun 2
+- übersetze: verb 88, noun 10
+- setz: verb 86, noun 13
+- sowas: pron 66, adv 29, noun 5
+- echter: adj 90, noun 9
+- warmes: adj 62, noun 38
+- grauen: adj 87, verb 10, noun 3
+- planet: noun 87, verb 11
+- privaten: adj 87, noun 8, verb 5
+- bestraft: verb 89, noun 11
+- verdienst: noun 68, verb 32
+- schlag: noun 70, verb 30
+- italiener: noun 90, adj 10
+- gestrichen: verb 89, adj 10
+- sammeln: verb 91, noun 9
+- neuer: adj 87, noun 13
+- selbstverständlich: adj 66, adv 31
+- liste: noun 90, adj 7
+- chinesisches: adj 67, noun 33
+- spenden: noun 61, verb 31, adj 8
+- braut: noun 88, verb 12
+- allmählich: adj 66, adv 32
+- einschlafen: noun 62, verb 36
+- unerwartet: adj 89, verb 11
+- ente: noun 90, verb 8, adj 2
+- ernsthaft: adj 89, noun 11
+- schätze: verb 59, noun 39
+- klagen: noun 60, verb 40
+- mathe: noun 90, adj 7, verb 2
+- nachrichten: noun 88, verb 8, adj 3
+- kommentare: noun 92, adj 7
+- linken: adj 58, noun 36, verb 6
+- chinesischen: adj 65, noun 31, verb 4
+- bessere: adj 91, verb 6, noun 2
+- bring: verb 90, noun 10
+- hals: noun 92, adv 7
+- gerät: verb 63, noun 37
+- größere: adj 63, noun 31, verb 6
+- krach: noun 87, verb 12
+- grüne: adj 90, noun 8
+- mußte: aux 87, verb 7, adj 5
+- fische: noun 86, adj 14
+- einsamen: adj 90, noun 8, verb 2
+- hoffentlich: adv 88, adj 9
+- willkommen: adj 87, verb 12
+- größeren: adj 89, verb 9, noun 2
+- durst: noun 89, verb 9, adv 2
+- na: x 86, noun 13
+- brown: noun 91, verb 6
+- kalte: adj 90, verb 10
+- fischen: verb 61, noun 31, adj 8
+- schlaf: noun 66, verb 33
+- angeln: verb 91, noun 9
+- schreibtisch: noun 90, adj 9
+- heulen: verb 63, noun 34
+- satzes: noun 92, adj 8
+- erwähnte: verb 67, adj 32
+- nettes: adj 65, noun 35
+- schlafe: verb 61, noun 39
+- wege: noun 89, verb 10
+- mücken: noun 91, verb 6
+- interessen: noun 91, verb 6
+- mußt: aux 87, verb 11
+- scharf: adj 87, noun 9, verb 3
+- aussehen: verb 70, noun 30
+- arten: noun 91, verb 6
+- hans: noun 70, x 29
+- atme: verb 89, noun 8, adj 3
+- organisieren: verb 70, noun 30
+- getrennt: verb 70, adj 30
+- sonntags: adv 70, noun 30
+- schulden: noun 91, verb 6
+- genaue: adj 90, verb 9
+- durcheinander: noun 61, adv 36
+- kalten: adj 87, verb 11
+- kätzchen: noun 90, adj 5, verb 5
+- nachkommen: noun 58, verb 41
+- kollegen: noun 87, verb 8, adj 4
+- solang: conj 88, noun 5, adv 4, verb 2
+- reiste: verb 88, adj 7, noun 5
+- blind: adj 88, noun 12
+- unwahrscheinlich: adj 66, adv 31
+- verhindern: verb 90, noun 9
+- bittere: adj 92, verb 7
+- begeistern: verb 90, noun 6, adv 4
+- jungs: noun 92, adv 7
+- abbiegen: verb 69, noun 30
+- spiele: verb 87, noun 13
+- frucht: noun 90, verb 9
+- vorbereiten: verb 90, noun 9
+- händen: noun 91, verb 6
+- summen: verb 69, noun 30
+- bereiten: verb 90, noun 9
+- vorgesetzten: noun 89, verb 8, adj 4
+- normal: adj 90, adv 9
+- freuden: noun 91, verb 6
+- scheiße: noun 90, adj 6, verb 3
+- westen: noun 89, adj 10
+- dient: verb 87, noun 11
+- digitale: adj 92, noun 7
+- wut: noun 90, verb 9
+- vieles: pron 89, noun 9, adj 3
+- einfachen: adj 87, verb 8, noun 5
+- besoffen: adj 89, verb 9
+- begleiten: verb 90, noun 9
+- vorhaben: noun 92, verb 8
+- cool: adj 88, noun 11
+- post: noun 90, verb 7, adv 3
+- bewegte: verb 68, adj 33
+- wellen: noun 91, verb 6
+- scheitern: noun 64, verb 35
+- misch: verb 86, noun 8, adj 5
+- hasse: verb 90, noun 9
+- füßen: noun 88, verb 8
+- erleben: verb 92, noun 8
+- verpflichtet: adj 58, verb 40
+- meins: pron 91, noun 7
+- freundes: noun 91, adj 8
+- echte: adj 87, verb 11
+- entfernen: verb 90, noun 6, adj 3
+- versteckte: adj 59, verb 39
+- zaun: noun 91, verb 6
+- o: x 86, noun 7, verb 4, adj 2
+- rasch: adj 91, noun 8
+- sieb: noun 90, verb 9
+- pleite: adj 89, noun 7, verb 4
+- waschen: verb 90, adj 8, noun 2
+- endes: noun 91, adj 8
+- füttern: verb 90, noun 9
+- dauern: verb 90, noun 9
+- stille: noun 69, adj 30
+- hiersein: verb 57, aux 29, noun 12
+- wenden: verb 88, adj 8, noun 3
+- verstimmt: adj 58, verb 41
+- mysteriöse: noun 55, adj 41
+- antike: adj 82, noun 14, verb 4
+- kaputt: adj 84, noun 13, verb 2
+- anlass: noun 90, adj 5, verb 4, conj 2
+- betonen: verb 81, noun 18
+- vorkommen: verb 57, noun 41
+- frühstücken: verb 89, noun 8, adj 3
+- ausgezeichnet: verb 59, adj 40
+- guzzi: x 80, noun 18
+- vorhersagen: verb 49, noun 47, adv 4
+- vergesse: verb 82, noun 15
+- nichtstun: noun 86, verb 13
+- wolltest: verb 54, aux 43, noun 2
+- karriere: noun 84, verb 15
+- feigen: noun 80, verb 16, adj 3
+- bevorstand: verb 85, noun 15
+- lebewesen: noun 88, verb 10
+- kälte: noun 82, verb 16, adj 2
+- akte: noun 83, verb 15, adj 3
+- nütze: noun 59, adj 40
+- verliebten: verb 54, noun 44
+- waffen: noun 87, verb 12
+- fraß: verb 88, noun 12
+- jahrhunderte: noun 82, verb 17
+- abnehmen: verb 52, noun 47
+- wochenenden: noun 85, adj 12, verb 4
+- tolle: adj 84, noun 12, verb 3
+- netter: adj 82, noun 18
+- unbekannten: noun 48, adj 40, verb 8, aux 4
+- tinte: noun 87, verb 11, adj 3
+- zerriss: verb 88, noun 7, adj 5
+- ne: art 80, noun 10, verb 6, adj 3
+- hinab: adv 84, noun 8, verb 7
+- hilfreich: adj 85, noun 14
+- fordern: verb 86, noun 12
+- kunden: noun 86, verb 12, adj 2
+- streichen: verb 84, adj 13, noun 3
+- magen: noun 87, verb 12
+- witwe: noun 90, verb 6, adj 3
+- zumute: adv 81, verb 9, noun 6, adj 4
+- leine: noun 89, adj 4, verb 4, art 4
+- lech: noun 88, adj 8
+- illegal: adj 88, noun 10
+- klammern: noun 51, verb 49
+- spüre: verb 89, noun 9
+- stärken: verb 89, noun 8, adj 3
+- schlau: adj 82, noun 17
+- schnappen: verb 83, noun 17
+- unendliche: adj 56, noun 43
+- starken: adj 83, verb 8, noun 8
+- ausgebucht: adj 82, verb 12, noun 5
+- anfange: verb 84, noun 12, conj 4
+- streit: noun 90, verb 10
+- beteiligen: verb 89, adj 7, noun 4
+- reisepass: noun 90, adj 5, verb 4, conj 2
+- finanziellen: adj 83, verb 8, noun 8
+- klopfte: verb 88, noun 6, adj 4
+- anderem: adj 89, art 6, noun 4
+- manieren: noun 82, verb 18
+- ergativsprachen: noun 87, verb 12
+- text: noun 85, verb 12
+- rollen: noun 49, verb 47, adj 5
+- minute: noun 86, verb 9, adj 4
+- schäme: verb 84, noun 12, adj 4
+- erfuhr: verb 83, noun 17
+- gründe: noun 88, verb 9, adj 3
+- grade: adv 83, noun 10, adj 7
+- entschied: verb 85, noun 15
+- anrufe: verb 85, noun 14
+- lasse: verb 87, noun 13
+- kurzer: adj 90, noun 10
+- begrüßte: verb 90, adj 7, aux 2
+- nackt: adj 84, verb 15
+- ausdrücken: verb 89, noun 8, adj 3
+- astronauten: noun 89, verb 8, adj 3
+- schauten: verb 88, noun 9, adj 3
+- schneien: verb 86, noun 10, adj 3
+- narren: noun 82, verb 18
+- roten: adj 81, noun 13, verb 6
+- weißer: adj 86, noun 12
+- kapelle: noun 89, adj 10
+- nen: art 80, verb 8, noun 8, adj 3
+- taschen: noun 83, adj 11, verb 6
+- ameisen: noun 87, verb 13
+- erstaunt: verb 49, adj 44, noun 7
+- ernannten: verb 88, noun 8, aux 4
+- bellen: verb 89, noun 8, adj 3
+- schaffte: verb 88, noun 6, adj 4
+- sanfte: adj 84, verb 8, noun 6
+- befahl: verb 81, noun 15, adj 3
+- leichte: adj 82, verb 10, noun 8
+- zähle: verb 87, noun 12
+- quak: x 83, noun 15, verb 3
+- gefühlen: noun 85, verb 15
+- einladen: verb 89, noun 10
+- hunden: noun 86, verb 12, adj 2
+- i: noun 50, x 40, verb 6, adj 3
+- schwärzer: adj 90, noun 10
+- furcht: noun 85, verb 12
+- antiken: adj 83, noun 14, verb 4
+- vervollkommnen: verb 87, noun 9, adj 4
+- irre: verb 87, noun 6, adj 6
+- gewinne: noun 55, verb 43
+- bergab: adv 85, verb 12, noun 3
+- ausruhen: verb 90, adj 6, noun 5
+- maßen: noun 86, adv 8, verb 5
+- betrügen: verb 52, noun 47
+- verlust: noun 88, verb 12
+- sann: verb 84, noun 15
+- schweren: adj 84, verb 13, noun 3
+- entdeckt: verb 90, adj 10
+- tiger: noun 82, adj 18
+- portugiesische: adj 59, noun 41
+- formen: verb 52, noun 47
+- verbringe: verb 89, noun 11
+- süden: noun 89, verb 8, adj 3
+- glücklichen: adj 53, noun 43, verb 4
+- unterfangen: noun 84, verb 15
+- öfter: adv 80, adj 15, noun 5
+- tanz: verb 81, noun 18
+- bohnen: noun 88, verb 12
+- seltsames: noun 54, adj 46
+- ungesund: adj 85, noun 13
+- orangen: noun 84, verb 15
+- absichten: noun 84, verb 11, adj 5
+- naht: noun 85, verb 12
+- offiziellen: adj 83, verb 8, noun 8
+- he: x 80, noun 10, verb 6, adj 3
+- melde: verb 87, noun 7, adj 6
+- bleich: adj 87, noun 12
+- folge: noun 88, verb 6, prep 5
+- verlangen: noun 84, verb 15
+- allemal: adv 88, noun 12
+- schätzen: verb 89, noun 11
+- kaviar: noun 87, adj 11
+- drang: noun 50, verb 49
+- geschieden: verb 48, adj 43, noun 8
+- taub: adj 80, noun 14, verb 5
+- nähme: verb 90, adj 5, noun 5
+- beleidigt: verb 57, adj 42
+- wolkenverhangen: adj 82, verb 15, noun 4
+- polen: noun 85, verb 14
+- müßt: aux 82, verb 16
+- treiben: verb 55, noun 44
+- hass: noun 90, adj 5, verb 4, conj 2
+- verzweifelt: adj 81, verb 17
+- golf: noun 90, verb 7, num 3
+- hamburger: noun 53, adj 47
+- hafen: noun 89, verb 10
+- schnäppchen: noun 86, adj 7, verb 6
+- kontakt: noun 90, adj 5, verb 5
+- schicke: verb 84, noun 14
+- übel: noun 55, adj 44
+- grüß: verb 86, noun 10, adj 3
+- fakten: noun 85, verb 8, adj 7
+- farben: noun 85, verb 13
+- süßen: adj 83, verb 12, noun 3, adv 2
+- unerfahren: adj 81, verb 13, noun 6
+- ausgezeichnete: adj 83, verb 16
+- streiken: verb 84, noun 14, adj 2
+- besorgt: adj 85, verb 15
+- eifersucht: noun 85, verb 14
+- mied: verb 84, noun 17
+- atmen: verb 52, noun 47
+- wasche: verb 80, noun 16, adj 4
+- schwieriges: adj 55, noun 44
+- weide: verb 54, noun 43, adj 2
+- unverzüglich: adj 90, adv 7
+- angefressen: adj 81, verb 8, noun 7, adv 3
+- roch: verb 80, noun 11, adv 6, adj 2
+- bursche: noun 85, adj 14
+- starker: adj 84, noun 15
+- fahr: verb 82, noun 14, adv 2
+- häng: verb 81, noun 19
+- einbrecher: noun 85, adj 13
+- sternen: noun 89, verb 7, adj 4
+- erbost: verb 49, adj 40, noun 6, adv 4
+- tippen: noun 57, verb 43
+- töricht: adj 81, noun 11, verb 8
+- süße: adj 84, noun 10, verb 6
+- vollen: adj 84, noun 9, verb 7
+- schalt: verb 84, noun 14
+- gewiss: adj 45, adv 40, verb 8, noun 7
+- ganzer: adj 90, noun 10
+- gab's: verb 88, aux 4, pron 4
+- tiefer: adj 83, noun 17
+- erhöhte: verb 55, adj 42, noun 3
+- weißen: adj 88, verb 11
+- hindert: verb 90, num 7
+- teilnahme: noun 84, verb 10, adj 5
+- lob: noun 90, verb 6, adj 3
+- momentan: adj 86, noun 10, verb 3
+- anwenden: verb 84, adj 12, noun 5
+- reellen: adj 83, verb 8, noun 8
+- pa-pa-pa-pam: x 81, adj 8, noun 7, verb 2
+- supermarkt: noun 87, verb 12
+- stimmen: verb 55, noun 41, adj 5
+- aufstand: noun 55, verb 45
+- nenne: verb 83, noun 15
+- munter: adj 84, adv 15
+- zweit: num 80, noun 7, adv 4, adj 4, conj 4
+- qual: noun 90, adv 5, adj 5
+- rest: noun 83, verb 14, aux 3
+- lecker: adj 84, noun 15
+- dünner: adj 84, noun 16
+- zuviel: adv 47, art 47, noun 4
+- erforschen: verb 46, noun 43, adj 11
+- rate: verb 88, noun 11
+- gefäß: noun 90, verb 6, adj 3
+- anzünden: verb 53, noun 45
+- plus: noun 57, conj 40, adv 2
+- verkaufte: verb 88, noun 6, adj 4
+- vermögen: noun 89, verb 8, adj 3
+- erbaut: verb 59, adj 40
+- sünde: noun 88, verb 9, adj 3
+- programme: noun 88, verb 7, adj 5
+- jeglicher: art 81, adj 18
+- drum: adv 87, noun 10, x 2
+- tore: noun 86, verb 7, adj 6
+- lade: verb 81, noun 10, adj 7, adv 3
+- wachen: verb 52, noun 47
+- zufriedenzustellen: verb 89, noun 8, adj 3
+- innen: adv 81, verb 10, noun 8
+- sonnenlicht: noun 90, verb 11
+- pure: adj 82, noun 12, verb 6
+- überraschen: verb 86, adj 11, noun 3
+- schmiss: verb 88, noun 7, adj 5
+- telefonieren: noun 82, verb 18
+- spanischen: adj 51, noun 43, verb 6
+- schlimme: adj 85, noun 8, verb 7
+- wäsche: noun 85, adj 14
+- verfahren: verb 53, noun 45
+- verdanken: verb 89, noun 8, adj 3
+- schilde: noun 87, verb 7, adj 6
+- bäumen: noun 84, verb 16
+- absolute: noun 46, adj 44, verb 9
+- ich's: pron 84, verb 8, aux 4
+- bezeichne: verb 86, noun 14
+- backen: verb 55, noun 44
+- erlauben: verb 88, noun 11
+- erkläre: verb 86, noun 12
+- gehorchen: verb 86, noun 12
+- pflanzen: noun 51, verb 49
+- gurken: noun 89, verb 8, adj 3
+- tieren: noun 82, verb 18
+- ene: x 80, noun 11, adj 5, verb 3
+- mene: x 80, adj 13, noun 6
+- mönch: noun 88, adj 8
+- geplant: verb 83, noun 10, adj 8
+- grab: noun 48, verb 47, adv 4
+- kyūshū: noun 90, verb 6, adj 3
+- sauber: adj 84, noun 14
+- taifun: noun 89, verb 9, num 2
+- unternahm: verb 83, noun 12, adj 4
+- bewaffnet: verb 56, adj 41
+- riesengefallen: noun 86, verb 13
+- bogen: noun 86, verb 13
+- erschrak: verb 83, noun 15, x 2
+- berührt: verb 54, adj 42, noun 3
+- vorzeichen: noun 83, adj 13, verb 4
+- schweres: adj 89, noun 9
+- klopfen: verb 88, noun 12
+- umsonst: adv 81, verb 11, noun 6
+- wunderschön: adj 83, verb 8, noun 8
+- brust: noun 88, verb 12
+- parallel: adj 81, noun 18
+- reihen: noun 82, verb 18
+- stinken: verb 89, noun 10
+- hauptsächlich: adv 84, adj 13, verb 2
+- blauen: adj 82, verb 14, noun 4
+- bereue: verb 88, noun 8, adj 3
+- zustande: adv 84, noun 12, adj 3
+- schulen: noun 89, verb 8, adj 3
+- wolltet: aux 84, verb 15
+- aufgebracht: verb 55, adj 42, noun 3
+- dauernd: adj 87, noun 10
+- beeil: verb 81, noun 15, adj 3
+- schuldige: adj 47, noun 43, verb 10
+- kauften: verb 84, noun 11, adj 3
+- überleben: noun 51, verb 49
+- erweitern: verb 89, noun 11
+- gelaunt: adj 84, verb 9, noun 7
+- anstellen: verb 89, noun 8, adj 3
+- streß: noun 85, verb 14
+- verstecken: verb 55, noun 45
+- schicksal: noun 90, adv 5, adj 5
+- unmögliche: adj 56, noun 43
+- träumen: verb 56, noun 44
+- daheim: adv 89, noun 6, adj 4
+- einzelnen: adj 84, noun 9, verb 7
+- bär: noun 89, adj 7, verb 4
+- lausche: verb 81, adj 14, noun 5
+- aufgeregt: adj 83, verb 17
+- many: x 82, noun 18
+- a: noun 90, verb 6, adj 3
+- laute: adj 84, verb 13, noun 2
+- wenn's: conj 81, verb 8, aux 4, pron 4
+- auszudrücken: verb 89, noun 8, adj 3
+- hübscher: adj 56, noun 44
+- band: noun 57, verb 43
+- kerze: noun 90, adj 9
+- eröffnen: verb 87, noun 9, adj 4
+- viren: noun 89, verb 8, adj 3
+- drogen: noun 86, verb 13
+- küchenschaben: noun 90, verb 11
+- grobe: adj 81, noun 11, verb 6
+- lieblingsfach: noun 84, verb 8, adv 5, adj 2
+- hindurch: adv 42, prep 40, adj 8, noun 8
+- nebenan: adv 84, noun 14
+- c: noun 90, verb 6, adj 3
+- ziegen: noun 82, verb 17
+- faule: adj 84, noun 15
+- wagens: noun 90, adv 10
+- riecht: verb 88, adj 6, noun 5
+- kranken: adj 83, verb 8, noun 8
+- zeichen: noun 83, adj 13, verb 4
+- rohen: adj 86, verb 12
+- gelegentlich: adv 84, adj 13
+- besseren: adj 84, verb 13, noun 3
+- ofen: noun 87, verb 12
+- gemeinsames: adj 86, noun 14
+- ordnen: verb 87, noun 9, adj 4
+- leiten: verb 86, noun 13
+- bären: noun 82, verb 12, adj 7
+- wohlergehen: noun 82, verb 18
+- wettbewerben: noun 85, verb 13
+- bedanken: verb 89, noun 8, adj 3
+- tiefen: adj 83, verb 15
+- juden: noun 89, verb 8, adj 3
+- beunruhigt: verb 57, adj 42
+- verbrecher: noun 85, adj 13
+- lieb: adj 80, verb 13, noun 7
+- kämpfte: verb 88, noun 6, adj 4
+- betreten: verb 57, noun 42
+- reue: noun 89, verb 8, adj 3
+- einfaches: adj 54, noun 45
+- löste: verb 83, adj 10, noun 7
+- kennenzulernen: verb 87, noun 9, adj 4
+- andern: adj 81, noun 12, verb 6
+- feiern: verb 86, noun 12
+- inseln: noun 90, verb 11
+- fernen: noun 49, adj 44, verb 7
+- ernsthafte: adj 84, verb 8, noun 6
+- gehörte: verb 54, noun 44
+- plural: noun 90, adv 5, adj 5
+- gerichte: noun 88, verb 10, adj 2
+- weinten: verb 90, noun 5, adv 5
+- reichlich: adj 53, adv 45, verb 2
+- englischtest: noun 84, verb 15
+- gewisse: adj 81, noun 15
+- brunnen: noun 89, verb 10
+- ideale: noun 50, adj 50
+- verspäten: verb 86, noun 13
+- passten: verb 90, aux 6, noun 2, adj 2
+- schüchtern: adj 84, noun 9, verb 6
+- starr: verb 44, adj 42, noun 13
+- verlobt: verb 58, adj 42
+- charaktere: noun 82, adj 14, verb 4
+- außen: adv 83, verb 12, noun 3, adj 3
+- trink: verb 84, noun 14, adj 2
+- tal: noun 90, adv 5, adj 5
+- selbstvertrauen: noun 84, verb 14, adj 2
+- bedingt: verb 59, adj 40
+- jugendliche: noun 83, adj 16
+- verbergen: verb 84, noun 10, adj 3, adv 2
+- gelangweilt: verb 59, adj 40
+- amt: noun 81, verb 15, adj 3
+- glaubhaft: adj 84, noun 15
+- löschen: verb 86, adj 11, noun 3
+- vorsilbe: noun 90, art 5, adj 2, pron 2
+- nachsilbe: noun 90, art 5, adj 2, pron 2
+- februar: noun 87, adj 11
+- gefürchtete: adj 84, verb 16
+- koche: verb 83, adj 9, noun 7
+- hole: verb 81, noun 17
+- knochen: noun 84, verb 14
+- is: aux 80, noun 12, adj 4
+- unvorstellbare: noun 85, adj 14
+- angespannte: adj 73, verb 19, noun 7
+- schlechtere: adj 89, verb 7, noun 3
+- übermäßigen: adj 84, verb 11, noun 3
+- spirituelle: adj 84, noun 15
+- ausspricht: verb 80, noun 18
+- strukturfonds: noun 90, adv 9
+- glühbirnen: noun 82, verb 11, adj 6
+- quecksilber: noun 89, adv 8
+- bundesstaaten: noun 85, verb 12, adj 2
+- bös: adj 73, noun 21, adv 2
+- aktuellste: adj 84, noun 11, verb 4
+- wackelverhalten: noun 70, verb 25, adj 3
+- angewandt: verb 87, adj 10, noun 3
+- cashewnüssen: noun 76, verb 21
+- verrückter: noun 87, adj 10
+- läuteten: verb 90, adj 9
+- glocken: noun 81, adj 12, verb 7
+- argwöhnisch: adj 76, noun 23
+- bobbele: noun 86, verb 13
+- bäuerchen: noun 88, verb 10, adj 3
+- kindisch: adj 79, noun 19
+- plappern: verb 77, noun 21
+- analphabeten: noun 73, verb 21, adj 6
+- vorbeiging: verb 90, noun 9
+- tresen: noun 80, verb 17
+- liberal: adj 74, noun 17, adv 8
+- präservativ: noun 74, adj 26
+- vornehme: adj 84, verb 13, noun 3
+- geschminkt: verb 90, adj 6, noun 4
+- bescheidenste: adj 89, noun 10
+- gottes: noun 81, adj 18
+- unerwartetermaßen: adv 88, noun 9, verb 3
+- ausdauer: noun 87, adj 10
+- siebzigern: noun 81, verb 18
+- hunderttausende: noun 86, adj 14
+- regentropfen: noun 87, verb 13
+- wucht: noun 76, verb 20, adj 3
+- prasseln: verb 84, noun 16
+- panzerplatten: noun 88, verb 7, adj 5
+- tugendhaft: adj 73, noun 25
+- vorsage: verb 70, noun 28
+- küss: verb 76, noun 19, adj 4
+- deckt: verb 90, adj 11
+- geschmeckt: verb 90, adj 11
+- artgenossen: noun 76, verb 21
+- wirklichen: adj 89, verb 6, noun 4
+- amateure: noun 87, verb 10, adj 3
+- soldat: noun 90, verb 8
+- seilspringen: noun 70, verb 30
+- dienerinnen: noun 88, verb 10, adv 2
+- krönt: verb 82, noun 12, adj 6
+- potenzieller: adj 88, noun 12
+- bemüht: verb 87, noun 9, adj 3
+- vergebens: adv 73, noun 24
+- markt: noun 79, verb 21
+- geeignetere: adj 89, verb 7, noun 3
+- besen: noun 80, verb 17
+- hinlänglich: adv 78, adj 17, prep 3, verb 3
+- schmücken: verb 81, noun 14, adj 4
+- august: noun 79, verb 20
+- viermal: adv 89, adj 8, noun 3
+- zašto: x 68, noun 28, adv 4
+- te: x 67, noun 16, verb 10, adj 6
+- to: x 68, noun 28, adv 4
+- muči: x 68, noun 30
+- jogurt: noun 89, verb 9
+- redete: verb 84, adj 13, noun 3
+- ausbündigen: adj 84, verb 11, noun 3
+- schmale: adj 86, noun 13
+- schlacht: noun 76, verb 20, adj 3
+- sonnabend: noun 84, adj 15
+- kränkelnden: adj 71, verb 14, noun 14
+- meldete: verb 81, adj 13, noun 6
+- zweig: noun 88, adj 11
+- räumten: verb 79, adj 18, noun 3
+- korrekten: adj 84, noun 10, verb 5
+- sonderlich: adv 72, adj 22, noun 3
+- erspar: verb 68, adj 18, noun 12
+- schwachen: noun 78, verb 20, adj 2
+- erklär: verb 73, noun 15, adj 11
+- spiegeln: verb 79, noun 21
+- rivalen: noun 74, adj 22, verb 3
+- überprüfte: verb 80, noun 11, adj 7
+- plätscherndem: adj 84, pron 11
+- nette: adj 68, noun 31
+- bezos: noun 84, adj 16
+- populärer: adj 83, noun 16
+- cамооборона: x 67, noun 16, verb 10, adj 6
+- без: x 67, noun 16, verb 10, adj 6
+- оружия: x 67, noun 16, verb 10, adj 6
+- fürchteten: verb 90, adj 9
+- verliebter: adj 87, noun 13
+- scharfe: adj 68, noun 23, verb 9
+- effektivste: adj 84, noun 11, verb 4
+- unbeleckt: adj 77, verb 23
+- monotheistischen: adj 85, verb 9, noun 5
+- bogenschießen: noun 70, verb 29
+- sindh: noun 79, adj 13, adv 3, verb 3
+- weitersuchen: verb 87, noun 11
+- bezweifle: verb 71, noun 21, adj 8
+- eichen: noun 71, adj 23, verb 6
+- eicheln: noun 87, verb 12
+- unberechtigt: adj 85, verb 15
+- sportarten: noun 87, verb 10, adj 4
+- aspekte: noun 82, verb 10, adj 8
+- dazurechnen: verb 87, noun 12
+- verdoppeln: verb 79, noun 21
+- anhat: verb 74, noun 23
+- vampire: noun 77, verb 12, adj 10
+- schwelle: noun 81, adj 17
+- paarmal: adv 89, adj 8, noun 3
+- fundamentgräben: noun 76, verb 21
+- ausgehoben: verb 89, adj 7, noun 4
+- kehrt: verb 90, noun 5, adj 4
+- energischen: adj 85, verb 9, noun 5
+- begeisterter: adj 90, noun 11
+- erfülle: verb 71, noun 21, adj 8
+- soße: noun 90, adj 8, verb 3
+- gericht: noun 84, verb 14
+- abzuwaschen: verb 76, adj 19, noun 5
+- abgewaschen: verb 76, adj 19, noun 5
+- gewürze: noun 84, adj 16
+- löwe: noun 83, verb 10, adj 6
+- aufwärmen: verb 86, noun 11
+- versenden: verb 73, adj 19, noun 8
+- klingeln: verb 79, noun 21
+- trieft: verb 77, noun 18, adj 5
+- gast: noun 87, verb 12
+- quatschnass: adj 75, noun 15, verb 6, conj 4
+- lebenslänglichen: adj 89, verb 6, noun 4
+- times: noun 90, adj 10
+- hölzernen: adj 73, noun 15, verb 11
+- miene: noun 77, verb 14, adj 8
+- scharfrichter: noun 87, adj 10
+- schwerte: noun 69, verb 28
+- abhieb: verb 88, noun 11
+- lesende: adj 81, noun 19
+- lobenswerter: adj 90, noun 11
+- nahrhaft: adj 90, noun 10
+- oberschüler: noun 87, adj 10
+- altägyptisch: adj 89, noun 10
+- hohl: adj 67, noun 20, conj 6, x 6
+- brav: adj 89, noun 10
+- ersparen: verb 73, adj 19, noun 7
+- malerischen: adj 85, verb 9, noun 5
+- hetz: verb 68, noun 30
+- meinetwegen: adv 82, verb 16
+- alltäglichen: adj 89, verb 6, noun 4
+- dolmetscher: noun 73, adj 27
+- bauarbeiten: noun 89, verb 10
+- wasch: verb 68, noun 19, adj 13
+- wunderschönes: adj 87, noun 10
+- omen: noun 78, verb 20
+- jahrelang: adv 76, noun 11, verb 5, conj 4, prep 4
+- wiederzutreffen: verb 87, noun 12
+- ehelichen: verb 73, adj 23, noun 4
+- reinste: adj 89, noun 10
+- verschlug: verb 82, noun 18
+- tannenbäumchen: noun 76, adj 12, verb 11
+- sehnlich: adj 89, adv 6, noun 3
+- wegwerfen: verb 90, noun 6, aux 4
+- produktionswerkstatt: noun 84, conj 9, adj 6
+- traditionellen: adj 71, verb 14, noun 14
+- übrigens: adv 84, noun 16
+- glücklichste: adj 88, noun 11
+- bedenke: verb 79, noun 18, adj 3
+- tatest: verb 90, aux 5, noun 4
+- inwieweit: adv 74, noun 12, adj 7, conj 7
+- töchter: noun 87, adj 10
+- schulchor: noun 88, adv 9
+- verrückte: noun 74, verb 18, adj 8
+- mechanisches: adj 90, noun 9
+- leere: noun 72, verb 15, adj 13
+- weser: noun 87, adj 10
+- bach: noun 74, verb 14, adv 8, adj 4
+- wale: noun 84, adj 16
+- satelliten: noun 89, verb 10
+- frikadellen: noun 80, verb 14, adj 4
+- gewitterwolken: noun 85, verb 14
+- rechter: adj 77, noun 20
+- erstaunlich: adj 89, adv 6, noun 3
+- zwergstern: noun 80, verb 11, adv 9
+- verpfuschen: verb 76, adj 19, noun 5
+- primzahlen: noun 79, verb 21
+- logisch: adj 86, noun 13
+- lesbisch: adj 79, noun 19
+- leiht: verb 87, noun 9, adj 3
+- soziologischen: adj 85, verb 9, noun 5
+- lehne: verb 76, noun 23
+- gasse: noun 88, verb 11
+- löwen: noun 80, verb 14, adj 4
+- ostern: noun 80, verb 11, adv 9
+- fish: noun 79, adj 13, adv 3, verb 3
+- schäkerten: verb 82, adj 15, noun 3
+- soliden: adj 72, verb 26
+- verspreche: verb 72, adj 16, noun 12
+- empfangsdame: noun 77, adj 21, verb 2
+- wegzubewegen: verb 82, adv 15
+- tragischen: adj 85, verb 9, noun 5
+- papst: noun 76, verb 20, adj 3
+- bricht's: verb 90, aux 8
+- sehren: verb 85, noun 14
+- springe: verb 81, noun 18
+- beschwipst: adj 70, verb 20, noun 9
+- witzeerzählen: noun 75, verb 25
+- pedant: noun 83, adj 13, verb 4
+- schande: noun 86, adv 7, adj 6
+- kometenhaft: adj 73, noun 25
+- zutiefst: adv 70, verb 27
+- zurücksah: verb 79, noun 15, adj 4
+- rückfahrt: noun 72, verb 23, adj 4
+- orten: verb 81, noun 14, adj 4
+- zurückschaffen: verb 87, noun 12
+- scrollen: verb 78, noun 15, adj 8
+- eintrittskarten: noun 87, verb 10, adj 4
+- schmeicheleien: noun 84, verb 11, adj 5
+- denjenigen: pron 78, verb 9, adj 6, art 6
+- nationales: adj 86, noun 13
+- jaguare: noun 81, adj 17
+- jagen: verb 87, noun 11
+- faultiere: noun 80, verb 19
+- beweg: verb 73, noun 22
+- aufwachen: verb 86, noun 11, adj 2
+- gucke: verb 73, noun 24, adj 3
+- getränkt: verb 86, noun 12, adj 2
+- gedankt: verb 86, noun 12, adj 2
+- janes: noun 76, adj 20
+- anhatte: verb 76, noun 18, adj 6
+- gründlichen: adj 89, verb 6, noun 4
+- losfahren: verb 89, noun 9, adj 2
+- überquerten: verb 82, adj 15, noun 3
+- sprachlich: adj 89, adv 8, verb 3
+- sesshaft: adj 73, noun 25
+- bemerken: verb 81, noun 14, adj 4
+- begrub: verb 77, noun 19, adj 3
+- schönere: adj 85, verb 12, noun 2
+- genaueres: noun 82, adj 14, pron 2
+- andauernd: adj 78, noun 16, verb 3
+- biden: noun 68, verb 26, adj 5
+- geplante: adj 71, verb 18, noun 11
+- großflächigen: adj 90, verb 9
+- küstenvorgelagerten: adj 82, verb 15, noun 3
+- verlassene: adj 88, noun 9, verb 3
+- pfarrhaus: noun 88, adv 12
+- athen: noun 75, verb 15, adj 9
+- durchzuschlafen: verb 85, noun 11, adj 4
+- ausführlich: adj 89, adv 6, noun 3
+- geschliffenen: adj 90, verb 6, noun 4
+- moderne: adj 87, noun 11
+- beschriebet: verb 79, noun 15, aux 5
+- wußten: verb 81, noun 14, adj 4
+- bemalte: adj 75, verb 24
+- wettbewerbe: noun 79, verb 20
+- langlauf: noun 82, adv 17
+- duden: noun 80, verb 14, adj 4
+- deskriptives: adj 84, noun 15
+- präskriptives: adj 84, noun 15
+- erbrecht: noun 73, adj 15, verb 7, adv 5
+- frohe: adj 83, noun 12, verb 5
+- baskisch: noun 85, adj 13
+- übersetzten: verb 84, adj 9, noun 7
+- vorderen: adj 73, verb 21, noun 5
+- schreibtisches: noun 76, adj 23
+- besitze: verb 72, noun 24, adj 4
+- erwerben: verb 88, noun 9
+- piratenhut: noun 76, verb 20, adj 3
+- blauer: adj 77, noun 20
+- unwirtschaftlich: adj 89, adv 6, noun 3
+- geführtes: adj 90, noun 11
+- großunternehmen: noun 78, verb 20
+- gefrorenen: adj 89, noun 8, verb 3
+- teiches: noun 76, adj 23
+- papiere: noun 74, verb 24
+- verantwortlich: adj 89, adv 6, noun 3
+- enkel: noun 89, adj 11
+- ertappte: verb 90, noun 8
+- brotlaibe: noun 85, verb 10
+- andersdenkende: noun 74, adj 26
+- neuestem: adj 75, noun 25
+- fach: noun 74, verb 14, adv 8, adj 4
+- lieblingstätigkeiten: noun 89, verb 10
+- erfolges: noun 81, adj 18
+- zieles: noun 87, pron 8, adj 6
+- katastrophalen: adj 89, noun 8, verb 3
+- semmeln: noun 87, verb 12
+- abgetragenen: adj 90, verb 6, noun 4
+- auszuruhen: verb 82, adj 9, noun 8
+- währenddessen: adv 71, verb 14, noun 12, adj 2
+- hörten: verb 81, noun 14, adj 4
+- tagtäglichen: adj 89, verb 6, noun 4
+- gebete: noun 69, verb 26, adj 5
+- gottespflicht: noun 82, verb 18
+- emilies: noun 85, adj 15
+- anzuklopfen: verb 80, noun 20
+- leihe: verb 82, noun 11, adj 6
+- persönlichen: adj 89, verb 6, noun 4
+- ebene: noun 70, adj 28
+- schofle: adj 74, noun 21, verb 5
+- inneren: adj 83, noun 9, verb 8
+- einmischen: verb 76, adj 19, noun 5
+- bauweise: noun 77, adv 23
+- ludwig: noun 69, adj 28, num 2
+- verkäufern: noun 88, verb 10
+- graues: adj 84, noun 15
+- tiefsten: adj 79, noun 13, verb 5
+- talsohle: noun 87, verb 12
+- intervallen: noun 76, verb 22
+- intervalle: noun 88, verb 8, adj 4
+- analog: adj 76, noun 19, verb 5
+- quadraten: noun 82, verb 17
+- kuben: noun 86, verb 14
+- hyperkuben: noun 86, verb 14
+- bereiche: noun 76, adj 19, verb 5
+- debatte: noun 84, verb 10, adj 6
+- gutachter: noun 87, adj 10
+- überbevölkert: adj 76, verb 24
+- braver: adj 77, noun 20
+- colleges: noun 81, adj 18
+- ekg: noun 90, adj 8
+- untertasse: noun 88, verb 11
+- entspannen: verb 84, noun 14
+- unwahrheiten: noun 89, verb 10
+- ertönte: verb 84, noun 11, adj 5
+- verzerrte: adj 69, verb 24, noun 7
+- vermessen: verb 80, noun 12, adv 5, adj 2
+- beansprucht: verb 87, noun 9, adj 3
+- erbe: noun 79, verb 20
+- philosophisches: adj 90, noun 9
+- tumulte: noun 70, verb 27, adj 4
+- israelischen: adj 85, verb 9, noun 5
+- rechne: verb 76, noun 23
+- sorte: noun 80, verb 19
+- schweizer: adj 83, noun 17
+- sommertagen: noun 78, verb 21
+- daranmachen: verb 86, noun 11, adj 2
+- allerletzte: noun 71, verb 28
+- bestach: verb 81, adv 8, noun 7, adj 4
+- drucken: verb 81, noun 14, adj 4
+- bestelle: verb 73, noun 21, adj 6
+- verängstigt: adj 80, verb 20
+- vokabeln: noun 87, verb 12
+- blöde: adj 84, noun 13
+- beherrschen: verb 76, adj 19, noun 5
+- abreisen: verb 88, noun 12
+- eden: noun 80, verb 14, adj 4
+- tauschen: verb 76, adj 19, noun 5
+- beliebter: adj 87, noun 13
+- diskutiere: verb 86, noun 14
+- ermögliche: verb 68, adj 26, noun 5
+- angefordert: verb 87, num 8, adj 3, noun 2
+- nikolaus: noun 88, adv 12
+- kanonisches: adj 90, noun 9
+- zahnbürste: noun 78, adj 17, verb 4
+- ward: aux 71, noun 27
+- nimmermehr: adv 76, noun 23
+- bitteres: noun 82, adj 14, pron 2
+- samen: noun 84, adj 10, verb 6
+- friedrich: noun 77, verb 15, adj 6
+- dorn: noun 88, verb 10
+- eingedrungen: verb 71, noun 29
+- vermag: verb 69, noun 31
+- äußern: verb 77, noun 21
+- fragend: verb 70, adj 20, noun 4, num 4, adv 2
+- ehemannes: noun 76, adj 20
+- doktorarbeiten: noun 89, verb 10
+- durchschnitt: noun 86, verb 8, num 4
+- erröte: verb 86, noun 7, adj 6
+- befürchten: verb 85, adj 8, noun 6
+- entschlossen: verb 88, noun 9
+- bedroht: verb 87, noun 9, adj 3
+- dreifacher: adj 89, noun 9
+- abzulehnen: verb 87, noun 12
+- hau: verb 68, noun 28, adj 3
+- ausgeschlafen: adj 71, verb 18, noun 11
+- gönnerhaft: adj 90, noun 10
+- feierlich: adj 89, adv 6, noun 3
+- unangemeldetes: adj 84, noun 15
+- faden: noun 84, verb 15
+- seife: noun 87, verb 13
+- obzwar: conj 67, adj 18, noun 12
+- erhöht: adj 70, verb 20, noun 9
+- flickten: verb 85, adj 11, noun 4
+- kescher: noun 73, adj 27
+- betracht: noun 72, verb 25, adj 3
+- engländern: noun 88, verb 10
+- klatsche: noun 75, adj 23
+- team: noun 79, adj 14, verb 4
+- sixtinischen: adj 85, verb 9, noun 5
+- regulären: adj 78, verb 19, noun 3
+- anlasses: noun 90, adj 10
+- unentbehrlich: adj 89, adv 6, noun 3
+- verbreiteter: adj 77, noun 20
+- fantastisch: adj 89, noun 10
+- verbrauche: verb 88, noun 9, adj 4
+- erschaffen: verb 87, noun 12
+- bedeutest: verb 90, aux 5, noun 4
+- dogs: noun 82, adv 17
+- google: noun 87, adj 8, verb 5
+- mittwoch: noun 84, adv 11, adj 4
+- blass: adj 75, noun 15, verb 6, conj 4
+- welcherart: art 69, noun 17, verb 10, adv 2
+- vergesslichste: adj 88, noun 11
+- augenzeuge: noun 84, adj 8, verb 6
+- regenbogen: noun 76, verb 22
+- leibgericht: noun 84, verb 14
+- wladimir: noun 87, adj 10
+- ausweglosen: adj 88, noun 11
+- rettender: adj 84, noun 16
+- auftun: verb 88, noun 10
+- wäret: aux 68, verb 27, noun 2, adj 2
+- ö: noun 83, verb 10, adj 6
+- bewirken: verb 81, noun 14, adj 4
+- wohlbehalten: adj 70, verb 25, noun 4
+- assanges: noun 81, adj 18
+- antworte: verb 86, noun 13
+- brotes: noun 81, adj 18
+- aufsuchen: verb 87, noun 11
+- weihnachtskarten: noun 87, verb 10, adj 4
+- tief-denken: noun 79, verb 19
+- breit-wissen: noun 88, verb 12
+- straßenbahnen: noun 79, verb 20
+- schlimmen: adj 74, verb 25
+- sauerrahm: noun 86, adj 7, verb 5
+- fraîche: adj 83, noun 12, verb 5
+- eingefallen: verb 89, noun 10
+- niete: noun 69, verb 26, adj 5
+- schwedischen: adj 85, verb 9, noun 5
+- naturburschen: noun 71, adj 19, verb 9
+- griechen: noun 73, verb 25
+- nichten: noun 73, verb 19, adj 8
+- buddhastatue: noun 81, verb 13, adj 6
+- granate: noun 85, verb 13
+- zuversichtlich: adj 89, adv 6, noun 3
+- genervt: verb 87, noun 9, adj 3
+- akkusativ: noun 74, adj 26
+- umgab: verb 88, adv 8, noun 4
+- belasten: verb 72, noun 13, adj 13
+- seelischen: adj 85, verb 9, noun 5
+- notizen: noun 80, verb 14, adj 4
+- verzicht: noun 84, verb 14
+- fastfood: noun 86, adj 8, verb 3
+- umgehend: adj 83, adv 11, verb 6
+- erfolge: noun 80, verb 10, prep 9
+- hauen: verb 90, noun 7, adj 3
+- kanadischen: adj 85, verb 9, noun 5
+- seiest: aux 72, verb 23, noun 4
+- nähmen: verb 86, noun 11
+- lehnten: verb 73, noun 22, adv 2
+- prominenter: adj 81, adv 13, noun 3, prep 3
+- koch: noun 84, adv 11, adj 4
+- lexikalischen: adj 85, verb 9, noun 5
+- ehegatten: noun 88, verb 7, adj 5
+- planst: verb 85, noun 11, adv 2, adj 2
+- bob: noun 83, verb 10, adj 6
+- herangehensweise: noun 77, adv 23
+- tartaros: noun 84, adj 16
+- leih: verb 81, noun 12, adj 5
+- kostenloses: adj 77, noun 23
+- verkocht: verb 87, noun 9, adj 3
+- kühe: noun 79, adj 16, verb 5
+- melken: verb 80, noun 18
+- sushi-essen: noun 79, verb 14, adv 5, adj 2
+- menschenaffen: noun 78, verb 20
+- verfügen: verb 87, noun 11
+- streitwert: noun 74, adj 16, verb 9
+- rammen: verb 87, noun 6, adv 6
+- möhren: noun 76, verb 22, adj 2
+- höchstwahrscheinlich: adv 72, adj 22, noun 3
+- unterworfen: verb 90, noun 6, aux 4
+- fortwährend: adj 87, noun 4, num 4, verb 3, adv 2
+- wisse: verb 70, noun 25, adv 3
+- versteigere: verb 86, adj 14
+- bahnten: verb 73, noun 22, adv 2
+- sprachlichen: adj 89, verb 6, noun 4
+- mangelnde: adj 78, noun 17, verb 5
+- inhalten: noun 70, verb 25, adj 3
+- rockfestival: noun 84, adv 8, adj 8
+- opern: noun 88, verb 10
+- verlierer: noun 76, adj 24
+- wärest: aux 72, verb 23, noun 4
+- gestank: noun 88, adj 8, verb 5
+- blumenkohl: noun 86, conj 6, x 6
+- oberst: noun 73, verb 20, adv 5
+- gehn: verb 68, num 26, noun 6
+- gelehrten: noun 85, verb 12, adj 3
+- bückte: verb 84, adj 8, noun 8
+- regal: noun 84, adj 14, adv 3
+- sahne: noun 90, verb 9
+- scherereien: noun 84, verb 11, adj 5
+- besseres: noun 82, adj 14, pron 2
+- selbstverstendlich: adv 72, adj 22, noun 3
+- festnehmen: verb 86, noun 11
+- angenehmes: noun 90, adj 10
+- nachsinnen: verb 76, noun 21, adv 2
+- begreife: verb 86, noun 14
+- verarschen: verb 76, adj 19, noun 5
+- erpicht: adj 68, noun 18, verb 14
+- sommers: adv 69, noun 28
+- versalzen: adj 71, verb 14, noun 14
+- strich: verb 81, noun 10, adj 6
+- haarsträhne: noun 90, verb 9
+- joggen: verb 81, noun 14, adj 4
+- platzen: verb 89, noun 10
+- hintern: noun 88, verb 10
+- laib: noun 79, verb 18
+- falsches: adj 90, noun 9
+- beabsichtigen: verb 81, adj 17
+- notwendigen: adj 84, verb 11, noun 3
+- überfallen: verb 89, noun 10
+- herangehensweisen: noun 78, verb 21
+- sprecht: verb 74, adj 15, noun 6, adv 5
+- froschschenkel: noun 89, adj 11
+- hupkonzert: noun 68, verb 26, adj 5
+- schöpferisch: adj 89, noun 11
+- quadrat: noun 90, verb 8
+- raute: noun 70, verb 22, adj 8
+- teetrinken: noun 84, verb 15
+- essgewohnheiten: noun 89, verb 10
+- verletzten: adj 76, verb 18, noun 7
+- schädlich: adj 89, adv 6, noun 3
+- treuherzig: adj 83, num 17
+- seeleute: noun 84, verb 13, adj 2
+- demütigen: verb 81, adj 17
+- gedemütigt: verb 87, adj 13
+- fürchterlichste: adj 88, noun 11
+- gedanke: noun 84, verb 12, adj 3
+- vermehrt: verb 90, noun 5, adj 4
+- hurritisch: noun 76, adj 22
+- urartäisch: noun 85, adj 13
+- sumerisch: noun 78, adj 22
+- nachtisch: noun 76, adj 22
+- nachttisch: noun 76, adj 22
+- zuteil: adj 71, noun 25
+- hängeohren: noun 76, verb 22, adj 2
+- verrückten: adj 78, verb 18, noun 4
+- kohle: noun 87, verb 12
+- zigarre: noun 77, verb 12, adj 10
+- beschwerden: noun 84, verb 13, adj 3
+- gartens: noun 77, adv 20, prep 3
+- bürgersteig: noun 88, adj 11
+- menschliches: adj 90, noun 9
+- käfig: noun 69, adj 28, num 2
+- mont: noun 79, verb 15, adj 6
+- blanc: noun 83, verb 10, adj 6
+- prima: adj 72, noun 28
+- quartal: noun 84, adv 8, adj 8
+- anstieg: noun 89, verb 10
+- hinzudenken: verb 86, noun 13
+- sklaven: noun 88, adj 9, verb 4
+- türschlossenteiser: noun 87, adj 10
+- untoten: noun 88, verb 10
+- wahlberechtigt: adj 85, verb 15
+- gläschen: noun 71, adj 19, verb 9
+- göttliches: adj 90, noun 9
+- göttlichen: noun 71, adj 23, verb 6
+- weiterarbeiten: verb 77, noun 22
+- merke: verb 73, noun 24, adj 3
+- bauern: noun 88, verb 10
+- basketballteam: noun 79, adj 14, verb 4
+- abstoßen: verb 88, adj 8, noun 2
+- verteile: verb 73, noun 24, adj 4
+- bronzemedaillen: noun 80, verb 14, adj 4
+- zögerst: verb 87, noun 6, adv 5
+- faxen: noun 84, adj 9, verb 6
+- winde: noun 77, verb 19, adj 3
+- zerrten: verb 81, noun 14, adj 4
+- laub: noun 90, verb 9
+- schulnoten: noun 88, verb 10
+- wales: noun 80, adj 19
+- säubern: verb 77, noun 21
+- häßlich: adj 89, adv 6, noun 3
+- werdender: noun 83, adj 17
+- köchen: noun 76, adj 12, verb 11
+- rezepte: noun 75, verb 23
+- verlorengegangen: adj 70, verb 24, noun 6
+- anschaue: verb 87, adj 10, noun 4
+- tauchen: verb 87, noun 11
+- norwegisch: noun 80, adj 20
+- verschwinde: verb 86, noun 11, adj 3
+- löst: verb 87, noun 9, adj 3
+- schwerwiegenden: adj 86, noun 8, verb 6
+- sonderangeboten: noun 82, verb 18
+- locken: verb 73, noun 15, adj 12
+- meg: noun 89, verb 6
+- vortrags: noun 79, adv 21
+- aufmachen: verb 86, noun 11, adj 2
+- vagen: adj 67, verb 21, noun 11
+- verdacht: noun 76, verb 20, adj 3
+- verheirateten: adj 76, verb 23
+- gespart: verb 77, noun 17, adv 2, art 2
+- bürgern: noun 81, verb 18
+- hölle: noun 87, adj 8, verb 5
+- echten: adj 75, verb 19, noun 6
+- ausgegraben: verb 79, noun 21
+- nebenprodukt: noun 84, verb 15, adj 2
+- rahm: noun 86, adj 7, verb 5
+- mathematisch: adj 89, noun 10
+- begabt: adj 75, verb 25
+- praktisches: adj 90, noun 9
+- reales: adj 86, noun 13
+- fade: adj 78, noun 17, adv 4
+- schmerzlich: adj 89, adv 6, noun 3
+- geräusch: noun 85, adj 13
+- abzunehmen: verb 86, noun 11
+- vorübergehend: adj 83, adv 11, verb 6
+- ran: adv 72, noun 23, adj 2
+- morgengrauen: noun 73, verb 23, adj 3
+- geöffnetem: adj 87, noun 12
+- leistungsbogen: noun 76, verb 22
+- gläubigen: noun 70, adj 18, verb 11
+- daunenkissen: noun 88, verb 12
+- jawohl: x 76, noun 15, conj 9
+- gerücht: noun 76, verb 20, adj 3
+- eseln: noun 83, verb 18
+- maschinen: noun 90, verb 6, adj 3, art 2
+- ausführen: verb 89, noun 9, adj 2
+- gesetzentwurf: noun 87, verb 6, adj 3
+- ecuador: noun 88, adv 9
+- verschweige: verb 86, noun 11, adj 2
+- vorweisen: verb 88, noun 12
+- größtes: adj 84, noun 15
+- bedaure: verb 76, noun 20, adj 3
+- vergiß: verb 78, noun 12, adj 8
+- wasserpistolen: noun 76, verb 23
+- gestreiftes: adj 84, noun 15
+- wunderschöne: adj 75, noun 19, verb 4
+- geteilte: adj 70, verb 27, noun 3
+- visconte: noun 78, verb 18, adj 5
+- kommend: verb 70, adj 20, noun 4, num 4, adv 2
+- schlauer: adj 77, noun 20
+- gesellschaftlichen: adj 89, verb 6, noun 4
+- toren: noun 87, adj 9, verb 4
+- betrübt: adj 70, verb 29
+- erwacht: verb 87, noun 9, adj 3
+- lieblingsgerichte: noun 79, verb 17, adj 3
+- westlichen: adj 89, verb 6, noun 4
+- verspüre: verb 82, noun 15, adj 3
+- zeige: verb 83, noun 11, adj 6
+- liegend: verb 70, adj 20, noun 4, num 4, adv 2
+- politikern: noun 88, verb 10
+- luftfahrtexperte: noun 81, verb 18
+- statistiken: noun 90, verb 7, adj 4
+- wirkliches: adj 90, noun 9
+- verrät: verb 80, noun 20
+- barrierefrei: adj 67, noun 30
+- umwerfend: adj 87, noun 4, num 4, verb 3, adv 2
+- weglegen: verb 86, adj 10, noun 3
+- flussnahen: adj 76, verb 15, noun 8
+- russischen: adj 85, verb 9, noun 5
+- thailändisches: adj 90, noun 9
+- brüste: noun 78, adj 17, verb 4
+- aufenthaltes: noun 81, adj 18
+- armreife: noun 80, verb 20
+- entflohen: verb 86, adj 10, noun 3
+- linde: noun 77, verb 19, adj 3
+- programmieren: noun 70, verb 30
+- volle: adj 74, noun 21, verb 5
+- bedauerlicherweise: adv 90, noun 11
+- bankrott: adj 72, noun 21, verb 3, conj 2
+- wölfen: noun 78, verb 20
+- wische: verb 67, adj 32
+- teilzunehmen: verb 86, noun 11
+- sommersprossige: adj 87, verb 6, noun 6
+- neutralen: adj 89, noun 8, verb 3
+- ironisch: adj 76, noun 23
+- stärkere: adj 79, verb 15, noun 5
+- hol: verb 68, noun 25, adj 4
+- mutterschutzurlaub: noun 90, verb 9
+- änderst: verb 87, noun 6, adv 5
+- weitaus: adv 79, noun 21
+- glücklichere: adj 85, verb 12, noun 2
+- weltkrieg: noun 89, verb 10
+- zehnmal: adv 88, noun 7, adj 5
+- einzureisen: verb 88, noun 12
+- nest: noun 70, verb 23, aux 5
+- berufsleben: noun 84, verb 15
+- privatleben: noun 84, verb 15
+- außergewöhnliche: noun 71, adj 26
+- glattem: adj 87, noun 12
+- heinrich: noun 77, verb 15, adj 6
+- leckeres: adj 80, noun 15, pron 2
+- jüngeren: adj 73, verb 21, noun 5
+- schweiß: noun 79, verb 12, adj 8
+- wäscheklammern: noun 84, verb 15
+- häschen: noun 71, adj 19, verb 9
+- hüpfen: verb 87, noun 12
+- blonde: adj 78, noun 17, verb 5
+- limburger: noun 89, adj 11
+- gewissem: adj 86, noun 6, art 3, pron 2
+- professoren: noun 87, adj 9, verb 4
+- defekt: adj 84, noun 15
+- flammen: noun 73, verb 20, adv 6
+- gnädigen: noun 70, adj 18, verb 11
+- barmherzigen: noun 73, adj 24, verb 3
+- unüberlegte: adj 76, verb 24
+- schwert: noun 74, adj 16, verb 9
+- maisfeldern: noun 88, verb 10
+- pizzaschnitten: noun 79, verb 17, adv 3
+- lösch: verb 68, noun 19, adj 13
+- neunundneunzig: num 89, adj 11
+- freies: adj 81, noun 18
+- grades: noun 81, adj 18
+- auszuspielen: verb 86, noun 12
+- dahinten: adv 74, verb 16, noun 9
+- abenteuerlichste: noun 78, adj 21
+- zünden: verb 89, noun 8, adj 3
+- bullen: noun 80, verb 14, adj 4
+- verachten: verb 85, adj 8, noun 6
+- unermüdlichen: adj 89, verb 6, noun 4
+- kultivierte: adj 68, verb 28, noun 3
+- narr: noun 88, verb 7, adj 4
+- klarstellen: verb 81, noun 14, adj 4
+- neuigkeiten: noun 89, verb 10
+- heiligen: noun 73, verb 15, adj 12
+- spaßen: verb 76, adv 14, noun 10
+- hektischen: adj 85, verb 9, noun 5
+- imaginären: adj 78, verb 19, noun 3
+- eigentlichen: adj 89, verb 6, noun 4
+- vorhast: verb 79, noun 20
+- gefährten: noun 85, verb 12, adj 3
+- feuertänzern: noun 88, verb 10
+- durchlaucht: noun 75, verb 24
+- lektüre: noun 81, verb 15, adj 3
+- futsch: adj 74, noun 26
+- fete: noun 69, verb 26, adj 5
+- ingos: noun 84, adj 16
+- schwache: adj 70, noun 29
+- beweist: verb 83, noun 16
+- dom: noun 85, adj 9
+- stolzer: adj 83, noun 17
+- unterrichte: verb 84, noun 13, adj 3
+- leiche: noun 76, adj 19, verb 5
+- durchdrungen: verb 71, noun 29
+- schotten: noun 84, verb 11, adj 3, adv 2
+- aneinanderbinde: verb 86, noun 11, adj 3
+- runterschmeiße: verb 75, adj 14, noun 12
+- schwimmbecken: noun 76, verb 24
+- dekorativen: adj 76, noun 21, verb 4
+- gesteinsblöcken: noun 80, verb 14, adj 4
+- geschnittenen: adj 90, verb 6, noun 4
+- rasenflächen: noun 84, verb 11, adj 5
+- ereignissen: noun 88, verb 12
+- wahrheitsgemäße: adj 73, noun 16, verb 10
+- vermeldete: adj 79, verb 15, noun 6
+- erdgeschoss: noun 75, verb 24
+- fledermaus: noun 88, adv 12
+- riss: verb 80, noun 12, adj 8
+- silbernes: adj 87, noun 10
+- paradies: noun 85, adj 15
+- diejenigen: pron 78, verb 9, adj 6, art 6
+- andenkenladen: noun 84, verb 15
+- losgeworden: verb 79, noun 18, adj 3
+- unvorsicht'ger: adj 84, noun 16
+- abgott: noun 88, adj 6, verb 3, conj 2
+- pfeifen: noun 86, verb 14
+- ochsen: noun 68, verb 32
+- monatsmieten: noun 76, verb 22, adj 2
+- clyde: noun 84, adj 11, verb 5
+- gemachten: adj 75, verb 19, noun 6
+- armer: adj 75, noun 24
+- obon-festes: noun 81, adj 18
+- bahnhöfen: noun 78, verb 20
+- erwärmen: verb 86, noun 11
+- köcher: noun 76, adj 22
+- mögest: aux 72, verb 23, noun 4
+- vollmond: noun 83, adj 11, verb 3
+- innenpolitischen: adj 85, verb 9, noun 5
+- herzass: noun 82, adj 8, verb 6, conj 4
+- einkommen: noun 69, verb 28, adj 2
+- busch: noun 85, adj 13
+- legenden: noun 75, adj 19, verb 6
+- aufzuwachen: verb 86, noun 11, adj 2
+- hinüber: adv 90, noun 5, prep 4
+- vielversprechender: adj 84, noun 16
+- gemischten: adj 75, verb 19, noun 6
+- klarem: adj 82, art 10, noun 7
+- andre: adj 76, verb 12, noun 10
+- gebricht: verb 80, noun 18
+- berate: verb 85, noun 14
+- auszusuchen: verb 87, noun 11
+- massen: noun 68, verb 31
+- oberen: adj 73, verb 21, noun 5
+- unteren: adj 88, noun 6, verb 6
+- gliedmaßen: noun 76, adv 21, verb 3
+- renn: verb 73, noun 25
+- gestohlenen: adj 90, verb 6, noun 4
+- eiche: noun 71, adj 26
+- fällen: verb 81, noun 14, adj 4
+- frühen: adj 74, verb 23, noun 2
+- verkäuferinnen: noun 88, verb 10, adv 2
+- staubbedeckt: adj 84, verb 16
+- albern: adj 68, noun 21, verb 10
+- schleppend: adj 87, noun 4, num 4, verb 3, adv 2
+- zustimmend: adj 87, noun 4, num 4, verb 3, adv 2
+- dauerhaften: adj 71, noun 27
+- unterschätze: verb 72, noun 24, adj 4
+- verantwortlichen: adj 89, verb 6, noun 4
+- klapperte: verb 84, noun 14
+- blendläden: noun 80, verb 14, adj 4
+- wissenschaftliches: noun 76, adj 23
+- musikhören: noun 73, verb 26
+- ausserhalb: prep 88, adv 10
+- mauern: noun 88, verb 10
+- drogensüchtige: noun 73, adj 19, verb 7
+- kaputte: adj 75, noun 20, verb 5
+- isoliert: adj 69, verb 31
+- trollen: noun 81, verb 11, adj 8
+- gichtanfällen: noun 80, verb 14, adj 4
+- döste: verb 71, adj 17, noun 11
+- versteinert: adj 76, verb 24
+- alberne: adj 87, noun 11
+- wahren: adj 69, verb 22, noun 9
+- leidensmiene: noun 77, verb 14, adj 8
+- eitel: adj 68, noun 29
+- leichtes: noun 76, adj 24
+- atomkrieg: noun 89, verb 10
+- mitteln: noun 87, verb 12
+- lächle: verb 79, noun 21
+- mindestlohn: noun 89, num 8, verb 3
+- hirten: noun 80, verb 14, adj 4
+- lagern: verb 85, noun 15
+- lieblings-boutique: noun 81, verb 13, adj 6
+- kaltes: noun 81, adj 18
+- briefmarken: noun 80, verb 14, adj 4
+- shoppen: verb 72, noun 28
+- begründen: verb 89, noun 8, adj 3
+- höhle: noun 87, verb 12
+- trauben: noun 86, verb 14
+- leibe: noun 81, verb 18
+- tröpfchen: noun 76, adj 12, verb 11
+- offenbart: verb 77, noun 17, adv 2, art 2
+- vollkommenen: adj 90, verb 6, noun 4
+- mexikanisches: adj 90, noun 9
+- meckern: verb 77, noun 21
+- beraten: verb 84, noun 16
+- hannover: noun 87, adj 10
+- coronabedingte: adj 70, verb 29
+- vorletzten: adj 76, verb 18, noun 7
+- mußtet: aux 68, verb 27, noun 2, adj 2
+- abstinenzler: noun 87, adj 10
+- wegtrieb: verb 88, noun 11
+- misslungen: verb 71, noun 29
+- verzehr: noun 90, adv 9
+- morgige: adj 87, verb 6, noun 6
+- einlegen: verb 86, adj 10, noun 3
+- fassade: noun 84, adj 11, adv 4
+- schlosses: noun 90, adj 10
+- ausbleichen: verb 73, adj 23, noun 4
+- gründen: verb 89, noun 8, adj 3
+- robbe: noun 85, verb 10
+- winzig: adj 78, num 22
+- flugticket: noun 69, verb 27, adj 2, aux 2
+- beschwert: verb 76, adj 16, noun 8
+- staatlichen: adj 89, verb 6, noun 4
+- quälend: adj 87, noun 4, num 4, verb 3, adv 2
+- aufzuklären: verb 86, adj 11, noun 3
+- dialekt: noun 88, adj 9, verb 3
+- blinke: verb 79, noun 18, adj 3
+- verschoben: verb 89, adj 7, noun 4
+- darob: adv 68, noun 16, verb 10, adj 6
+- schönste: adj 89, noun 10
+- humanitärer: adj 83, noun 16
+- eingetroffen: verb 88, adj 8, noun 4
+- idiotisch: adj 89, noun 10
+- grübchen: noun 76, adj 12, verb 11
+- wangen: noun 73, verb 24, adj 3
+- gescheit: adj 68, noun 29
+- befreit: verb 84, noun 15
+- tägliches: adj 90, noun 9
+- ausüben: verb 88, noun 9
+- aussterben: verb 88, noun 9
+- enge: adj 67, noun 25, verb 6
+- quetschen: verb 76, adj 19, noun 5
+- asche: noun 75, adj 23
+- stehend: verb 72, adj 16, adv 11
+- ungewiss: adj 75, verb 13, noun 12
+- unterrichten: verb 85, adj 8, noun 6
+- frites: noun 81, adj 18
+- währt: verb 90, noun 5, adj 4
+- lichten: adj 75, verb 19, noun 6
+- auswendig: adv 75, adj 25
+- stürbe: verb 87, noun 12
+- seidenglatte: adj 73, noun 18, verb 10
+- geborgen: adj 72, noun 17, verb 7, adv 4
+- härter: adj 77, noun 20
+- diener: noun 76, adj 24
+- staates: noun 81, adj 18
+- berichts: noun 85, prep 9, adv 5
+- freiluftsportarten: noun 87, verb 10, adj 4
+- bestürzt: adj 74, verb 18, noun 7
+- jährliches: adj 90, noun 9
+- imposant: adj 88, noun 11
+- arg: adj 73, noun 26
+- klemme: noun 80, verb 11, adj 9
+- hauptziel: noun 84, verb 8, art 4, adv 4
+- esperantist: noun 90, verb 7
+- hilfreichen: adj 89, verb 6, noun 4
+- nichtssagendem: adj 84, pron 11
+- orgeln: noun 87, verb 12
+- königinnen: noun 88, verb 10, adv 2
+- flüge: noun 84, adj 8, verb 6
+- verbreiten: verb 77, noun 22
+- auspacken: noun 75, verb 25
+- grundbegriffen: noun 78, verb 20
+- beweistechniken: noun 90, verb 7, adj 4
+- komplexen: adj 76, noun 18, verb 6
+- geschneit: verb 68, noun 29
+- bestrebt: adj 70, verb 29
+- eingedeckt: verb 83, adj 17
+- wilde: adj 76, verb 12, noun 11
+- bewerben: verb 88, noun 9
+- lautstark: adj 79, noun 19
+- drehten: verb 85, adj 8, noun 6
+- star: noun 79, adj 18
+- fruchtbarkeitsförderndes: adj 86, noun 14
+- endomorphismenring: noun 90, verb 8
+- kommutativer: adj 77, noun 20
+- challenger: noun 83, adj 17
+- mondkalender: noun 83, adj 17
+- heutigen: adj 84, verb 15
+- aufstieg: noun 89, verb 10
+- monarchen: noun 88, verb 10, adj 3
+- untertanen: noun 86, verb 11, adj 3
+- ersuche: verb 88, noun 9, adj 4
+- zuständigen: adj 84, verb 11, noun 3
+- vorwärts: adv 80, noun 19
+- niesen: noun 73, verb 27
+- weltberühmter: adj 77, noun 20
+- seltene: adj 88, noun 9, verb 3
+- haustiere: noun 80, verb 19
+- reißen: verb 84, adj 13
+- scheiben: noun 74, verb 26
+- fensterbank: noun 88, adj 8, verb 5
+- fitze: verb 72, noun 24, adj 4
+- ernähre: verb 86, noun 7, adj 7
+- rostbraten: noun 82, verb 17
+- gerüchte: noun 71, verb 26, adj 3
+- umlauf: noun 82, adv 17
+- ehre: noun 73, verb 20, adj 7
+- stromausfalls: noun 79, adv 18, conj 2
+- wohlhabend: adj 81, noun 18
+- zahnstocher: noun 76, adj 22
+- kräftigen: adj 84, verb 15
+- windstoß: noun 80, verb 8, adj 6, adv 5
+- umgeblasen: verb 80, noun 19
+- lineal: noun 84, adv 8, adj 8
+- einigermaßen: adv 88, noun 9, verb 3
+- trompeten: verb 87, noun 6, adj 6
+- affenschar: noun 79, adj 18
+- hangeln: verb 79, noun 21
+- berges: noun 81, adj 18
+- unverständlich: adj 89, adv 6, noun 3
+- schülerinnen: noun 88, verb 10, adv 2
+- sprinten: verb 83, noun 9, adv 8
+- geweckt: verb 90, adj 11
+- hundes: noun 81, adj 19
+- verweigerten: verb 82, adj 15, noun 3
+- quoten: noun 88, verb 10
+- gezielte: adj 68, verb 31
+- küstenstädte: noun 80, verb 18
+- üblicherweise: adv 90, noun 11
+- entwickelter: adj 77, noun 20
+- landesinneren: noun 76, adj 16, verb 8
+- roben: noun 70, verb 22, adj 7
+- fernsehsender: noun 83, adj 17
+- gables: noun 81, adj 18
+- sandburgen: noun 84, verb 7, adj 5, adv 4
+- gästen: noun 79, adj 13, verb 5
+- aussehenden: adj 86, noun 8, verb 6
+- leg: verb 73, noun 22
+- nieder: adv 68, noun 30
+- gelehrter: noun 87, adj 10
+- blindes: adj 86, noun 14
+- kühnes: adj 87, noun 10
+- friedlichen: adj 89, verb 6, noun 4
+- algerischen: adj 85, verb 9, noun 5
+- sinnlichen: adj 89, verb 6, noun 4
+- verdammen: verb 87, noun 6, adv 6
+- asketen: noun 73, verb 21, adj 6
+- auftragsmörder: noun 90, adj 6, adv 3
+- fracht: noun 72, verb 25, adj 3
+- blöder: adj 73, noun 23, adv 3
+- schlank: adj 74, noun 21, verb 5
+- auftretenden: adj 86, noun 8, verb 6
+- wutausbrüche: noun 79, adj 16, verb 5
+- wüter: noun 87, adj 10
+- verpass: verb 73, noun 15, adj 8, conj 4
+- litern: noun 84, verb 15
+- beschloß: verb 75, noun 14, adj 6, adv 5
+- nötige: noun 71, adj 24, verb 4
+- bildete: verb 81, adj 13, noun 6
+- unendlichen: adj 89, verb 6, noun 4
+- ließest: verb 90, aux 5, noun 4
+- schnellstmöglich: adj 84, adv 11, prep 3, verb 3
+- marie's: noun 70, verb 13, aux 7, pron 6
+- übersprungen: verb 71, noun 29
+- fleshlight: noun 76, verb 20, adj 3
+- nähern: verb 75, noun 25
+- imbiss: noun 78, verb 13, adj 8
+- kommt's: verb 90, aux 8
+- meeres: noun 82, adj 14, pron 2
+- spitzen: adj 68, verb 22, noun 10
+- blutverschmierten: adj 82, verb 15, noun 3
+- riesenerfolg: noun 90, adj 8
+- bostoner: adj 77, noun 20
+- familiennamens: noun 82, prep 7, adj 7, adv 3
+- absagen: verb 82, noun 11, adv 7
+- beidseitigem: adj 90, pron 6, noun 2
+- aufzunehmen: verb 86, noun 11
+- sorry: x 70, noun 30
+- angestellten: noun 73, verb 20, aux 6
+- kopfhörer: noun 83, adj 16
+- schöpfkelle: noun 81, adj 17
+- brühe: noun 79, adj 16, verb 5
+- geburtstagsfeiern: noun 88, verb 10
+- behandle: verb 71, noun 21, adj 8
+- jod: noun 86, adj 8, verb 3
+- vergehen: noun 69, verb 30
+- jetzige: adj 87, verb 6, noun 6
+- ursachen: noun 78, verb 20, adj 2
+- werken: noun 80, verb 14, adj 4
+- subtilen: adj 73, verb 25
+- zeitgenossen: noun 76, verb 21
+- wundervoller: adj 83, noun 17
+- vollfüllen: noun 78, verb 20, adj 2
+- zurückgewinnen: verb 76, noun 21, adv 2
+- firmen: noun 78, verb 20
+- schnees: noun 81, adj 18
+- klub: noun 85, verb 10, adj 3
+- aufnähme: verb 84, adj 9, noun 8
+- träte: verb 79, noun 14, adj 8
+- nummern: noun 84, verb 15
+- schlich: verb 70, adj 22, adv 8
+- erspartes: noun 77, adj 23
+- hinweist: verb 83, noun 16
+- rassistisch: adj 89, noun 10
+- reine: adj 73, noun 14, verb 6, art 6
+- meeting: noun 90, verb 8
+- schnarche: verb 75, noun 18, adj 7
+- digital: adj 74, noun 17, adv 8
+- uhren: noun 76, verb 22, adj 2
+- verstorben: verb 88, noun 9
+- favorisierte: adj 68, verb 28, noun 3
+- heiße: adj 80, noun 12, verb 8
+- verbleibenden: adj 86, noun 8, verb 6
+- ruinen: noun 90, verb 6, adj 3, art 2
+- todesursachen: noun 78, verb 20, adj 2
+- haustieren: noun 70, verb 30
+- continental: noun 84, adv 8, adj 8
+- sohnes: noun 76, adj 20
+- vertrauenswürdigen: adj 84, verb 11, noun 3
+- verdiente: verb 76, noun 23
+- sin: x 67, noun 28, adv 3
+- carne: x 70, adj 14, noun 12, adv 3
+- originals: noun 83, adv 17
+- heimlichen: adj 89, verb 6, noun 4
+- aspekt: noun 88, adj 9, verb 3
+- lauschen: verb 76, adj 19, noun 5
+- blutflecken: noun 76, verb 24
+- beschmutztes: adj 84, noun 15
+- oberhemd: noun 86, adj 8, verb 3
+- bohren: verb 89, noun 9, adj 2
+- französische: noun 68, adj 32
+- gebar: verb 68, adj 29
+- vorgestern: adv 76, noun 13, verb 11
+- milden: adj 71, verb 14, noun 14
+- annektierten: verb 82, adj 15, noun 3
+- postmoderne: noun 78, adj 20
+- prager: adj 75, noun 25
+- käsekuchen: noun 78, verb 21
+- jim: noun 76, adv 15, adj 7
+- zerstritten: verb 84, noun 12, adv 3
+- vertrage: verb 70, noun 28
+- gehoben: adj 74, verb 22, noun 4
+- ausdrücke: verb 73, noun 24, adj 3
+- hundebiss: noun 78, verb 13, adj 8
+- türen: noun 80, verb 14, adj 4
+- wolf: noun 82, verb 11, num 5
+- schaf: noun 87, verb 11
+- heda: x 73, noun 27
+- grafen: noun 81, verb 16, adj 3
+- flugs: adv 84, noun 15
+- erschöpft: adj 71, verb 24, noun 4
+- hirte: noun 73, verb 24, adj 3
+- gibt's: verb 90, aux 8
+- lammbraten: noun 82, verb 17
+- riesengroß: adj 73, noun 14, verb 8, adv 5
+- geschossen: verb 88, noun 9
+- karges: adj 84, noun 15
+- zeitgeist: noun 83, verb 16
+- ungehindert: adj 70, verb 16, num 12, noun 3
+- jeglichen: art 67, adj 23, verb 6, noun 4
+- kampfgeist: noun 83, verb 16
+- le: noun 83, verb 10, adj 6
+- architekt: noun 88, adj 9, verb 3
+- nachnamen: noun 84, adj 10, verb 6
+- weitersenden: verb 73, adj 19, noun 8
+- gezwungen: verb 71, noun 29
+- tomaten: noun 85, verb 12, adj 2
+- gewaltfilmen: noun 78, verb 20
+- augenaufschlägen: noun 80, verb 14, adj 4
+- abwaschen: noun 71, adj 19, verb 9
+- stechpalmenzweige: noun 78, verb 20, adj 2
+- volkreiche: adj 86, noun 9, verb 5
+- frühaufstehen: noun 73, verb 27
+- erachtens: noun 77, adv 20, prep 3
+- rang: verb 70, noun 26
+- aussichtsloses: adj 77, noun 23
+- müller: noun 84, adj 16
+- lehrt: verb 90, noun 5, adj 4
+- kraut: noun 72, verb 28
+- ermöglicht: verb 84, noun 15
+- sokrates: noun 81, adj 18
+- geladen: verb 82, noun 17
+- haufen: noun 72, verb 28
+- blech: noun 79, adj 13, adv 3, verb 3
+- schaden: verb 82, noun 17
+- vertrauten: verb 79, noun 15, adj 6
+- vorbereite: verb 76, noun 16, adj 6
+- trainingseffekt: noun 82, adj 17
+- verringern: verb 85, noun 15
+- ausgefüllter: adj 77, noun 20
+- wange: noun 86, verb 8, conj 6
+- messen: verb 80, noun 12, adv 5, adj 2
+- bosten: noun 88, verb 7, adj 4
+- riesige: adj 87, verb 6, noun 6
+- mannes: noun 76, adj 20
+- besungen: verb 71, noun 29
+- dichterinnen: noun 88, verb 10, adv 2
+- gelb-grün-rote: adj 73, verb 20, noun 7
+- breite: adj 73, noun 16, verb 10
+- tracht: noun 72, verb 25, adj 3
+- färbe: verb 87, noun 12
+- vollkommen: adj 69, verb 28, noun 3
+- heitere: adj 89, verb 7, noun 3
+- heitern: verb 82, noun 18
+- vogelarten: noun 87, verb 10, adj 4
+- bowlen: verb 81, noun 14, adj 4
+- schal: noun 84, adv 8, adj 8
+- theologen: noun 82, verb 18
+- pirat: noun 90, verb 8
+- zorn: noun 88, verb 10
+- antun: verb 88, noun 10
+- habest: verb 90, aux 5, noun 4
+- tomate: noun 85, verb 13
+- kirschblüten: noun 80, verb 14, adj 4
+- gemäht: verb 87, noun 9, adj 3
+- letztgeborene: noun 76, adj 21, verb 3
+- unterlegen: adj 77, verb 20, noun 3
+- bereite: verb 76, noun 16, adj 6
+- wortgewandt: adj 76, verb 20, noun 3
+- zuhörer: noun 83, adj 16
+- super: adj 77, noun 20
+- unmöglichen: adj 89, verb 6, noun 4
+- aar: noun 79, adj 18
+- anrief: verb 86, adj 10, noun 3
+- wandern: noun 88, verb 10
+- netten: adj 68, noun 28, verb 4
+- scherzhaft: adj 73, noun 25
+- veraltet: adj 70, verb 28
+- abspricht: verb 80, noun 18
+- zittert: verb 81, adj 18
+- täter: noun 87, adj 10
+- fantastischen: adj 85, verb 9, noun 5
+- schweden: noun 80, verb 14, adj 4
+- stockdunkel: adj 78, noun 22
+- besinnen: verb 76, noun 21, adv 2
+- sehnen: verb 87, noun 12
+- pervers: adj 68, noun 28, adv 2
+- schüchterne: adj 87, noun 11
+- genannter: adj 81, adv 13, noun 3, prep 3
+- angrenzenden: adj 86, noun 8, verb 6
+- unentschieden: noun 80, verb 14, adj 4
+- kenn: verb 73, noun 25
+- donald: noun 86, conj 6, adv 6
+- fund: noun 88, adj 8, prep 3
+- bombe: noun 85, verb 10
+- ausgelöst: verb 87, noun 9, adj 3
+- lebhafte: adj 74, verb 14, noun 11
+- anzupflanzen: verb 82, noun 18
+- erhub: verb 77, noun 19, adj 3
+- steine: noun 81, adj 7, verb 6, art 6
+- vergänglich: adj 84, adv 11, prep 3, verb 3
+- jones: noun 76, adj 20
+- weiche: verb 71, adj 19, noun 9
+- unverzagt: adj 70, verb 29
+- trocknen: noun 79, verb 18, adj 3
+- hauptexporte: noun 80, verb 19
+- arbeitern: noun 84, verb 15
+- frühes: adj 90, noun 9
+- persönlichkeiten: noun 89, verb 10
+- jahrhunderts: noun 85, adv 14
+- pluribus: x 73, noun 26
+- unum: x 68, noun 27, adv 3
+- träfe: verb 76, noun 23
+- malaiisch: noun 85, adj 13
+- erste-hilfe-kasten: noun 79, adj 13, verb 5
+- ausgeschieden: verb 81, noun 14, adj 4
+- junger: adj 84, noun 16
+- of: noun 87, verb 6, adj 3
+- sonnenstrahlen: noun 79, verb 21
+- liebkosten: verb 74, noun 21, adj 4
+- lechzend: adj 87, noun 4, num 4, verb 3, adv 2
+- nahen: adj 76, verb 15, noun 8
+- tückisches: adj 90, noun 9
+- lindere: verb 88, adv 6, adj 4
+- kern: noun 88, verb 10
+- wohle: noun 87, verb 12
+- achillessehne: noun 90, verb 9
+- william: noun 79, adj 14, verb 4
+- ungarn: noun 88, verb 10
+- training: noun 90, verb 8
+- hütte: noun 87, adj 8, verb 5
+- gewisser: adj 72, noun 28
+- krimineller: adj 88, noun 12
+- begründete: verb 84, adj 13, noun 3
+- vertrautest: verb 90, aux 5, noun 4
+- platten: adj 71, noun 21, verb 7
+- experte: noun 81, verb 18
+- höhere: adj 85, verb 12, noun 2
+- nr: noun 87, adj 10
+- handhaben: verb 84, noun 16
+- vormittagen: noun 78, verb 21
+- querlatte: noun 84, verb 10, adj 6
+- ruhigem: adj 90, pron 6, noun 2
+- schrott: noun 88, adj 6, verb 3, conj 2
+- konstantem: adj 87, noun 12
+- gebrauche: verb 88, noun 9, adj 4
+- croissant: noun 78, adj 21
+- behandeln: verb 89, noun 11
+- huldvollst: adj 71, verb 24, aux 5
+- anzulächeln: verb 79, noun 21
+- geruht: verb 87, noun 9, adj 3
+- unterzog: verb 84, noun 11, adj 5
+- sprichwörter: noun 87, adj 10
+- populär: adj 78, noun 15, verb 7
+- schenkten: verb 79, adj 11, noun 9
+- verdienste: noun 76, adj 22
+- blockiert: adj 74, verb 26
+- spikereifen: noun 86, verb 14
+- alljahresreifen: noun 86, verb 14
+- computern: noun 88, verb 10
+- eintrat: verb 74, noun 23
+- vornehmem: adj 86, noun 6, art 3, pron 2
+- geschlecht: noun 75, verb 12, adj 10, adv 3
+- schönschreibekunst: noun 77, verb 18, adv 2, adj 2
+- gänseblümchen: noun 76, adj 12, verb 11
+- tätest: verb 90, aux 5, noun 4
+- euretwegen: adv 82, verb 16
+- studentinnen: noun 88, verb 10, adv 2
+- ideal: adj 74, noun 17, adv 8
+- geigenstunden: noun 76, verb 20, adj 4
+- jiddisch: noun 85, adj 13
+- hebräischen: adj 85, verb 9, noun 5
+- ungerader: adj 73, noun 23, adv 3
+- ungerade: adj 78, noun 17, adv 4
+- parfümsorten: noun 79, verb 18, adj 3
+- verständ'ge: adj 75, noun 17, verb 6
+- betenden: noun 75, adj 19, verb 6
+- keifenden: noun 75, adj 19, verb 6
+- keifen: verb 80, noun 19
+- theoretisch: adj 89, noun 10
+- 𝜋: x 67, noun 16, verb 10, adj 6
+- transzendent: adj 70, noun 26, verb 3
+- geige: noun 78, verb 16, adj 6
+- kannibale: noun 84, adj 16
+- köstlichen: adj 89, verb 6, noun 4
+- geldes: noun 81, adj 18
+- vernehmen: noun 78, verb 20
+- braunen: adj 73, noun 15, verb 11
+- sündenfreies: adj 81, noun 18
+- türkisch: noun 85, adj 13
+- strukturierte: adj 68, verb 28, noun 3
+- französisches: noun 76, adj 23
+- japanisches: noun 76, adj 23
+- katholiken: noun 90, verb 7, adj 4
+- bräunen: verb 78, noun 15, adj 6
+- dottern: noun 88, verb 10
+- schere: verb 79, adj 18, noun 2
+- lohn: noun 89, num 8, verb 3
+- älteren: noun 73, adj 21, verb 6
+- vergleiche: noun 76, adj 19, verb 5
+- nachzudenken: verb 86, noun 13
+- texte: noun 74, verb 20, adj 6
+- miste: x 67, adj 17, noun 11, verb 4
+- meck: x 67, noun 29, verb 2
+- eingerichteten: adj 76, verb 23
+- anheuern: verb 77, noun 21
+- wir's: pron 79, aux 14, verb 4
+- ausschlafen: noun 77, verb 18, adj 4
+- gegebenheiten: noun 89, verb 10
+- verriet: verb 82, noun 13, aux 5
+- exaltierten: adj 82, verb 15, noun 3
+- geneigt: adj 70, verb 29
+- einzuschätzen: verb 80, noun 19
+- prunkwinden: noun 70, verb 28
+- fordere: verb 88, adv 6, adj 4
+- generals: noun 83, adv 17
+- kehren: verb 85, noun 14
+- professionelle: adj 84, noun 15
+- fußballer: noun 84, adj 16
+- durchgefroren: adj 76, noun 21, verb 4
+- intelligentes: adj 84, noun 15
+- einzubürgern: verb 85, noun 15
+- beabsichtige: verb 73, adj 19, noun 7
+- sätzeübersetzen: noun 72, verb 28
+- meteorologen: noun 82, verb 18
+- unterschieden: noun 80, verb 14, adj 4
+- irgend: adv 68, adj 20, noun 4, num 4, verb 3
+- berufs: noun 87, adj 7, adv 2
+- freud: noun 86, adj 8, verb 3
+- ausreden: verb 81, noun 14, adj 4
+- zügeln: verb 79, noun 21
+- bärten: noun 80, verb 14, adj 4
+- verrückteste: noun 73, adj 28
+- mühen: noun 69, verb 23, adj 7
+- strapazen: noun 80, verb 14, adj 4
+- sportart: noun 84, verb 10, adv 2, art 2
+- gewehren: noun 81, verb 18
+- gewahr: adj 68, noun 24, adv 4, verb 4
+- piercen: verb 79, noun 18, adj 2
+- kommenden: adj 86, noun 8, verb 6
+- ausgemessen: verb 80, noun 12, adv 5, adj 2
+- yoyogi-park: noun 86, adj 13
+- deuteten: verb 90, adj 9
+- kamele: noun 86, verb 13
+- strohdumme: adj 76, noun 13, verb 11
+- unterlaß: noun 86, verb 12
+- zweifeln: verb 73, noun 27
+- stach: verb 81, adv 8, noun 7, adj 4
+- säuseln: verb 84, noun 16
+- zurückzukehren: verb 85, noun 14
+- fahne: noun 90, verb 9
+- entscheidenden: adj 86, noun 8, verb 6
+- lehre: verb 86, noun 7, adj 7
+- blüten: noun 80, verb 14, adj 4
+- londoner: adj 77, noun 20
+- tischdecken: noun 76, verb 24
+- verdrückte: verb 84, adj 8, noun 8
+- fußweg: noun 89, verb 6
+- heruntergefallene: adj 88, noun 9, verb 3
+- zwetschen: noun 71, adj 19, verb 9
+- holzweg: noun 89, verb 6
+- kämpften: verb 75, noun 18, adj 5, aux 2
+- ertrinken: verb 81, noun 17
+- werd: aux 71, noun 27
+- glich: verb 68, adj 22, adv 6, noun 3
+- schifahren: noun 76, verb 22, adj 2
+- windsurfen: noun 73, verb 23, aux 4
+- backofen: noun 78, verb 20
+- blaues: adj 84, noun 15
+- schwere: adj 79, verb 15, noun 5
+- ausgeprägten: adj 70, verb 24, noun 5
+- orteten: verb 90, adj 9
+- radiosenders: noun 87, adv 12
+- stechenden: adj 86, noun 8, verb 6
+- schliefe: verb 76, noun 23
+- verlaufenden: adj 86, noun 8, verb 6
+- zentimetern: noun 88, verb 10
+- flussschnecken-reisnudeln: noun 87, verb 12
+- colloquial: x 67, noun 17, adv 8, adj 8
+- stiften: verb 75, noun 18, adj 5, aux 2
+- mäzen: noun 80, verb 14, adj 4
+- austausch: noun 85, adj 13
+- stich: noun 70, adj 22, adv 6
+- zudrücken: verb 81, noun 14, adj 4
+- fix: adj 73, noun 25, verb 2
+- tennisclub: noun 85, verb 10, adj 3
+- wundervolle: adj 74, noun 21, verb 5
+- cäsar: noun 79, adj 18
+- steige: verb 83, noun 11, adj 6
+- aperitif: noun 87, verb 6, adj 3
+- oberschenkel: noun 89, adj 11
+- widersprüchlich: adj 89, adv 8, verb 3
+- füttere: verb 83, adj 16
+- kündige: verb 83, adj 12, noun 5
+- oberschicht: noun 84, verb 14
+- scham: noun 79, adj 14, verb 4
+- individuen: noun 73, verb 23, adj 3
+- gerührt: adj 70, verb 23, noun 5
+- anhieb: noun 78, verb 21
+- behandele: verb 79, noun 20
+- schneebedeckt: adj 84, verb 16
+- deprimiert: adj 73, verb 27
+- theaterkarten: noun 87, verb 10, adj 4
+- bezaubernde: adj 78, noun 17, verb 5
+- geldwesen: noun 80, verb 17
+- ostjerusalem: noun 76, adj 14, pron 8
+- impuls: noun 90, adv 8
+- wär's: aux 80, pron 13, verb 4
+- baff: adj 70, noun 26, verb 4
+- noten: noun 88, verb 10
+- leite: verb 76, noun 16, adj 6
+- verstünde: verb 82, noun 12, adj 6
+- übernachten: noun 73, verb 19, adj 8
+- oktoberfest: noun 70, verb 23, aux 5
+- börsengebühren: noun 76, verb 22, adj 2
+- außerbörslichen: adj 89, verb 6, noun 4
+- freiwillige: noun 76, adj 24
+- aufgewacht: verb 87, noun 9, adj 3
+- sauerteig: noun 88, adj 11
+- roggen: noun 80, verb 14, adj 4
+- sympathisch: adj 79, noun 19
+- er's: pron 79, aux 14, verb 4
+- besorgter: adj 77, noun 20
+- geistes: noun 81, adj 18
+- normalen: adj 89, noun 8, verb 3
+- anberaumten: adj 84, verb 13, noun 3
+- wahlen: noun 79, verb 21
+- lebewohl: noun 81, conj 9, x 9
+- eingeschlafene: adj 88, noun 9, verb 3
+- rieche: verb 72, adj 16, noun 12
+- gutging: verb 90, noun 9
+- rieb: verb 88, noun 11
+- erraten: verb 84, noun 16
+- axt: noun 76, verb 20, adj 3
+- erspart: verb 77, noun 17, adv 2, art 2
+- vertrages: noun 81, adj 18
+- anfertigen: verb 81, adj 17
+- auftreffen: noun 78, verb 20
+- imbißbudenfraß: noun 86, verb 12
+- pjotr: noun 87, adj 10
+- ziele: verb 75, noun 25
+- dachschaden: noun 84, verb 15
+- schlittschuh: noun 79, adj 13, adv 3, verb 3
+- bestseller: noun 79, adj 21
+- subtile: adj 70, noun 24, verb 6
+- beliebige: noun 72, adj 21, verb 6
+- hörer: noun 83, adj 16
+- unterschätztes: adj 84, noun 15
+- tröste: verb 71, adj 17, noun 11
+- getrauten: noun 82, verb 13, adj 6
+- amazonas-regenwald: noun 86, conj 6, adv 6
+- gefährdeter: adj 77, noun 20
+- befolge: verb 76, noun 13, prep 9
+- schwertuender: adj 84, noun 16
+- gekehrter: noun 87, adj 10
+- untersucht: verb 90, noun 9
+- hähne: noun 90, verb 9
+- krähen: verb 82, adj 9, noun 8
+- aha: x 68, noun 31
+- rekruten: noun 85, verb 11, adj 3
+- einzuschüchtern: verb 77, noun 15, adj 7
+- welle: noun 81, adj 17
+- überkam: verb 89, adj 6, noun 5
+- erstreckt: verb 90, adj 11
+- sonderrabatt: noun 84, conj 9, adj 6
+- online: adv 68, noun 25, adj 3
+- neige: noun 78, verb 16, adj 6
+- erdbeersalat: noun 90, x 7, verb 3
+- mauszeiger: noun 70, adj 29
+- nimmer: adv 68, noun 29, adj 3
+- bedauere: verb 81, adj 13, noun 5
+- entdecke: verb 73, noun 24, adj 3
+- verteidiger: noun 73, adj 26
+- bitteren: adj 88, noun 6, verb 6
+- wirte: noun 73, verb 24, adj 3
+- holländern: noun 88, verb 10
+- vollbart: noun 84, verb 10, adv 2, art 2
+- enden: verb 81, noun 14, adj 4
+- passivrauchen: noun 78, verb 21
+- ausgestoßener: noun 76, adj 24
+- verbund: noun 88, adj 8, prep 3
+- fetter: adj 70, noun 30
+- befreiten: verb 77, noun 22
+- jahrtausend: noun 71, num 26
+- nervige: adj 87, verb 6, noun 6
+- gesetzeslücken: noun 80, verb 14, adj 4
+- beständigen: adj 84, verb 11, noun 3
+- beträchtlich: adj 89, adv 6, noun 3
+- bunt: adj 73, verb 15, noun 12
+- kleidern: noun 88, verb 10
+- chirurgen: noun 84, verb 7, adj 5, adv 4
+- mandeln: noun 78, verb 22
+- bremsscheiben: noun 74, verb 26
+- weltkriegs: noun 82, adv 17
+- vollem: adj 81, noun 9, pron 8
+- unbeobachtet: adj 69, verb 27, noun 2, aux 2
+- haferflocken: noun 81, adj 12, verb 7
+- mitmachen: verb 86, noun 11, adj 2
+- zerbrachen: verb 86, noun 11, adj 2
+- urne: noun 79, adj 14, adv 3, x 3
+- kucken: noun 80, verb 14, adj 4
+- hiernach: adv 90, verb 6, noun 3
+- kindheitsbeinen: noun 90, verb 6, adj 3, art 2
+- liebesfilme: noun 86, verb 7, adj 7
+- wehgetan: verb 72, noun 16, adj 10
+- vorsätzen: noun 86, verb 14
+- teilchen: noun 84, art 10, adj 3, verb 3
+- zögere: verb 81, adj 18
+- witwer: noun 87, adj 10
+- märtyrer: noun 83, adj 16
+- lehrerinnen: noun 88, verb 10, adv 2
+- high: noun 79, adj 13, adv 3, verb 3
+- georgental: noun 84, adv 8, adj 8
+- straßendorf: noun 87, verb 6, adj 3
+- hierhergefahren: verb 89, noun 9, adj 2
+- hübsche: adj 90, noun 8
+- astloch: noun 84, adv 11, adj 4
+- reiches: noun 76, adj 23
+- unterirdisch: adj 79, noun 19
+- buschtrommeln: noun 87, verb 12
+- ängste: noun 72, adj 27
+- bewohnt: adj 75, verb 24
+- exemplaren: noun 74, adj 19, verb 6
+- kleineren: adj 83, noun 9, verb 8
+- müsstest: aux 72, verb 23, noun 4
+- verwendete: adj 79, verb 18, noun 3
+- beschleunigen: verb 76, pron 11, adj 6, art 6
+- mageres: adj 80, noun 15, pron 2
+- sommersprossen: noun 76, verb 21
+- übersät: verb 74, noun 25
+- mittelmaß: noun 86, verb 12
+- raten: verb 79, noun 19, adj 2
+- weigerten: verb 82, adj 15, noun 3
+- schlagloch: noun 84, adv 11, adj 4
+- fisches: noun 76, adj 23
+- läute: verb 82, noun 10, adj 6
+- schiller: noun 84, adj 16
+- erfährt: verb 90, noun 5, adj 4
+- einwortsätzen: noun 86, verb 14
+- apfeltorte: noun 80, verb 19
+- außerordentlich: adv 72, adj 22, noun 3
+- widmeten: verb 87, noun 6, adj 6
+- federn: noun 88, verb 10
+- freier: adj 69, noun 28
+- erfolgreichen: adj 89, verb 6, noun 4
+- alsbald: adv 73, noun 20, conj 6
+- bruders: noun 87, adv 12
+- spielchen: noun 84, art 10, adj 3, verb 3
+- bedacht: verb 87, noun 9, adj 3
+- brautleuten: noun 85, verb 11, adj 3
+- fruchtfleisch: noun 85, adj 13
+- melden: verb 81, noun 14, adj 4
+- anzubellen: verb 81, noun 14, adj 4
+- vertrags: noun 79, adv 21
+- zurückhaben: verb 84, noun 16
+- unwissend: adj 81, noun 7, verb 6, num 5
+- russen: noun 76, verb 21
+- gell: part 67, adj 25, noun 4, verb 4
+- unaufmerksamsten: adj 79, noun 13, verb 5
+- blank: adj 74, noun 21, verb 5
+- kursen: noun 80, verb 17
+- bunte: adj 71, verb 18, noun 11
+- erschrocken: adj 79, noun 15, verb 7
+- wehtust: verb 86, noun 13
+- grundlagen: noun 73, verb 26
+- träger: adj 69, noun 31
+- spielsachen: noun 78, verb 20, adj 2
+- käsespätzle: noun 87, adj 8, verb 5
+- baute: verb 89, adj 8, noun 3
+- brücken: noun 80, verb 14, adj 4
+- grammatischen: adj 85, verb 9, noun 5
+- sohle: noun 87, verb 12
+- okay: x 70, noun 30
+- dorfpost: noun 76, verb 16, adv 7
+- karpfen: noun 78, verb 20
+- allwissend: noun 74, adj 14, verb 6, num 5
+- veröffentlichten: adj 75, verb 19, noun 6
+- tenöre: noun 77, verb 18, adj 4
+- bestreiten: verb 77, noun 22
+- avatar: noun 79, adj 18
+- second: noun 83, adj 11, verb 3
+- life: noun 87, verb 13
+- schreibgeräte: noun 80, verb 12, adj 8
+- nullstellen: noun 80, verb 14, adj 4
+- projekts: noun 89, adv 8, prep 2
+- kindermund: noun 88, adj 8, prep 3
+- kund: adj 75, noun 21, prep 3
+- umgekehrt: adj 70, verb 23, noun 5
+- lachten: verb 85, adj 8, noun 6
+- augentropfen: noun 87, verb 13
+- oral: adj 74, noun 17, adv 8
+- alphabets: noun 89, adv 8, prep 2
+- zarten: adj 70, noun 20, verb 10
+- klängen: noun 76, verb 24
+- vorm: prep 68, noun 28, adj 4
+- verhungern: noun 81, verb 18
+- verbittert: adj 84, verb 15
+- bestünde: verb 82, noun 12, adj 6
+- maskat: noun 90, verb 8
+- lache: verb 67, noun 29, adj 4
+- belästigen: verb 81, adj 17
+- dringend: adj 87, noun 4, num 4, verb 3, adv 2
+- englischsprachigen: adj 90, verb 9
+- pointe: noun 78, verb 18, adj 5
+- starkem: adj 86, noun 6, art 3, pron 2
+- redlich: adj 89, adv 6, noun 3
+- erfinderisch: adj 89, noun 11
+- unwillkürliches: adj 90, noun 9
+- harnlassen: noun 68, verb 31
+- umarmten: verb 79, adj 18, noun 3
+- weinend: adj 87, noun 4, num 4, verb 3, adv 2
+- bleistifte: noun 77, verb 14, adj 7
+- wiegenliedern: noun 88, verb 10
+- kugelschreiber: noun 89, adv 8
+- gesenktem: adj 87, noun 12
+- zusammenstoß: noun 80, verb 8, adj 6, adv 5
+- übersetzern: noun 88, verb 10
+- ermöglichte: verb 84, noun 13, adj 3
+- hinzufügen: noun 78, verb 21
+- sätzen: noun 86, verb 14
+- direkten: adj 84, noun 10, verb 5
+- objekts: noun 89, adv 8, prep 2
+- dickes: adj 80, noun 19
+- weltgeschichte: noun 79, verb 17, adj 3
+- kultivierten: adj 82, verb 15, noun 3
+- völkern: noun 88, verb 10
+- ungewöhnlich: adj 89, adv 6, noun 3
+- wirken: verb 81, noun 14, adj 4
+- füllworter: noun 87, adj 10
+- unpassend: adj 81, noun 7, verb 6, num 5
+- initialen: noun 74, adj 22, verb 3
+- fachwörter: noun 87, adj 10
+- gemein: adj 68, noun 28, adv 3
+- bettlaken: noun 80, verb 14, adj 4
+- zusammenzunehmen: verb 86, noun 11
+- wegzulegen: verb 86, adj 10, noun 3
+- möhre: noun 73, verb 20, adj 7
+- verkündeten: adj 85, noun 8, verb 7
+- fass: noun 82, adj 8, verb 6, conj 4
+- allzu: adv 88, noun 10
+- decken: noun 76, verb 24
+- obdachlosen: noun 78, adj 21
+- naschen: verb 76, adj 19, noun 5
+- parteiförmige: adj 87, verb 6, noun 6
+- historisch: adj 89, noun 11
+- verfeindeten: adj 85, noun 8, verb 7
+- verwunden: verb 86, noun 10, adj 4
+- feige: adj 73, verb 16, noun 11
+- stadtleben: noun 84, verb 15
+- musikalisches: adj 90, noun 9
+- äußeren: adj 73, verb 21, noun 5
+- privatsender: noun 83, adj 17
+- allgemeine: adj 73, noun 14, verb 6, art 6
+- anomale: adj 86, noun 13
+- satire: noun 77, verb 12, adj 10
+- aufschreit: verb 84, noun 15
+- postfiliale: noun 84, adj 16
+- öde: adj 78, noun 17, verb 5
+- mörder: noun 90, adj 6, adv 3
+- verabscheuenswürdige: adj 79, verb 16, noun 5
+- ermordet: verb 85, aux 14
+- zunehmen: verb 86, noun 11
+- sägen: verb 81, noun 14, adj 4
+- ändert: verb 83, num 12, adj 3, noun 3
+- gebräuche: noun 76, verb 21, adj 4
+- sanddorn: noun 88, verb 10
+- hecken: noun 76, verb 24
+- reiseadapter: noun 87, adj 10
+- preiswerten: adj 82, verb 15, noun 3
+- schnarchen: verb 76, noun 21, adj 3
+- schwänzen: verb 82, noun 18
+- merken: verb 81, noun 14, adj 4
+- alternative: noun 81, adj 18
+- war's: aux 80, pron 13, verb 4
+- erschreckt: verb 90, adj 11
+- referat: noun 90, verb 8
+- zweieinhalb: num 71, adv 13, prep 13
+- drastisch: adj 89, noun 10
+- ausgesprochen: adv 69, verb 24, noun 6
+- vielgestalt: adj 70, noun 23, verb 7
+- unaufhörlichen: adj 89, verb 6, noun 4
+- rial: noun 84, adv 8, adj 8
+- epoche: noun 79, adj 16, verb 5
+- hüfte: noun 77, verb 14, adj 7
+- seins: pron 80, noun 16, adv 2
+- vorhatte: verb 76, noun 18, adj 6
+- erröteten: verb 90, adj 9
+- nachspeisen: noun 78, verb 21
+- neuerdings: adv 84, noun 15
+- verschmutzte: adj 72, verb 24, noun 4
+- hat's: aux 75, verb 23
+- erlebnissen: noun 88, verb 12
+- breitkrempigen: adj 84, verb 11, noun 3
+- trösten: verb 72, noun 13, adj 13
+- zäum: verb 68, noun 27, adv 3
+- befolgen: verb 86, noun 11, adj 2
+- fügen: verb 87, noun 11
+- puddingpulver: noun 87, adj 10
+- front: noun 79, verb 15, adj 6
+- freie: adj 90, verb 7, noun 3
+- geschnitten: verb 84, noun 12, adv 3
+- bohne: noun 90, verb 9
+- gebissen: verb 79, noun 21
+- wesentliche: noun 71, adj 26
+- habet: aux 72, noun 15, verb 12
+- vertiefte: verb 80, noun 11, adj 7
+- kurzen: adj 72, noun 18, verb 10
+- seufzen: noun 80, verb 14, adj 4
+- verlasse: verb 78, noun 21
+- eichentisch: noun 76, adj 22
+- fingern: noun 81, verb 18
+- schmatzendem: adj 84, pron 11
+- kauen: noun 73, verb 23, adj 3
+- orange: noun 86, verb 8, conj 6
+- handele: verb 79, noun 20
+- linke: adj 70, noun 18, verb 12
+- entgegengesetzt: adj 72, verb 25, adv 3
+- clever: adj 77, noun 20
+- überein: adv 76, noun 23
+- verbrauchen: verb 87, noun 11
+- design: noun 80, verb 14, adj 4
+- braven: adj 76, noun 21, verb 4
+- einhundert: num 78, verb 16, adj 3, noun 3
+- gehirnzellen: noun 80, verb 14, adj 4
+- anwesend: adj 76, num 16, noun 5, verb 3
+- polytechnique: noun 81, verb 13, adj 6
+- vermessungsingenieure: noun 87, verb 10, adj 3
+- säge: verb 68, noun 29, adj 2
+- schwur: verb 68, noun 30
+- professioneller: adj 88, noun 12
+- anzustreichen: verb 73, adj 23, noun 4
+- philogelos: noun 74, adj 26
+- leidenschaftlich: adj 89, adv 6, noun 3
+- strande: noun 86, adv 7, adj 6
+- wetterbericht: noun 84, verb 14
+- billigeres: noun 82, adj 14, pron 2
+- läuten: verb 78, noun 18, adj 3
+- schneider: noun 85, adv 7, art 6, adj 2
+- eindrucksvoller: adj 83, noun 17
+- abfahren: verb 89, noun 9, adj 2
+- pdf: noun 87, verb 6, adj 3
+- marcos: noun 84, adj 16
+- thunder: noun 90, adj 6, adv 3
+- giant: noun 83, adj 13, verb 4
+- zurückhaltender: adj 84, noun 16
+- maßstab: noun 79, verb 12, adv 7
+- generalstab: noun 79, verb 12, adv 7
+- einigem: pron 73, adj 23, noun 2
+- endspielen: noun 79, verb 19
+- verteidigenden: adj 86, noun 8, verb 6
+- angreifenden: adj 86, noun 8, verb 6
+- kapitän: noun 80, verb 14, adj 4
+- eingeborenen: noun 75, adj 22, verb 3
+- milliardär: noun 81, adj 11, verb 7
+- klappte: verb 90, noun 8
+- schnürchen: noun 88, verb 10, adj 3
+- bewerbe: verb 87, noun 12
+- poren: noun 87, adj 9, verb 4
+- auszutrocknen: verb 84, noun 13, adj 3
+- unterrichts: noun 85, prep 9, adv 5
+- taj: noun 83, verb 10, adj 6
+- mahal: noun 84, adv 8, adj 8
+- weggefahren: verb 89, noun 9, adj 2
+- einzelheiten: noun 89, verb 10
+- ungebildete: adj 79, verb 15, noun 6
+- neandertaler: noun 76, adj 25
+- summe: noun 80, verb 11, adj 9
+- knaben: noun 88, verb 12
+- entbunden: verb 86, noun 10, adj 4
+- antiquitätenladen: noun 84, verb 15
+- weltflucht: noun 76, verb 20, adj 3
+- deck: verb 69, noun 29
+- ausnutzen: verb 89, noun 10
+- auswurftaste: noun 78, adj 17, verb 4
+- allah: noun 82, verb 12, adj 4
+- gesandter: noun 87, adj 10
+- einher: adv 70, adj 19, noun 10
+- wunden: noun 76, verb 20, adj 4
+- wär: aux 66, noun 15, adj 11, verb 7
+- zehenmal: adv 88, noun 7, adj 5
+- sturmes: noun 90, adj 10
+- starten: verb 76, noun 20, adj 4
+- orte: noun 73, verb 24, adj 3
+- überreste: noun 76, adj 24
+- verlängern: verb 85, noun 15
+- verbreitern: verb 82, noun 18
+- mehrfach: adv 75, verb 14, noun 7, adj 4
+- erlernen: noun 82, verb 11, adj 6
+- finnischen: adj 85, verb 9, noun 5
+- keksen: noun 80, verb 17
+- greife: verb 86, noun 14
+- abscheulich: adj 89, adv 6, noun 3
+- entzünden: verb 89, noun 8, adj 3
+- gönnerhaftes: adj 84, noun 15
+- abdullah: noun 82, verb 12, adj 4
+- ss: noun 87, adj 7, adv 2
+- ist's: aux 75, verb 23
+- herbstlichen: adj 89, verb 6, noun 4
+- schrecklichen: adj 89, verb 6, noun 4
+- picasso: noun 78, adv 22
+- vorzubereiten: verb 77, noun 22
+- wiedergefunden: verb 86, noun 10, adj 4
+- glaubenssätzen: noun 86, verb 14
+- zielen: noun 79, verb 19
+- kilobytes: noun 81, adj 18
+- speicher: noun 69, adj 30
+- brigitte: noun 87, adj 8, verb 5
+- hüten: verb 81, noun 14, adj 4
+- izu: noun 76, adv 21
+- hochinteressant: adj 88, noun 11
+- interessantes: noun 81, adj 18
+- mir's: pron 79, aux 14, verb 4
+- rasenmäher: noun 76, adj 19, adv 3
+- dreh: verb 89, noun 7, adj 3
+- agil: adj 71, noun 25
+- beschweren: verb 88, adj 6, noun 5
+- tugenden: noun 75, adj 19, verb 6
+- schwäbischen: adj 85, verb 9, noun 5
+- astronom: noun 85, adj 9
+- kirchen: noun 88, verb 10, adj 3
+- anständigen: adj 84, verb 11, noun 3
+- parallelogramme: noun 80, verb 11, adj 9
+- gegenüberliegenden: adj 86, noun 8, verb 6
+- metalle: noun 88, verb 8, adj 4
+- spröde: adj 84, noun 13
+- knast: noun 87, verb 12
+- wissenschaftlich: adj 89, adv 6, noun 3
+- rühren: verb 89, noun 9, adj 2
+- hexen: noun 84, adj 9, verb 6
+- verzichten: verb 85, adj 8, noun 6
+- fünfmal: adv 88, noun 7, adj 5
+- bestellten: verb 86, noun 7, aux 6
+- helft: verb 77, noun 18, adj 5
+- geliebter: noun 79, adj 20
+- ahne: verb 76, noun 23
+- hervorragenden: adj 86, noun 8, verb 6
+- miss: verb 80, noun 12, adj 8
+- taste: noun 78, adj 17, verb 4
+- ewige: adj 87, verb 6, noun 6
+- haustüre: noun 81, verb 15, adj 3
+- ausländisches: adj 90, noun 9
+- kirschen: noun 71, adj 19, verb 9
+- brandneu: adj 70, noun 24, adv 3, verb 2
+- heiser: adj 77, noun 20
+- flüstern: verb 77, noun 13, adv 9
+- atlantischen: adj 85, verb 9, noun 5
+- indischen: adj 85, verb 9, noun 5
+- pazifischen: adj 85, verb 9, noun 5
+- südpolarmeer: noun 87, adj 10
+- abgelöst: verb 87, noun 9, adj 3
+- kardinals: noun 83, adv 17
+- unabdingliches: adj 90, noun 9
+- ernte: noun 70, verb 28
+- reporter: noun 87, adj 10
+- stellten: verb 86, noun 7, aux 6
+- anhabe: verb 72, noun 28
+- sensationeller: adj 88, noun 12
+- gekrönt: verb 82, noun 12, adj 6
+- austrocknen: verb 84, noun 13, adj 3
+- wiederhören: noun 73, verb 26
+- wüßte: verb 82, adj 12, aux 4
+- verheimlichen: verb 73, adj 23, noun 4
+- unschuldigen: noun 70, adj 18, verb 11
+- galgen: noun 78, verb 20, adj 2
+- exfreundes: noun 81, adj 19
+- fesseln: noun 83, verb 18
+- geliebten: noun 74, verb 24
+- unabhängige: adj 87, verb 6, noun 6
+- lebensziel: noun 84, verb 8, art 4, adv 4
+- preiskontrollen: noun 81, verb 11, adj 8
+- späte: adj 74, noun 14, verb 12
+- karlolo: x 76, noun 23
+- net: x 66, verb 27, noun 2, adj 2, aux 2
+- reines: adj 87, noun 10
+- unerwarteten: adj 76, verb 23
+- chinesen: noun 80, verb 17
+- harte: adj 68, noun 21, verb 12
+- segeln: noun 87, verb 12
+- gleichsam: adv 70, adj 28
+- zugvögeln: noun 87, verb 12
+- kirmes: noun 90, adj 10
+- ertrinkt: verb 90, adj 6, noun 4
+- bittest: verb 90, aux 5, noun 4
+- bewußt: adj 70, verb 26, aux 3
+- julianischen: adj 85, verb 9, noun 5
+- kalender: noun 83, adj 17
+- ziegelsteinen: noun 90, verb 6, adj 3, art 2
+- klettert: verb 81, adj 18
+- schroffsten: adj 79, noun 13, verb 5
+- braunes: adj 87, noun 10
+- ehrlichen: adj 89, verb 6, noun 4
+- kriecht: verb 79, adj 10, noun 8, adv 3
+- stolpern: verb 77, noun 21
+- integrierten: adj 82, verb 15, noun 3
+- fotoapparat: noun 90, verb 8
+- zugefrorenen: adj 89, noun 8, verb 3
+- probe: noun 85, verb 10
+- mathetest: noun 70, verb 23, aux 5
+- behaupteten: verb 90, adj 9
+- verdunkele: verb 79, noun 20
+- merk's: verb 79, aux 7, pron 6, noun 3
+- abholzen: verb 81, noun 14, adj 4
+- endlichen: noun 71, adj 23, verb 6
+- relativen: noun 88, adj 9, verb 4
+- allerbeste: noun 76, adj 24
+- spazierfahrt: noun 72, verb 23, adj 4
+- brandes: noun 81, adj 19
+- geblast: verb 79, noun 20
+- psychologisch: adj 86, noun 13
+- besuche: verb 88, noun 9, adj 4
+- kennzeichen: noun 71, adj 23, verb 6
+- flexibel: adj 73, noun 26
+- kräftemessen: noun 79, verb 14, adv 5, adj 2
+- hungern: verb 85, noun 15
+- legal: adj 80, noun 17, adv 3
+- fleischbrühe: noun 79, adj 16, verb 5
+- schick: verb 69, noun 29
+- nachweisen: verb 88, noun 12
+- zoll: noun 71, adj 28
+- hinderlich: adj 89, adv 6, noun 3
+- rumstehen: noun 73, verb 27
+- lebend: adj 87, noun 11
+- predigen: verb 77, adj 18, noun 3
+- hackbraten: noun 82, verb 17
+- schale: noun 84, adj 16
+- glühender: adj 84, noun 16
+- gliedern: noun 88, verb 10
+- pellen: verb 81, noun 14, adj 4
+- grüßen: verb 86, noun 6, adj 4, adv 4
+- nass: adj 75, noun 15, verb 6, conj 4
+- kennenlernen: verb 78, noun 15, adj 6
+- kalmare: noun 81, adj 17
+- tentakeln: noun 87, verb 12
+- arschgeweih: noun 79, verb 15, adj 5
+- psychologen: noun 82, verb 18
+- entzücken: verb 81, noun 14, adj 4
+- einrücken: verb 81, noun 14, adj 4
+- futtersuche: noun 76, verb 21, adj 4
+- würzen: verb 77, noun 18, adj 6
+- zuallererst: adv 72, verb 20, noun 6
+- unbeschwert: adj 83, verb 9, noun 8
+- ungebunden: adj 70, verb 20, noun 10
+- milde: adj 76, verb 12, noun 11
+- philippinen: noun 90, verb 6, adj 3, art 2
+- tagalog: noun 86, adj 10, verb 5
+- kastilischen: adj 85, verb 9, noun 5
+- mexikos: noun 84, adj 16
+- zentaure: noun 87, verb 10, adj 3
+- märchen: noun 88, verb 10, adj 3
+- vierzehnköpfige: adj 87, verb 6, noun 6
+- ausgestreckt: adj 77, verb 23
+- beschäftige: verb 71, adj 24, noun 4
+- erschuf: verb 72, noun 18, adv 9
+- europäern: noun 88, verb 10
+- effizientere: adj 89, verb 7, noun 3
+- wärmeaustauschverfahren: noun 76, verb 22, adj 2
+- familienunternehmen: noun 78, verb 20
+- hecht: noun 75, verb 12, adj 10, adv 3
+- erbittert: adj 84, verb 15
+- romantisches: adj 90, noun 9
+- eroberer: noun 76, adj 24
+- verzeihe: verb 82, noun 11, adj 6
+- wiederholungsschleife: noun 87, verb 13
+- anime: noun 86, verb 7, adj 7
+- arztes: noun 81, adj 18
+- gemeinde: noun 77, verb 19, adj 3
+- geläute: noun 77, verb 15, adj 6
+- verkehr: noun 90, adv 9
+- schnitt: verb 75, noun 19, num 4
+- bösewicht: noun 84, verb 14
+- darsteller: noun 79, adj 21
+- aufgeräumt: adj 72, verb 25
+- mischen: verb 76, adj 19, noun 5
+- geselligen: adj 78, verb 15, noun 7
+- säumten: verb 79, adj 18, noun 3
+- gesamte: adj 76, verb 23
+- s-reifen: noun 86, verb 14
+- sommerreifen: noun 86, verb 14
+- absoluten: noun 85, verb 11, adj 3
+- bücherregal: noun 84, adj 14, adv 3
+- planen: verb 78, noun 19, adj 3
+- hauptbestreben: noun 72, verb 27
+- stieren: noun 70, verb 30
+- bibliothekar: noun 79, adj 18
+- lebtest: verb 90, aux 5, noun 4
+- eigens: adv 84, noun 16
+- verglich: verb 69, adj 17, adv 11, prep 3
+- aktuellen: adj 71, verb 14, noun 14
+- darlehen: noun 69, verb 30
+- geschneidert: verb 87, num 8, adj 3, noun 2
+- autistisch: adj 89, noun 10
+- veranlagt: adj 70, verb 29
+- gelegenheiten: noun 89, verb 10
+- urlaubswochen: noun 73, verb 24, adv 2
+- tausender: noun 83, adj 17
+- halbgebildete: noun 72, verb 15, adj 13
+- größter: adj 77, noun 20
+- aussuchen: verb 87, noun 11
+- zukunftsmarkt: noun 79, verb 21
+- zurückgreife: verb 86, noun 14
+- scherzen: verb 74, noun 24
+- schiene: verb 81, noun 10, adj 8
+- vermute: verb 82, noun 10, adj 6
+- saubere: adj 79, verb 15, noun 5
+- energiequelle: noun 81, adj 17
+- gebratenen: adj 90, verb 6, noun 4
+- angestellte: noun 70, verb 27, adj 4
+- reichten: verb 85, adj 8, noun 6
+- kilos: noun 74, adj 26
+- gastschüler: noun 87, adj 10
+- begrüßen: verb 86, noun 6, adj 4, adv 4
+- herzklopfen: noun 87, verb 13
+- tischsitten: noun 79, verb 17, adv 3
+- gebräuchen: noun 78, verb 21
+- droht: verb 87, noun 9, adj 3
+- pflichtstunden: noun 76, verb 20, adj 4
+- zähnen: noun 79, verb 20
+- dulde: verb 79, noun 11, adj 10
+- entmutigen: verb 81, adj 17
+- motorhaube: noun 85, verb 10
+- delle: noun 81, adj 17
+- sekretärinnen: noun 88, verb 10, adv 2
+- lateinische: noun 68, adj 32
+- schwuler: noun 87, adj 10
+- krempel: verb 75, noun 25
+- verscheucht: verb 87, noun 9, adj 3
+- entsetzlichen: adj 89, verb 6, noun 4
+- erstaunlichste: noun 78, adj 21
+- verrate: verb 85, noun 14
+- schleifen: verb 80, noun 19
+- fischer: noun 73, adj 27
+- doof: adj 73, noun 25
+- hinterlegen: verb 86, adj 10, noun 3
+- unterhosen: noun 83, adj 13, verb 4
+- bezichtigt: verb 81, adj 19
+- kometen: noun 73, verb 21, adj 6
+- zurückreisen: verb 88, noun 12
+- kürbiskuchen: noun 78, verb 21
+- mikrowellen: noun 80, verb 14, adj 4
+- schäden: noun 80, verb 14, adj 4
+- verursachen: verb 86, noun 11, adj 2
+- zerbrochene: adj 88, noun 9, verb 3
+- fensterscheibe: noun 81, verb 18
+- ungezogen: adj 70, verb 29
+- schwerter: noun 77, adj 23
+- zündkerze: noun 84, adj 16
+- neidisch: adj 79, noun 19
+- gelitten: verb 84, noun 12, adv 3
+- sankt: noun 79, verb 19, adj 2
+- behälter: noun 87, adj 10
+- hermetisch: adj 89, noun 10
+- empfehle: verb 79, noun 21
+- visual: noun 84, adv 8, adj 8
+- basic: noun 83, verb 10, adj 6
+- tätigen: verb 81, adj 17
+- mittleren: adj 73, verb 21, noun 5
+- glückes: noun 86, adj 14
+- elend: noun 70, adj 20, num 4, verb 3, adv 2
+- wiederkehrt: verb 90, noun 5, adj 4
+- mark: noun 86, adj 13
+- eingeschlossen: verb 88, noun 9
+- räum: verb 68, noun 27, adv 3
+- saaten: noun 85, verb 12, adj 2
+- handwerkstechniken: noun 90, verb 7, adj 4
+- gerecht: adj 82, verb 7, noun 6, adv 5
+- notendurchschnitt: noun 86, verb 8, num 4
+- tatoeba-welt: noun 70, verb 29
+- hartes: adj 90, noun 11
+- charles: noun 81, adj 18
+- widerstandes: noun 81, adj 19
+- insgeheim: adv 81, noun 10, adj 7
+- freute: verb 79, noun 17, adj 2
+- unterlasse: verb 78, noun 21
+- schreie: verb 74, adj 23, noun 3
+- fachleute: noun 84, verb 13, adj 2
+- unglaublichen: adj 89, verb 6, noun 4
+- staatsbürger: noun 89, adj 11
+- anglophonen: adj 68, noun 30
+- akademischen: adj 85, verb 9, noun 5
+- wetten: verb 70, noun 28
+- ästen: noun 79, adj 13, verb 5
+- brüsken: adj 71, verb 14, noun 14
+- anwälten: noun 70, verb 25, adj 3
+- weiterzulesen: verb 89, noun 11
+- karpov: noun 77, adj 22
+- kasparov: noun 77, adj 22
+- züge: noun 84, adj 8, verb 6
+- international: adj 73, noun 24, adv 2
+- heiter: adj 68, noun 31
+- tragödiendichtern: noun 81, verb 11, adj 7
+- kaputtgelacht: verb 87, noun 9, adj 3
+- puzzle: noun 87, adj 8, verb 5
+- fünfhundert: num 78, verb 16, adj 3, noun 3
+- genitiv: noun 74, adj 26
+- generäle: noun 87, adj 8, verb 5
+- diesbezüglich: adv 78, adj 17, prep 3, verb 3
+- honig: noun 77, adj 22
+- bienen: noun 68, verb 24, adj 8
+- festgebunden: verb 86, noun 10, adj 4
+- bläst: verb 87, noun 9, adj 3
+- nervt: verb 87, noun 9, adj 3
+- stumpf: adj 70, noun 28
+- fliegenden: adj 86, noun 8, verb 6
+- lederwaren: noun 74, adj 19, verb 6
+- verabschieden: verb 81, noun 14, adj 4
+- behelfen: verb 87, noun 12
+- geräusche: noun 75, adj 23
+- vorsätzlich: adj 89, adv 6, noun 3
+- aufgeschlossen: adj 68, verb 21, noun 9
+- palästinenser: noun 87, adj 10
+- entmenschlicht: verb 84, noun 15
+- vormachen: verb 86, noun 11, adj 2
+- beichte: noun 79, verb 17, adj 3
+- vegetarischen: adj 85, verb 9, noun 5
+- zurückzahlen: verb 88, noun 12
+- versprich: verb 81, noun 10, adj 6
+- gefährdete: adj 79, verb 18, noun 3
+- einzelner: adj 77, noun 20
+- überraschten: verb 85, adj 8, noun 6
+- dringenden: adj 86, noun 8, verb 6
+- ratschlägen: noun 80, verb 14, adj 4
+- pessimist: noun 90, verb 7
+- scharfes: noun 81, adj 18
+- fäuste: noun 78, adj 17, verb 4
+- tibet: noun 82, verb 12, aux 5
+- lindern: verb 77, noun 21
+- zurückbezahlen: verb 88, noun 12
+- fette: adj 68, noun 31
+- krabbeln: verb 79, noun 21
+- fahrradreifen: noun 86, verb 14
+- reinzulegen: verb 86, adj 10, noun 3
+- auflodern: verb 77, noun 21
+- erdtrabant: noun 83, adj 13, verb 4
+- geschützte: adj 72, verb 24, noun 4
+- herumreiten: verb 77, noun 22
+- karate: noun 81, verb 19
+- telegrafenmast: noun 87, verb 12
+- straßenverhältnissen: noun 88, verb 12
+- wildpflanzen: noun 84, verb 15
+- traduttore: x 67, verb 12, noun 10, adj 10
+- traditore: x 67, verb 12, noun 10, adj 10
+- verräter: noun 87, adj 10
+- klempner: noun 87, adj 10
+- pumpte: verb 90, noun 8
+- trockenzulegen: verb 86, adj 10, noun 3
+- ordner: noun 87, adj 10
+- bange: noun 86, verb 8, conj 6
+- kobolde: noun 78, verb 12, adj 10
+- gruben: verb 80, noun 19
+- wohlgenährt: adj 70, verb 23, noun 5
+- vladimir: noun 87, adj 10
+- verteidige: verb 83, adj 12, noun 5
+- paradieses: noun 90, adj 10
+- stur: adj 68, noun 30
+- unaufhörliches: adj 90, noun 9
+- tageslicht: noun 82, verb 18
+- sammler: noun 87, adj 10
+- mitkommen: noun 69, verb 28, adj 2
+- überreden: verb 81, noun 14, adj 4
+- katzenvideos: noun 84, adj 16
+- ständige: adj 79, verb 16, noun 5
+- strikte: adj 71, verb 25, noun 4
+- beamer: noun 77, adj 23
+- erbitterten: adj 82, verb 15, noun 3
+- j: x 67, noun 16, verb 10, adj 6
+- naturjoghurt: noun 89, verb 9
+- heft: noun 84, verb 10, adj 5
+- bedürfen: verb 90, noun 6, aux 4
+- brutal: adj 74, noun 17, adv 8
+- wich: verb 68, adj 22, adv 6, noun 3
+- erwischen: verb 76, adj 19, noun 5
+- verlier: verb 68, noun 28, adj 2
+- flucht: noun 76, verb 20, adj 3
+- gemüt: noun 76, verb 20, adj 3
+- unerwartetes: noun 81, adj 18
+- begehren: noun 81, verb 18
+- parat: adj 68, noun 23, verb 8
+- kleinste: adj 89, noun 10
+- gülle: noun 87, adj 8, verb 5
+- spülen: verb 81, noun 14, adj 4
+- langsamfahren: noun 76, verb 22, adj 2
+- intelligenter: adj 81, adv 13, noun 3, prep 3
+- weitem: adj 87, noun 12
+- komplizierter: adj 90, noun 11
+- helden: noun 80, verb 14, adj 4
+- immens: adj 73, noun 16, prep 7, adv 3
+- achte: adj 70, verb 26, noun 4
+- wandert: verb 83, num 12, adj 3, noun 3
+- suchten: verb 85, adj 8, noun 6
+- kommentar: noun 79, adj 18
+- ländern: noun 88, verb 10
+- interessanten: adj 70, noun 28
+- hold: adj 70, noun 26
+- einöde: noun 80, adj 18
+- bekanntes: adj 84, noun 15
+- schuldhaftem: adj 87, noun 12
+- serrano-schinken: noun 84, verb 15
+- scheine: verb 73, noun 14, adj 7, art 6
+- lädt: verb 77, noun 19, adj 3
+- innre: noun 77, verb 12, adj 10
+- usw: adv 70, noun 27
+- obendrauf: adv 84, noun 15
+- schaue: verb 87, adj 10, noun 4
+- umweg: noun 89, verb 6
+- typisches: adj 90, noun 9
+- kühleren: adj 73, verb 21, noun 5
+- gebären: verb 86, adj 11, noun 3
+- herzförmigen: adj 84, verb 11, noun 3
+- deutschlerner: noun 82, adj 11, adv 7
+- verinnerlichen: verb 73, adj 23, noun 4
+- berühmten: adj 84, verb 13, noun 3
+- gärten: noun 80, verb 14, adj 4
+- schätzungsweise: adv 90, noun 11
+- inselstaat: noun 90, verb 8
+- westküste: noun 78, adj 17, verb 4
+- spannte: verb 85, noun 7, adj 7
+- graue: adj 76, verb 20, noun 4
+- forscher: noun 73, adj 27
+- sauberes: adj 80, noun 15, pron 2
+- arabischen: adj 85, verb 9, noun 5
+- vertraute: adj 74, verb 22, noun 3
+- wende: verb 67, adj 26, noun 7
+- gehirnwäsche: noun 75, adj 23
+- königs: noun 82, adv 17
+- einleuchten: verb 85, adj 8, noun 6
+- vietnam: noun 79, adj 14, verb 4
+- entschlafen: verb 85, noun 11, adj 4
+- lach: verb 81, adv 8, noun 7, adj 4
+- kehrten: verb 78, noun 18, adj 3
+- schafen: noun 81, verb 16, adj 3
+- weidend: adj 87, noun 4, num 4, verb 3, adv 2
+- hüter: noun 87, adj 10
+- duft: noun 70, verb 28
+- verrichten: verb 85, adj 8, noun 6
+- berühmter: adj 77, noun 20
+- verbrachten: verb 85, adj 8, noun 6
+- verheirateter: adj 77, noun 20
+- tauschten: verb 85, adj 8, noun 6
+- verständnisvolle: adj 74, noun 21, verb 5
+- verhungernden: adj 71, verb 14, noun 14
+- zivilisierter: adj 90, noun 11
+- ungeschminkt: adj 73, verb 23, noun 4
+- hebräisch: noun 85, adj 13
+- zurückgefahren: verb 89, noun 9, adj 2
+- mischmasch: noun 85, adj 13
+- bewundert: verb 83, num 12, adj 3, noun 3
+- berühren: verb 89, noun 9, adj 2
+- welch: art 71, noun 18, adv 6, adj 4
+- zahnräder: noun 90, adj 6, adv 3
+- gebauten: adj 73, noun 15, verb 13
+- getriebes: noun 81, adj 18
+- ineinandergreifen: verb 80, noun 19
+- wegzuschmeissen: verb 79, noun 21
+- mainstream: noun 79, adj 14, verb 4
+- gegenden: noun 75, adj 19, verb 6
+- bar: adj 84, noun 12
+- bezahle: verb 79, noun 21
+- kinokasse: noun 88, verb 11
+- gernhaben: verb 84, noun 16
+- posten: noun 88, verb 7, adj 4
+- unabhängigen: adj 84, verb 11, noun 3
+- derartigen: adj 84, verb 15
+- festgelegte: adj 76, verb 24
+- maskenbildner: noun 87, adj 10
+- atemberaubend: adj 87, noun 11
+- heimatdorf: noun 87, verb 6, adj 3
+- fürstenpalast: noun 87, verb 12
+- gewölbter: adj 87, noun 13
+- lärmen: noun 78, verb 20
+- gewaltigen: adj 84, verb 15
+- umstände: noun 84, adj 11, verb 5
+- stärk: verb 70, noun 25, adj 5
+- fleisches: noun 76, adj 23
+- ritterlich: adj 89, adv 6, noun 3
+- dunkler: adj 77, noun 20
+- kongressabgeordnete: noun 69, verb 26, adj 5
+- überprüft: verb 77, noun 18, adj 5
+- hexe: noun 83, verb 10, adj 6
+- zutaten: noun 85, verb 12, adj 2
+- mikrowelle: noun 81, adj 17
+- deliziös: adj 73, noun 21, adv 2
+- flussabwärts: adv 80, noun 19
+- lohnen: verb 87, noun 12
+- geräte: noun 80, verb 12, adj 8
+- ständigen: adj 84, verb 11, noun 3
+- kanaren: noun 74, adj 19, verb 6
+- wiederbeleben: verb 82, noun 18
+- leichter: adj 77, noun 20
+- liegenden: adj 86, noun 8, verb 6
+- magenta: adj 70, noun 28, x 3
+- werte: noun 69, verb 28
+- krümelchen: noun 84, art 10, adj 3, verb 3
+- abfallen: verb 89, noun 10
+- frühstücke: verb 73, noun 24, adj 3
+- bewog: verb 84, noun 11, adj 5
+- hellen: adj 71, verb 14, noun 14
+- verheimlicht: verb 84, noun 15
+- umstrittensten: adj 88, noun 10
+- haushaltsposten: noun 88, verb 7, adj 4
+- bedanke: verb 79, noun 18, adj 3
+- aufregen: verb 88, adj 4, adv 4, noun 3
+- proppenvollen: adj 74, noun 15, verb 11
+- fahrgäste: noun 78, adj 17, verb 4
+- perfekter: adj 77, noun 20
+- unverständlichen: adj 89, verb 6, noun 4
+- walzertakt: noun 84, adj 9, verb 8
+- saales: noun 80, adj 19
+- schlössern: noun 76, verb 25
+- bog: verb 84, noun 11, adj 5
+- geldscheinen: noun 90, verb 6, adj 3, art 2
+- gepflogenheiten: noun 89, verb 10
+- bewunderer: noun 76, adj 24
+- romanischen: adj 85, verb 9, noun 5
+- jahreszeiten: noun 89, verb 10
+- philosophen: noun 75, verb 15, adj 9
+- gerechtfertigte: adj 73, verb 27
+- erleichtert: adj 84, verb 15
+- roberts: noun 85, adv 14
+- ohrfeige: noun 78, verb 16, adj 6
+- schnellsten: noun 79, adj 13, verb 5
+- zwinge: verb 81, noun 18
+- möglichst: adv 72, verb 27
+- schwammige: adj 87, verb 6, noun 6
+- iller: noun 84, adj 16
+- isar: noun 79, adj 18
+- drive-in-restaurant: noun 83, adj 13, verb 4
+- schossen: verb 88, noun 9
+- vorgesetzter: noun 87, adj 10
+- kyrillischen: adj 85, verb 9, noun 5
+- griechischen: adj 85, verb 9, noun 5
+- letztere: adj 89, verb 7, noun 3
+- lauten: noun 82, verb 13, adj 6
+- obstgarten: noun 87, verb 10, adj 4
+- musiklokal: noun 84, adv 8, adj 8
+- betrog: verb 84, noun 11, adj 5
+- shakespeares: noun 82, adj 14, pron 2
+- killer: noun 84, adj 16
+- schlucken: noun 80, verb 14, adj 4
+- wo's: adv 68, verb 13, aux 7, pron 6, noun 3
+- engpaß: noun 86, verb 12
+- beispiellosen: adj 88, noun 11
+- angeles: noun 87, pron 8, adj 6
+- städter: noun 87, adj 10
+- landleben: noun 84, verb 15
+- bulimie-lernen: noun 82, verb 11, adj 6
+- paukt: verb 81, noun 17, adj 2
+- kachelofen: noun 78, verb 20
+- beknackt: adj 74, verb 26
+- auszulesen: verb 89, noun 11
+- mist: noun 90, verb 7
+- dunkelrot: adj 70, noun 26, verb 3
+- aralsees: noun 81, adj 18
+- verursachten: adj 75, verb 19, noun 6
+- umweltkatastrophen: noun 75, verb 15, adj 9
+- weisheiten: noun 89, verb 10
+- vereinfachen: verb 86, noun 11, adj 2
+- anführungszeichen: noun 71, adj 23, verb 6
+- basta: x 75, noun 24
+- turtles: noun 81, adj 18
+- gleichnamigen: adj 84, verb 11, noun 3
+- elben: noun 73, art 11, adj 8, verb 5, pron 4
+- muscheln: noun 87, verb 12
+- tanze: verb 72, noun 24, adj 4
+- nantes: noun 81, adj 18
+- maler: noun 76, adj 25
+- beschuldigen: verb 77, adj 18, noun 3
+- verbrenn: verb 73, noun 25
+- maiskolben: noun 73, art 11, adj 8, verb 5, pron 4
+- beckham: noun 79, adj 14, verb 4
+- verkörperten: verb 82, adj 15, noun 3
+- polare: adj 84, noun 14
+- milliardäre: noun 87, verb 10, adj 3
+- zusammengenommenen: adj 90, verb 6, noun 4
+- buk: verb 69, noun 29
+- ansatzweise: adv 90, noun 11
+- wägen: verb 81, noun 14, adj 4
+- tanzten: verb 84, adj 9, noun 7
+- versoffen: verb 88, adj 8, noun 4
+- armeedienstes: noun 81, adj 18
+- osten: noun 79, adj 13, verb 5
+- udssr: noun 87, adj 10
+- flaschen: noun 71, adj 19, verb 9
+- beißend: adj 87, noun 4, num 4, verb 3, adv 2
+- kürbisschnitzfest: noun 70, verb 23, aux 5
+- satte: adj 73, noun 18, verb 10
+- sinnst: verb 85, noun 11, adv 2, adj 2
+- einkauf: noun 82, adv 17
+- erschössen: verb 88, noun 9
+- lauthals: adv 84, noun 16
+- fertigstellen: verb 81, noun 14, adj 4
+- internationalen: adj 89, noun 8, verb 3
+- verbündeten: noun 74, adj 19, verb 7
+- shakespeare: noun 81, adj 17
+- wortwörtlich: adj 89, adv 6, noun 3
+- hasen: noun 85, verb 14
+- stocksteif: adj 70, noun 21, verb 6
+- gefroren: adj 76, noun 21, verb 4
+- steigenden: adj 86, noun 8, verb 6
+- dauer: noun 87, adj 10
+- unterwäsche: noun 75, adj 23
+- verzeih: verb 81, noun 12, adj 5
+- billigen: verb 81, adj 12, noun 7
+- jugendlichen: noun 71, adj 23, verb 6
+- bawırğalıq: x 67, noun 16, verb 10, adj 6
+- aufgelegt: adj 70, verb 29
+- cellos: noun 74, adj 26
+- ansteckender: adj 84, noun 16
+- plane: verb 75, noun 21, adj 3
+- baumast: noun 87, verb 12
+- herrlich: adj 89, adv 6, noun 3
+- gleichviel: adv 79, art 12, noun 6, verb 3
+- ägypten: noun 80, verb 14, adj 4
+- parkwächter: noun 87, adj 10
+- betrieb: noun 78, verb 21
+- dresden: noun 80, verb 14, adj 4
+- unentwegt: adj 70, verb 29
+- vortäuschen: verb 76, adj 19, noun 5
+- wiederaufzuladen: verb 82, noun 17
+- unvermeidlich: adj 89, adv 6, noun 3
+- lebhaft: adj 73, noun 25
+- täuschen: verb 76, adj 19, noun 5
+- paß: verb 79, noun 20
+- komet: noun 73, verb 26
+- fit: adj 68, noun 29
+- geskyped: verb 75, noun 23
+- misstrauisch: adj 79, noun 19
+- wüssten: verb 83, aux 10, noun 4, adj 4
+- warmer: adj 75, noun 24
+- bescheiden: adj 72, verb 26
+- herrsche: verb 68, adj 23, noun 8
+- verdiene: verb 81, noun 10, adj 8
+- gerichtssaal: noun 84, adv 8, adj 8
+- angeklagten: noun 72, verb 24, adj 4
+- herein: adv 76, noun 23
+- schaltern: noun 88, verb 10
+- andrang: noun 84, verb 15
+- neuem: adj 86, noun 6, art 3, pron 2
+- gefangene: noun 74, adj 25
+- steilen: adj 73, verb 25
+- hinauf: adv 84, noun 15
+- alltägliches: noun 76, adj 23
+- reisessig: noun 69, adj 28, num 2
+- strukturellen: adj 71, verb 14, noun 14
+- merkmale: noun 80, adj 20
+- vermieter: noun 87, adj 10
+- austauschen: verb 76, adj 19, noun 5
+- wegfahren: verb 89, noun 9, adj 2
+- scheidenden: noun 75, adj 19, verb 6
+- liebste: adj 84, noun 11, verb 4
+- geräumigere: adj 80, verb 19
+- interessantem: noun 79, adj 20
+- hemd: noun 86, adj 8, verb 3
+- stühle: noun 87, verb 12
+- plausibel: adj 73, noun 26
+- darzustellen: verb 81, noun 14, adj 4
+- xiaoming: noun 90, verb 8
+- japanischaufsätzen: noun 86, verb 14
+- kostenlose: adj 74, noun 23
+- unterstützte: adj 72, verb 24, noun 4
+- konföderierten: noun 70, verb 15, adj 15
+- wittere: verb 83, adj 16
+- wüsstest: verb 90, aux 5, noun 4
+- innehat: verb 74, noun 23
+- beantworte: verb 86, noun 13
+- zögerten: verb 82, adj 15, noun 3
+- sklave: noun 85, adj 9, prep 4, verb 2
+- kopiergerät: noun 86, verb 14
+- strömen: noun 78, verb 20
+- saubohnen: noun 79, verb 20
+- zuckersüß: adj 73, noun 16, verb 10
+- ultimative: adj 85, noun 14
+- dornen: noun 82, verb 11, adj 6
+- langem: adj 90, pron 6, noun 2
+- malediven: noun 88, adj 9, verb 4
+- irrsinnig: adj 89, noun 10
+- bequemen: adj 71, noun 24, verb 5
+- weiterspielen: verb 86, noun 12
+- teppich: noun 70, adj 22, adv 6
+- verdirb: verb 81, noun 18
+- statist: noun 90, verb 7
+- apple: noun 87, adj 8, verb 5
+- schlaglöcher: noun 76, adj 22
+- beiderseits: prep 72, adv 17, noun 11
+- zuschauer: noun 87, adj 10
+- anwälte: noun 70, verb 27, adj 4
+- übernehme: verb 80, adj 17, noun 3
+- tatarstan: noun 83, adj 10, verb 5
+- schief: adj 76, verb 20, noun 3
+- umstürzen: verb 77, noun 18, adj 6
+- lebenden: noun 75, adj 19, verb 6
+- riesigen: adj 84, verb 11, noun 3
+- hills: noun 83, adv 12, conj 5
+- umfalle: verb 74, noun 21, adj 4
+- herablassenden: adj 86, noun 8, verb 6
+- sicherstellen: verb 81, noun 14, adj 4
+- kurzfristigen: adj 84, verb 15
+- mitzunehmen: verb 86, noun 11
+- weinte: verb 84, noun 11, adj 5
+- unbewaffneten: adj 73, verb 21, noun 6
+- angreifen: verb 80, noun 19
+- tank: noun 88, adj 8, verb 5
+- stattfand: verb 71, noun 27
+- lest: verb 90, aux 5, noun 4
+- zukünftigen: adj 84, verb 15
+- porzellanladen: noun 84, verb 15
+- sechzehnte: adj 74, verb 23, noun 4
+- schritten: noun 79, verb 17, adv 3
+- bekannte: noun 74, verb 19, adj 7
+- geliebte: noun 70, verb 29
+- kanälen: noun 80, verb 14, adj 4
+- sinkt: verb 90, adj 6, noun 4
+- verblüfft: adj 71, verb 25, noun 4
+- bekümmert: adj 76, verb 24
+- tausendster: adj 72, noun 28
+- geschaffene: noun 76, adj 21, verb 3
+- krankheiten: noun 89, verb 10
+- blockbuchstaben: noun 88, verb 12
+- ausfüllen: verb 87, noun 11, adj 2
+- verkehrsregeln: noun 87, verb 12
+- strukturelle: adj 84, noun 15
+- ähnlichkeiten: noun 89, verb 10
+- gestatten: verb 73, noun 21, adj 5
+- faules: adj 84, noun 15
+- schuhgeschäft: noun 84, verb 10, adj 5
+- belästigt: verb 87, adj 13
+- grelle: adj 84, noun 15
+- blendete: verb 84, adj 13, noun 3
+- lider: noun 85, adv 7, art 6, adj 2
+- pflanzennamen: noun 84, adj 10, verb 6
+- gedulden: verb 81, noun 14, adj 4
+- pain: x 67, noun 28, adv 3
+- au: x 66, noun 24, adj 4, adv 3, verb 2
+- chocolat: x 74, noun 23, verb 3
+- ertappt: verb 77, noun 17, adj 6
+- plagiat: noun 90, verb 8
+- dahintersteckt: verb 90, adj 11
+- sir: noun 87, adj 10
+- gründlich: adj 89, adv 6, noun 3
+- lautes: adj 84, noun 15
+- gelächter: noun 87, adj 10
+- atmosphäre: noun 87, verb 10, adj 3
+- runden: noun 76, verb 20, adj 4
+- töne: noun 85, adj 8, verb 4
+- server: noun 87, adj 10
+- ausgefallen: verb 89, noun 10
+- trockne: verb 71, noun 19, adj 8
+- anmelden: verb 81, noun 14, adj 4
+- traumprinzen: noun 84, verb 15
+- brutale: adj 83, noun 17
+- szenen: noun 71, adj 23, verb 6
+- stadtnähe: noun 79, adj 16, verb 5
+- gekleidet: adj 69, verb 27, noun 2, aux 2
+- tropfen: noun 87, verb 13
+- schwaben: noun 88, verb 12
+- dichten: adj 75, verb 19, noun 6
+- sicht: noun 84, verb 14
+- rissen: verb 79, noun 21
+- essensresten: noun 74, adj 24
+- ritzten: verb 84, adj 9, noun 7
+- rinde: noun 77, verb 19, adj 3
+- lärmender: adj 84, noun 16
+- übler: adj 77, noun 20
+- hundertfüßler: noun 87, adj 10
+- aufgeräumten: adj 84, verb 13, noun 3
+- beeindrucken: verb 81, noun 14, adj 4
+- stecke: verb 73, noun 24, adj 3
+- mittlebenskrise: noun 87, adv 11
+- abmachen: verb 86, noun 11, adj 2
+- sähe: verb 72, adj 16, noun 12
+- seiet: aux 71, verb 15, noun 13
+- überzeugend: adj 87, noun 4, num 4, verb 3, adv 2
+- fauler: adj 77, noun 20
+- ahnte: verb 90, adj 7, noun 4
+- zufriedenstellen: verb 81, noun 14, adj 4
+- ursprünglichen: adj 89, verb 6, noun 4
+- kriegsende: noun 86, adj 14
+- möbeln: noun 87, verb 12
+- viktorianischen: adj 85, verb 9, noun 5
+- wikinger: noun 83, adj 17
+- öffne: verb 71, noun 19, adj 8
+- meintest: verb 90, aux 5, noun 4
+- beisammen: adv 73, verb 20, noun 6
+- kleb: verb 84, noun 12, adj 3
+- republiken: noun 90, verb 7, adj 4
+- dusche: noun 75, adj 23
+- kellner: noun 87, adj 10
+- hereinkam: verb 89, adj 6, noun 5
+- einfacheren: adj 73, verb 21, noun 5
+- lustigen: adj 84, verb 15
+- leistest: verb 90, aux 5, noun 4
+- laus: noun 88, adv 12
+- last: noun 87, verb 12
+- herausgefunden: verb 86, noun 10, adj 4
+- vorsitzende: noun 74, adj 26
+- meetings: noun 82, adv 17
+- anschaute: verb 89, adj 8, noun 3
+- äh: x 67, adj 13, noun 13, adv 3, verb 3
+- sprächen: verb 78, noun 17, adj 5
+- läden: noun 80, verb 14, adj 4
+- estnischen: noun 71, adj 19, verb 9
+- silbe: noun 82, art 8, adj 4, pron 4, verb 2
+- kopfrechnen: noun 79, verb 20
+- mittagsschlaf: noun 87, verb 11
+- schwul: adj 71, noun 25
+- lesben: noun 76, verb 21
+- weigere: verb 86, adj 14
+- medizinisches: adj 90, noun 9
+- abwehrenden: adj 86, noun 8, verb 6
+- speisen: noun 78, verb 21
+- pinkeln: verb 79, noun 21
+- anschaust: verb 86, noun 13
+- ausweisen: verb 88, noun 12
+- vorzeit: noun 86, adv 14
+- ertöne: verb 71, noun 19, adj 8
+- bess'ren: adj 71, verb 14, noun 14
+- frohen: adj 77, verb 19, noun 3
+- herrgott: noun 88, adj 6, verb 3, conj 2
+- schriftsteller: noun 79, adj 21
+- gebüsch: noun 85, adj 13
+- entdeckten: verb 85, adj 11, noun 4
+- originelle: adj 84, noun 15
+- verantwortungslosen: adj 88, noun 11
+- anlügen: verb 87, noun 11
+- heimweh: noun 74, verb 22, adj 3
+- stärksten: adj 79, noun 13, verb 5
+- perlen: noun 80, verb 14, adj 4
+- zusammenarbeiten: verb 77, noun 22
+- schraube: noun 85, verb 10
+- aufzuladen: verb 82, noun 17
+- gelernten: noun 89, verb 7, adv 2
+- geglückte: adj 75, verb 18, noun 8
+- struktureller: adj 88, noun 12
+- musizierweise: noun 77, adv 23
+- kochkünste: noun 76, adj 22
+- beschränken: verb 81, noun 14, adj 4
+- letztem: adj 87, noun 12
+- reisender: noun 83, adj 17
+- arnheim: noun 76, adv 15, adj 7
+- köln: noun 87, verb 12
+- ehren: noun 76, verb 22, adj 2
+- erbeben: noun 72, verb 27
+- mae: noun 83, verb 10, adj 6
+- eingabetaste: noun 78, adj 17, verb 4
+- vollendete: adj 79, verb 18, noun 3
+- kreative: adj 85, noun 14
+- transportkosten: noun 88, verb 7, adj 4
+- moderner: adj 78, noun 15, adv 7
+- unbeugsamen: adj 77, noun 18, verb 6
+- gebäudes: noun 81, adj 18
+- erfreust: verb 86, noun 13
+- mißtrauisch: adj 79, noun 19
+- dritt: num 70, noun 19, verb 8
+- handrücken: noun 80, verb 14, adj 4
+- unbestellt: adj 68, verb 29, noun 3
+- herrschen: verb 76, adj 19, noun 5
+- zustände: noun 84, adj 11, verb 5
+- aufwächst: verb 84, adv 16
+- hüte: verb 73, noun 25
+- quellen: noun 80, verb 14, adj 4
+- staatlich: adj 89, adv 6, noun 3
+- geprüfte: adj 74, verb 14, noun 11
+- vertrug: verb 70, noun 27
+- siegesglauben: noun 86, verb 14
+- zumachen: verb 86, noun 11, adj 2
+- phasen: noun 85, verb 14
+- weltkriegen: noun 70, verb 28
+- sprachinseln: noun 83, verb 18
+- weitestgehend: adv 78, adj 16, verb 6
+- log: verb 84, noun 11, adj 5
+- belog: verb 78, noun 15, adj 7
+- seinerseits: adv 84, noun 11, prep 5
+- streiten: verb 77, noun 22
+- zerlumpt: adj 73, noun 17, verb 10
+- bloße: adj 75, noun 23, verb 3
+- blasen: noun 85, verb 14
+- verhelfen: verb 87, noun 12
+- wird's: aux 74, verb 13, pron 6, noun 3
+- krawatte: noun 84, verb 10, adj 6
+- verirrte: adj 69, verb 24, noun 7
+- kugeln: noun 87, verb 12
+- nieren: noun 70, verb 30
+- geprüft: verb 77, noun 18, adj 5
+- ungerichtete: adj 74, verb 26
+- sünder: noun 90, adj 6, adv 3
+- unverschämte: adj 76, verb 23
+- morgendlichen: adj 89, verb 6, noun 4
+- filtern: verb 77, noun 21
+- iss: verb 76, noun 19, adj 4
+- lud: verb 70, noun 20, adj 8
+- such: verb 67, noun 32
+- geschorene: adj 88, noun 9, verb 3
+- missständen: noun 80, verb 14, adj 4
+- diensten: noun 76, adj 21
+- wahrer: adj 71, noun 29
+- debatten: noun 88, verb 7, adj 5
+- lieh: verb 89, noun 7, adj 3
+- unrechtmäßiges: noun 74, adj 26
+- dringender: adj 84, noun 16
+- verbesserten: adj 82, verb 15, noun 3
+- parlamentarischen: adj 85, verb 9, noun 5
+- belletristisches: adj 90, noun 9
+- erreiche: verb 71, adj 19, noun 9
+- mordsspaß: noun 86, verb 12
+- vergessend: verb 73, adj 14, noun 7, num 5
+- kompliziert: adj 69, verb 31
+- heraussprang: verb 81, noun 17
+- zücken: verb 81, noun 14, adj 4
+- zufälligerweise: adv 90, noun 11
+- wortes: noun 77, adj 23
+- weismachen: verb 86, noun 11, adj 2
+- geht's: verb 90, aux 8
+- natürlichen: adj 89, verb 6, noun 4
+- ressourcen: noun 84, verb 13, adj 2
+- schlossen: verb 88, noun 9
+- rufe: verb 76, noun 23
+- bootes: noun 81, adj 18
+- beneidetes: adj 84, noun 15
+- gewaschen: verb 76, adj 19, noun 5
+- ungelegen: adj 77, verb 20, noun 3
+- seist: aux 67, verb 16, noun 16
+- respektiere: verb 86, noun 14
+- großeltern: noun 88, verb 10
+- außergerichtlich: adj 89, adv 6, noun 3
+- normannischen: noun 71, adj 19, verb 9
+- popeye: noun 83, verb 10, adj 6
+- motten: noun 84, verb 11, adj 3, adv 2
+- zerfressen: verb 80, noun 12, adv 5, adj 2
+- vorvorgestern: adv 76, noun 13, verb 11
+- bärenhunger: noun 83, adj 17
+- saurer: adj 83, noun 16
+- natürliches: adj 90, noun 9
+- duschanbe: noun 85, verb 10
+- tadschikistan: noun 83, adj 10, verb 5
+- bushaltestelle: noun 88, verb 6, adj 6
+- weißwurst: noun 73, verb 20, adv 5
+- graus: noun 88, adv 12
+- affekte: noun 82, verb 10, adj 8
+- schämen: verb 86, noun 11
+- globalisierungsangst: noun 68, verb 30
+- vollkommene: adj 88, noun 9, verb 3
+- gängigen: adj 84, verb 11, noun 3
+- programmiersprachen: noun 78, verb 20, adj 2
+- schlägern: noun 81, verb 18
+- dümmer: adj 70, noun 29
+- uneinig: adj 89, noun 10
+- reservereifen: noun 86, verb 14
+- geplauder: noun 90, adj 6, adv 3
+- konflikte: noun 71, verb 25, adj 4
+- vorzustellen: verb 81, noun 14, adj 4
+- nächtens: adv 86, noun 10, prep 3
+- schulhaus: noun 88, adv 12
+- trümmerhaufen: noun 72, verb 28
+- anlagen: noun 73, verb 26
+- zugrunde: adv 70, noun 27, adj 3
+- erdbeerzeit: noun 86, adv 14
+- beriet: verb 82, noun 13, aux 5
+- wechseln: verb 84, noun 16
+- einklang: noun 77, adv 9, verb 5, conj 4, prep 4
+- bergspitzen: noun 76, verb 22
+- kristallklaren: adj 86, noun 7, verb 6
+- sees: noun 81, adj 18
+- atemberaubenden: adj 86, noun 8, verb 6
+- tische: noun 68, adj 32
+- fluge: noun 84, adj 8, verb 6
+- stählerne: adj 87, noun 11
+- vorlesen: noun 78, verb 22
+- kindes: noun 81, adj 19
+- perfekte: adj 75, noun 15, verb 10
+- goldmünzen: noun 84, verb 15
+- eingebildet: adj 76, verb 25
+- malen: verb 70, adj 22, noun 8
+- unverschämt: adj 72, verb 25
+- anbieten: verb 89, noun 9, adj 2
+- geschäftsleben: noun 84, verb 15
+- unstet: adj 69, verb 27, noun 2, aux 2
+- veränderlich: adj 89, adv 6, noun 3
+- bösen: noun 80, verb 17
+- ausflüge: noun 84, adj 8, verb 6
+- kommune: noun 85, adj 8, verb 4
+- verzweifelten: adj 74, verb 25
+- fremdenverkehrsamt: noun 68, verb 25, adj 5
+- erledige: verb 83, adj 12, noun 5
+- kritisch: adj 89, noun 10
+- ruhen: verb 82, adj 9, noun 8
+- angetan: adj 77, noun 16, verb 5
+- flugzeugs: noun 82, adv 17
+- samstagabend: noun 84, adj 15
+- lasten: noun 79, adj 13, verb 5
+- schultern: noun 88, verb 10
+- summa: x 74, noun 25
+- summarum: x 70, noun 17, adv 12
+- treue: noun 81, verb 13, adj 6
+- unerschütterlich: adj 89, adv 6, noun 3
+- blondinen: noun 90, verb 6, adj 3, art 2
+- wähnen: verb 87, noun 12
+- regnet's: verb 90, aux 8
+- betrachtend: verb 73, adj 25
+- rasen: noun 85, verb 14
+- samowar: noun 79, adj 18
+- gehüllte: adj 70, verb 27, noun 3
+- ruhigen: adj 90, verb 9
+- getrost: adv 74, verb 16, noun 9
+- staus: noun 88, adv 12
+- vereinbarten: adj 70, noun 20, verb 10
+
+## Regeln (Rules)
+| word | from | to | when | of |
+|---|---|---|---|---|
+|  | noun | verb | after | prep |
+| zu | prep | part | before | verb |
+| wie | conj | adv | start |  |
+|  | noun | verb | after | art |
+| ihr | art | pron | after | aux |
+| noch | conj | adv | before | adv |
+|  | noun | verb | after | adj |
+| zu | prep | part | before | aux |
+| ihr | art | pron | start |  |
+| noch | conj | adv | after | pron |
+| zu | prep | adv | before | adj |
+| schon | part | adv | after | pron |
+| zu | prep | part | before word | sein |
+| sein | art | aux | after | part |
+| ihr | art | pron | after | verb |
+| ihr | art | pron | after | conj |
+| noch | conj | adv | after | adv |
+| mehr | adj | adv | after | adv |
+| viel | adv | art | before | noun |
+| lange | adj | adv | after | adv |
+| das | art | pron | before | verb |
+| sein | art | aux | after | adj |
+| lass | noun | verb | start |  |
+| das | art | pron | before | art |
+| bitte | noun | adv | start |  |
+| schon | part | adv | after | aux |
+| denn | conj | adv | after | pron |
+| selbst | pron | adv | after | pron |
+| alles | art | pron | before | verb |
+| da | conj | adv | before | aux |
+| ihr | art | pron | after | noun |
+| ganz | adj | adv | before | adj |
+| mehr | adj | art | before | noun |
+| sein | art | aux | after | noun |
+| mehr | adj | adv | after | noun |
+| alle | art | pron | before | verb |
+| schon | part | adv | after | noun |
+| ersten | num | adj | before | noun |
+| erste | num | adj | after | art |
+| ihr | pron | art | before | noun |
+| noch | conj | adv | after | aux |
+| alles | art | pron | before | adj |
+| mal | part | adv | after | pron |
+| mach | noun | verb | start |  |
+| die | art | pron | before | art |
+| schon | part | adv | after | verb |
+| doch | conj | adv | before | adv |
+| mal | part | noun | after | adj |
+| ihr | art | pron | after | pron |
+| der | art | pron | before | art |
+| danke | noun | verb | start |  |
+| da | conj | adv | before | verb |
+| mal | part | adv | after | adv |
+| komm | noun | verb | start |  |
+| mehr | adj | adv | after | pron |
+| zu | prep | adv | before word | viel |
+| je | conj | adv | after | pron |
+| glaubst | noun | verb | start |  |
+| weißt | noun | verb | start |  |
+| da | conj | adv | after | adv |
+| da | conj | adv | after | pron |
+| schon | part | adv | after | adv |
+| einfach | adj | adv | before | adv |
+| alles | art | pron | before | pron |
+| noch | conj | adv | after | noun |
+| recht | verb | adj | after | pron |
+| nein | noun | x | start |  |
+| wie | conj | adv | before word | man |
+|  | adj | verb | after word | zu |
+| zu | adv | part | before | verb |
+| möchtest | noun | verb | start |  |
+| ihr | pron | art | before | noun |
+| damit | conj | adv | after | pron |
+| aber | conj | adv | after | pron |
+| alles | art | pron | before | prep |
+|  | noun | verb | after | num |
+| jeder | art | pron | before | aux |
+| viel | adv | pron | after | adv |
+| alle | art | pron | before | prep |
+| ihr | art | pron | after | prep |
+| wenig | adj | pron | after | art |
+| das | art | pron | before | adv |
+| doch | conj | adv | after | pron |
+| könntest | noun | aux | start |  |
+| hälfte | num | noun | after | art |
+| mal | part | adv | after | noun |
+| eine | art | pron | before | art |
+| früher | adj | adv | start |  |
+| mehr | adj | adv | after | conj |
+| doch | conj | adv | after | verb |
+| vor | adv | prep | before | adv |
+| ja | part | adv | after | aux |
+| ja | part | adv | after | verb |
+| alle | art | pron | before | aux |
+| alles | art | pron | before | noun |
+| mal | part | noun | after | art |
+| weniger | art | adv | before | conj |
+| völlig | adv | adj | before | adj |
+| selbst | conj | adv | before | conj |
+| ihr | pron | art | before | noun |
+| selbst | pron | adv | after | noun |
+| natürlich | adj | adv | start |  |
+| jeder | art | pron | before | verb |
+| mal | part | noun | after | num |
+| wessen | pron | art | before | noun |
+| hör | noun | verb | start |  |
+| bestimmt | verb | adv | after | aux |
+| ganz | adj | adv | before | prep |
+| lange | adj | adv | before | prep |
+| da | conj | adv | before | adv |
+| mehr | adj | pron | before | conj |
+| wie | conj | adv | before word | viel |
+|  | adj | verb | after word | ihr |
+| selben | pron | adj | before | noun |
+| sein | art | aux | after | adv |
+| sein | aux | art | before | noun |
+| beide | num | pron | after | aux |
+| je | conj | adv | start |  |
+| selbst | pron | adv | after | adv |
+| noch | conj | adv | after | verb |
+| ach | noun | x | start |  |
+| doch | conj | adv | after | aux |
+| sieh | noun | verb | start |  |
+| dessen | pron | art | before | noun |
+|  | noun | verb | after | conj |
+|  | noun | verb | after | adv |
+| ganz | adj | adv | before | verb |
+| los | part | adv | after | noun |
+| lange | adj | adv | before | verb |
+| einer | art | pron | before | art |
+| beiden | num | pron | after | art |
+| selbst | pron | adv | start |  |
+| ständig | adv | adj | after | verb |
+| wie | conj | adv | after word | weiß |
+| viel | pron | adv | before | adj |
+| alles | art | pron | after | pron |
+| schon | part | adv | before | adv |
+| desto | conj | adv | before word | mehr |
+| vorbei | part | adv | after | noun |
+| wie | conj | adv | before word | das |
+| erzähl | noun | verb | start |  |
+| mal | part | adv | after | adv |
+| kurzem | adv | adj | after | prep |
+| stimmt | noun | verb | start |  |
+| alles | art | pron | after | verb |
+| zweiten | num | adj | before | noun |
+| einem | art | pron | before | art |
+| alles | art | pron | before | aux |
+| zweite | num | adj | after | art |
+| los | part | adv | after | pron |
+| ja | part | adv | after | pron |
+| alle | art | pron | before | pron |
+| einen | art | pron | before | prep |
+| früher | adj | adv | after | pron |
+| gleich | adj | adv | before | verb |
+| alle | art | pron | before | adv |
+| oh | noun | x | start |  |
+| millionen | num | noun | before | noun |
+| welches | art | pron | before | aux |
+| bleib | noun | verb | start |  |
+| da | conj | adv | after | noun |
+| hoch | adj | adv | after | noun |
+| keiner | art | pron | start |  |
+| viele | art | pron | before | art |
+| ehe | conj | noun | after | pron |
+| los | part | adv | after | adv |
+| damit | conj | adv | start |  |
+| hallo | noun | x | start |  |
+| erinnerst | noun | verb | start |  |
+| schau | noun | verb | start |  |
+| mehr | adv | art | before | noun |
+| dr | x | noun | before | noun |
+| lange | adj | adv | before | pron |
+| all | verb | art | before | art |
+| selber | pron | adv | after | pron |
+| einfach | adj | adv | after | aux |
+| gewöhnlich | adv | adj | before | adv |
+| zu | prep | adv | before word | wenig |
+| die | art | pron | before word | das |
+| einige | art | pron | before | art |
+| bloß | part | adv | after | aux |
+| damit | conj | adv | before | verb |
+| absolut | adj | adv | before | adj |
+| versuchen | noun | verb | start |  |
+| selbst | pron | adv | after | aux |
+| ihr | art | pron | after word | habt |
+| zu | prep | adv | before word | viele |
+| wissen | noun | verb | start |  |
+| das | art | pron | before word | stimmt |
+| stimmt | adj | verb | after | pron |
+| etwas | pron | adv | before | art |
+| pünktlich | adv | adj | before | verb |
+| dieselbe | pron | art | before | noun |
+| mehr | adj | adv | after | aux |
+| dank | prep | noun | after | art |
+| weniger | art | adv | before | adj |
+| gehst | noun | verb | start |  |
+|  | verb | pron | after word | ein |
+| ruhig | part | adv | after | pron |
+| sicher | adj | adv | before | verb |
+| der | art | pron | before | verb |
+| beiden | num | pron | after | pron |
+| zwar | part | adv | after | aux |
+| wie | conj | adv | after word | nicht |
+| sprachen | verb | noun | start |  |
+| deren | pron | art | before | noun |
+| lerne | noun | verb | start |  |
+| laß | noun | verb | start |  |
+| der | art | pron | before | pron |
+| welche | art | pron | before | pron |
+| da | adv | conj | before | pron |
+| noch | conj | adv | after | conj |
+| das | art | pron | before word | passiert |
+| passiert | adj | verb | after | pron |
+| ersten | num | adj | after | art |
+| die | pron | art | before | noun |
+| denn | conj | adv | after | aux |
+| und | adv | conj | after | adv |
+| pass | noun | verb | start |  |
+| damit | conj | adv | before | adj |
+| wie | conj | adv | before word | viele |
+| ganz | adj | adv | before | adv |
+| ersten | num | adj | after | prep |
+| viele | art | pron | before | verb |
+| ruf | noun | verb | start |  |
+| beiden | pron | adj | before | noun |
+| viel | adv | pron | before | prep |
+| erster | num | adj | before | noun |
+| allen | art | pron | after | pron |
+| bring | noun | verb | start |  |
+| schon | part | adv | start |  |
+| bitte | verb | adv | after | pron |
+| hättet | noun | aux | start |  |
+| erstes | num | adj | before | noun |
+| vergiss | noun | verb | start |  |
+| das | art | pron | before word | besser |
+|  | noun | adv | after | pron |
+| gesprochenen | verb | adj | before | noun |
+| der | pron | art | before | adj |
+| gesprochenes | verb | adj | before | noun |
+| wisst | noun | verb | start |  |
+| allem | adv | pron | after | prep |
+| noch | conj | adv | start |  |
+| gleich | adj | adv | after | verb |
+| ihr | art | pron | after word | wo |
+| aller | art | pron | before | prep |
+| könntet | noun | aux | start |  |
+| ruhig | part | adj | before | verb |
+| beide | num | pron | after | verb |
+| die | pron | art | before | adj |
+| schade | noun | adj | start |  |
+| eines | art | pron | before | verb |
+| tu | noun | verb | start |  |
+| versuche | noun | verb | start |  |
+| sagt | noun | verb | start |  |
+| sein | art | aux | before | aux |
+| das | art | pron | before word | früher |
+|  | noun | verb | after | aux |
+| misch | noun | verb | start |  |
+| das | pron | art | before word | letztemal |
+| letztemal | verb | noun | after | art |
+| selbst | pron | adv | after | verb |
+| vorbei | part | adv | after | pron |
+| vorbei | part | adv | after | aux |
+| mal | part | adv | after | verb |
+| einen | art | pron | before | verb |
+| cd | num | noun | after | art |

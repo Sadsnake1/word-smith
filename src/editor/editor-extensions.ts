@@ -12,6 +12,7 @@ import {
 } from '../core/preamble';
 import type { WsToken } from '../core/preamble';
 import type { WsEngine } from '../core/lang-engine';
+import { wsPhraseSpansFor } from '../core/lang-engine';
 import { Platform } from 'obsidian';
 import type { Decoration, DecorationSet, EditorView, ViewUpdate } from '@codemirror/view';
 import type { Range, Text } from '@codemirror/state';
@@ -249,19 +250,20 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		repeat:   Decoration.mark({ class: 'ws-ck-repeat'   }),
 		misused:  Decoration.mark({ class: 'ws-ck-misused'  }),
 		pronoun:  Decoration.mark({ class: 'ws-ck-pronoun'  }),
-		dialogue: Decoration.mark({ class: 'ws-ck-dialogue' })
+		dialogue: Decoration.mark({ class: 'ws-ck-dialogue' }),
+		cliche:   Decoration.mark({ class: 'ws-ck-cliche'   })
 	};
 	// THE LINE THAT CARRIES A MARK. "Mute everything else" mutes against
-	// the marks: a line with none has nothing to stand out, so it is left
-	// alone — a note in a language the tagger does not know (nothing tagged,
-	// nothing checked) reads at full ink instead of going faint end to end.
+	// the marks: every line once the note has shown one (the writer's pick "Mute every line"), none before — a note in a
+	// language the tagger does not know (nothing tagged, nothing checked) reads at full ink instead of going faint end to end.
 	const markedLine = Decoration.line({ class: 'ws-marked-line' });
 	const posMark = {
 		noun: Decoration.mark({ class: 'ws-pos-noun' }),
 		verb: Decoration.mark({ class: 'ws-pos-verb' }),
 		adj:  Decoration.mark({ class: 'ws-pos-adj'  }),
 		adv:  Decoration.mark({ class: 'ws-pos-adv'  }),
-		conj: Decoration.mark({ class: 'ws-pos-conj' })
+		conj: Decoration.mark({ class: 'ws-pos-conj' }),
+		pron: Decoration.mark({ class: 'ws-pos-pron' })
 	};
 
 	// ── ONE LINE'S MARKS, REMEMBERED (A623) ──────────────────────────────
@@ -282,6 +284,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		// itself a redraw under the caret on every tap into a marked word.
 		// The caret alone moving changes nothing now.
 		held: { from: number; to: number } | null = null;
+		// a mark seen in this editor since its switches and language were set: from then on every line mutes (below)
+		seenMarks = false;
 		constructor(view: EditorView) { this.decorations = this.build(view); }
 		update(u: ViewUpdate) { holdUpdate(this, u, (v) => this.build(v)); }
 		build(view: EditorView) {
@@ -291,11 +295,11 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// can run without the other.
 			const posOn: Record<string, boolean> = s.posEnabled ? {
 				noun: s.posNoun, verb: s.posVerb, adj: s.posAdjective,
-				adv:  s.posAdverb, conj: s.posConjunction
+				adv:  s.posAdverb, conj: s.posConjunction, pron: s.posPronoun
 			} : {};
 			const checksOn = s.checksEnabled && (s.checkFiller || s.checkPassive ||
 				s.checkIllusion || s.checkMisused || s.checkPronoun ||
-				s.checkRhythm || s.checkRepetition || s.checkDialogue);
+				s.checkRhythm || s.checkRepetition || s.checkDialogue || s.checkCliche);
 			if (!Object.keys(posOn).some(k => posOn[k]) && !checksOn) return Decoration.none;
 			if (!plugin.isEditorInScope(view)) return Decoration.none;
 			// THE LANGUAGE'S ENGINE (A571): English's tagger and rules, or the
@@ -313,7 +317,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 			// the words are read only where something reads them: Dialogue and
 			// Sentence rhythm never did, and tagged every line anyway
 			const needTokens = Object.keys(posOn).some(k => posOn[k]) || !!(checksOn && (s.checkFiller
-				|| s.checkPassive || s.checkIllusion || s.checkMisused || s.checkPronoun || s.checkRepetition));
+				|| s.checkPassive || s.checkIllusion || s.checkMisused || s.checkPronoun || s.checkRepetition || s.checkCliche));
 			const bag = s as unknown as Record<string, unknown>;
 			const sig = Object.keys(bag).filter(k => /^(pos|check)/.test(k)).sort().map(k => k + '=' + String(bag[k])).join(';');
 			if (sig !== lineMarksSig || E !== lineMarksEngine || lineMarks.size > 4000) {
@@ -348,6 +352,17 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 					marked.add(doc.lineAt(r.from).from);
 				}
 			}
+			// EVERY LINE MUTES ONCE THE NOTE HAS SHOWN A MARK (the writer: "why are these senteced lit with just the conjuctions
+			// on?", the pick "Mute every line"): a line without a word of the ticked classes fades with the rest rather than
+			// standing out at full ink; remembered, so a stretch scrolled to without one fades too. A note that never shows one
+			// (a language the tagger does not know, every class off) keeps its ink
+			if (marked.size) this.seenMarks = true;
+			if (this.seenMarks) {
+				for (const range of view.visibleRanges) {
+					let p = range.from;
+					while (p <= range.to) { const line = doc.lineAt(p); p = line.to + 1; if (line.text.trim()) marked.add(line.from); }
+				}
+			}
 			for (const at of marked) out.push(markedLine.range(at));
 			return Decoration.set(out, true);
 
@@ -360,7 +375,8 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				const base = 0;
 
 				for (const t of tokens) {
-					const bucket = posBucket(t.tag || '');
+					// (a pronoun its own class while Pronouns is on, A839; off, a noun as it always was)
+					const bucket = t.tag === 'PRON' && posOn.pron ? 'pron' : posBucket(t.tag || '');
 					if (bucket && posOn[bucket]) {
 						keep(posMark[bucket], base + t.from, base + t.to);
 					}
@@ -371,6 +387,16 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 				if (s.checkPassive) {
 					for (const r of E.passive(tokens, masked)) {
 						keep(checkMark.passive, base + r.from, base + r.to);
+					}
+				}
+				// CLICHÉS (A839): the language's stock phrases, a span each
+				if (s.checkCliche) {
+					for (const r of E.cliches(tokens, masked)) {
+						keep(checkMark.cliche, base + r.from, base + r.to);
+					}
+					// …and your own (A856), one a line, in any language
+					for (const r of wsPhraseSpansFor(plugin.customClicheRe(E.lang), masked, E.lang)) {
+						keep(checkMark.cliche, base + r.from, base + r.to);
 					}
 				}
 				if (s.checkIllusion) {
@@ -881,6 +907,58 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	});
 
+	// ── The current line, underlined (#82) ───────────────────────────────
+	// The tint fills the paragraph CodeMirror calls a line; a line UNDER it
+	// belongs under the row the caret is on, as Typewriter Mode draws it (Davis
+	// Riedel's, where the reporter came from), or a wrapped paragraph is
+	// underlined at its foot, rows below the writing. The row's foot is
+	// measured in CodeMirror's measure phase as an offset from the top of the
+	// line's own box, less the line's width, and handed to the stylesheet as
+	// --ws-line-ul-y on this editor. A row is as tall as the line height with
+	// the glyphs centered in it, so its foot is the caret's bottom plus half the
+	// leading. A position no line holds (an embed, a fold) leaves it unset,
+	// and the stylesheet draws at the box's foot. A LINE ON TOP (A850, A852)
+	// is drawn at the row's top, --ws-line-ol-y: the caret's top less half the
+	// leading.
+	const lineUnderPlugin = ViewPlugin.fromClass(class {
+		view: EditorView;
+		measure: { read: () => { ol: number; ul: number } | null; write: (y: { ol: number; ul: number } | null) => void };
+		constructor(view: EditorView) {
+			this.view = view;
+			this.measure = { read: () => this.read(), write: (y) => this.write(y) };
+			view.requestMeasure(this.measure);
+		}
+		update(u: ViewUpdate) {
+			if (u.docChanged || u.selectionSet || u.geometryChanged || u.viewportChanged || u.focusChanged) u.view.requestMeasure(this.measure);
+		}
+		destroy() { this.write(null); }
+		read() {
+			const view = this.view, s = plugin.settings;
+			if (!s.highlightCurrentLine || s.lineHighlightStyle !== 'line') return null;
+			// (only a note with Typewriter on draws the lines, A853: its pane wears `ws-scoped-tw`)
+			if (!view.dom.closest('.ws-scoped-tw')) return null;
+			const sel = view.state.selection.main;
+			const c = view.coordsAtPos(sel.head, sel.assoc || 1);
+			if (!c) return null;
+			const at = view.domAtPos(view.state.doc.lineAt(sel.head).from).node;
+			const el = at.nodeType === 1 ? at as Element : at.parentElement;
+			const line = el ? el.closest('.cm-line') : null;
+			if (!line) return null;
+			const lh = parseFloat(getComputedStyle(line).lineHeight), glyphs = c.bottom - c.top;
+			const half = lh > glyphs ? (lh - glyphs) / 2 : 0;
+			const foot = c.bottom + half;
+			const w = Math.min(3, Math.max(1, Math.round(Number(s.lineUnderlineWidth) || 2)));
+			const top = line.getBoundingClientRect().top;
+			return { ol: Math.max(0, Math.round(c.top - half - top)), ul: Math.round(foot - top) - w };
+		}
+		write(y: { ol: number; ul: number } | null) {
+			const st = this.view.dom.style;
+			if (y == null) { st.removeProperty('--ws-line-ul-y'); st.removeProperty('--ws-line-ol-y'); return; }
+			st.setProperty('--ws-line-ul-y', y.ul + 'px');
+			st.setProperty('--ws-line-ol-y', y.ol + 'px');
+		}
+	});
+
 	// ── Pasted and cut text, for History ──────────────────────────────────
 	// A paste, a drop or a cut (and an undo or redo, which History matches to
 	// the paste or cut it reverses) is reported as the words it added or took
@@ -963,7 +1041,7 @@ export function wsEditorExtensions(plugin: WordSmith, cm: NonNullable<typeof CM>
 		}
 	}, { decorations: (v) => v.decorations });
 
-	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, historyHoldPlugin, wpmPlugin, citePlugin]
+	return [dimPlugin, markerPlugin, syntaxPlugin, paraPlugin, panelWatcher, eofTildePlugin, caretFloor, numberPlugin, typewriterPlugin, lineUnderPlugin, historyHoldPlugin, wpmPlugin, citePlugin]
 		.concat(plugin.buildHemingwayExtensions())
 		.concat(plugin.buildTypographyExtension())
 		.concat(plugin.buildTypographyRevertKeymap());

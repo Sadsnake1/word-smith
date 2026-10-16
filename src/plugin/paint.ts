@@ -682,8 +682,22 @@ export const paintMethods = {
 		const ls = this.textOpt('lineSpacing', 1.5);
 		cls['ws-line-spacing'] = !!(ls && ls !== 1.5);
 		if (cls['ws-line-spacing']) props['--ws-line-spacing'] = String(ls);
-		cls['ws-line-hl'] = !!s.highlightCurrentLine;
-		if (cls['ws-line-hl']) {
+		// the current line: a tint behind it, or LINE (#82, A850, A852): a line on top of the row, one at its bottom, or
+		// both, as the two ticks say; one color and opacity for all. A tick off draws its line no height
+		const lineOn = !!s.highlightCurrentLine, asLine = lineOn && s.lineHighlightStyle === 'line';
+		const onTop = asLine && !!s.lineTop, atBottom = asLine && s.lineBottom !== false;
+		cls['ws-line-hl'] = lineOn && !asLine;
+		cls['ws-line-ul'] = onTop || atBottom;
+		if (onTop || atBottom) {
+			const w = Math.min(3, Math.max(1, Math.round(Number(s.lineUnderlineWidth) || 2)));
+			props['--ws-line-top-h'] = onTop ? w + 'px' : '0px';
+			props['--ws-line-bot-h'] = atBottom ? w + 'px' : '0px';
+			// a dash three widths long and a gap as long; a dot as long as it is high; solid, the whole line drawn
+			const broken = s.lineUnderlineStyle === 'dashed' || s.lineUnderlineStyle === 'dotted';
+			props['--ws-line-ul-period'] = s.lineUnderlineStyle === 'dashed' ? (w * 6) + 'px' : s.lineUnderlineStyle === 'dotted' ? (w * 2) + 'px' : '100%';
+			props['--ws-line-ul-dash'] = broken ? '50%' : '100%';
+		}
+		if (lineOn) {
 			const isDark = body.classList.contains('theme-dark');
 			const hex     = isDark ? s.lineHighlightDarkColor : s.lineHighlightLightColor;
 			const opacity = s.lineHighlightOpacity != null ? s.lineHighlightOpacity : 0.35;
@@ -714,7 +728,8 @@ export const paintMethods = {
 				['verb', s.posVerb,        s.posVerbColor],
 				['adj',  s.posAdjective,   s.posAdjectiveColor],
 				['adv',  s.posAdverb,      s.posAdverbColor],
-				['conj', s.posConjunction, s.posConjunctionColor]
+				['conj', s.posConjunction, s.posConjunctionColor],
+				['pron', s.posPronoun,     s.posPronounColor]
 			]) if (on) paint('ws-pos-' + k, color);
 		}
 		if (s.checksEnabled) {
@@ -724,7 +739,8 @@ export const paintMethods = {
 				['illusion', s.checkIllusion, s.checkIllusionColor],
 				['misused',  s.checkMisused,  s.checkMisusedColor],
 				['pronoun',  s.checkPronoun,  s.checkPronounColor],
-				['dialogue', s.checkDialogue, s.checkDialogueColor]
+				['dialogue', s.checkDialogue, s.checkDialogueColor],
+				['cliche',   s.checkCliche,   s.checkClicheColor]
 			]) if (on) paint('ws-ck-' + k, color);
 			// Rhythm is a background tint whatever checkStyle says: a
 			// line under a thirty-word sentence is noise, and the point

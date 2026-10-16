@@ -1117,10 +1117,12 @@ export default class WordSmith extends Plugin {
 	declare exportEnsureFolder: ExportMethods["exportEnsureFolder"];
 	declare exportFileName: ExportMethods["exportFileName"];
 	declare exportSections: ExportMethods["exportSections"];
+	declare exportMdImages: ExportMethods["exportMdImages"];
 	declare exportImages: ExportMethods["exportImages"];
 	declare exportImageRead: ExportMethods["exportImageRead"];
 	declare exportToMarkdown: ExportMethods["exportToMarkdown"];
 	declare exportOptionDefaults: ExportMethods["exportOptionDefaults"];
+	declare exportDefaultsOf: ExportMethods["exportDefaultsOf"];
 	declare openExportModal: ExportMethods["openExportModal"];
 	declare exportFiguresText: ExportMethods["exportFiguresText"];
 	declare exportOptsChanged: ExportMethods["exportOptsChanged"];
@@ -1787,6 +1789,7 @@ export default class WordSmith extends Plugin {
 	declare buildEditorExtensions: EditorMethods["buildEditorExtensions"];
 	declare buildTypographyExtension: EditorMethods["buildTypographyExtension"];
 	declare applyTypography: EditorMethods["applyTypography"];
+	declare customClicheRe: EditorMethods["customClicheRe"];
 	declare buildTypographyRevertKeymap: EditorMethods["buildTypographyRevertKeymap"];
 	declare buildHemingwayExtensions: EditorMethods["buildHemingwayExtensions"];
 	declare flashHemingway: EditorMethods["flashHemingway"];
@@ -1921,6 +1924,9 @@ export default class WordSmith extends Plugin {
 	_lastScopeInScope: boolean | null;
 	_lastPaneScope: string | null;
 	_lastTypo: { from: number; to: number; caret: number; glyph: string; original: string; time: number } | null;
+	// your own clichés as one pattern, and the box and language it was made from (A856)
+	_customClicheKey = '';
+	_customClicheRe: RegExp | null = null;
 	_lastZoom: number;
 	_linkGen: number;
 	_loadMarks: [string, number][];
@@ -2715,11 +2721,25 @@ export default class WordSmith extends Plugin {
 		const raw = wsForDisk(this.settings);
 		let changed = 0;
 		const base = wsBag(DEFAULT_SETTINGS);
+		// (an export value, `exportOpts.<key>`, A855: back to what a fresh export starts with, the export's others kept)
+		const exportBase = wsBag(this.exportDefaultsOf());
+		let exported = false;
 		for (const k of keys) {
+			if (k.startsWith('exportOpts.')) {
+				const sub = k.slice('exportOpts.'.length), eo = raw.exportOpts;
+				if (!eo || typeof eo !== 'object') continue;
+				const bag = wsBag(eo);
+				if (JSON.stringify(bag[sub]) !== JSON.stringify(exportBase[sub])) changed++;
+				if (exportBase[sub] === undefined) delete bag[sub]; else bag[sub] = exportBase[sub];
+				exported = true;
+				continue;
+			}
 			if (JSON.stringify(raw[k]) !== JSON.stringify(base[k])) changed++;
 			delete raw[k];
 		}
 		await this.settingsApplyRaw(raw);
+		// (an open Export tab's preview follows)
+		if (exported) { try { this.exportOptsChanged(); } catch (_) { wsCatch('settingsResetKeys: exportOptsChanged', _); } }
 		// A RESET OF THE HISTORY GROUP STARTS THE RECORD OVER: with no store
 		// file anywhere in the vault, the memory of one goes too, so the next
 		// write — the toggle, or Delete all history — makes a first rather than
@@ -3106,6 +3126,33 @@ export default class WordSmith extends Plugin {
 		if (this.settings.exportOpts) delete wsBag(this.settings.exportOpts).tocPages;
 		// `exportOpts.paraStart` (#77's dropdown), never released: Keep line breaks (`keepLineBreaks`) since the writer's word
 		if (this.settings.exportOpts) delete wsBag(this.settings.exportOpts).paraStart;
+		// A839'S FIRST COLORS, never released (the writer: "pronouns are still yellowish"): a vault saved between 963ac0d and
+		// 97cf292 kept Pronouns gold and Clichés teal, and a saved value outlives a changed default; exactly those two take
+		// today's (measured: the showcase vault had both)
+		if (raw.posPronounColor === '#c9a227') this.settings.posPronounColor = DEFAULT_SETTINGS.posPronounColor;
+		if (raw.checkClicheColor === '#3aa597') this.settings.checkClicheColor = DEFAULT_SETTINGS.checkClicheColor;
+		// PARAGRAPH SPACING, ONE CHOICE (A834, the writer's pick "One dropdown"): `paraBlank` and `keepLineBreaks` (#77, released
+		// in 1.8.4) read once into `paraSpacing`, then gone. Keep line breaks is Auto: blank lines are kept always since A849,
+		// and so is Your blank lines (`note`, never released), which is no choice now
+		if (this.settings.exportOpts) {
+			const eo = wsBag(this.settings.exportOpts);
+			if (eo.paraSpacing === undefined) eo.paraSpacing = eo.paraBlank ? 'line' : 'auto';
+			if (eo.paraSpacing === 'note') eo.paraSpacing = 'auto';
+			delete eo.paraBlank; delete eo.keepLineBreaks;
+			// THE ADDRESS ONE BOX (A843, the writer: "don't make adress a token, just a text box that can have 3,4 lines"): the
+			// four lines (never released) read once into it, then gone
+			const lines4 = [eo.address1, eo.address2, eo.address3, eo.address4].map((x) => wsStr(x).trim()).filter(Boolean);
+			if (eo.address === undefined && lines4.length) eo.address = lines4.join('\n');
+			delete eo.address1; delete eo.address2; delete eo.address3; delete eo.address4;
+			// HEADINGS AS ONE LIST (the writer's pick "One list"): Insert heading's answer (`chapterTitles`, released) read once into
+			// File names and Note headings, then gone; Number the headings and its suffix (#79, never released) into the numbers
+			if (typeof eo.chapterTitles === 'string') {
+				eo.sectionTitles = eo.chapterTitles === 'file' || eo.chapterTitles === 'both';
+				eo.keepHeadings = eo.chapterTitles === 'note' || eo.chapterTitles === 'both';
+			}
+			if (eo.numberStyle === undefined && eo.numberHeads) eo.numberStyle = 'decimal';
+			delete eo.chapterTitles; delete eo.numberHeads; delete eo.numberSuffix;
+		}
 		// A VAULT WITH SETTINGS BEFORE THE WELCOME HAS SEEN WORD-SMITH (A743): only a new install meets it; asked of the
 		// FILE, so it decides once
 		if (raw.welcomeShown === undefined && Object.keys(raw).length > 0) this.settings.welcomeShown = true;

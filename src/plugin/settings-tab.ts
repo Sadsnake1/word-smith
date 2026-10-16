@@ -85,6 +85,8 @@ import {
 	wsSvgInto,
 	wsThemeHex,
 	wsPageNumAt,
+	wsIndentSize,
+	wsParaSpacing,
 } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { WordSmithSettings, WsExportBoolKey } from '../core/settings';
@@ -443,9 +445,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// A section of a page: a group whose heading is not shown (the page's
 	// title, or the rail's pill, is it). Its keys are read off its rows for
 	// the reset link at its end.
-	section(title: string, items: Row[], visible?: Pred | RailSlot, reset = true): Group {
+	// (EXPORT VALUES, A855: a Settings › Export section's rows keep theirs in `exportOpts`, which keysOf cannot see; the
+	// section names them, and its link resets them too)
+	section(title: string, items: Row[], visible?: Pred | RailSlot, reset = true, exportKeys: string[] = []): Group {
 		const keys = WordSmithSettingTab.keysOf(items);
-		if (reset && keys.length) items.push(this.resetLinkRow(title, keys));
+		if (reset && (keys.length || exportKeys.length)) items.push(this.resetLinkRow(title, keys, exportKeys));
 		const slot = typeof visible === 'object' ? visible : null;
 		const gate = slot ? slot.visible : (typeof visible === 'function' ? visible : undefined);
 		return { type: 'group', heading: title, cls: 'ws-set-section' + (slot ? ' ' + slot.cls : ''), items, visible: gate };
@@ -479,7 +483,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 	// The last row of a section: a small link that puts its keys back
 	// through the door a load and a paste use (the repair pass runs; Undo,
 	// under Vault, has the previous settings).
-	resetLinkRow(title: string, keys: Key[]): Render {
+	resetLinkRow(title: string, keys: Key[], exportKeys: string[] = []): Render {
 		return {
 			name: '',
 			searchable: false,
@@ -489,7 +493,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				setIcon(btn, 'rotate-ccw');
 				btn.createSpan({ text: wsT('Reset {section} to defaults', { section: wsTq(title) }) });
 				btn.addEventListener('click', () => { void (async () => {
-					const r = await this.plugin.settingsResetKeys(keys);
+					const all: string[] = [...keys, ...exportKeys.map((k) => 'exportOpts.' + k)];
+					const r = await this.plugin.settingsResetKeys(all);
 					new Notice('Word-Smith: ' + (r.error || wsT(r.changed === 1 ? '{n} of {keys} back to the default. Undo is under Vault.' : '{n} of {keys} back to the defaults. Undo is under Vault.', { n: r.changed ?? 0, keys: r.keys ?? 0 })), 6000);
 					this.update();
 				})(); });
@@ -1674,10 +1679,18 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Typewriter', [
 				{ name: 'Typewriter mode', desc: 'Keeps the line you are writing at one height; the page moves under the cursor.', control: { type: 'toggle', key: 'enableTypewriter' } },
 				{ name: 'Rests at', desc: 'Percent of the editor’s height: 0 the top, 50 the middle, 100 the bottom.', control: { type: 'slider', key: 'typewriterAnchor', min: 0, max: 100, step: 5 }, visible: tw },
-				{ name: 'Highlight current line', desc: 'A tint behind the line you are on.', control: { type: 'toggle', key: 'highlightCurrentLine' }, visible: tw },
-				{ name: 'Highlight, dark theme', desc: 'The tint under a dark theme.', control: { type: 'color', key: 'lineHighlightDarkColor' }, visible: all(tw, () => !!s.highlightCurrentLine) },
-				{ name: 'Highlight, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'lineHighlightLightColor' }, visible: all(tw, () => !!s.highlightCurrentLine) },
-				{ name: 'Highlight opacity', desc: 'How strong the tint is.', control: { type: 'slider', key: 'lineHighlightOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.highlightCurrentLine) },
+				// THE CURRENT LINE, TINTED OR UNDERLINED (#82, Dalibor-P; the writer: "line width 1-3 px, colors for dark and light,
+				// dashed, dotted, opacity … a dropdown highlight or underline")
+				{ name: 'Mark the current line', desc: 'A tint behind the line you are on, or a line above it, under it or both.', control: { type: 'toggle', key: 'highlightCurrentLine' }, visible: tw },
+				// (A852, the writer: "a single option called line with toggles for top and bottom")
+				{ name: 'Current line style', desc: 'How the line you are on is marked.', control: { type: 'dropdown', key: 'lineHighlightStyle', options: { fill: 'Highlight', line: 'Line' } }, visible: all(tw, () => !!s.highlightCurrentLine) },
+				{ name: 'Line on top', desc: 'A line above the row you are on.', control: { type: 'toggle', key: 'lineTop' }, visible: all(tw, () => !!s.highlightCurrentLine && s.lineHighlightStyle === 'line') },
+				{ name: 'Line at the bottom', desc: 'A line under the row you are on.', control: { type: 'toggle', key: 'lineBottom' }, visible: all(tw, () => !!s.highlightCurrentLine && s.lineHighlightStyle === 'line') },
+				{ name: 'Line width', desc: 'From a hairline, 1 px, to 3 px.', control: { type: 'slider', key: 'lineUnderlineWidth', min: 1, max: 3, step: 1 }, visible: all(tw, () => !!s.highlightCurrentLine && s.lineHighlightStyle === 'line') },
+				{ name: 'Line pattern', desc: 'Solid, dashed or dotted.', control: { type: 'dropdown', key: 'lineUnderlineStyle', options: { solid: 'Solid', dashed: 'Dashed', dotted: 'Dotted' } }, visible: all(tw, () => !!s.highlightCurrentLine && s.lineHighlightStyle === 'line') },
+				{ name: 'Current line, dark theme', desc: 'Its color under a dark theme.', control: { type: 'color', key: 'lineHighlightDarkColor' }, visible: all(tw, () => !!s.highlightCurrentLine) },
+				{ name: 'Current line, light theme', desc: 'And under a light one.', control: { type: 'color', key: 'lineHighlightLightColor' }, visible: all(tw, () => !!s.highlightCurrentLine) },
+				{ name: 'Current line opacity', desc: 'How strong it is.', control: { type: 'slider', key: 'lineHighlightOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.highlightCurrentLine) },
 				{ name: 'Dim unfocused text', desc: 'Everything but the paragraph or sentence you are in fades.', control: { type: 'toggle', key: 'dimUnfocusedEnabled' }, visible: tw },
 				{ name: 'Focus area', desc: 'What stays lit.', control: { type: 'dropdown', key: 'dimFocusMode', options: { paragraph: 'Paragraph', sentence: 'Sentence' } }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
 				{ name: 'Dim opacity', desc: 'How much of the rest still shows. Lower is fainter; at 1 nothing fades.', control: { type: 'slider', key: 'dimOpacity', min: 0.05, max: 1, step: 0.05 }, visible: all(tw, () => !!s.dimUnfocusedEnabled) },
@@ -1916,6 +1929,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Syntax highlight', desc: 'Colors parts of speech as you write. Works offline.', control: { type: 'toggle', key: 'posEnabled' } },
 				{ name: 'Syntax display style', desc: 'How a part of speech is marked.', control: { type: 'dropdown', key: 'syntaxStyle', options: { text: 'Colored text', highlight: 'Highlight', line: 'Underline' } }, visible: pos },
 				cat('Nouns', 'Nouns and pronouns.', 'posNoun', 'posNounColor', pos),
+				// A SIXTH CLASS (A839, the writer's pick "Pronouns in Syntax"; each pack's pronoun list): off, a pronoun is a noun;
+				// under Nouns, whose stand-ins they are (the writer: "put pronouns under nouns")
+				cat('Pronouns', 'I, she, they, this, which: a noun\u2019s stand-ins, apart from the nouns.', 'posPronoun', 'posPronounColor', pos),
 				cat('Verbs', 'Verbs, auxiliaries and modals.', 'posVerb', 'posVerbColor', pos),
 				cat('Adverbs', 'All adverbs, including not and very.', 'posAdverb', 'posAdverbColor', pos),
 				cat('Adjectives', 'Adjectives; articles are left out.', 'posAdjective', 'posAdjectiveColor', pos),
@@ -1935,6 +1951,20 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Minimum length', desc: 'Skips words shorter than this.', control: { type: 'slider', key: 'repetitionMinLength', min: 3, max: 10, step: 1 }, visible: all(ck, () => !!s.checkRepetition) },
 				cat('Commonly misused', 'Affect and effect, its and it’s, fewer and less.', 'checkMisused', 'checkMisusedColor', ck),
 				cat('Lexical illusions', 'The same word twice in a row.', 'checkIllusion', 'checkIllusionColor', ck),
+				// STOCK PHRASES (A839, the writer's pick "Clichés"; English's built in, each pack's `## Clichés (Cliches)`)
+				cat('Clichés', 'Stock phrases: at the end of the day, cold as ice, a blessing in disguise.', 'checkCliche', 'checkClicheColor', ck),
+				// YOUR OWN (A856, the writer: "do 3 too"): one a line, marked as the list's are
+				rendered({ name: 'Your clichés', desc: 'Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.', visible: all(ck, () => !!s.checkCliche),
+					render: (st) => {
+						st.settingEl.addClass('ws-set-block');
+						st.addTextArea((t) => {
+							t.inputEl.rows = 4;
+							t.setValue(String(s.customCliches || '')).onChange((v) => { void (async () => {
+								s.customCliches = v;
+								await this.plugin.saveSettings();
+							})(); });
+						});
+					} }, ['customCliches']),
 				cat('Dialogue', 'Everything inside quotes, and speech after a dialogue dash where the language writes one.', 'checkDialogue', 'checkDialogueColor', ck),
 				// A711, issue #68: thoughts and telepathy, written in italics or angle brackets
 				{ name: 'More speech marks', desc: 'Italics and angle brackets count as speech too: *thoughts*, ‹whispers›, <telepathy>.', control: { type: 'toggle', key: 'checkDialogueMore' }, visible: all(ck, () => !!s.checkDialogue) },
@@ -2044,8 +2074,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					st.addToggle((t) => t.setValue(!!s.typoLanguageSpaces).onChange((v) => { void (async () => {
 						s.typoLanguageSpaces = v;
 						await this.plugin.saveSettings(true);
+						// (the row under it, Add the space for you, follows the switch at once)
+						this.refreshDomState();
 					})(); }));
 				} }, ['typoLanguageSpaces']),
+				// …AND WITH NO SPACE TYPED (#59, brg-2000; the writer: "add it with a toggle space or no"), while Language spacing is on
+				{ name: 'Add the space for you', desc: 'The space before each mark above goes in as you type the mark. Off, only a space you type becomes one.',
+					visible: all(ty, () => !!wsPackSpaces(this.plugin.packActive()) && !!s.typoLanguageSpaces), control: { type: 'toggle', key: 'typoSpaceForYou' } },
 				{ name: 'Ellipsis', desc: '... becomes …', control: { type: 'toggle', key: 'typoEllipsis' }, visible: ty },
 				{ name: 'Dashes', desc: '-- becomes –, --- becomes —', control: { type: 'toggle', key: 'typoDashes' }, visible: ty },
 				{ name: 'Arrows', desc: '-> →, <- ←, => ⇒', control: { type: 'toggle', key: 'typoArrows' }, visible: ty },
@@ -2285,15 +2320,19 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				opts()[key] = v;
 				await plugin.saveSettings();
 				plugin.exportOptsChanged();
+				// (a row shown by a switch, First-line indent under Indent paragraphs, follows it at once)
+				this.refreshDomState();
 			})(); }));
 		};
-		const words = (key: 'headerText' | 'tocTitle', ph: () => string) => (st: Setting) => {
+		const words = (key: 'headerText' | 'tocTitle' | 'phone' | 'email', ph: () => string) => (st: Setting) => {
 			st.addText((t) => t.setPlaceholder(ph()).setValue(String(opts()[key] || '')).onChange((v) => { void (async () => {
 				opts()[key] = v;
 				await plugin.saveSettings();
 				plugin.exportOptsChanged();
 			})(); }));
 		};
+		// A SECTION OF THIS PAGE AND THE EXPORT VALUES IT RESETS (A855)
+		const ex = (title: string, keys: string[], items: Row[], slot: RailSlot) => this.section(title, items, slot, true, keys);
 		const NUM_AT: [string, string][] = [['top-left', 'Top left'], ['top-center', 'Top center'], ['top-right', 'Top right'],
 			['bottom-left', 'Bottom left'], ['bottom-center', 'Bottom center'], ['bottom-right', 'Bottom right'], ['none', 'None']];
 		// TWO PILLS (A634, the writer: "the citations needs to be in a pill in the export page. so two
@@ -2305,7 +2344,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.page('Export', 'file-output', 'What every export does, decided once.', [
 			this.section('Sections', [this.railRow('export', RAIL)]),
 			// DECIDED ONCE (A574): moved out of the Export window, which says where they went
-			this.section('Title page', [
+			ex('Title page', ['author', 'roundWordCount', 'address', 'phone', 'email', 'contactOnTitle'], [
 				{ name: 'Author', desc: 'Your name on the title page and in the running header.',
 					render: (st) => {
 						st.addText((t) => t.setPlaceholder('A. Writer').setValue(String(opts().author || '')).onChange((v) => { void (async () => {
@@ -2314,13 +2353,32 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						})(); }));
 					} },
 				{ name: 'Round the word count', desc: '“About 90,000 words” on the title page, as a publisher expects. Off prints it exactly.', render: flag('roundWordCount') },
+				// YOUR CONTACT LINES (#81, the writer: "also add as options phone, adress, email"; their pick "Contact block")
+				// (ONE BOX, a line each: the writer, "don't make adress a token, just a text box that can have 3,4 lines for the adress")
+				{ name: 'Address', desc: 'Your address, a line each, for the title page.',
+					render: (st) => {
+						st.addTextArea((t) => {
+							t.inputEl.rows = 4;
+							t.setValue(String(opts().address || '')).onChange((v) => { void (async () => {
+								opts().address = v;
+								await plugin.saveSettings();
+								plugin.exportOptsChanged();
+							})(); });
+						});
+					} },
+				{ name: 'Phone', desc: 'Your phone number, for the title page.', render: words('phone', () => '') },
+				{ name: 'Email', desc: 'Your email, for the title page.', render: words('email', () => '') },
+				{ name: 'Contact on the title page', desc: 'Your name, address, phone and email in its top left corner, as an agent expects.', render: flag('contactOnTitle') },
 			], this.railed('export', 'options')),
 			// THE PAGES, THE HEADINGS AND THE PARAGRAPHS, DECIDED ONCE (the writer: "think of what options hould we put in the
 			// export page settings as they are too many options in the export tab", their pick "Six plus paragraph look"):
 			// moved out of the Export tab, which says where they went
-			this.section('Pages', [
+			ex('Pages', ['headerText', 'headerLeft', 'pageNumberAt', 'tocTitle'], [
 				{ name: 'Header text', desc: 'Along the top of every page. Empty, your surname and the title.',
 					render: words('headerText', () => (opts().author ? String(opts().author).split(/\s+/).pop() + ' / ' : '') + (String(opts().titleText || '').trim() || wsT('Title')) + ' /') },
+				// THE TOKENS (#81, the writer: "will be making this with tokens"), and THE SIDE ("a toggle for the header left or right")
+				this.noteRow('Tokens: {title} {page} {time12} {time24} {dd} {mm} {yyyy} {yy}.'),
+				{ name: 'Header on the left', desc: 'Off, it sits on the right, as a manuscript has it.', render: flag('headerLeft') },
 				{ name: 'Page numbers', desc: 'Where the number goes on each page.',
 					render: (st) => {
 						st.addDropdown((d) => {
@@ -2334,20 +2392,50 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					} },
 				{ name: 'Contents title', desc: 'Over the list of files at the front.', render: words('tocTitle', () => wsT('Contents')) },
 			], this.railed('export', 'options')),
-			this.section('Headings', [
+			ex('Headings', ['centerHeads', 'dashPageBreak'], [
 				// ("in exports": Text › Layout has a Center headings of its own, for the editor; one name a row, as Curly quotes in exports)
 				{ name: 'Center headings in exports', desc: 'Headings in the middle of the line. Off sets them at the start, like the text. The title page stays centered.', render: flag('centerHeads') },
 				{ name: '--- starts a new page', desc: 'A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.', render: flag('dashPageBreak') },
+				// (TOMBSTONE: Heading number suffix, the writer: "drop the suffix thing"; the numbers are styles in the Export tab)
 			], this.railed('export', 'options')),
-			this.section('Paragraphs', [
+			ex('Paragraphs', ['indent', 'indentSize', 'indentAfterHeads', 'paraSpacing', 'keepBlankLines'], [
 				{ name: 'Indent paragraphs', desc: 'A half-inch first line, as a manuscript has. Off, a space between paragraphs instead.', render: flag('indent') },
-				{ name: 'Paragraph spacing', desc: 'An empty line after every paragraph, indented or not.', render: flag('paraBlank') },
-				{ name: 'Keep line breaks', desc: 'Blank lines and line breaks as your note has them.', render: flag('keepLineBreaks') },
+				// THE INDENT'S SIZE (#77, davidepicatto: "Length of indentation"), while there is one
+				{ name: 'First-line indent', desc: 'How far a paragraph\u2019s first line sits in. Half an inch is the manuscript standard.', visible: () => opts().indent !== false,
+					render: (st) => {
+						st.addDropdown((d) => {
+							// (inches, then centimeters: the writer, "something that the europeans will use too")
+							for (const [v, l] of [['0.25in', '\u00bc inch'], ['0.5in', '\u00bd inch'], ['0.75in', '\u00be inch'], ['1in', '1 inch'],
+								['0.5cm', '0.5 cm'], ['1cm', '1 cm'], ['1.25cm', '1.25 cm'], ['1.5cm', '1.5 cm'], ['2cm', '2 cm']]) d.addOption(v, wsT(l));
+							d.setValue(wsIndentSize(opts())).onChange((v) => { void (async () => {
+								opts().indentSize = v;
+								await plugin.saveSettings();
+								plugin.exportOptsChanged();
+							})(); });
+						});
+					} },
+				// THE FRENCH HABIT (the writer's pick "Add Indent after headings"), while there is an indent
+				{ name: 'Indent after headings', desc: 'The first paragraph under a heading indented too, as French books set it. Off, it starts flush.', visible: () => opts().indent !== false, render: flag('indentAfterHeads') },
+				// THE SPACE BETWEEN PARAGRAPHS, ONE CHOICE (the writer: "let me have multiple options for paragraph spacings", the pick
+				// "One dropdown") (TOMBSTONE: the two switches, `paraBlank`, `keepLineBreaks`; A849's Your blank lines, kept always now)
+				{ name: 'Paragraph spacing', desc: 'The space between paragraphs. A blank line past the first in your note is always kept.',
+					render: (st) => {
+						st.addDropdown((d) => {
+							for (const [v, l] of [['auto', 'Auto'], ['half', 'Half a line'], ['line', 'One line']]) d.addOption(v, wsT(l));
+							d.setValue(wsParaSpacing(opts())).onChange((v) => { void (async () => {
+								opts().paraSpacing = v;
+								await plugin.saveSettings();
+								plugin.exportOptsChanged();
+							})(); });
+						});
+					} },
+				// KEEP EVERY BLANK LINE (A851, the writer's pick): for notes written a paragraph a line, where one blank line is a gap
+				{ name: 'Keep every blank line', desc: 'Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.', render: flag('keepBlankLines') },
 			], this.railed('export', 'options')),
-			this.section('Text', [
+			ex('Text', ['smartQuotes'], [
 				{ name: 'Curly quotes in exports', desc: 'Straight quotes turn curly as the file is compiled; your notes keep what you typed.', render: flag('smartQuotes') },
 			], this.railed('export', 'options')),
-			this.section('Notes', [
+			ex('Notes', ['footnotePlace'], [
 				{ name: 'Notes in a Word file', desc: 'Word’s own footnotes at the foot of each page, or endnotes at the end. PDF and web page notes go at the end.',
 					render: (st) => {
 						st.addDropdown((d) => d

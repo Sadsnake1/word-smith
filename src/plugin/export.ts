@@ -8,12 +8,12 @@
 import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage } from '../core/settings';
-import { wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill, wsFootNotes } from '../core/preamble';
-import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
+import { wsIsRtl, wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill, wsFootNotes, wsIndentSize, wsHeadNumbers, wsNumbered, wsNoteHeadings, wsPageOfPart, wsHeadFill, wsHeadSide, wsContactLines, WS_SUBTITLE_SIZE_EM, wsParaSpacing, wsDropHeadings } from '../core/preamble';
+import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsMdImageLink, wsRelPath, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
 import type { WsWheelAcc } from '../core/preamble';
 import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
 import { wsT, wsUiJoin } from '../core/ui-text';
-import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsDemoteHeadings, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
 // ── DRAWING A PICTURE (A568), with the engine Obsidian runs ─────────────
@@ -187,15 +187,16 @@ function wsPreviewPlaceSheets(a: { o: WsExportRun; pool: HTMLElement[]; topOf: (
 		// which counted FILES, so a forty-page chapter said the same
 		// number on all forty of its pages.
 		// THE NUMBER WHERE IT WAS ASKED (A751): beside the header top right, else in a box of its own
-		const at = wsPageNumAt(o, true);
+		// (the header's side and its own {page}, #81)
+		const at = wsPageNumAt(o, true), mine = 'top-' + wsHeadSide(o);
 		const bare = !!o.titlePage && n === 0;
 		if (hdr) {
 			hdr.textContent = bare ? ''
-				: o.runningHeader ? (o.runningHeader + (at === 'top-right' ? ' ' + (n + 1) : ''))
-				: (at === 'top-right' ? String(n + 1) : '');
+				: o.runningHeader ? (o.runningHeader.split('{page}').join(String(n + 1)) + (at === mine ? ' ' + (n + 1) : ''))
+				: (at === mine ? String(n + 1) : '');
 		}
 		const pn = el.querySelector('.pnum');
-		if (pn) pn.textContent = (bare || at === 'top-right' || at === 'none') ? '' : String(n + 1);
+		if (pn) pn.textContent = (bare || at === mine || at === 'none') ? '' : String(n + 1);
 	}
 	// A SHEET WITH NO PAGE IS HIDDEN rather than left showing page one
 	// somewhere down the stack — at the end of a short book the pool is
@@ -334,6 +335,22 @@ function wsPreviewFlowApply(a: { apply: () => void; docOf: () => Document | null
 	if (pv.flowSay) { try { pv.flowSay(); } catch (_) { wsCatch('exportPreviewInto / flowApply: flowSay();', _); } }
 }
 
+// PAGE BY PAGE IN THE READER (the writer: "put arrows on desktop for pages in expanded view", then the pick "Keys for
+// pages"): the next page's top, or back to this page's own top and then the one before; a page's top is its seam's head.
+// In the viewport's own units, so no zoom enters into it. False where the document has no pages to turn
+function wsReadStep(doc: Document | null, by: number): boolean {
+	const win = doc && doc.defaultView;
+	if (!doc || !win) return false;
+	const heads = Array.from(doc.querySelectorAll<HTMLElement>('.sheet:not([data-pooled]) .seam-head'));
+	if (!heads.length) return false;
+	const tops = heads.map((h) => h.getBoundingClientRect().top);
+	let cur = 0;
+	for (let i = 0; i < tops.length; i++) if (tops[i] <= (win.innerHeight || 0) / 3) cur = i;
+	const to = Math.max(0, Math.min(heads.length - 1, by < 0 && tops[cur] < -2 ? cur : cur + by));
+	win.scrollTo(0, Math.max(0, tops[to] + (win.scrollY || 0)));
+	return true;
+}
+
 // The reader's read-out: which file, which page (lifted out of exportPreviewInto, A488).
 function wsPreviewReadSay(plugin: WordSmith, a: { docOf: () => Document | null; pageOf: WeakMap<HTMLElement, number> | null; pagesTotal: number; pool: HTMLElement[]; pv: { zoom: number; flowZoom: number; pct: HTMLElement | null; fitSay: (() => void) | null; dark: boolean; pageAt: number; pageNum: HTMLElement | null; prevBtn: { disabled: boolean; } | null; nextBtn: { disabled: boolean; } | null; pageNow: HTMLElement | null; pageEst: HTMLElement | null; flow: boolean; pageBox: HTMLElement | null; readPage: HTMLElement | null; flowSay: (() => void) | null; readFile: HTMLSelectElement | null; }; readFileSay: () => void; restoring: boolean; topNow: () => HTMLElement | null }) {
 	const { docOf, pageOf, pagesTotal, pool, pv, readFileSay, restoring, topNow } = a;
@@ -363,7 +380,10 @@ function wsPreviewReadSay(plugin: WordSmith, a: { docOf: () => Document | null; 
 				}
 			} catch (_) { wsCatch('exportPreviewInto / readSay: if (this._wsSession) this._wsSession.flowScroll = win.scrollY || 0;', _); }
 		}
-		const n = (top && pageOf && pageOf.has(top)) ? pageOf.get(top) : null;
+		let n = (top && pageOf && pageOf.has(top)) ? pageOf.get(top) : null;
+		// …a paragraph's later part, cut where a page begins, by its first part's page (the writer: "when im in the middle of
+		// last page the page numbers dissapear": the part at the top was one the map had never seen)
+		if (n == null && top && pageOf) n = wsPageOfPart(top, pageOf);
 		// NOTHING RATHER THAN A GUESS. A paragraph the map does not know
 		// — one drawn after the map was taken — has no page, and saying a
 		// wrong one is worse than saying none.
@@ -669,21 +689,17 @@ function wsPreviewFlipper(plugin: WordSmith, a: { apply: () => void; applyDark: 
 		rfile.addEventListener('change', () => {
 			try { jumpTo(rfile.value); } catch (_) { wsCatch('exportPreviewInto / readFile change: jumpTo(readFile.value);', _); }
 		});
-		// PAGE BY PAGE IN THE READER TOO, on a desktop (the writer: "put arrows on desktop for pages in expanded view"): the
-		// next page's top, or back to this page's own top and then the one before; a page's top is its seam's head. In the
-		// viewport's own units, as `topTo` reads them, so no zoom enters into it
-		const readStep = (by: number) => {
-			const doc = docOf();
-			const win = doc && doc.defaultView;
-			if (!doc || !win || !pv.flow) return;
-			const heads = Array.from(doc.querySelectorAll<HTMLElement>('.sheet:not([data-pooled]) .seam-head'));
-			if (!heads.length) return;
-			const tops = heads.map((h) => h.getBoundingClientRect().top);
-			let cur = 0;
-			for (let i = 0; i < tops.length; i++) if (tops[i] <= (win.innerHeight || 0) / 3) cur = i;
-			const to = Math.max(0, Math.min(heads.length - 1, by < 0 && tops[cur] < -2 ? cur : cur + by));
-			win.scrollTo(0, Math.max(0, tops[to] + (win.scrollY || 0)));
-		};
+		// PAGE BY PAGE IN THE READER TOO, on a desktop (`wsReadStep`, the keys' step as well)
+		const readStep = (by: number) => { if (pv.flow) wsReadStep(docOf(), by); };
+		// …AND FROM THE TOOLBAR, where a click on an arrow leaves the focus (the writer's pick "Keys for pages"): Left and
+		// Right, Page Up and Page Down turn pages there too, Escape collapses; the file list keeps its own keys
+		viewBox.addEventListener('keydown', (ev: KeyboardEvent) => {
+			if (!pv.flow || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+			if (ev.target instanceof HTMLSelectElement || ev.target instanceof HTMLInputElement) return;
+			const by = ev.key === 'ArrowRight' || ev.key === 'PageDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'PageUp' ? -1 : 0;
+			if (by) { ev.preventDefault(); readStep(by); return; }
+			if (ev.key === 'Escape') { ev.preventDefault(); flowSet(false); }
+		});
 		if (!Platform.isMobile) iconBtn(viewBox, 'ws-export-readstep is-prev is-gone', ['chevron-left'], '\u2039', wsT('Previous page'), () => readStep(-1));
 		pv.readPage = viewBox.createSpan({ cls: 'ws-export-readpage is-gone' });
 		if (!Platform.isMobile) iconBtn(viewBox, 'ws-export-readstep is-next is-gone', ['chevron-right'], '\u203a', wsT('Next page'), () => readStep(1));
@@ -928,7 +944,7 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 
 // FRONT MATTER AND STRUCTURE: the title page, the running header, the contents; how files and folders meet (lifted out of buildExportOptions, A669).
 function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; pickList: (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string, after?: () => void) => HTMLButtonElement; redrawOpts: () => void; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; textOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, ph: string, hint?: string, inRow?: boolean) => HTMLInputElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
-	const { o, optGroup, pickList, redrawOpts, selOpt, textOpt, toggle } = a;
+	const { o, optGroup, pickList, redrawOpts, selOpt, textOpt } = a;
 	{
 		// The title page, the running header, the contents page, and how the
 		// word count on the title page reads. Publishing's own word for the
@@ -970,12 +986,36 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 		// next, and whether a folder announces itself — where Front matter is
 		// what is printed BEFORE the book.
 		const structGrp = optGroup(wsT('Structure'));
-		// The pair spans the group; the two switches under it share a line,
-		// each in the half the select above it has. MARKED, because their
-		// names are the longest here and a narrow column gives them the
-		// whole line before it does any other group's.
+		// BY MEANING (A844, the writer: "think on better organization for the buttons and more clear"): what heads each
+		// part and how it is numbered side by side, each with its name, Numbers beside the headings it numbers; how one file
+		// meets the next on the line under, in the same two columns. MARKED, because a narrow column gives its long answers
+		// the whole line before it does any other group's.
 		structGrp.addClass('is-structure');
 		const pair = structGrp.createDiv({ cls: 'ws-export-pair' });
+		// (the list wears a row's name like a drop-down: "Headings" was a button with no label)
+		const hrow = pair.createDiv({ cls: 'ws-export-opt ws-export-textrow is-inrow ws-export-headsrow' });
+		hrow.createSpan({ cls: 'ws-export-optname', text: wsT('Headings') });
+		// HEADINGS, ONE LIST (the writer: "also add an option to add the folder names as heading too", the pick "One list"): the
+		// folders, the files' names, the notes' own headings, any of them together (TOMBSTONE: Insert heading's four answers and
+		// the Folder names as headings switch). With File names and Note headings both, the note's headings sit under the name
+		// and a first one of the same name goes; with Folders, everything moves down a level a folder
+		const HEADS: WsPickRow[] = [
+			['folderHeadings', wsT('Folders'), wsT('A folder becomes a heading where it begins, one level a folder, the book\u2019s own folder aside.'), ['folder-tree', 'folder']],
+			['sectionTitles', wsT('File names'), wsT('Each file opens with its own name as a heading.'), ['file-text', 'file']],
+			['keepHeadings', wsT('Note headings'), wsT('The note\u2019s own # headings, as written; under the file\u2019s name when that is on.'), ['heading', 'hash']],
+		];
+		pickList(hrow, 'ws-export-heads', () => HEADS, wsT('No headings'),
+			(list) => (list ? wsT('Headings: {list}. Press for the list.') : wsT('Headings: none. Press for the list.')));
+		// NUMBERS, THE PAIR'S SECOND HALF (#79; the writer: "drop the suffix thing - add some options to display them (popular
+		// ones)", the picks "1.1.2, 1.1.2., I. A. 1., Chapter 1"): each answer what it prints, from the file tree
+		selOpt(pair, 'numberStyle', wsT('Numbers'), [
+			{ id: 'none', label: wsT('None'), hint: wsT('No numbers before the headings.') },
+			{ id: 'decimal', label: '1.1.2', hint: wsT('Each folder and file by its place in your folders: 1, 1.1, 1.1.2.') },
+			{ id: 'decimalDot', label: '1.1.2.', hint: wsT('The same, each with a closing point: 1., 1.1., 1.1.2.') },
+			{ id: 'outline', label: wsT('I. A. 1.'), hint: wsT('An outline: a Roman numeral, then a capital letter, then a number, one a level.') },
+			{ id: 'chapter', label: wsT('Chapter 1'), hint: wsT('Files Chapter 1, 2, 3 through the book; folders at the top Part I, II.') }
+		], () => { void plugin.saveSettings(); redrawOpts(); }, true, 'none');
+		const joins = structGrp.createDiv({ cls: 'ws-export-pair' });
 		// ── AND A PAGELESS FORMAT IS NOT OFFERED A PAGE ─────────────
 		//
 		// `exportToMarkdown` reads `starBetween` and never `pageBreaks`, so
@@ -983,7 +1023,7 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 		// two both work. THE STORED VALUE IS LEFT ALONE and `run` is shown
 		// instead, which is also what .md actually does with `page`. Flick to
 		// Markdown and back and the Word setting is exactly where it was.
-		selOpt(pair, 'joinMode', wsT('Each file'), [
+		selOpt(joins, 'joinMode', wsT('Each file'), [
 			{ id: 'page',    label: wsT('Starts a new page'),
 				hint: wsT('Every file begins at the top of a fresh page \u2014 how a book starts a chapter, and what a submission expects.') },
 			{ id: 'divider', label: wsT('Follows a divider'),
@@ -1012,54 +1052,13 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 			textOpt(structGrp, 'divider', wsT('Its mark'), '#',
 				wsT('Centered on its own line between one file and the next.'));
 		}
-		// "INSERT HEADING", NOT "ITS HEADING": "its" names a heading the file
-		// already has, so "None" reads as a claim about the note rather than
-		// an instruction about the export. "Insert" says who is doing it, and
-		// then None means what it says. With the file's name on AND the note
-		// opening with its own `# Chapter One`, the title would be set twice
-		// — and a book whose notes are named for its chapters is the commonest
-		// way anyone organises one.
-		selOpt(pair, 'chapterTitles', wsT('Insert heading'), [
-			{ id: 'file', label: wsT('The file\u2019s name'),
-				hint: wsT('Each file opens with its own name as the heading. A # heading inside the note is dropped, so the title is not set twice.') },
-			{ id: 'note', label: wsT('The note\u2019s own'),
-				hint: wsT('Whatever the note already says \u2014 its # headings are kept as written, and nothing is added.') },
-			{ id: 'none', label: wsT('None'),
-				hint: wsT('No headings at all: unbroken prose, with only the dividers or page breaks above to separate the files.') }
-		], () => {
-			o.sectionTitles = o.chapterTitles === 'file';
-			o.keepHeadings = o.chapterTitles !== 'none';
-			// From the file name means the note's own heading would be
-			// the same title again: it is dropped, not printed twice.
-			if (o.chapterTitles === 'file') o.keepHeadings = false;
-			void plugin.saveSettings();
-			redrawOpts();
-		}, true);
-		// ── AND THE FOLDERS THEMSELVES CAN BE HEADINGS ──────────────────
-		//
-		// A book kept as `Section 1/Chapter 1/Some topic.md` compiles to
-		// `Section 1`, `Chapter 1`, then the prose — the chapter headings live
-		// apart from the body text, so pieces move between chapters without
-		// dragging a heading with them. DIRECTLY UNDER `Insert heading`,
-		// because the two are one question asked at two scales: that one says
-		// whether a FILE contributes a heading, this one whether the FOLDERS
-		// above it do.
-		//
-		// IT WORKS WITH ALL THREE ANSWERS. With "None" the folders are the
-		// only headings. With "The file's name" each file sits one level under
-		// its folder. With "The note's own" the note's headings are pushed
-		// down by the folder depth, or a scene's # would outrank its chapter.
-		// IN THE GROUP, NOT THE PAIR: a third child would take one of the
-		// pair's cells and leave the other empty.
-		toggle(structGrp, 'folderHeadings', wsT('Folder names as headings'),
-			wsT('A folder becomes a heading where it begins — the folders below the deepest one every file shares, one level per folder. A note’s own headings move down to sit under them.'));
 		// (TOMBSTONE: Center headings, #76, and "--- starts a new page", A502 (moved to Settings › Export on the writer's word, "Six plus paragraph look": they are decided once)
 	}
 }
 
 // TYPESETTING: paper, font, size, spacing (lifted out of buildExportOptions, A669; the paragraphs' switches in Settings › Export since the writer's "Six plus paragraph look").
 function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLElement, key: WsExportStringKey, label: string, inRow: boolean) => HTMLInputElement; o: WsExportOpts; optGroup: (label: string) => HTMLDivElement; selOpt: (parent: HTMLElement, key: "pt" | WsExportStringKey, label: string, items: { id: string | number; label: string; hint?: string | undefined; }[], after: () => void, inRow: boolean, whenMissing?: string) => HTMLSelectElement; toggle: (parent: HTMLElement, key: WsExportBoolKey, label: string, hint: string) => HTMLLabelElement }) {
-	const { fontOpt, o, optGroup, selOpt } = a;
+	const { fontOpt, o, optGroup, selOpt, toggle } = a;
 	{
 		const grp = optGroup(wsT('Typesetting'));
 		// BOTH HALVES OF THE SECTION. `optGroup` makes an eyebrow and then
@@ -1153,6 +1152,9 @@ function wsExportOptsTypesetting(plugin: WordSmith, a: { fontOpt: (parent: HTMLE
 			void plugin.saveSettings();
 		}, true);
 		// (TOMBSTONE: Indent paragraphs, Paragraph spacing, A756, and Keep line breaks, #77 (moved to Settings › Export on the writer's word, "Six plus paragraph look": they are decided once)
+		// JUSTIFY, BESIDE THE TYPE (#77, davidepicatto: contests ask for a font, a size and justified text; the writer's pick,
+		// a tick here after Spacing): straight edges in Word, the PDF, the web page, the e-book and the preview
+		toggle(grp, 'justify', wsT('Justify text'), wsT('Straight edges on both sides.'));
 	}
 }
 
@@ -1212,6 +1214,9 @@ function wsExportOptsAlso(a: { optGroup: (label: string) => HTMLDivElement; pick
 			wsT('Nothing else'), (list) => (list ? wsT('What else comes along: {list}. Press for the list.', { list }) : wsT('What else comes along: nothing. Press for the list.')));
 	}
 }
+
+// HOW LONG THE PRINT WAITS FOR A PICTURE THAT NEVER LOADS (#84): then it prints what it has, rather than wait for ever
+const WS_PDF_PICTURE_WAIT_MS = 5000;
 
 export const exportMethods = {
 
@@ -1596,7 +1601,14 @@ export const exportMethods = {
 		// writer chose; it steps up one and keeps its name.
 		const paths = files.map((f: TAbstractFile) => f.path);
 		const picked = scope || wsExportRoot(paths, '');
-		const root = wantFolders ? wsExportRoot(paths, picked) : '';
+		// THE TREE'S ROOT whether the folders print or not: the numbers count them either way (#79, "From the tree")
+		const treeRoot = wsExportRoot(paths, picked);
+		const root = wantFolders ? treeRoot : '';
+		// THE BOOK'S OWN FOLDER (A848, the writer: "the first main folder name should not appear in contents- think on
+		// this"): the folder the root stepped up from, the one every file sits in, keeps its heading in the text (A424, "when
+		// i tick folder names as heading they are not there") and is marked `book`, which every contents passes by
+		// (wsTocSteps counts the levels without it). The numbers never counted it (wsHeadNumbers)
+		const book = wantFolders && treeRoot !== wsExportRoot(paths, '');
 		let seen: string[] = [];
 		for (const f of files) {
 			let text = '';
@@ -1610,7 +1622,9 @@ export const exportMethods = {
 				for (let k = i; k < bits.length; k++) {
 					secs.push({
 						folder: true,
+						book: book && k === 0,
 						depth: Math.min(6, k + 1),
+						dirs: bits.slice(0, k + 1),
 						title: bits[k],
 						markdown: '',
 						path: (root ? root + '/' : '') + bits.slice(0, k + 1).join('/')
@@ -1619,7 +1633,8 @@ export const exportMethods = {
 				seen = bits;
 				depth = Math.min(6, bits.length);
 			}
-			secs.push({ title: f.basename, markdown: text, path: f.path, depth });
+			const dirs = (treeRoot ? String(f.path).slice(treeRoot.length + 1) : String(f.path)).split('/').slice(0, -1);
+			secs.push({ title: f.basename, markdown: text, path: f.path, depth, dirs });
 			n++;
 			if (onStep && (n % 5 === 0 || n === files.length)) {
 				onStep(n, files.length);
@@ -1649,6 +1664,35 @@ export const exportMethods = {
 	// size first. Each file is read once however often it appears. What cannot
 	// be found, read or drawn stays a placeholder; nothing is fetched from the
 	// web.
+	// THE PICTURES WHERE THEY ARE (A842, a reader: "…creates links in the markdown", for pandoc's sizes; the writer: "Dont
+	// make a book attachments folder. Just embed the pictures from their original place"): each embed a plain Markdown
+	// link to the picture where it lives in the vault, its path from the exported file; nothing is copied. A picture off
+	// the web or not in the vault stays as written. The sections come back rewritten, the notes untouched.
+	exportMdImages(this: WordSmith, sections: WsExportSection[], mdPath: string): WsExportSection[] {
+		const out: WsExportSection[] = [];
+		for (const sec of sections) {
+			if (sec.folder || !sec.markdown || sec.markdown.indexOf('![') === -1) { out.push(sec); continue; }
+			const swaps = new Map<string, string>();
+			const re = wsImageRefRe();
+			let m;
+			while ((m = re.exec(sec.markdown)) !== null) {
+				const raw = m[0];
+				if (swaps.has(raw)) continue;
+				const ref = wsParseImageRef(raw);
+				if (!ref || ref.remote) continue;
+				let file: TFile | null = null;
+				try { file = this.app.metadataCache.getFirstLinkpathDest(ref.target, sec.path); }
+				catch (_) { wsCatch('exportMdImages: getFirstLinkpathDest', _); }
+				if (!file) continue;
+				swaps.set(raw, wsMdImageLink(ref.alt, wsRelPath(mdPath, file.path)));
+			}
+			let md = sec.markdown;
+			for (const [raw, link] of swaps) md = md.split(raw).join(link);
+			out.push(Object.assign({}, sec, { markdown: md }));
+		}
+		return out;
+	},
+
 	async exportImages(this: WordSmith, sections: WsExportSection[], mode: 'preview' | 'page' | 'docx') {
 		const ready = new Map<string, Omit<WsImage, 'name' | 'alt' | 'width'> | null>();
 		for (const sec of sections) {
@@ -1737,6 +1781,8 @@ export const exportMethods = {
 		const parts = [];
 		if (o.titlePage) {
 			parts.push('# ' + (o.title || 'Untitled'));
+			// (the subtitle, #81)
+			if (String(o.subtitleText || '').trim()) parts.push('## ' + String(o.subtitleText).trim());
 			if (o.author) parts.push('*by ' + o.author + '*');
 			if (o.wordCount != null) {
 				parts.push('*' + wsTitleWords(o) + '*');
@@ -1764,28 +1810,33 @@ export const exportMethods = {
 			// `scene-3-1`, the third `scene-3-2`.
 			const stepOf = wsTocSteps(o, sections);
 			const seenSlug: Record<string, number> = {};
-			sections.forEach((sec: WsExportSection) => {
-				const t = sec.title || 'Section';
+			// (the structure's numbers, #79: the slug read off the heading as it is printed)
+			const tocNums = wsHeadNumbers(o, sections);
+			sections.forEach((sec: WsExportSection, i: number) => {
+				const t = wsNumbered(tocNums[i], sec.title || 'Section');
 				const pad = '  '.repeat(stepOf(sec));
 				const base = String(t).toLowerCase()
 					.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 				const nth = seenSlug[base] || 0;
 				seenSlug[base] = nth + 1;
+				// (the book's own folder in the text, never in the contents: A848)
+				if (sec.book) return;
 				parts.push(pad + '- [' + t + '](#' + base
 					+ (nth ? '-' + nth : '') + ')');
 			});
 			parts.push('');
 		}
+		const mdNums = wsHeadNumbers(o, sections);
 		sections.forEach((sec: WsExportSection, i: number) => {
 			// A FOLDER IS A HEADING AND NOTHING ELSE — no divider above it, no
 			// prose under it, and it does not answer to `sectionTitles`, which
 			// is about whether a FILE contributes its name.
 			if (sec.folder) {
-				parts.push('#'.repeat(Math.min(6, sec.depth || 1)) + ' ' + sec.title + '\n');
+				parts.push('#'.repeat(Math.min(6, sec.depth || 1)) + ' ' + wsNumbered(mdNums[i], sec.title) + '\n');
 				return;
 			}
 			if (o.sectionTitles && sec.title) {
-				parts.push('#'.repeat(wsFileHeadLevel(o, sec)) + ' ' + sec.title + '\n');
+				parts.push('#'.repeat(wsFileHeadLevel(o, sec)) + ' ' + wsNumbered(mdNums[i], sec.title) + '\n');
 			}
 			// Frontmatter travels only if the writer asked for it — see the
 			// note in wsBlocksFromMarkdown.
@@ -1798,10 +1849,12 @@ export const exportMethods = {
 			if (!o.keepCallouts && /\[!/.test(md)) md = wsDropCallouts(md);
 			// TAGS stay in the note; off, they leave the manuscript too.
 			if (o.keepTags === false) md = wsDropTags(md);
-			// AND THE NOTE'S OWN HEADINGS MOVE DOWN UNDER THE FOLDER'S. See
-			// `wsDemoteHeadings`: a scene opening `# The Sea` under a folder
+			// THE NOTE'S OWN HEADINGS LEFT OUT where the page and Word leave them out: the file's name the heading, or none
+			if (o.keepHeadings === false) md = wsDropHeadings(md);
+			// AND THE NOTE'S OWN HEADINGS MOVE DOWN UNDER THE FOLDER'S, or under the file's name with Both. See
+			// `wsNoteHeadings`: a scene opening `# The Sea` under a folder
 			// heading `# Chapter 1` would outrank the chapter it is in.
-			if (o.folderHeadings) md = wsDemoteHeadings(md, sec.depth || 0);
+			md = wsNoteHeadings(o, sec, md);
 			parts.push(md.trim());
 			// Only when asked for. This used to divide EVERY pair of files
 			// unconditionally, which put a divider where a writer had asked
@@ -1823,6 +1876,14 @@ export const exportMethods = {
 	// caller can skip — the compile once read `undefined` for the format,
 	// the divider and the running header when the window that set them
 	// was not open.
+	// WHAT A FRESH EXPORT STARTS WITH (A855: the Settings › Export resets): the defaults above, filled into an empty set and
+	// handed back, the writer's own put back as they were
+	exportDefaultsOf(this: WordSmith) {
+		const keep = this.settings.exportOpts;
+		this.settings.exportOpts = {};
+		try { return Object.assign({}, this.exportOptionDefaults()); } finally { this.settings.exportOpts = keep; }
+	},
+
 	exportOptionDefaults(this: WordSmith) {
 		const o = this.settings.exportOpts || (this.settings.exportOpts = {});
 		const bag = o as Record<string, unknown>;
@@ -1857,9 +1918,6 @@ export const exportMethods = {
 		// The two merged controls read from the booleans they write, so a
 		// vault that predates them opens on whatever it already had.
 		if (!o.joinMode) o.joinMode = o.pageBreaks ? 'page' : (o.starBetween ? 'divider' : 'run');
-		if (!o.chapterTitles) {
-		o.chapterTitles = o.sectionTitles ? 'file' : (o.keepHeadings === false ? 'none' : 'note');
-		}
 		// …AND THEN WRITTEN BACK FROM IT, on the way in. Reading was only
 		// half the job: the drop-downs write the booleans when they CHANGE,
 		// so a vault could hold joinMode 'page' beside a stale
@@ -1870,10 +1928,9 @@ export const exportMethods = {
 		// window opens.
 		o.pageBreaks  = o.joinMode === 'page';
 		o.starBetween = o.joinMode === 'divider';
-		o.sectionTitles = o.chapterTitles === 'file';
-		o.keepHeadings  = o.chapterTitles === 'note';
 		dflt('font', 'Times New Roman'); dflt('pt', 12);
 		dflt('justify', false);   dflt('keepHeadings', true);
+		dflt('numberStyle', 'none'); dflt('indentAfterHeads', false); dflt('keepBlankLines', false);
 		dflt('centerHeads', true);
 		dflt('smartQuotes', false); dflt('wordCountOnTitle', true);
 		dflt('roundWordCount', true);
@@ -1884,6 +1941,8 @@ export const exportMethods = {
 		dflt('outFolder', '');  dflt('toc', false);  dflt('lastScope', '');
 		// A751: the contents' page numbers on; the header's words and the contents' title empty (the defaults)
 		dflt('headerText', ''); dflt('tocTitle', '');
+		// (#81)
+		dflt('headerLeft', false); dflt('address', ''); dflt('phone', ''); dflt('email', ''); dflt('contactOnTitle', false); dflt('subtitleText', '');
 		dflt('titleText', '');
 		dflt('doubleSpaced', true); dflt('indent', true);
 		// SPACING, from the boolean it replaced — and written back to it on
@@ -1899,8 +1958,8 @@ export const exportMethods = {
 		dflt('footnotes', true);
 		// where Word puts them: at the foot of each page (#46), or at the end (Settings → Export)
 		dflt('footnotePlace', 'foot');
-		// every line a paragraph, as before #77
-		dflt('keepLineBreaks', false);
+		// the space between paragraphs, one choice (A834): what the two switches it replaced said, else Auto
+		dflt('paraSpacing', wsParaSpacing(o));
 		dflt('highlights', false);
 		// Which tab the column opens on, remembered: a writer setting up a
 		// proof is in Typesetting for six exports in a row.
@@ -2011,8 +2070,8 @@ export const exportMethods = {
 	},
 
 	// THE KEYS A READER EXPECTS. On the frame's document, reader only,
-	// wired once per written document like the clicks. Space and PgDn page
-	// down, Shift+Space and PgUp page up, the arrows step, Home and End go
+	// wired once per written document like the clicks. Space pages
+	// down, Shift+Space up; PgDn and PgUp, Left and Right turn a page; Up and Down step, Home and End go
 	// to the ends, Escape collapses, Enter opens the section under the top
 	// edge, j/k step under Obsidian's Vim and only then. A chorded key
 	// belongs to whoever owns the chord; a plain letter is not ours.
@@ -2033,8 +2092,13 @@ export const exportMethods = {
 				let dy: number | null = null, to: number | null = null;
 				switch (ev.key) {
 					case ' ': dy = ev.shiftKey ? -page : page; break;
-					case 'PageDown': dy = page; break;
-					case 'PageUp': dy = -page; break;
+					// PAGE UP AND DOWN TURN A PAGE where the reader has them, a screen where it has none; LEFT AND RIGHT turn one
+					// too (the writer's pick "Keys for pages")
+					case 'PageDown': if (wsReadStep(doc, 1)) { ev.preventDefault(); return; } dy = page; break;
+					case 'PageUp': if (wsReadStep(doc, -1)) { ev.preventDefault(); return; } dy = -page; break;
+					case 'ArrowRight': case 'ArrowLeft':
+						if (wsReadStep(doc, ev.key === 'ArrowRight' ? 1 : -1)) ev.preventDefault();
+						return;
 					case 'ArrowDown': dy = step; break;
 					case 'ArrowUp': dy = -step; break;
 					case 'j': if (!vim) return; dy = step; break;
@@ -2901,12 +2965,13 @@ export const exportMethods = {
 	// contents are the entries the web page's own Contents lists, at the same levels, and
 	// its language is the one Word-Smith reads (Prose → Language).
 	exportToEpub(this: WordSmith, sections: WsExportSection[], o: WsExportRun) {
-		const stepOf = wsTocSteps(o, sections);
-		const nav = sections.map((sec: WsExportSection, i: number) => ({ id: wsAnchorId(sec.title, i), label: sec.title || '', level: stepOf(sec) }))
+		const stepOf = wsTocSteps(o, sections), nums = wsHeadNumbers(o, sections);
+		// (the book's own folder in the text, never in the contents: A848)
+		const nav = sections.map((sec: WsExportSection, i: number) => ({ id: wsAnchorId(sec.title, i), label: sec.title && !sec.book ? wsNumbered(nums[i], sec.title) : '', level: stepOf(sec) }))
 			.filter((e) => !!e.label);
 		return wsBuildEpub(this.exportToHtml(sections, o, false), {
 			title: o.title || 'Untitled', author: o.author || '', lang: this.settings.language || 'en',
-			nav, indent: o.indent !== false, paraBlank: !!(o.paraBlank || o.keepLineBreaks), tocTitle: wsTocTitle(o), centerHeads: o.centerHeads !== false,
+			nav, indent: o.indent !== false, paraBlank: wsParaSpacing(o) === 'line', paraHalf: wsParaSpacing(o) === 'half', tocTitle: wsTocTitle(o), centerHeads: o.centerHeads !== false,
 		});
 	},
 
@@ -2926,8 +2991,14 @@ export const exportMethods = {
 		// the notes gathered for the back, in the order the text first cites them
 		const notesOut: string[] = [];
 		if (o.titlePage) {
-			parts.push('<section class="page tp"><div class="tpinner">'
+			// your contact lines in its top left corner (#81, the writer's pick "Contact block"); not in an e-book, a reading copy
+			const contact = o.format === 'epub' ? [] : wsContactLines(o), sub = String(o.subtitleText || '').trim();
+			parts.push('<section class="page tp">'
+				+ (contact.length ? '<div class="tpcontact">' + contact.map((l) => '<p>' + esc(l) + '</p>').join('') + '</div>' : '')
+				+ '<div class="tpinner">'
 				+ '<h1>' + esc(o.title || 'Untitled') + '</h1>'
+				// the subtitle under it (the writer: "also add subtitle for the title page")
+				+ (sub ? '<p class="tpsub">' + esc(sub) + '</p>' : '')
 				+ (o.author ? '<p>by ' + esc(o.author) + '</p>' : '')
 				+ (o.wordCount != null && o.wordCountOnTitle !== false
 					? '<p>' + esc(wsTitleWords(o)) + '</p>' : '')
@@ -2943,17 +3014,23 @@ export const exportMethods = {
 			// and an indent a stylesheet cannot reach is one a page size
 			// cannot adjust.
 			const stepOf = wsTocSteps(o, sections);
+			// (the structure's numbers, #79)
+			const tocNums = wsHeadNumbers(o, sections);
 			sections.forEach((sec: WsExportSection, i: number) => {
+				// (the book's own folder in the text, never in the contents: A848)
+				if (sec.book) return;
 				const lv = stepOf(sec);
 				parts.push('<li class="l' + lv + '"><a href="#'
 					+ wsAnchorId(sec.title, i) + '">'
-					+ esc(sec.title || ('Section ' + (i + 1))) + '</a>'
+					+ esc(wsNumbered(tocNums[i], sec.title || ('Section ' + (i + 1)))) + '</a>'
 					+ (tocPg ? '<span class="lead"></span><span class="pg">' + (pageOf[wsAnchorId(sec.title, i)] || '') + '</span>' : '')
 					+ '</li>');
 			});
 			parts.push('</ol></section>');
 		}
 		let bibAt = -1;
+		// (the structure's numbers, #79)
+		const nums = wsHeadNumbers(o, sections);
 		sections.forEach((sec: WsExportSection, i: number) => {
 			// the list of sources waits for the notes (A572 step 4)
 			if (sec.bib) { bibAt = i; return; }
@@ -2978,9 +3055,12 @@ export const exportMethods = {
 			if (sec.folder) {
 				const lv = Math.min(6, sec.depth || 1);
 				const fbrk = !!(i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false;
-				pendingFolder = '<h' + lv + ' class="folderhead" id="'
-					+ wsAnchorId(sec.title, i) + '">' + esc(sec.title) + '</h' + lv + '>';
-				pendingBreak = fbrk;
+				// A FOLDER OF FOLDERS (A848): the headings carried ADD UP, each tight against the one below it, and the first
+				// decides the page. One written over the last lost "Part One" above its first chapter's folder
+				if (pendingFolder) pendingFolder = pendingFolder.replace(/class="folderhead"/g, 'class="folderhead is-tight"');
+				else pendingBreak = fbrk;
+				pendingFolder += '<h' + lv + ' class="folderhead" id="'
+					+ wsAnchorId(sec.title, i) + '">' + esc(wsNumbered(nums[i], sec.title)) + '</h' + lv + '>';
 				return;
 			}
 			if (o.starBetween && i > 0) {
@@ -3032,12 +3112,12 @@ export const exportMethods = {
 			}
 			if (o.sectionTitles && sec.title) {
 				const fl = wsFileHeadLevel(o, sec);
-				parts.push('<h' + fl + '>' + esc(sec.title) + '</h' + fl + '>');
+				parts.push('<h' + fl + '>' + esc(wsNumbered(nums[i], sec.title)) + '</h' + fl + '>');
 			}
 			let md = String(sec.markdown || '');
-			// The note's own headings move down under the folder's — see
-			// `wsDemoteHeadings`, and the markdown target, which does the same.
-			if (o.folderHeadings) md = wsDemoteHeadings(md, sec.depth || 0);
+			// The note's own headings move down under the folder's, or under the file's name with Both — see
+			// `wsNoteHeadings`, and the markdown target, which does the same.
+			md = wsNoteHeadings(o, sec, md);
 			const fm = md.match(/^---\s*\n[\s\S]*?\n---\s*\n?/);
 			if (fm) {
 				md = md.slice(fm[0].length);
@@ -3098,7 +3178,7 @@ export const exportMethods = {
 		// two places.
 		const lineH = ({ 240: '1.45', 360: '1.7', 480: '2' }[wsLineTwips(o)] || '2');
 		const head = o.runningHeader ? esc(o.runningHeader) : '';
-		const pnAt = wsPageNumAt(o, true);
+		const pnAt = wsPageNumAt(o, true), side = wsHeadSide(o);
 		const font = JSON.stringify(o.font || 'Times New Roman');
 		const pt = o.pt || 12;
 		// The same table the .docx and the RTF read, so the sheet on screen
@@ -3116,14 +3196,18 @@ export const exportMethods = {
 		// Air between paragraphs when there is no indent to separate them —
 		// see wsStylesXml. Half a line, matching the .docx's 120 twips.
 		// (a whole line when asked, A756: `lh`, the paragraph's own line height)
-		// (…and the note's blank lines shown as blank lines with Keep line breaks, the writer: "show the blank lines in preview
-		// and expanded view too")
-		const pgap = (o.paraBlank || o.keepLineBreaks) ? '1lh' : o.indent === false ? '0.5em' : '0';
+		// (your blank lines past the first are paragraphs of their own, `p.blank`: the writer, "show the blank lines in preview
+		// and expanded view too"; always since A849)
+		// (the space between paragraphs, `wsParaSpacing`: one line, half of one, or Auto)
+		const paraSp = wsParaSpacing(o);
+		const pgap = paraSp === 'line' ? '1lh' : paraSp === 'half' ? '0.5lh' : o.indent === false ? '0.5em' : '0';
 		// (THE READER'S SEAMS read the running header, where the number goes and whether a title page leads, A804: on the
 		// preview's root, never in a file)
-		return '<!doctype html><html' + (forScreen ? ' data-ws-head="' + (o.runningHeader ? esc(o.runningHeader).replace(/"/g, '&quot;') : '') + '" data-ws-pn="' + pnAt + '"' + (o.titlePage ? ' data-ws-tp=""' : '')
+		return '<!doctype html><html' + (forScreen ? ' data-ws-head="' + (o.runningHeader ? esc(o.runningHeader).replace(/"/g, '&quot;') : '') + '" data-ws-pn="' + pnAt + '"' + (side === 'left' ? ' data-ws-hside="left"' : '') + (o.titlePage ? ' data-ws-tp=""' : '')
 			// A WORD FILE'S NOTES AT THE FOOT OF THEIR PAGE (#72): `wsFootNotes` moves them there once the page is laid out
 			+ ((o.format || 'docx') === 'docx' && o.footnotePlace !== 'end' && notesOut.length ? ' data-ws-fnfoot=""' : '') : '')
+			// (A846: the book's language, and right to left where it is written so)
+			+ (o.lang ? ' lang="' + esc(o.lang) + '"' : '') + (wsIsRtl(o.lang) ? ' dir="rtl"' : '')
 			+ '><head><meta charset="utf-8">'
 			+ '<title>' + esc(o.title || 'Manuscript') + '</title><style>'
 			// ── THE MARGIN BOX IS THE PRINTED HEADER ────────────────────
@@ -3194,12 +3278,12 @@ export const exportMethods = {
 			// separate empty header, and the preview is meant to be the sheet in
 			// the file.
 			// THE NUMBER IN A BOX OF ITS OWN when it is not beside the header (A751), where it prints
-			+ (forScreen && pnAt !== 'top-right' && pnAt !== 'none'
+			+ (forScreen && pnAt !== 'top-' + side && pnAt !== 'none'
 				? '.pnum { position: absolute; ' + (pnAt.startsWith('top') ? 'top' : 'bottom') + ': calc(' + pm + ' / 2);'
 					+ (pnAt.endsWith('center') ? ' left: 0; right: 0; text-align: center;' : pnAt.endsWith('left') ? ' left: ' + pm + ';' : ' right: ' + pm + ';')
 					+ ' font-size: 0.9em; color: inherit; }' : '')
-			+ ((head || pnAt === 'top-right') && forScreen
-				? '.hdr { position: absolute; top: calc(' + pm + ' / 2); right: ' + pm + ';'
+			+ ((head || pnAt === 'top-' + side) && forScreen
+				? '.hdr { position: absolute; top: calc(' + pm + ' / 2); ' + side + ': ' + pm + ';'
 					// INHERITED, NOT PINNED: a pinned #111 on a dark sheet is the header
 					// present and unreadable. One writer for the ink: `inherit` walks to
 					// the sheet and on to the body, which is the element the dark toggle
@@ -3299,6 +3383,8 @@ export const exportMethods = {
 					// AS A LENGTH, because a percentage height inside a multicol
 					// resolves against nothing an engine agrees about.
 					+ '.tp { height: ' + ch + '; }'
+					// (the contact lines in the page's corner, the title still centered in the page: #81)
+					+ '.tp { position: relative; } .tp > .tpcontact { position: absolute; top: 0; inset-inline-start: 0; margin: 0; }'
 					// ── AND THE SAME DOCUMENT, READ AS ONE TEXT ──────
 					//
 					// The reader is not a second render. Everything above stays exactly
@@ -3428,14 +3514,21 @@ export const exportMethods = {
 					+ ' .page:first-child { page-break-before: avoid;'
 					+ '   break-before: avoid; }'
 					+ '}'
-				: '.page { page-break-before: always; } .page:first-child { page-break-before: avoid; }')
-			+ 'p { margin: 0 0 ' + pgap + ' 0; text-indent: ' + (o.indent === false ? '0' : '0.5in') + ';'
+				: '.page { page-break-before: always; } .page:first-child { page-break-before: avoid; }'
+					// THE PRINTED TITLE PAGE A PAGE TALL, its block centered as the preview and Word center it (the writer's pick
+					// "Center the PDF title page": its `.tp` had no height in print, so the block sat at the page's top), a point short of
+					// the content box so it never spills a blank page; the contact lines in its corner, as on screen
+					+ '@media print { .tp { height: calc(' + ch + ' - 1pt); position: relative; } .tp > .tpcontact { position: absolute; top: 0; inset-inline-start: 0; margin: 0; } }')
+			+ 'p { margin: 0 0 ' + pgap + ' 0; text-indent: ' + (o.indent === false ? '0' : wsIndentSize(o)) + ';'
 			+ (o.justify ? ' text-align: justify;' : '')
 			// Widows and orphans are the whole reason to print rather than
 			// draw: one line of a paragraph alone on a page is what makes a
 			// generated manuscript look generated.
 			+ ' orphans: 2; widows: 2; }'
 			+ 'p.first, p.div { text-indent: 0; }'
+			// A KEPT BLANK LINE IS ONE LINE (A851): no spacing of its own, so it adds one line to the gap whatever the
+			// Paragraph spacing; as an ordinary paragraph it added two under One line
+			+ 'p.blank { margin: 0; }'
 			// THE LIST OF SOURCES HANGS (A572 step 4): half an inch, as the .docx does
 			+ 'section.bib p.bib { padding-left: 0.5in; text-indent: -0.5in; margin: 0 0 0.5em; }'
 			// A DARK SHEET, for reading rather than for proofing. It is not
@@ -3519,12 +3612,20 @@ export const exportMethods = {
 			// .docx sets its run (`WS_TITLE_SIZE_EM`); the name and the count under it
 			// stay the body size.
 			+ '.tp .tpinner h1 { font-size: ' + WS_TITLE_SIZE_EM + 'em; }'
+			// THE SUBTITLE a quarter larger than the text, as Word's run (#81); THE CONTACT LINES single spaced at the left,
+			// over the title in the file's flow (a printed title page sets its block at the top), in its corner on screen
+			+ '.tp .tpinner .tpsub { font-size: ' + WS_SUBTITLE_SIZE_EM + 'em; }'
+			+ '.tp .tpcontact { text-align: start; line-height: 1.2; margin: 0 0 2em; }'
+			+ '.tp .tpcontact p { margin: 0; text-indent: 0; }'
 			// AND NO FIRST-LINE INDENT ON THE TITLE PAGE. `text-align: center`
 			// centres the LINE BOX; `text-indent` moves the first line inside it,
 			// so the base rule's half-inch indent pushed the author and the word
 			// count right of the centred title. The .docx has no such indent on
 			// WsTitle.
 			+ '.tp .tpinner p { text-indent: 0; }'
+			// AND NEVER JUSTIFIED (the writer: "the justiify text justifies the title page too"): Justify text sets the body's
+			// paragraphs, and a `p` rule outranks the alignment a title page's lines inherit, centered or, in its corner, left
+			+ '.tp p { text-align: inherit; }'
 			// ── THE TITLE SITS WHERE WORD PUTS IT ──────
 			//
 			// The .docx drops EIGHT EMPTY PARAGRAPHS before the title, so its drop
@@ -3597,8 +3698,8 @@ export const exportMethods = {
 			// THE PRINTED HEADER AND PAGE NUMBER, the page's margin boxes (A751: the number where it was asked), and NOTHING
 			// IN THE MARGINS OF THE TITLE PAGE, as the .docx and the preview have it. LAST IN THE SHEET: a parser that cannot
 			// read margin boxes (jsdom's) loses its place in one and takes the rule after it with it; here there is none
-			+ (wsPageBoxesCss(o.runningHeader || '', pnAt) ? '@page {' + wsPageBoxesCss(o.runningHeader || '', pnAt) + ' }' : '')
-			+ (o.titlePage && (head || pnAt !== 'none') ? '@page :first {' + wsPageBoxesCss(o.runningHeader || '', pnAt, true) + ' }' : '')
+			+ (wsPageBoxesCss(o.runningHeader || '', pnAt, false, side) ? '@page {' + wsPageBoxesCss(o.runningHeader || '', pnAt, false, side) + ' }' : '')
+			+ (o.titlePage && (head || pnAt !== 'none') ? '@page :first {' + wsPageBoxesCss(o.runningHeader || '', pnAt, true, side) + ' }' : '')
 			+ '</style></head><body>'
 			+ (forScreen
 				// ONE SHEET IS EMITTED AND THE PANE CLONES IT. The document
@@ -3777,12 +3878,19 @@ export const exportMethods = {
 			|| (String(scope || '').split('/').pop() || '').replace(/\.md$/, '')
 			|| (this.vaultName && this.vaultName())
 			|| 'Untitled';
-		return Object.assign({}, o, {
-			title, wordCount: words,
+		// THE HEADER'S TOKENS FILLED (#81, A845): the title, the time on a 12- and a 24-hour clock, the day's date in parts
+		const dp = this.dateParts(new Date()), hr = Number(dp.hh);
+		const typedHead = wsHeadFill(String(o.headerText || '').trim(), { title,
+			time12: String(hr % 12 || 12) + ':' + dp.mi + ' ' + (hr < 12 ? 'AM' : 'PM'), time24: dp.hh + ':' + dp.mi,
+			dd: dp.dd, mm: dp.mm, yyyy: dp.yyyy, yy: dp.yy });
+		const runningHeader = o.runningHeaderOn
 			// THE WRITER'S OWN WORDS when they gave some (A751)
-			runningHeader: o.runningHeaderOn
-				? (String(o.headerText || '').trim() || ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /'))
-				: ''
+			? (typedHead || ((o.author ? o.author.split(/\s+/).pop() + ' / ' : '') + title + ' /'))
+			: '';
+		return Object.assign({}, o, {
+			title, wordCount: words, runningHeader, lang: (this.settings && this.settings.language) || 'en',
+			// A HEADER WITH ITS OWN {page} carries the number: none a second time where Page numbers would put it
+			...(runningHeader.includes('{page}') ? { pageNumberAt: 'none' } : {})
 		});
 	},
 
@@ -4389,7 +4497,7 @@ export const exportMethods = {
 		// follows each switch. `rows` is asked at every press and every saying, so a
 		// row that does not apply (a running header where there are no pages) is in
 		// neither, and a format change has the button say it again (paintFmt).
-		const pickList = (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string, after?: () => void) => {
+		const pickList = (grp: HTMLElement, cls: string, rows: () => WsPickRow[], none: string, what: (list: string | null) => string) => {
 			const btn = grp.createEl('button', { cls: 'ws-export-mini ws-export-picklist ' + cls, attr: { type: 'button' } });
 			const say = () => {
 				btn.empty();
@@ -4406,7 +4514,7 @@ export const exportMethods = {
 					label: lab, note: hint,
 					icon: () => { const el = createSpan(); wsIconInto(el, icon, '\u2022'); return el; },
 					on: () => !!o[key],
-					onClick: () => { o[key] = !o[key]; void this.saveSettings(); say(); if (after) after(); refreshPreview(); },
+					onClick: () => { o[key] = !o[key]; void this.saveSettings(); say(); refreshPreview(); },
 				})), 'toggle');
 			});
 			return btn;
@@ -4515,20 +4623,19 @@ export const exportMethods = {
 			// NAMED: the groups divide the column, and a group that does not say
 			// what it is divides nothing.
 			const grp = optGroup(wsT('Manuscript'));
-			// TITLE AND AUTHOR SHARE A LINE, the pair's shape: two short answers,
-			// and the line they each had alone was the pane's height in a
-			// window that had to scroll. Under a narrow column the pair is one
-			// column again.
-			const who = grp.createDiv({ cls: 'ws-export-pair' });
+			// (TOMBSTONE: Title and Author shared a line, the pair's shape; Author went to Settings › Export, then Title and Subtitle
+			// shared it, and the writer put Subtitle under Title, each a line of its own)
 			// TITLE, and the folder's name is what it falls back to rather
 			// than a switch saying so. "Use the folder name" as a toggle
 			// would be a control for the case where the writer has
 			// nothing to say — an empty box already means that, and it
 			// shows what it will use in the placeholder, so the default
 			// is visible instead of merely documented.
-			const ti = textOpt(who, 'titleText', wsT('Title'),
-				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || wsT('Untitled'), undefined, true);
-			ti.addClass('ws-export-wideinput');
+			textOpt(grp, 'titleText', wsT('Title'),
+				(String(wsCtxScope(ctx)).split('/').pop() || '').replace(/\.md$/, '') || wsT('Untitled'));
+			// THE SUBTITLE UNDER IT, a line of its own as Title has (the writer: "also add subtitle for the title page", then "put
+			// subtitle under title in export tab")
+			textOpt(grp, 'subtitleText', wsT('Subtitle'), '');
 			// DECIDED ONCE (A574, and the writer's "Six plus paragraph look"): your name, the header, the page numbers, the
 			// headings and the paragraphs in Settings → Export; ONE SHORT LINE under the title says so (the writer: "Remove that
 			// comment under title. Say more option in export settings something like that")
@@ -4664,7 +4771,8 @@ export const exportMethods = {
 			// button is pressed.
 			if (kind === 'md') {
 				const name = into(this.exportFileName(scope, 'md', opt.title));
-				await this.app.vault.create(name, this.exportToMarkdown(sections, opt));
+				// (each picture linked where it lives, A842)
+				await this.app.vault.create(name, this.exportToMarkdown(this.exportMdImages(sections, name), opt));
 				this.exportRemember(scope, kind, opt, files.length, name);
 				new Notice('Word-Smith: ' + wsT('exported {name}', { name }));
 				return;
@@ -4785,9 +4893,11 @@ export const exportMethods = {
 		// If the header ever needs suppressing on the title page, that is the
 		// HTML's @page rule to fix, and fixing it there fixes both outputs.
 		return {
-			// MICRONS. A number in the wrong unit here does not fail, it
-			// silently makes a page the size of a postage stamp.
-			pageSize: { width: m.width, height: m.height },
+			// INCHES (A841, a reader on a MacBook: "The pdf export did not work for me"). This was microns, the unit
+			// Electron read before version 21; since then an object here is in inches, so Letter asked for a page 215,900
+			// inches wide, past the 200 a PDF page may be. The document's @page rule (below) won on Windows; a print
+			// pipeline that sets the page up before the CSS has every reason to refuse. Obsidian ships Electron 43.
+			pageSize: { width: m.width / 25400, height: m.height / 25400 },
 			// …and INCHES, in the same object.
 			margins: { top: m.margin, bottom: m.margin,
 				left: m.margin, right: m.margin },
@@ -4883,8 +4993,11 @@ export const exportMethods = {
 			// with 24,000 Chinese, Japanese and Korean letters in them, printed in 22.8 s of a 23 s limit (17.5 s headless,
 			// 2.9 s with those letters taken out: the fonts embedded for them). Once printing starts the engine answers by
 			// itself; the guard it is given then is only for one that never does.
+			// (THE STEP IT CAME IN, #84: logged with a timeout, so a report from a machine not here can say where it stopped)
+			let step = 'loading the blank page';
 			const late = () => {
 				done();
+				wsCatch('exportPdfRender: no answer while ' + step + ' (' + Math.round(html.length / 1024) + ' KB)', new Error('timeout'));
 				reject(new Error(wsT('the print engine did not answer in time')));
 			};
 			let bail = window.setTimeout(late, 20000 + Math.round(html.length / 524288) * 1000);
@@ -4899,11 +5012,16 @@ export const exportMethods = {
 				written = true;
 				try {
 					if (typeof view.executeJavaScript !== 'function') throw new Error(wsT('the print engine cannot take a document'));
-					// THE DOCUMENT, AND ITS PICTURES DRAWN: the call answers once
-					// every picture has decoded, or failed to.
+					// THE DOCUMENT, AND ITS PICTURES LOADED: the call answers once every picture has loaded, or failed to, OR
+					// FIVE SECONDS ON. NOT DECODED (#84, phil31753: "after a substantial delay … did not answer in time"): a decode
+					// is answered when Chromium draws, and this view sits off screen: measured, one small inline picture loaded at
+					// once and decoded 23.9 s later, past the load's 20 s. The print draws a loaded picture itself
+					step = 'writing the document and loading its pictures';
 					await view.executeJavaScript('document.open();document.write(' + JSON.stringify(html) + ');document.close();'
-						+ 'Promise.all(Array.from(document.images).map(function (i) { return i.decode().catch(function () { return null; }); }))'
+						+ 'Promise.race([Promise.all(Array.from(document.images).map(function (i) { return i.complete ? null : new Promise(function (r) { i.addEventListener("load", r); i.addEventListener("error", r); }); })),'
+						+ ' new Promise(function (r) { setTimeout(r, ' + WS_PDF_PICTURE_WAIT_MS + '); })])'
 						+ '.then(function () { return document.images.length; })');
+					step = 'laying the document out';
 					// AND A BEAT AFTER IT. `dom-ready` means the document
 					// exists, not that Chromium has laid it out — and printing
 					// mid-layout is the other way this returns "Printing
@@ -4912,6 +5030,7 @@ export const exportMethods = {
 					await new Promise((r) => window.setTimeout(r, 500));
 					if (typeof view.printToPDF !== 'function') throw new Error(wsT('the print engine has no {call}', { call: 'printToPDF' }));
 					// (printing: ten minutes for a print that never answers, the load's limit done with)
+					step = 'printing';
 					window.clearTimeout(bail);
 					bail = window.setTimeout(late, 600000);
 					const buf = await view.printToPDF(this.exportPdfOptions(o));

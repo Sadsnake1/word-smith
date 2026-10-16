@@ -25,6 +25,10 @@ import ko from '../../locales/ko.json';
 import tr from '../../locales/tr.json';
 import id from '../../locales/id.json';
 import zh_Hant from '../../locales/zh-Hant.json';
+// TWO MORE, RIGHT TO LEFT (A846, the writer: "A new user wants Persian lang pack and some rtl fixes … Including Arabic";
+// Obsidian has no Hindi interface, so Hindi has its pack and no table)
+import ar from '../../locales/ar.json';
+import fa from '../../locales/fa.json';
 
 export const WS_LOCALES: Record<string, Record<string, string>> = {
 	de: de,
@@ -47,4 +51,6 @@ export const WS_LOCALES: Record<string, Record<string, string>> = {
 	tr: tr,
 	id: id,
 	'zh-Hant': zh_Hant,
+	ar: ar,
+	fa: fa,
 };

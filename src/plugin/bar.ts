@@ -2270,6 +2270,8 @@ export const barMethods = {
 		// the names in the pack's language while one is in use (A600)
 		return ([
 			{ key: 'posNoun',        color: 'posNounColor',        label: 'Nouns'        },
+			// (A839, the writer's pick "Pronouns in Syntax"; under Nouns, on the writer's word)
+			{ key: 'posPronoun',     color: 'posPronounColor',     label: 'Pronouns'     },
 			{ key: 'posVerb',        color: 'posVerbColor',        label: 'Verbs'        },
 			{ key: 'posAdverb',      color: 'posAdverbColor',      label: 'Adverbs'      },
 			{ key: 'posAdjective',   color: 'posAdjectiveColor',   label: 'Adjectives'   },
@@ -2369,6 +2371,8 @@ export const barMethods = {
 			{ key: 'checkRepetition', color: 'checkRepetitionColor', label: 'Repetition radar'  },
 			{ key: 'checkMisused',    color: 'checkMisusedColor',    label: 'Commonly misused'  },
 			{ key: 'checkIllusion',   color: 'checkIllusionColor',   label: 'Lexical illusions' },
+			// (A839, the writer's pick "Clichés")
+			{ key: 'checkCliche',     color: 'checkClicheColor',     label: 'Clichés'           },
 			// Above Sentence rhythm, as in the settings tab: this list
 			// drives the picker, the bar tooltip AND that tab, so one
 			// sequence is the whole ordering and the three cannot

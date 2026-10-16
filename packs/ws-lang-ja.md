@@ -5,7 +5,8 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## 概要 (About)
 - language: ja
 - name: 日本語
-- pack: 1.0
+- pack: 1.2
+- source: the learned parts from Tatoeba sentences (CC BY 2.0 FR), tagged for Word-Smith; see THIRD-PARTY-NOTICES.md
 - format: 1
 - words: segmenter
 - sentence-end: 。 ！ ？
@@ -564,6 +565,43 @@ Add words under any heading, comma separated or one per line. Keep the English n
 | 待たれてください | お待ちください |
 | なってございます | なっております |
 
+## 決まり文句 (Cliches)
+### sayings
+- 時は金なり, 急がば回れ, 石の上にも三年, 継続は力なり, {塵|ちり}も積もれば{山となる|}, 千里の道も一歩から, 備えあれば{憂い|患い}なし, 失敗は成功の{もと|元|母}
+- 終わり{よければ|良ければ}{すべてよし|全てよし|すべて良し|全て良し|}, 雨降って地{固まる|固まった}, 花より団子, 笑う門には福{来たる|来る}, 猿も木から落ちる, 二兎を追う{者は一兎をも得ず|}
+- 百聞は一見に{如かず|しかず}, 知らぬが仏, 郷に{入っては|入れば}郷に{従え|従う}, 出る杭は打たれる, 能ある鷹は爪を隠す, 覆水盆に{返らず|帰らず}, 後悔先に立たず, 光陰矢の{如し|ごとし}, 一寸先は闇
+- 住めば都, 背に腹は{代えられない|代えられぬ|かえられない}, 七転{び|}八起{き|}, 明日は明日の風が吹く, 山あり谷あり, 鉄は熱いうちに打て, 三度目の正直, 井の中の蛙, 隣の{芝生|芝}は青い
+- 人は{見かけ|見た目}に{よらない|よらぬ}, 一難去ってまた一難, {明けない|明けぬ}夜は{ない|ありません}, {止まない|やまない|止まぬ|やまぬ}雨は{ない|ありません}, 世の中{そんなに|そう}甘くない
+- 努力は{必ず|}報われる, 夢は{必ず|きっと|いつか|}{叶う|かなう}, {時|時間}が解決, ローマは一日にして{成らず|ならず}, 一期一会, 十人十色
+### idioms
+- 氷山の一角, 嵐の前の静けさ, 目から{鱗|うろこ|ウロコ}, 寝耳に水, {青天|晴天}の霹靂, 猫の手も借りたい, 雀の涙, 猫に小判, 馬の耳に念仏, {暖簾|のれん}に腕押し, 焼け石に水, 月と{すっぽん|スッポン}
+- 鬼に金棒, 火に油を{注ぐ|注いだ|注いで|注ぎ}, 蛇に{睨まれた|にらまれた}蛙, 借りて{きた|来た}猫, 棚から{ぼた餅|ぼたもち|牡丹餅}, {喉|のど}から手が{出る|出た|出そう}, 腹を割って
+- 手に汗{を|}{握る|握った|握って|握り}, 首を長くして, 耳に{タコ|たこ}が{できる|出来る}, 背水の陣, 一石二鳥, 絶体絶命, 危機一髪, 波乱万丈, 前代未聞, 雲泥の差, 手も足も出{ない|なかった|ず}
+- 水を得た魚, {狐|キツネ}につままれた, 穴があったら入りたい, 顔から火が{出る|出た|出そう}, 開いた口が{塞がらない|ふさがらない}, 堪忍袋の緒が{切れる|切れた}, 不幸中の幸い, 猫の額, 絵に{描いた|かいた}餅
+- 非の打ち{所|どころ}{が|の}{ない|なかった}, 心が{折れそう|折れた|折れる|折れて}, 背中を押してくれ, トンネルの先{に|の}光, 出口の見えないトンネル
+### similes
+- 氷の{ように|ような}冷た{い|く}, 鈴を転がす{ような|ように}, 蚊の鳴く{ような|ように}, 水を打った{ように|ような}, 堰を切った{ように|ような}, {蜘蛛|クモ}の子を散らす{ように|ような}
+- 泥のように{眠った|眠る|眠って|眠り}, 死んだように{眠った|眠る|眠って|眠り}, 走馬灯の{ように|ごとく}, 湯水の{ように|ごとく}, 竹を割った{ような|ように}, 絵に{描いた|かいた}{ような|ように}
+- 抜けるような{青空|青い空}, 天使の{ような|ように}, 鬼の{ような|}形相, {茹で|ゆで}{ダコ|だこ|蛸}のよう, 透き通る{ような|ように}白い, 生まれたての{子鹿|小鹿}, 滝の{ような|ように}汗
+- バケツをひっくり返したよう, {鳩|ハト}が豆鉄砲を{食った|食らった|くらった}, 光の速さで, 能面のよう, まるで別人{のよう|みたい}
+### fiction
+- {昔々|昔むかし|むかしむかし}あるところに, めでたしめでたし, 知る{由|よし}も{なかった|ない}, {この時|その時}{は|}まだ知らなかった, 運命の歯車, 運命の{いたずら|悪戯}, 運命の赤い糸
+- 恋に{落ちた|落ちる|落ちて}, {時|時間}が止まった{かのよう|よう|}, 知らない天井, 一筋の涙, 涙が頬を{伝った|伝って|伝う|伝い|つたう}, 目に涙を浮かべ, 目頭が熱く
+- 胸が{張り裂けそう|張り裂けんばかり|張り裂ける}, 胸が{締め付けられ|締めつけられ|しめつけられ}, 胸が{高鳴った|高鳴る|高鳴って}, 心臓が{止まりそう|止まるかと}, 心臓が口から飛び出{しそう|るかと|そう}
+- 早鐘{のように|を打つ|を打った|を打って|を打ち}, 背筋が{凍りついた|凍りつく|凍った|凍る}, 背筋に冷たいものが{走った|走る}, 血の気が{引いていく|引いた|引いて|引く}, 顔面蒼白, 顔{を|が}真っ赤に
+- 頬を{赤らめ|染め}, 息を{呑|飲|の}{んだ|む|んで}, {頭|頭の中}が真っ白, 我に{返った|返る|返って|返り}, 目を{疑った|疑う}, 嫌な予感が{した|する}, 雷に打たれた{ような|ように|かのよう}
+- {重い|重苦しい}沈黙, {張り詰めた|張りつめた}空気, 胸を{撫で下ろ|なでおろ|なで下ろ}{した|して|す}, 唇を{噛みしめ|噛み締め|かみしめ|噛んだ|噛んで}, 不敵な笑み, 吸い込まれ{そうな|るような}{瞳|目}
+- 絶世の美{女|少女}, 容姿端麗, 才色兼備, 夜の{帳|とばり}, {時|月日|年月}は流れ, その日を境に, それはまた別の{話|お話}
+### crutch
+- 結局のところ, {あっという間|あっと言う間}に, {言う|いう}までもな{く|い}, 実を{言うと|いうと}, 何を隠そう, 周知の{とおり|通り}, 最後になりましたが, 早い話が, 一方その頃
+- 話は変わ{りますが|るけど|るが}, ひょんなことから, それもそのはず, 皮肉なことに, {気がつくと|気が付くと|気がつけば|気が付けば|気づくと|気づけば}, 次の瞬間, その時だった
+### dialogue
+- {大事な|大切な}話がある, 話があるんだ, 誤解なんだ, {俺|僕|私}を信じろ, 説明は{後|あと}だ, ここは{俺|私|僕}に任せて, {お前|君|あなた}は{俺|僕|私}が守る, この戦いが終わったら, {嘘|うそ}だろ
+- 何度言ったら{わかる|分かる}, 覚えて{ろよ|やがれ}, 一体どういうこと, 話せば長くなる, 勘違いしないで{よね|よ}, {お前|あなた|君|あんた}には関係ない
+### jargon
+- 前向きに検討, 持ち帰って検討, 善処{いたします|します}, ウィンウィンの関係, 選択と集中, 一丸となって, スピード感を{持って|もって}, 緊張感を{持って|もって}, 真摯に受け止め, 誠に遺憾, 再発防止に努め
+- 現場の声
+
 ## 受動態 (Passive)
 - marks: …され, …られ, …われ, …ばれ
 
@@ -597,12 +635,14 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - Adverbs: 副詞
 - Adjectives: 形容詞
 - Conjunctions: 接続詞
+- Pronouns: 代名詞
 - Filler words: 冗長語
 - Passive voice: 受動態
 - Loose pronouns: 曖昧な指示語
 - Repetition radar: 繰り返し
 - Commonly misused: 誤用
 - Lexical illusions: 重複語
+- Clichés: 決まり文句
 - Dialogue: 会話文
 - Sentence rhythm: 文のリズム
 
@@ -620,3 +660,307 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - misused: 汚名挽回
 - sentences: 3
 - grade: 6.4
+
+## 規則 (Rules)
+| word | from | to | when | of |
+|---|---|---|---|---|
+|  | noun | verb | before | aux |
+| って | part | verb | after | verb |
+| て | aux | part | after | aux |
+| てい | aux | conj | before | aux |
+|  | noun | verb | before | verb |
+|  | adj | aux | after | noun |
+|  | verb | noun | after word | の |
+| って | part | verb | before | aux |
+| か | part | verb | before | aux |
+|  | adj | aux | after | aux |
+|  | noun | aux | before word | さい |
+|  | verb | noun | before word | です |
+| に | part | aux | after word | よう |
+|  | noun | verb | before word | て |
+|  | verb | noun | before word | だ |
+| では | part | aux | before | aux |
+| てく | aux | conj | before | aux |
+|  | noun | aux | after word | っ |
+| ん | aux | conj | after | aux |
+| という | part | prep | before | noun |
+| に | adv | part | after | adv |
+| で | part | aux | before | aux |
+| の | conj | part | before | conj |
+| に | conj | part | after | part |
+|  | verb | noun | before word | で |
+| ない | aux | adj | after word | が |
+| 下 | noun | aux | before | aux |
+| 話 | verb | noun | before | part |
+|  | noun | verb | before | verb |
+| について | part | prep | after | noun |
+|  | verb | noun | before word | を |
+| 的 | adj | part | after | noun |
+| も | pron | part | after | pron |
+| なん | pron | aux | before | aux |
+| や | part | verb | before word | って |
+| 今日 | adv | noun | before | part |
+|  | adj | verb | before | aux |
+|  | verb | adj | before word | な |
+|  | adj | verb | after word | を |
+| 今 | adv | noun | after | part |
+| も | part | aux | before word | ら |
+| 日 | num | noun | before | part |
+| か | pron | part | after | pron |
+| として | part | prep | after | noun |
+| る | noun | aux | after word | って |
+| って | part | verb | after | aux |
+| ことに | part | noun | before | aux |
+| く | adj | aux | before word | れ |
+| 年 | num | noun | before | part |
+| や | part | verb | before | aux |
+| 今 | adv | noun | start |  |
+| か | verb | adj | after | adj |
+| って | part | verb | after | verb |
+|  | adj | aux | after | verb |
+| 思い | noun | verb | after | part |
+| はい | part | prep | after | part |
+| てる | verb | conj | after | aux |
+| 時に | adv | noun | after | num |
+| しか | part | adj | before word | っ |
+| っ | aux | adj | after | adj |
+| や | part | conj | after | noun |
+| 歳 | num | noun | after | num |
+|  | verb | noun | before word | に |
+| さ | aux | noun | before | part |
+| に | part | aux | after | adj |
+| ない | aux | adj | after word | は |
+| たら | noun | aux | after | verb |
+| によって | part | prep | after | noun |
+| から | part | verb | before word | ない |
+| たん | noun | aux | before | aux |
+| 多く | adj | noun | before word | の |
+| 分 | num | verb | before | verb |
+| で | adv | part | after | adv |
+| 一緒 | adv | noun | before | part |
+| 的 | adj | part | after | adj |
+| ここ | adv | pron | before | part |
+| つい | adv | verb | after | part |
+|  | adj | noun | after word | の |
+| 分 | num | noun | after | num |
+| ありま | noun | verb | after | part |
+| 必要 | adj | noun | before | part |
+|  | verb | noun | after word | の |
+|  | verb | noun | before word | が |
+| てる | verb | conj | after | verb |
+| また | conj | adv | after | part |
+|  | noun | adj | before word | く |
+| 死 | noun | verb | before | aux |
+| として | part | prep | before | aux |
+| が | part | verb | before word | って |
+| かも | verb | prep | before | aux |
+| ない | aux | adj | after | noun |
+| つ | num | noun | after | num |
+| ない | aux | adj | after word | も |
+|  | verb | noun | before word | にし |
+| にし | verb | prep | after | noun |
+| たくさん | verb | adv | after | part |
+| 日 | num | noun | before | noun |
+|  | adv | aux | after | aux |
+| ですが | noun | aux | after | part |
+| なか | aux | adj | after | part |
+| っ | aux | adj | after | adj |
+| お願い | verb | noun | before | aux |
+| だが | conj | aux | after | noun |
+| という | part | prep | before | part |
+| 手 | noun | verb | before word | 伝 |
+| たら | noun | aux | after | aux |
+| に | part | aux | after word | 的 |
+|  | verb | noun | before word | は |
+|  | noun | verb | before word | すると |
+| すると | conj | aux | after | verb |
+| 間 | noun | verb | before word | 違 |
+| 理解 | noun | verb | after | part |
+| ドル | num | noun | after | num |
+| と | part | verb | after word | を |
+| 愛 | noun | verb | before | aux |
+| 大 | adj | noun | before | noun |
+| ね | part | verb | before | part |
+| 週間 | num | noun | after | num |
+| 非常 | adv | adj | before | part |
+| に | part | aux | after | adj |
+| そう | adv | aux | before | part |
+| よ | part | adj | before | verb |
+| 説明 | noun | verb | before | aux |
+|  | verb | adj | before word | です |
+| わ | aux | part | after | aux |
+|  | verb | x | before word | ご |
+| か | part | verb | before word | か |
+| では | part | aux | before word | ありま |
+| てい | aux | conj | after | aux |
+| お | verb | noun | before | verb |
+| んじゃ | verb | conj | before | aux |
+| 実際 | adv | noun | before | part |
+| ん | aux | conj | after | conj |
+| てい | aux | conj | after | verb |
+| か | verb | adj | after | adj |
+| っ | aux | adj | after | adj |
+| いたこ | noun | verb | before | part |
+| と | part | noun | after word | いたこ |
+| 最近 | adv | noun | start |  |
+| こう | adv | verb | after | verb |
+| ことに | part | noun | after | aux |
+| 大変 | adv | adj | before | aux |
+| って | part | verb | before | aux |
+| ん | aux | conj | after | adj |
+|  | noun | adj | after word | とても |
+| に | part | aux | after word | そう |
+| だから | conj | aux | after | noun |
+| が | part | verb | before word | っ |
+| す | adv | adj | before | adv |
+| ごく | adv | adj | after | adj |
+| 年 | num | noun | after | num |
+| たよ | noun | aux | after | verb |
+|  | noun | adj | before word | しか |
+|  | adj | aux | after word | て |
+|  | aux | conj | before word | け |
+| がい | aux | prep | after | noun |
+| をもって | part | prep | after | noun |
+| 歌 | noun | verb | before | aux |
+| に | aux | part | after word | ず |
+| ない | aux | adj | after | adv |
+| はい | part | prep | before | aux |
+|  | noun | adj | before word | さ |
+| 疲れ | noun | verb | start |  |
+| つ | num | verb | after | part |
+| について | part | prep | after | pron |
+|  | noun | verb | before word | って |
+|  | verb | noun | after | art |
+| んで | aux | conj | before word | すか |
+| で | aux | part | after word | い |
+| ね | part | verb | before | aux |
+| な | aux | part | after word | だ |
+| 確か | adv | adj | before | part |
+| に | part | aux | after | adj |
+| ん | aux | conj | after word | る |
+| にとって | part | prep | after | pron |
+| ですが | noun | aux | after | noun |
+| また | conj | adv | before | noun |
+|  | noun | verb | before word | ば |
+| ば | part | verb | before word | れ |
+| 元気 | noun | adj | before | part |
+| これらの | art | pron | before | noun |
+| そう | adv | verb | after | verb |
+|  | noun | adj | before word | しく |
+| し | aux | adj | before word | さ |
+| ば | aux | part | after | aux |
+| ことに | part | noun | after | verb |
+| 書 | verb | noun | before | part |
+| に対する | part | prep | after | noun |
+| 回 | num | noun | after | num |
+| 上手 | noun | adj | after | part |
+| に | part | aux | after | adj |
+| な | aux | part | after word | する |
+| 近く | adj | noun | after | part |
+| に | aux | part | after | noun |
+| やら | part | verb | before | aux |
+|  | adv | verb | after | verb |
+|  | noun | verb | before word | しな |
+| 夢中 | noun | adj | after | part |
+| 退屈 | noun | adj | before | aux |
+| 他の | art | noun | after | part |
+| 親切 | noun | adj | before | aux |
+| 今日 | adv | noun | before | noun |
+| ヶ月 | num | noun | after | num |
+| 無駄 | noun | adj | after | part |
+|  | adj | noun | before word | を |
+| だけど | conj | aux | after word | ん |
+| 気 | noun | verb | before | verb |
+| に対して | part | prep | after | noun |
+| てるよ | noun | conj | after | aux |
+| かな | part | verb | before | verb |
+|  | verb | adj | before word | だ |
+| 上 | noun | verb | before | verb |
+| なあ | noun | part | after | aux |
+| あれ | pron | verb | before word | ば |
+| いくつか | num | noun | after | part |
+| 年前 | num | noun | after | num |
+| どうぞ | noun | adv | start |  |
+| たよ | noun | aux | after | aux |
+| 近 | adj | verb | after | part |
+| 高 | noun | adj | after | part |
+| 最近 | adv | noun | after | part |
+| に | part | aux | after | adj |
+| なし | adj | noun | after | noun |
+| い | aux | adj | after | conj |
+| マイル | num | noun | after | num |
+| 解決 | noun | verb | before | aux |
+| 少しも | noun | adv | after | part |
+| 自由 | noun | adj | before | part |
+| 太 | adj | verb | after | part |
+| うまく | verb | adj | after | part |
+| 遊び | noun | verb | before | part |
+| なんで | noun | adv | start |  |
+| なん | pron | aux | before | conj |
+| だけど | conj | aux | after | aux |
+| で | part | aux | after | adj |
+| から | part | verb | before word | なか |
+| なか | adj | aux | after | verb |
+| っ | adj | aux | after | aux |
+| 年間 | num | noun | after | num |
+| ちょうど | noun | adv | before | noun |
+| ゃ | noun | conj | after | verb |
+| 円 | num | noun | after | num |
+| だけ | part | aux | before word | ます |
+| ますよ | noun | aux | after | aux |
+| に関する | part | prep | after | noun |
+| 楽に | adv | adj | before | aux |
+| お | noun | aux | after word | て |
+| なので | conj | aux | after | noun |
+| ろ | noun | verb | after | verb |
+| 件 | num | noun | after | art |
+| 正直 | noun | adj | after | part |
+| てこ | verb | conj | before | aux |
+| ダメ | noun | adj | before | part |
+|  | noun | aux | after word | 決まって |
+| 以前 | adv | noun | before | part |
+| まあ | adv | x | start |  |
+| か | part | verb | after word | 浮 |
+| れ | aux | adj | before | adj |
+| もっとも | adv | adj | after | part |
+| したら | noun | verb | before | noun |
+| とい | adj | prep | before word | って |
+| 一生懸命 | verb | adv | before | verb |
+| ごめん | noun | x | start |  |
+|  | noun | verb | before word | ながら |
+| いくつ | num | noun | after | part |
+| く | adj | aux | after word | した |
+|  | verb | noun | after word | の |
+| 立ち | noun | verb | after | part |
+| 年 | num | noun | before | noun |
+| 回 | num | verb | before | verb |
+| ゃ | verb | conj | before | aux |
+| 一生懸命 | noun | adj | before | part |
+| に | part | aux | after | adj |
+| なんか | adv | prep | after | noun |
+| 答え | noun | verb | before | aux |
+| なく | aux | adj | after | noun |
+| ある | aux | art | start |  |
+| 大丈夫 | noun | adj | before | aux |
+| つ | num | verb | after | verb |
+| かも | noun | prep | after | part |
+| なあ | noun | part | after | part |
+|  | adj | aux | after word | よう |
+| 度 | num | noun | after | num |
+| ない | aux | adj | after word | の |
+| もう一度 | verb | adv | after | part |
+| そうだ | noun | aux | after | aux |
+| なく | aux | adj | after word | も |
+| にとって | part | prep | after | noun |
+| 一度 | adv | num | after | part |
+|  | adj | adv | before | adv |
+| く | adj | aux | after | conj |
+| 優 | adj | verb | before | aux |
+| 確か | adj | verb | before | verb |
+| たくさん | noun | adv | before | noun |
+| て | part | verb | after word | 捨 |
+|  | noun | verb | before word | て |
+| 他 | adv | noun | before | part |
+| 恐れ | noun | verb | after | part |
+| け | verb | noun | before word | が |
+| が | part | noun | after word | け |

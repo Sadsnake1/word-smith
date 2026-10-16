@@ -5,7 +5,7 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## Paket (About)
 - language: tr
 - name: Türkçe
-- pack: 1.0
+- pack: 1.2
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -1659,6 +1659,126 @@ Add words under any heading, comma separated or one per line. Keep the English n
 | en ideal | ideal |
 | eğer ki | eğer |
 
+## Klişeler (Cliches)
+### sayings
+- damlaya damlaya göl olur, sakla samanı gelir zamanı, ağaç yaşken eğilir, üzüm üzüme baka baka kararır
+- ayağını yorganına göre uzat, dost kara günde belli olur, her işte bir hayır, sabrın sonu selamettir
+- acele işe şeytan karışır, bugünün işini yarına bırakma, ne {ekersen|ekerse|ektiysen|ektiyse} onu {biçersin|biçer}
+- her gecenin bir sabahı, hayat devam {ediyor|ediyordu|eder|etmeli|edecek}
+- her şey bir {sebeple|nedenle} {olur|oluyor|oldu|olmuştu}
+- zaman {her şeyin ilacı|her şeyin ilacıdır|en iyi ilaçtır|en iyi ilaç}, son gülen iyi güler, sona kalan dona kalır
+- bir elin nesi var, birlikten kuvvet doğar, yalancının mumu yatsıya kadar, armut dibine düşer
+- lafla peynir gemisi yürümez, para her şey {değildir|değil}, parayla saadet olmaz, her işin başı sağlık
+- aşkın gözü kördür, bir fincan kahvenin kırk yıl hatırı, evdeki hesap çarşıya {uymaz|uymadı|uymamıştı|uymuyor}
+- iyi atlara binip gittiler, ateş olmayan yerden duman çıkmaz, geç olsun güç olmasın
+### idioms
+- göz açıp {kapayıncaya kadar|kapayana kadar|kapamadan}
+- samanlıkta iğne {aramak|aramaya|aramaktan|aramaktı|arar gibi|arıyorum|arıyorduk|arıyor}
+- kılı kırk {yarmak|yarar|yarıyor|yarıyordu|yaran|yarardı|yararak|yarmış}
+- buzdağının görünen {kısmı|kısmıdır|kısmıydı|yüzü}, tünelin {ucundaki|sonundaki|ucunda|sonunda} {ışık|ışığı}
+- {fırtına öncesi|fırtınadan önceki} {sessizlik|sessizliği|sessizlikti}
+- gökten zembille {inmiş|inmedi|inmez|inmişçesine}, sağ salim
+- yerin dibine {girdi|girdim|girmişti|girmiştim|girecektim|girecekti|giriyordu|girmek|geçti|geçtim|geçmişti|geçmiştim}
+- {bin|kırk} dereden su {getirmek|getirdi|getiriyor|getiriyordu|getirip|getirerek|getirmişti}
+- dağ fare {doğurdu|doğurmuştu|doğurmuş}
+- ateşle {oynamak|oynuyor|oynuyorsun|oynuyordu|oynadı|oynama|oynamayın|oynadığını}
+- bardağı taşıran {son |}{damla oldu|damlaydı|damla}
+- pireyi deve {yapmak|yapıyor|yapıyorsun|yapıyordu|yaptı|yapma|yapan|yapmış}, iki dirhem bir çekirdek
+- etekleri zil {çalıyor|çalıyordu|çalarak}, dünyalar {onun|benim|senin|bizim} {oldu|olmuştu|olur}
+- baklayı {ağzından |}{çıkardı|çıkarmıştı|çıkar|çıkarmak|çıkardım|çıkarmadı}
+- ince eleyip sık {dokumak|dokuyor|dokuyordu|dokudu|dokuyarak}
+- dört gözle {bekliyordu|bekliyorum|bekliyor|beklemek|bekledi|beklediği|bekleyen|bekliyoruz}
+- küplere {bindi|binmişti|binerek|biner|bindim}, ipin ucu {kaçtı|kaçmıştı|kaçmış}
+- tereciye tere {satmak|satıyorsun|satma|satmaya}, havanda su {dövmek|dövüyor|dövüyoruz|dövüyorsun|dövmekten}
+- kaş yapayım derken göz {çıkardı|çıkarmak|çıkarmıştı|çıkarıyor}, ağzıyla kuş tutsa, bir taşla iki kuş
+- ateşe benzin {dökmek|döktü|dökmüştü|döküyor|döken}, {üstüne|üzerine} tuz biber {ekti|ekmişti|ekmek|ekiyor}
+- {yarasına|yarama|yaralarına} tuz {bastı|basmak|basıyor|basmıştı}, kabak tadı {verdi|veriyor|vermeye|vermişti}
+- atı alan Üsküdar'ı {geçti|geçmişti}, ok yaydan çıktı
+- {taşın altına elini|elini taşın altına} {koymak|koydu|koyan|koymalı|koyuyor|koymayan|koymuyor}
+- ayakları yere {sağlam |}{basan|basıyor|basmayan|basıyordu}, uçsuz bucaksız, nefes kesen
+- {kollarını açarak|açık kollarla} {karşıladı|karşıladılar|karşılamıştı|karşılandı|karşılandık|karşılandım|karşılıyor|karşılıyordu}
+### similes
+- buz {gibi|gibiydi}, kireç {gibi|gibiydi}, kar {gibi|kadar} {beyaz|beyazdı|bembeyaz|bembeyazdı}
+- kömür {gibi|kadar} {kara|siyah|karaydı|siyahtı|simsiyah|kapkara}
+- {tüy|kuş} {gibi|kadar} {hafif|hafifti|hafifledi|hafiflemişti}, kaplumbağa hızıyla, ışık hızıyla
+- bardaktan boşanırcasına, dut yemiş bülbül {gibi|gibiydi}, {kedi ile köpek|kedi köpek} {gibi|gibiydiler|gibiyiz}
+- iki damla su {gibi|gibiydi|gibiler|gibiydiler}
+- {ikiye bölünmüş elma|elmanın iki yarısı|elmanın yarısı} {gibi|gibiydi|gibiydiler}
+- {ölü|kütük|bebek} gibi {uyudu|uyudum|uyuyordu|uyumuştu|uyumuştum|uyurdu|uyuyor}
+- {deli|deliler} gibi {sevdi|seviyorum|seviyordu|seviyor|sevmişti|sevdim}
+- su gibi akıp {geçti|gitti|geçiyor|gidiyor|geçmişti|gitmişti}
+- {ok|kurşun} gibi {fırladı|fırlamıştı|fırladım|fırlayıp|fırlayarak}, ay parçası
+- {hayalet|hortlak} görmüş {gibi|gibiydi}, fal taşı {gibi|gibiydi}
+- yaprak gibi {titriyordu|titredi|titriyor|titremişti|titreyen|titreyerek}
+- sudan çıkmış {balık gibi|balık gibiydi|balığa döndü|balığa dönmüştü|balığa dönmüş}
+- {gözü|gözüm|gözünüz|gözümüz} gibi {bakar|bakarım|bakardı|bakıyordu|baktı|bakmak|bakacağım|bakacak}, nur topu gibi
+- {domates|pancar} gibi {kızardı|kızarmıştı|kızarmış|kızarıyordu|oldu|olmuştu}, ceylan gözlü
+- inci gibi {dişler|dişleri|dişlerini|dişleriyle}, kiraz {dudaklar|dudakları|dudaklarını|dudaklı}
+- altın {kalpli|kalpliydi|gibi bir kalbi|gibi kalbi}
+### fiction
+- bir varmış bir yokmuş, evvel zaman içinde, ermiş muradına, sonsuza {dek|kadar} mutlu {yaşadılar|yaşamışlar}
+- karanlık ve fırtınalı bir gece, ilk görüşte aşk
+- ilk görüşte {aşktı|aşık oldu|aşık olmuştu|âşık oldu|âşık olmuştu|vuruldu|vurulmuştu}
+- {sanki zaman|zaman sanki|zaman} {durdu|durmuştu|durmuş gibiydi}
+- {kalbi|kalbim|yüreği|yüreğim} yerinden {çıkacak|çıkacakmış|fırlayacak|fırlayacakmış}
+- küt küt {atıyordu|atıyor|atan|atmaya|attı|atarken|atarak}
+- {yüreği ağzına|yüreğim ağzıma|kalbi ağzına|kalbim ağzıma} {geldi|gelmişti|gelecekti}
+- {tüyleri|tüylerim} diken diken {oldu|olmuştu|olmuş|oluyor|olan|olur}, kan dondurucu
+- soğuk {ter|terler} {döktü|dökmüştü|döküyordu|döktüm|dökmeye}
+- {sırtından|omurgasından} aşağı {soğuk |}bir {ürperti|titreme}
+- {farkında olmadan tuttuğu|tuttuğunu bilmediği|tuttuğunu fark etmediği} {nefesi|nefesini}
+- derin bir nefes {aldı|aldım|almıştı|alarak|alıp}
+- {dudaklarında|dudaklarının kenarında|dudağının kenarında} {hafif |belli belirsiz |}bir gülümseme
+- {buruk|acı|hüzünlü} bir {gülümseme|gülümsemeyle|tebessüm|tebessümle}
+- gözlerinin {içine|ta içine|derinliklerine} {baktı|bakarak|bakıyordu|bakmıştı}
+- {midesinde|midemde|karnında|karnımda} kelebekler, {içine|içime} {bir |}kurt {düştü|düşmüştü|düşmüş}
+- {içi|içim} bir tuhaf {oldu|olmuştu|oluyor}, {ölüm|mezar} {sessizliği|sessizliğine|sessizliğinde}
+- çıt {çıkmıyordu|çıkmıyor|çıkmadı}, kaynar sular {döküldü|dökülmüştü|dökülmüş}
+- {dünyası başına|dünya başına|dünyam başıma|dünya başıma} {yıkıldı|yıkılmıştı|yıkılmış}
+- {ayaklarının|ayaklarımın} altından {toprak|zemin|yer} {kaydı|kaymıştı|kayıyordu}
+- {kalbi|kalbim|yüreği|yüreğim} {paramparça|param parça|bin parça} {oldu|olmuştu|olmuş}
+- {bir anda|birden|o an} her şey {değişti|değişmişti}, {nereden|kim} {bilebilirdi|bilebilirdim} ki
+- son nefesini {verdi|vermişti|verirken}, gözlerini hayata {yumdu|yummuştu|yummuş}
+- {hayatımın|hayatının} {aşkı|aşkısın|aşkıydı}, ruh {eşi|eşim|eşimi|eşini|eşiydi}
+- kaderin {cilvesi|bir cilvesi|cilvesiyle|oyunu}, ölümle burun buruna, film şeridi {gibi|gibiydi}
+- {kuş cıvıltılarıyla|kuşların cıvıltısıyla} {uyandı|uyandım|uyanmıştı}
+- aynadaki {yansımasına|aksine} {baktı|bakarken|bakıyordu}
+- hiçbir şey eskisi gibi {olmayacaktı|olmayacak|değildi|olmadı}
+- {gözlerinden|yanaklarından} {yaşlar|bir damla yaş|iki damla yaş} {süzüldü|süzülüyordu}
+- {gözyaşlarına|hıçkırıklara} {boğuldu|boğulmuştu|boğuldum}, {dili|dilim} tutuldu
+- {içi içine|içim içime} {sığmıyordu|sığmıyor|sığmadı}, {yüreğine|yüreğime|içine|içime} su serpildi
+- buz {kesti|kesmişti|kesildi|kesilmişti}, {ağzı|ağzım} açık {kaldı|kalmıştı}
+- kulak {kesildi|kesildim|kesildik|kesildiler|kesilmişti|kesilmiştim}
+- {dizlerinin|dizlerimin} bağı {çözüldü|çözülmüştü}, saçlarına {kar yağmış|ak düşmüş|kar yağmıştı|ak düşmüştü}
+- {kalbi|kalbim|yüreği|yüreğim} {bir an|bir anlığına|neredeyse} {durdu|duracaktı|durmuştu}
+### crutch
+- günün sonunda, söylemeye {gerek|bile gerek} yok, {bilindiği|herkesin bildiği} {üzere|gibi}
+- {belirtmekte|söylemekte|hatırlatmakta} fayda {var|vardır}
+- altını {çizmek isterim|çizmek gerekir|çizmek gerekiyor|bir kez daha çizmek}, son tahlilde, sözün özü, eninde sonunda
+- aslına {bakarsanız|bakarsan|bakılırsa}, dürüst olmak gerekirse, tabiri caizse, kim ne derse desin, uzun lafın kısası
+- içinde bulunduğumuz {şu |}{günlerde|dönemde|süreçte}, {21.|yirmi birinci} yüzyılda {hâlâ|hala}
+- tüm hızıyla {devam ediyor|devam ediyordu|sürüyor|sürüyordu}
+### dialogue
+- konuşmamız {lazım|gerek|gerekiyor}, göründüğü gibi {değil|değildi}, {her şeyi|sana} açıklayabilirim
+- sorun {sende|sizde} değil {bende|bizde}, her şey yoluna {girecek|girecekti|girer}
+- bu daha {başlangıç|başlangıçtı|bir başlangıç}, bunu bana nasıl {yaparsın|yapabildin|yaparsınız|yapabilirsin}
+- sana {güvenmiştim|güvenmiştik|inanmıştım}, bunun hesabını {vereceksin|vereceksiniz|soracağım}
+- kim olduğunu {sanıyorsun|zannediyorsun}, son {kez|defa} söylüyorum, hayır {bu |}olamaz, sana {söylemiştim|demiştim}
+- dün gibi {hatırlıyorum|hatırlıyordu|aklımda}
+- {elimden|elinden|elimizden} geleni {yaptım|yaptı|yapacağım|yaptık|yapıyorum}, sen de mi {Brütüs|Brutus}
+- sağlık olsun, kısmet {değilmiş|bu kadarmış}, olan {oldu|olmuştu}, bu iş burada {bitmedi|bitmeyecek|bitmez}
+- kaderde bu da {varmış|var}, dünya {ne kadar küçük|küçükmüş}
+### jargon
+- kutunun dışında {düşünmek|düşünmeliyiz|düşünmemiz|düşünün|düşünen|düşünüyor}, kazan kazan{ durumu| ilişkisi|}
+- sinerji {yaratmak|yaratacak|yaratıyor|yaratır|yaratarak|oluşturmak}
+- katma değer {yaratmak|yaratan|yaratıyor|sağlamak|sağlayan}, konfor {alanı|alanını|alanından|alanınızdan|alanının}
+- vizyon sahibi, oyunun kurallarını {değiştiren|değiştirecek|değiştirdi|değiştiriyor|değiştirmek}
+- masaya {yatırmak|yatırdı|yatırıldı|yatırılacak|yatırılıyor|yatırdık|yatıracağız}
+- aynı sayfada {olmak|olmalıyız|olalım|değiliz|mıyız|olmamız}
+- çıtayı {yükseltmek|yükseltti|yükseltiyor|yükseltecek|yükselten|yükseltmeye}
+- {bir üst|bir sonraki} seviyeye {taşımak|taşıyacak|taşıdı|taşıyan|taşıyoruz|taşıyacağız}
+- farkındalık {yaratmak|yaratan|yaratıyor|yaratacak|yaratmayı|oluşturmak}, ezber bozan
+
 ## Edilgen çatı (Passive)
 - marks: …pıldı, …pılmış, …pılan, …pılacak, …pılması, …pılıyor, …pılmakta, …pılabil, …pılır, …pılmaz, …pılmadı, …pılmamış, …pılmalı, …pılarak, …pılınca, …pılıp, …tıldı, …tılmış, …tılan, …tılacak, …tılması, …tılıyor, …tılmakta, …tılabil, …tılır, …tılmaz, …tılmadı, …tılmamış, …tılmalı, …tılarak, …tılınca, …tılıp, …kıldı, …kılmış, …kılan, …kılacak, …kılması, …kılıyor, …kılmakta, …kılabil, …kılır, …kılmaz, …kılmadı, …kılmamış, …kılmalı, …kılarak, …kılınca, …kılıp, …çıldı, …çılmış, …çılan, …çılacak, …çılması, …çılıyor, …çılmakta, …çılabil, …çılır, …çılmaz, …çılmadı, …çılmamış, …çılmalı, …çılarak, …çılınca, …çılıp, …sıldı, …sılmış, …sılan, …sılacak, …sılması, …sılıyor, …sılmakta, …sılabil, …sılır, …sılmaz, …sılmadı, …sılmamış, …sılmalı, …sılarak, …sılınca, …sılıp, …şıldı, …şılmış, …şılan, …şılacak, …şılması, …şılıyor, …şılmakta, …şılabil, …şılır, …şılmaz, …şılmadı, …şılmamış, …şılmalı, …şılarak, …şılınca, …şılıp, …zıldı, …zılmış, …zılan, …zılacak, …zılması, …zılıyor, …zılmakta, …zılabil, …zılır, …zılmaz, …zılmadı, …zılmamış, …zılmalı, …zılarak, …zılınca, …zılıp, …rıldı, …rılmış, …rılan, …rılacak, …rılması, …rılıyor, …rılmakta, …rılabil, …rılır, …rılmaz, …rılmadı, …rılmamış, …rılmalı, …rılarak, …rılınca, …rılıp, …dıldı, …dılmış, …dılan, …dılacak, …dılması, …dılıyor, …dılmakta, …dılabil, …dılır, …dılmaz, …dılmadı, …dılmamış, …dılmalı, …dılarak, …dılınca, …dılıp, …tildi, …tilmiş, …tilen, …tilecek, …tilmesi, …tiliyor, …tilmekte, …tilebil, …tilir, …tilmez, …tilmedi, …tilmemiş, …tilmeli, …tilerek, …tilince, …tilip, …kildi, …kilmiş, …kilen, …kilecek, …kilmesi, …kiliyor, …kilmekte, …kilebil, …kilir, …kilmez, …kilmedi, …kilmemiş, …kilmeli, …kilerek, …kilince, …kilip, …çildi, …çilmiş, …çilen, …çilecek, …çilmesi, …çiliyor, …çilmekte, …çilebil, …çilir, …çilmez, …çilmedi, …çilmemiş, …çilmeli, …çilerek, …çilince, …çilip, …sildi, …silmiş, …silen, …silecek, …silmesi, …siliyor, …silmekte, …silebil, …silir, …silmez, …silmedi, …silmemiş, …silmeli, …silerek, …silince, …silip, …şildi, …şilmiş, …şilen, …şilecek, …şilmesi, …şiliyor, …şilmekte, …şilebil, …şilir, …şilmez, …şilmedi, …şilmemiş, …şilmeli, …şilerek, …şilince, …şilip, …zildi, …zilmiş, …zilen, …zilecek, …zilmesi, …ziliyor, …zilmekte, …zilebil, …zilir, …zilmez, …zilmedi, …zilmemiş, …zilmeli, …zilerek, …zilince, …zilip, …rildi, …rilmiş, …rilen, …rilecek, …rilmesi, …riliyor, …rilmekte, …rilebil, …rilir, …rilmez, …rilmedi, …rilmemiş, …rilmeli, …rilerek, …rilince, …rilip, …dildi, …dilmiş, …dilen, …dilecek, …dilmesi, …diliyor, …dilmekte, …dilebil, …dilir, …dilmez, …dilmedi, …dilmemiş, …dilmeli, …dilerek, …dilince, …dilip, …vildi, …vilmiş, …vilen, …vilecek, …vilmesi, …viliyor, …vilmekte, …vilebil, …vilir, …vilmez, …vilmedi, …vilmemiş, …vilmeli, …vilerek, …vilince, …vilip, …nildi, …nilmiş, …nilen, …nilecek, …nilmesi, …niliyor, …nilmekte, …nilebil, …nilir, …nilmez, …nilmedi, …nilmemiş, …nilmeli, …nilerek, …nilince, …nilip, …mildi, …milmiş, …milen, …milecek, …milmesi, …miliyor, …milmekte, …milebil, …milir, …milmez, …milmedi, …milmemiş, …milmeli, …milerek, …milince, …milip, …tuldu, …tulmuş, …tulan, …tulacak, …tulması, …tuluyor, …tulmakta, …tulabil, …tulur, …tulmaz, …tulmadı, …tulmamış, …tulmalı, …tularak, …tulunca, …tulup, …suldu, …sulmuş, …sulan, …sulacak, …sulması, …suluyor, …sulmakta, …sulabil, …sulur, …sulmaz, …sulmadı, …sulmamış, …sulmalı, …sularak, …sulunca, …sulup, …şuldu, …şulmuş, …şulan, …şulacak, …şulması, …şuluyor, …şulmakta, …şulabil, …şulur, …şulmaz, …şulmadı, …şulmamış, …şulmalı, …şularak, …şulunca, …şulup, …zuldu, …zulmuş, …zulan, …zulacak, …zulması, …zuluyor, …zulmakta, …zulabil, …zulur, …zulmaz, …zulmadı, …zulmamış, …zulmalı, …zularak, …zulunca, …zulup, …ruldu, …rulmuş, …rulan, …rulacak, …rulması, …ruluyor, …rulmakta, …rulabil, …rulur, …rulmaz, …rulmadı, …rulmamış, …rulmalı, …rularak, …rulunca, …rulup, …nuldu, …nulmuş, …nulan, …nulacak, …nulması, …nuluyor, …nulmakta, …nulabil, …nulur, …nulmaz, …nulmadı, …nulmamış, …nulmalı, …nularak, …nulunca, …nulup, …yuldu, …yulmuş, …yulan, …yulacak, …yulması, …yuluyor, …yulmakta, …yulabil, …yulur, …yulmaz, …yulmadı, …yulmamış, …yulmalı, …yularak, …yulunca, …yulup, …rüldü, …rülmüş, …rülen, …rülecek, …rülmesi, …rülüyor, …rülmekte, …rülebil, …rülür, …rülmez, …rülmedi, …rülmemiş, …rülmeli, …rülerek, …rülünce, …rülüp, …çüldü, …çülmüş, …çülen, …çülecek, …çülmesi, …çülüyor, …çülmekte, …çülebil, …çülür, …çülmez, …çülmedi, …çülmemiş, …çülmeli, …çülerek, …çülünce, …çülüp, …tüldü, …tülmüş, …tülen, …tülecek, …tülmesi, …tülüyor, …tülmekte, …tülebil, …tülür, …tülmez, …tülmedi, …tülmemiş, …tülmeli, …tülerek, …tülünce, …tülüp, …şüldü, …şülmüş, …şülen, …şülecek, …şülmesi, …şülüyor, …şülmekte, …şülebil, …şülür, …şülmez, …şülmedi, …şülmemiş, …şülmeli, …şülerek, …şülünce, …şülüp, …züldü, …zülmüş, …zülen, …zülecek, …zülmesi, …zülüyor, …zülmekte, …zülebil, …zülür, …zülmez, …zülmedi, …zülmemiş, …zülmeli, …zülerek, …zülünce, …zülüp, …nüldü, …nülmüş, …nülen, …nülecek, …nülmesi, …nülüyor, …nülmekte, …nülebil, …nülür, …nülmez, …nülmedi, …nülmemiş, …nülmeli, …nülerek, …nülünce, …nülüp, …müldü, …mülmüş, …mülen, …mülecek, …mülmesi, …mülüyor, …mülmekte, …mülebil, …mülür, …mülmez, …mülmedi, …mülmemiş, …mülmeli, …mülerek, …mülünce, …mülüp, …vüldü, …vülmüş, …vülen, …vülecek, …vülmesi, …vülüyor, …vülmekte, …vülebil, …vülür, …vülmez, …vülmedi, …vülmemiş, …vülmeli, …vülerek, …vülünce, …vülüp, …küldü, …külmüş, …külen, …külecek, …külmesi, …külüyor, …külmekte, …külebil, …külür, …külmez, …külmedi, …külmemiş, …külmeli, …külerek, …külünce, …külüp, …lındı, …lindi, …lınmış, …linmiş, …lınan, …linen, …lınacak, …linecek, …lınması, …linmesi, …lınıyor, …liniyor, …lınmakta, …linmekte, …lınabil, …linebil, …lınır, …linir, …lınmaz, …linmez, …lınmadı, …linmedi, …lınmamış, …linmemiş, …lınmalı, …linmeli, …lınarak, …linerek, …lınınca, …linince, …lınıp, …linip
 - not: kıldı, kıldıktan, kıldığı, kıldığını, kılmış, kılan, kılacak, kılması, kılıyor, katılır, katılarak, kurtulup, sildi, silen, silmiş, silecek, silmesi, siliyor, çıldırdı, çıldırmış, çıldıracak, çıldırıyor, fısıldıyor, fısıldıyordu, ayrıldı, ayrılan, ayrılmış, ayrılacak, ayrılması, ayrılıyor, ayrılmak, katıldı, katılan, katılmış, katılacak, katılması, katılıyor, katılmak, sarıldı, sarılmış, sarılan, sarılıyor, sıkıldı, sıkılmış, yoruldu, yorulmuş, kurtuldu, kurtulmuş, kurtulan, kurtulacak, kurtulması, üzüldü, üzülmüş, üzülen, üzülüyor, çekildi, çekilmiş, eğildi, eğilmiş, dağıldı, dağılmış, yayıldı, yayılmış, yayılan, takıldı, takılmış, bozuldu, bozulmuş, koyuldu, kırıldı, dökülmüş, döküldü, oturuldu
@@ -1694,12 +1814,14 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - Adverbs: Zarflar
 - Adjectives: Sıfatlar
 - Conjunctions: Bağlaçlar
+- Pronouns: Zamirler
 - Filler words: Dolgu sözcükleri
 - Passive voice: Edilgen çatı
 - Loose pronouns: Belirsiz zamirler
 - Repetition radar: Tekrarlar
 - Commonly misused: Sık yapılan yanlışlar
 - Lexical illusions: Yinelenen sözcükler
+- Clichés: Klişeler
 - Dialogue: Diyalog
 - Sentence rhythm: Cümle ritmi
 

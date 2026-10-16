@@ -22,22 +22,23 @@ import {
 	DEFAULT_BAR_PRESETS, DEFAULT_SETTINGS, HISTORY_HEAT, mixColors, parseColorRGB, pickBar,
 	PL_BG_COUNT, PL_THEME_BGS, readBarDirective,
 	WS_FLAG_SHAPES, WS_NARROW_FLIPS, WS_STATE_IDS, WS_STORM_PASSES,
-	wsCatch, wsCatchReset, wsCatchSeen, wsColPrefCh, wsCtxScope, wsDeepestLevel, wsDemoteHeadings,
+	wsCatch, wsCatchReset, wsCatchSeen, wsColPrefCh, wsCtxScope, wsDeepestLevel, wsDemoteHeadings, wsHeadNumbers, wsNoteHeadings, wsPageOfPart, WS_HEAD_TOKENS, wsHeadFill, wsContactLines, wsParaSpacing, wsDropHeadings, wsNumbered,
 	wsExportRoot, wsFileHeadLevel, wsFitCols, wsFlagSvg, wsForDisk, wsGuard, wsGuardReport,
 	wsGuardReset, wsGuardSeen, wsGuardTell, wsLabelCh, wsLineOfSnippet, WsMenuView, wsNarrowDecide,
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, wsDialoguePairs, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
 	wsCursorMarkSvg, wsHueRotate, wsWheelStep, wsIconPick, wsDayKey, wsDayOf, wsWorkDaysLeft, wsGoalPlan,
-	POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
+	POS_LEX, FILLER_STRONG, WS_CLICHES_EN, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 	wsMaskCitations, wsCiteKeyText, wsEpubCss, wsFootNotes, wsColumnOf, wsTocPagesFill,
 } from './core/preamble';
 import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackSpaces, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
-import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
+import { WS_RULES_EN } from './core/rules-en';
+import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsPhraseRe, wsPhraseSpans, wsPhraseSpansFor, wsPhraseFold, wsPackLearned, wsPackRules, wsApplyRules, wsEnglishTagWith, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
 import { wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER } from './editor/cite-suggest';
 import { wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
 import { WS_LOCALES } from './core/ui-locales';
@@ -52,7 +53,8 @@ export default Object.assign(WordSmith, {
 	wsNarrowDecide, wsPassStorm, wsGuard, wsGuardReset, wsGuardSeen, wsGuardTell, wsGuardReport,
 	wsCatch, wsCatchSeen, wsCatchReset, wsCompat, wsCompatText, WS_INTERNALS, wsPassState,
 	WS_STORM_PASSES, wsNarrowState, WS_NARROW_FLIPS, wsColPrefCh, wsFitCols, wsExportRoot,
-	wsDemoteHeadings, wsFileHeadLevel, wsSecHeadLevel, wsDeepestLevel, wsTocSteps, WsMenuView,
+	WS_HEAD_TOKENS, wsHeadFill, wsContactLines, wsParaSpacing, wsDropHeadings, wsNumbered,
+	wsDemoteHeadings, wsHeadNumbers, wsNoteHeadings, wsPageOfPart, wsFileHeadLevel, wsSecHeadLevel, wsDeepestLevel, wsTocSteps, WsMenuView,
 	wsSessionLens, wsTaskSay, DEFAULT_BAR_PRESETS, wsShareText, barCodeToPreset,
 	DEFAULT_SETTINGS, wsSessionNew, wsForDisk,
 	// the welcome and About's notes (A743)
@@ -67,7 +69,7 @@ export default Object.assign(WordSmith, {
 	wsUnderRow, wsOrgFolderWords,
 	// the twenty-three the Word export audit and probe evaluated out of a slice of the text
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did
@@ -76,11 +78,11 @@ export default Object.assign(WordSmith, {
 	tokenizeLine, tagTokens, countSyllables, splitSentences, posBucket,
 	// the language packs' reader (A571)
 	wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackSpaces, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS,
-	wsPackEngine, WS_ENGLISH_ENGINE, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom,
+	wsPackEngine, WS_ENGLISH_ENGINE, WS_RULES_EN, wsPhraseRe, wsPhraseSpans, wsPhraseSpansFor, wsPhraseFold, wsPackLearned, wsPackRules, wsApplyRules, wsEnglishTagWith, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom,
 	// English's own lists and its pack engine (A691): what ws-dev/gen-english-packs.js writes the English packs from
 	// the settings in Obsidian's language (A692)
 	wsT, wsTq, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale, WS_LOCALES,
-	wsEnglishPackEngine, POS_LEX, FILLER_STRONG, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
+	wsEnglishPackEngine, POS_LEX, FILLER_STRONG, WS_CLICHES_EN, FILLER_SOFT, FILLER_PHRASES, MISUSED_ALWAYS, MISUSED_PHRASES, findMisused,
 	// citations (A572)
 	wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER, wsCiteEntryText,
 	wsCiteSections, wsCiteMissing, wsMaskCitations, wsCiteKeyText, wsEpubCss, wsFootNotes, wsColumnOf, wsTocPagesFill,

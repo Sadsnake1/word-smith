@@ -25,8 +25,8 @@ export const WS_FUNDING_URL = 'https://buymeacoffee.com/sadsnake1';
 // the download links here", "say something like word-smith is translated (built-in) and has syntax and prose
 // checks(lang packs) in 21 lang : ... then below say how to download a pack and where to put it") the names plain.
 export const WS_WELCOME_LANGS: [string, string][] = [
-	['en', 'English'], ['da', 'Dansk'], ['de', 'Deutsch'], ['es', 'Español'],
-	['fr', 'Français'], ['id', 'Bahasa Indonesia'], ['it', 'Italiano'], ['ja', '日本語'],
+	['en', 'English'], ['ar', 'العربية'], ['da', 'Dansk'], ['de', 'Deutsch'], ['es', 'Español'], ['fa', 'فارسی'],
+	['fr', 'Français'], ['hi', 'हिन्दी'], ['id', 'Bahasa Indonesia'], ['it', 'Italiano'], ['ja', '日本語'],
 	['ko', '한국어'], ['nl', 'Nederlands'], ['no', 'Norsk bokmål'], ['pl', 'Polski'],
 	['pt', 'Português'], ['pt-BR', 'Português (Brasil)'], ['ro', 'Română'], ['ru', 'Русский'],
 	['sv', 'Svenska'], ['tr', 'Türkçe'], ['uk', 'Українська'], ['zh-Hans', '简体中文'],

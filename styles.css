@@ -1354,7 +1354,8 @@ body.ws-rtl.ws-justify .ws-scoped .markdown-reading-view .markdown-preview-sizer
 .ws-pos-verb,
 .ws-pos-adj,
 .ws-pos-adv,
-.ws-pos-conj {
+.ws-pos-conj,
+.ws-pos-pron {
 	transition: color 0.12s ease;
 }
 
@@ -1366,7 +1367,7 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-lin
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj,
+	.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj, .ws-pos-pron,
 	body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line {
 		transition: none;
 	}
@@ -5911,8 +5912,10 @@ body.ws-margin-nums .ws-scoped .markdown-source-view.mod-cm6 .cm-line[data-ws-pn
 body.ws-margin-nums .ws-scoped .markdown-source-view.mod-cm6 .cm-line[data-ws-pnum]::after {   /* ::after since A460: ::before is the indent's spacer */
 	content: attr(data-ws-pnum);
 	position: absolute;
-	right: 100%;
-	margin-right: var(--ws-num-gap, 4ch);
+	/* (A846: at the line's start whichever way it reads: the left of a left-to-right line, the right of an Arabic or a
+	   Persian one, as the padding that makes room for it is padding-inline-start) */
+	inset-inline-end: 100%;
+	margin-inline-end: var(--ws-num-gap, 4ch);
 	font-family: var(--font-monospace, monospace);
 	font-size: inherit;
 	line-height: inherit;
@@ -5939,8 +5942,10 @@ body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > 
 body.ws-margin-nums .ws-scoped .markdown-reading-view .markdown-preview-sizer > div > p::after {
 	content: counter(ws-para);
 	position: absolute;
-	right: 100%;
-	margin-right: var(--ws-num-gap, 4ch);
+	/* (A846: at the line's start whichever way it reads: the left of a left-to-right line, the right of an Arabic or a
+	   Persian one, as the padding that makes room for it is padding-inline-start) */
+	inset-inline-end: 100%;
+	margin-inline-end: var(--ws-num-gap, 4ch);
 	font-family: var(--font-monospace, monospace);
 	font-size: inherit;
 	line-height: inherit;
@@ -8369,7 +8374,6 @@ body.is-mobile .ws-export-hit { padding: 8px; }
 }
 .ws-export-textrow .ws-export-text,
 .ws-export-textrow .ws-export-sel { flex: 1 1 auto; min-width: 0; }
-.ws-export-wideinput { width: 100%; }
 .ws-export-page {
 	margin-left: auto;
 	padding-left: 12px;
@@ -8680,6 +8684,15 @@ body.is-mobile { --ws-xc-h: max(var(--input-height), var(--ws-ctl-h)); --ws-xc-r
 	max-width: 100%;
 }
 .ws-export-pick-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* THE HEADINGS LIST IN A ROW OF ITS OWN (A844): it fills its column as a drop-down does, its words cut before its chevron */
+.ws-export-textrow > .ws-export-picklist {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+}
 /* THE CHEVRON ON ITS WORDS' MIDDLE (A636, the writer: "these chevrons are not aligned
    properly"): a flex item's span is a block, and the svg in it sat on the text's baseline,
    1.5px above the middle. A block svg has no baseline to sit on, so the button's own
@@ -15444,7 +15457,20 @@ body:where(.ws-line-spacing) .markdown-reading-view .markdown-preview-view { lin
 /* ── The current line's tint ──────────────────────────────────────────────
    --ws-line-hl-color is the chosen colour at the chosen opacity, for the
    theme that is on. */
-body:where(.ws-line-hl) .markdown-source-view.mod-cm6 .cm-content .cm-active.cm-line { background-color: var(--ws-line-hl-color); }
+/* (ONLY UNDER TYPEWRITER, A853: the tint and the lines are Typewriter's, so a note's pane with Typewriter on, `ws-scoped-tw`;
+   they were drawn in every note while the switch below Typewriter's rows stayed on) */
+body:where(.ws-line-hl) .ws-scoped-tw .markdown-source-view.mod-cm6 .cm-content .cm-active.cm-line { background-color: var(--ws-line-hl-color); }
+/* …OR LINE (#82, A850, A852): a line on top of the ROW the caret is on and one at its bottom, gradients, so nothing
+   moves. --ws-line-ol-y is the row's top and --ws-line-ul-y its foot less the width, from the top of the line's box,
+   measured by the editor (lineUnderPlugin); unmeasured, the box's own top and foot. --ws-line-top-h and
+   --ws-line-bot-h are the width (1 to 3 px) for a line that is ticked, 0 for one that is not; --ws-line-ul-period a
+   dash and its gap (or 100%), --ws-line-ul-dash the share drawn: half for a dash or a dot, all of a solid line. */
+body:where(.ws-line-ul) .ws-scoped-tw .markdown-source-view.mod-cm6 .cm-content .cm-active.cm-line {
+	background-image: linear-gradient(to right, var(--ws-line-hl-color) var(--ws-line-ul-dash), transparent 0), linear-gradient(to right, var(--ws-line-hl-color) var(--ws-line-ul-dash), transparent 0);
+	background-size: var(--ws-line-ul-period) var(--ws-line-top-h), var(--ws-line-ul-period) var(--ws-line-bot-h);
+	background-repeat: repeat-x;
+	background-position: 0 var(--ws-line-ol-y, 0px), 0 var(--ws-line-ul-y, 100%);
+}
 
 /* ── Dim the unfocused ────────────────────────────────────────────────────── */
 body:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { opacity: var(--ws-dim-opacity); transition: opacity 0.15s ease; }
@@ -15470,6 +15496,7 @@ body.ws-ios:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { transition: 
 .ws-pos-adj  { --ws-mark: var(--ws-pos-adj-color);  --ws-mark-bg: var(--ws-pos-adj-bg); }
 .ws-pos-adv  { --ws-mark: var(--ws-pos-adv-color);  --ws-mark-bg: var(--ws-pos-adv-bg); }
 .ws-pos-conj { --ws-mark: var(--ws-pos-conj-color); --ws-mark-bg: var(--ws-pos-conj-bg); }
+.ws-pos-pron { --ws-mark: var(--ws-pos-pron-color); --ws-mark-bg: var(--ws-pos-pron-bg); }
 .ws-ck-filler   { --ws-mark: var(--ws-ck-filler-color);   --ws-mark-bg: var(--ws-ck-filler-bg); }
 .ws-ck-passive  { --ws-mark: var(--ws-ck-passive-color);  --ws-mark-bg: var(--ws-ck-passive-bg); }
 .ws-ck-illusion { --ws-mark: var(--ws-ck-illusion-color); --ws-mark-bg: var(--ws-ck-illusion-bg); }
@@ -15477,8 +15504,9 @@ body.ws-ios:where(.ws-dim-active) :is(.ws-dim-line, .ws-dim-text) { transition: 
 .ws-ck-pronoun  { --ws-mark: var(--ws-ck-pronoun-color);  --ws-mark-bg: var(--ws-ck-pronoun-bg); }
 .ws-ck-repeat   { --ws-mark: var(--ws-ck-repeat-color);   --ws-mark-bg: var(--ws-ck-repeat-bg); }
 .ws-ck-dialogue { --ws-mark: var(--ws-ck-dialogue-color); --ws-mark-bg: var(--ws-ck-dialogue-bg); }
-body:where(.ws-pos-text) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { color: var(--ws-mark); }
-body:where(.ws-pos-highlight) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { background-color: var(--ws-mark-bg); border-radius: 2px; }
+.ws-ck-cliche   { --ws-mark: var(--ws-ck-cliche-color);   --ws-mark-bg: var(--ws-ck-cliche-bg); }
+body:where(.ws-pos-text) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj, .ws-pos-pron) { color: var(--ws-mark); }
+body:where(.ws-pos-highlight) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj, .ws-pos-pron) { background-color: var(--ws-mark-bg); border-radius: 2px; }
 /* THE LINE IS A SHADOW (A460): the reviewer flags the text-decoration
    longhands as partly supported, and the multi-value shorthand with them, so
    an underline of a colour of its own cannot be spelled the property's way.
@@ -15487,10 +15515,10 @@ body:where(.ws-pos-highlight) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-p
    the line no height. Until A460 the painters were the sheet's one exemption
    from the lint; the squiggle they also drew went at A461, on the writer's
    word ("Remove the squiggle"). */
-body:where(.ws-pos-line) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
-body:where(.ws-ck-text) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { color: var(--ws-mark); }
-body:where(.ws-ck-highlight) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { background-color: var(--ws-mark-bg); border-radius: 2px; }
-body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
+body:where(.ws-pos-line) :is(.ws-pos-noun, .ws-pos-verb, .ws-pos-adj, .ws-pos-adv, .ws-pos-conj, .ws-pos-pron) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
+body:where(.ws-ck-text) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-cliche) { color: var(--ws-mark); }
+body:where(.ws-ck-highlight) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-cliche) { background-color: var(--ws-mark-bg); border-radius: 2px; }
+body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-cliche) { box-shadow: inset 0 -2px 0 var(--ws-mark); padding-bottom: 1px; }
 /* Rhythm is forced to a background tint whatever the checks' style says: a
    line under a thirty-word sentence is noise; the point of this one is
    seeing a wall of a single colour at a glance. */
@@ -15504,11 +15532,11 @@ body:where(.ws-ck-line) :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-
 /* Muting everything else is what makes one class read as the sentence's
    skeleton. The word-class marks set their own colour and are separate
    elements, so this ancestor rule never outranks them however specific it
-   is. ONLY THE LINES THAT CARRY A MARK (`.ws-marked-line`, stamped by the
-   decorations): the mute is relative to the marks, and a line with none —
-   a heading, or every line of a note in a language the tagger does not
-   know — has nothing to stand out, so it keeps its ink. Without this a
-   Romanian note went faint end to end with not one word coloured. */
+   is. THE LINES THE DECORATIONS STAMP (`.ws-marked-line`): every line once
+   the note has shown a mark (the writer's pick "Mute every line": a line
+   with none stood out at full ink), none before, so a note in a language
+   the tagger does not know keeps its ink. Without that a Romanian note
+   went faint end to end with not one word coloured. */
 body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
 /* The same for the checks — with one thing the word-class version never
    had to handle. Word classes default to COLOURED TEXT, so their marks
@@ -15523,7 +15551,7 @@ body.ws-pos-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-lin
    sentence flagged as hard to read is exactly what the writer is looking
    for. */
 body.ws-ck-dim .markdown-source-view.mod-cm6 .cm-content .cm-line.ws-marked-line { color: var(--text-faint); }
-body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-hard, .ws-ck-veryhard, .ws-ck-short, .ws-ck-mid) { color: var(--text-normal); }
+body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-content .cm-line :is(.ws-ck-filler, .ws-ck-passive, .ws-ck-illusion, .ws-ck-misused, .ws-ck-pronoun, .ws-ck-repeat, .ws-ck-dialogue, .ws-ck-cliche, .ws-ck-hard, .ws-ck-veryhard, .ws-ck-short, .ws-ck-mid) { color: var(--text-normal); }
 
 /* ── THE WELCOME (A743, the writer's mockup, ws-dev/mockups/welcome-mockup.html) ─────────────────────────────────
    Obsidian's modal: the settings' pills in a rail, one tab at a time, the hint, Close and Next at the foot. The pills

@@ -5,7 +5,7 @@ Add words under any heading, comma separated or one per line. Keep the English n
 ## Tentang (About)
 - language: id
 - name: Bahasa Indonesia
-- pack: 1.0
+- pack: 1.2
 - format: 1
 - words: spaces
 - sentence-end: . ! ? …
@@ -462,6 +462,113 @@ Add words under any heading, comma separated or one per line. Keep the English n
 | coklat | cokelat |
 | telor | telur |
 
+## Klise (Cliches)
+### sayings
+- pinang dibelah dua, pungguk merindukan bulan, air di daun talas, katak {di bawah|dalam} tempurung
+- kacang lupa {akan |}kulitnya, api dalam sekam, {cendawan|jamur} di musim hujan, kerbau dicocok hidung
+- berakit-rakit ke hulu, lama-lama {menjadi|jadi} bukit, air beriak tanda {tak|tidak} dalam, air tenang menghanyutkan
+- tong kosong nyaring bunyinya, ada udang di balik batu, malu bertanya sesat di jalan, bersatu kita teguh
+- bumi dipijak di {situ|sana} langit dijunjung, nasi {sudah|telah} {menjadi|jadi} bubur
+- {tak ada|tiada|tidak ada} gading yang {tak|tidak} retak, rajin pangkal pandai
+- buah jatuh {tak|tidak} jauh dari {pohonnya|pohon}, pucuk dicinta ulam {tiba|pun tiba}
+- dua tiga pulau {terlampaui|terlampau}, sambil menyelam minum air, besar pasak {daripada|dari} tiang
+- habis manis sepah dibuang, gajah di pelupuk mata, {tak|tidak} kenal maka {tak|tidak} sayang
+- nila setitik rusak susu sebelanga, {makin|semakin|kian} berisi {makin|semakin|kian} merunduk
+- air susu dibalas {dengan |}air tuba, jatuh {tertimpa|ditimpa} tangga
+- {sepandai-pandai|sepandai-pandainya} tupai melompat, {lempar|melempar} batu sembunyi tangan
+- sedia payung sebelum hujan, biar lambat asal selamat, ada kemauan di {situ|sana} ada jalan
+- jauh di mata dekat di hati, rumput tetangga {selalu |}{terlihat |tampak |}lebih hijau
+- lebih baik terlambat {daripada|dari} tidak sama sekali
+- waktu {yang |}{akan |}menyembuhkan {segalanya|semuanya|semua luka|segala luka|luka}
+- pengalaman {adalah|merupakan} guru, kegagalan adalah {kesuksesan|keberhasilan|sukses} yang tertunda
+- {semua|semuanya|segalanya} {akan |}indah pada waktunya, ada {hikmahnya|hikmah di balik}
+- {tak ada|tidak ada|tiada} yang {tak mungkin|tidak mungkin|mustahil}
+- jodoh {tak|tidak} {akan |}{lari |}{ke mana|kemana}, cinta {tak|tidak} harus memiliki
+- buku {adalah |merupakan |}jendela dunia, roda kehidupan
+### idioms
+- kambing hitam, buah bibir, naik daun, gulung tikar, meja hijau
+- {menemui|menemukan|menghadapi|berakhir di} jalan buntu, bertekuk lutut, bertepuk sebelah tangan
+- {tangan|bertangan} besi, air mata buaya, senjata makan tuan, musuh dalam selimut, duri dalam daging, buah simalakama
+- gali lubang tutup lubang, {banting|membanting} tulang, {dengan lapang|berlapang} dada
+- tulang punggung {keluarga|perekonomian|negara|bangsa}
+- {membawa|memberi|memberikan|menjadi|bagai|bagaikan|seperti|bak} angin segar
+- {memberi|memberikan|mendapat|mendapatkan|diberi} lampu hijau, di ujung tanduk, {membuka|memulai} lembaran baru
+- {makan|merasakan|mengecap} asam garam, {menjilat|jilat} {ludah|ludahnya} sendiri
+- masuk telinga {kanan|kiri} keluar telinga {kiri|kanan}, sekejap mata, {puncak|fenomena} gunung es
+- cahaya di ujung terowongan, jarum {dalam|di} tumpukan jerami, berhati emas, dengan tangan terbuka
+- {diam|terdiam|membisu} seribu bahasa, {ketenangan|tenang|keheningan} sebelum badai
+- {kaya|terkenal|berubah} dalam semalam, kebakaran jenggot, durian runtuh, dua sisi {dari |}mata uang
+- mimpi di siang bolong, bahtera rumah tangga, {dipandang|memandang|dilihat|melihat} {dengan |}sebelah mata
+- pagar makan tanaman
+### similes
+- {sedingin|dingin seperti|dingin bagai|dingin bak} es
+- {secepat|cepat seperti|cepat bagai|cepat bak|bagai|bagaikan|seperti|bak} kilat
+- {seputih|putih seperti|putih bagai|putih bak} {salju|kapas|susu}
+- {sehitam|hitam seperti|hitam bagai|hitam bak} {arang|jelaga}
+- {seringan|ringan seperti|ringan bagai|ringan bak} {kapas|bulu}
+- {sekeras|keras seperti|keras bagai|keras bak} {batu|baja|karang}
+- {semanis|manis seperti|manis bagai|manis bak} {madu|gula}, {setajam|tajam seperti|tajam bagai} {silet|pisau|pedang}
+- setinggi langit, {selembut|sehalus|lembut seperti|halus seperti|lembut bagai|halus bagai} {sutra|sutera|beludru}
+- {secantik|seperti|bagai|bagaikan|bak|laksana} bidadari
+- {merah|memerah} {seperti|bagai|bak|bagaikan} {tomat|kepiting rebus|udang rebus}
+- pucat {seperti|bagai|bak|bagaikan} {mayat|hantu|kertas}
+- {bagai|bagaikan|seperti|bak} {bumi dan langit|langit dan bumi}
+- {bagai|bagaikan|seperti|bak} {minyak dan air|air dan minyak}
+- {bagai|bagaikan|seperti|bak} {anjing dan kucing|kucing dan anjing}, {bagai|bagaikan|seperti|bak} disambar petir
+- petir di siang bolong, cacing kepanasan, ditelan bumi, {seperti|bagai|bagaikan|bak} air {mengalir|yang mengalir}
+- {seperti|bagai|bagaikan|bak} benang kusut, {diam|membeku|terpaku} {seperti|bagai|bak|bagaikan} patung
+- tidur {nyenyak |pulas |}{seperti|bagai|bak} bayi
+### fiction
+- cinta pada pandangan pertama, dunia {serasa|terasa|seakan|seolah|seakan-akan|seolah-olah} milik berdua
+- {waktu|dunia} {seakan|seolah|seakan-akan|seolah-olah|serasa|terasa} berhenti
+- bulu {kuduk|kuduknya|kudukku|roma|romanya} {berdiri|meremang|merinding}
+- {menghela|menarik|mengembuskan|menghembuskan} {napas|nafas} panjang
+- {menghembuskan|mengembuskan} {napas|nafas} {terakhir|terakhirnya|yang terakhir}
+- tanpa {ia|dia|aku|kamu|kau|mereka|kita} {sadari|ketahui}, {butiran|butir-butir} bening
+- {berderai|bercucuran|berlinang|berlinangan|berurai|bersimbah} air {mata|matanya}, {mata|matanya|mataku} berkaca-kaca
+- hancur berkeping-keping, {disayat|disayat-sayat|teriris|teriris-iris|diiris-iris} sembilu, seulas senyum
+- {menyunggingkan|mengulas|mengukir} {senyum|senyuman|seulas senyum}, tersenyum {getir|kecut|miris|pahit}
+- kuning langsat, {bagai|bak|seperti|laksana|bagaikan} bulan purnama
+- bidadari turun dari {kahyangan|khayangan|langit|surga}, pangeran berkuda putih
+- belahan {jiwa|jiwaku|jiwanya|jiwamu|hati|hatiku|hatinya}, {hatinya|hatiku|hati} berbunga-bunga
+- kupu-kupu {beterbangan |}{di|dalam|di dalam} {perut|perutnya|perutku}, {zaman|jaman} dahulu kala
+- hidup bahagia {selamanya|untuk selamanya|selama-lamanya}, malam yang gelap dan berbadai
+- malam {pun |}{kian|semakin|makin|telah} larut, sang {mentari|surya|rembulan}
+- {langit|alam} {pun |}{ikut |turut |seakan |seolah |}{menangis|berduka}
+- {jantung|jantungnya|jantungku|jantungmu} {berdebar|berdegup|berdetak} {kencang|keras|tak karuan|tidak karuan}
+- pucat pasi, merah padam, menggigit {bibir bawah|bibir bawahnya|bibirnya}
+- {menelan|meneguk} {ludah|ludahnya|saliva|salivanya}, {tenggorokannya|tenggorokanku} {terasa |}tercekat
+- {dunianya|duniaku|dunia} {seakan |seolah |serasa |terasa |}runtuh, {semuanya|semua} {menjadi|jadi|berubah} gelap
+- {tak|tidak} percaya {dengan |pada |akan |}apa yang {kulihat|dilihatnya|kudengar|didengarnya}
+- {takdir|nasib} berkata lain, {semua|semuanya} {itu |}{hanya|hanyalah} {mimpi|sebuah mimpi|mimpi belaka}
+- dengan suara {bergetar|parau|lirih|tercekat}
+### crutch
+- {tidak|tak} {dapat|bisa} {dipungkiri|disangkal}, {bukan rahasia lagi|bukanlah rahasia lagi|rahasia umum}
+- seiring {dengan |}{berjalannya|bergulirnya} waktu, dewasa ini
+- {di|pada} era {globalisasi|digital} {ini|sekarang ini|seperti sekarang ini|seperti sekarang}
+- {tidak|tak} lain dan {tidak|tak} bukan, perlu {untuk |}digarisbawahi, tanpa basa-basi, singkat cerita
+- mau {tidak|tak} mau, cepat atau lambat, lambat laun, {tak|tidak} {disangka-sangka|dinyana|dinyana-nyana}
+- {tak|tidak} kalah {penting|pentingnya}, {seperti|sebagaimana} {yang |}kita {ketahui|tahu} bersama
+- pada kesempatan {kali ini|yang berbahagia ini}, {tiba-tiba saja|secara tiba-tiba|dengan tiba-tiba}
+- {tak|tidak} perlu {diragukan|dipertanyakan} lagi
+### dialogue
+- kita {perlu|harus} {bicara|berbicara}
+- {ini |}{tidak|tak|bukan} seperti yang {kamu|kau|Anda|engkau} {pikirkan|kira|bayangkan}
+- {aku|saya} bisa {jelaskan|menjelaskan|menjelaskannya}, dengarkan {aku|saya} {dulu|baik-baik}
+- {kamu|kau|engkau} {tidak|tak} akan {mengerti|paham}, {aku|saya|kamu|kau|semuanya|semua} {akan |}baik-baik saja
+- {ini|itu} {semua |}{salahku|salahmu|bukan salahmu|bukan salahku}
+- jangan {tinggalkan aku|tinggalkan saya|pergi dariku|tinggalin aku}
+- {tak|tidak} akan pernah {melupakanmu|melupakan kamu|melupakan dirimu}, {kamu|kau|engkau} {sudah|telah} berubah
+- {kamu|kau|engkau|Anda} akan menyesal
+- {tak|tidak} {bisa|dapat|sanggup} hidup {tanpamu|tanpa kamu|tanpa dirimu|tanpa kau}
+- {perasaanku|firasatku} {tidak|tak} enak, apa yang {sebenarnya |}terjadi di sini, kita {tidak|tak} punya banyak waktu
+- {langkahi|lewati} {dulu |}mayatku
+### jargon
+- {berpikir|berpikirlah} di luar kotak, {membangun|menciptakan|meningkatkan} sinergi, garda terdepan, ujung tombak
+- {langkah|langkah-langkah} strategis, dalam rangka {meningkatkan|mewujudkan}
+- {SDM|sumber daya manusia} yang {berkualitas|unggul|mumpuni}, {terobosan|gebrakan} baru
+- {keluar dari|meninggalkan} zona nyaman, memberikan yang terbaik
+
 ## Pasif (Passive)
 - helpers: yang, ini, itu, tersebut, ia, dia, mereka, kami, kita, saya, aku, kamu, engkau, anda, beliau, telah, sudah, akan, sedang, belum, masih, pernah, sempat, tidak, tak, bukan, jangan, dapat, bisa, harus, perlu, boleh, mesti, wajib, mampu, ingin, mau, hendak, enggan, layak, patut, siap, minta, baru, segera, juga, pun, lalu, kemudian, akhirnya, langsung, sering, selalu, biasanya, kerap, kini, terus, mulai, berhasil, sengaja, untuk, agar, supaya, lebih, paling, sangat, cukup, mudah, sulit, susah, banyak, dan, atau, serta, tetapi, namun, sehingga, karena, ketika, saat, setelah, sesudah, sebelum, sejak, hingga, sampai, jika, kalau, bila, apabila, meskipun, walaupun, seperti, sebagaimana, kembali, lagi, sebelumnya, pertama, memang, bakal, yg, dengan
 - participle: di…, tertulis, tercatat, terbuat, tersimpan, tertangkap, terbawa, tertabrak, terpilih, terbunuh, terkena, terdaftar, terbentuk, tertembak, terjebak, terendam, terlupakan, tertangani, terpenuhi, terungkap, terdeteksi, terbukti
@@ -497,12 +604,14 @@ Add words under any heading, comma separated or one per line. Keep the English n
 - Adverbs: Kata keterangan
 - Adjectives: Kata sifat
 - Conjunctions: Kata hubung
+- Pronouns: Kata ganti
 - Filler words: Kata pengisi
 - Passive voice: Kalimat pasif
 - Loose pronouns: Kata ganti kabur
 - Repetition radar: Pengulangan
 - Commonly misused: Salah kaprah
 - Lexical illusions: Kata ganda
+- Clichés: Klise
 - Dialogue: Dialog
 - Sentence rhythm: Ritme kalimat
 
