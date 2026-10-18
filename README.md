@@ -21,7 +21,7 @@
 
 Lightweight, free, and working within the Vault you already have. No project wizard, no special "book folder", no AI or telemetry near your texts.
 
-Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there. 
+Your book lives wherever you put it, your chapters are whatever files you like, and Word-Smith takes it from there. Just write, organize things as you go and later compile and export. Your notes, your files and your creative writings in one place, on all devices.
 
 Every feature has its own toggle, so take what you like and leave the rest off. 
 
