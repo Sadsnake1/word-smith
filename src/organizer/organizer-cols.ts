@@ -416,6 +416,9 @@ const pruneUserCols = () => {
 	const ix = d.plugin._orgIndex;
 	const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [];
 	if (!ix || !list.length) return false;
+	// AN EMPTY INDEX OVER A VAULT WITH NOTES KNOWS NOTHING (A875, issue #86): with every note out of scope it read
+	// as "no note carries any key" and dropped every column the writer had added. Unknown is not empty.
+	if (!ix.size && d.plugin.orgIndexVaultHasNotes()) return false;
 	const have = new Set();
 	try {
 		for (const r of ix.values()) {

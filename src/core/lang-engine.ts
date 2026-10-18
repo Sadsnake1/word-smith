@@ -28,7 +28,7 @@
 // · THE GRADE by the pack's formula, from sums a folder can add up, always as a
 //   school grade so the rhythm thresholds mean one thing in every language.
 
-import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, WS_CLICHES_EN, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart } from './preamble';
+import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, WS_CLICHES_EN, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart, wsTailEnd, wsTailMatch } from './preamble';
 import type { WsToken, WsDialogueMarks } from './preamble';
 import type { WsPack } from './language';
 import { WS_PACK_FORMULAS, wsPackQuotes } from './language';
@@ -743,8 +743,9 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 			if (to <= from) continue;
 			const prev = out.length ? out[out.length - 1] : null;
 			if (prev) {
-				const tail = text.slice(prev.from, prev.to);
-				const last = lower((/(\S+)$/.exec(tail) || ['', ''])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '');
+				// the joined sentence's END, read through a window (A877): every test below reads its last word or mark
+				const tail = wsTailEnd(text, prev.from, prev.to);
+				const last = lower((wsTailMatch(/(\S+)$/, text, prev.from, prev.to) || ['', ''])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '');
 				// an initial, or letters each with its dot (R.G., U.S., A.J.: A642), ends no sentence
 				const dotEnd = /\.$/.test(last) && (/^(\p{L}\.)+$/u.test(last) || abbr.has(last) || (ordinal && /^\d{1,3}\.$/.test(last)));
 				// A PIECE WITH NO LETTER OR FIGURE IN IT (a zero-width space, a lone ";"), or one that opens with a
@@ -760,12 +761,13 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 					&& sayWords.some((v) => raw.toLowerCase().includes(v));
 				if (dotEnd || inFigure || quoted || said || carries || /^[\p{P}\s]*\p{Ll}/u.test(raw) || /^[\u00ba\u00aa]/.test(raw) || wsQuoteHolds(text, prev.from, from, held)) {
 					prev.to = to;
-					prev.text = text.slice(prev.from, to).trim();
 					continue;
 				}
 			}
-			out.push({ from, to, text: raw.trim() });
+			out.push({ from, to, text: '' });
 		}
+		// each sentence's text cut once, when its end is known (A877)
+		for (const s of out) s.text = text.slice(s.from, s.to).trim();
 		return out;
 	};
 

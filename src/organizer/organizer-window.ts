@@ -1767,7 +1767,15 @@ export const organizerWindowMethods = {
 			// first paint of a session starts the index before the vault has listed
 			// its files; that sweep sees nothing and, left alone, the index stayed
 			// empty for the session. Sweep again the moment the vault answers.
-			if (this._orgIndexBuild == null && !this._orgIndex.size && this.orgIndexVaultHasNotes()) return this.orgIndexResweep();
+			// …ONCE FOR EACH STATE OF WHAT IS COUNTED (A875, issue #86): asked on every draw, a sweep that counted
+			// nothing (every note out of scope) rang the bell, the bell drew 150 ms later, and the draw asked again —
+			// the table rebuilt eleven times a second for as long as the pane was open. The notes' number and the
+			// three settings that decide what is counted say when to look again; a note's own `wordsmith:` comes
+			// through `changed`.
+			if (this._orgIndexBuild == null && !this._orgIndex.size && this.orgIndexVaultHasNotes()) {
+				const at = this.orgIndexCountedSig();
+				if (at !== this._orgIndexEmptyAt) { this._orgIndexEmptyAt = at; return this.orgIndexResweep(); }
+			}
 			return this._orgIndexBuild ?? Promise.resolve(this._orgIndex);
 		}
 		this._orgIndex = wsOrgIndex();
@@ -1792,6 +1800,13 @@ export const organizerWindowMethods = {
 			} finally { this._orgIndexBuild = null; }
 		})();
 		return this._orgIndexBuild;
+	},
+
+	orgIndexCountedSig(this: WordSmith) {
+		const s = this.settings;
+		let n = 0;
+		try { n = this.app.vault.getMarkdownFiles().length; } catch { n = 0; }
+		return n + '|' + JSON.stringify([s.scopeMode, s.scopePaths, s.countExclude]);
 	},
 
 	orgIndexVaultHasNotes(this: WordSmith) {

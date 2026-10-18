@@ -2735,6 +2735,15 @@ function wsQuoteHolds(text, from, at, pairs) {
     return false;
   return !/[.!?\u2026\u3002\uff01\uff1f]$/.test(text.slice(from, c)) || /^[\p{Ll},;:([\u2014\u2013-]/u.test(after);
 }
+var WS_TAIL_WINDOW = 64;
+function wsTailEnd(text, from, to) {
+  return text.slice(Math.max(from, to - WS_TAIL_WINDOW), to);
+}
+function wsTailMatch(re, text, from, to) {
+  const lo = Math.max(from, to - WS_TAIL_WINDOW);
+  const m = re.exec(text.slice(lo, to));
+  return m && lo > from && m.index < 2 ? re.exec(text.slice(from, to)) : m;
+}
 function splitSentences(text) {
   const out = [];
   SENTENCE_SPLIT.lastIndex = 0;
@@ -2749,17 +2758,17 @@ function splitSentences(text) {
       continue;
     const prev = out.length ? out[out.length - 1] : null;
     if (prev) {
-      const tail = text.slice(prev.from, prev.to);
-      const am = /(\p{L}+)\.$/u.exec(tail);
-      const falseEnd = am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase())) || /^\d{1,3}\.$/.test(tail.trim()) || /^[\p{P}\s]*[\p{Ll}0-9]/u.test(raw.trim()) || wsQuoteHolds(text, prev.from, from, HELD_QUOTES);
+      const am = wsTailMatch(/(\p{L}+)\.$/u, text, prev.from, prev.to);
+      const falseEnd = am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase())) || /^\s*\d{1,3}\.$/.test(text.slice(prev.from, prev.to)) || /^[\p{P}\s]*[\p{Ll}0-9]/u.test(raw.trim()) || wsQuoteHolds(text, prev.from, from, HELD_QUOTES);
       if (falseEnd) {
         prev.to = to;
-        prev.text = text.slice(prev.from, to).trim();
         continue;
       }
     }
-    out.push({ from, to, text: raw.trim() });
+    out.push({ from, to, text: "" });
   }
+  for (const s of out)
+    s.text = text.slice(s.from, s.to).trim();
   return out;
 }
 function fkGrade(words, sentences, syllables) {
@@ -4281,7 +4290,7 @@ function wsSnippetOf(text) {
   return String(text || "").replace(/\s+/g, " ").trim().slice(0, 80);
 }
 function wsPlainLine(line) {
-  return String(line || "").replace(/^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/, "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (m, a, b) => b || a).replace(/[*_~`]+/g, "").replace(/\s+/g, " ").trim();
+  return String(line || "").replace(/^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/, "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (m, a, b) => b || a).replace(/[*_~`]+/g, "").replace(/\s+/g, " ").trim();
 }
 function wsLineOfSnippet(md, snippet) {
   const want = wsSnippetOf(snippet);
@@ -7480,7 +7489,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.8.6";
+var WS_PLUGIN_VERSION = "1.8.7";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -8612,7 +8621,7 @@ function wsThemeHex(name) {
   return /^#[0-9a-f]{6}$/i.test(v) ? v : WS_THEME_FALLBACK[name] || "#808080";
 }
 var import_obsidian3 = require("obsidian");
-var WS_WHATS_NEW = "### Writing\n- A note with no target of its own shows its folder's goal in the report, named.\n\n### Export\n- Settings → Export has one Reset to defaults for every option, at the end of Options.\n- An e-book can start each file on a new page.\n\n### Languages\n- The title page's byline and word count, the notes' heading and the contents' title follow your book's language.\n- Bar messages and the Caps Lock and Num Lock keys are translated.\n\n### Fixes\n- A note's own ws-syntax, ws-checks, ws-typography, ws-hemingway and ws-typewriter now work.\n- History counts the first edit you make in a note.\n- The file tree keeps your custom order through restarts and while Export is open, and turns it back on once.\n- In the expanded view, your contact lines on the title page sit inside the margin, as they do on the page.\n- Author and Notes in a Word file update an open preview.\n- A Markdown preview shows your citation keys as the file keeps them.\n- A flag or folder color set from the Organizer's right-click can be undone and lands on every selected row.\n- Escape lets go of a selection in the Organizer.\n- The outline's word counts agree with the note's.\n- The Markdown checkbox shape comes off when Word-Smith turns off.";
+var WS_WHATS_NEW = "### Fixes\n- When Word-Smith counts none of your notes, the Organizer no longer keeps redrawing itself or removes your property columns.\n- Settings brought back after a reinstall are checked and updated like any others.\n- A very long paragraph no longer slows the Organizer, the Report or the sentence checks.\n- Clicking a long line with an unfinished [[link]] in the reader no longer stalls.";
 var WS_PACK_FORMAT = 1;
 var WS_PACK_PARTS = {
   "nouns": "list",
@@ -9793,8 +9802,8 @@ function wsBuildPackEngine(pack) {
         continue;
       const prev = out.length ? out[out.length - 1] : null;
       if (prev) {
-        const tail = text.slice(prev.from, prev.to);
-        const last = lower((/(\S+)$/.exec(tail) || ["", ""])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, "");
+        const tail = wsTailEnd(text, prev.from, prev.to);
+        const last = lower((wsTailMatch(/(\S+)$/, text, prev.from, prev.to) || ["", ""])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, "");
         const dotEnd = /\.$/.test(last) && (/^(\p{L}\.)+$/u.test(last) || abbr.has(last) || ordinal && /^\d{1,3}\.$/.test(last));
         const carries = !/[\p{L}\p{N}]/u.test(raw) || /^[\s\u200b]*[,;:)\]]/.test(raw);
         const inFigure = /\d\.$/.test(tail) && /^\d/.test(raw);
@@ -9802,12 +9811,13 @@ function wsBuildPackEngine(pack) {
         const said = /[\u201d\u300d\u300f\u00bb"]$/.test(tail) && /^[\s\p{Pd}]*\p{Lo}/u.test(raw) && sayWords.some((v) => raw.toLowerCase().includes(v));
         if (dotEnd || inFigure || quoted2 || said || carries || /^[\p{P}\s]*\p{Ll}/u.test(raw) || /^[\u00ba\u00aa]/.test(raw) || wsQuoteHolds(text, prev.from, from, held)) {
           prev.to = to;
-          prev.text = text.slice(prev.from, to).trim();
           continue;
         }
       }
-      out.push({ from, to, text: raw.trim() });
+      out.push({ from, to, text: "" });
     }
+    for (const s of out)
+      s.text = text.slice(s.from, s.to).trim();
     return out;
   };
   const WORDS = /(?![\u00ba\u00aa])\p{L}(?:[\p{L}\p{M}'\u2019-]|\u200c|\u200d)*|\p{Nd}+(?:[.,:]\p{Nd}+)*(?:\.?[\u00ba\u00aa])?(?:\p{Ll}{1,3}(?!\p{L}))?%?/gu;
@@ -21074,6 +21084,8 @@ var wsOrgColsMake = (d) => {
     const list = Array.isArray(d.s.uniUserCols) ? d.s.uniUserCols : [];
     if (!ix || !list.length)
       return false;
+    if (!ix.size && d.plugin.orgIndexVaultHasNotes())
+      return false;
     const have = /* @__PURE__ */ new Set();
     try {
       for (const r of ix.values()) {
@@ -25925,8 +25937,13 @@ var organizerWindowMethods = {
   },
   orgIndexEnsure() {
     if (this._orgIndex) {
-      if (this._orgIndexBuild == null && !this._orgIndex.size && this.orgIndexVaultHasNotes())
-        return this.orgIndexResweep();
+      if (this._orgIndexBuild == null && !this._orgIndex.size && this.orgIndexVaultHasNotes()) {
+        const at = this.orgIndexCountedSig();
+        if (at !== this._orgIndexEmptyAt) {
+          this._orgIndexEmptyAt = at;
+          return this.orgIndexResweep();
+        }
+      }
       return this._orgIndexBuild ?? Promise.resolve(this._orgIndex);
     }
     this._orgIndex = wsOrgIndex();
@@ -25948,6 +25965,16 @@ var organizerWindowMethods = {
       }
     })();
     return this._orgIndexBuild;
+  },
+  orgIndexCountedSig() {
+    const s = this.settings;
+    let n = 0;
+    try {
+      n = this.app.vault.getMarkdownFiles().length;
+    } catch {
+      n = 0;
+    }
+    return n + "|" + JSON.stringify([s.scopeMode, s.scopePaths, s.countExclude]);
   },
   orgIndexVaultHasNotes() {
     try {
@@ -35922,10 +35949,25 @@ var storesMethods = {
       const take = this.settingsMirrorRestorable(parsed, this.vaultName());
       if (!Object.keys(take).length)
         return false;
-      Object.assign(this.settings, take);
       this._mirrorFoundAt = found;
+      const live = this.settings;
       try {
-        await this.saveData(this.settings);
+        await this.saveData(take);
+        await this.loadSettings();
+        const fresh = this.settings;
+        for (const k of Object.keys(live))
+          if (!Object.prototype.hasOwnProperty.call(fresh, k))
+            delete wsBag(live)[k];
+        Object.assign(live, fresh);
+      } catch (_) {
+        Object.assign(live, take);
+        wsRepairSettings(live, DEFAULT_SETTINGS);
+        wsCatch("settingsMirrorRestore: the load", _);
+      }
+      this.settings = live;
+      const disk = wsForDisk(live);
+      try {
+        await this.saveData(disk);
       } catch (e) {
         this.storeWriteFailed(WS_WRITE.settings, e, "They are back for this session and will be written again on the next change.");
       }
@@ -45361,6 +45403,8 @@ var WordSmith = class extends import_obsidian30.Plugin {
       if (path === this.goalsFilePath())
         return true;
       if (path === this.settingsMirrorPathFor())
+        return true;
+      if (this._mirrorFoundAt && path === this._mirrorFoundAt)
         return true;
     } catch (_) {
       wsCatch("isStoreFile: if (path === this._historyPath) return true;", _);

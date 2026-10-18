@@ -2199,8 +2199,24 @@ export function wsQuoteHolds(text: string, from: number, at: number, pairs: Reco
 	return !/[.!?\u2026\u3002\uff01\uff1f]$/.test(text.slice(from, c)) || /^[\p{Ll},;:([\u2014\u2013-]/u.test(after);
 }
 
+// THE END OF A SENTENCE BEING JOINED (A877). Whether a full stop ended a sentence is read off the sentence's LAST
+// word, and a sentence grows at every false end; read whole each time, a long line whose sentences kept joining
+// cost the square of its length (146 ms for one 26 KB line, 2.4 s with thin spaces in it). So the tests read a
+// window of its end. A last word that reaches the window's start is read from the whole sentence, so every answer
+// is the one the whole would give. `re` is not global.
+export const WS_TAIL_WINDOW = 64;
+export function wsTailEnd(text: string, from: number, to: number): string {
+	return text.slice(Math.max(from, to - WS_TAIL_WINDOW), to);
+}
+export function wsTailMatch(re: RegExp, text: string, from: number, to: number): RegExpExecArray | null {
+	const lo = Math.max(from, to - WS_TAIL_WINDOW);
+	const m = re.exec(text.slice(lo, to));
+	// (2, not 1: a window cut through a surrogate pair starts on its low half)
+	return (m && lo > from && m.index < 2) ? re.exec(text.slice(from, to)) : m;
+}
+
 export function splitSentences(text: string) {
-	const out = [];
+	const out: { from: number; to: number; text: string }[] = [];
 	SENTENCE_SPLIT.lastIndex = 0;
 	let m;
 	while ((m = SENTENCE_SPLIT.exec(text))) {
@@ -2219,20 +2235,21 @@ export function splitSentences(text: string) {
 		// rhythm grade with it.
 		const prev = out.length ? out[out.length - 1] : null;
 		if (prev) {
-			const tail = text.slice(prev.from, prev.to);
-			const am   = /(\p{L}+)\.$/u.exec(tail);
+			const am   = wsTailMatch(/(\p{L}+)\.$/u, text, prev.from, prev.to);
 			// A FIGURE ENDS A SENTENCE (A642: "Published in 1975. It was good." was one): a decimal's second
 			// half opens with a digit and joins below; a list's number standing alone ("1.") is the one figure kept
+			// (anchored, so it reads the sentence's opening only: the end carries no space, and `\s` is what trim() takes)
 			const falseEnd = (am && (am[1].length === 1 || ABBREVIATIONS.has(am[1].toLowerCase()))) ||
-				/^\d{1,3}\.$/.test(tail.trim()) || /^[\p{P}\s]*[\p{Ll}0-9]/u.test(raw.trim()) || wsQuoteHolds(text, prev.from, from, HELD_QUOTES);
+				/^\s*\d{1,3}\.$/.test(text.slice(prev.from, prev.to)) || /^[\p{P}\s]*[\p{Ll}0-9]/u.test(raw.trim()) || wsQuoteHolds(text, prev.from, from, HELD_QUOTES);
 			if (falseEnd) {
-				prev.to   = to;
-				prev.text = text.slice(prev.from, to).trim();
+				prev.to = to;
 				continue;
 			}
 		}
-		out.push({ from, to, text: raw.trim() });
+		out.push({ from, to, text: '' });
 	}
+	// each sentence's text cut once, when its end is known (A877)
+	for (const s of out) s.text = text.slice(s.from, s.to).trim();
 	return out;
 }
 
@@ -3922,7 +3939,9 @@ export function wsPlainLine(line: string) {
 	return String(line || '')
 		.replace(/^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+|\d+[.)]\s+)/, '')
 		.replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
-		.replace(/\[\[([^\]|]*)\|?([^\]]*)\]\]/g, (m: string, a: string, b: string) => b || a)
+		// (the shown text only after a "|": two runs that could take the same letters tried every split of a line
+		// with an unclosed [[, 0.4 s for 26 KB; A877)
+		.replace(/\[\[([^\]|]*)(?:\|([^\]]*))?\]\]/g, (m: string, a: string, b: string | undefined) => b || a)
 		.replace(/[*_~`]+/g, '')
 		.replace(/\s+/g, ' ').trim();
 }
@@ -7412,7 +7431,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.6';
+export const WS_PLUGIN_VERSION = '1.8.7';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

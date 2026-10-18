@@ -9,7 +9,7 @@ import { Notice, getLanguage } from 'obsidian';
 import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
-import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg } from '../core/preamble';
+import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings } from '../core/preamble';
 import { wsIsPackPath, wsPackPick, wsPackQuotes, wsPackSpaces, wsParsePack } from '../core/language';
 import type { WsPack, WsPackSpaces } from '../core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
@@ -790,8 +790,13 @@ export const storesMethods = {
 			if (!parsed) return false;
 			const take = this.settingsMirrorRestorable(parsed, this.vaultName());
 			if (!Object.keys(take).length) return false;
-			Object.assign(this.settings, take);
 			this._mirrorFoundAt = found;
+			// THE RESTORE IS A LOAD (A875, issue #86): the mirror's keys are written as data.json and read back
+			// through `loadSettings`, so they are repaired, migrated and cleared of the session keys exactly as a
+			// data.json holding them would be. Assigned straight in, they stayed unrepaired and unmigrated for the
+			// whole session after a reinstall. Copied INTO the live object: a pane restored with the layout
+			// already holds it.
+			//
 			// The mirror is now what data.json says, so saving it back is the
 			// thing that makes the restore stick — and it is the ONE write this
 			// direction ever does. A FAILURE HERE IS SAID: this is the RESTORE —
@@ -800,9 +805,25 @@ export const storesMethods = {
 			// function would still answer TRUE, the settings would come back on
 			// screen, nothing would reach the disk, and the next start would lose
 			// them again. STILL TRUE, THOUGH, and deliberately: the settings ARE
-			// restored — in memory, which is what the caller acts on — and the
-			// next `saveSettings` tries the write again under the same latch.
-			try { await this.saveData(this.settings); }
+			// restored — in memory (repaired there), which is what the caller acts
+			// on — and the next `saveSettings` tries the write again under the same latch.
+			const live = this.settings;
+			try {
+				await this.saveData(take);
+				await this.loadSettings();
+				const fresh = this.settings;
+				for (const k of Object.keys(live)) if (!Object.prototype.hasOwnProperty.call(fresh, k)) delete wsBag(live)[k];
+				Object.assign(live, fresh);
+			} catch (_) {
+				// the load could not run (data.json would not take them): the keys go in as they are, repaired,
+				// and the write below says whether the disk has them
+				Object.assign(live, take);
+				wsRepairSettings(live, DEFAULT_SETTINGS);
+				wsCatch('settingsMirrorRestore: the load', _);
+			}
+			this.settings = live;
+			const disk = wsForDisk(live);
+			try { await this.saveData(disk); }
 			catch (e) {
 				this.storeWriteFailed(WS_WRITE.settings, e,
 					'They are back for this session and will be written again '

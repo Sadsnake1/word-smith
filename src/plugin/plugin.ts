@@ -1581,6 +1581,7 @@ export default class WordSmith extends Plugin {
 	declare orgIndexEnsure: OrganizerWindowMethods["orgIndexEnsure"];
 	declare orgIndexResweep: OrganizerWindowMethods["orgIndexResweep"];
 	declare orgIndexVaultHasNotes: OrganizerWindowMethods["orgIndexVaultHasNotes"];
+	declare orgIndexCountedSig: OrganizerWindowMethods["orgIndexCountedSig"];
 	declare orgIndexStoreKnown: OrganizerWindowMethods["orgIndexStoreKnown"];
 	declare orgIndexOnChange: OrganizerWindowMethods["orgIndexOnChange"];
 	declare _orgIndexRing: OrganizerWindowMethods["_orgIndexRing"];
@@ -1982,6 +1983,7 @@ export default class WordSmith extends Plugin {
 	_orgHistKey: (ev: KeyboardEvent) => void;
 	_orgIndex: WsOrgIndexMap;
 	_orgIndexBuild: Promise<WsOrgIndexMap> | null;
+	_orgIndexEmptyAt: string | null;
 	_orgIndexSubs: Set<() => void>;
 	_orgLens: () => { sort: WsLensSort | null; chips: WsLensChip[] };
 	_orgLensSet: (patch: { sort?: WsLensSort | null; chips?: WsLensChip[] }) => void;
@@ -4248,6 +4250,9 @@ export default class WordSmith extends Plugin {
 			// slash. Comparing against `settings.settingsMirrorPath` directly
 			// would go on counting in any vault whose path began with one.
 			if (path === this.settingsMirrorPathFor()) return true;
+			// …AND WHERE IT WAS FOUND (A875): the mirror is found by its mark wherever it is, and written there; one
+			// moved out of its configured path was counted as a note, its JSON read for words at every write
+			if (this._mirrorFoundAt && path === this._mirrorFoundAt) return true;
 		} catch (_) { wsCatch('isStoreFile: if (path === this._historyPath) return true;', _); }
 		return false;
 	}
