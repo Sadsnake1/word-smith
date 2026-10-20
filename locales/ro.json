@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Păstrează fiecare rând gol",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Fiecare rând gol din notă devine un rând gol, și primul dintre două paragrafe. Pentru note scrise cu un paragraf pe rând.",
 	"Your clichés": "Clișeele tale",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Expresii proprii de marcat, câte una pe rând. {a|b} pentru oricare dintre cuvinte, {*} pentru unul oarecare."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Expresii proprii de marcat, câte una pe rând. {a|b} pentru oricare dintre cuvinte, {*} pentru unul oarecare.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Cuvintele de azi față de obiectivul tău zilnic, 356/1.000, 36% sau o bară, pe loc în timp ce scrii. Cu Istoricul pornit, aceeași numărătoare ca în Istoric. Dă clic pentru a stabili obiectivul sau pentru a începe ziua din nou de la zero.",
+	"Words today over your daily target. Click for more.": "Cuvintele de azi față de obiectivul tău zilnic. Dă clic pentru mai mult.",
+	"Words today. Click to set a daily target.": "Cuvintele de azi. Dă clic pentru a stabili un obiectiv zilnic.",
+	"words a day": "cuvinte pe zi",
+	"Start today again from zero": "Începe ziua din nou de la zero",
+	"A whole number of words, 0 for none.": "Un număr întreg de cuvinte, 0 pentru niciunul.",
+	"Daily target": "Obiectiv zilnic",
+	"Scroll when you click": "Derulează la clic",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Dezactivat, un clic lasă pagina pe loc până scrii, așa că un dublu sau triplu clic selectează ce apeși.",
+	"Your words today against your daily target.": "Cuvintele tale de azi față de obiectivul tău zilnic."
 }

@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "空行をすべて残す",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "ノートの空行をすべて空行にします。2 つの段落の間の最初の空行も含みます。1 行に 1 段落で書くノート向け。",
 	"Your clichés": "自分の決まり文句",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "印を付けたい自分の言い回しを1行に1つ。{a|b} はどちらかの語、{*} は任意の1語。"
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "印を付けたい自分の言い回しを1行に1つ。{a|b} はどちらかの語、{*} は任意の1語。",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "今日の語数と1日の目標（356/1,000、36%、またはバー）。入力に合わせて更新されます。履歴がオンのときは履歴と同じ数です。クリックで目標を設定するか、今日をゼロから数え直します。",
+	"Words today over your daily target. Click for more.": "今日の語数と1日の目標。クリックで詳細。",
+	"Words today. Click to set a daily target.": "今日の語数。クリックで1日の目標を設定。",
+	"words a day": "語／日",
+	"Start today again from zero": "今日をゼロから数え直す",
+	"A whole number of words, 0 for none.": "語数を整数で。0 で目標なし。",
+	"Daily target": "1日の目標",
+	"Scroll when you click": "クリックでスクロール",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "オフにすると、入力するまでクリックでページが動かず、ダブルクリックやトリプルクリックで押した箇所を選択できます。",
+	"Your words today against your daily target.": "今日の語数と1日の目標。"
 }

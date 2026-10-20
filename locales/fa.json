@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "نگه داشتن همهٔ سطرهای خالی",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "هر سطر خالیِ یادداشت شما یک سطر خالی می‌شود، حتی نخستین سطر میان دو پاراگراف. برای یادداشت‌هایی که هر پاراگراف در یک سطر است.",
 	"Your clichés": "کلیشه‌های شما",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "عبارت‌های خودتان برای نشانه‌گذاری، هر کدام در یک خط. {a|b} برای یکی از دو واژه، {*} برای هر واژه."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "عبارت‌های خودتان برای نشانه‌گذاری، هر کدام در یک خط. {a|b} برای یکی از دو واژه، {*} برای هر واژه.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "کلمات امروز نسبت به هدف روزانهٔ شما، 356/1,000 یا 36% یا یک نوار، زنده هنگام نوشتن. با روشن بودن تاریخچه، همان شمارش تاریخچه. برای تعیین هدف یا شروع دوبارهٔ امروز از صفر کلیک کنید.",
+	"Words today over your daily target. Click for more.": "کلمات امروز نسبت به هدف روزانهٔ شما. برای جزئیات بیشتر کلیک کنید.",
+	"Words today. Click to set a daily target.": "کلمات امروز. برای تعیین هدف روزانه کلیک کنید.",
+	"words a day": "کلمه در روز",
+	"Start today again from zero": "شروع دوبارهٔ امروز از صفر",
+	"A whole number of words, 0 for none.": "تعداد صحیحی از کلمات، 0 برای هیچ.",
+	"Daily target": "هدف روزانه",
+	"Scroll when you click": "پیمایش هنگام کلیک",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "اگر خاموش باشد، کلیک صفحه را تا وقتی تایپ کنید ثابت نگه می‌دارد، پس دوبار یا سه‌بار کلیک همان چیزی را که می‌زنید انتخاب می‌کند.",
+	"Your words today against your daily target.": "کلمات امروز شما نسبت به هدف روزانه‌تان."
 }

@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Mantieni ogni riga vuota",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Ogni riga vuota della nota diventa una riga vuota, anche la prima tra due paragrafi. Per note scritte con un paragrafo per riga.",
 	"Your clichés": "I tuoi cliché",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Espressioni tue da segnare, una per riga. {a|b} per l’una o l’altra parola, {*} per una qualsiasi."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Espressioni tue da segnare, una per riga. {a|b} per l’una o l’altra parola, {*} per una qualsiasi.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Le parole di oggi sul tuo obiettivo giornaliero, 356/1.000, 36% o una barra, in tempo reale mentre scrivi. Con la Cronologia attiva, lo stesso conteggio della Cronologia. Fai clic per impostare l’obiettivo o ricominciare la giornata da zero.",
+	"Words today over your daily target. Click for more.": "Le parole di oggi sul tuo obiettivo giornaliero. Fai clic per saperne di più.",
+	"Words today. Click to set a daily target.": "Le parole di oggi. Fai clic per impostare un obiettivo giornaliero.",
+	"words a day": "parole al giorno",
+	"Start today again from zero": "Ricomincia la giornata da zero",
+	"A whole number of words, 0 for none.": "Un numero intero di parole, 0 per nessuno.",
+	"Daily target": "Obiettivo giornaliero",
+	"Scroll when you click": "Scorri al clic",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Disattivato, un clic lascia ferma la pagina finché non scrivi, così un doppio o triplo clic seleziona ciò che premi.",
+	"Your words today against your daily target.": "Le tue parole di oggi rispetto al tuo obiettivo giornaliero."
 }

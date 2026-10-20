@@ -4289,6 +4289,12 @@ export function wsNarrowState(): WsNarrowState { return { isNarrow: null, flips:
 // behaviour surviving the change that removed it.
 export const WS_SESSION_KEYS = ['historyView', 'historySeries', 'historyCalMetric'];
 
+// ── TODAY'S RECORDS STAY OUT OF THE VAULT'S SETTINGS COPY (A879) ─────────────
+//
+// Kept in data.json for the day, and never written into ws-settings.md: each changes all day long, and none is worth
+// anything after a reinstall, when its day has passed. {dailytarget}'s record, {wpm}'s, {target}'s.
+export const WS_MIRROR_DAY_KEYS = ['dailyWords', 'wpmDay', 'goalDay'];
+
 // ── AND THE WINDOW'S OWN VIEW, SAME RULE ───────────────────────────
 //
 // HELD ON THE PLUGIN INSTANCE and never written anywhere, so a restart,
@@ -7393,7 +7399,7 @@ export function wsSortArrow(dir: string) {
 // the comment beside that variable: a stale stylesheet in a vault is
 // indistinguishable from a broken feature — the rules are absent, the script
 // works, and the report is "your fix did nothing". Bump both together.
-export const WS_STYLESHEET_VERSION = 579;
+export const WS_STYLESHEET_VERSION = 580;
 // THE INSTALLER GATE. Encoded major*1000+minor. Refused below 1.9:
 // installers 1.5.12 and 1.8.3 froze Obsidian on enable. Warned below
 // 1.13: the installer this build is measured in. Move both only on
@@ -7431,7 +7437,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.7';
+export const WS_PLUGIN_VERSION = '1.8.8';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -8449,6 +8455,10 @@ export const DEFAULT_SETTINGS = {
 	// The migration in loadSettings carries every old pair over exactly,
 	// because the old pair already WAS this number.
 	typewriterAnchor:         50,
+	// SCROLL WHEN YOU CLICK (#88, Dalibor-P): a click brings its line to the rest, as it always did; off, the page
+	// stays still under a click, so a double or triple click selects what was pressed, and the line moves at the
+	// first key that types or moves the caret (the editor asks then)
+	typewriterScrollOnClick:  true,
 	dimUnfocusedEnabled:      false,
 	dimFocusMode:             'paragraph', // 'paragraph' | 'sentence'
 	dimOpacity:               0.55,
@@ -8635,13 +8645,16 @@ export const DEFAULT_SETTINGS = {
 	// THE DAY (A700): each goal's count the first time it was read today, which today's share is worked out from so
 	// it holds still all day (its `met`, the celebration's latch, went with it, A786)
 	goalDay:                  { date: '', start: {} as Record<string, number> },
-	// THE DAILY WORD GOAL: how many words a day the writer means to write, 0 for none. {daily_word_goal} says today's
-	// words over it, 356/1,000, or today's words alone while it is 0
+	// THE DAILY TARGET (PR #93, A879): how many words a day the writer means to write, 0 for none. {dailytarget} says
+	// today's words over it, 356/1,000, or today's words alone while it is 0
 	dailyWordGoal:            0,
-	// …and TODAY'S WORDS, a new record each day: each note's count the first time it was seen today (`start`, read
-	// from the saved note, never the editor mid-switch) and its count now (`last`, live). Today's words are what the
-	// notes gained between the two, summed: a deletion takes words back, and the day never goes below zero
-	dailyWords:               { date: '', start: {} as Record<string, number>, last: {} as Record<string, number> },
+	// …and how {dailytarget} says it: 'ratio' (356/1,000) | 'percent' (36%) | 'bar' (the bar alone)
+	dailyTargetFormat:        'ratio',
+	// …and TODAY'S WORDS while History is off, a new record each day: each note's count the first time it was seen today
+	// (`start`, read from the saved note, never the editor mid-switch) and its count now (`last`, live). Today's words are
+	// what the notes gained between the two, summed: a deletion takes words back. `reset` is today's figure when Reset
+	// was pressed (History's or this record's), and the token says what came after it, never below zero
+	dailyWords:               { date: '', start: {} as Record<string, number>, last: {} as Record<string, number>, reset: 0 },
 
 	// The bar's top and bottom rules. Their own colours now rather than
 	// var(--ws-text): the rules are the one part of the bar that reads as a

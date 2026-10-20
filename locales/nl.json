@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Elke lege regel behouden",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Elke lege regel in je notitie wordt een lege regel, ook de eerste tussen twee alinea’s. Voor notities met één alinea per regel.",
 	"Your clichés": "Je eigen clichés",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Eigen uitdrukkingen om te markeren, één per regel. {a|b} voor het ene of het andere woord, {*} voor een willekeurig woord."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Eigen uitdrukkingen om te markeren, één per regel. {a|b} voor het ene of het andere woord, {*} voor een willekeurig woord.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "De woorden van vandaag ten opzichte van je dagdoel, 356/1.000 of 36% of een balk, live terwijl je typt. Met Geschiedenis aan dezelfde telling als Geschiedenis. Klik om het doel in te stellen of vandaag opnieuw bij nul te beginnen.",
+	"Words today over your daily target. Click for more.": "De woorden van vandaag ten opzichte van je dagdoel. Klik voor meer.",
+	"Words today. Click to set a daily target.": "De woorden van vandaag. Klik om een dagdoel in te stellen.",
+	"words a day": "woorden per dag",
+	"Start today again from zero": "Vandaag opnieuw bij nul beginnen",
+	"A whole number of words, 0 for none.": "Een heel aantal woorden, 0 voor geen.",
+	"Daily target": "Dagdoel",
+	"Scroll when you click": "Scrollen bij klikken",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Uit blijft de pagina bij een klik stil tot je typt, zodat een dubbel- of driedubbelklik selecteert waar je op drukt.",
+	"Your words today against your daily target.": "Je woorden van vandaag ten opzichte van je dagdoel."
 }

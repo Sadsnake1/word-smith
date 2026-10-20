@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "保留每個空行",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "筆記中的每個空行都成為空行，兩段之間的第一個空行也是。適合一行一段的筆記。",
 	"Your clichés": "你的陳腔濫調",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "要標示的自己的說法，每行一個。{a|b} 表示其中任一詞，{*} 表示任意一個詞。"
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "要標示的自己的說法，每行一個。{a|b} 表示其中任一詞，{*} 表示任意一個詞。",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "今天的字數與每日目標（356/1,000、36% 或進度條），輸入時即時更新。開啟歷史時與歷史的計數相同。點選設定目標，或將今天從零重新計數。",
+	"Words today over your daily target. Click for more.": "今天的字數與每日目標。點選檢視更多。",
+	"Words today. Click to set a daily target.": "今天的字數。點選設定每日目標。",
+	"words a day": "字/天",
+	"Start today again from zero": "今天從零重新計數",
+	"A whole number of words, 0 for none.": "整數字數，0 表示不設目標。",
+	"Daily target": "每日目標",
+	"Scroll when you click": "點擊時捲動",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "關閉後，點擊時頁面保持不動，直到你輸入，因此雙擊或三擊會選取你點的內容。",
+	"Your words today against your daily target.": "你今天的字數與每日目標。"
 }

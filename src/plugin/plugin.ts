@@ -39,6 +39,7 @@ import {
 	wsStr,
 	wsErrMsg,
 	wsIsFolder,
+	wsElOf,
 } from '../core/preamble';
 import type { WsSession, WsGoalPlan } from '../core/preamble';
 import { WordSmithSettingTab, WsPrompt } from './settings-tab';
@@ -164,6 +165,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._goalNowState = null;
 	plugin._goalFolderCounts = null; plugin._goalFolderBusy = false;
 	plugin._goalPanel = null; plugin._goalPanelOff = null;
+	plugin._dailyPanel = null; plugin._dailyPanelOff = null; plugin._dailyLive = null; plugin._twPressed = false;
 	plugin._barPickerDismiss = null;
 	plugin._barPickerFrames = null;
 	plugin._barPickerKey    = (e) => { if (e.key === 'Escape') plugin.closeBarPicker(); };
@@ -231,11 +233,12 @@ function wsFieldsReset(plugin: WordSmith) {
 // THE COMMANDS: the palette's every entry, the feature toggles, the quick
 // panels and the menu's arrows (lifted out of onload, A488).
 export function wsRegisterCommands(plugin: WordSmith) {
-	// THE DAILY WORD GOAL, from the palette: the words a day, 0 for none; {daily_word_goal} shows today's over it
+	// THE DAILY TARGET, from the palette (PR #93, A879): the token's panel when the token is on the bar, else a prompt
+	// for the words a day, 0 for none
 	plugin.addCommand({
-		id: 'set-daily-word-goal',
-		name: 'Set the daily word goal',
-		callback: () => plugin.dailyWordGoalPrompt()
+		id: 'set-daily-target',
+		name: 'Set the daily target',
+		callback: () => plugin.dailyTargetOpen()
 	});
 	plugin.addCommand({
 		id: 'repair-display',
@@ -518,7 +521,8 @@ export function wsWireWorkspace(plugin: WordSmith) {
 		plugin.updateWorkspaceAesthetics();
 		plugin.scheduleExplorerPatch();
 		if (plugin.zenActive() && plugin.settings.focusedFileMode) void plugin.updateFocusedFileMode();
-		plugin.typewriterScroll();
+		// (a pane made active by a press in its text is a click: Scroll when you click, off, leaves it still, #88)
+		if (!(plugin._twPressed && plugin.settings.typewriterScrollOnClick === false)) plugin.typewriterScroll();
 		// A tab put behind another is a leaf-change, not a layout-change;
 		// the tree's boxes belong to a tab that is on screen.
 		plugin.orgTicksSchedule();
@@ -616,7 +620,7 @@ export function wsWireWorkspace(plugin: WordSmith) {
 
 // THE DOCUMENT'S EVENTS: keys, pointer, selection, focus and the overlays
 // Obsidian lays over the editor (lifted out of onload, A488).
-function wsWireDocument(plugin: WordSmith) {
+export function wsWireDocument(plugin: WordSmith) {
 	// NO TYPEWRITER ON A KEY (issue #22, A506): a key that moves the caret
 	// moves it through the editor, which asks for the scroll itself.
 	// ONLY IF IT CHANGED, here and on a selection change and a click: every
@@ -636,9 +640,16 @@ function wsWireDocument(plugin: WordSmith) {
 	});
 	// A click's caret is scrolled to on the way UP, not as it lands: a drag
 	// that selects must not have the text moved out from under the pointer.
+	// SCROLL WHEN YOU CLICK, OFF (#88): no scroll on the way up, and none from a pane the press made active (a
+	// press in an editor's text, held until its release); the first key that types or moves the caret scrolls.
+	plugin.registerDomEvent(document, 'mousedown', (ev: MouseEvent) => {
+		const t = wsElOf(ev.target);
+		plugin._twPressed = !!(t && t.closest('.cm-editor'));
+	}, { capture: true });
 	plugin.registerDomEvent(document, 'mouseup', () => {
 		plugin.updateRetroStatusBar(true);
-		plugin.typewriterScroll();
+		plugin._twPressed = false;
+		if (plugin.settings.typewriterScrollOnClick !== false) plugin.typewriterScroll();
 	});
 	// Live selection word count. selectionchange fires only when the
 	// selection actually changes (mouse drag, shift+arrows, double-click),
@@ -1082,6 +1093,7 @@ export default class WordSmith extends Plugin {
 	declare historyLoad: HistoryMethods["historyLoad"];
 	declare historyNoteChange: HistoryMethods["historyNoteChange"];
 	declare historyCapture: HistoryMethods["historyCapture"];
+	declare historyLiveCount: HistoryMethods["historyLiveCount"];
 	declare historyRecord: HistoryMethods["historyRecord"];
 	declare historyNoteCreated: HistoryMethods["historyNoteCreated"];
 	declare historyNoteOpened: HistoryMethods["historyNoteOpened"];
@@ -1493,6 +1505,11 @@ export default class WordSmith extends Plugin {
 	declare dailyWordsWanted: BarMethods["dailyWordsWanted"];
 	declare dailyWordsSeen: BarMethods["dailyWordsSeen"];
 	declare dailyWordsTotal: BarMethods["dailyWordsTotal"];
+	declare dailyWordsRaw: BarMethods["dailyWordsRaw"];
+	declare dailyWordsPending: BarMethods["dailyWordsPending"];
+	declare dailyWordsReset: BarMethods["dailyWordsReset"];
+	declare openDailyPanel: BarMethods["openDailyPanel"];
+	declare closeDailyPanel: BarMethods["closeDailyPanel"];
 	declare dailyWordsSay: BarMethods["dailyWordsSay"];
 	declare dailyWordsRename: BarMethods["dailyWordsRename"];
 	declare buildDailyGoalTokenEl: BarMethods["buildDailyGoalTokenEl"];
@@ -1920,6 +1937,9 @@ export default class WordSmith extends Plugin {
 	_goalFolderBusy: boolean;
 	_goalPanel: HTMLDivElement | null;
 	_goalPanelOff: (() => void) | null;
+	_dailyPanel: HTMLDivElement | null;
+	_dailyPanelOff: (() => void) | null;
+	_dailyLive: { path: string; count: number } | null;
 	// A709: the last good copy written per store, and the stores already checked for a cut this session
 	_backupLast: Map<string, string> | null;
 	_backupTried: Set<string> | null;
@@ -2044,6 +2064,7 @@ export default class WordSmith extends Plugin {
 	_scopeGen: number;
 	_selectionRaf: number | null;
 	_twFrame: number | null;
+	_twPressed: boolean;
 	_twView: EditorView | null;
 	_twIdle: number | null;
 	_twIdleView: EditorView | null;
@@ -2111,7 +2132,7 @@ export default class WordSmith extends Plugin {
 	_wpmWanted: boolean;
 	// today's {wpm} record changed since it was last saved (A742)
 	_wpmDayDirty: boolean;
-	// the daily word goal: today's record's save on a rest, and the notes being weighed from disk for their start
+	// the daily target: today's record's save on a rest, and the notes being weighed from disk for their start
 	_dailyWordsTimer: number | null;
 	_dailyWordsWeighing: Set<string> | null;
 	currentScroller: HTMLElement | null;
@@ -2558,7 +2579,7 @@ export default class WordSmith extends Plugin {
 		if (this._twIdle != null) { window.clearTimeout(this._twIdle); this._twIdle = null; this._twIdleView = null; }
 		// {wpm}'s timer (A730)
 		try { this.wpmTickStop(); } catch (_) { wsCatch('onunload: this.wpmTickStop();', _); }
-		// today's words for the daily word goal, if a save was still waiting on a rest
+		// today's words for the daily target, if a save was still waiting on a rest
 		try { if (this._dailyWordsTimer != null) this.dailyWordsFlush(); } catch (_) { wsCatch('onunload: this.dailyWordsFlush();', _); }
 		// THE SETTINGS TAB'S OBSERVER: it lives for the tab's life — not
 		// disconnected on hide(), since Obsidian 1.13 re-renders the last
@@ -2676,8 +2697,9 @@ export default class WordSmith extends Plugin {
 		if (this._hemIconTimer) { window.clearTimeout(this._hemIconTimer); this._hemIconTimer = null; }
 		if (this._hemScreenEl) { this._hemScreenEl.remove(); this._hemScreenEl = null; }
 		this.closeBarPicker();
-		// (A700: the goal's panel)
+		// (A700: the goal's panel; A879: the daily target's)
 		this.closeGoalPanel();
+		this.closeDailyPanel();
 		document.querySelectorAll('.cm-editor.ws-hem-blocked')
 			.forEach(el => el.classList.remove('ws-hem-blocked'));
 		// Leave zen cleanly. The MASTER goes down, matching how toggleZen()
@@ -3155,6 +3177,8 @@ export default class WordSmith extends Plugin {
 		else if (tf === 'barcount' || tf === 'barpercent') this.settings.targetTokenFormat = 'bar';
 		else if (!['ratio', 'today', 'percent', 'bar', 'icon'].includes(tf)) this.settings.targetTokenFormat = 'percent';
 		delete this.settings.targetTokenFollows;
+		// {dailytarget}'s three shapes: anything else reads as the words over the target
+		if (!['ratio', 'percent', 'bar'].includes(String(this.settings.dailyTargetFormat || ''))) this.settings.dailyTargetFormat = 'ratio';
 		// `markNbsp`, `markInvisible` and `markOther` (A768, A771, A777), never released: the markers they drew are gone (A780)
 		delete this.settings.markNbsp; delete this.settings.markInvisible; delete this.settings.markOther;
 		// `goalCelebrate` and `goalMetSeen` (A700), never released: the celebration is gone (A786)
@@ -4617,15 +4641,21 @@ export default class WordSmith extends Plugin {
 		} catch (_) { wsCatch('registerWsIcon: addIcon(WS_ICON,', _); }
 	}
 
-	// THE DAILY WORD GOAL, ASKED FOR: from the command and from a press on {daily_word_goal}; the words a day, 0 for none
+	// THE DAILY TARGET, ASKED FOR from the command (A879): the token's panel while the token is on the bar, else a prompt
+	// for the words a day, 0 for none
+	dailyTargetOpen() {
+		const tok = this.retroStatusBarEl ? this.retroStatusBarEl.querySelector<HTMLElement>('.ws-dailytok') : null;
+		if (tok && tok.isConnected) { this.openDailyPanel(tok); return; }
+		this.dailyWordGoalPrompt();
+	}
+
 	dailyWordGoalPrompt() {
-		const p = new WsPrompt(this.app, 'Daily word goal', 'Words a day, e.g. 1000', async (v) => {
+		const p = new WsPrompt(this.app, wsT('Daily target'), '1000', async (v) => {
 			const n = Number(String(v).replace(/[\s,.\u00a0\u202f']/g, ''));
 			if (!isFinite(n) || n < 0 || Math.floor(n) !== n || n > 1000000) return wsT('A whole number of words, 0 for none.');
 			this.settings.dailyWordGoal = n;
 			await this.saveSettings();
 			this.updateRetroStatusBar();
-			new Notice(n > 0 ? wsT('Word-Smith: daily word goal set to {count} words.', { count: this.formatCount(n) }) : wsT('Word-Smith: daily word goal cleared.'), 4000);
 			return true;
 		});
 		const g = Number(this.settings.dailyWordGoal) || 0;

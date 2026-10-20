@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Behåll varje tom rad",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Varje tom rad i anteckningen blir en tom rad, även den första mellan två stycken. För anteckningar med ett stycke per rad.",
 	"Your clichés": "Dina klichéer",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Egna fraser att markera, en per rad. {a|b} för något av orden, {*} för vilket ord som helst."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Egna fraser att markera, en per rad. {a|b} för något av orden, {*} för vilket ord som helst.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Dagens ord mot ditt dagliga mål, 356/1 000 eller 36% eller en stapel, live medan du skriver. Med Historik på samma räkning som Historik. Klicka för att ange målet eller börja dagen om från noll.",
+	"Words today over your daily target. Click for more.": "Dagens ord mot ditt dagliga mål. Klicka för mer.",
+	"Words today. Click to set a daily target.": "Dagens ord. Klicka för att ange ett dagligt mål.",
+	"words a day": "ord om dagen",
+	"Start today again from zero": "Börja dagen om från noll",
+	"A whole number of words, 0 for none.": "Ett helt antal ord, 0 för inget.",
+	"Daily target": "Dagligt mål",
+	"Scroll when you click": "Rulla när du klickar",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Av står sidan still vid ett klick tills du skriver, så ett dubbel- eller trippelklick markerar det du trycker på.",
+	"Your words today against your daily target.": "Dina ord i dag mot ditt dagliga mål."
 }

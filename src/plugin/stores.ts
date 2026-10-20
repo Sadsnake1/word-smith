@@ -9,7 +9,7 @@ import { Notice, getLanguage } from 'obsidian';
 import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
-import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings } from '../core/preamble';
+import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings, WS_MIRROR_DAY_KEYS } from '../core/preamble';
 import { wsIsPackPath, wsPackPick, wsPackQuotes, wsPackSpaces, wsParsePack } from '../core/language';
 import type { WsPack, WsPackSpaces } from '../core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
@@ -652,7 +652,10 @@ export const storesMethods = {
 		out.push('- written: ' + iso);
 		out.push('');
 		let json = '{}';
-		try { json = JSON.stringify(this.settings, null, 2); } catch (_) { wsCatch('settingsMirrorCompose: json = JSON.stringify(this.settings, null, 2);', _); }
+		// TODAY'S RECORDS LEFT OUT (A879): they change all day, and none is worth anything once its day has passed
+		const copy = Object.assign({}, this.settings);
+		for (const k of WS_MIRROR_DAY_KEYS) delete wsBag(copy)[k];
+		try { json = JSON.stringify(copy, null, 2); } catch (_) { wsCatch('settingsMirrorCompose: json = JSON.stringify(this.settings, null, 2);', _); }
 		out.push('```json');
 		out.push(json);
 		out.push('```');

@@ -3,7 +3,7 @@
 // test`; never shipped. `export default`, and the test build's footer makes
 // it `module.exports` itself (`export =` is not an ES module; esbuild would
 // refuse it).
-import WordSmith, { wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin/plugin';
+import WordSmith, { wsWireDocument, wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands } from './plugin/plugin';
 import { WordSmithSettingTab } from './plugin/settings-tab';
 import { WsWelcomeModal, wsWhatsNewInto, wsWelcomeText } from './plugin/welcome';
 import { WS_WHATS_NEW } from './core/whats-new';
@@ -88,7 +88,7 @@ export default Object.assign(WordSmith, {
 	wsCiteSections, wsCiteMissing, wsMaskCitations, wsCiteKeyText, wsEpubCss, wsFootNotes, wsColumnOf, wsTocPagesFill,
 	wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, wsFindCitations, wsCiter, wsCiteThin, wsCiteThinText, wsCiteTemplate, WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, WS_CITE_SAMPLES, wsCiteTermsFor, WS_CITE_TERMS,
 	// onload's phases, driven by the phases suite (A488)
-	wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
+	wsWireDocument, wsWireVault, wsWireWorkspace, wsOnLayoutReady, wsWatchTheme, wsRegisterCommands,
 	// the export's tick memory and the preview's size, driven by the big-vault suite (A516)
 	wsOrgTicksMake, WS_EXPORT_PREVIEW_AUTO_BYTES,
 	// the Organizer's walk, driven by the own-folder suite (A733)

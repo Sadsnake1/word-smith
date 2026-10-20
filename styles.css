@@ -12,7 +12,7 @@
 	   against WS_STYLESHEET_VERSION and says so plainly rather than leaving
 	   it to be deduced. Bump BOTH when the stylesheet gains something the
 	   script relies on. */
-	--ws-stylesheet-version: 579;
+	--ws-stylesheet-version: 580;
 
 	--ws-bg:   #050505;
 	--ws-text: #ffb000;
@@ -1608,9 +1608,12 @@ body.ws-bar-anim .ws-status-bar {
 .ws-bar { position: relative; display: block; overflow: hidden; border-radius: calc(var(--radius-s, 4px) / 2); }
 .ws-bar-fill { position: relative; display: block; height: 100%; width: calc(var(--ws-bar-pct, 0) * 1%); border-radius: inherit; background-color: currentColor; }
 /* on the bar the token's own ink, the track a quarter of it (a pseudo-element: the fill is not dimmed with it) */
+.ws-dailytok-gauge,
 .ws-goaltok-gauge { display: inline-block; margin-right: 0.45em; vertical-align: 0.05em; line-height: 0; }
 /* half a line tall, its middle where the text's is (A745: 0.8em until the writer's "shorten in height") */
+.ws-dailytok-gauge .ws-bar,
 .ws-goaltok-gauge .ws-bar { width: 3.1em; height: 0.5em; }
+.ws-dailytok-gauge .ws-bar::before,
 .ws-goaltok-gauge .ws-bar::before { content: ""; position: absolute; inset: 0; background-color: currentColor; opacity: 0.25; }
 /* {wpm} (A730): a gauge in the token's ink, the needle turned about the dial's centre by --ws-wpm-deg (set in place
    on every tick while it moves; the transition joins the ticks into one motion) */
@@ -1620,7 +1623,7 @@ body.ws-bar-anim .ws-status-bar {
 .ws-wpm-svg { width: 1em; height: 1em; }
 .ws-wpm-needle { transform-box: view-box; transform-origin: 12px 14px; transform: rotate(calc(var(--ws-wpm-deg, -120) * 1deg)); transition: transform 200ms linear; }
 @media (prefers-reduced-motion: reduce) { .ws-wpm-needle { transition: none; } }
-/* {daily_word_goal}: a calendar with a tick, then today's words over the goal, in the token's own ink */
+/* {dailytarget} (PR #93, A879): a calendar with a tick, then today's words over the target, in the token's own ink */
 .ws-dailytok { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ws-dailytok.is-pressable { cursor: pointer; }
 .ws-dailytok-icon { display: inline-flex; vertical-align: -0.12em; margin-right: 0.3em; line-height: 0; }
@@ -1629,6 +1632,7 @@ body.ws-bar-anim .ws-status-bar {
 .ws-goaltok-icon { display: inline-flex; vertical-align: -0.12em; line-height: 0; }
 .ws-goaltok-icon .svg-icon { width: 1em; height: 1em; }
 /* a goal with no deadline is its bar alone (A706): nothing after it */
+.ws-dailytok.is-bare .ws-dailytok-gauge,
 .ws-goaltok.is-bare .ws-goaltok-gauge { margin-right: 0; }
 /* (TOMBSTONE, A786: the glint a goal met sent across the bar; the celebration is gone) */
 /* THE PANEL a press on {goal} opens: the bar's pickers' place and surface */
@@ -1681,6 +1685,18 @@ body.ws-bar-anim .ws-status-bar {
 /* a row counting today's share, its bar in the text's own color, as Per day's was (A761; A778) */
 .ws-goal-panel-row.is-today .ws-bar-fill { background-color: var(--text-normal); opacity: 1; }
 .ws-goal-panel-pace { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); color: var(--text-muted); }
+/* THE DAILY TARGET'S PANEL (PR #93, A879, the writer: "a popup where i can set the number of words, a reset button"):
+   today's row as {target}'s rows, then the target as a number, its unit and Reset, under a rule as the pace line has.
+   The field seven figures wide, a target up to 1,000,000 with room for the spinner */
+/* CURSOR-SMITH'S CARET IN THE FIELD (the writer: "cursor-smith doesn't show up in the popup of dailytarget"): it hides the
+   field's own caret and draws one on its canvas at z-index 10002, which the panel's 10051 covered (measured: its ink
+   under the field). While the field has focus the editor has none, so the masks and the bar are back at 20 to 24, and
+   the panel steps down under the canvas. */
+.ws-goal-panel.ws-daily-panel:focus-within { z-index: 10001; }
+.ws-daily-panel-set { display: flex; align-items: center; gap: var(--size-4-2); margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); }
+.ws-daily-panel-goal { width: 10ch; font-variant-numeric: tabular-nums; text-align: right; }
+.ws-daily-panel-unit { flex: 1 1 auto; color: var(--text-muted); white-space: nowrap; }
+.ws-daily-panel-reset { --icon-size: var(--icon-s); }
 
 /* One line of the bar. A single-row bar is still wrapped in one of these,
    so there is only one layout path to reason about. */

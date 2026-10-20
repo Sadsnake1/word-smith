@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Bevar hver tom linje",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Hver tom linje i noten bliver en tom linje, også den første mellem to afsnit. Til noter skrevet med ét afsnit pr. linje.",
 	"Your clichés": "Dine klichéer",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Egne vendinger at markere, én pr. linje. {a|b} for et af ordene, {*} for et hvilket som helst."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Egne vendinger at markere, én pr. linje. {a|b} for et af ordene, {*} for et hvilket som helst.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Dagens ord mod dit daglige mål, 356/1.000 eller 36% eller en bjælke, live mens du skriver. Med Historik slået til den samme optælling som Historik. Klik på det for at sætte målet eller starte dagen forfra fra nul.",
+	"Words today over your daily target. Click for more.": "Dagens ord mod dit daglige mål. Klik for mere.",
+	"Words today. Click to set a daily target.": "Dagens ord. Klik for at sætte et dagligt mål.",
+	"words a day": "ord om dagen",
+	"Start today again from zero": "Start dagen forfra fra nul",
+	"A whole number of words, 0 for none.": "Et helt antal ord, 0 for intet.",
+	"Daily target": "Dagligt mål",
+	"Scroll when you click": "Rul, når du klikker",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Slået fra står siden stille ved et klik, til du skriver, så et dobbelt- eller tredobbeltklik markerer det, du trykker på.",
+	"Your words today against your daily target.": "Dine ord i dag mod dit daglige mål."
 }

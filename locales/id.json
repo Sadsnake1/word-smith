@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Pertahankan setiap baris kosong",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Setiap baris kosong di catatan Anda menjadi baris kosong, termasuk yang pertama di antara dua paragraf. Untuk catatan yang ditulis satu paragraf per baris.",
 	"Your clichés": "Klise Anda",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Frasa Anda sendiri untuk ditandai, satu per baris. {a|b} untuk salah satu kata, {*} untuk kata apa pun."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Frasa Anda sendiri untuk ditandai, satu per baris. {a|b} untuk salah satu kata, {*} untuk kata apa pun.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Kata hari ini terhadap target harian Anda, 356/1.000 atau 36% atau bilah, langsung saat Anda menulis. Dengan Riwayat aktif, hitungannya sama dengan Riwayat. Klik untuk mengatur target atau memulai hari ini lagi dari nol.",
+	"Words today over your daily target. Click for more.": "Kata hari ini terhadap target harian Anda. Klik untuk melihat lebih banyak.",
+	"Words today. Click to set a daily target.": "Kata hari ini. Klik untuk mengatur target harian.",
+	"words a day": "kata per hari",
+	"Start today again from zero": "Mulai hari ini lagi dari nol",
+	"A whole number of words, 0 for none.": "Jumlah kata bulat, 0 untuk tidak ada.",
+	"Daily target": "Target harian",
+	"Scroll when you click": "Gulir saat mengeklik",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Jika mati, klik membiarkan halaman diam sampai Anda mengetik, sehingga klik ganda atau tiga kali memilih yang Anda tekan.",
+	"Your words today against your daily target.": "Kata Anda hari ini terhadap target harian Anda."
 }

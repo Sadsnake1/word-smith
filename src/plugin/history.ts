@@ -5,7 +5,7 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
-import { TFile, Notice, setIcon } from 'obsidian';
+import { TFile, Notice, setIcon, MarkdownView } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
 import { wsMonotoneTangents, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg } from '../core/preamble';
 import { wsT, wsUiDate, wsUiJoin } from '../core/ui-text';
@@ -342,8 +342,15 @@ export const historyMethods = {
 			// countWords → countProse, the single counting authority. The
 			// history must never be able to disagree with the status bar.
 			let count = 0;
+			// AN OPEN NOTE IS COUNTED FROM ITS EDITOR (the writer's History, 160 words added and 160 removed by pastes
+			// alone): a paste made after Obsidian's save and before this count was held but not yet on disk, so the hold
+			// was spent against a count without it, read as words removed, and the paste came back as words written at
+			// the next count. The editor has every paste that is held.
+			const live = this.historyLiveCount(path);
 			const hit = this.wordCountCache && this.wordCountCache.get(path);
-			if (hit && hit.mtime === file.stat.mtime) {
+			if (live !== null) {
+				count = live;
+			} else if (hit && hit.mtime === file.stat.mtime) {
 				count = hit.count || 0;
 			} else {
 				const text = await this.app.vault.cachedRead(file);
@@ -352,6 +359,19 @@ export const historyMethods = {
 			}
 			this.historyRecord(path, count);
 		} catch { /* a note deleted mid-debounce; nothing to record */ }
+	},
+
+	// the words of a note open in an editor, as the bar counts them (getDocStats: the editor's text, cached on its
+	// document); null when no editor has it open
+	historyLiveCount(this: WordSmith, path: string): number | null {
+		let n: number | null = null;
+		try {
+			for (const leaf of this.app.workspace.getLeavesOfType('markdown')) {
+				const v = leaf.view;
+				if (n === null && v instanceof MarkdownView && v.file && v.file.path === path && v.editor) n = this.getDocStats(v).totalWC;
+			}
+		} catch (_) { wsCatch('historyLiveCount', _); }
+		return n;
 	},
 
 	// A NOTE MADE EMPTY STARTS FROM NOTHING. The first look at a note only takes

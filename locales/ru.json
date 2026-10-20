@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Сохранять каждую пустую строку",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Каждая пустая строка заметки становится пустой строкой, и первая между двумя абзацами тоже. Для заметок, где каждый абзац занимает одну строку.",
 	"Your clichés": "Ваши клише",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Свои выражения для пометки, по одному в строке. {a|b} для одного из слов, {*} для любого слова."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Свои выражения для пометки, по одному в строке. {a|b} для одного из слов, {*} для любого слова.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Слова за сегодня относительно вашей дневной цели, 356/1 000, 36% или полоска, вживую по мере набора. С включённой Историей — тот же счёт, что и в Истории. Щёлкните, чтобы задать цель или начать день заново с нуля.",
+	"Words today over your daily target. Click for more.": "Слова за сегодня относительно вашей дневной цели. Щёлкните, чтобы узнать больше.",
+	"Words today. Click to set a daily target.": "Слова за сегодня. Щёлкните, чтобы задать дневную цель.",
+	"words a day": "слов в день",
+	"Start today again from zero": "Начать день заново с нуля",
+	"A whole number of words, 0 for none.": "Целое число слов, 0 — без цели.",
+	"Daily target": "Дневная цель",
+	"Scroll when you click": "Прокрутка при щелчке",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Если выключено, щелчок не двигает страницу, пока вы не начнёте печатать, и двойной или тройной щелчок выделяет то, что вы нажали.",
+	"Your words today against your daily target.": "Ваши слова за сегодня относительно дневной цели."
 }

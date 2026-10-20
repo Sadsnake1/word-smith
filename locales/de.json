@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Jede Leerzeile behalten",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Jede Leerzeile deiner Notiz wird eine leere Zeile, auch die erste zwischen zwei Absätzen. Für Notizen mit einem Absatz pro Zeile.",
 	"Your clichés": "Deine Floskeln",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Eigene Wendungen zum Markieren, eine pro Zeile. {a|b} für eines der Wörter, {*} für ein beliebiges."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Eigene Wendungen zum Markieren, eine pro Zeile. {a|b} für eines der Wörter, {*} für ein beliebiges.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Die Wörter von heute über deinem Tagesziel, 356/1.000 oder 36 % oder ein Balken, live beim Schreiben. Mit eingeschaltetem Verlauf dieselbe Zählung wie im Verlauf. Klicken, um das Ziel festzulegen oder den Tag bei null neu zu beginnen.",
+	"Words today over your daily target. Click for more.": "Die Wörter von heute über deinem Tagesziel. Klicken für mehr.",
+	"Words today. Click to set a daily target.": "Die Wörter von heute. Klicken, um ein Tagesziel festzulegen.",
+	"words a day": "Wörter pro Tag",
+	"Start today again from zero": "Den Tag bei null neu beginnen",
+	"A whole number of words, 0 for none.": "Eine ganze Zahl von Wörtern, 0 für keins.",
+	"Daily target": "Tagesziel",
+	"Scroll when you click": "Beim Klicken scrollen",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Aus bleibt die Seite beim Klicken still, bis du schreibst, sodass ein Doppel- oder Dreifachklick auswählt, was du anklickst.",
+	"Your words today against your daily target.": "Deine Wörter von heute gegenüber deinem Tagesziel."
 }

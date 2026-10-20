@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "保留每个空行",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "笔记中的每个空行都成为空行，两段之间的第一个空行也是。适合一行一段的笔记。",
 	"Your clichés": "你的陈词滥调",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "要标记的自己的说法，每行一个。{a|b} 表示其中任一词，{*} 表示任意一个词。"
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "要标记的自己的说法，每行一个。{a|b} 表示其中任一词，{*} 表示任意一个词。",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "今天的字数与每日目标（356/1,000、36% 或进度条），输入时实时更新。开启历史时与历史的计数相同。点击设置目标，或将今天从零重新计数。",
+	"Words today over your daily target. Click for more.": "今天的字数与每日目标。点击查看更多。",
+	"Words today. Click to set a daily target.": "今天的字数。点击设置每日目标。",
+	"words a day": "字/天",
+	"Start today again from zero": "今天从零重新计数",
+	"A whole number of words, 0 for none.": "整数字数，0 表示不设目标。",
+	"Daily target": "每日目标",
+	"Scroll when you click": "点击时滚动",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "关闭后，点击时页面保持不动，直到你输入，因此双击或三击会选中你点的内容。",
+	"Your words today against your daily target.": "你今天的字数与每日目标。"
 }

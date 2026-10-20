@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Manter cada linha em branco",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Cada linha em branco da sua nota vira uma linha vazia, a primeira entre dois parágrafos também. Para notas escritas com um parágrafo por linha.",
 	"Your clichés": "Seus clichês",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Expressões suas para marcar, uma por linha. {a|b} para uma das palavras, {*} para qualquer uma."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Expressões suas para marcar, uma por linha. {a|b} para uma das palavras, {*} para qualquer uma.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "As palavras de hoje sobre sua meta diária, 356/1.000, 36% ou uma barra, ao vivo enquanto você escreve. Com o Histórico ligado, a mesma contagem do Histórico. Clique para definir a meta ou recomeçar o dia do zero.",
+	"Words today over your daily target. Click for more.": "As palavras de hoje sobre sua meta diária. Clique para ver mais.",
+	"Words today. Click to set a daily target.": "As palavras de hoje. Clique para definir uma meta diária.",
+	"words a day": "palavras por dia",
+	"Start today again from zero": "Recomeçar o dia do zero",
+	"A whole number of words, 0 for none.": "Um número inteiro de palavras, 0 para nenhuma.",
+	"Daily target": "Meta diária",
+	"Scroll when you click": "Rolar ao clicar",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Desligado, um clique deixa a página parada até você digitar, e um clique duplo ou triplo seleciona o que você clicou.",
+	"Your words today against your daily target.": "Suas palavras de hoje diante da sua meta diária."
 }

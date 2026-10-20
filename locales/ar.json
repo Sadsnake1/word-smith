@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "احتفظ بكل سطر فارغ",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "كل سطر فارغ في ملاحظتك يصبح سطرًا فارغًا، حتى الأول بين فقرتين. للملاحظات المكتوبة بفقرة في كل سطر.",
 	"Your clichés": "عباراتك المبتذلة",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "عبارات من عندك لتعليمها، واحدة في كل سطر. {a|b} لأيّ من الكلمتين، و{*} لأي كلمة."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "عبارات من عندك لتعليمها، واحدة في كل سطر. {a|b} لأيّ من الكلمتين، و{*} لأي كلمة.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "كلمات اليوم مقابل هدفك اليومي، 356/1,000 أو 36% أو شريط، مباشرةً أثناء الكتابة. مع تشغيل السجل، نفس عدّ السجل. انقر عليه لتعيين الهدف أو لبدء اليوم من جديد من الصفر.",
+	"Words today over your daily target. Click for more.": "كلمات اليوم مقابل هدفك اليومي. انقر للمزيد.",
+	"Words today. Click to set a daily target.": "كلمات اليوم. انقر لتعيين هدف يومي.",
+	"words a day": "كلمة في اليوم",
+	"Start today again from zero": "ابدأ اليوم من جديد من الصفر",
+	"A whole number of words, 0 for none.": "عدد صحيح من الكلمات، 0 لعدم وجود هدف.",
+	"Daily target": "الهدف اليومي",
+	"Scroll when you click": "التمرير عند النقر",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "عند إيقافه تبقى الصفحة ثابتة عند النقر حتى تكتب، فيحدد النقر المزدوج أو الثلاثي ما تضغط عليه.",
+	"Your words today against your daily target.": "كلماتك اليوم مقابل هدفك اليومي."
 }

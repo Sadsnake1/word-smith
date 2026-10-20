@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Zachowaj każdy pusty wiersz",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Każdy pusty wiersz notatki staje się pustym wierszem, także pierwszy między dwoma akapitami. Dla notatek pisanych akapitem w wierszu.",
 	"Your clichés": "Twoje frazesy",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Własne zwroty do zaznaczenia, jeden w wierszu. {a|b} dla jednego ze słów, {*} dla dowolnego."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "Własne zwroty do zaznaczenia, jeden w wierszu. {a|b} dla jednego ze słów, {*} dla dowolnego.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Dzisiejsze słowa wobec Twojego dziennego celu, 356/1000, 36% lub pasek, na żywo podczas pisania. Z włączoną Historią ta sama liczba co w Historii. Kliknij, by ustawić cel lub zacząć dzień od zera.",
+	"Words today over your daily target. Click for more.": "Dzisiejsze słowa wobec Twojego dziennego celu. Kliknij, by zobaczyć więcej.",
+	"Words today. Click to set a daily target.": "Dzisiejsze słowa. Kliknij, by ustawić dzienny cel.",
+	"words a day": "słów dziennie",
+	"Start today again from zero": "Zacznij dzień od zera",
+	"A whole number of words, 0 for none.": "Liczba całkowita słów, 0 – brak celu.",
+	"Daily target": "Dzienny cel",
+	"Scroll when you click": "Przewijaj po kliknięciu",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Wyłączone: kliknięcie nie rusza strony, dopóki nie zaczniesz pisać, więc podwójne lub potrójne kliknięcie zaznacza to, co klikasz.",
+	"Your words today against your daily target.": "Twoje dzisiejsze słowa wobec dziennego celu."
 }

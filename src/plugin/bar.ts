@@ -1228,29 +1228,33 @@ export const barMethods = {
 		if (this._wpmDayDirty) { this._wpmDayDirty = false; void this.saveSettings(); }
 	},
 
-	// ── {daily_word_goal}: TODAY'S WORDS OVER THE DAY'S GOAL ────────────────────────
+	// ── {dailytarget}: TODAY'S WORDS OVER THE DAY'S TARGET (PR #93, robertduplock; A879) ────────────────────────
 	//
-	// The writer sets one number, the words a day they mean to write (`dailyWordGoal`, Powerline → Tokens or the
-	// command); the token reads today's words over it, 356/1,000, live as they type. Vault-wide and independent of
-	// History (which is opt-in): each note is weighed the first time it is seen today, from the SAVED note, since the
-	// editor can still hold the last note's text for a moment after a switch, and its live count is kept beside that.
-	// Kept in the settings (`dailyWords`), so a reload keeps the day, and written on a short rest, never on every key.
+	// The writer sets one number, the words a day they mean to write (`dailyWordGoal`, from the token's panel or the
+	// command); the token reads today's words over it, 356/1,000, live as they type. TODAY'S WORDS ARE ONE NUMBER (A879):
+	// with History on they are History's own (`today.n`, pastes left out as History leaves them), so the bar, the Report
+	// and History agree; with History off each note is weighed the first time it is seen today, from the SAVED note, since
+	// the editor can still hold the last note's text for a moment after a switch, and its live count is kept beside that.
+	// The record (`dailyWords`) lives in data.json, written on a short rest and never on every key, and is left out of
+	// the vault's settings copy (WS_MIRROR_DAY_KEYS). RESET starts today again: the figure at that moment is kept
+	// (`reset`) and the token says what came after it.
 	dailyWordsToday(this: WordSmith) {
 		const today = wsDayKey(new Date());
 		let d = this.settings.dailyWords;
 		if (!d || d.date !== today || !d.start || typeof d.start !== 'object' || !d.last || typeof d.last !== 'object') {
-			d = { date: today, start: {}, last: {} };
+			d = { date: today, start: {}, last: {}, reset: 0 };
 			this.settings.dailyWords = d;
 			this.dailyWordsQueueSave();
 		}
 		return d;
 	},
-	// whether anything asks for today's words: a goal set, or the token on a row
-	dailyWordsWanted(this: WordSmith) {
+	// whether anything asks for today's words: a target set, or the token in the rows the bar has just read
+	dailyWordsWanted(this: WordSmith, rows: { left?: string; center?: string; right?: string }[]) {
 		if ((Number(this.settings.dailyWordGoal) || 0) > 0) return true;
-		return JSON.stringify(this.getStatusRows()).indexOf('daily_word_goal') !== -1;
+		return rows.some((r) => ((r.left || '') + (r.center || '') + (r.right || '')).indexOf('{dailytarget}') !== -1);
 	},
-	// the open note at `count` words: its count now, once it has a start; weighed from disk the first time today
+	// the open note at `count` words (History off): its count now, once it has a start; weighed from disk the first
+	// time today
 	dailyWordsSeen(this: WordSmith, file: TFile, count: number) {
 		const d = this.dailyWordsToday();
 		const path = file.path;
@@ -1278,33 +1282,150 @@ export const barMethods = {
 			if (!this._unloaded) this.updateRetroStatusBar(true);
 		})();
 	},
-	// today's words: what every note seen today gained, summed, never below zero
-	dailyWordsTotal(this: WordSmith) {
+	// today's words before any reset: History's with History on, else what every note seen today gained
+	dailyWordsRaw(this: WordSmith) {
+		if (this.settings.historyTracking) {
+			const t = this.historyEnsure().today;
+			return (t && t.date === this.historyDateKey() ? (Number(t.n) || 0) : 0) + this.dailyWordsPending();
+		}
 		const d = this.dailyWordsToday();
 		let sum = 0;
 		for (const p of Object.keys(d.last)) sum += (d.last[p] || 0) - (d.start[p] || 0);
-		return Math.max(0, sum);
+		return sum;
 	},
-	// WHAT THE TOKEN SAYS: 356/1,000, or 356 alone while no goal is set
+	// WHAT HISTORY HAS NOT CAUGHT YET (the writer: "daily target is very slow"). History counts a note when Obsidian
+	// saves it and two seconds after that, so its figure stood still while the writer typed. The open note's words
+	// since History last weighed it are added here, less what was pasted (as History takes it off): the words History
+	// will add, so the figure does not jump when it does. A note History has not weighed adds nothing, as it records nothing.
+	dailyWordsPending(this: WordSmith) {
+		const live = this._dailyLive;
+		if (!live) return 0;
+		const base = this.historyBaselines();
+		if (!Object.prototype.hasOwnProperty.call(base, live.path)) return 0;
+		let delta = live.count - (Number(base[live.path]) || 0);
+		const held = this._historyHeld && this._historyHeld.get(live.path);
+		if (held && held.n && this.settings.historyCountPasted !== true) delta -= held.n;
+		return delta;
+	},
+	// today's words: since the reset, never below zero
+	dailyWordsTotal(this: WordSmith) {
+		return Math.max(0, this.dailyWordsRaw() - (Number(this.dailyWordsToday().reset) || 0));
+	},
+	// RESET (A879, the writer: "a reset button"): today starts again from here
+	dailyWordsReset(this: WordSmith) {
+		const d = this.dailyWordsToday();
+		d.reset = this.dailyWordsRaw();
+		this.dailyWordsQueueSave();
+	},
+	// WHAT THE TOKEN SAYS: 356/1,000, or 356 alone while no target is set
+	// ITS THREE SHAPES (Settings › Tokens, the writer: "option in settings for just bar for daily target", "and percent"):
+	// the words over the target, a percentage as {target}'s (99% until it is met), or the bar alone, whose sentinel says
+	// its share in hundredths. No target, no share: today's words alone, whatever the shape.
 	dailyWordsSay(this: WordSmith) {
-		const done = this.formatCount(this.dailyWordsTotal());
+		const n = this.dailyWordsTotal();
 		const goal = Math.max(0, Math.round(Number(this.settings.dailyWordGoal) || 0));
-		return goal > 0 ? done + '/' + this.formatCount(goal) : done;
+		if (goal <= 0) return this.formatCount(n);
+		const f = this.settings.dailyTargetFormat, raw = n / goal * 100;
+		if (f === 'bar') return String(Math.min(100, Math.round(raw)));
+		if (f === 'percent') return this.formatCount(raw < 100 ? Math.min(99, Math.round(raw)) : Math.round(raw)) + '%';
+		return this.formatCount(n) + '/' + this.formatCount(goal);
 	},
 	// THE TOKEN: a calendar with a tick, then the numbers; a text item still (`ws-fit-item`), so a narrow bar sheds it as
-	// it sheds text. A press (MOUSEDOWN, as {target}'s: a rebuild between press and release swallows a click) asks for
-	// the goal.
+	// it sheds text. A press (MOUSEDOWN, as {target}'s: a rebuild between press and release swallows a click) opens the
+	// panel, a second press closes it. The bar shape is {target}'s bar alone, no icon.
 	buildDailyGoalTokenEl(this: WordSmith, say: string) {
 		const el = createSpan({ cls: 'ws-fit-item ws-dailytok is-pressable' });
 		const goal = Math.max(0, Math.round(Number(this.settings.dailyWordGoal) || 0));
 		if (goal > 0 && this.dailyWordsTotal() >= goal) el.addClass('is-met');
-		setIcon(el.createSpan({ cls: 'ws-dailytok-icon' }), wsIconPick(['calendar-check', 'calendar-check-2', 'calendar']));
-		el.createSpan({ cls: 'ws-dailytok-num', text: say });
-		el.setAttribute('title', goal > 0 ? wsT('Today\u2019s words over your daily word goal. Click to change the goal.')
-			: wsT('Today\u2019s words. Click to set a daily word goal.'));
-		el.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); this.dailyWordGoalPrompt(); });
+		if (goal > 0 && this.settings.dailyTargetFormat === 'bar') {
+			el.addClass('is-bare');
+			wsBarInto(el.createSpan({ cls: 'ws-dailytok-gauge' }), (Number(say) || 0) / 100);
+		} else {
+			setIcon(el.createSpan({ cls: 'ws-dailytok-icon' }), wsIconPick(['calendar-check', 'calendar-check-2', 'calendar']));
+			el.createSpan({ cls: 'ws-dailytok-num', text: say });
+		}
+		el.setAttribute('title', goal > 0 ? wsT('Words today over your daily target. Click for more.')
+			: wsT('Words today. Click to set a daily target.'));
+		el.addEventListener('mousedown', (ev) => {
+			ev.preventDefault();
+			ev.stopPropagation();
+			if (this._dailyPanel) this.closeDailyPanel();
+			else this.openDailyPanel(el);
+		});
 		return el;
 	},
+
+	// ── THE PANEL, from a press on {dailytarget} (A879, the writer: "a popup where i can set the number of words, a reset
+	// button") ─────────────────────────────────────────────────────────────────────────────────────────────────────
+	// Today as {target}'s rows are drawn (an icon, a bar, the numbers, a check once met), then the target as a number and
+	// Reset. Placed, dressed and closed as {target}'s panel: above the token, by a press outside, Escape or a second press.
+	openDailyPanel(this: WordSmith, anchor: HTMLElement) {
+		this.closeGoalPanel();
+		this.closeDailyPanel();
+		const doc = anchor.ownerDocument, win = doc.defaultView || window;
+		const pop = doc.body.createDiv({ cls: 'ws-goal-panel ws-daily-panel' });
+		const rows = pop.createDiv({ cls: 'ws-goal-panel-rows' });
+		const r = rows.createDiv({ cls: 'ws-goal-panel-row is-today' });
+		setIcon(r.createDiv({ cls: 'ws-goal-panel-label', attr: { 'aria-label': wsT('Today') } }), wsIconPick(['calendar-check', 'calendar-check-2', 'calendar']));
+		const barHost = r.createDiv({ cls: 'ws-goal-panel-bar' });
+		const said = r.createDiv({ cls: 'ws-goal-panel-said' });
+		const check = r.createDiv({ cls: 'ws-goal-panel-check' });
+		const set = pop.createDiv({ cls: 'ws-daily-panel-set' });
+		const input = set.createEl('input', { cls: 'ws-daily-panel-goal', attr: { type: 'number', min: '0', step: '50', placeholder: '1000', 'aria-label': wsT('words a day') } });
+		set.createSpan({ cls: 'ws-daily-panel-unit', text: wsT('words a day') });
+		const reset = set.createEl('button', { cls: 'ws-daily-panel-reset clickable-icon', attr: { 'aria-label': wsT('Start today again from zero') } });
+		setIcon(reset, 'rotate-ccw');
+		const goalNow = () => Math.max(0, Math.round(Number(this.settings.dailyWordGoal) || 0));
+		const paint = () => {
+			const goal = goalNow(), n = this.dailyWordsTotal(), met = goal > 0 && n >= goal;
+			barHost.empty();
+			wsBarInto(barHost, goal > 0 ? n / goal : 0);
+			said.setText(goal > 0 ? this.formatCount(n) + ' / ' + this.formatCount(goal) : this.formatCount(n));
+			check.setText(met ? '✓' : '');
+			rows.toggleClass('has-check', met);
+		};
+		input.value = goalNow() > 0 ? String(goalNow()) : '';
+		// THE TARGET, set where it is read (A879: no Settings field); a whole number, 0 or empty for none
+		const commit = () => {
+			// a number field reads text it cannot parse ("1,500", "1e") as empty: that is a typo, not "no target"
+			const bad = !!(input.validity && input.validity.badInput);
+			const v = input.value.trim(), n = v === '' ? 0 : Number(v);
+			if (bad || !isFinite(n) || n < 0 || Math.floor(n) !== n || n > 1000000) { input.value = goalNow() > 0 ? String(goalNow()) : ''; return; }
+			if (n !== goalNow()) { this.settings.dailyWordGoal = n; void this.saveSettings(); }
+			paint();
+			this.updateRetroStatusBar();
+		};
+		input.addEventListener('change', commit);
+		input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); commit(); } });
+		reset.addEventListener('click', (ev) => {
+			ev.preventDefault();
+			this.dailyWordsReset();
+			paint();
+			this.updateRetroStatusBar();
+		});
+		paint();
+		const a = anchor.getBoundingClientRect(), r2 = pop.getBoundingClientRect();
+		let left = a.left + (a.width / 2) - (r2.width / 2);
+		left = Math.max(6, Math.min(left, win.innerWidth - r2.width - 6));
+		pop.style.left = left + 'px';
+		pop.style.bottom = (win.innerHeight - a.top + 6) + 'px';
+		this._dailyPanel = pop;
+		const outside = (ev: MouseEvent) => {
+			const t = wsElOf(ev.target);
+			if (t && (pop.contains(t) || t.closest('.ws-dailytok'))) return;
+			this.closeDailyPanel();
+		};
+		const key = (ev: KeyboardEvent) => { if (ev.key === 'Escape') this.closeDailyPanel(); };
+		doc.addEventListener('mousedown', outside, true);
+		doc.addEventListener('keydown', key, true);
+		this._dailyPanelOff = () => { doc.removeEventListener('mousedown', outside, true); doc.removeEventListener('keydown', key, true); };
+	},
+
+	closeDailyPanel(this: WordSmith) {
+		if (this._dailyPanelOff) { try { this._dailyPanelOff(); } catch (_) { wsCatch('closeDailyPanel: off', _); } this._dailyPanelOff = null; }
+		if (this._dailyPanel) { try { this._dailyPanel.remove(); } catch (_) { wsCatch('closeDailyPanel: remove', _); } this._dailyPanel = null; }
+	},
+
 	// a note or a folder renamed: its day goes with it
 	dailyWordsRename(this: WordSmith, oldPath: string, newPath: string) {
 		const d = this.settings.dailyWords;
@@ -3202,11 +3323,15 @@ export const barMethods = {
 		const gNow = this.barGoalNow(view, totalWC);
 		this._goalNowState = gNow ? { goal: gNow.goal, plan: gNow.plan, say: this.barGoalSay(gNow), note: gNow.note } : null;
 		const sayOf = (s: { num: number; rest: string } | null) => (s ? this.formatCount(s.num) + s.rest : '');
-		// TODAY'S WORDS (the daily word goal): the open note's live count into today's record, only while a goal is
-		// set or a row shows the token, and only for a note Word-Smith counts
+		// TODAY'S WORDS ({dailytarget}, A879): only while a target is set or a row shows the token, the rows read once
+		// here and handed on; with History off the open note's live count goes into today's record (a note Word-Smith
+		// counts), with History on the open note's live count is handed over for what History has not caught yet
+		const rows = this.getStatusRows();
 		let dailySay = '';
-		if (this.dailyWordsWanted()) {
-			if (view && view.file && this.isFileCounted(view.file)) this.dailyWordsSeen(view.file, totalWC);
+		if (this.dailyWordsWanted(rows)) {
+			const counted = view && view.file && this.isFileCounted(view.file) ? view.file : null;
+			if (!this.settings.historyTracking) { if (counted) this.dailyWordsSeen(counted, totalWC); }
+			else this._dailyLive = counted ? { path: counted.path, count: totalWC } : null;
 			dailySay = this.dailyWordsSay();
 		}
 		const subs: Record<string, string> = {
@@ -3322,14 +3447,10 @@ export const barMethods = {
 			// left; without, the progress in its shape; nothing with no target
 			'{target}':    this._goalNowState ? '\x00GOAL:' + sayOf(this._goalNowState.say) + '\x00' : '',
 			'{properties}': '\x00PROPS\x00',
-			// THE DAILY WORD GOAL: today's words over the day's goal, 356/1,000 (today's words alone with no goal set).
-			// The spaced spelling is accepted too, as it is easy to type that way.
-			// Drawn, an icon before the numbers; the numbers ride in the sentinel so a change repaints the bar.
-			'{daily_word_goal}':   dailySay ? '\x00DAILY:' + dailySay + '\x00' : '',
-			'{ daily_word_goal }': dailySay ? '\x00DAILY:' + dailySay + '\x00' : ''
+			// THE DAILY TARGET (PR #93, A879): today's words over the day's target, 356/1,000 (today's alone with none
+			// set); drawn, an icon before the numbers, the numbers riding in the sentinel so a change repaints the bar
+			'{dailytarget}': dailySay ? '\x00DAILY:' + dailySay + '\x00' : ''
 		};
-
-		const rows = this.getStatusRows();
 
 		// ── THE SAME BAR IS NOT BUILT TWICE ─────────────────────────────
 		//
@@ -5078,7 +5199,7 @@ export const barMethods = {
 				} else if (n.el.startsWith('GOAL:')) {
 					const tok = this.buildGoalTokenEl();
 					if (tok) frag.appendChild(tok);
-				// {daily_word_goal}: the icon and today's words over the goal, the sentinel's text the numbers
+				// {dailytarget}: the icon and today's words over the target, the sentinel's text the numbers
 				} else if (n.el.startsWith('DAILY:')) {
 					frag.appendChild(this.buildDailyGoalTokenEl(n.el.slice(6)));
 				} else if (builders[n.el]) {

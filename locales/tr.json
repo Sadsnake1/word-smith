@@ -1532,5 +1532,15 @@
 	"Keep every blank line": "Her boş satırı koru",
 	"Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.": "Notunuzdaki her boş satır, iki paragraf arasındaki ilki de dahil, boş bir satır olur. Her satırı bir paragraf olan notlar için.",
 	"Your clichés": "Kendi klişeleriniz",
-	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "İşaretlenecek kendi ifadeleriniz, her satıra bir tane. {a|b} kelimelerden biri için, {*} herhangi bir kelime için."
+	"Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.": "İşaretlenecek kendi ifadeleriniz, her satıra bir tane. {a|b} kelimelerden biri için, {*} herhangi bir kelime için.",
+	"Words today over your daily target, 356/1,000 or 36% or a bar, live as you type. With History on, the same count as History. Click it to set the target or start today again from zero.": "Bugün yazılan kelimelerin günlük hedefinize oranı, 356/1.000, %36 ya da çubuk, yazarken anlık güncellenir. Geçmiş açıkken Geçmiş ile aynı sayım. Hedefi belirlemek ya da bugünü sıfırdan yeniden başlatmak için tıklayın.",
+	"Words today over your daily target. Click for more.": "Bugün yazılan kelimeler ve günlük hedefiniz. Ayrıntılar için tıklayın.",
+	"Words today. Click to set a daily target.": "Bugün yazılan kelimeler. Günlük hedef belirlemek için tıklayın.",
+	"words a day": "günde kelime",
+	"Start today again from zero": "Bugünü sıfırdan yeniden başlat",
+	"A whole number of words, 0 for none.": "Tam sayı olarak kelime sayısı, hedef yoksa 0.",
+	"Daily target": "Günlük hedef",
+	"Scroll when you click": "Tıklayınca kaydır",
+	"Off, a click leaves the page still until you type, so a double or triple click selects what you press.": "Kapalıyken tıklama, siz yazana kadar sayfayı yerinde bırakır; böylece çift veya üçlü tıklama bastığınız yeri seçer.",
+	"Your words today against your daily target.": "Bugünkü kelimelerinizin günlük hedefinize oranı."
 }
