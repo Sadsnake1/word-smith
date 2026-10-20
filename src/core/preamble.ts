@@ -8635,6 +8635,13 @@ export const DEFAULT_SETTINGS = {
 	// THE DAY (A700): each goal's count the first time it was read today, which today's share is worked out from so
 	// it holds still all day (its `met`, the celebration's latch, went with it, A786)
 	goalDay:                  { date: '', start: {} as Record<string, number> },
+	// THE DAILY WORD GOAL: how many words a day the writer means to write, 0 for none. {daily_word_goal} says today's
+	// words over it, 356/1,000, or today's words alone while it is 0
+	dailyWordGoal:            0,
+	// …and TODAY'S WORDS, a new record each day: each note's count the first time it was seen today (`start`, read
+	// from the saved note, never the editor mid-switch) and its count now (`last`, live). Today's words are what the
+	// notes gained between the two, summed: a deletion takes words back, and the day never goes below zero
+	dailyWords:               { date: '', start: {} as Record<string, number>, last: {} as Record<string, number> },
 
 	// The bar's top and bottom rules. Their own colours now rather than
 	// var(--ws-text): the rules are the one part of the bar that reads as a

@@ -20,6 +20,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{pages}` | How many pages the note fills, 250 words to a page, as in the Report |
 | `{tasks}` | Tasks ticked over tasks in the note, `[3/7]`, as the Organizer shows them. Nothing when there are none |
 | `{target}` | How far you are toward your target: `2,145/5,000`, `43%`, a small bar or just an icon, or **Words to go today**, `500`, today's share of the nearest deadline (pick one under **Powerline → Tokens**). The note's own target, else its folder's. Click it for more. Set a target and a deadline in the Organizer, on a note or a folder. Nothing when there is none |
+| `{daily_word_goal}` | Today's words over your daily word goal: `356/1,000`, live as you type. Every note you write in counts, and deleting takes words back; a new day starts from zero. Set the goal under **Powerline → Tokens**, or with the command **Set the daily word goal**. With no goal set, today's words alone |
 | `{properties}` | How many properties the note has. Click to open the Properties pane |
 | `{backlinks}` | How many notes link here. Click to open the backlinks pane |
 | `{time}` `{clock}` | The time, written or drawn as a dial. `{time}` reads `14:05` or `2:05 PM` (pick one under **Powerline → Tokens**) |

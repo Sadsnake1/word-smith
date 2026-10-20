@@ -1620,6 +1620,11 @@ body.ws-bar-anim .ws-status-bar {
 .ws-wpm-svg { width: 1em; height: 1em; }
 .ws-wpm-needle { transform-box: view-box; transform-origin: 12px 14px; transform: rotate(calc(var(--ws-wpm-deg, -120) * 1deg)); transition: transform 200ms linear; }
 @media (prefers-reduced-motion: reduce) { .ws-wpm-needle { transition: none; } }
+/* {daily_word_goal}: a calendar with a tick, then today's words over the goal, in the token's own ink */
+.ws-dailytok { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ws-dailytok.is-pressable { cursor: pointer; }
+.ws-dailytok-icon { display: inline-flex; vertical-align: -0.12em; margin-right: 0.3em; line-height: 0; }
+.ws-dailytok-icon .svg-icon { width: 1em; height: 1em; }
 /* the icon alone (A726): the token's own ink, the bar's text size */
 .ws-goaltok-icon { display: inline-flex; vertical-align: -0.12em; line-height: 0; }
 .ws-goaltok-icon .svg-icon { width: 1em; height: 1em; }
