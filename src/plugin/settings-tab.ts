@@ -132,7 +132,7 @@ const setAttr = (el: Element, name: string, value: string) => { if (el.getAttrib
 // A small prompt: a title, one field, OK. What Save and Import on the
 // preset strip open. `submit` answers true to close, false to keep the
 // prompt (nothing to do), or a line to show under the field and keep it.
-class WsPrompt extends Modal {
+export class WsPrompt extends Modal {
 	field: HTMLInputElement;
 	constructor(app: App, title: string, placeholder: string, submit: (value: string) => Promise<boolean | string>) {
 		super(app);
@@ -1164,6 +1164,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: '{target} panel', desc: 'What its rows count: today’s share while a deadline runs, else the whole goal; or always the whole goal.', control: { type: 'dropdown', key: 'targetPanelShows', options: { today: 'Today, else full', full: 'Full' } } },
 				{ name: '{time}', desc: 'The time, in 24 or 12 hours.', control: { type: 'dropdown', key: 'timeTokenFormat', options: { '24h': '24-hour (14:05)', '12h': '12-hour (2:05 PM)' } } },
 				// A730, issue #65: the typing speed; A788: in words a minute alone, no average while typing, the Momentum gauge
+				// THE DAILY WORD GOAL: the words a day; the token reads today's words over it
+				rendered({ name: '{daily_word_goal}', desc: 'Your daily word goal. The token shows today\u2019s words over it, 356/1,000, as you type. 0 shows today\u2019s words alone.', render: (st) => this.renderDailyWordGoal(st) }, ['dailyWordGoal']),
 				{ name: '{wpm}', desc: 'Words a minute. The gauge rests five seconds after your last key; Momentum follows your last few seconds.', control: { type: 'dropdown', key: 'wpmTokenFormat', options: { gauge: 'Gauge and speed', gaugeonly: 'Gauge alone', momentum: 'Momentum gauge', now: 'Speed now', today: 'Average today' } } },
 				{ name: '{font}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'fontTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
 				{ name: '{markers}', desc: 'The menu’s icon, the word, or both.', control: { type: 'dropdown', key: 'markersTokenFormat', options: { glyph: 'Icon', word: 'Name', both: 'Icon and name' } } },
@@ -1247,6 +1249,27 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		}, [key, colorKey, (colorKey + 'Light') as Key]));
 	}
 
+	// THE DAILY WORD GOAL: a number field, the words a day, 0 for none
+	renderDailyWordGoal(st: Setting) {
+		const s = this.plugin.settings;
+		st.addText((t) => {
+			t.inputEl.type = 'number';
+			t.inputEl.min = '0';
+			t.inputEl.step = '50';
+			t.inputEl.addClass('ws-set-num');
+			t.inputEl.setAttribute('aria-label', wsT('Words a day'));
+			t.setPlaceholder('1000');
+			t.setValue((Number(s.dailyWordGoal) || 0) > 0 ? String(s.dailyWordGoal) : '');
+			t.onChange((v) => { void (async () => {
+				const n = v.trim() === '' ? 0 : Number(v);
+				if (!isFinite(n) || n < 0 || Math.floor(n) !== n || n > 1000000) return;
+				s.dailyWordGoal = n;
+				await this.plugin.saveSettings();
+				this.plugin.updateRetroStatusBar();
+			})(); });
+		});
+	}
+
 	// a button token's format is a map keyed by the token's id, absent meaning the word
 	renderTokenIconFormat(st: Setting, id: string, word: string) {
 		st.addDropdown((dd) => dd.addOption('icon', wsT('Icon')).addOption('word', wsT('Name ({word})', { word })).addOption('both', wsT('Icon and name'))
@@ -1321,6 +1344,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{paragraph}'], 'The paragraph the cursor is in.');
 		SUB('Counts');
 		L(['{tasks}'], 'Tasks ticked over tasks in the note, [3/7], as the Organizer shows them. Nothing when there are none.');
+		L(['{daily_word_goal}'], 'Today\u2019s words over your daily word goal, 356/1,000, live as you type. Every note counts; deleting takes words back. Set the goal under Tokens, or with the command Set the daily word goal.');
 		L(['{target}'], 'How far you are toward your target, 43% or 2,145/5,000 or a bar; with a deadline, today\u2019s words over today\u2019s share and the working days left. Click it for more. Set a target and a deadline in the Organizer, on a note or a folder.');
 		L(['{properties}'], 'How many properties the note has. Click to open the Properties pane.');
 		L(['{backlinks}'], 'How many notes link here. Click to open the backlinks pane.');

@@ -4,6 +4,7 @@
 
 import { Plugin, MarkdownView, TFile, Menu, Modal, Notice, setIcon, Platform, addIcon, editorInfoField } from 'obsidian';
 import { WsWelcomeModal } from './welcome';
+import { wsT } from '../core/ui-text';
 import type { Command, Events, WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 import type { Text as CmText } from '@codemirror/state';
@@ -40,7 +41,7 @@ import {
 	wsIsFolder,
 } from '../core/preamble';
 import type { WsSession, WsGoalPlan } from '../core/preamble';
-import { WordSmithSettingTab } from './settings-tab';
+import { WordSmithSettingTab, WsPrompt } from './settings-tab';
 import { wsIsPackPath } from '../core/language';
 import type { WsPack } from '../core/language';
 import type { WsRef } from '../core/citations';
@@ -145,6 +146,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin.retroPlinthEl = null;
 	plugin.clockInterval    = null;
 	plugin._wpm = null; plugin._wpmTimer = null; plugin._wpmWanted = false; plugin._wpmDayDirty = false;
+	plugin._dailyWordsTimer = null; plugin._dailyWordsWeighing = null;
 	plugin.batteryLevel     = null;
 	plugin.batteryCharging  = false;
 	plugin._batteryManager  = null;   // kept so listeners can be detached on unload
@@ -229,6 +231,12 @@ function wsFieldsReset(plugin: WordSmith) {
 // THE COMMANDS: the palette's every entry, the feature toggles, the quick
 // panels and the menu's arrows (lifted out of onload, A488).
 export function wsRegisterCommands(plugin: WordSmith) {
+	// THE DAILY WORD GOAL, from the palette: the words a day, 0 for none; {daily_word_goal} shows today's over it
+	plugin.addCommand({
+		id: 'set-daily-word-goal',
+		name: 'Set the daily word goal',
+		callback: () => plugin.dailyWordGoalPrompt()
+	});
 	plugin.addCommand({
 		id: 'repair-display',
 		name: 'Repair the display (draw everything again)',
@@ -882,6 +890,7 @@ export function wsWireVault(plugin: WordSmith) {
 		if (plugin.wordCountCache) plugin.wordCountCache.delete(oldPath);
 		void plugin.renameScopePath(oldPath, file.path);
 		plugin.historyRenamePath(oldPath, file.path);
+		plugin.dailyWordsRename(oldPath, file.path);
 		// FIRST, before anything writes: if the thing that moved was one
 		// of this plugin's own files — or a folder holding one — the
 		// path in settings has to follow it, or the next write makes a
@@ -1480,6 +1489,15 @@ export default class WordSmith extends Plugin {
 	declare wpmTickStop: BarMethods["wpmTickStop"];
 	declare wpmDayToday: BarMethods["wpmDayToday"];
 	declare wpmReset: BarMethods["wpmReset"];
+	declare dailyWordsToday: BarMethods["dailyWordsToday"];
+	declare dailyWordsWanted: BarMethods["dailyWordsWanted"];
+	declare dailyWordsSeen: BarMethods["dailyWordsSeen"];
+	declare dailyWordsTotal: BarMethods["dailyWordsTotal"];
+	declare dailyWordsSay: BarMethods["dailyWordsSay"];
+	declare dailyWordsRename: BarMethods["dailyWordsRename"];
+	declare buildDailyGoalTokenEl: BarMethods["buildDailyGoalTokenEl"];
+	declare dailyWordsQueueSave: BarMethods["dailyWordsQueueSave"];
+	declare dailyWordsFlush: BarMethods["dailyWordsFlush"];
 	declare closeGoalPanel: BarMethods["closeGoalPanel"];
 	declare formatCount: BarMethods["formatCount"];
 	declare formatReadTime: BarMethods["formatReadTime"];
@@ -2093,6 +2111,9 @@ export default class WordSmith extends Plugin {
 	_wpmWanted: boolean;
 	// today's {wpm} record changed since it was last saved (A742)
 	_wpmDayDirty: boolean;
+	// the daily word goal: today's record's save on a rest, and the notes being weighed from disk for their start
+	_dailyWordsTimer: number | null;
+	_dailyWordsWeighing: Set<string> | null;
 	currentScroller: HTMLElement | null;
 	editorExtensions: Extension[];
 	explorerObserver: MutationObserver | null;
@@ -2537,6 +2558,8 @@ export default class WordSmith extends Plugin {
 		if (this._twIdle != null) { window.clearTimeout(this._twIdle); this._twIdle = null; this._twIdleView = null; }
 		// {wpm}'s timer (A730)
 		try { this.wpmTickStop(); } catch (_) { wsCatch('onunload: this.wpmTickStop();', _); }
+		// today's words for the daily word goal, if a save was still waiting on a rest
+		try { if (this._dailyWordsTimer != null) this.dailyWordsFlush(); } catch (_) { wsCatch('onunload: this.dailyWordsFlush();', _); }
 		// THE SETTINGS TAB'S OBSERVER: it lives for the tab's life — not
 		// disconnected on hide(), since Obsidian 1.13 re-renders the last
 		// definitions on reopen without asking for them again — so this is the
@@ -4592,6 +4615,22 @@ export default class WordSmith extends Plugin {
 				+ 'font-family="\'Iowan Old Style\', Georgia, \'Times New Roman\', '
 				+ '\'Liberation Serif\', serif">W</text>');
 		} catch (_) { wsCatch('registerWsIcon: addIcon(WS_ICON,', _); }
+	}
+
+	// THE DAILY WORD GOAL, ASKED FOR: from the command and from a press on {daily_word_goal}; the words a day, 0 for none
+	dailyWordGoalPrompt() {
+		const p = new WsPrompt(this.app, 'Daily word goal', 'Words a day, e.g. 1000', async (v) => {
+			const n = Number(String(v).replace(/[\s,.\u00a0\u202f']/g, ''));
+			if (!isFinite(n) || n < 0 || Math.floor(n) !== n || n > 1000000) return wsT('A whole number of words, 0 for none.');
+			this.settings.dailyWordGoal = n;
+			await this.saveSettings();
+			this.updateRetroStatusBar();
+			new Notice(n > 0 ? wsT('Word-Smith: daily word goal set to {count} words.', { count: this.formatCount(n) }) : wsT('Word-Smith: daily word goal cleared.'), 4000);
+			return true;
+		});
+		const g = Number(this.settings.dailyWordGoal) || 0;
+		if (g > 0) p.field.value = String(g);
+		p.open();
 	}
 
 	// Reads CapsLock/NumLock state off a keyboard event and refreshes the
