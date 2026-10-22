@@ -2887,7 +2887,7 @@ export const barMethods = {
 				out[lv - 1] = String(h.heading == null ? '' : h.heading);
 				for (let d = lv; d < 6; d++) out[d] = '';
 			}
-		} catch { /* no cache yet for a note just created */ }
+		} catch (_) { wsCatch('the bar: the headings over the caret', _); }
 		return out;
 	},
 

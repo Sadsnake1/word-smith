@@ -9,7 +9,7 @@
 // notes, MLA 9, IEEE: no citeproc), and a style of the writer's own written in
 // tokens. Everything here is pure: the plugin reads the file, the editor marks, the
 // export formats; this only answers.
-import { wsBag, wsListOf, wsStr, WS_CITE_KEY_START, WS_CITE_KEY_RE } from './preamble';
+import { wsBag, wsListOf, wsStr, WS_CITE_KEY_START, WS_CITE_KEY_RE, wsUpToLast, wsTrimSpacesEnd } from './preamble';
 import { wsT, wsUiJoin } from './ui-text';
 import type { WsExportSection } from './settings';
 
@@ -356,10 +356,23 @@ export function wsFindCitations(text: string): WsCite[] {
 		}
 		if (ok && items.length) out.push({ from: m.index, to: m.index + m[0].length, items, narrative: false });
 	}
-	// a wikilink and a link's own text are not prose to cite in
+	// a wikilink and a link's own text are not prose to cite in. The two kinds as one pattern with both found them (the
+	// first to start wins, the wikilink where both start), each read only up to the text's last closer of its own, where
+	// every one ends (wsUpToLast: past it a try from every "[[" or "[x](" read on to the end, the square of a line of
+	// them, and the editor reads every line through here)
 	const links: [number, number][] = [];
-	const LK = /\[\[[^\]]*\]\]|\[[^[\]]*\]\([^)]*\)/g;
-	while ((m = LK.exec(src))) links.push([m.index, m.index + m[0].length]);
+	const WL = /\[\[[^\]]*\]\]/g, LN = /\[[^[\]]*\]\([^)]*\)/g;
+	const wlText = wsUpToLast(src, ']]'), lnText = wsUpToLast(src, ')');
+	const next = (re: RegExp, s: string, from: number) => { re.lastIndex = from; return re.exec(s); };
+	let w = next(WL, wlText, 0), l = next(LN, lnText, 0);
+	while (w || l) {
+		const t = w && (!l || w.index <= l.index) ? w : l;
+		if (!t) break;
+		const end = t.index + t[0].length;
+		links.push([t.index, end]);
+		if (w && w.index < end) w = next(WL, wlText, end);
+		if (l && l.index < end) l = next(LN, lnText, end);
+	}
 	const NR = new RegExp('(^|[^\\p{L}\\p{N}_@\\[\\]`])@(' + WS_CITE_KEY_RE + ')', 'gu');
 	while ((m = NR.exec(src))) {
 		const at = m.index + m[1].length;
@@ -891,13 +904,13 @@ export function wsCiteSections(sections: WsExportSection[], citer: WsCiter): boo
 			// citation before (a section's first starts afresh too: notes may restart with a chapter)
 			const ls = src.lastIndexOf('\n', c.from - 1) + 1;
 			const inNote = /^\s*\[\^[^\]]+\]:/.test(src.slice(ls, c.from));
-			const fresh = prevTo < 0 || /\[\^[^\]\s]+\](?!:)|\^\[/.test(src.slice(prevTo, c.from));
+			const fresh = prevTo < 0 || /\[\^[^[\]\s]+\](?!:)|\^\[/.test(src.slice(prevTo, c.from));
 			prevTo = c.to;
 			const said = citer.cite(c, { inNote, fresh });
 			if (!said) continue;
 			any = true;
 			// nothing to print (an author left out, no page): the citation goes, and the space before it
-			if (!said.note) { out += said.text ? src.slice(at, c.from) + said.text : src.slice(at, c.from).replace(/[ \t]+$/, ''); at = c.to; continue; }
+			if (!said.note) { out += said.text ? src.slice(at, c.from) + said.text : wsTrimSpacesEnd(src.slice(at, c.from)); at = c.to; continue; }
 			// A CITATION INSIDE A FOOTNOTE is written into it: a note in a note is no note (the sampler printed
 			// "Flesch's.ws-cite-13"); its full stop gives way to the sentence's own
 			if (inNote) {
@@ -916,7 +929,7 @@ export function wsCiteSections(sections: WsExportSection[], citer: WsCiter): boo
 			if (said.lead) { out += src.slice(at, c.from) + said.lead + label; at = c.to; continue; }
 			// the mark after the sentence's own punctuation, no space before it: "as she says.¹"
 			const p = (/^[.,;:!?]+/.exec(src.slice(c.to)) || [''])[0];
-			out += src.slice(at, c.from).replace(/[ \t]+$/, '') + p + label;
+			out += wsTrimSpacesEnd(src.slice(at, c.from)) + p + label;
 			at = c.to + p.length;
 		}
 		sec.markdown = out + src.slice(at) + (defs.length ? '\n\n' + defs.join('\n\n') + '\n' : '');

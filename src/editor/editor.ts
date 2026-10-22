@@ -16,14 +16,16 @@ import { wsPhraseFold, wsPhraseRe } from '../core/lang-engine';
 import { wsSpaceForYouFits } from '../core/language';
 import type WordSmith from '../plugin/plugin';
 
+// A BOX OF PHRASES AS ONE PATTERN, Your clichés' (A856) and Never mark's (A857): one a line, a line opening with #
+// a note to yourself, each folded the language's way (wsPhraseFold: a Turkish İ, a Persian yeh), the slots a pack's
+// ({a|b}, {*}); words apart where a language spaces them, the text itself in Chinese and Japanese
+function wsPhraseBoxRe(src: string, lang: string): RegExp | null {
+	const lines = src.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => wsPhraseFold(l, lang));
+	return lines.length ? wsPhraseRe(lines, !/^(zh|ja)(-|$)/i.test(lang)) : null;
+}
+
 export const editorMethods = {
 
-	// Swaps the registered extension array's contents for freshly built
-	// plugin instances, then reconfigures every open editor. Both halves are
-	// required: updateOptions() alone with the same extension values is a
-	// no-op (CM6 keeps the old instances), and swapping without
-	// updateOptions() never reaches the editors. With the plugin disabled
-	// the array is emptied, which fully removes the decorations.
 	// YOUR OWN CLICHÉS (A856, the writer: "do 3 too"): the box's lines as one pattern, the slots a pack's ({a|b}, {*}),
 	// made again only when the box or the language changes; words apart where a language spaces them, the text itself in
 	// Chinese and Japanese. A line opening with # is a note to yourself
@@ -32,13 +34,30 @@ export const editorMethods = {
 		const src = String(this.settings.customCliches || ''), lang = String(engineLang || this.settings.language || 'en');
 		const key = lang + '\n' + src;
 		if (this._customClicheKey === key) return this._customClicheRe;
-		const lines = src.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => wsPhraseFold(l, lang));
 		this._customClicheKey = key;
-		try { this._customClicheRe = lines.length ? wsPhraseRe(lines, !/^(zh|ja)(-|$)/i.test(lang)) : null; }
+		try { this._customClicheRe = wsPhraseBoxRe(src, lang); }
 		catch (_) { wsCatch('customClicheRe', _); this._customClicheRe = null; }
 		return this._customClicheRe;
 	},
 
+	// NEVER MARK (A857, the writer's pick, 2026-10-22): the box's words and phrases as one pattern, read as Your clichés
+	// reads its own (the slots, a # line a note, the language's folding); a check's mark inside one goes
+	neverMarkRe(this: WordSmith, engineLang?: string): RegExp | null {
+		const src = String(this.settings.checkNeverMark || ''), lang = String(engineLang || this.settings.language || 'en');
+		const key = lang + '\n' + src;
+		if (this._neverMarkKey === key) return this._neverMarkRe;
+		this._neverMarkKey = key;
+		try { this._neverMarkRe = wsPhraseBoxRe(src, lang); }
+		catch (_) { wsCatch('neverMarkRe', _); this._neverMarkRe = null; }
+		return this._neverMarkRe;
+	},
+
+	// Swaps the registered extension array's contents for freshly built
+	// plugin instances, then reconfigures every open editor. Both halves are
+	// required: updateOptions() alone with the same extension values is a
+	// no-op (CM6 keeps the old instances), and swapping without
+	// updateOptions() never reaches the editors. With the plugin disabled
+	// the array is emptied, which fully removes the decorations.
 	reconfigureEditors(this: WordSmith) {
 		if (CM && this.editorExtensions) {
 			this.editorExtensions.length = 0;
@@ -648,7 +667,8 @@ export const editorMethods = {
 		if (this.applyVimMotionMaps()) return;
 		const left = (tries == null ? 20 : tries) - 1;
 		if (left <= 0) return;
-		window.setTimeout(() => this.scheduleVimMotionMaps(left), 250);
+		// (never from a plugin unloaded since: Vim would keep the maps it put back)
+		window.setTimeout(() => { if (!this._unloaded) this.scheduleVimMotionMaps(left); }, 250);
 	},
 
 	// ── ONE CONTROL FOR ONE QUESTION ────────────────────────────────────────

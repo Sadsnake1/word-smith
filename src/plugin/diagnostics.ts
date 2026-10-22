@@ -8,7 +8,7 @@
 import { MarkdownView, Menu, Notice, Platform, apiVersion } from 'obsidian';
 import type { WordSmithSettings } from '../core/settings';
 import { wsCompat, wsCompatText } from '../core/obsidian-internals';
-import { STYLE_CLASSES, STYLE_PROPS, WS_INSTALLER_REFUSE, WS_INSTALLER_REFUSE_TEXT, WS_INSTALLER_WARN, WS_INSTALLER_WARN_TEXT, WS_PLUGIN_VERSION, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsCatchSeen, wsGuardSeen, wsLastKeyboard, wsLastSheet, wsMenu, wsSheetRecord, wsErrMsg, wsUserAgent } from '../core/preamble';
+import { STYLE_CLASSES, STYLE_PROPS, WS_INSTALLER_REFUSE, WS_INSTALLER_REFUSE_TEXT, WS_INSTALLER_WARN, WS_INSTALLER_WARN_TEXT, WS_PLUGIN_VERSION, WS_STORM_MS, WS_STORM_PASSES, WS_STYLESHEET_VERSION, wsCatch, wsCatchSeen, wsSlowReads, wsGuardSeen, wsLastKeyboard, wsLastSheet, wsMenu, wsSheetRecord, wsErrMsg, wsUserAgent } from '../core/preamble';
 import type WordSmith from './plugin';
 
 export const diagnosticsMethods = {
@@ -165,7 +165,7 @@ export const diagnosticsMethods = {
 			const next = (attempt || 0);
 			if (next < waits.length) {
 				window.setTimeout(() => {
-					if (this.settings && this.settings.pluginEnabled) {
+					if (!this._unloaded && this.settings && this.settings.pluginEnabled) {
 						this.checkStylesheetVersion(next + 1);
 					}
 				}, waits[next]);
@@ -358,6 +358,41 @@ export const diagnosticsMethods = {
 		try { if (m && typeof m.hide === 'function') m.hide(); } catch (_) { wsCatch('sheetSelfTest: m.hide();', _); }
 	},
 
+	// ── THE SETTINGS A REPORT NEEDS, AND THE SLOWEST NOTES (the writer's pick, 2026-10-22: #86 asked for the whole
+	// settings file and could not say which note was slow; the names stay in, with a line asking the reporter to take
+	// out any they would rather not share) ──
+	diagSettingsLines(this: WordSmith): string[] {
+		const s = this.settings;
+		const names = (a: unknown) => (Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string' && x !== '') : []);
+		const scope = names(s.scopePaths), never = names(s.countExclude);
+		const FEATURES: [keyof WordSmithSettings, string][] = [['zenEnabled', 'Zen'], ['enableTypewriter', 'Typewriter'],
+			['enableLetterbox', 'Letter Box'], ['historyTracking', 'History'], ['posEnabled', 'Syntax'], ['checksEnabled', 'Prose checks'],
+			['typographyEnabled', 'Typography'], ['hemingwayEnabled', 'Hemingway'], ['organizerOn', 'Organizer'],
+			['enableRetroStatus', 'Powerline bar'], ['markersEnabled', 'markers'], ['dimUnfocusedEnabled', 'dim unfocused'],
+			['highlightCurrentLine', 'current line'], ['enableFileTreeCounts', 'tree counts'], ['fileTreeFlags', 'tree flags'],
+			['treeOrder', 'tree order']];
+		const on = FEATURES.filter(([k]) => s[k] === true).map(([, label]) => label);
+		if ((Number(s.dailyWordGoal) || 0) > 0) on.push('daily target');
+		if (s.enableTypewriter === true && s.typewriterScrollOnClick === false) on.push('Typewriter without scroll on click');
+		return [
+			'',
+			'Word-Smith settings (folder and note names here and below are yours: remove any you would rather not share):',
+			'  plugin ' + (s.pluginEnabled === false ? 'OFF' : 'on') + ' · language ' + (s.language || 'en')
+				+ ' · scope ' + (scope.length ? (s.scopeMode === 'exclude' ? 'all but ' : 'only ') + scope.join(', ') : 'the whole vault')
+				+ ' · never counted ' + (never.length ? never.join(', ') : 'none'),
+			'  on: ' + (on.length ? on.join(', ') : 'none'),
+		];
+	},
+	diagSlowLines(this: WordSmith): string[] {
+		const rows = wsSlowReads();
+		const L = ['', 'slowest note readings this session' + (rows.length ? ':' : ': none yet (open the Organizer or a Report, then copy again)')];
+		for (const r of rows) {
+			L.push('  ' + (Math.round(r.ms) + ' ms').padStart(8) + '  ' + r.by.padEnd(9) + '  ' + r.path + '   '
+				+ (r.size / 1024).toFixed(1) + ' KB, longest line ' + r.longest.toLocaleString('en-US') + ' characters');
+		}
+		return L;
+	},
+
 	diagnostics(this: WordSmith) {
 		const L = [];
 		const yn = (v: boolean | undefined) => (v === true ? 'on' : v === false ? 'off' : String(v));
@@ -404,6 +439,8 @@ export const diagnosticsMethods = {
 					: sl.path + ' — ' + sl.eol + ' on disk, last compose '
 						+ (sl.same ? 'the same text, handed back unwritten' : 'a different text, written')));
 			} catch { L.push('store:      (could not read the last compare)'); }
+			try { for (const line of this.diagSettingsLines()) L.push(line); } catch (_) { wsCatch('diagnostics: the settings lines', _); }
+			try { for (const line of this.diagSlowLines()) L.push(line); } catch (_) { wsCatch('diagnostics: the slow readings', _); }
 			L.push('');
 			// ── THE FILE-TREE PAINTERS ──────────────────────────────────
 			//

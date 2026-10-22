@@ -1678,6 +1678,16 @@ body.ws-bar-anim .ws-status-bar {
    theme's smallest icon, Obsidian's small gap */
 .ws-goal-panel-days { display: flex; align-items: center; gap: var(--size-2-2); --icon-size: var(--icon-xs); }
 .ws-goal-panel-glass { display: flex; }
+/* THE ORGANIZER'S DEADLINE CELL, THE DAYS FIRST (the writer's pick "B", 2026-10-22): the days in a slot the width
+   of the longest the language writes (`--ws-org-dl-w`, set by the cell), so every date starts at one edge; the date
+   in the muted color after them; Overdue in the theme's error color, as the panel's below */
+.ws-org-table td.is-goal.is-dl { text-align: start; white-space: nowrap; }
+.ws-org-dl-days { display: inline-block; min-width: var(--ws-org-dl-w, 9ch); }
+.ws-org-dl-date { color: var(--text-muted); }
+/* the dot between them, as quiet as the date (the writer: "put the dot separtor between days left and date") */
+.ws-org-dl-dot { color: var(--text-muted); white-space: pre; }
+.ws-org-dl-days.is-late,
+.ws-org-table td.is-goal.is-late { color: var(--text-error); }
 /* a deadline passed in the theme's own error color (A760) */
 .ws-goal-panel-days.is-late { color: var(--text-error); }
 /* the note's bar fainter than the folder's (A746) */

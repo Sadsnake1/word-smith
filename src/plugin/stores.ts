@@ -392,6 +392,22 @@ export const storesMethods = {
 		} catch { return ''; }
 	},
 
+	// THE PENDING STORE WRITES, NOW (the timer audit, 2026-10-22, ws-dev/timer-audit.js): the goals file waits up to
+	// 600 ms for its write and the settings mirror up to four seconds. At an unload they were left to their timers,
+	// which wrote from a plugin already gone, after a reload had read the files. Written now, the timers cleared.
+	storeTimersFlush(this: WordSmith) {
+		if (this._goalsTimer != null) {
+			window.clearTimeout(this._goalsTimer);
+			this._goalsTimer = null;
+			this.goalsStoreWrite().catch((e: unknown) => { wsCatch('the goals file, written at unload', e); });
+		}
+		if (this._mirrorTimer != null) {
+			window.clearTimeout(this._mirrorTimer);
+			this._mirrorTimer = null;
+			this.settingsMirrorWrite().catch((e: unknown) => { wsCatch('the settings mirror, written at unload', e); });
+		}
+	},
+
 	// Written only when the numbers differ from what is already there —
 	// saveSettings runs on nearly every interaction in the plugin, and a
 	// file modify on each of them would be noise in the vault and in sync.
@@ -1366,7 +1382,7 @@ export const storesMethods = {
 					sources = again;
 					this._structSources = again;
 				}
-			} catch { /* the create below is still the honest fallback */ }
+			} catch (_) { wsCatch('the structure: reading its sources again', _); }   // (the create below is still the honest fallback)
 		}
 		const primary = sources[0] || null;
 		// Nothing on disk yet: the store is created at the configured path.

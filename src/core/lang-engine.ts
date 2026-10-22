@@ -28,7 +28,7 @@
 // · THE GRADE by the pack's formula, from sums a folder can add up, always as a
 //   school grade so the rhythm thresholds mean one thing in every language.
 
-import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, WS_CLICHES_EN, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart, wsTailEnd, wsTailMatch } from './preamble';
+import { FILLER_PHRASES, FILLER_SOFT, FILLER_STRONG, WS_CLICHES_EN, findIllusions, findMisused, findPassive, findRepetitions, isVaguePronoun, POS_LEX, sentenceGrade, splitSentences, tagTokens, tokenizeLine, wsQuoteHolds, wsSentenceStart, wsTailEnd } from './preamble';
 import type { WsToken, WsDialogueMarks } from './preamble';
 import type { WsPack } from './language';
 import { WS_PACK_FORMULAS, wsPackQuotes } from './language';
@@ -48,11 +48,12 @@ export interface WsEngine {
 	tag(masked: string): WsToken[];
 	filler(tokens: WsToken[], masked: string, soft: boolean): WsSpan[];
 	passive(tokens: WsToken[], masked: string): WsSpan[];
-	illusions(tokens: WsToken[]): WsSpan[];
+	illusions(tokens: WsToken[], text?: string): WsSpan[];
 	misused(tokens: WsToken[], masked: string): WsSpan[];
 	/** the language's stock phrases in a line (A839) */
 	cliches(tokens: WsToken[], masked: string): WsSpan[];
-	vague(t: WsToken, next: WsToken | null): boolean;
+	// (`after`: the line's next few words, for the it that points at nothing; a pack reads only `next`)
+	vague(t: WsToken, next: WsToken | null, after?: WsToken[]): boolean;
 	sentences(masked: string): WsSentence[];
 	/** one sentence's grade, or null for a fragment (under four words) */
 	sentenceGrade(text: string): number | null;
@@ -174,10 +175,10 @@ export const WS_ENGLISH_ENGINE: WsEngine = {
 	tag: (masked) => wsEnglishTagWith(masked, WS_RULES_EN),
 	filler: wsEnglishFiller,
 	passive: (tokens) => findPassive(tokens),
-	illusions: (tokens) => findIllusions(tokens),
+	illusions: (tokens, text) => findIllusions(tokens, text),
 	misused: (tokens, masked) => findMisused(tokens, masked),
 	cliches: (tokens, masked) => wsPhraseSpans(WS_CLICHE_RE_EN, masked),
-	vague: (t, next) => isVaguePronoun(t, next),
+	vague: (t, next, after) => isVaguePronoun(t, next, after),
 	sentences: (masked) => splitSentences(masked),
 	wordsIn: (text) => tokenizeLine(text).length,
 	sentenceGrade: (text) => {
@@ -739,13 +740,19 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		let m;
 		while ((m = SPLIT.exec(text))) {
 			if (!m[0].trim()) continue;
-			const raw = m[0], from = m.index, to = from + raw.replace(/\s+$/, '').length;
+			// (trimEnd, not /\s+$/: the square of a run of spaces inside the sentence, #86, as the English splitter)
+			const raw = m[0], from = m.index, to = from + raw.trimEnd().length;
 			if (to <= from) continue;
 			const prev = out.length ? out[out.length - 1] : null;
 			if (prev) {
 				// the joined sentence's END, read through a window (A877): every test below reads its last word or mark
 				const tail = wsTailEnd(text, prev.from, prev.to);
-				const last = lower((wsTailMatch(/(\S+)$/, text, prev.from, prev.to) || ['', ''])[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '');
+				// \u2026its last word read in the window only: a word longer than the window (a link, a line of brackets, a line
+				// with no space) is no abbreviation (the longest in any pack is nine letters), no figure and no run of initials
+				// anyone writes, and read whole at every join it cost the square of the line (x48 for 32 KB of "![a](",
+				// tests/slow_input_test.js, 2026-10-22). (Past index 1: a window cut through a surrogate pair starts on its low half.)
+				const lw = /(\S+)$/.exec(tail);
+				const last = lw && (lw.index > 1 || tail.length === prev.to - prev.from) ? lower(lw[1]).replace(/^[\p{Ps}\p{Pi}"'\u201e\u201a\u00ab\u00bb]+/u, '') : '';
 				// an initial, or letters each with its dot (R.G., U.S., A.J.: A642), ends no sentence
 				const dotEnd = /\.$/.test(last) && (/^(\p{L}\.)+$/u.test(last) || abbr.has(last) || (ordinal && /^\d{1,3}\.$/.test(last)));
 				// A PIECE WITH NO LETTER OR FIGURE IN IT (a zero-width space, a lone ";"), or one that opens with a
@@ -1134,13 +1141,15 @@ function wsBuildPackEngine(pack: WsPack): WsEngine {
 		cliches: (tokens, text) => (clicheRe ? wsPhraseSpans(clicheRe, text)
 			: wsSpansUnion(match(tokens, text, clichePm, true).map((h) => ({ from: h.from, to: h.to })), wsPhraseSpansFor(clicheSlotRe, text, pack.lang))),
 		passive,
-		illusions: (tokens) => {
+		illusions: (tokens, text) => {
 			const out: WsSpan[] = [];
 			// a doubled word is grammar there (看看, 時々), and where the pack says so (`- doubling: yes`, A846: Hindi's
 			// धीरे धीरे, कभी कभी); a doubled function word is never flagged anyway
 			if (segmented || doubling) return out;
 			for (let i = 1; i < tokens.length; i++) {
 				const a = tokens[i - 1], b = tokens[i];
+				// (only space between, as English: "Non, non" and "¡No, no!" are meant)
+				if (text !== undefined && !/^\s+$/.test(text.slice(a.to, b.from))) continue;
 				if (a.lw === b.lw && b.lw.length >= 2 && !closed.has(b.lw) && !/^\d/.test(b.lw)) out.push({ from: a.from, to: b.to });
 			}
 			return out;

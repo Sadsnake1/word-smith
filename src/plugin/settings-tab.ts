@@ -1947,6 +1947,18 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.section('Prose checks', [
 				{ name: 'Prose checks', desc: 'Things worth a second look, not mistakes. Works offline.', control: { type: 'toggle', key: 'checksEnabled' } },
 				{ name: 'Prose checks display style', desc: 'How a finding is marked.', control: { type: 'dropdown', key: 'checkStyle', options: { line: 'Underline', highlight: 'Highlight', text: 'Colored text' } }, visible: ck },
+				// NEVER MARK (A857, the writer's pick): one box for every check, under the switch that turns them on
+				rendered({ name: 'Never mark', desc: 'Words and phrases the checks leave alone, one a line.', visible: ck,
+					render: (st) => {
+						st.settingEl.addClass('ws-set-block');
+						st.addTextArea((t) => {
+							t.inputEl.rows = 3;
+							t.setValue(String(s.checkNeverMark || '')).onChange((v) => { void (async () => {
+								s.checkNeverMark = v;
+								await this.plugin.saveSettings();
+							})(); });
+						});
+					} }, ['checkNeverMark']),
 				cat('Filler words', 'Words like very, really, basically, kind of.', 'checkFiller', 'checkFillerColor', ck),
 				{ name: 'Also flag vague quantifiers', desc: 'Many, most, some, often. Stricter, and it flags more.', control: { type: 'toggle', key: 'checkFillerSoft' }, visible: all(ck, () => !!s.checkFiller) },
 				cat('Passive voice', 'Was written, is being considered.', 'checkPassive', 'checkPassiveColor', ck),
@@ -2174,7 +2186,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab' } } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
 				// A731: the deadline's two halves, one column
-				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (20 Oct 2026 \u00b7 8d)', days: 'Days left (8d)', date: 'The date (20 Oct 2026)' } }, visible: org },
+				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly

@@ -293,6 +293,14 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 	});
 };
 
+// the days' slot in the Deadline cell, in characters: the longest the language writes (888 days left, or Overdue), a
+// character of Chinese, Japanese or Korean two of them
+const WS_WIDE_CHAR = /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/;
+const wsOrgDaysWidth = () => {
+	const w = (s: string) => Array.from(s).reduce((n, ch) => n + (WS_WIDE_CHAR.test(ch) ? 2 : 1), 0);
+	return Math.max(w(wsT('{days}d left', { days: 888 })), w(wsT('Overdue')));
+};
+
 // ── THE DEADLINE, A DAY, SET WHERE IT IS READ (A700) ─────────────────
 //
 // The target cell's shape: a click swaps in a date input, the guard engages on focus, blur is the one committer,
@@ -303,7 +311,24 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 // on hover before the click.
 const orgDeadlineCell = (td: HTMLElement, row: WsOrgRow, text: string, tip?: string) => {
 	const folder = row.kind === 'folder';
-	td.setText(text);
+	// THE DAYS FIRST, THE DATE QUIETER (the writer: "can we arrange better this deadlines values in the cells?", their
+	// pick "B", 2026-10-22): one string pushed to the right edge started every date where its days let it. The days
+	// in a slot as wide as the longest the language writes, so every date starts at one edge; Overdue in the theme's
+	// error color, as the {target} panel says it (A760). One half alone, as Settings says, is drawn as it is.
+	const late = wsT('Overdue');
+	const half = text.split(' \u00b7 ');
+	if (half.length === 2) {
+		td.addClass('is-dl');
+		td.style.setProperty('--ws-org-dl-w', wsOrgDaysWidth() + 'ch');
+		td.createSpan({ cls: 'ws-org-dl-days' + (half[0] === late ? ' is-late' : ''), text: half[0] });
+		// (the dot between them, the writer: "put the dot separtor between days left and date"; after the slot, so the
+		// dots stand in one column too)
+		td.createSpan({ cls: 'ws-org-dl-dot', text: ' \u00b7 ' });
+		td.createSpan({ cls: 'ws-org-dl-date', text: half[1] });
+	} else {
+		td.setText(text);
+		if (text === late) td.addClass('is-late');
+	}
 	td.addClass('is-goal');
 	td.title = (tip ? tip + ' \u00b7 ' : '') + (text ? wsT('Click to change the deadline') : wsT('Click to set a deadline'));
 	td.addEventListener('click', (ev: Event) => {

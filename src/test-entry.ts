@@ -22,9 +22,9 @@ import {
 	DEFAULT_BAR_PRESETS, DEFAULT_SETTINGS, HISTORY_HEAT, mixColors, parseColorRGB, pickBar,
 	PL_BG_COUNT, PL_THEME_BGS, readBarDirective,
 	WS_FLAG_SHAPES, WS_NARROW_FLIPS, WS_STATE_IDS, WS_STORM_PASSES,
-	wsCatch, wsCatchReset, wsCatchSeen, wsColPrefCh, wsCtxScope, wsDeepestLevel, wsDemoteHeadings, wsHeadNumbers, wsNoteHeadings, wsPageOfPart, WS_HEAD_TOKENS, wsHeadFill, wsContactLines, wsParaSpacing, wsDropHeadings, wsNumbered,
+	wsCatch, wsCatchReset, wsCatchSeen, wsTimedRead, wsSlowReads, wsSlowReadsReset, WS_SLOW_READS_KEPT, wsColPrefCh, wsCtxScope, wsDeepestLevel, wsDemoteHeadings, wsHeadNumbers, wsNoteHeadings, wsPageOfPart, WS_HEAD_TOKENS, wsHeadFill, wsContactLines, wsParaSpacing, wsDropHeadings, wsNumbered,
 	wsExportRoot, wsFileHeadLevel, wsFitCols, wsFlagSvg, wsForDisk, wsGuard, wsGuardReport,
-	wsGuardReset, wsGuardSeen, wsGuardTell, wsLabelCh, wsLineOfSnippet, wsPlainLine, wsTailMatch, WsMenuView, wsNarrowDecide,
+	wsGuardReset, wsGuardSeen, wsGuardTell, wsLabelCh, wsLineOfSnippet, wsPlainLine, maskMarkup, maskForCounting, wsTailMatch, WsMenuView, wsNarrowDecide,
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
 	wsEpubCheck,
@@ -49,9 +49,9 @@ import { wsParseBibtex, wsParseCslJson, wsParseLibrary, wsBibNames, wsTexText, w
 export default Object.assign(WordSmith, {
 	// the 47 the slices exported
 	wsStatusNext, wsStatusLabel, wsFlagSvg, WS_FLAG_SHAPES, wsCountFootnotes, WsOutlinerView,
-	wsRepairSettings, wsLineOfSnippet, wsPlainLine, wsTailMatch, wsCtxScope, HISTORY_HEAT, WS_STATE_IDS, wsLabelCh,
+	wsRepairSettings, wsLineOfSnippet, wsPlainLine, maskMarkup, maskForCounting, wsTailMatch, wsCtxScope, HISTORY_HEAT, WS_STATE_IDS, wsLabelCh,
 	wsNarrowDecide, wsPassStorm, wsGuard, wsGuardReset, wsGuardSeen, wsGuardTell, wsGuardReport,
-	wsCatch, wsCatchSeen, wsCatchReset, wsCompat, wsCompatText, WS_INTERNALS, wsPassState,
+	wsCatch, wsCatchSeen, wsCatchReset, wsTimedRead, wsSlowReads, wsSlowReadsReset, WS_SLOW_READS_KEPT, wsCompat, wsCompatText, WS_INTERNALS, wsPassState,
 	WS_STORM_PASSES, wsNarrowState, WS_NARROW_FLIPS, wsColPrefCh, wsFitCols, wsExportRoot,
 	WS_HEAD_TOKENS, wsHeadFill, wsContactLines, wsParaSpacing, wsDropHeadings, wsNumbered,
 	wsDemoteHeadings, wsHeadNumbers, wsNoteHeadings, wsPageOfPart, wsFileHeadLevel, wsSecHeadLevel, wsDeepestLevel, wsTocSteps, WsMenuView,

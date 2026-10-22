@@ -7,7 +7,7 @@
 
 import { TFile, Notice, setIcon, MarkdownView } from 'obsidian';
 import type { TAbstractFile } from 'obsidian';
-import { wsMonotoneTangents, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg } from '../core/preamble';
+import { wsMonotoneTangents, HISTORY_CHART_H, HISTORY_CHART_W, HISTORY_DAYNAMES, HISTORY_DEBOUNCE_MS, HISTORY_HEAT, HISTORY_IDLE_MS, HISTORY_MARK_END, HISTORY_MARK_START, HISTORY_MAX_CELLS, HISTORY_MAX_UNSAVED_MS, HISTORY_MONTHS, HISTORY_OVERLAB_PAD, HISTORY_PX, WS_HIST_LAB_GAP, WS_WRITE, wsAxisBound, wsCatch, wsErrMsg, wsTimedRead } from '../core/preamble';
 import { wsT, wsUiDate, wsUiJoin } from '../core/ui-text';
 import type WordSmith from './plugin';
 import type { WsHistoryTally, WsHistoryTabState, WsHistoryBucket, WsHistoryRecord } from './plugin';
@@ -354,11 +354,11 @@ export const historyMethods = {
 				count = hit.count || 0;
 			} else {
 				const text = await this.app.vault.cachedRead(file);
-				count = this.countWords(text);
+				count = wsTimedRead(path, 'History', text, () => this.countWords(text));
 				if (this.wordCountCache) this.wordCountCache.set(path, { mtime: file.stat.mtime, count });
 			}
 			this.historyRecord(path, count);
-		} catch { /* a note deleted mid-debounce; nothing to record */ }
+		} catch (_) { wsCatch('History: counting a note', _); }   // (a note deleted mid-debounce, expected; anything else, counted)
 	},
 
 	// the words of a note open in an editor, as the bar counts them (getDocStats: the editor's text, cached on its
@@ -877,7 +877,7 @@ export const historyMethods = {
 			return text.slice(0, i) + block + text.slice(j + HISTORY_MARK_END.length);
 		}
 		if (!text.trim()) return block + '\n';
-		return text.replace(/\s*$/, '') + '\n\n' + block + '\n';
+		return text.trimEnd() + '\n\n' + block + '\n';
 	},
 
 	// Tolerant on purpose: a file half-merged by sync, or hand-edited, should
@@ -1059,7 +1059,7 @@ export const historyMethods = {
 				const keys = Object.keys(h.days).sort();
 				if (keys.length && (!h.started || keys[0] < h.started)) h.started = keys[0];
 			}
-		} catch { /* unreadable right now; the next event will try again */ }
+		} catch (_) { wsCatch('History: reading its file after an outside edit', _); }   // (the next event tries again)
 	},
 
 	// ════════════════════════════════════════════════════════════════════════

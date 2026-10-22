@@ -45,7 +45,7 @@ function wsChartReadout(chart: HTMLElement, under: HTMLElement, hint: string) {
 }
 // HOW LONG THEY RUN (A629): the chart's eight columns, short to long, in words
 const WS_REPORT_BUCKETS: [number, number][] = [[1, 5], [6, 10], [11, 15], [16, 20], [21, 25], [26, 30], [31, 40], [41, Infinity]];
-import { wsMonotoneTangents, CJK_CHAR, READ_WPM, wsPagesOf, wsDayKey, wsDayOf, wsGoalPlan, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsErrMsg } from '../core/preamble';
+import { wsMonotoneTangents, wsTimedRead, CJK_CHAR, READ_WPM, wsPagesOf, wsDayKey, wsDayOf, wsGoalPlan, REPORT_STOPWORDS, WORDISH, countSyllables, fkGrade, isParagraphLine, maskForCounting, wsGlyphWord, wsSortArrow, parseColorRGB, scanNonProseLines, splitSentences, tokenizeLine, wsCatch, wsShareText, wsErrMsg } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 
@@ -2856,7 +2856,7 @@ export const reportMethods = {
 			return this._docStatsCache;
 		}
 		const full      = view.getViewData();
-		const prose     = this.countProse(full);
+		const prose     = wsTimedRead(view.file ? view.file.path : '', 'bar', full, () => this.countProse(full));
 		const totalWC   = prose.words;
 		// THE LITERAL FIGURE, spaces and all: {chars} is the word-processor
 		// figure — every space, tab and newline in the counted lines, once each
@@ -3112,7 +3112,7 @@ export const reportMethods = {
 			if (!stats) {
 				try {
 					const text = await this.app.vault.cachedRead(file);
-					stats = this.analyzeText(text);
+					stats = wsTimedRead(file.path, 'Report', text, () => this.analyzeText(text));
 					try { tasks = this.countTasks(text); } catch { tasks = { done: 0, all: 0 }; }
 					this.wordCountCache.set('stats:' + file.path,
 						{ mtime: file.stat.mtime, stats, tasks });
@@ -4394,7 +4394,7 @@ export const reportMethods = {
 				}
 				let text = '';
 				try { text = await this.app.vault.cachedRead(repFile); } catch (_) { wsCatch('openReportModal / render: text = await plugin.app.vault.cachedRead(repFile);', _); }
-				stats  = this.analyzeText(text);
+				stats  = wsTimedRead(repFile.path, 'Report', text, () => this.analyzeText(text));
 				freq   = this.wordFreqInto(text, new Map<string, number>());
 				const notePath = repFile.path, noteText = text;
 				sentencesOf = () => Promise.resolve(this.reportSentences(noteText, notePath));

@@ -3206,6 +3206,11 @@ export const exportMethods = {
 			// `preferCSSPageSize` in `exportPdfOptions` reads them.
 			// (the margin boxes in a rule of their own at the foot of the sheet, A751: see there)
 			+ '@page { size: ' + pw + ' ' + ph + '; margin: ' + pm + '; }'
+			// THE MARGIN BOXES' TYPE (#95, msguerra74: the PDF's running header in Times New Roman, the rest in the export's
+			// font). A margin box takes its font from the page, not from <body>, so it fell to Chromium's default serif. The
+			// page is given the export's font and the preview header's size (`.hdr`, 0.9em of the text), in a rule of its
+			// own: measured in printed PDFs, Times at 16px before, the export's font at 14.4px after (12pt)
+			+ '@page { font-family: ' + font + ', Times, serif; font-size: calc(' + pt + 'pt * 0.9); }'
 			// DECLARED LIGHT. A page is white, and an iframe inherits the
 			// app's colour scheme — so under a dark theme the engine was
 			// treating this document as dark and everything that had not

@@ -360,7 +360,7 @@ export const treeMethods = {
 			const now = this.treeOrderCurrent(parent || '');
 			if (now.indexOf(path) === -1) now.push(path);
 			await this.treeOrderWrite(parent || '', now);
-		} catch { /* the file exists; its position is the lesser loss */ }
+		} catch (_) { wsCatch('the custom order: a new note at the end', _); }   // (the file exists; its position is the lesser loss)
 	},
 
 	async outlinerAddNote(this: WordSmith, parent: string, opts: { open: boolean; }): Promise<WsTreeMade> {

@@ -36,7 +36,7 @@ import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
 import type { WsOrgColAgg } from './organizer-readings';
-import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf, wsListOf } from '../core/preamble';
+import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf, wsListOf, wsTimedRead } from '../core/preamble';
 import type { WsPropItem } from '../core/preamble';
 import { wsT, wsTq, wsUiDate, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
@@ -762,6 +762,15 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 				if (!agg && many) td.title = col.id === 'goal' ? wsT('Click to set a target') : wsT('Click to set a deadline');
 				continue;
 			}
+			// THE FOLDER THE WINDOW IS OPENED ON COUNTS ITS VOCABULARY TOO (the writer: "sometimes the vocabulary for the
+			// folder wont show up", 2026-10-22): a folder like the ones under it, its notes' words counted once and drawn
+			// when they are read (A792); it was left to the vault's Total row's rule, which never asks
+			if (col.id === 'vocab' && isRoot) {
+				const put = (v: WsOrgColAgg) => { td.empty(); td.addClass('ws-org-aggcell'); td.setText(v.text); if (v.title) td.title = v.title; };
+				const now = ctx.orgFolderVocab(at, ctx.orgUnder(at), (v) => { if (td.isConnected) put(v); });
+				if (now) put(now);
+				continue;
+			}
 			if (many) aggInto(td, many);
 			else if (agg) aggInto(td, agg);
 		}
@@ -1152,6 +1161,165 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		}
 	}
 	return prevRuled;
+}
+
+// THE TREE'S REMOTE, a folder chosen in Obsidian's tree (lifted out of openManuscriptModal, A888).
+function wsOrgDoorSelect(a: { orgScope: ReturnType<typeof wsOrgScopeMake>; orgSelect: (p: string) => void; s: WordSmithSettings; tab: string }, p: string) {
+	const { orgScope, orgSelect, s, tab } = a;
+	// PINNED, THE DOOR IS SHUT: a folder clicked in the explorer is the
+	// explorer's business; the pane stays where it was pinned.
+	if (s.organizerPinned) return;
+	// A folder chosen while History is up is the folder's history: the note
+	// it was scoped to is let go. `orgSelect` keeps a note that is under the
+	// folder, which is right for the table's cursor and wrong for a scope.
+	if (tab === 'history') orgScope.orgNote = '';
+	orgSelect(p == null || p === '/' ? '' : String(p));
+}
+
+// THE TREE'S REMOTE, a note opened in Obsidian's tree (lifted out of openManuscriptModal, A888).
+function wsOrgDoorFollow(a: { drawPanel: () => void; exportOpts: WsExportPanelHandle | null; orgFollow: (it: { path: string; kind: string; }, keepScope: boolean, markOnly?: boolean) => void; orgScope: ReturnType<typeof wsOrgScopeMake>; s: WordSmithSettings; tab: string }, p: string) {
+	const { drawPanel, exportOpts, orgFollow, orgScope, s, tab } = a;
+	if (!p) return;
+	// PINNED: a note the folder holds is still marked; one it does not hold
+	// changes nothing — no jump, no mark outside the pane.
+	if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
+	orgFollow({ kind: 'file', path: String(p) }, true);
+	drawPanel();
+	// THE READER FOLLOWS TOO: click a ticked file in Obsidian's tree and the
+	// reader goes to it.
+	if (exportOpts && exportOpts.jumpTo && tab === 'export') {
+		try { exportOpts.jumpTo(String(p)); } catch (_) { wsCatch('treeDoor.follow: exportOpts.jumpTo(String(p));', _); }
+	}
+}
+
+// Ctrl+Z and Ctrl+Y on the Organizer: History's undo and redo, for this pane only (lifted out of openManuscriptModal, A888).
+function wsOrgHistKey(a: { host: WsHost; orgHistMine: () => boolean; orgHistRun: (dir: string) => Promise<boolean>; ownerDoc: () => Document; tab: string }, ev: KeyboardEvent) {
+	const { host, orgHistMine, orgHistRun, ownerDoc, tab } = a;
+	if (tab !== 'organizer') return;
+	if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
+	const k = String(ev.key || '').toLowerCase();
+	if (k !== 'z' && k !== 'y') return;
+	const t = ev.target as HTMLElement | null;
+	const doc = ownerDoc();
+	const inPane = t && host.contains(t);
+	const onBody = t === doc.body || t === doc.documentElement;
+	if (!inPane && !onBody) return;
+	if (inPane && t.closest && t.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]')) return;
+	// A KEY FROM THE BODY — a row was clicked, nothing took the focus —
+	// goes to ONE pane: a leaf's when Obsidian says its leaf is the active
+	// one, a modal's when it is the pane last touched. A last-touched mark
+	// can point at a modal that has since closed, its listener gone with
+	// it, so the leaf is asked of the API first.
+	if (onBody && !orgHistMine()) return;
+	const root = host.rootEl || host.contentEl;
+	if (!root || !doc.body || !doc.body.contains(root)) return;
+	ev.preventDefault();
+	ev.stopPropagation();
+	if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+	void orgHistRun((k === 'y' || ev.shiftKey) ? 'redo' : 'undo');
+}
+
+// Whether a key from the body is this pane's (lifted out of openManuscriptModal, A888).
+function wsOrgHistMine(plugin: WordSmith, a: { host: WsHost; onHistKey: (ev: KeyboardEvent) => void }) {
+	const { host, onHistKey } = a;
+	try {
+		if (host.kind === 'leaf' && host.view && host.view.leaf && plugin.app.workspace) {
+			// The active view, asked of the API (activeLeaf is deprecated): ours
+			// is an ItemView, so the question is whether the active one IS it.
+			return plugin.app.workspace.getActiveViewOfType(ItemView) === host.view;
+		}
+	} catch (_) { wsCatch('orgHistMine: this.app.workspace.getActiveViewOfType(ItemView) === host.view', _); }
+	return plugin._orgHistActive === onHistKey;
+}
+
+// THE WINDOW CLOSED: every door, watcher and listener it put up comes down (lifted out of openManuscriptModal, A888).
+function wsOrgWindowClosed(plugin: WordSmith, a: { onHistKey: (ev: KeyboardEvent) => void; orgIndexChanged: () => void; orgNav: ReturnType<typeof wsOrgNavMake>; orgPropPopClose: () => void; orgScope: ReturnType<typeof wsOrgScopeMake>; orgWidths: ReturnType<typeof wsOrgWidthsMake>; stopEscape: () => void; stopWatching: () => void; treeDoor: WsOrgDoor }) {
+	const { onHistKey, orgIndexChanged, orgNav, orgPropPopClose, orgScope, orgWidths, stopEscape, stopWatching, treeDoor } = a;
+	// THE DOOR GOES WITH THE WINDOW: a closed window that kept its door
+	// would be chosen into by every folder click.
+	try { plugin.orgWindowDrop(treeDoor); } catch (_) { wsCatch('openManuscriptModal: this.orgWindowDrop(treeDoor);', _); }
+	try { stopWatching(); } catch (_) { wsCatch('openManuscriptModal: stopWatching();', _); }
+	// THE THIRD ONE. The Escape ladder is on `window`, which means a
+	// window that forgets to unregister it does not merely leak — it
+	// goes on swallowing Escape for a window nobody can see.
+	try { stopEscape(); } catch (_) { wsCatch('openManuscriptModal: stopEscape();', _); }
+	try { if (plugin._orgHistActive === onHistKey) plugin._orgHistActive = null; } catch (_) { wsCatch('openManuscriptModal: this._orgHistActive = null;', _); }
+	// AND THE WIDTH WATCHER. A ResizeObserver holds its callback, and
+	// its callback holds this whole window — a pane closed without
+	// this keeps two thousand lines alive and toggles a class on an
+	// element nothing can see, every time the workspace moves.
+	try { orgNav.stopWidth(); } catch (_) { wsCatch('openManuscriptModal: stopWidth();', _); }
+	try { orgNav.stopNav(); } catch (_) { wsCatch('openManuscriptModal: stopNav();', _); }
+	// AND THE INDEX BELL, for the same reason: the index outlives the
+	// window on purpose (it is the plugin's), so a subscription left
+	// behind would redraw a tree nothing can see on every keystroke.
+	try { orgIndexChanged(); } catch (_) { wsCatch('openManuscriptModal: orgIndexChanged();', _); }
+	try { if (orgScope.orgDrawTimer) window.clearTimeout(orgScope.orgDrawTimer); } catch (_) { wsCatch('openManuscriptModal: if (orgDrawTimer) window.clearTimeout(orgDrawTimer);', _); }
+	// AND THE PROPERTIES PANEL, which hangs on the shared body and
+	// would otherwise outlive the window that opened it — with two
+	// capture listeners on the window still eating clicks and Escape.
+	// AND THE SEAM’S OBSERVER, for the reason every other one here is
+	// dropped: it holds a callback that holds this whole window, and it
+	// would go on measuring a table nothing can see.
+	try {
+		if (orgWidths.orgNameRO) { orgWidths.orgNameRO.disconnect(); orgWidths.orgNameRO = null; }
+	} catch (_) { wsCatch('openManuscriptModal: if (orgNameRO) orgNameRO.disconnect();', _); }
+	try { orgPropPopClose(); } catch (_) { wsCatch('openManuscriptModal: orgPropPopClose();', _); }
+}
+
+// THE ACTIVE NOTE IS THE OPENING SELECTION (lifted out of openManuscriptModal, A888).
+function wsOrgOpenOnNote(plugin: WordSmith, a: { folderOf: (path: string) => string; orgFollow: (it: { path: string; kind: string; }, keepScope: boolean, markOnly?: boolean) => void; orgOpen: Set<string>; s: WordSmithSettings; tab: string }) {
+	const { folderOf, orgFollow, orgOpen, s, tab } = a;
+	if (tab === 'organizer') {
+		try {
+			// `activeNoteFile()` — the SAME source the cursor placement
+			// above reads. Two answers to "the note in hand" is how the
+			// mark and the cursor came to stand on different rows.
+			const af = plugin.activeNoteFile ? plugin.activeNoteFile() : null;
+			if (af && af.path && /\.md$/i.test(af.path)
+				&& !(plugin.isStoreFile && plugin.isStoreFile(af.path))) {
+				// ── THE ACTIVE NOTE CHOOSES THE FOLDER ONCE A SESSION ─────────
+				//
+				// Two good rules meet here: a writer mid-scene opens the Organizer
+				// ABOUT that scene, and the window comes back the way it was left.
+				// They are split by the session. The FIRST time this window opens after
+				// Obsidian starts, the note in hand chooses the folder — nothing has
+				// been left anywhere to come back to. Every open after that keeps the
+				// folder the writer was in.
+				//
+				// THE NOTE IS STILL MARKED EITHER WAY — `markOnly` marks and leaves the
+				// scope alone, so "the note I am in is highlighted" survives; it is
+				// only the JUMP that stops.
+				let been = null;
+				try { been = plugin._wsSession ? plugin._wsSession.folder : null; } catch (_) { wsCatch('openManuscriptModal: been = this._wsSession ? this._wsSession.folder : null;', _); }
+				// (and never while pinned: the pin outranks the session's first open)
+				orgFollow({ path: af.path, kind: 'file' }, true, been !== null || !!s.organizerPinned);
+				// (The cursor is already standing on the active note —
+				// the open logic above placed it; one writer.)
+				let dir = folderOf(af.path);
+				// ── …AND IN THE TABLE, WHICH FOLDS ON ITS OWN STORE ──────
+				//
+				// The table folds on `orgOpen`. Keeping the writer's chosen folder
+				// (see `keepScope`) can leave the note nested two levels down inside
+				// it, and a marked row nobody can see is not a mark.
+				//
+				// SET DIRECTLY, NOT THROUGH `orgOpenSet`: that one saves and redraws
+				// on every call, which down a deep path is a write and a repaint per
+				// ancestor, before the first paint has happened. Persisted once below —
+				// and only when an ancestor was shut: every open of the window wrote
+				// data.json whole otherwise, on the pane's rebuild at every plugin load.
+				let opened = 0;
+				while (dir) {
+					if (!orgOpen.has(dir)) { orgOpen.add(dir); opened++; }
+					dir = folderOf(dir);
+				}
+				if (opened) {
+					s.organizerOpen = Array.from(orgOpen);
+					plugin.saveSettings().catch(() => {});
+				}
+			}
+		} catch (_) { wsCatch('openManuscriptModal: const af = this.activeNoteFile ? this.activeNoteFile() : null;', _); }
+	}
 }
 
 export const organizerWindowMethods = {
@@ -1878,8 +2046,9 @@ export const organizerWindowMethods = {
 		// while its own read is in flight. What is not counted is not put,
 		// whoever asked.
 		if (!this.isFileCounted(f)) { wsOrgRemove(this._orgIndex, f.path); return null; }
-		const st = this.analyzeText(text);
-		const tk = this.countTasks(text);
+		// (timed for the diagnostics' slowest readings, every reader of the note in the one timing)
+		const { st, tk, fn, vocab } = wsTimedRead(f.path, 'Organizer', text, () => ({ st: this.analyzeText(text), tk: this.countTasks(text),
+			fn: wsCountFootnotes(text), vocab: this.wordFreqInto(text, null).size }));
 		let props = null;
 		try {
 			const c = this.app.metadataCache.getFileCache(f);
@@ -1894,11 +2063,11 @@ export const organizerWindowMethods = {
 			sentences: st.sentences,
 			// Footnotes — the definitions written in the note and its inline ones,
 			// counted once each.
-			footnotes: wsCountFootnotes(text),
+			footnotes: fn,
 			tasks: tk, grade: st.sentences ? st.grade : undefined,
 			// VOCABULARY (A681, the writer): the note's different words, by the Report's own reader, so the
 			// column and the Report's figure are one number
-			vocab: this.wordFreqInto(text, null).size,
+			vocab,
 			mtime: (wsStatOf(f) || { mtime: 0 }).mtime || 0,
 			ctime: (wsStatOf(f) || { ctime: 0 }).ctime || 0,
 			props
@@ -2802,29 +2971,8 @@ export const organizerWindowMethods = {
 		// already holds the note and moves to the note's folder when it does not.
 		const treeDoor: WsOrgDoor = {
 			kind: host.kind,
-			select: (p: string) => {
-				// PINNED, THE DOOR IS SHUT: a folder clicked in the explorer is the
-				// explorer's business; the pane stays where it was pinned.
-				if (s.organizerPinned) return;
-				// A folder chosen while History is up is the folder's history: the note
-				// it was scoped to is let go. `orgSelect` keeps a note that is under the
-				// folder, which is right for the table's cursor and wrong for a scope.
-				if (tab === 'history') orgScope.orgNote = '';
-				orgSelect(p == null || p === '/' ? '' : String(p));
-			},
-			follow: (p: string) => {
-				if (!p) return;
-				// PINNED: a note the folder holds is still marked; one it does not hold
-				// changes nothing — no jump, no mark outside the pane.
-				if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
-				orgFollow({ kind: 'file', path: String(p) }, true);
-				drawPanel();
-				// THE READER FOLLOWS TOO: click a ticked file in Obsidian's tree and the
-				// reader goes to it.
-				if (exportOpts && exportOpts.jumpTo && tab === 'export') {
-					try { exportOpts.jumpTo(String(p)); } catch (_) { wsCatch('treeDoor.follow: exportOpts.jumpTo(String(p));', _); }
-				}
-			},
+			select: (p: string) => wsOrgDoorSelect({ orgScope, orgSelect, s, tab }, p),
+			follow: (p: string) => wsOrgDoorFollow({ drawPanel, exportOpts, orgFollow, orgScope, s, tab }, p),
 			tab: () => tab,
 			single: () => single,
 			// THE MENUS' DOORS: switch the tab and say which host this is so a pane
@@ -3200,40 +3348,8 @@ export const organizerWindowMethods = {
 			get typing() { return typing; },
 		});
 		const onEscape = orgKeys.onEscape;
-		const onHistKey = (ev: KeyboardEvent) => {
-			if (tab !== 'organizer') return;
-			if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
-			const k = String(ev.key || '').toLowerCase();
-			if (k !== 'z' && k !== 'y') return;
-			const t = ev.target as HTMLElement | null;
-			const doc = ownerDoc();
-			const inPane = t && host.contains(t);
-			const onBody = t === doc.body || t === doc.documentElement;
-			if (!inPane && !onBody) return;
-			if (inPane && t.closest && t.closest('input, textarea, select, [contenteditable="true"], [contenteditable="plaintext-only"]')) return;
-			// A KEY FROM THE BODY — a row was clicked, nothing took the focus —
-			// goes to ONE pane: a leaf's when Obsidian says its leaf is the active
-			// one, a modal's when it is the pane last touched. A last-touched mark
-			// can point at a modal that has since closed, its listener gone with
-			// it, so the leaf is asked of the API first.
-			if (onBody && !orgHistMine()) return;
-			const root = host.rootEl || host.contentEl;
-			if (!root || !doc.body || !doc.body.contains(root)) return;
-			ev.preventDefault();
-			ev.stopPropagation();
-			if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-			void orgHistRun((k === 'y' || ev.shiftKey) ? 'redo' : 'undo');
-		};
-		const orgHistMine = () => {
-			try {
-				if (host.kind === 'leaf' && host.view && host.view.leaf && this.app.workspace) {
-					// The active view, asked of the API (activeLeaf is deprecated): ours
-					// is an ItemView, so the question is whether the active one IS it.
-					return this.app.workspace.getActiveViewOfType(ItemView) === host.view;
-				}
-			} catch (_) { wsCatch('orgHistMine: this.app.workspace.getActiveViewOfType(ItemView) === host.view', _); }
-			return this._orgHistActive === onHistKey;
-		};
+		const onHistKey = (ev: KeyboardEvent) => wsOrgHistKey({ host, orgHistMine, orgHistRun, ownerDoc, tab }, ev);
+		const orgHistMine = () => wsOrgHistMine(this, { host, onHistKey });
 		this._orgHist = orgHistApi;
 		this._orgHistKey = (ev: KeyboardEvent) => onHistKey(ev);
 		this._orgHistActive = onHistKey;
@@ -3272,38 +3388,7 @@ export const organizerWindowMethods = {
 		// THROUGH THE HOST, which chains rather than overwrites: a leaf has
 		// its own teardown to run and a window that replaced it would leave
 		// the pane half-dismantled.
-		host.onClose(() => {
-			// THE DOOR GOES WITH THE WINDOW: a closed window that kept its door
-			// would be chosen into by every folder click.
-			try { this.orgWindowDrop(treeDoor); } catch (_) { wsCatch('openManuscriptModal: this.orgWindowDrop(treeDoor);', _); }
-			try { stopWatching(); } catch (_) { wsCatch('openManuscriptModal: stopWatching();', _); }
-			// THE THIRD ONE. The Escape ladder is on `window`, which means a
-			// window that forgets to unregister it does not merely leak — it
-			// goes on swallowing Escape for a window nobody can see.
-			try { stopEscape(); } catch (_) { wsCatch('openManuscriptModal: stopEscape();', _); }
-			try { if (this._orgHistActive === onHistKey) this._orgHistActive = null; } catch (_) { wsCatch('openManuscriptModal: this._orgHistActive = null;', _); }
-			// AND THE WIDTH WATCHER. A ResizeObserver holds its callback, and
-			// its callback holds this whole window — a pane closed without
-			// this keeps two thousand lines alive and toggles a class on an
-			// element nothing can see, every time the workspace moves.
-			try { orgNav.stopWidth(); } catch (_) { wsCatch('openManuscriptModal: stopWidth();', _); }
-			try { orgNav.stopNav(); } catch (_) { wsCatch('openManuscriptModal: stopNav();', _); }
-			// AND THE INDEX BELL, for the same reason: the index outlives the
-			// window on purpose (it is the plugin's), so a subscription left
-			// behind would redraw a tree nothing can see on every keystroke.
-			try { orgIndexChanged(); } catch (_) { wsCatch('openManuscriptModal: orgIndexChanged();', _); }
-			try { if (orgScope.orgDrawTimer) window.clearTimeout(orgScope.orgDrawTimer); } catch (_) { wsCatch('openManuscriptModal: if (orgDrawTimer) window.clearTimeout(orgDrawTimer);', _); }
-			// AND THE PROPERTIES PANEL, which hangs on the shared body and
-			// would otherwise outlive the window that opened it — with two
-			// capture listeners on the window still eating clicks and Escape.
-			// AND THE SEAM’S OBSERVER, for the reason every other one here is
-			// dropped: it holds a callback that holds this whole window, and it
-			// would go on measuring a table nothing can see.
-			try {
-				if (orgWidths.orgNameRO) { orgWidths.orgNameRO.disconnect(); orgWidths.orgNameRO = null; }
-			} catch (_) { wsCatch('openManuscriptModal: if (orgNameRO) orgNameRO.disconnect();', _); }
-			try { orgPropPopClose(); } catch (_) { wsCatch('openManuscriptModal: orgPropPopClose();', _); }
-		});
+		host.onClose(() => wsOrgWindowClosed(this, { onHistKey, orgIndexChanged, orgNav, orgPropPopClose, orgScope, orgWidths, stopEscape, stopWatching, treeDoor }));
 
 		// SET AT BUILD, not only on a click: the window can OPEN on this tab,
 		// not only switch to it.
@@ -3316,56 +3401,7 @@ export const organizerWindowMethods = {
 		// the arrows continue from there, and its shut ancestors open so the
 		// mark is on screen. Open-time only — arrowing away is not undone by
 		// a redraw, and a pane host keeps the writer's later choices.
-		if (tab === 'organizer') {
-			try {
-				// `activeNoteFile()` — the SAME source the cursor placement
-				// above reads. Two answers to "the note in hand" is how the
-				// mark and the cursor came to stand on different rows.
-				const af = this.activeNoteFile ? this.activeNoteFile() : null;
-				if (af && af.path && /\.md$/i.test(af.path)
-					&& !(this.isStoreFile && this.isStoreFile(af.path))) {
-					// ── THE ACTIVE NOTE CHOOSES THE FOLDER ONCE A SESSION ─────────
-					//
-					// Two good rules meet here: a writer mid-scene opens the Organizer
-					// ABOUT that scene, and the window comes back the way it was left.
-					// They are split by the session. The FIRST time this window opens after
-					// Obsidian starts, the note in hand chooses the folder — nothing has
-					// been left anywhere to come back to. Every open after that keeps the
-					// folder the writer was in.
-					//
-					// THE NOTE IS STILL MARKED EITHER WAY — `markOnly` marks and leaves the
-					// scope alone, so "the note I am in is highlighted" survives; it is
-					// only the JUMP that stops.
-					let been = null;
-					try { been = this._wsSession ? this._wsSession.folder : null; } catch (_) { wsCatch('openManuscriptModal: been = this._wsSession ? this._wsSession.folder : null;', _); }
-					// (and never while pinned: the pin outranks the session's first open)
-					orgFollow({ path: af.path, kind: 'file' }, true, been !== null || !!s.organizerPinned);
-					// (The cursor is already standing on the active note —
-					// the open logic above placed it; one writer.)
-					let dir = folderOf(af.path);
-					// ── …AND IN THE TABLE, WHICH FOLDS ON ITS OWN STORE ──────
-					//
-					// The table folds on `orgOpen`. Keeping the writer's chosen folder
-					// (see `keepScope`) can leave the note nested two levels down inside
-					// it, and a marked row nobody can see is not a mark.
-					//
-					// SET DIRECTLY, NOT THROUGH `orgOpenSet`: that one saves and redraws
-					// on every call, which down a deep path is a write and a repaint per
-					// ancestor, before the first paint has happened. Persisted once below —
-					// and only when an ancestor was shut: every open of the window wrote
-					// data.json whole otherwise, on the pane's rebuild at every plugin load.
-					let opened = 0;
-					while (dir) {
-						if (!orgOpen.has(dir)) { orgOpen.add(dir); opened++; }
-						dir = folderOf(dir);
-					}
-					if (opened) {
-						s.organizerOpen = Array.from(orgOpen);
-						this.saveSettings().catch(() => {});
-					}
-				}
-			} catch (_) { wsCatch('openManuscriptModal: const af = this.activeNoteFile ? this.activeNoteFile() : null;', _); }
-		}
+		wsOrgOpenOnNote(this, { folderOf, orgFollow, orgOpen, s, tab });
 		drawTabs();
 		// …and here too, not only in the tab handler. The window can be OPENED
 		// on any tab — `openManuscriptModal({tab})`, the palette, the bar — and

@@ -53,12 +53,15 @@ export const wsOrgIndex = (): WsOrgIndexMap => new Map();
 // inside one is not a footnote, and the counter that skips code lines
 // (`scanNonProseLines`) is the word counter's; this is a cheap line
 // scan, and the rare fenced `[^x]:` is the price of keeping it so.
+// the text up to its last closer (preamble's wsUpToLast; the pure core imports nothing)
+const orgUpToLast = (s: string, closer: string) => { const k = s.lastIndexOf(closer); return k < 0 ? '' : s.slice(0, k + closer.length); };
 export const wsCountFootnotes = (text: string) => {
 	const s = String(text || '');
 	let n = 0;
 	const defs = s.match(/^[ \t]*\[\^[^\]\s]+\]:/gm);
 	if (defs) n += defs.length;
-	const inl = s.match(/\^\[[^\]\n]+\]/g);
+	// (read up to the last "]", where every one ends: past it a try from every "^[" read to the line's end)
+	const inl = orgUpToLast(s, ']').match(/\^\[[^\]\n]+\]/g);
 	if (inl) n += inl.length;
 	return n;
 };

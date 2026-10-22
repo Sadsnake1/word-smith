@@ -57,13 +57,14 @@ const orgPlan = (path: string, target: number, count: number): WsGoalPlan | null
 // …said: the days left, or Overdue (the day's share, Per day's, gone with the column, A725)
 // THE DEADLINE CELL (A731; A735, the writer: "show the deadline date too and 8d"): the date and the working days left,
 // "20 Oct 2026 · 8d left" (A752, the writer: "in the deadline say the day 8d left"), or one of them as Settings
-// says; Overdue once it has passed
+// says; Overdue once it has passed. THE DAYS FIRST since 2026-10-22 (the writer's pick, "B"): "8d left · 20 Oct 2026",
+// the cell drawing the date after them quieter (orgDeadlineCell)
 const sayDeadline = (due: string, p: WsGoalPlan | null) => {
 	const how = String(d.plugin.settings.orgDeadlineCell || 'both');
 	const date = d.plugin.formatValue('deadline', due, 'date', d.plugin.dateStyle()).text;
 	const days = !p ? '' : p.state === 'overdue' ? wsT('Overdue') : wsT('{days}d left', { days: p.daysLeft });
 	if (how === 'date' || !days) return date;
-	return how === 'days' ? days : date + ' \u00b7 ' + days;
+	return how === 'days' ? days : days + ' \u00b7 ' + date;
 };
 // …and said whole on hover (A705, the writer: "say on hove what per day is for cells"): what the number is for
 // (A731: the deadline cell's own, whichever half it shows: the days left and the date in one sentence)

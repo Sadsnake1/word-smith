@@ -977,7 +977,8 @@ export function wsWatchTheme(plugin: WordSmith) {
 // ONCE THE LAYOUT IS READY: the work that needs the workspace built
 // (lifted out of onload, A488).
 export function wsOnLayoutReady(plugin: WordSmith) {
-	window.setTimeout(() => plugin.startGuardEnd(), 2000);
+	// (not from a plugin unloaded since: after a quick reload it would end the NEW start's guard)
+	window.setTimeout(() => { if (!plugin._unloaded) plugin.startGuardEnd(); }, 2000);
 	if (!plugin.settings.pluginEnabled) return;
 	const t0 = performance.now();
 	plugin.refresh();
@@ -1000,7 +1001,7 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	// costs nothing when the stylesheet was already there — the
 	// refresh is idempotent.
 	window.setTimeout(() => {
-		if (plugin.settings && plugin.settings.pluginEnabled) plugin.refresh();
+		if (!plugin._unloaded && plugin.settings && plugin.settings.pluginEnabled) plugin.refresh();
 	}, 0);
 	try {
 		if (!plugin._loadMarks) plugin._loadMarks = [];
@@ -1073,804 +1074,14 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 	if (plugin.settings.historyTracking) void plugin.historyLoad();
 }
 
-export default class WordSmith extends Plugin {
-	// THE CLASS IS IN MORE THAN ONE FILE: each area's methods are a module's
-	// functions with an explicit `this`, put onto the prototype at the foot of
-	// this file and declared here so the checker knows them. One heading per
-	// module, in the prototype's order.
-	// history.ts
-	declare historyLongDate: HistoryMethods["historyLongDate"];
-	declare historyDateKey: HistoryMethods["historyDateKey"];
-	declare historyEnsure: HistoryMethods["historyEnsure"];
-	declare historyBaselines: HistoryMethods["historyBaselines"];
-	declare historyCompact: HistoryMethods["historyCompact"];
-	declare historyDefaultPath: HistoryMethods["historyDefaultPath"];
-	declare historyStorePath: HistoryMethods["historyStorePath"];
-	declare historyMarkSeen: HistoryMethods["historyMarkSeen"];
-	declare historyIsStoreFile: HistoryMethods["historyIsStoreFile"];
-	declare historyTrackingOn: HistoryMethods["historyTrackingOn"];
-	declare historyFindFile: HistoryMethods["historyFindFile"];
-	declare historyLoad: HistoryMethods["historyLoad"];
-	declare historyNoteChange: HistoryMethods["historyNoteChange"];
-	declare historyCapture: HistoryMethods["historyCapture"];
-	declare historyLiveCount: HistoryMethods["historyLiveCount"];
-	declare historyRecord: HistoryMethods["historyRecord"];
-	declare historyNoteCreated: HistoryMethods["historyNoteCreated"];
-	declare historyNoteOpened: HistoryMethods["historyNoteOpened"];
-	declare historyHold: HistoryMethods["historyHold"];
-	declare historyQueueSave: HistoryMethods["historyQueueSave"];
-	declare historyFlush: HistoryMethods["historyFlush"];
-	declare historyRenamePath: HistoryMethods["historyRenamePath"];
-	declare historyMovedPath: HistoryMethods["historyMovedPath"];
-	declare historyRenameRecord: HistoryMethods["historyRenameRecord"];
-	declare historyForgetPath: HistoryMethods["historyForgetPath"];
-	declare historyDays: HistoryMethods["historyDays"];
-	declare historyPathUnder: HistoryMethods["historyPathUnder"];
-	declare historyKnownPaths: HistoryMethods["historyKnownPaths"];
-	declare historyValue: HistoryMethods["historyValue"];
-	declare historyIsActive: HistoryMethods["historyIsActive"];
-	declare historyShiftKey: HistoryMethods["historyShiftKey"];
-	declare historyFigures: HistoryMethods["historyFigures"];
-	declare historyYears: HistoryMethods["historyYears"];
-	declare historyBody: HistoryMethods["historyBody"];
-	declare historyPathRows: HistoryMethods["historyPathRows"];
-	declare historyCompose: HistoryMethods["historyCompose"];
-	declare historyParse: HistoryMethods["historyParse"];
-	declare historyWrite: HistoryMethods["historyWrite"];
-	declare historyClear: HistoryMethods["historyClear"];
-	declare historyAdopt: HistoryMethods["historyAdopt"];
-	declare historyEl: HistoryMethods["historyEl"];
-	declare crumbLabel: HistoryMethods["crumbLabel"];
-	declare historySvg: HistoryMethods["historySvg"];
-	declare historyBuckets: HistoryMethods["historyBuckets"];
-	declare historyFuzzy: HistoryMethods["historyFuzzy"];
-	declare historyFinderMatches: HistoryMethods["historyFinderMatches"];
-	declare historyOpeningPeriod: HistoryMethods["historyOpeningPeriod"];
-	declare openHistoryModal: HistoryMethods["openHistoryModal"];
-	declare renderHistoryTab: HistoryMethods["renderHistoryTab"];
-	declare historySeriesOn: HistoryMethods["historySeriesOn"];
-	declare historyNiceStep: HistoryMethods["historyNiceStep"];
-	declare historyShortNum: HistoryMethods["historyShortNum"];
-	declare buildHistoryCalendar: HistoryMethods["buildHistoryCalendar"];
-	declare buildHistoryChart: HistoryMethods["buildHistoryChart"];
-	// export.ts
-	declare exportKnownPaths: ExportMethods["exportKnownPaths"];
-	declare exportNearbyScopes: ExportMethods["exportNearbyScopes"];
-	declare exportFinderMatches: ExportMethods["exportFinderMatches"];
-	declare exportGather: ExportMethods["exportGather"];
-	declare exportNatural: ExportMethods["exportNatural"];
-	declare exportApplyRemembered: ExportMethods["exportApplyRemembered"];
-	declare exportMove: ExportMethods["exportMove"];
-	declare exportMoveFolder: ExportMethods["exportMoveFolder"];
-	declare exportFolderOf: ExportMethods["exportFolderOf"];
-	declare exportFolderChain: ExportMethods["exportFolderChain"];
-	declare exportInFolder: ExportMethods["exportInFolder"];
-	declare exportEnsureFolder: ExportMethods["exportEnsureFolder"];
-	declare exportFileName: ExportMethods["exportFileName"];
-	declare exportSections: ExportMethods["exportSections"];
-	declare exportMdImages: ExportMethods["exportMdImages"];
-	declare exportImages: ExportMethods["exportImages"];
-	declare exportImageRead: ExportMethods["exportImageRead"];
-	declare exportToMarkdown: ExportMethods["exportToMarkdown"];
-	declare exportOptionDefaults: ExportMethods["exportOptionDefaults"];
-	declare exportDefaultsOf: ExportMethods["exportDefaultsOf"];
-	declare openExportModal: ExportMethods["openExportModal"];
-	declare exportFiguresText: ExportMethods["exportFiguresText"];
-	declare exportOptsChanged: ExportMethods["exportOptsChanged"];
-	declare exportTickAllSay: ExportMethods["exportTickAllSay"];
-	declare exportReaderClicks: ExportMethods["exportReaderClicks"];
-	declare exportAnchorClicks: ExportMethods["exportAnchorClicks"];
-	declare exportReaderKeys: ExportMethods["exportReaderKeys"];
-	declare openNoteAt: ExportMethods["openNoteAt"];
-	declare exportPreviewInto: ExportMethods["exportPreviewInto"];
-	declare exportPreviewMarkdown: ExportMethods["exportPreviewMarkdown"];
-	declare exportToHtml: ExportMethods["exportToHtml"];
-	declare exportToEpub: ExportMethods["exportToEpub"];
-	declare exportCite: ExportMethods["exportCite"];
-	declare exportEpubCheck: ExportMethods["exportEpubCheck"];
-	declare exportNotice: ExportMethods["exportNotice"];
-	declare exportDefaultScope: ExportMethods["exportDefaultScope"];
-	declare countTasks: ExportMethods["countTasks"];
-	declare tagsOf: ExportMethods["tagsOf"];
-	declare tagsWithSource: ExportMethods["tagsWithSource"];
-	declare exportFillCounts: ExportMethods["exportFillCounts"];
-	declare exportOptsFor: ExportMethods["exportOptsFor"];
-	declare exportTocPagesFor: ExportMethods["exportTocPagesFor"];
-	declare exportPrevColFit: ExportMethods["exportPrevColFit"];
-	declare buildExportAct: ExportMethods["buildExportAct"];
-	declare buildExportOptions: ExportMethods["buildExportOptions"];
-	declare runExport: ExportMethods["runExport"];
-	declare exportPdfOptions: ExportMethods["exportPdfOptions"];
-	declare exportPdfAvailable: ExportMethods["exportPdfAvailable"];
-	declare exportPdfWebview: ExportMethods["exportPdfWebview"];
-	declare exportPdfRender: ExportMethods["exportPdfRender"];
-	// themes.ts
-	declare barThemeById: ThemesMethods["barThemeById"];
-	declare barThemeShelf: ThemesMethods["barThemeShelf"];
-	declare barThemeMove: ThemesMethods["barThemeMove"];
-	declare barThemeHide: ThemesMethods["barThemeHide"];
-	declare barThemeShow: ThemesMethods["barThemeShow"];
-	declare themesPickerItems: ThemesMethods["themesPickerItems"];
-	declare applyBarTheme: ThemesMethods["applyBarTheme"];
-	declare applyThemeClass: ThemesMethods["applyThemeClass"];
-	declare barSelectionInks: ThemesMethods["barSelectionInks"];
-	declare barSelectionInk: ThemesMethods["barSelectionInk"];
-	declare barDeepenSelection: ThemesMethods["barDeepenSelection"];
-	declare barContrast: ThemesMethods["barContrast"];
-	declare barThemeInkify: ThemesMethods["barThemeInkify"];
-	declare barThemeVivify: ThemesMethods["barThemeVivify"];
-	declare barThemeHighlight: ThemesMethods["barThemeHighlight"];
-	declare barThemeCursorInk: ThemesMethods["barThemeCursorInk"];
-	declare barThemeVividFor: ThemesMethods["barThemeVividFor"];
-	declare barSetColorMode: ThemesMethods["barSetColorMode"];
-	declare barThemeGlassRepay: ThemesMethods["barThemeGlassRepay"];
-	declare barThemeGuard: ThemesMethods["barThemeGuard"];
-	declare barThemeUndress: ThemesMethods["barThemeUndress"];
-	declare barThemeOnCssChange: ThemesMethods["barThemeOnCssChange"];
-	declare barThemeVars: ThemesMethods["barThemeVars"];
-	declare themeVarUniverse: ThemesMethods["themeVarUniverse"];
-	declare applyThemeVars: ThemesMethods["applyThemeVars"];
-	declare barThemeHueInk: ThemesMethods["barThemeHueInk"];
-	declare barThemeVimInks: ThemesMethods["barThemeVimInks"];
-	declare barThemeCursorDefaults: ThemesMethods["barThemeCursorDefaults"];
-	declare barThemeCursorCapture: ThemesMethods["barThemeCursorCapture"];
-	declare barThemeCursorRestoreInto: ThemesMethods["barThemeCursorRestoreInto"];
-	declare barThemeCursorSync: ThemesMethods["barThemeCursorSync"];
-	declare barThemeHalf: ThemesMethods["barThemeHalf"];
-	// stores.ts
-	declare goalsFilePath: StoresMethods["goalsFilePath"];
-	declare packsScan: StoresMethods["packsScan"];
-	declare englishPack: StoresMethods["englishPack"];
-	declare uiApply: StoresMethods["uiApply"];
-	declare packsHome: StoresMethods["packsHome"];
-	declare packsChanged: StoresMethods["packsChanged"];
-	declare citeLoad: StoresMethods["citeLoad"];
-	declare citeChanged: StoresMethods["citeChanged"];
-	declare citeRenamed: StoresMethods["citeRenamed"];
-	declare citeLibrary: StoresMethods["citeLibrary"];
-	declare citer: StoresMethods["citer"];
-	declare packActive: StoresMethods["packActive"];
-	declare languageSet: StoresMethods["languageSet"];
-	declare typoLanguageMarks: StoresMethods["typoLanguageMarks"];
-	declare typoMarks: StoresMethods["typoMarks"];
-	declare typoSpaces: StoresMethods["typoSpaces"];
-	declare typoSpaced: StoresMethods["typoSpaced"];
-	declare typoQuotesChoice: StoresMethods["typoQuotesChoice"];
-	declare typoQuotesChoose: StoresMethods["typoQuotesChoose"];
-	declare rhythmTint: ReportMethods["rhythmTint"];
-	declare reportSentences: ReportMethods["reportSentences"];
-	declare reportFolderSentences: ReportMethods["reportFolderSentences"];
-	declare drawReportBars: ReportMethods["drawReportBars"];
-	declare drawReportPace: ReportMethods["drawReportPace"];
-	declare packApply: StoresMethods["packApply"];
-	declare langEngine: StoresMethods["langEngine"];
-	declare catName: StoresMethods["catName"];
-	declare goalsFileCompose: StoresMethods["goalsFileCompose"];
-	declare goalsFileParse: StoresMethods["goalsFileParse"];
-	declare goalsStoreApply: StoresMethods["goalsStoreApply"];
-	declare goalsStoreAdopt: StoresMethods["goalsStoreAdopt"];
-	declare colorsSectionKey: StoresMethods["colorsSectionKey"];
-	declare userColsSectionKey: StoresMethods["userColsSectionKey"];
-	declare userColsStoreApply: StoresMethods["userColsStoreApply"];
-	declare userColsStoreAdopt: StoresMethods["userColsStoreAdopt"];
-	declare colorsStoreApply: StoresMethods["colorsStoreApply"];
-	declare colorsStoreAdopt: StoresMethods["colorsStoreAdopt"];
-	declare goalsStoreWrite: StoresMethods["goalsStoreWrite"];
-	declare goalsSignature: StoresMethods["goalsSignature"];
-	declare goalsFileSync: StoresMethods["goalsFileSync"];
-	declare storeWriteFailed: StoresMethods["storeWriteFailed"];
-	declare storeWriteOk: StoresMethods["storeWriteOk"];
-	declare goalsFileLoad: StoresMethods["goalsFileLoad"];
-	declare settingsMirrorPathFor: StoresMethods["settingsMirrorPathFor"];
-	declare settingsMirrorMachineKeys: StoresMethods["settingsMirrorMachineKeys"];
-	declare settingsMirrorVaultKeys: StoresMethods["settingsMirrorVaultKeys"];
-	declare vaultName: StoresMethods["vaultName"];
-	declare vaultWhole: StoresMethods["vaultWhole"];
-	declare settingsMirrorCompose: StoresMethods["settingsMirrorCompose"];
-	declare settingsMirrorParse: StoresMethods["settingsMirrorParse"];
-	declare settingsMirrorShouldRestore: StoresMethods["settingsMirrorShouldRestore"];
-	declare settingsMirrorRestorable: StoresMethods["settingsMirrorRestorable"];
-	declare settingsMirrorForget: StoresMethods["settingsMirrorForget"];
-	declare settingsMirrorWrite: StoresMethods["settingsMirrorWrite"];
-	declare settingsMirrorSync: StoresMethods["settingsMirrorSync"];
-	declare settingsMirrorRestore: StoresMethods["settingsMirrorRestore"];
-	declare renameGoalPaths: StoresMethods["renameGoalPaths"];
-	declare forgetGoalPaths: StoresMethods["forgetGoalPaths"];
-	declare goalPathStores: StoresMethods["goalPathStores"];
-	declare goalDatesSectionKeys: StoresMethods["goalDatesSectionKeys"];
-	declare goalDatesStoreApply: StoresMethods["goalDatesStoreApply"];
-	declare goalDatesStoreAdopt: StoresMethods["goalDatesStoreAdopt"];
-	declare goalsNothing: StoresMethods["goalsNothing"];
-	declare renameScopePath: StoresMethods["renameScopePath"];
-	declare removeScopePath: StoresMethods["removeScopePath"];
-	declare storeResolve: StoresMethods["storeResolve"];
-	declare storeRenameFollow: StoresMethods["storeRenameFollow"];
-	declare storeFind: StoresMethods["storeFind"];
-	declare goalsFileFind: StoresMethods["goalsFileFind"];
-	declare storeEnsureFolder: StoresMethods["storeEnsureFolder"];
-	declare structurePathNow: StoresMethods["structurePathNow"];
-	declare structureLegacyPaths: StoresMethods["structureLegacyPaths"];
-	declare structureStorePath: StoresMethods["structureStorePath"];
-	declare structureSources: StoresMethods["structureSources"];
-	declare storeRetire: StoresMethods["storeRetire"];
-	declare structureMigrate: StoresMethods["structureMigrate"];
-	declare goalsSectionKey: StoresMethods["goalsSectionKey"];
-	declare structureCompose: StoresMethods["structureCompose"];
-	declare structureParse: StoresMethods["structureParse"];
-	declare structureFind: StoresMethods["structureFind"];
-	declare structureStore: StoresMethods["structureStore"];
-	declare structureCached: StoresMethods["structureCached"];
-	declare structureAdoptSettings: StoresMethods["structureAdoptSettings"];
-	declare structureCleanUp: StoresMethods["structureCleanUp"];
-	declare structureCleanUpSay: StoresMethods["structureCleanUpSay"];
-	declare structureRepair: StoresMethods["structureRepair"];
-	declare vaultReady: StoresMethods["vaultReady"];
-	declare structureRead: StoresMethods["structureRead"];
-	declare structureReadNow: StoresMethods["structureReadNow"];
-	declare structureWriteSection: StoresMethods["structureWriteSection"];
-	declare structureWrite: StoresMethods["structureWrite"];
-	declare structureQueue: StoresMethods["structureQueue"];
-	declare storeHandBack: StoresMethods["storeHandBack"];
-	declare storeBackupPath: StoresMethods["storeBackupPath"];
-	declare citeTerms: StoresMethods["citeTerms"];
-	declare storeBackupWrite: StoresMethods["storeBackupWrite"];
-	declare storeBackupRestore: StoresMethods["storeBackupRestore"];
-	declare structureWriteNow: StoresMethods["structureWriteNow"];
-	declare structureRenamePath: StoresMethods["structureRenamePath"];
-	declare structureForgetPath: StoresMethods["structureForgetPath"];
-	declare structureForgetStore: StoresMethods["structureForgetStore"];
-	declare propStoreHolds: StoresMethods["propStoreHolds"];
-	declare propStoreSection: StoresMethods["propStoreSection"];
-	declare propStorePaths: StoresMethods["propStorePaths"];
-	declare propStoreEncode: StoresMethods["propStoreEncode"];
-	declare propStoreDecode: StoresMethods["propStoreDecode"];
-	declare propStoreAllSync: StoresMethods["propStoreAllSync"];
-	declare propStoreGetSync: StoresMethods["propStoreGetSync"];
-	declare propStoreRowsUnder: StoresMethods["propStoreRowsUnder"];
-	declare propStoreAll: StoresMethods["propStoreAll"];
-	declare propStoreGet: StoresMethods["propStoreGet"];
-	declare propStoreSet: StoresMethods["propStoreSet"];
-	declare structureRenameStore: StoresMethods["structureRenameStore"];
-	declare structureLand: StoresMethods["structureLand"];
-	declare treeOrderKey: StoresMethods["treeOrderKey"];
-	declare treeOrderFor: StoresMethods["treeOrderFor"];
-	declare treeOrderLoad: StoresMethods["treeOrderLoad"];
-	declare treeOrderAdopt: StoresMethods["treeOrderAdopt"];
-	declare structureReload: StoresMethods["structureReload"];
-	declare treeOrderWrite: StoresMethods["treeOrderWrite"];
-	// menu.ts
-	declare menuDrawIcon: MenuMethods["menuDrawIcon"];
-	declare menuFeatureDefs: MenuMethods["menuFeatureDefs"];
-	declare menuIconAlts: MenuMethods["menuIconAlts"];
-	declare menuIconMirrored: MenuMethods["menuIconMirrored"];
-	declare menuIconFor: MenuMethods["menuIconFor"];
-	declare menuLayout: MenuMethods["menuLayout"];
-	declare menuVisibleLayout: MenuMethods["menuVisibleLayout"];
-	declare menuBands: MenuMethods["menuBands"];
-	declare menuIsJoined: MenuMethods["menuIsJoined"];
-	declare menuSetJoined: MenuMethods["menuSetJoined"];
-	declare menuJoinAfter: MenuMethods["menuJoinAfter"];
-	declare menuBreakAt: MenuMethods["menuBreakAt"];
-	declare menuMove: MenuMethods["menuMove"];
-	declare menuHide: MenuMethods["menuHide"];
-	declare menuRestore: MenuMethods["menuRestore"];
-	declare menuAddRule: MenuMethods["menuAddRule"];
-	declare menuIsCommand: MenuMethods["menuIsCommand"];
-	declare menuCommandId: MenuMethods["menuCommandId"];
-	declare menuCommandFor: MenuMethods["menuCommandFor"];
-	declare menuDefaultAlias: MenuMethods["menuDefaultAlias"];
-	declare menuAliasOf: MenuMethods["menuAliasOf"];
-	declare menuCommandName: MenuMethods["menuCommandName"];
-	declare menuPinCommand: MenuMethods["menuPinCommand"];
-	declare menuSetAlias: MenuMethods["menuSetAlias"];
-	declare menuUnpin: MenuMethods["menuUnpin"];
-	declare menuRuleStyle: MenuMethods["menuRuleStyle"];
-	declare menuSetRuleStyle: MenuMethods["menuSetRuleStyle"];
-	declare menuDeleteRule: MenuMethods["menuDeleteRule"];
-	declare menuRowSpecs: MenuMethods["menuRowSpecs"];
-	declare registerMenuPanel: MenuMethods["registerMenuPanel"];
-	declare rememberMenuPanelSpot: MenuMethods["rememberMenuPanelSpot"];
-	declare restoreMenuPanelSpot: MenuMethods["restoreMenuPanelSpot"];
-	declare menuPanelLeaves: MenuMethods["menuPanelLeaves"];
-	declare openOwnSettings: MenuMethods["openOwnSettings"];
-	declare reviveMenuPanel: MenuMethods["reviveMenuPanel"];
-	declare openMenuPanel: MenuMethods["openMenuPanel"];
-	declare closeMenuPanel: MenuMethods["closeMenuPanel"];
-	declare refreshMenuPanels: MenuMethods["refreshMenuPanels"];
-	declare rebuildMenuPanels: MenuMethods["rebuildMenuPanels"];
-	declare refreshMenuPanelsNow: MenuMethods["refreshMenuPanelsNow"];
-	declare openBarMenu: MenuMethods["openBarMenu"];
-	// bar.ts
-	declare barGeometry: BarMethods["barGeometry"];
-	declare barPeekArmed: BarMethods["barPeekArmed"];
-	declare syncBarPeekState: BarMethods["syncBarPeekState"];
-	declare onPointerForBarPeek: BarMethods["onPointerForBarPeek"];
-	declare beginBarPeek: BarMethods["beginBarPeek"];
-	declare scheduleBarPeekEnd: BarMethods["scheduleBarPeekEnd"];
-	declare endBarPeek: BarMethods["endBarPeek"];
-	declare setBarPeekClass: BarMethods["setBarPeekClass"];
-	declare getBarPresets: BarMethods["getBarPresets"];
-	declare saveBarPreset: BarMethods["saveBarPreset"];
-	declare loadBarPreset: BarMethods["loadBarPreset"];
-	declare applyBarSnapshot: BarMethods["applyBarSnapshot"];
-	declare cycleBarPreset: BarMethods["cycleBarPreset"];
-	declare deleteBarPreset: BarMethods["deleteBarPreset"];
-	declare importBarPreset: BarMethods["importBarPreset"];
-	declare fitSections: BarMethods["fitSections"];
-	declare clearFitHidden: BarMethods["clearFitHidden"];
-	declare fitClassOf: BarMethods["fitClassOf"];
-	declare fitCandidates: BarMethods["fitCandidates"];
-	declare fadeCandidates: BarMethods["fadeCandidates"];
-	declare sectionContentWidth: BarMethods["sectionContentWidth"];
-	declare rowContentFits: BarMethods["rowContentFits"];
-	declare fitStatusRow: BarMethods["fitStatusRow"];
-	declare fitStatusBar: BarMethods["fitStatusBar"];
-	declare barBorderStyle: BarMethods["barBorderStyle"];
-	declare barRuleIsHair: BarMethods["barRuleIsHair"];
-	declare barBottomRuleOn: BarMethods["barBottomRuleOn"];
-	declare barRuleWidths: BarMethods["barRuleWidths"];
-	declare barRuleVars: BarMethods["barRuleVars"];
-	declare barPadding: BarMethods["barPadding"];
-	declare snappedRowHeight: BarMethods["snappedRowHeight"];
-	declare barBottomGapPx: BarMethods["barBottomGapPx"];
-	declare vimPanelReserve: BarMethods["vimPanelReserve"];
-	declare vimGutterHeight: BarMethods["vimGutterHeight"];
-	declare barSurfaceColor: BarMethods["barSurfaceColor"];
-	declare resolveBarDirective: BarMethods["resolveBarDirective"];
-	declare barIsHidden: BarMethods["barIsHidden"];
-	declare retroBarActive: BarMethods["retroBarActive"];
-	declare updateStatusBar: BarMethods["updateStatusBar"];
-	declare startClockTick: BarMethods["startClockTick"];
-	declare stopClockTick: BarMethods["stopClockTick"];
-	declare refreshBattery: BarMethods["refreshBattery"];
-	declare setupBattery: BarMethods["setupBattery"];
-	declare formatBattery: BarMethods["formatBattery"];
-	declare hexToRgba: BarMethods["hexToRgba"];
-	declare dateParts: BarMethods["dateParts"];
-	declare buildObsidianIcon: BarMethods["buildObsidianIcon"];
-	declare buildClockFace: BarMethods["buildClockFace"];
-	declare formatTime: BarMethods["formatTime"];
-	declare getStatusRows: BarMethods["getStatusRows"];
-	declare getAllModes: BarMethods["getAllModes"];
-	declare getActiveModes: BarMethods["getActiveModes"];
-	declare getModeLabel: BarMethods["getModeLabel"];
-	declare openBarPicker: BarMethods["openBarPicker"];
-	declare refreshBarPicker: BarMethods["refreshBarPicker"];
-	declare closeBarPicker: BarMethods["closeBarPicker"];
-	declare plUnit: BarMethods["plUnit"];
-	declare barTokenFormat: BarMethods["barTokenFormat"];
-	declare barTokenIconOn: BarMethods["barTokenIconOn"];
-	declare barTokenIconName: BarMethods["barTokenIconName"];
-	declare barTokenPaint: BarMethods["barTokenPaint"];
-	declare buildBarButton: BarMethods["buildBarButton"];
-	declare buildHistoryIndicator: BarMethods["buildHistoryIndicator"];
-	declare buildExportIndicator: BarMethods["buildExportIndicator"];
-	declare buildSettingsIndicator: BarMethods["buildSettingsIndicator"];
-	declare buildPowermenuIndicator: BarMethods["buildPowermenuIndicator"];
-	declare buildOutlinerIndicator: BarMethods["buildOutlinerIndicator"];
-	declare flagColor: BarMethods["flagColor"];
-	declare buildFlagIndicator: BarMethods["buildFlagIndicator"];
-	declare propsCountOf: BarMethods["propsCountOf"];
-	declare openPropertiesView: BarMethods["openPropertiesView"];
-	declare buildPropsIndicator: BarMethods["buildPropsIndicator"];
-	declare barCountPaint: BarMethods["barCountPaint"];
-	declare buildBacklinksIndicator: BarMethods["buildBacklinksIndicator"];
-	declare buildReportIndicator: BarMethods["buildReportIndicator"];
-	declare barScope: BarMethods["barScope"];
-	declare buildThemeIndicator: BarMethods["buildThemeIndicator"];
-	declare buildFontIndicator: BarMethods["buildFontIndicator"];
-	declare fontPickerItems: BarMethods["fontPickerItems"];
-	declare openFontPicker: BarMethods["openFontPicker"];
-	declare openThemePicker: BarMethods["openThemePicker"];
-	declare getSyntaxCategories: BarMethods["getSyntaxCategories"];
-	declare buildSyntaxIndicator: BarMethods["buildSyntaxIndicator"];
-	declare syntaxPickerItems: BarMethods["syntaxPickerItems"];
-	declare openSyntaxPicker: BarMethods["openSyntaxPicker"];
-	declare buildKeyGlyph: BarMethods["buildKeyGlyph"];
-	declare buildCapsIndicator: BarMethods["buildCapsIndicator"];
-	declare buildNumIndicator: BarMethods["buildNumIndicator"];
-	declare getWriteChecks: BarMethods["getWriteChecks"];
-	declare buildWriteChecksIndicator: BarMethods["buildWriteChecksIndicator"];
-	declare checksPickerItems: BarMethods["checksPickerItems"];
-	declare openWriteChecksPicker: BarMethods["openWriteChecksPicker"];
-	declare buildMarkersIndicator: BarMethods["buildMarkersIndicator"];
-	declare markersPickerItems: BarMethods["markersPickerItems"];
-	declare openMarkersPicker: BarMethods["openMarkersPicker"];
-	declare openPickerLive: BarMethods["openPickerLive"];
-	declare buildModeGlyph: BarMethods["buildModeGlyph"];
-	declare buildModeIndicator: BarMethods["buildModeIndicator"];
-	declare modesPickerItems: BarMethods["modesPickerItems"];
-	declare openModesPicker: BarMethods["openModesPicker"];
-	declare getLineColumn: BarMethods["getLineColumn"];
-	declare headingTrail: BarMethods["headingTrail"];
-	declare getBacklinkCount: BarMethods["getBacklinkCount"];
-	declare barGoalNow: BarMethods["barGoalNow"];
-	declare goalFolderCount: BarMethods["goalFolderCount"];
-	declare barGoalSay: BarMethods["barGoalSay"];
-	declare buildGoalTokenEl: BarMethods["buildGoalTokenEl"];
-	declare openGoalPanel: BarMethods["openGoalPanel"];
-	declare wpmMeter: BarMethods["wpmMeter"];
-	declare wpmTyped: BarMethods["wpmTyped"];
-	declare wpmReading: BarMethods["wpmReading"];
-	declare wpmMomentum: BarMethods["wpmMomentum"];
-	declare wpmSay: BarMethods["wpmSay"];
-	declare buildWpmTokenEl: BarMethods["buildWpmTokenEl"];
-	declare wpmPaint: BarMethods["wpmPaint"];
-	declare wpmTickStart: BarMethods["wpmTickStart"];
-	declare wpmTick: BarMethods["wpmTick"];
-	declare wpmTickStop: BarMethods["wpmTickStop"];
-	declare wpmDayToday: BarMethods["wpmDayToday"];
-	declare wpmReset: BarMethods["wpmReset"];
-	declare dailyWordsToday: BarMethods["dailyWordsToday"];
-	declare dailyWordsWanted: BarMethods["dailyWordsWanted"];
-	declare dailyWordsSeen: BarMethods["dailyWordsSeen"];
-	declare dailyWordsTotal: BarMethods["dailyWordsTotal"];
-	declare dailyWordsRaw: BarMethods["dailyWordsRaw"];
-	declare dailyWordsPending: BarMethods["dailyWordsPending"];
-	declare dailyWordsReset: BarMethods["dailyWordsReset"];
-	declare openDailyPanel: BarMethods["openDailyPanel"];
-	declare closeDailyPanel: BarMethods["closeDailyPanel"];
-	declare dailyWordsSay: BarMethods["dailyWordsSay"];
-	declare dailyWordsRename: BarMethods["dailyWordsRename"];
-	declare buildDailyGoalTokenEl: BarMethods["buildDailyGoalTokenEl"];
-	declare dailyWordsQueueSave: BarMethods["dailyWordsQueueSave"];
-	declare dailyWordsFlush: BarMethods["dailyWordsFlush"];
-	declare closeGoalPanel: BarMethods["closeGoalPanel"];
-	declare formatCount: BarMethods["formatCount"];
-	declare formatReadTime: BarMethods["formatReadTime"];
-	declare getVimModeKey: BarMethods["getVimModeKey"];
-	declare getVimModeLabel: BarMethods["getVimModeLabel"];
-	declare updateRetroStatusBar: BarMethods["updateRetroStatusBar"];
-	declare powerlineColors: BarMethods["powerlineColors"];
-	declare powerlineTextColor: BarMethods["powerlineTextColor"];
-	declare powerlineInk: BarMethods["powerlineInk"];
-	declare parsePowerlineSegments: BarMethods["parsePowerlineSegments"];
-	declare powerlineSegColor: BarMethods["powerlineSegColor"];
-	declare powerlineSegInk: BarMethods["powerlineSegInk"];
-	declare headingTrailText: BarMethods["headingTrailText"];
-	declare themedKey: BarMethods["themedKey"];
-	declare buildSoftChevron: BarMethods["buildSoftChevron"];
-	declare buildSoftMark: BarMethods["buildSoftMark"];
-	declare buildPowerlineSep: BarMethods["buildPowerlineSep"];
-	declare themeSurfaceColor: BarMethods["themeSurfaceColor"];
-	declare colorProbeEl: BarMethods["colorProbeEl"];
-	declare cursorSmithSettings: BarMethods["cursorSmithSettings"];
-	declare cursorSmithPlugin: BarMethods["cursorSmithPlugin"];
-	declare cursorPresetNames: BarMethods["cursorPresetNames"];
-	declare cursorsPickerItems: BarMethods["cursorsPickerItems"];
-	declare langPickerItems: BarMethods["langPickerItems"];
-	declare buildLangIndicator: BarMethods["buildLangIndicator"];
-	declare cursorLoadPreset: BarMethods["cursorLoadPreset"];
-	declare openCursorsPicker: BarMethods["openCursorsPicker"];
-	declare buildCursorsIndicator: BarMethods["buildCursorsIndicator"];
-	declare buildDarkLightIndicator: BarMethods["buildDarkLightIndicator"];
-	declare cursorSmithVimColor: BarMethods["cursorSmithVimColor"];
-	declare vimModeColor: BarMethods["vimModeColor"];
-	declare cursorColor: BarMethods["cursorColor"];
-	declare markLitSlots: BarMethods["markLitSlots"];
-	declare caretLiveColor: BarMethods["caretLiveColor"];
-	declare caretLiveSync: BarMethods["caretLiveSync"];
-	declare caretLiveWatch: BarMethods["caretLiveWatch"];
-	declare renderPowerlineSection: BarMethods["renderPowerlineSection"];
-	declare renderStatusSection: BarMethods["renderStatusSection"];
-	declare headingCrumbCount: BarMethods["headingCrumbCount"];
-	declare requestBarRebuild: BarMethods["requestBarRebuild"];
-	declare scheduleFit: BarMethods["scheduleFit"];
-	declare fitStatusBarText: BarMethods["fitStatusBarText"];
-	declare fitAfterLayout: BarMethods["fitAfterLayout"];
-	declare stampBarReserve: BarMethods["stampBarReserve"];
-	declare clearBarBounds: BarMethods["clearBarBounds"];
-	declare stampBarBounds: BarMethods["stampBarBounds"];
-	// report.ts
-	declare stripFrontmatter: ReportMethods["stripFrontmatter"];
-	declare countProse: ReportMethods["countProse"];
-	declare wordFreqInto: ReportMethods["wordFreqInto"];
-	declare topWords: ReportMethods["topWords"];
-	declare wordFreqFor: ReportMethods["wordFreqFor"];
-	declare analyzeText: ReportMethods["analyzeText"];
-	declare gradeOfTotal: ReportMethods["gradeOfTotal"];
-	declare addReadSums: ReportMethods["addReadSums"];
-	declare countWords: ReportMethods["countWords"];
-	declare getDocStats: ReportMethods["getDocStats"];
-	declare getNonProseLines: ReportMethods["getNonProseLines"];
-	declare getParagraphLines: ReportMethods["getParagraphLines"];
-	declare getParagraphInfo: ReportMethods["getParagraphInfo"];
-	declare activeFolderPath: ReportMethods["activeFolderPath"];
-	declare fileGoalFor: ReportMethods["fileGoalFor"];
-	declare folderTargetFor: ReportMethods["folderTargetFor"];
-	declare goalDeadlineFor: ReportMethods["goalDeadlineFor"];
-	declare goalCount: ReportMethods["goalCount"];
-	declare goalResolve: ReportMethods["goalResolve"];
-	declare goalFollow: ReportMethods["goalFollow"];
-	declare goalFolderAbove: ReportMethods["goalFolderAbove"];
-	declare goalStartOf: ReportMethods["goalStartOf"];
-	declare goalDayToday: ReportMethods["goalDayToday"];
-	declare goalPlanOf: ReportMethods["goalPlanOf"];
-	declare filesInFolder: ReportMethods["filesInFolder"];
-	declare analyzeFolder: ReportMethods["analyzeFolder"];
-	declare buildGoalLiquid: ReportMethods["buildGoalLiquid"];
-	declare _rgbToHsl: ReportMethods["_rgbToHsl"];
-	declare scopeFinderMatches: ReportMethods["scopeFinderMatches"];
-	declare scopeNoteCount: ReportMethods["scopeNoteCount"];
-	declare openReportModal: ReportMethods["openReportModal"];
-	declare buildReportFigures: ReportMethods["buildReportFigures"];
-	declare buildReportWords: ReportMethods["buildReportWords"];
-	// organizer-window.ts
-	declare fileMenuReportRow: OrganizerWindowMethods["fileMenuReportRow"];
-	declare fileMenuFor: OrganizerWindowMethods["fileMenuFor"];
-	declare propColId: OrganizerWindowMethods["propColId"];
-	declare propColKey: OrganizerWindowMethods["propColKey"];
-	declare propRaw: OrganizerWindowMethods["propRaw"];
-	declare propText: OrganizerWindowMethods["propText"];
-	declare propTitle: OrganizerWindowMethods["propTitle"];
-	declare propLooksLikeDate: OrganizerWindowMethods["propLooksLikeDate"];
-	declare propSortAs: OrganizerWindowMethods["propSortAs"];
-	declare uniTagsOf: OrganizerWindowMethods["uniTagsOf"];
-	declare uniTagsInScope: OrganizerWindowMethods["uniTagsInScope"];
-	declare uniTypeGroups: OrganizerWindowMethods["uniTypeGroups"];
-	declare uniTypeGroupOf: OrganizerWindowMethods["uniTypeGroupOf"];
-	declare uniTypeSet: OrganizerWindowMethods["uniTypeSet"];
-	declare uniTypeAllows: OrganizerWindowMethods["uniTypeAllows"];
-	declare touchDrag: OrganizerWindowMethods["touchDrag"];
-	declare modalHost: OrganizerWindowMethods["modalHost"];
-	declare orgIndexEnsure: OrganizerWindowMethods["orgIndexEnsure"];
-	declare orgIndexResweep: OrganizerWindowMethods["orgIndexResweep"];
-	declare orgIndexVaultHasNotes: OrganizerWindowMethods["orgIndexVaultHasNotes"];
-	declare orgIndexCountedSig: OrganizerWindowMethods["orgIndexCountedSig"];
-	declare orgIndexStoreKnown: OrganizerWindowMethods["orgIndexStoreKnown"];
-	declare orgIndexOnChange: OrganizerWindowMethods["orgIndexOnChange"];
-	declare _orgIndexRing: OrganizerWindowMethods["_orgIndexRing"];
-	declare orgIndexSweep: OrganizerWindowMethods["orgIndexSweep"];
-	declare orgIndexRead: OrganizerWindowMethods["orgIndexRead"];
-	declare _orgIndexWatch: OrganizerWindowMethods["_orgIndexWatch"];
-	declare orgPropWrite: OrganizerWindowMethods["orgPropWrite"];
-	declare orgPropTypeChosen: OrganizerWindowMethods["orgPropTypeChosen"];
-	declare orgPropType: OrganizerWindowMethods["orgPropType"];
-	declare dateText: OrganizerWindowMethods["dateText"];
-	declare dateStyle: OrganizerWindowMethods["dateStyle"];
-	declare orgStamp: OrganizerWindowMethods["orgStamp"];
-	declare formatValue: OrganizerWindowMethods["formatValue"];
-	declare orgKnownProps: OrganizerWindowMethods["orgKnownProps"];
-	declare orgWordsOf: OrganizerWindowMethods["orgWordsOf"];
-	declare orgAggUnder: OrganizerWindowMethods["orgAggUnder"];
-	declare orgDistinctUnder: OrganizerWindowMethods["orgDistinctUnder"];
-	declare orgCountsUnder: OrganizerWindowMethods["orgCountsUnder"];
-	declare openManuscriptModal: OrganizerWindowMethods["openManuscriptModal"];
-	declare orgFolderIcon: OrganizerWindowMethods["orgFolderIcon"];
-	declare orgTargetSay: OrganizerWindowMethods["orgTargetSay"];
-	declare orgKindIcon: OrganizerWindowMethods["orgKindIcon"];
-	declare orgKindTag: OrganizerWindowMethods["orgKindTag"];
-	declare orgDrawExport: OrganizerWindowMethods["orgDrawExport"];
-	declare orgDrawHistory: OrganizerWindowMethods["orgDrawHistory"];
-	declare orgTableMake: OrganizerWindowMethods["orgTableMake"];
-	declare orgWindows: OrganizerWindowMethods["orgWindows"];
-	declare orgWindowAdd: OrganizerWindowMethods["orgWindowAdd"];
-	declare orgWindowDrop: OrganizerWindowMethods["orgWindowDrop"];
-	declare orgTicksDoor: OrganizerWindowMethods["orgTicksDoor"];
-	declare orgTicksWanted: OrganizerWindowMethods["orgTicksWanted"];
-	declare orgTicksSchedule: OrganizerWindowMethods["orgTicksSchedule"];
-	declare orgTicksRows: OrganizerWindowMethods["orgTicksRows"];
-	declare orgTicksRepaint: OrganizerWindowMethods["orgTicksRepaint"];
-	declare orgTicksClear: OrganizerWindowMethods["orgTicksClear"];
-	declare orgOpenAt: OrganizerWindowMethods["orgOpenAt"];
-	declare orgReveal: OrganizerWindowMethods["orgReveal"];
-	declare fileMenuOrganizerRows: OrganizerWindowMethods["fileMenuOrganizerRows"];
-	declare orgDoorFor: OrganizerWindowMethods["orgDoorFor"];
-	declare orgOpenTab: OrganizerWindowMethods["orgOpenTab"];
-	declare filesMenuFor: OrganizerWindowMethods["filesMenuFor"];
-	declare orgTreeSelect: OrganizerWindowMethods["orgTreeSelect"];
-	declare orgTreeFollow: OrganizerWindowMethods["orgTreeFollow"];
-	declare orgTreeHookAttach: OrganizerWindowMethods["orgTreeHookAttach"];
-	declare orgTreeHookDetach: OrganizerWindowMethods["orgTreeHookDetach"];
-	declare leafHost: OrganizerWindowMethods["leafHost"];
-	declare registerOutlinerPane: OrganizerWindowMethods["registerOutlinerPane"];
-	declare outlinerPaneLeaves: OrganizerWindowMethods["outlinerPaneLeaves"];
-	declare openOutlinerPane: OrganizerWindowMethods["openOutlinerPane"];
-	declare openOutlinerPopout: OrganizerWindowMethods["openOutlinerPopout"];
-	// tree.ts
-	declare flagDefs: TreeMethods["flagDefs"];
-	declare flagCount: TreeMethods["flagCount"];
-	declare flagsApply: TreeMethods["flagsApply"];
-	declare onTreeOrderChange: TreeMethods["onTreeOrderChange"];
-	declare onTreeCountsChange: TreeMethods["onTreeCountsChange"];
-	declare treeCountsChanged: TreeMethods["treeCountsChanged"];
-	declare treeShapeChanged: TreeMethods["treeShapeChanged"];
-	declare treeOrderChanged: TreeMethods["treeOrderChanged"];
-	declare treeMoveInto: TreeMethods["treeMoveInto"];
-	declare outlinerNewParent: TreeMethods["outlinerNewParent"];
-	declare outlinerFreeName: TreeMethods["outlinerFreeName"];
-	declare outlinerJoinOrder: TreeMethods["outlinerJoinOrder"];
-	declare outlinerAddNote: TreeMethods["outlinerAddNote"];
-	declare outlinerAddFolder: TreeMethods["outlinerAddFolder"];
-	declare confirmDelete: TreeMethods["confirmDelete"];
-	declare outlinerRenameParts: TreeMethods["outlinerRenameParts"];
-	declare outlinerRenameTo: TreeMethods["outlinerRenameTo"];
-	declare outlinerRowMenu: TreeMethods["outlinerRowMenu"];
-	declare treeMoveUndo: TreeMethods["treeMoveUndo"];
-	declare explorerSortWanted: TreeMethods["explorerSortWanted"];
-	declare explorerViews: TreeMethods["explorerViews"];
-	declare treeOrderCurrent: TreeMethods["treeOrderCurrent"];
-	declare treeOrderMove: TreeMethods["treeOrderMove"];
-	declare treeDragZone: TreeMethods["treeDragZone"];
-	declare treeStopSpringLoad: TreeMethods["treeStopSpringLoad"];
-	declare treeDropAim: TreeMethods["treeDropAim"];
-	declare explorerRecordsMatter: TreeMethods["explorerRecordsMatter"];
-	declare explorerWanted: TreeMethods["explorerWanted"];
-	declare treeMarksBox: TreeMethods["treeMarksBox"];
-	declare treeTasksOf: TreeMethods["treeTasksOf"];
-	declare treeTasksUnder: TreeMethods["treeTasksUnder"];
-	declare treeCountIndex: TreeMethods["treeCountIndex"];
-	declare patchExplorerSortMenu: TreeMethods["patchExplorerSortMenu"];
-	declare attachSortMenuRow: TreeMethods["attachSortMenuRow"];
-	declare addSortMenuRow: TreeMethods["addSortMenuRow"];
-	declare armSortMenuApi: TreeMethods["armSortMenuApi"];
-	declare addSortMenuItem: TreeMethods["addSortMenuItem"];
-	declare unpatchExplorerSortMenu: TreeMethods["unpatchExplorerSortMenu"];
-	declare patchExplorerSort: TreeMethods["patchExplorerSort"];
-	declare unpatchExplorerSort: TreeMethods["unpatchExplorerSort"];
-	declare repaintExplorerOrder: TreeMethods["repaintExplorerOrder"];
-	declare sortFolderItems: TreeMethods["sortFolderItems"];
-	declare attachTreeDrag: TreeMethods["attachTreeDrag"];
-	declare paintTreeDrop: TreeMethods["paintTreeDrop"];
-	declare attachExplorerObserver: TreeMethods["attachExplorerObserver"];
-	declare detachExplorerObserver: TreeMethods["detachExplorerObserver"];
-	declare repaintExplorerFlag: TreeMethods["repaintExplorerFlag"];
-	declare scheduleExplorerPatch: TreeMethods["scheduleExplorerPatch"];
-	declare patchExplorerDOM: TreeMethods["patchExplorerDOM"];
-	declare paintExplorerSortIcon: TreeMethods["paintExplorerSortIcon"];
-	declare paintExplorerRoots: TreeMethods["paintExplorerRoots"];
-	declare paintExplorerTasks: TreeMethods["paintExplorerTasks"];
-	declare paintExplorerFolderColours: TreeMethods["paintExplorerFolderColours"];
-	declare paintExplorerKindIcons: TreeMethods["paintExplorerKindIcons"];
-	declare paintExplorerFolderIcons: TreeMethods["paintExplorerFolderIcons"];
-	declare applyFileWordCount: TreeMethods["applyFileWordCount"];
-	declare applyFolderSums: TreeMethods["applyFolderSums"];
-	declare applyOutlineWordCounts: TreeMethods["applyOutlineWordCounts"];
-	declare setFlagBadge: TreeMethods["setFlagBadge"];
-	declare setCountBadge: TreeMethods["setCountBadge"];
-	declare removeWordCounts: TreeMethods["removeWordCounts"];
-	// focus.ts
-	declare chromeFloorY: FocusMethods["chromeFloorY"];
-	declare caretMargin: FocusMethods["caretMargin"];
-	declare caretFloorY: FocusMethods["caretFloorY"];
-	declare caretCeilingY: FocusMethods["caretCeilingY"];
-	declare chromeCeilingY: FocusMethods["chromeCeilingY"];
-	declare mainTitlebarEl: FocusMethods["mainTitlebarEl"];
-	declare pageModeShown: FocusMethods["pageModeShown"];
-	declare pageViewWanted: FocusMethods["pageViewWanted"];
-	declare togglePageQuick: FocusMethods["togglePageQuick"];
-	declare maskEdge: FocusMethods["maskEdge"];
-	declare tagMainTitlebar: FocusMethods["tagMainTitlebar"];
-	declare shouldHideScrollBar: FocusMethods["shouldHideScrollBar"];
-	declare shouldHideNativeStatusBar: FocusMethods["shouldHideNativeStatusBar"];
-	declare letterboxColors: FocusMethods["letterboxColors"];
-	declare toggleZen: FocusMethods["toggleZen"];
-	declare toggleZenFromBar: FocusMethods["toggleZenFromBar"];
-	declare toggleZenMode: FocusMethods["toggleZenMode"];
-	declare toggleFullPlugin: FocusMethods["toggleFullPlugin"];
-	declare zenOn: FocusMethods["zenOn"];
-	declare quickPanelSplit: FocusMethods["quickPanelSplit"];
-	declare quickCycleCurrentLeaf: FocusMethods["quickCycleCurrentLeaf"];
-	declare quickCycleVisibleLeaves: FocusMethods["quickCycleVisibleLeaves"];
-	declare quickCycleTarget: FocusMethods["quickCycleTarget"];
-	declare quickCycleSidebarLeaves: FocusMethods["quickCycleSidebarLeaves"];
-	declare quickCycleEnterSidebar: FocusMethods["quickCycleEnterSidebar"];
-	declare focusLeafDom: FocusMethods["focusLeafDom"];
-	declare revealAndFocusLeaf: FocusMethods["revealAndFocusLeaf"];
-	declare quickCycleVimKey: FocusMethods["quickCycleVimKey"];
-	declare revealInSidebarView: FocusMethods["revealInSidebarView"];
-	declare quickCycleFocus: FocusMethods["quickCycleFocus"];
-	declare quickCycleCloseBehind: FocusMethods["quickCycleCloseBehind"];
-	declare quickCycleMove: FocusMethods["quickCycleMove"];
-	declare sidebarSideFor: FocusMethods["sidebarSideFor"];
-	declare openSidebarPanel: FocusMethods["openSidebarPanel"];
-	declare toggleQuickPanel: FocusMethods["toggleQuickPanel"];
-	declare setSidebarVisibility: FocusMethods["setSidebarVisibility"];
-	declare zenPeekMove: FocusMethods["zenPeekMove"];
-	declare zenPeekBusy: FocusMethods["zenPeekBusy"];
-	declare zenPeekAway: FocusMethods["zenPeekAway"];
-	declare zenPeekEnd: FocusMethods["zenPeekEnd"];
-	declare syncSurfaceSidebars: FocusMethods["syncSurfaceSidebars"];
-	declare getTabContainerFromLeaf: FocusMethods["getTabContainerFromLeaf"];
-	declare revealPinnedTabIfExists: FocusMethods["revealPinnedTabIfExists"];
-	declare _focusTabRemember: FocusMethods["_focusTabRemember"];
-	declare _focusTabRestore: FocusMethods["_focusTabRestore"];
-	declare findActiveTabContainerFromDOM: FocusMethods["findActiveTabContainerFromDOM"];
-	declare updateFocusedFileMode: FocusMethods["updateFocusedFileMode"];
-	declare updateWorkspaceAesthetics: FocusMethods["updateWorkspaceAesthetics"];
-	declare removeMaskElements: FocusMethods["removeMaskElements"];
-	declare zenActive: FocusMethods["zenActive"];
-	declare letterboxActive: FocusMethods["letterboxActive"];
-	declare isReadingView: FocusMethods["isReadingView"];
-	declare getConfiguredFonts: FocusMethods["getConfiguredFonts"];
-	declare systemFontNames: FocusMethods["systemFontNames"];
-	declare fontIsInstalled: FocusMethods["fontIsInstalled"];
-	declare fontFinderMatches: FocusMethods["fontFinderMatches"];
-	declare ensureSystemFonts: FocusMethods["ensureSystemFonts"];
-	declare applyEditorFont: FocusMethods["applyEditorFont"];
-	declare typewriterScroll: FocusMethods["typewriterScroll"];
-	declare typewriterRequest: FocusMethods["typewriterRequest"];
-	declare typewriterAnchorRatio: FocusMethods["typewriterAnchorRatio"];
-	declare hemingwaySay: FocusMethods["hemingwaySay"];
-	declare buildMaskElements: FocusMethods["buildMaskElements"];
-	declare titlebarAreaHeight: FocusMethods["titlebarAreaHeight"];
-	declare checkZoomChange: FocusMethods["checkZoomChange"];
-	declare afterReflow: FocusMethods["afterReflow"];
-	declare zoomFactor: FocusMethods["zoomFactor"];
-	declare isMobileApp: FocusMethods["isMobileApp"];
-	declare isIosApp: FocusMethods["isIosApp"];
-	declare maskTopClip: FocusMethods["maskTopClip"];
-	declare stampMaskPositions: FocusMethods["stampMaskPositions"];
-	declare scheduleMaskPosition: FocusMethods["scheduleMaskPosition"];
-	declare buildArrowLayer: FocusMethods["buildArrowLayer"];
-	declare _startPointerDrag: FocusMethods["_startPointerDrag"];
-	declare _maskMaxPx: FocusMethods["_maskMaxPx"];
-	declare _startVerticalDrag: FocusMethods["_startVerticalDrag"];
-	declare _startHorizontalDrag: FocusMethods["_startHorizontalDrag"];
-	declare _letterboxWords: FocusMethods["_letterboxWords"];
-	declare buildSideHandle: FocusMethods["buildSideHandle"];
-	declare _lbChPx: FocusMethods["_lbChPx"];
-	declare _lbLinePx: FocusMethods["_lbLinePx"];
-	declare _lbCaretTop: FocusMethods["_lbCaretTop"];
-	declare _lbChars: FocusMethods["_lbChars"];
-	declare _lbReadout: FocusMethods["_lbReadout"];
-	declare _lbReadoutEnd: FocusMethods["_lbReadoutEnd"];
-	declare _lbResetHeight: FocusMethods["_lbResetHeight"];
-	declare _lbResetMargins: FocusMethods["_lbResetMargins"];
-	declare getArrowChars: FocusMethods["getArrowChars"];
-	declare removeCustomElements: FocusMethods["removeCustomElements"];
-	declare getActiveScroller: FocusMethods["getActiveScroller"];
-	declare attachScrollHandler: FocusMethods["attachScrollHandler"];
-	declare detachScrollHandler: FocusMethods["detachScrollHandler"];
-	declare updateMaskVisibility: FocusMethods["updateMaskVisibility"];
-	declare attachResizeHandler: FocusMethods["attachResizeHandler"];
-	declare detachResizeHandler: FocusMethods["detachResizeHandler"];
-	// editor.ts
-	declare reconfigureEditors: EditorMethods["reconfigureEditors"];
-	declare setupEditorExtensions: EditorMethods["setupEditorExtensions"];
-	declare buildEditorExtensions: EditorMethods["buildEditorExtensions"];
-	declare buildTypographyExtension: EditorMethods["buildTypographyExtension"];
-	declare applyTypography: EditorMethods["applyTypography"];
-	declare customClicheRe: EditorMethods["customClicheRe"];
-	declare buildTypographyRevertKeymap: EditorMethods["buildTypographyRevertKeymap"];
-	declare buildHemingwayExtensions: EditorMethods["buildHemingwayExtensions"];
-	declare flashHemingway: EditorMethods["flashHemingway"];
-	declare flashHemingwayIcon: EditorMethods["flashHemingwayIcon"];
-	declare flashHemingwayScreen: EditorMethods["flashHemingwayScreen"];
-	declare flashHemingwayBar: EditorMethods["flashHemingwayBar"];
-	declare vimApi: EditorMethods["vimApi"];
-	declare applyVimMotionMaps: EditorMethods["applyVimMotionMaps"];
-	declare scheduleVimMotionMaps: EditorMethods["scheduleVimMotionMaps"];
-	declare capMissing: EditorMethods["capMissing"];
-	// paint.ts
-	declare setWindowControlColours: PaintMethods["setWindowControlColours"];
-	declare clearAllBodyState: PaintMethods["clearAllBodyState"];
-	declare stampPaneScope: PaintMethods["stampPaneScope"];
-	declare applyTorchVars: PaintMethods["applyTorchVars"];
-	declare applyBodyClasses: PaintMethods["applyBodyClasses"];
-	declare chromeProps: PaintMethods["chromeProps"];
-	declare clearChromeColors: PaintMethods["clearChromeColors"];
-	declare applyCssVariables: PaintMethods["applyCssVariables"];
-	declare stampEditorPadding: PaintMethods["stampEditorPadding"];
-	declare firstPaintable: PaintMethods["firstPaintable"];
-	declare applyStyleProps: PaintMethods["applyStyleProps"];
-	declare clearStyleProps: PaintMethods["clearStyleProps"];
-	declare isDarkTheme: PaintMethods["isDarkTheme"];
-	declare isDarkSurface: PaintMethods["isDarkSurface"];
-	// diagnostics.ts
-	declare installerVersion: DiagnosticsMethods["installerVersion"];
-	declare installerVerdict: DiagnosticsMethods["installerVerdict"];
-	declare checkAppClasses: DiagnosticsMethods["checkAppClasses"];
-	declare readStylesheetVersion: DiagnosticsMethods["readStylesheetVersion"];
-	declare checkStylesheetVersion: DiagnosticsMethods["checkStylesheetVersion"];
-	declare checkManifestVersion: DiagnosticsMethods["checkManifestVersion"];
-	declare repairDisplay: DiagnosticsMethods["repairDisplay"];
-	declare loadMark: DiagnosticsMethods["loadMark"];
-	declare loadPhases: DiagnosticsMethods["loadPhases"];
-	declare geometryLines: DiagnosticsMethods["geometryLines"];
-	declare sheetSelfTest: DiagnosticsMethods["sheetSelfTest"];
-	declare diagnostics: DiagnosticsMethods["diagnostics"];
-	declare layoutDiagnostic: DiagnosticsMethods["layoutDiagnostic"];
+// THE CLASS IS IN MORE THAN ONE FILE: each area's methods are a module's functions with an explicit `this`, put onto
+// the prototype at the foot of this file. The class's base says they are there: Obsidian's Plugin, typed with every
+// area's methods (its value is Plugin itself), so a method added to an area module is known to the checker at once.
+// (Until 2026-10-22 each one was declared here by hand, 782 lines. A class and an interface of one name would say the
+// same in one line, and the review refuses that merge: no-unsafe-declaration-merging.)
+type WsAreaMethods = HistoryMethods & ExportMethods & ThemesMethods & StoresMethods & ReportMethods & MenuMethods & BarMethods & OrganizerWindowMethods & TreeMethods & FocusMethods & EditorMethods & PaintMethods & DiagnosticsMethods;
+const WsPluginWithAreas = Plugin as unknown as new (...args: ConstructorParameters<typeof Plugin>) => Plugin & WsAreaMethods;
+export default class WordSmith extends WsPluginWithAreas {
 	// ── THE FIELDS ─────────────────────────────────────────────────────────
 	// Declared as the checker saw them assigned — every `this.<name> = expr` in
 	// the class and every `plugin.<name> = expr` written from another module, the
@@ -1974,6 +1185,8 @@ export default class WordSmith extends Plugin {
 	// your own clichés as one pattern, and the box and language it was made from (A856)
 	_customClicheKey = '';
 	_customClicheRe: RegExp | null = null;
+	_neverMarkKey = '';
+	_neverMarkRe: RegExp | null = null;
 	_lastZoom: number;
 	_linkGen: number;
 	_loadMarks: [string, number][];
@@ -2643,6 +1856,8 @@ export default class WordSmith extends Plugin {
 		if (this.settings && this.settings.historyTracking) {
 			try { void this.historyFlush(true); } catch (_) { wsCatch('onunload: this.historyFlush(true);', _); }
 		}
+		// …and the goals file and the settings mirror, whose writes wait on timers (storeTimersFlush)
+		try { this.storeTimersFlush(); } catch (_) { wsCatch('onunload: this.storeTimersFlush();', _); }
 		// The linger timer holds a reference to this plugin instance and
 		// would keep it alive past unload.
 		this.endBarPeek(true);
@@ -2859,6 +2074,20 @@ export default class WordSmith extends Plugin {
 		// merged object, where every key is present because the defaults put
 		// it there.
 		const raw: WsRawSettings = ((await this.loadData()) as WsRawSettings | null) || {};
+
+		// THE STEPS, IN ORDER: each reads what the ones before it left (a key renamed in one is read by its new name in
+		// the next), so they run as they are listed. (One method of 750 lines until 2026-10-22.)
+		this.settingsMeetSchema(raw);
+		this.settingsMigrateOnce(raw);
+		this.settingsOldShapes();
+		this.settingsDropDeadKeys(raw);
+		this.settingsBarValues();
+		this.settingsSeedPresets(raw);
+	}
+
+	// THE FILE OVER THE DEFAULTS: repaired where a value is the wrong kind, the session keys fresh, the nested stores
+	// whole (loadSettings, step 1 of 6).
+	settingsMeetSchema(raw: WsRawSettings) {
 		// KEPT, and kept as it came. The settings mirror restores only when
 		// data.json had nothing to say, and "nothing" cannot be asked of the
 		// merged object — every key is present there because the defaults put
@@ -2898,7 +2127,11 @@ export default class WordSmith extends Plugin {
 		// Building the real object here means no later code path can be the
 		// first to touch it and mutate the table.
 		this.historyBaselines();
+	}
 
+	// THE MIGRATIONS THAT DECIDE ONCE: each asks the raw file (did this vault ever have an opinion) or keeps a flag, so
+	// it can never overrule a choice made later (loadSettings, step 2 of 6).
+	settingsMigrateOnce(raw: WsRawSettings) {
 		// letterboxCustomColors arrived in 1.11, and the four arrow/line
 		// pickers it now gates were unconditional before it. A vault that had
 		// picked its own colours WAS using them, so the toggle comes up on
@@ -3013,6 +2246,11 @@ export default class WordSmith extends Plugin {
 			const t = a + b;
 			this.settings.typewriterAnchor = t > 0 ? Math.round((a / t) * 100) : 50;
 		}
+	}
+
+	// OLD SHAPES CARRIED INTO NEW ONES: the bar's rows, a padding split in two, the keys of features that went
+	// (loadSettings, step 3 of 6).
+	settingsOldShapes() {
 		delete this.settings.barThemeMarginalia;
 		delete this.settings.marginaliaGutter;
 		delete this.settings.typewriterLinesAbove;
@@ -3152,6 +2390,11 @@ export default class WordSmith extends Plugin {
 			'noteDarkTextColor', 'noteLightBgColor', 'noteLightTextColor']) {
 			delete wsBag(this.settings)[dead];
 		}
+	}
+
+	// THE DEAD KEYS, DELETED RATHER THAN IGNORED, and the columns' stores brought to today's names (loadSettings, step 4
+	// of 6).
+	settingsDropDeadKeys(raw: WsRawSettings) {
 		// ── THE DEAD KEYS, DELETED RATHER THAN IGNORED ───────────────────
 		//
 		// A value that still parses under a plausible name is a value somebody
@@ -3360,6 +2603,10 @@ export default class WordSmith extends Plugin {
 		// `uniNameCh`: the name-drag width; the table's name column is capped by
 		// max-width and the browser owns every width.
 		delete this.settings.uniNameCh;
+	}
+
+	// THE BAR'S VALUES brought into today's ranges, styles and tokens (loadSettings, step 5 of 6).
+	settingsBarValues() {
 		// readTimeWpm: {readtime} is fixed at READ_WPM now.
 		// dateFormat:  {date} became {dd} {mm} {yyyy} {yy}, composed in the
 		//              row format, so there is no format string to store.
@@ -3530,7 +2777,11 @@ export default class WordSmith extends Plugin {
 				}
 			}
 		}
+	}
 
+	// THE BAR PRESETS seeded into the library once, the retired one out, and a new vault's opening bar (loadSettings,
+	// step 6 of 6).
+	settingsSeedPresets(raw: WsRawSettings) {
 		// Seed the shipped bar presets into the library, exactly once. The
 		// flag is what makes a deleted built-in stay deleted — the obvious
 		// version of this (add any name that is missing) resurrects them on
@@ -4696,5 +3947,5 @@ export default class WordSmith extends Plugin {
 	}
 }
 
-// The modules' methods onto the prototype (the class top says which is where).
+// The modules' methods onto the prototype (WsAreaMethods, over the class, is their type).
 Object.assign(WordSmith.prototype, historyMethods, exportMethods, themesMethods, storesMethods, menuMethods, barMethods, reportMethods, organizerWindowMethods, treeMethods, focusMethods, editorMethods, paintMethods, diagnosticsMethods);
