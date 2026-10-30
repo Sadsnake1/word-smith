@@ -2,9 +2,9 @@
 
 [← Back to the README](../README.md)
 
-A pack is one plain note that teaches Word-Smith a language: word colors, prose checks, sentences and the reading grade. English is built in; its pack shows every word it knows.
+A pack is one plain note that teaches Word-Smith a language: word colors, prose checks and the reading grade. English is built in; its pack shows every word it knows.
 
-**Install:** click your language to download its pack, put it in the **Word-Smith** folder in your Vault (keep its name, `ws-lang-de.md`), then pick it in Settings → Word-Smith → **Language**. A word in the wrong color? Add it under the right heading in the pack; it applies as you save.
+**Install:** click your language to download its pack, put it in the **Word-Smith** folder in your Vault without renaming it, then pick it in Settings → Word-Smith → **Language**.
 
 | Language | Version | Reading grade | Accuracy |
 |---|---|---|---|
@@ -39,12 +39,6 @@ A pack is one plain note that teaches Word-Smith a language: word colors, prose 
 | <img src="https://flagcdn.com/48x36/cn.png" width="16" height="12" alt=""> [简体中文](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hans.md) | v1.2 | Sentence length and rare characters | 73% |
 | <img src="https://flagcdn.com/48x36/tw.png" width="16" height="12" alt=""> [繁體中文](https://github.com/Sadsnake1/word-smith/releases/latest/download/ws-lang-zh-Hant.md) | v1.2 | Sentence length and rare characters | 73% |
 
-**Accuracy** is the share of words colored right on published text the packs never saw (the Universal Dependencies test sets; the middle figure where a language has several). "For now": no settled reading-grade formula yet. Hinglish has no published test set with its text, so it is measured on Hindi's, written in Latin letters.
+**Accuracy** is the share of words colored right on text the packs never saw.
 
-Writing in French, Russian, Ukrainian or Polish? Turn on Typography › Language spacing, and the spaces your language keeps together turn no-break as you type: French before ; : ! ? % and inside « », Russian and Ukrainian before a dash, Polish after a, i, o, u, w and z (packs 1.1 and later). A pack lists them under `## Spaces`. **Add the space for you** puts the space in even when you type none: `mot;` becomes `mot ;`, one space for a group (`Oh!!`), never in a link, a web address or a time like 10:30, and a second colon takes it back out (`key::`). Markers › NBSP shows them as °.
-
-Sixteen packs end with what they learned from 55,000 to 75,000 words a language that we tagged by hand from free sentences (Tatoeba, CC BY 2.0 FR; see [THIRD-PARTY-NOTICES](../THIRD-PARTY-NOTICES.md)): `## Class pairs`, `## Ending shares` and `## Word shares` guess the words no list holds, and `## Rules` fix a word by the words around it. Your own lists still win: a rule changes a listed word only where it names that word. Delete those parts and the pack reads as it did before.
-
-A pack's **Clichés** list is grouped under smaller headings (`### sayings`, `### idioms`…) that are never read as phrases. A phrase can carry slots: `{bite|bites|bit} the bullet` for any of those words (an empty choice makes one optional), `{*}` for any one word (not in Chinese or Japanese). A comma, a semicolon or a colon in your text between two words of a phrase still matches (the Arabic script's ، and ؛ too), and so does a hyphen for a space; no comma inside an entry. A choice's letters are folded as the pack folds its words: Turkish case, the Arabic script's vowel marks, Persian's yeh and kaf.
-
-Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59). Your language missing? Copy the closest pack, rename it `ws-lang-<code>.md`, change its lists, and send a pull request.
+A word in the wrong color? Add it under the right heading in its pack. Found a bad translation, or something the syntax and prose checks get wrong? Post it in the [languages issue](https://github.com/Sadsnake1/word-smith/issues/59).
