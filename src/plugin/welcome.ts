@@ -25,10 +25,10 @@ export const WS_FUNDING_URL = 'https://buymeacoffee.com/sadsnake1';
 // the download links here", "say something like word-smith is translated (built-in) and has syntax and prose
 // checks(lang packs) in 21 lang : ... then below say how to download a pack and where to put it") the names plain.
 export const WS_WELCOME_LANGS: [string, string][] = [
-	['en', 'English'], ['ar', 'العربية'], ['da', 'Dansk'], ['de', 'Deutsch'], ['es', 'Español'], ['fa', 'فارسی'],
-	['fr', 'Français'], ['hi', 'हिन्दी'], ['id', 'Bahasa Indonesia'], ['it', 'Italiano'], ['ja', '日本語'],
+	['en', 'English'], ['ar', 'العربية'], ['cs', 'Čeština'], ['da', 'Dansk'], ['de', 'Deutsch'], ['el', 'Ελληνικά'], ['es', 'Español'], ['fa', 'فارسی'], ['fi', 'Suomi'],
+	['fr', 'Français'], ['hi', 'हिन्दी'], ['hi-en', 'Hinglish'], ['hu', 'Magyar'], ['id', 'Bahasa Indonesia'], ['it', 'Italiano'], ['ja', '日本語'],
 	['ko', '한국어'], ['nl', 'Nederlands'], ['no', 'Norsk bokmål'], ['pl', 'Polski'],
-	['pt', 'Português'], ['pt-BR', 'Português (Brasil)'], ['ro', 'Română'], ['ru', 'Русский'],
+	['pt', 'Português'], ['pt-BR', 'Português (Brasil)'], ['ro', 'Română'], ['ru', 'Русский'], ['sk', 'Slovenčina'],
 	['sv', 'Svenska'], ['tr', 'Türkçe'], ['uk', 'Українська'], ['zh-Hans', '简体中文'],
 	['zh-Hant', '繁體中文'],
 ];

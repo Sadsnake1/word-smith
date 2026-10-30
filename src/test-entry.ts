@@ -28,7 +28,7 @@ import {
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, wsDialoguePairs, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
@@ -38,6 +38,7 @@ import {
 } from './core/preamble';
 import { wsParsePack, wsPackCode, WS_PACK_FORMAT, WS_PACK_PARTS, wsIsPackPath, wsPackQuotes, wsPackSpaces, wsPackCovers, wsPackPick, WS_PACKS_URL, WS_PACK_FORMULAS } from './core/language';
 import { WS_RULES_EN } from './core/rules-en';
+import { WS_PAPER_TEXTURES, WS_INK_EFFECTS, WS_PAPER_INK_VARS, WS_INK_FULL, wsPaperCss, wsInkCss } from './core/paper-ink';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE, wsPhraseRe, wsPhraseSpans, wsPhraseSpansFor, wsPhraseFold, wsPackLearned, wsPackRules, wsApplyRules, wsEnglishTagWith, wsEaseToGrade, wsGradeOf, wsPackGradeName, wsPackGradeFrom } from './core/lang-engine';
 import { wsCiteSearch, wsMakeCiteSuggest, WS_CITE_TRIGGER } from './editor/cite-suggest';
 import { wsT, wsTq, wsTIn, wsNumIn, wsUiSet, wsUiPick, wsUiLang, wsUiMissed, wsUiEcho, wsUiEchoOn, wsUiJoin, wsUiDate, wsUiLocale } from './core/ui-text';
@@ -69,11 +70,13 @@ export default Object.assign(WordSmith, {
 	wsUnderRow, wsOrgFolderWords,
 	// the twenty-three the Word export audit and probe evaluated out of a slice of the text
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did
 	findDialogue, wsDialoguePairs, BAR_THEMES,
+	// paper and ink (GitHub #105, A901)
+	WS_PAPER_TEXTURES, WS_INK_EFFECTS, WS_PAPER_INK_VARS, WS_INK_FULL, wsPaperCss, wsInkCss,
 	// the tagger's own words, for the accents suite (A482)
 	tokenizeLine, tagTokens, countSyllables, splitSentences, posBucket,
 	// the language packs' reader (A571)

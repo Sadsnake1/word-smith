@@ -388,6 +388,9 @@ const WS_DEFAULT_VOWELS = 'aeiouy\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5\u00e6\u00e
 const wsLower = (w: string, lang?: string) => {
 	const s = (lang && /^(tr|az)(-|$)/i.test(lang) ? w.toLocaleLowerCase('tr') : w.toLowerCase()).replace(/[\u2019\u02bc]/g, "'").normalize('NFC').replace(/\u0301/g, '');
 	if (lang && WS_ARABIC_SCRIPT.test(lang)) return wsArabicFold(s, lang);
+	// GREEK FOLDED (A900): the tonos off, the diaeresis kept (ΐ is ϊ): Greek moves its accent between a word's forms
+	// (άνθρωπος, ανθρώπου), so a form whose ending a pack swaps meets its listed word only unaccented
+	if (lang && /^el(-|$)/i.test(lang)) return s.normalize('NFD').replace(/\u0301/g, '').normalize('NFC');
 	return lang && !/^ro(-|$)/i.test(lang) ? s : s.replace(/\u015f/g, '\u0219').replace(/\u0163/g, '\u021b');
 };
 // ARABIC SCRIPT FOLDED (A846): a word's vowel marks and its stretch gone; Persian's and Urdu's yeh and kaf one letter

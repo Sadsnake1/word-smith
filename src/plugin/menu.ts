@@ -117,6 +117,29 @@ export const menuMethods = {
 		return g;
 	},
 
+	// WHAT A ROW DOES, on hover (#113, axolotl-logic): one line a row, the line its Settings page says it with where
+	// there is one; a row of the writer's own (a command under an alias) keeps its full name instead
+	menuRowTip(this: WordSmith, id: string) {
+		const tips: Record<string, string> = {
+			search: 'Finds any row or option in this menu.',
+			modes: 'Writing modes to switch on and off.',
+			syntax: 'Colors parts of speech as you write. Works offline.',
+			prose: 'Things worth a second look, not mistakes. Works offline.',
+			markers: 'Draws the characters you cannot normally see. Your text is untouched.',
+			font: 'The font your notes are written in.',
+			lightdark: 'Switches Obsidian between dark and light.',
+			theme: 'A color scheme for the whole workspace, dark and light.',
+			cursors: 'Caret styles from Cursor-Smith, when it is installed.',
+			lang: 'The language the syntax and prose checks read.',
+			report: 'Words, sentences and readability for the note you are in.',
+			history: 'How much you wrote, day by day.',
+			export: 'Turns a folder of notes into one manuscript file.',
+			organizer: 'Your notes as a table to order, flag and count.',
+			settings: 'Opens Word-Smith’s settings.',
+		};
+		return tips[id] ? wsT(tips[id]) : '';
+	},
+
 	menuFeatureDefs(this: WordSmith) {
 		return [
 			{ id: 'search',    name: 'Search',       icon: 'search' },
@@ -912,6 +935,7 @@ export const menuMethods = {
 					sub.createSpan({ cls: 'ws-picker-label',
 						text: h.kind === 'row' ? h.row : h.item.label });
 					if (h.kind === 'item') sub.createSpan({ cls: 'ws-menu-in', text: h.row });
+					if (h.kind === 'item' && h.item.note) sub.title = h.item.note;
 					const entry: WsBarMenuFlat = h.kind === 'row'
 						? { el: sub, kind: 'row', ri: h.ri, band: null }
 						: { el: sub, kind: 'item', item: h.item };
@@ -974,6 +998,9 @@ export const menuMethods = {
 				if (row.full) {
 					el.setAttribute('title', row.full);
 					el.setAttribute('aria-label', row.full);
+				} else {
+					const tip = this.menuRowTip(id);
+					if (tip) el.setAttribute('title', tip);
 				}
 				// THE GLYPH, through the one drawer. It was absent here and
 				// present in the pane; the row is the same row.
@@ -1019,6 +1046,7 @@ export const menuMethods = {
 						}
 						const lab = sub.createSpan({ cls: 'ws-picker-label', text: item.label });
 						if (item.font) lab.style.fontFamily = item.font;
+						if (item.note) sub.title = item.note;
 						flat.push({ el: sub, kind: 'item', item });
 						sub.addEventListener('click', () => {
 							at = flat.findIndex(f => f.el === sub); void activate();

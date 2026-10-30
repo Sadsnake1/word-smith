@@ -5,15 +5,17 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
-import { Menu, Notice, setIcon, getAllTags, Platform, ItemView } from 'obsidian';
+import { Menu, setIcon, getAllTags, Platform, ItemView } from 'obsidian';
 import type { Events, WorkspaceLeaf, TAbstractFile, Modifier, KeymapEventListener, MenuItem } from 'obsidian';
-import type { WsFlagDef, WsHost, WsFileLike, WsOrgDoor, WsOrgMenuCtx, WordSmithSettings } from '../core/settings';
+import type { WsHost, WsFileLike, WsOrgDoor, WsOrgMenuCtx, WordSmithSettings } from '../core/settings';
 import { wsCountFootnotes, wsOrgAgg, wsOrgCounts, wsOrgDistinct, wsOrgIndex, wsOrgPathsUnder, wsOrgPut, wsOrgRemove, wsOrgRename, wsOrgStale } from './org-index';
 import type { WsOrgIndexMap } from './org-index';
+import { wsOrgDrawBar } from './organizer-bar';
+import { wsOrgDrawTable } from './organizer-table';
 import { wsOrgCellsMake } from './organizer-cells';
-import { wsOrgChromeMake, wsOrgCountsLine } from './organizer-chrome';
+import { wsOrgChromeMake } from './organizer-chrome';
 import { wsOrgChipsMake } from './organizer-chips';
-import { wsOrgColsMake, type WsOrgCol } from './organizer-cols';
+import { wsOrgColsMake } from './organizer-cols';
 import { wsOrgDragMake } from './organizer-drag';
 import { wsOrgFilesMake } from './organizer-files';
 import { wsOrgFlagsMake } from './organizer-flags';
@@ -35,1140 +37,128 @@ import { wsOrgWritesMake } from './organizer-writes';
 import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
-import type { WsOrgColAgg } from './organizer-readings';
-import { wsModKeyName, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, WsPropSuggestModal, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenu, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsElOf, wsListOf, wsTimedRead } from '../core/preamble';
-import type { WsPropItem } from '../core/preamble';
-import { wsT, wsTq, wsUiDate, wsUiJoin } from '../core/ui-text';
+import { WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsTimedRead } from '../core/preamble';
+import { wsT, wsUiDate } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
 
-// A SENTENCE WITH A CONTROL IN IT (A695): the line is one key, with `slot` where the button stands, so a
-// translation puts the button where its grammar wants it; this cuts it in two around the slot. The tools' echo
-// marks the whole line, so each half keeps the marks (ws-dev/ui-pseudo-panes.js reads a text node at a time).
-function wsOrgAround(line: string, slot: string): [string, string] {
-	const marked = line.startsWith('⟦') && line.endsWith('⟧');
-	const body = marked ? line.slice(1, -1) : line;
-	const at = body.indexOf(slot);
-	const a = at === -1 ? body : body.slice(0, at);
-	const b = at === -1 ? '' : body.slice(at + slot.length);
-	return marked ? [a ? '⟦' + a + '⟧' : '', b ? '⟦' + b + '⟧' : ''] : [a, b];
-}
-
-// THE SORT MENU, on the Sort button's click (lifted out of drawOrg, A488).
-function wsOrgSortMenu(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; menuUnder: (menu: Menu, btn: HTMLElement, ev: MouseEvent) => void; s: WordSmithSettings; sortBtn: HTMLButtonElement; sortByName: boolean; sortCol: WsOrgCol | null; sortDir: string }, ev: MouseEvent) {
-	const { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir } = a;
-	const menu = wsMenu();
-	menu.addItem((i) => i.setTitle(wsT('Custom order'))
-		.setIcon('list-ordered')
-		.setChecked(!ctx.orgLens.sort)
-		.onClick(() => ctx.orgLensSet({ sort: null })));
-	// NAME, ONE ROW LIKE THE COLUMNS': A to Z first, the way a name column
-	// reads; the same row again turns it round. Under Custom order and
-	// above the readings, because the Name is the column that is always
-	// there.
-	menu.addItem((i) => i.setTitle(wsT('Name') + (sortByName ? wsSortArrow(sortDir) : ''))
-		.setIcon('case-sensitive')
-		.setChecked(!!sortByName)
-		.onClick(() => ctx.orgLensSet({ sort: { id: 'name',
-			dir: sortByName && sortDir === 'asc' ? 'desc' : 'asc' } })));
-	menu.addSeparator();
-	// THE SORT MENU HAS AN ORDER OF ITS OWN. A column order says what you
-	// want to READ side by side; a sort order says what you want to ARRANGE
-	// by, and those are not the same ranking. Ordered by what a writer
-	// steers on: the size of the thing and the size it is meant to be, then
-	// what is outstanding and where it is up to, then time, then the
-	// analytical readings, and last the metadata columns — which fall
-	// through with rank `length`, so a writer's own property columns keep
-	// their table order among themselves (array sort is stable).
+// THE WINDOW'S FRAME: no title, the stores, the document and window it lives in, the skeleton and the nav
+// (lifted out of openManuscriptModal, 2026-10-30). It reads the host and the options only; everything after
+// it in the window reads what it hands back.
+function wsOrgWindowFrame(plugin: WordSmith, host: WsHost, o: { tab?: string; host?: WsHost; only?: boolean }) {
+	// ── NO TITLE ON THIS WINDOW ─────────────────────────────────────────
 	//
-	// A NEW COLUMN NEEDS NO ENTRY HERE: an unnamed id ranks last rather
-	// than throwing or vanishing.
-	const SORT_RELEVANCE = ['words', 'vocab', 'goal', 'deadline', 'tasks', 'mark',
-		'modified', 'created', 'grade', 'paras', 'tags'];
-	const sortRank = (c: { id: string; }) => {
-		const at = SORT_RELEVANCE.indexOf(c.id);
-		return at === -1 ? SORT_RELEVANCE.length : at;
-	};
-	const sortMenuCols = cols.slice()
-		.sort((a, b) => sortRank(a) - sortRank(b));
-	for (const col of sortMenuCols) {
-		menu.addItem((i) => {
-			const here = sortCol && sortCol.id === col.id;
-			i.setTitle(col.label + (here
-				? wsSortArrow(sortDir) : ''));
-			// ── AND EACH ROW WEARS ITS OWN GLYPH ────────
-			//
-			// LOOKED UP BY ID in `SORTS`, so `BUILTIN_SORTS` stays the ONE writer
-			// of what each built-in reading looks like. A writer's own property
-			// column gets one too: `sortDefs` concatenates the user columns with
-			// `icon: 'tag'` — one glyph for "this is a property of yours".
-			try {
-				const def = ctx.SORTS.filter((s) => s.id === col.id)[0];
-				if (def && def.icon && i.setIcon) i.setIcon(def.icon);
-			} catch (_) { wsCatch('orgTableMake / drawOrg: const def = ctx.SORTS.filter((s) => s.id === col.id)[0];', _); }
-			i.setChecked(!!here);
-			// First pick sorts DESC (newest-biggest first, the
-			// header's own opening move); picking it again
-			// turns it round.
-			i.onClick(() => ctx.orgLensSet({ sort: {
-				id: col.id,
-				dir: here && sortDir === 'desc' ? 'asc' : 'desc'
-			} }));
-		});
+	// The title ELEMENT stays where Obsidian put it and simply holds
+	// nothing. Removing it is not ours to do: it is the modal's own
+	// furniture, and a theme that positions the close button against it
+	// would have nothing to position against.
+	host.rootEl.addClass('ws-uni-modal');
+	if (host.paneClass) host.rootEl.addClass(host.paneClass);
+	// One aurora palette per OPENING, not per draw: the inspector
+	// rebuilds on every tab switch and on every cursor move, and
+	// re-rolling the colours there reads as a glitch rather than as a
+	// thing you were dealt. Same reason, same line, as the report.
+	plugin._auroraSeed = Math.random();
+
+	const s = plugin.settings;
+	for (const k of ['fileGoals', 'fileStatus']) {
+		if (!wsBag(s)[k]) wsBag(s)[k] = {};
 	}
-	// ── ROW NUMBERS: a checkbox at the foot of the Sort menu, because
-	// numbers are about the ORDER shown, which is what this menu is for.
-	// Remembered with the table's other choices.
-	menu.addSeparator();
-	menu.addItem((i) => i.setTitle(wsT('Row numbers'))
-		.setIcon('hash')
-		.setChecked(!!s.uniRowNumbers)
-		.onClick(() => {
-			s.uniRowNumbers = !s.uniRowNumbers;
-			plugin.saveSettings().catch(() => {});
-			ctx.drawPanel();
-		}));
-	menuUnder(menu, sortBtn, ev);
-}
+	// DEAD KEYS, DELETED ON LOAD: a dead key that still parses is a trap for
+	// whoever reuses the name.
+	delete s.orgLenses;
+	delete s.uniSlimCol;
+	delete s.organizerView;
+	delete s.organizerDrawer;
+	// ONE STORE FOR TARGETS: a folder is the sum of its notes, and the table
+	// gets a folder row's number from `ORG_AGG` summing over the rows as shown.
+	const goalStore   = (): 'fileGoals' => 'fileGoals';
+	// ONE STORE, because only files have flags; `markOf` answers '' for a
+	// folder rather than reading a key that does not exist.
+	const statusStore = (): 'fileStatus' => 'fileStatus';
+	const targetOf = (path: string|number) => Number(s[goalStore()][path]) || 0;
+	const markOf   = (path: string|number, kind: string) => (kind === 'folder' ? ''
+		: (s[statusStore()][path] || ''));
 
-// THE FILTER MENU, on the Filter button's click (lifted out of drawOrg, A488).
-function wsOrgFilterMenu(plugin: WordSmith, a: { addBtn: HTMLButtonElement; at: string; ctx: WsOrgCtx; menuUnder: (menu: Menu, btn: HTMLElement, ev: MouseEvent) => void }, ev: MouseEvent) {
-	const { addBtn, at, ctx, menuUnder } = a;
-	let nests = false;
-	try {
-		wsMenu().addItem((i) => {
-			nests = typeof i.setSubmenu === 'function';
-		});
-	} catch { nests = false; }
-	const menu = wsMenu();
-	// One check for all five: a build with submenus has them
-	// everywhere, and asking per group could give one nested
-	// heading beside two flattened ones.
-	const group = (title: string, icon: string, fill: (into: Menu) => void) => {
-		if (nests) {
-			menu.addItem((i) => {
-				i.setTitle(title);
-				try { if (icon) i.setIcon(icon); } catch (_) { wsCatch('orgTableMake / group: if (icon) i.setIcon(icon);', _); }
-				// FILLED INSIDE A GUARD: Obsidian pushes the item
-				// AFTER the callback returns, so a throw in here
-				// loses the whole row and the menu comes back
-				// silently missing a fifth of itself.
-				try { fill(i.setSubmenu()); }
-				catch (e) { console.error('Word-Smith: filter menu', e); }
-			});
-			return;
-		}
-		menu.addSeparator();
-		menu.addItem((i) => i.setTitle(title).setIsLabel(true));
-		fill(menu);
-	};
-	// `orgAddChip`, kept local so the call sites in this handler read short.
-	const addChip = ctx.orgAddChip;
-
-	// KIND writes the store, not a chip: `uniTypes` already holds
-	// this and already draws its own chip in the bar. A second
-	// copy in the lens would be two writers of one fact.
-	group(wsT('Kind'), 'shapes', (into) => ctx.typeRows(into));
-
-	// TASKS is a question, not a value - there is nothing to
-	// enumerate, so the four answers are named here. They are the
-	// only axis whose reading is an OBJECT, which is why
-	// orgChipHit has to know about it.
-	// TWO ROWS: has tasks, no tasks.
-	group(wsT('Tasks'), 'check-square', (into) => {
-		for (const t of [
-			{ id: 'any',  label: 'Has tasks', title: wsT('Has tasks') },
-			{ id: 'none', label: 'No tasks', title: wsT('No tasks') }
-		]) {
-			into.addItem((i: MenuItem) => i.setTitle(t.title)
-				.onClick(() => addChip({ axis: 'tasks', id: t.id,
-					key: 'Tasks', value: t.label })));
-		}
-	});
-
-	// FLAG carries the ID and shows the LABEL: a writer can rename
-	// a flag in settings, and a chip holding the old word would
-	// quietly stop matching the rows it used to.
-	// ── AND EACH ROW WEARS ITS FLAG ────────────────────────
+	// ── WHICH DOCUMENT THIS WINDOW IS IN ────────────────────────────
 	//
-	// A DocumentFragment holding a `.ws-menuflag` span with `wsFlagSvg`
-	// inside it, then the label as a text node — a menu title takes a
-	// fragment, and no Lucide name draws these shapes, so `setIcon` is not
-	// an option here. ONE WRITER: `wsFlagSvg` is the only thing that knows
-	// what a flag looks like.
-	group(wsT('Flag'), 'flag', (into: Menu) => {
-		let defs: WsFlagDef[] = [];
-		try { defs = plugin.flagDefs() || []; } catch { defs = []; }
-		const titled = (id: string, label: string) => {
-			const frag = createFragment();
-			const mark = createSpan();
-			mark.className = 'ws-menuflag is-' + id;
-			wsSvgInto(mark, wsFlagSvg(id, 12));
-			frag.appendChild(mark);
-			frag.appendChild(document.createTextNode(label));
-			return frag;
-		};
-		for (const d of defs) {
-			into.addItem((i: MenuItem) => i.setTitle(titled(d.id, d.label))
-				.onClick(() => addChip({ axis: 'flag', id: d.id,
-					key: 'Flag', value: d.label })));
-		}
-		// "No flag" GETS THE SLOT AND NO SHAPE. It is the absence
-		// of a flag, so drawing one would be a lie — but without
-		// the span its label starts at a different x from the six
-		// above it, which is the ragged column this window keeps
-		// removing. `wsFlagSvg('')` returns the outline mark, and
-		// the stylesheet's `.ws-menuflag.is-` holds the width.
-		into.addItem((i: MenuItem) => i.setTitle(titled('', wsT('No flag')))
-			.onClick(() => addChip({ axis: 'flag', id: '',
-				key: 'Flag', value: 'none' })));
-	});
+	// A POPOUT IS A DIFFERENT DOCUMENT. This window is a leaf as well as
+	// a sheet, and a leaf can be dragged into its own OS window - which
+	// `openOutlinerPane` has always said is the whole reason it is one.
+	// In that window `document` and `window` still name the MAIN one, so
+	// every bare reference addresses a page the writer is not looking at:
+	// a selection that never highlights, a drag whose mouseup never
+	// arrives, an Escape that reaches nothing.
+	//
+	// ONE WRITER FOR THE FACT. Everything below asks these two rather
+	// than the globals, so there is one description of where this window
+	// lives instead of eight that have to be kept in step.
+	//
+	// FALLING BACK TO THE GLOBALS is not a nicety: `contentEl` is detached
+	// in a fixture, where `ownerDocument` is still right but `defaultView`
+	// can be null.
+	const ownerDoc = () => {
+		try { return host.contentEl.ownerDocument || document; }
+		catch { return document; }
+	};
+	const ownerWin = () => {
+		try { return ownerDoc().defaultView || window; }
+		catch { return window; }
+	};
+	const body  = host.contentEl.createDiv({ cls: 'ws-uni-body' });
+	// ACROSS THE TOP OF THE WINDOW, not inside the inspector: a tab that
+	// hides the inspector would hide the tabs with it.
+	const tabsRow = body.createDiv({ cls: 'ws-uni-tabs' });
+	// ONE TAB ONLY: a pane built for one tab hides the strip — the three
+	// tabs are three panes — and its tab cannot be switched.
+	const single = !!o.only;
+	if (single) body.addClass('is-single');
+	// ONE COLUMN. `cols` keeps its box for the stylesheet's sake and holds
+	// the one pane there is.
+	const cols  = body.createDiv({ cls: 'ws-uni-cols' });
+	const right = cols.createDiv({ cls: 'ws-uni-right' });
+	const foot  = body.createDiv({ cls: 'ws-uni-foot' });
 
-	// TAG is unbounded, so it opens the picker. `uniTagsInScope`
-	// is the enumerator whose own header says it is "the list the
-	// filter menu offers" - scope-scoped and commonest-first, and
-	// its counts are real, so the picker's count line is not a
-	// number nobody counted.
-	group(wsT('Tag'), 'tag', (into) => {
-		into.addItem((i: MenuItem) => i.setTitle(wsT('Search tags…'))
-			.onClick(() => {
-				let tags: { tag: string; n: number }[] = [];
-				try {
-					tags = plugin.uniTagsInScope(
-						ctx.orgRowList(at, true).map((r) => r.path)) || [];
-				} catch { tags = []; }
-				if (!tags.length) {
-					try { new Notice(wsT('Word-Smith: no tags in these notes.')); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no tags in these notes.\');', _); }
-					return;
-				}
-				const items = tags.map(t => ({ tag: t.tag,
-					label: '#' + t.tag, n: t.n }));
-				const take = (it: WsPropItem) => addChip({ axis: 'tag',
-					key: 'Tag', value: it.tag });
-				if (WsPropSuggestModal) {
-					try {
-						new WsPropSuggestModal(plugin.app, items, take,
-							wsT('Which tag?')).open();
-						return;
-					} catch (_) { wsCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items, take,', _); }
-				}
-				const pick = wsMenu();
-				for (const it of items.slice(0, 20)) {
-					pick.addItem((i2) => i2.setTitle(it.label)
-						.onClick(() => take(it)));
-				}
-				try { pick.showAtMouseEvent(ev); }
-				catch { try { pick.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / drawOrg: pick.showAtPosition( x: 0, y: 0 );', _e); } }
-			}));
-	});
-
-	// PROPERTY: two long lists, so two pickers - the key, then its
-	// values under this selection. `orgPropKeys` is the right
-	// enumerator rather than `propKeysInScope`, which is built for
-	// COLUMNS: it drops tags and drops keys already shown, and a
-	// writer may well want to filter on a column they can see.
-	group(wsT('Property'), 'table-properties', (into: Menu) => {
-		// ── THE TWO QUESTIONS THAT NEED NO VALUE ───────────────────
-		//
-		// They come FIRST because they are the ones a writer arrives wanting —
-		// "which scenes have no synopsis" cannot be asked by picking a value:
-		// there is no value to pick. ONE KEY PICKER, TWO ROWS, rather than a
-		// value picker with two special entries hidden in it: the value list is
-		// built from what EXISTS under the selection, so a key nobody has
-		// filled in has an empty list — and that is exactly the key this
-		// question is for.
-		const askEmpty = (op: string) => {
-			const keys = ctx.orgPropKeys(at);
-			if (!keys.length) {
-				try { new Notice(wsT('Word-Smith: no properties in these notes.')); } catch (_) { wsCatch('orgTableMake / askEmpty: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
-				return;
-			}
-			const items = keys.map((k: string) => ({ key: k, label: k }));
-			const take = (it: WsPropItem) => addChip({ key: it.key, op: op, value: '' });
-			if (WsPropSuggestModal) {
-				try {
-					new WsPropSuggestModal(plugin.app, items, take,
-						op === 'empty' ? wsT('Which property is empty?')
-							: wsT('Which property is filled in?')).open();
-					return;
-				} catch (_) { wsCatch('orgTableMake / askEmpty: new WsPropSuggestModal(this.app, items, take,', _); }
-			}
-			const pk2 = wsMenu();
-			for (const it of items.slice(0, 20)) {
-				pk2.addItem((i4) => i4.setTitle(it.label).onClick(() => take(it)));
-			}
-			try { pk2.showAtMouseEvent(ev); }
-			catch { try { pk2.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / askEmpty: pk2.showAtPosition( x: 0, y: 0 );', _e); } }
-		};
-		into.addItem((i: MenuItem) => i.setTitle(wsT('Is empty…'))
-			.onClick(() => askEmpty('empty')));
-		into.addItem((i: MenuItem) => i.setTitle(wsT('Is not empty…'))
-			.onClick(() => askEmpty('filled')));
-		into.addItem((i: MenuItem) => i.setTitle(wsT('Search properties…'))
-			.onClick(() => {
-				const keys = ctx.orgPropKeys(at);
-				if (!keys.length) {
-					try { new Notice(wsT('Word-Smith: no properties in these notes.')); } catch (_) { wsCatch('orgTableMake / drawOrg: new Notice(\'Word-Smith: no properties in these notes.\');', _); }
-					return;
-				}
-				// `orgFilterByKey`, so the header's "Filter by this…" and this one
-				// enumerate the same values from the same subject.
-				const pickValue = (key: string) => ctx.orgFilterByKey(key, ev);
-				const items = keys.map((k) => ({ key: k, label: k }));
-				if (WsPropSuggestModal) {
-					try {
-						new WsPropSuggestModal(plugin.app, items,
-							(it) => pickValue(it.key || ''),
-							wsT('Which property?')).open();
-						return;
-					} catch (_) { wsCatch('orgTableMake / drawOrg: new WsPropSuggestModal(this.app, items,', _); }
-				}
-				const pk = wsMenu();
-				for (const it of items.slice(0, 20)) {
-					pk.addItem((i2) => i2.setTitle(it.label)
-						.onClick(() => pickValue(it.key)));
-				}
-				try { pk.showAtMouseEvent(ev); }
-				catch { try { pk.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / drawOrg: pk.showAtPosition( x: 0, y: 0 );', _e); } }
-			}));
-	});
-	menuUnder(menu, addBtn, ev);
-}
-
-// The name column's accent snapped to whole device pixels (lifted out of drawOrg, A488).
-function wsOrgSnapAccent(a: { ctx: WsOrgCtx; orgZoomOf: (el: HTMLElement) => number; table: HTMLTableElement }) {
-	const { ctx, orgZoomOf, table } = a;
-	const w0 = ctx.ownerWin();
-	const dpr = (w0 && w0.devicePixelRatio) || 1;
-	// FROM THE WINDOW, AND WALKED UP FROM THE TABLE. NOT FROM `host`: the
-	// `host` in scope here is the window's, which is not always an element
-	// (`orgNameLine` has its own, `wrap.parentElement`). `table` is an
-	// element in both.
-	const scope: HTMLElement | null = table.closest('.ws-uni-modal')
-		|| table.closest('.modal') || table.ownerDocument.documentElement;
-	// THE RATIO GOES ON THE WINDOW, THE SNAP ON THE MARK. They are two
-	// different facts knowable at different times: the ratio is true of
-	// the whole window from the first paint, while the snap needs the mark
-	// to EXIST and be laid out. Inherited from here, the width is right on
-	// both surfaces from the start; the position follows on the next draw.
-	if (scope && scope.style) {
-		scope.style.setProperty('--ws-dpr', String(dpr));
-	}
-	// EVERY MARKED ROW: the active one and each selected one wear the bar,
-	// and a bar not snapped straddles two device columns.
-	const marks = Array.from<HTMLElement>(table.querySelectorAll(
-		'.ws-org-row.ws-org-active td.ws-org-name, .ws-org-row.is-selected td.ws-org-name'));
-	for (const el of marks) {
-		if (!el) continue;
+	// NARROW IS MEASURED, NOT ASKED OF THE PLATFORM. A sheet is always the
+	// same size, but a leaf is whatever width the writer dragged it to —
+	// docked into a sidebar it can be 260px on a desktop. The phone still
+	// declares itself, because a phone is narrow before anything has been
+	// measured; a pane is measured, and re-measured when it is dragged
+	// (`ResizeObserver`).
+	//
+	// THE THRESHOLD HAS ONE READER: `--ws-uni-narrow`, declared on
+	// `.ws-uni-modal` in the stylesheet beside the rules it switches. The
+	// `700` is a fallback for a root that is not styled yet; a test
+	// holds it against the stylesheet's own number so the two cannot drift.
+	// A PANE BUILT FOR ONE TAB HAS NO TREE COLUMN TO STACK, so its limit is
+	// the phone's, `--ws-uni-narrow-single`, not the two-column window's.
+	const orgNarrowLimit = () => {
+		const fallback = single ? 420 : 700;
 		try {
-			el.setCssProps({ '--ws-dpr': String(dpr), '--ws-org-snap': '0px' });
-			const off = parseFloat(
-				w0.getComputedStyle(el, '::before').insetInlineStart);
-			if (!isFinite(off)) continue;
-			// IN THE FRAME THE SNAP IS WRITTEN IN. `off` is a computed length —
-			// the element's own frame — and the rect is the zoomed one, so at any
-			// zoom but 1 the sum of the two would be of two different units.
-			const zoom = orgZoomOf(el);
-			const x = el.getBoundingClientRect().left / zoom + off;
-			// ── SNAP TO THE GUIDE, NOT TO THE PIXEL GRID ──
-			//
-			// The guide is Obsidian's own border and lands where its layout puts
-			// it — not on the device grid — so snapping to the grid moves the bar
-			// AWAY from the line it exists to sit on. SO THE GUIDE IS THE TARGET
-			// WHEN THERE IS ONE: the `- 4.8px` in the stylesheet gets the bar close
-			// from a measurement taken once; this puts it exactly there, per row,
-			// at whatever depth and whatever that inset really is today. The
-			// constant is the first guess and the measurement is the answer.
-			const box = (typeof el.closest === 'function')
-				? el.closest('.tree-item-children') : null;
-			let want = null;
-			if (box) {
-				const bx = box.getBoundingClientRect().left / zoom;
-				if (isFinite(bx)) want = bx;
-			}
-			// NO GUIDE, NO TARGET. The table's mark has no indentation line beside
-			// it, so it keeps the device grid — a hairline with nothing to align
-			// to should at least be crisp.
-			if (want === null) want = Math.round(x * dpr) / dpr;
-			el.style.setProperty('--ws-org-snap', (want - x).toFixed(3) + 'px');
-		} catch (_) { wsCatch('orgTableMake / orgSnapAccent: el.style.setProperty(\'--ws-dpr\', String(dpr));', _); }
-	}
+			const said = getComputedStyle(host.rootEl)
+				.getPropertyValue(single ? '--ws-uni-narrow-single' : '--ws-uni-narrow');
+			const n = parseInt(String(said).trim(), 10);
+			return isFinite(n) && n > 0 ? n : fallback;
+		} catch { return fallback; }
+	};
+	const narrow = !!(Platform && Platform.isMobile);
+	if (narrow) host.rootEl.addClass('is-narrow');
+	// organizer-nav.ts reads this closure through the names below and
+	// nothing else; the aliases keep the names the closure calls.
+	const orgNav = wsOrgNavMake({
+		plugin,
+		get body() { return body; },
+		get host() { return host; },
+		get narrow() { return narrow; },
+		get orgNarrowLimit() { return orgNarrowLimit; },
+	});
+	return { body, foot, goalStore, markOf, orgNav, ownerDoc, ownerWin, right, s, single, statusStore, tabsRow, targetOf };
 }
 
-// The name column's ruled line, measured and placed (lifted out of drawOrg, A488).
-function wsOrgNameLine(a: { ctx: WsOrgCtx; nameTh: HTMLTableCellElement; orgSnapAccent: () => void; orgZoomOf: (el: HTMLElement) => number; table: HTMLTableElement; wrap: HTMLDivElement }) {
-	const { ctx, nameTh, orgSnapAccent, orgZoomOf, table, wrap } = a;
-	try {
-		const host = wrap.parentElement;
-		if (!host) return;
-		// The variables are REMOVED rather than zeroed: the host keeps its
-		// style attribute across a redraw, so a stale width left behind would
-		// put a line down the pane the moment anything else repainted it.
-		host.style.removeProperty('--ws-org-outw');
-		const zoom = orgZoomOf(nameTh);
-		let w = nameTh.getBoundingClientRect().width / zoom;
-		if (!(w > 0)) return;
-		// ── THE NAME TAKES THE ROOM THE READINGS LEAVE ──
-		//
-		// On a narrow pane the stylesheet caps the name at 150px so six
-		// readings can share a phone. With TWO readings that cap leaves half
-		// the screen empty while every name truncates. So the room is measured
-		// — the wrap's width less what the other columns take — and handed to
-		// the sheet as the FLOOR of that cap; 32ch stays the ceiling, as on the
-		// desktop.
-		//
-		// The readings' width is the table less the name, which does not
-		// depend on the name, so this does not chase its own tail; and the
-		// name is re-measured after the stamp, so the seam below is drawn from
-		// the width the column actually ends up with.
-		try {
-			const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
-			if (narrow) {
-				const tableW = table.getBoundingClientRect().width / zoom;
-				const room = Math.floor(wrap.clientWidth - Math.max(0, tableW - w));
-				const was = table.style.getPropertyValue('--ws-org-nameroom');
-				const now = room > 0 ? room + 'px' : '';
-				// AND THE CEILING A DRAG MAY REACH. A dragged width wins on a narrow
-				// pane, and a width dragged on the DESKTOP is in the same store — so
-				// the sheet is told where the grip would have stopped, from the same
-				// host the grip asks: the SCROLLER, whose client width is the table's
-				// room. The host beside it is 20px wider — the vertical bar and the
-				// inset — and a name at that ceiling put the table 12px over.
-				const ceil = ctx.orgColCeil(wrap);
-				const ceilNow = ceil > 0 ? ceil + 'px' : '';
-				const ceilWas = table.style.getPropertyValue('--ws-org-nameceil');
-				if (was !== now || ceilWas !== ceilNow) {
-					if (now) table.style.setProperty('--ws-org-nameroom', now);
-					else table.style.removeProperty('--ws-org-nameroom');
-					if (ceilNow) table.style.setProperty('--ws-org-nameceil', ceilNow);
-					else table.style.removeProperty('--ws-org-nameceil');
-					w = nameTh.getBoundingClientRect().width / zoom;
-				}
-			} else if (table.style.getPropertyValue('--ws-org-nameroom')
-				|| table.style.getPropertyValue('--ws-org-nameceil')) {
-				table.style.removeProperty('--ws-org-nameroom');
-				table.style.removeProperty('--ws-org-nameceil');
-				w = nameTh.getBoundingClientRect().width / zoom;
-			}
-		} catch (_) { wsCatch('orgNameLine / nameroom: const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());', _); }
-		// THE WRAP'S OWN INSET COUNTS. The seam is positioned against the HOST
-		// and the column is measured inside the WRAP, and the wrap does not
-		// start at the host's left edge.
-		host.style.setProperty('--ws-org-nameline',
-			Math.round(wrap.offsetLeft + w) + 'px');
-		host.style.setProperty('--ws-org-nametop',
-			Math.round(wrap.offsetTop) + 'px');
-		// AND THE HEADER'S OWN HEIGHT, for a finger's Name grip to be exactly
-		// as tall as the header it lives on. Measured, not the token: the
-		// heading is `height: 44px` under a finger and measures 49 — a table
-		// cell's height is a minimum, and the narrow pane's padding-block adds
-		// to it.
-		host.style.setProperty('--ws-org-headh',
-			(nameTh.getBoundingClientRect().height / zoom).toFixed(2) + 'px');
-		// AND IT STOPS WITH THE ROWS: the logical stop is the last row,
-		// because that is where the columns it separates end. CLAMPED TO THE
-		// PANE, or a table taller than its pane would stamp a height that
-		// reaches past the bottom of the window.
-		//
-		// AND NOT ROUNDED. Every row height here is fractional (23.6px rows, a
-		// 24.4px header), so rounding to a whole pixel cannot land on a row
-		// edge except by accident — and the grip takes this as its height. TWO
-		// DECIMALS, NOT NONE: the raw double would stamp a seventeen-digit
-		// string into a style attribute on every draw; hundredths are finer
-		// than a device pixel at any ratio this runs at.
-		//
-		// (A SILENT CATCH AROUND A WHOLE FUNCTION BODY IS A PLACE A MISSING
-		// LINE CAN HIDE: `tall` once went missing here, and the symptom was a
-		// grip 23.6px tall with no error anywhere.)
-		const tall = Math.min(table.getBoundingClientRect().height / zoom,
-			wrap.clientHeight);
-		host.style.setProperty('--ws-org-nameend',
-			Math.max(0, tall).toFixed(2) + 'px');
-	} catch (_) { wsCatch('orgTableMake / orgNameLine: const host = wrap.parentElement;', _); }
-	// WITH THE SEAM, so the accent is re-snapped by every trigger the
-	// seam already has — the synchronous stamp, the ResizeObserver on
-	// the table, and the task queued after the build. A pane dragged
-	// narrower moves the cell, which moves the bar off the grid.
-	// GUARDED ON ITS OWN. This is decoration; the seam and the grip
-	// height above are structure. A throw in here must not take them
-	// with it — which it can, because the stamp above sits in a try
-	// whose catch is silent, so the failure would show up as a grip
-	// with no height and no error anywhere.
-	try { orgSnapAccent(); } catch (_) { wsCatch('orgTableMake / orgNameLine: orgSnapAccent();', _); }
-}
-
-// THE HEADER ROW: one <th> per column (lifted out of drawOrg, A488).
-function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; fill: () => Promise<void>; hr: HTMLTableRowElement; s: WordSmithSettings; sortCol: WsOrgCol | null; sortDir: string; wrap: HTMLDivElement }) {
-	const { cols, ctx, fill, hr, s, sortCol, sortDir, wrap } = a;
-	for (const col of cols) {
-		const th = hr.createEl('th', { cls: ctx.colTextish(col) ? 'is-text' : '' });
-		th.setAttribute('data-col', col.id);
-		// NAMED, so it can be given a box of its own to be clipped in.
-		// The `th` cannot do it: the resize grip is a CHILD of this cell
-		// and hangs 3px past its right edge and the whole height of the
-		// table, so `overflow: hidden` here would clip the control the
-		// writer just asked to be able to grab.
-		th.createSpan({ cls: 'ws-org-headlabel', text: col.label });
-		// ── THE STORED WIDTH, IF THERE IS ONE ──────────────────
-		//
-		// Absent means "the table decides", which is what every
-		// column has always got and what a double-click hands back.
-		// All three properties, because a `<table>` treats `width` as
-		// a suggestion and will overrule it from the content alone.
-		ctx.orgColStamp(th, col.id, wrap);
-		ctx.orgColGripBind(th, col, wrap);
-		if (sortCol && sortCol.id === col.id) {
-			th.createSpan({ cls: 'ws-org-sortmark',
-				text: wsSortArrow(sortDir) });
-		}
-		// desc → asc → custom. A click is a LENS, so it goes through the
-		// lens's one writer.
-		th.title = wsT('Sort: newest-biggest first, then smallest, then the book’s order');
-		th.addEventListener('click', () => {
-			// NOT THE ONE THAT ENDS A DRAG. See `orgGripReleasedAt`: the
-			// click a grip release synthesises lands here, because the
-			// grip itself takes no pointer events.
-			if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
-			const cur = ctx.orgLens.sort;
-			if (!cur || cur.id !== col.id) {
-				ctx.orgLensSet({ sort: { id: col.id, dir: 'desc' } });
-			} else if (cur.dir === 'desc') {
-				ctx.orgLensSet({ sort: { id: col.id, dir: 'asc' } });
-			} else {
-				ctx.orgLensSet({ sort: null });
-			}
-		});
-		// ── AND A DRAG MOVES IT ──────
-		// A drop TAKES THE TARGET'S PLACE (not a swap), the hidden columns keep
-		// their rank, `uniColOrder` is the one store. The NAME header is
-		// outside this loop on purpose — it is the sticky first column and does
-		// not move.
-		th.setAttribute('draggable', 'true');
-		th.addEventListener('dragstart', (ev: DragEvent) => {
-			ctx.orgDragCol = col.id;
-			try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', col.id); } catch (_) { wsCatch('orgTableMake / drawOrg: ev.dataTransfer.setData(\'text/plain\', col.id);', _); }
-		});
-		th.addEventListener('dragover', (ev: Event) => {
-			if (ctx.orgDragCol && ctx.orgDragCol !== col.id) ev.preventDefault();
-		});
-		// the column lands before this one; the order is saved and the table redrawn
-		const dropCol = async (moved: string) => {
-			const now: string[] = cols.map((x) => x.id);
-			const from = now.indexOf(moved);
-			if (from !== -1) now.splice(from, 1);
-			const at = now.indexOf(col.id);
-			now.splice(at === -1 ? now.length : at, 0, moved);
-			const rest = (Array.isArray(s.uniColOrder) ? s.uniColOrder : [])
-				.filter((id) => now.indexOf(id) === -1);
-			s.uniColOrder = now.concat(rest);
-			await plugin.saveSettings();
-			ctx.drawPanel();
-		};
-		th.addEventListener('drop', (ev: Event) => {
-			ev.preventDefault();
-			const moved = ctx.orgDragCol;
-			ctx.orgDragCol = null;
-			if (!moved || moved === col.id) return;
-			void dropCol(moved);
-		});
-		th.addEventListener('dragend', () => { ctx.orgDragCol = null; });
-		// ── AND A RIGHT-CLICK ON THE HEADER ─────────────────────────
-		//
-		// A gesture is not a door, and this is not the only door to any of
-		// these: Sort and Filter are bar buttons, the columns are the
-		// Properties panel. It is an extra ENTRY POINT into the same state.
-		// The header is still the sort control on a plain click, which is
-		// why the two sort rows say ↑ and ↓ rather than repeating the
-		// cycle: the click cycles, the menu picks.
-		th.addEventListener('contextmenu', (ev: MouseEvent) => {
-			ev.preventDefault();
-			ev.stopPropagation();
-			const menu = wsMenu();
-			menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2191'))
-				.setIcon('arrow-up')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'asc' } })));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2193'))
-				.setIcon('arrow-down')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'desc' } })));
-			// FILTER ONLY WHERE THERE ARE VALUES TO ENUMERATE. A reading
-			// is arithmetic over the note, not a value the note carries,
-			// and `orgDistinctUnder` has nothing to answer with — a row
-			// that always ends in "No values for Words" is a control
-			// that only ever apologises.
-			const fkey = col.user ? String(col.key)
-				: (col.id === 'tags' ? 'tags' : '');
-			if (fkey) {
-				menu.addItem((i) => i.setTitle(wsT('Filter by this\u2026'))
-					.setIcon('list-filter')
-					.onClick(() => ctx.orgFilterByKey(fkey, ev)));
-			}
-			menu.addSeparator();
-			// This plugin shows and hides columns; Obsidian deletes properties.
-			menu.addItem((i) => i.setTitle(wsT('Hide this column'))
-				.setIcon('eye-off')
-				.onClick(async () => {
-					ctx.colOff.add(col.id);
-					s.uniColsOff = Array.from<string>(ctx.colOff);
-					await plugin.saveSettings();
-					void fill(); ctx.drawPanel();
-				}));
-			// RIGHT UNDER IT: the same act the Properties panel's row calls — one
-			// fit, two doors — with the panel row's own words.
-			menu.addItem((i) => i.setTitle(wsT('Resize columns to fit'))
-				.setIcon('move-horizontal')
-				.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
-			// WHERE DELETION LIVES NOW: a note's property is removed in
-			// Obsidian's own Properties view or by editing the
-			// frontmatter; a non-md file's is removed by CLEARING ITS
-			// CELL, which drops the row from `ws-structure.md`.
-			try { menu.showAtMouseEvent(ev); }
-			catch { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / drawOrg: menu.showAtPosition( x: 0, y: 0 );', _e); } }
-		});
-	}
-}
-
-// THE VAULT'S TOTAL ROW COUNTS WHAT IT CANNOT ADD (A752, the writer: "in the total row show the numer of deadline x
-// deadlines", "in the total row say x targets", "in the total row say how many file types, same for footnotes,
-// backlinks, outgoing links"): with no target or deadline of the vault's own, how many are set in it (a note's and a
-// folder's, of files that are there); how many kinds of file, each kind on the hover; every link in, every link out.
-// (Footnotes already add up.) A folder's root row keeps its own target and deadline (A700).
-function wsOrgTotalSay(plugin: WordSmith, ctx: WsOrgCtx, id: string, paths: string[]): WsOrgColAgg | null {
-	const there = (p: string) => !!p && !!plugin.app.vault.getAbstractFileByPath(p);
-	if (id === 'goal' || id === 'deadline') {
-		const goals = plugin.settings.fileGoals || {}, folders = plugin.settings.folderTargets || {}, days = plugin.settings.goalDeadlines || {};
-		const keys = id === 'goal'
-			? Object.keys(goals).filter((p) => Number(goals[p]) > 0).concat(Object.keys(folders).filter((p) => Number(folders[p]) > 0))
-			: Object.keys(days).filter((p) => !!days[p]);
-		const n = new Set(keys.filter(there)).size;
-		if (!n) return null;
-		if (id === 'goal') return { text: n === 1 ? wsT('{n} target', { n }) : wsT('{n} targets', { n }) };
-		return { text: n === 1 ? wsT('{n} deadline', { n }) : wsT('{n} deadlines', { n }) };
-	}
-	if (id === 'ftype') {
-		const kinds = new Map<string, number>();
-		for (const p of paths) { const m = /\.([A-Za-z0-9]+)$/.exec(p); if (m) { const k = m[1].toLowerCase(); kinds.set(k, (kinds.get(k) || 0) + 1); } }
-		const n = kinds.size;
-		if (!n) return null;
-		const each = Array.from(kinds.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([k, c]) => c.toLocaleString() + ' ' + k);
-		return { text: n === 1 ? wsT('{n} file type', { n }) : wsT('{n} file types', { n }), title: wsUiJoin(each) };
-	}
-	if (id === 'backlinks' || id === 'outlinks') {
-		let n = 0;
-		for (const p of paths) n += wsListOf(ctx.orgColRaw({ id }, p)).length;
-		return n ? { text: n.toLocaleString() } : null;
-	}
-	return null;
-}
-
-// THE ROOT ROW at the head of the table, or at the vault the Total row at its
-// foot (lifted out of drawOrg).
-function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx: WsOrgCtx; orgLensEmptied: boolean; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
-	const { at, cols, ctx, orgLensEmptied, tbody, wrap } = a;
-	if (!orgLensEmptied) {
-		// A FOLDER YOU OPENED IS THE FIRST ROW: its glyph, its name and its
-		// figures (everything under it, read from the index), the rows under it
-		// one step in. Pinned under the column headings, so the figures stay in
-		// view however far the table scrolls. Its menu is the folder's own.
-		//
-		// THE VAULT IS NOT A ROW: opened on the whole vault, the same figures
-		// stand in a Total row at the foot, as they did before the root row came
-		// back, and the rows stand at the edge with nothing to hang from.
-		const isRoot = !!at;
-		const subj = tbody.createEl('tr', { cls: 'ws-org-subrow ' + (isRoot ? 'is-root' : 'is-total') });
-		subj.remove();
-		const std = subj.createEl('td', { cls: 'ws-org-name' });
-		const box = std.createDiv({ cls: 'ws-org-subject-in' });
-		try { std.setCssProps({ '--ws-org-depth': '0' }); }
-		catch (_) { wsCatch('orgTableMake / drawOrg: std.setCssProps({ --ws-org-depth: 0 });', _); }
-		const rootName = isRoot ? ctx.nameOf(at) : wsT('Total');
-		if (isRoot) {
-			// ITS CHEVRON FOLDS THE WHOLE TABLE UNDER IT, as a folder row's folds
-			// its own: shut, only this row and its figures stay. The session holds
-			// it (`ses.rootShut`), so a fresh window opens with everything shown.
-			const rootOpen = !(ctx.ses && ctx.ses.rootShut);
-			const twist = ctx.orgChevron(box, rootOpen);
-			twist.title = rootOpen ? wsT('Fold everything under this folder') : wsT('Unfold everything under this folder');
-			twist.addEventListener('click', (ev: Event) => {
-				ev.stopPropagation();
-				if (ctx.ses) ctx.ses.rootShut = rootOpen;
-				ctx.drawPanel();
-			});
-			// The folder's own glyph, open or shut with its chevron, in its colour.
-			plugin.orgFolderIcon(box, at, rootOpen);
-			subj.addEventListener('contextmenu', (ev: MouseEvent) => {
-				ev.preventDefault();
-				ev.stopPropagation();
-				const menu = wsMenu();
-				plugin.outlinerRowMenu(menu, { path: at, kind: 'folder' }, ctx.orgMenuCtx);
-				try { menu.showAtMouseEvent(ev); } catch (_) { wsCatch('wsOrgDrawRoot: menu.showAtMouseEvent(ev);', _); }
-			});
-		}
-		box.createSpan({ cls: 'ws-org-subjectname', text: rootName });
-		// THE COUNTS THE PATH LINE CARRIED, on the hover: the notes, the other
-		// files beside them, the tasks.
-		const under0 = ctx.orgUnder(at);
-		const agg0 = plugin.orgAggUnder(at);
-		const counts = wsOrgCountsLine(agg0, agg0 ? Math.max(0, under0.length - agg0.files) : 0);
-		std.title = isRoot
-			? (counts ? wsT('Everything under {name}: {counts}', { name: rootName, counts }) : wsT('Everything under {name}', { name: rootName }))
-			: (counts ? wsT('Everything in the vault: {counts}', { counts }) : wsT('Everything in the vault'));
-		const subUnder = ctx.orgUnder(at);
-		// ONE DRAWER FOR AN AGGREGATE, the total row's and the folder rows'
-		// alike: text for most, and for the Flag column a number and the
-		// flag's own glyph per flag — `2 ▸ 3 ▸`, each pair one span so the gap
-		// between pairs is the sheet's and not a space character's.
-		const aggInto = (td: HTMLElement, agg: WsOrgColAgg) => {
-			if (!agg) return;
-			if (agg.flags) {
-				td.addClass('ws-org-aggflags');
-				for (const f of agg.flags) {
-					const pair = td.createSpan({ cls: 'ws-org-aggflag' });
-					pair.createSpan({ cls: 'ws-org-aggflagn', text: String(f.n) });
-					const ic = pair.createSpan({ cls: 'ws-org-flagic' });
-					wsSvgInto(ic, wsFlagSvg(String(f.id), 10));
-					pair.title = f.n === 1 ? wsT('{n} file {flag}', { n: f.n, flag: f.label }) : wsT('{n} files {flag}', { n: f.n, flag: f.label });
-				}
-			} else {
-				td.setText(agg.text);
-			}
-			// a folder's target wears the band its notes wear
-			if (agg.goal) ctx.orgGoalBand(td, agg.goal.words, agg.goal.target);
-			if (agg.title) td.title = agg.title;
-		};
-		ctx.orgAggInto = aggInto;
-		for (const col of cols) {
-			const td = subj.createEl('td',
-				{ cls: ctx.colTextish(col) ? 'is-text' : '' });
-			td.setAttribute('data-col', col.id);
-			// THE WIDTH REACHES THE CELL, not only the header — see
-			// `orgColStamp`. Without this the column is as wide as its
-			// widest cell whatever the header asks for.
-			ctx.orgColStamp(td, col.id, wrap);
-			// (its own target, deadline and plan: the folder the window is opened on, or the vault's, A700)
-			const agg = ctx.orgColAgg(col, subUnder, at || '');
-			// …AND SET WHERE THEY ARE READ (A700, the writer: "let me hove on the root folder too"): the folder the window is
-			// opened on, or the vault's own on the Total row. A row of its own, `idx` -1: never a selection's.
-			// (the vault's Total row: what it cannot add, counted, A752)
-			const many = isRoot ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
-			if (col.id === 'goal' || col.id === 'deadline') {
-				const self: WsOrgRow = { path: at || '', parent: '', kind: 'folder', group: '', depth: 0, rel: '', idx: -1 };
-				// (its own first; the count only while the vault has none, a click still setting it)
-				const say = agg ? agg.text : (many ? many.text : '');
-				if (col.id === 'goal') ctx.orgGoalCell(td, self, say, agg && agg.goal ? agg.goal : null);
-				else ctx.orgDeadlineCell(td, self, say, agg && agg.title ? agg.title : '');
-				if (!agg && many) td.title = col.id === 'goal' ? wsT('Click to set a target') : wsT('Click to set a deadline');
-				continue;
-			}
-			// THE FOLDER THE WINDOW IS OPENED ON COUNTS ITS VOCABULARY TOO (the writer: "sometimes the vocabulary for the
-			// folder wont show up", 2026-10-22): a folder like the ones under it, its notes' words counted once and drawn
-			// when they are read (A792); it was left to the vault's Total row's rule, which never asks
-			if (col.id === 'vocab' && isRoot) {
-				const put = (v: WsOrgColAgg) => { td.empty(); td.addClass('ws-org-aggcell'); td.setText(v.text); if (v.title) td.title = v.title; };
-				const now = ctx.orgFolderVocab(at, ctx.orgUnder(at), (v) => { if (td.isConnected) put(v); });
-				if (now) put(now);
-				continue;
-			}
-			if (many) aggInto(td, many);
-			else if (agg) aggInto(td, agg);
-		}
-		// AND THE PICKER’S COLUMN, so the row is not one cell short
-		// and the table draws level - the same trailing cell every
-		// other row emits, for the same reason. In Outline the subject
-		// spans instead, exactly as the rows under it do.
-		subj.createEl('td', { cls: 'ws-org-pickcell' });
-		ctx.orgRootRow = subj;
-	}
-}
-
-// THE ROWS: one <tr> per file or folder (lifted out of drawOrg, A488).
-function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; lensed: boolean; nums: Map<string, string> | null; rooted: boolean; rows: WsOrgRow[]; tbody: HTMLTableSectionElement; wrap: HTMLDivElement }) {
-	const { cols, ctx, lensed, nums, rooted, rows, tbody, wrap } = a;
-	let prevRuled = true;
-	for (const row of rows) {
-		const isFolder = row.kind === 'folder';
-		// KEEPS `ws-org-row`, and that is a decision rather than a convenience:
-		// it is the class the first-column freeze, the touch-drag row list and
-		// the measurements all select on.
-		const tr = tbody.createEl('tr',
-			{ cls: 'ws-org-row' + (isFolder ? ' is-folder' : '') + (isFolder && !prevRuled ? ' is-topline' : '') });
-		prevRuled = isFolder;
-		tr.setAttribute('data-path', row.path);
-		// The followed note is marked HERE too: the table is where the folder
-		// is read.
-		if (row.path === ctx.orgNote) tr.addClass('ws-org-active');
-		// A ROW IN THE SELECTION WEARS IT, across a redraw too.
-		if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass('is-selected');
-		const nameTd = tr.createEl('td', { cls: 'ws-org-name' });
-		// A TABLE CELL AGAIN, WITH THE FLEX ROW INSIDE IT. A cell that is
-		// itself `display: flex` is a flex box in an anonymous cell rather than
-		// a cell: it stops at its own content while a taller cell sets the row
-		// (a checkbox property makes the row 25px, a phone-sized hit 44), and
-		// the guide painted on the cell — and the cell's own opaque background
-		// — ends short of every such row. `height: 100%` and `align-self` do
-		// nothing for a flex box in that position. So the chevron, the glyph,
-		// the label and the tag sit in this wrapper, which is the flex row, and
-		// the cell stretches with its row as cells do.
-		//
-		// THE NUMBER FIRST, at the cell's left edge before the indent — a
-		// column of its own inside the sticky Name, so the seam and the guides
-		// need not learn about a second column.
-		if (nums && nums.has(row.path)) {
-			nameTd.createSpan({ cls: 'ws-org-num', text: nums.get(row.path) });
-		}
-		const nameIn = nameTd.createDiv({ cls: 'ws-org-namein' });
-		// THE ROW'S KIND, drawn by the tree's own builder — same dropdown, same
-		// checked names, so a note reads as a note and a PDF as a PDF in both
-		// places. BEFORE the label, which is where the tree puts it and where
-		// the eye looks for it.
-		// THE INDENT, as a depth the stylesheet turns into padding:
-		// the step is read from Obsidian's own --nested-item-* vars
-		// there, which is where the tree beside this table reads it,
-		// so both panes step by the same amount under any theme. A top-level
-		// row is depth 0. A lens draws no folder rows, so the guide lines a
-		// depth would draw point at rows that are not on screen: under a
-		// lens every row is at 0.
-		// ONE STEP IN, UNDER A FOLDER'S ROOT ROW: every row drawn sits under it,
-		// a lensed row too, so its guide leads back to it. At the vault there is
-		// no root row, and the top level stands at the edge.
-		try {
-			nameTd.style.setProperty('--ws-org-depth',
-				String((rooted ? 1 : 0) + (lensed ? 0 : (row.depth || 0))));
-		} catch (_) { wsCatch('orgTableMake / drawOrg: nameTd.style.setProperty(\'--ws-org-depth\',', _); }
-		// A FOLDER'S CHEVRON IS ITS DOOR. Every control needs a visible one,
-		// and folding is the only thing here that has no other way in.
-		if (isFolder) {
-			const open = ctx.orgIsOpen(row.path);
-			const twist = ctx.orgChevron(nameIn, open);
-			twist.title = open ? wsT('Fold this folder') : wsT('Unfold this folder');
-			twist.addEventListener('click', (ev: Event) => {
-				ev.stopPropagation();
-				ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
-			});
-		} else {
-			// ── AND A NOTE RESERVES THE SLOT ───────────────────────────
-			//
-			// A folder row spends 16px of chevron plus 2px of margin that a note
-			// row would spend nothing on, and the indent step is only 16px — so
-			// without the spacer a note's glyph drew LEFT of its parent folder's.
-			// Obsidian's explorer reserves it, and the menu pane draws the same
-			// spacer for the same reason.
-			//
-			// IT WEARS THE APP'S CHEVRON BOX TOO, empty: that is how it is
-			// guaranteed to be exactly as wide as the real one under any theme. A
-			// DIFFERENT CLASS FROM THE REAL ONE, deliberately: seven places reach
-			// for the first `.ws-org-twist` in a row and click it, and a blank one
-			// answering them would be a dead door reporting as a live one.
-			nameIn.createSpan({ cls: 'ws-org-twistgap tree-item-icon'
-				+ ' collapse-icon nav-folder-collapse-indicator' });
-		}
-		// A FOLDER WEARS THE TREE'S FOLDER GLYPH, drawn open or shut
-		// to match its own state; a note wears its kind glyph.
-		// `orgKindIcon` tests for `.md` and would give a folder the
-		// generic file glyph, which is the sort of miss that reads
-		// as a theme problem rather than a wiring one.
-		if (isFolder) ctx.orgFolderIcon(nameIn, row.path, ctx.orgIsOpen(row.path));
-		else plugin.orgKindIcon(nameIn, row.path);
-		// The label wears a class because the rename finds it by one:
-		// a bare span would make the lookup positional, and the first
-		// markup change would point the rename at the wrong element.
-		// ── THE FOLDER LEADS, THE FILE FOLLOWS ──────────────────
-		//
-		// Folder paths vary in length, so the file names no longer align down
-		// a left edge; the order is what was asked for. ORDER IN THE DOM, NOT
-		// `order:` IN THE SHEET. The cell is a flex row and CSS could reorder
-		// it — but the tick box and the kind glyph are flex items here too,
-		// and an `order` that only mentions two of four is a rule the next
-		// item silently joins the wrong side of. It also keeps reading order
-		// and paint order the same thing, which is what a screen reader gets.
-		if (lensed && row.rel) {
-			nameIn.createDiv({ cls: 'ws-org-path', text: row.rel });
-		}
-		nameIn.createSpan({ cls: 'ws-org-namelabel', text: ctx.nameOf(row.path) });
-		// AND THE FORMAT IS SAID IN WORDS, AFTER THE NAME — the labels
-		// Obsidian's own explorer draws. A note gets none, because every row
-		// in a vault would carry the same word.
-		if (!isFolder) plugin.orgKindTag(nameIn, row.path);
-		// THE WHOLE LOCATION ON HOVER, now that the row shows both
-		// halves: a truncated cell is exactly when a writer asks.
-		nameTd.title = (lensed && row.rel)
-			? row.rel + ' / ' + ctx.nameOf(row.path)
-			: ctx.nameOf(row.path);
-		// THE FLAG IS STILL A FILE'S — see below. `markOf` returns '' for a
-		// folder, so a flag there would be a control that cycles nothing.
-		for (const col of cols) {
-			const td = tr.createEl('td', { cls: ctx.colTextish(col) ? 'is-text' : '' });
-			td.setAttribute('data-col', col.id);
-			ctx.orgColStamp(td, col.id, wrap);
-			// A FOLDER'S CELLS ARE ITS SUBTREE'S TOTAL, the way Scrivener's Total
-			// columns do it. Taken from the INDEX via `orgUnder`, never from the
-			// drawn rows: read off what is on screen, shutting a folder would
-			// change its own number, and a fold that moves a total is a fold
-			// acting as a filter.
-			if (isFolder) {
-				const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path), row.path);
-				// A FOLDER'S OWN TARGET AND DEADLINE ARE ITS OWN, set where they are read (A700): no summary weight
-				if (col.id === 'goal') { ctx.orgGoalCell(td, row, agg ? agg.text : '', agg && agg.goal ? agg.goal : null); continue; }
-				if (col.id === 'deadline') { ctx.orgDeadlineCell(td, row, agg ? agg.text : '', agg && agg.title ? agg.title : ''); continue; }
-				// A FOLDER'S VOCABULARY (A792): its notes' words counted once, drawn when they are read (orgFolderVocab);
-				// the Total row never asks
-				if (col.id === 'vocab') {
-					const put = (a: WsOrgColAgg) => { td.empty(); td.addClass('ws-org-aggcell'); td.setText(a.text); if (a.title) td.title = a.title; };
-					const now = ctx.orgFolderVocab(row.path, ctx.orgUnder(row.path), (a) => { if (td.isConnected) put(a); });
-					if (now) put(now);
-					continue;
-				}
-				if (agg) {
-					// A SUMMARY IS NOT A MEASUREMENT: folder aggregate cells render in a
-					// visibly different weight from note values, so nobody reads a
-					// folder's average as a measurement. It matters most for the weighted
-					// grade, which is a figure no note actually carries.
-					td.addClass('ws-org-aggcell');
-					// THE TOTAL ROW'S DRAWER: a folder's flags are a number and a glyph
-					// per flag, drawn the same in both.
-					if (ctx.orgAggInto) ctx.orgAggInto(td, agg);
-					else { td.setText(agg.text); if (agg.title) td.title = agg.title; }
-				}
-				continue;
-			}
-			const text = ctx.orgColText(col, row.path);
-			// ── MALFORMED FRONTMATTER IS VISIBLE, NOT PLAUSIBLE ──────
-			//
-			// A value that does not parse as its DECLARED type is drawn muted with
-			// the raw string on hover — `28 07` sitting in a date. ASKED ONLY OF
-			// THE PROPERTY COLUMNS, which is what `col.user` marks. The built-in
-			// readings are computed by this plugin, not typed by a person, so there
-			// is nothing there to be malformed — and parse-checking them would
-			// invent a way for a word count to look broken.
-			if (col.user) {
-				const raw = ctx.orgColRaw(col, row.path);
-				const pk = col.key || col.id;
-				const fmt = plugin.formatValue(pk, raw, plugin.orgPropType(pk),
-					plugin.dateStyle());
-				if (!fmt.ok) {
-					td.addClass('ws-org-badval');
-					td.title = plugin.orgPropType(pk)
-						? wsT('This is not a valid {type}: {value}', { type: wsTq(plugin.orgPropType(pk)), value: wsStr(raw) })
-						: wsT('This is not a valid value: {value}', { value: wsStr(raw) });
-				}
-			}
-			// The mark and goal cells are CONTROLS as well as readings: the flag
-			// cycles, the target edits.
-			if (col.id === 'mark') { ctx.orgFlagCell(td, row, text); continue; }
-			if (col.id === 'goal') { ctx.orgGoalCell(td, row, text); continue; }
-			if (col.id === 'deadline') { ctx.orgDeadlineCell(td, row, text, ctx.orgPlanTitle('deadline', row.path)); continue; }
-			if (col.id === 'tags') { ctx.orgTagsCell(td, row); continue; }
-			// A FILE ROW ONLY. A folder has no backlinks of its own; its cell
-			// is the aggregate over the notes beneath it, which is a count and
-			// not a list of doors.
-			if (col.id === 'backlinks' && !isFolder) {
-				td.textContent = '';
-				ctx.orgBackCell(td, row);
-				continue;
-			}
-			if (col.id === 'outlinks' && !isFolder) {
-				td.textContent = '';
-				ctx.orgOutCell(td, row);
-				continue;
-			}
-			// ── A PROPERTY IS WRITTEN WHERE IT IS READ ──────
-			//
-			// A property COLUMN's cell edits in place like the flag and the target
-			// beside it.
-			//
-			// ── A CHECKBOX IS A BOX, NOT A TICK GLYPH ────
-			//
-			// `formatValue` answers '✓' for true and THE EMPTY STRING for false, so
-			// the cell would be a tick or nothing at all — and an unticked box and
-			// an empty cell are different facts: one says "not done", the other
-			// "never answered". OBSIDIAN'S OWN INPUT, undressed: a bare
-			// `input[type=checkbox]` is what the app styles for every other
-			// checkbox a theme sees, so this takes the theme's look for free and
-			// follows it when the theme changes. NOT DRAWN FOR A FOLDER ROW: that
-			// cell is the aggregate over what is beneath it, a count and not a
-			// state.
-			if (col.user && !isFolder
-				&& String(plugin.orgPropType(col.key || col.id)).toLowerCase() === 'checkbox') {
-				// ── AND ABSENT IS NOT FALSE ──────
-				//
-				// A CHECKBOX HAS TWO STATES AND A PROPERTY HAS THREE. A box on every
-				// row would make a note that has never carried the key look exactly
-				// like one deliberately left unticked. SO THE CELL CYCLES, which is
-				// this window's own grammar (the flag cell has always cycled):
-				//
-				// nothing  ->  ticked  ->  unticked  ->  nothing
-				//
-				// AND THAT IS THE ONLY WAY "DISPLAY NOTHING UNTIL I ADD IT" CAN HOLD:
-				// once empty means absent, there has to be a road back to empty, or a
-				// property could be added and never removed. The third press is that
-				// road.
-				const raw0 = ctx.orgColRaw(col, row.path);
-				const rawv = (typeof raw0 === 'boolean' || typeof raw0 === 'string') ? raw0 : (raw0 == null ? '' : wsStr(raw0));
-				const has = rawv !== null && rawv !== undefined && rawv !== '';
-				td.textContent = '';
-				const canEdit = ctx.orgCanHoldProps(row.path);
-				if (canEdit) td.addClass('is-prop');
-				const bx = has
-					? td.createEl('input', { cls: 'ws-org-cellcheck' })
-					: null;
-				if (bx) {
-					bx.type = 'checkbox';
-					bx.checked = rawv === true;
-					bx.disabled = !canEdit;
-				}
-				td.title = !canEdit
-					? wsT('This kind of file cannot hold properties')
-					: (!has
-						? wsT('Not set \u2014 press to add it, ticked')
-						: (rawv === true
-							? wsT('Ticked \u2014 press to untick')
-							: wsT('Unticked \u2014 press to remove it from this file')));
-				// THE WHOLE CELL IS THE TARGET, which is the other half
-				// of the report: a 13px box in a 24px row is a thing to
-				// aim at, and the cell is not.
-				// ONE WRITER FOR THE CYCLE, whichever element was pressed.
-				// The box and the cell both land in `step`, and the next
-				// state is worked out from the VALUE — not from what the
-				// input is showing. A checkbox toggled by the browser has
-				// already changed itself, and reading that back would
-				// lose the third state before it was ever written.
-				const nextOf = (v: string|boolean) => {
-					if (v === null || v === undefined || v === '') return true;
-					if (v === true) return false;
-					return '';
-				};
-				const step = async () => {
-					if (!canEdit) { ctx.orgPropRefuse(row.path); return; }
-					const stored = plugin.propStoreHolds(row.path);
-					ctx.orgRedrawPending = true;
-					await ctx.orgPropSet(row.path,
-						col.key || col.id, nextOf(rawv));
-					if (stored) ctx.orgEditDone();
-				};
-				td.addEventListener('click', (ev: Event) => {
-					ev.stopPropagation();
-					void step();
-				});
-				if (bx) {
-					// THE BROWSER'S OWN TOGGLE IS REFUSED. Left to itself the input would
-					// flip to a state the cycle may not be going to — unticked is not what
-					// follows unticked — and the redraw would then correct it in front of
-					// the writer.
-					bx.addEventListener('click', (ev: Event) => {
-						ev.stopPropagation();
-						ev.preventDefault();
-						void step();
-					});
-				}
-				// ── ONE REDRAW, AND NOT BEFORE THE WRITE LANDS ──────
-				//
-				// On-off-on is two redraws racing one write: the click sets the box
-				// (on); a redraw reads the value BACK before `processFrontMatter` has
-				// landed and Obsidian's cache has caught up, so it paints the old state
-				// (off); the cache updates and it paints on again. A NOTE ALREADY GETS
-				// ITS REDRAW FOR FREE — writing frontmatter changes the file, Obsidian
-				// fires a metadata event and the index ring redraws — so asking for
-				// another here is the second of the two. A STORE-HELD FILE FIRES
-				// NOTHING, so that one still has to be asked. (`step` above is the one
-				// writer; a `change` handler beside it would write twice for one
-				// press.)
-				continue;
-			}
-			if (col.user) { ctx.orgPropCell(td, row, col, text); continue; }
-			td.setText(text);
-			// The cap cuts, the hover answers — same trade the old
-			// table made, kept because it is the right one. The plan's two readings say what they are for (A705).
-			if (text) td.title = text;
-		}
-		// THE PICKER'S COLUMN, kept level: the header carries a cell, so every
-		// row does.
-		//
-		// THE PICK CELL IS THE TABLE'S: the header picker needs a column to
-		// sit in, and every row emits one so the table draws level.
-		tr.createEl('td', { cls: 'ws-org-pickcell' });
-		// SINGLE CLICK SHOWS, DOUBLE CLICK OPENS. FILES ONLY: a folder row
-		// already has the one door folding has — its twist — and making the
-		// row body navigate into the folder is a second act nobody asked for.
-		//
-		// GUARDED THE WAY THE BINDER ROW IS, and the same list. Every control
-		// in these cells already stops propagation itself, so this changes
-		// nothing TODAY — it is here so the next cell to grow a handler does
-		// not have to remember. A TAG CHIP IS NOT ON THE LIST: it carries no
-		// handler — it is text in a cell — so excluding it would make one
-		// patch of the row inert for no reason a writer could see.
-		const inCtl = (ev: Event) => !!(ev.target && ev.target !== tr
-			&& (ev.target as HTMLElement).closest && (ev.target as HTMLElement).closest(
-				'input, select, button, textarea, .ws-goals-chip,'
-				+ ' .ws-goals-chev, .ws-org-twist'));
-		tr.addEventListener('click', (ev: MouseEvent) => {
-			if (inCtl(ev)) return;
-			// ── A FOLDER ROW FOLDS ITSELF ON A NARROW SCREEN ────────
-			//
-			// The twist is 16 x 15.6px, the smallest control in the window and
-			// the one that opens a folder. It reaches 28 x 44 under `is-narrow`
-			// and no further, because its width IS the tree's indent per level —
-			// at 44 a three-deep folder would spend 132px of a 390px screen on
-			// indent alone. The row is 44 tall and costs nothing: the SAME act as
-			// the twist, with a bigger target.
-			//
-			// NARROW ONLY. On a desktop the twist is a good target for a mouse,
-			// and a whole row that folds on any stray click is worse than a small
-			// one you aim at. `orgNarrowNow` reads the CLASS the ResizeObserver
-			// maintains, not the platform flag — a docked 300px pane on a desktop
-			// is narrow too. AND THE TWIST IS NOT DOUBLE-FIRED: `inCtl` already
-			// names `.ws-org-twist`, so a tap on the chevron returns above.
-			if (isFolder) {
-				if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
-				return;
-			}
-			// ── A CLICK HERE SELECTS. IT DOES NOT NAVIGATE ─────────
-			//
-			// The way into a folder is Obsidian's explorer; a click on a note row
-			// here selects it and shows it, a double click opens it. A MODIFIED
-			// CLICK SELECTS: Ctrl/Cmd toggles the row, Shift takes the range over
-			// the rows shown; the table is repainted for the tint and the note is
-			// NOT shown — a click that gathers rows is not a click that opens one.
-			// A plain click clears the selection and shows the note.
-			if (ctx.orgSelClick(ev, row, rows.map((r0) => r0.path))) {
-				if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
-				return;
-			}
-			if (ctx.orgSelPaint) ctx.orgSelPaint(tbody);
-			ctx.showItem({ path: row.path, kind: row.kind }, true);
-		});
-		tr.addEventListener('dblclick', (ev: MouseEvent) => {
-			if (inCtl(ev) || isFolder) return;
-			ctx.openRow({ path: row.path, kind: row.kind });
-		});
-		// The right-click is the tree's own menu — see orgMenuCtx.
-		tr.addEventListener('contextmenu', (ev: MouseEvent) => {
-			ev.preventDefault();
-			ev.stopPropagation();
-			const menu = wsMenu();
-			plugin.outlinerRowMenu(menu,
-				{ path: row.path, kind: row.kind }, ctx.orgMenuCtx);
-			menu.showAtMouseEvent(ev);
-		});
-		// Drag exists only while the book's own order is showing — under any
-		// lens this call is simply never made. A FOLDER ROW CARRIES BOTH:
-		// reorder at its edges, and the move-into, so a note can be moved
-		// between folders from the right pane.
-		if (!lensed) {
-			ctx.orgRowDrag(tr, row);
-			if (isFolder) ctx.orgGroupDrop(tr, row.path);
-		}
-	}
-	return prevRuled;
-}
-
-// THE TREE'S REMOTE, a folder chosen in Obsidian's tree (lifted out of openManuscriptModal, A888).
-function wsOrgDoorSelect(a: { orgScope: ReturnType<typeof wsOrgScopeMake>; orgSelect: (p: string) => void; s: WordSmithSettings; tab: string }, p: string) {
-	const { orgScope, orgSelect, s, tab } = a;
-	// PINNED, THE DOOR IS SHUT: a folder clicked in the explorer is the
-	// explorer's business; the pane stays where it was pinned.
-	if (s.organizerPinned) return;
+// A FOLDER CHOSEN FOR THE WINDOW from Obsidian's tree, by its right-click ("Organizer here", "History here"; lifted
+// out of openManuscriptModal, A888). A plain click on a folder there chooses nothing (A892).
+function wsOrgDoorSelect(a: { orgScope: ReturnType<typeof wsOrgScopeMake>; orgSelect: (p: string) => void; tab: string }, p: string) {
+	const { orgScope, orgSelect, tab } = a;
 	// A folder chosen while History is up is the folder's history: the note
 	// it was scoped to is let go. `orgSelect` keeps a note that is under the
 	// folder, which is right for the table's cursor and wrong for a scope.
@@ -1176,14 +166,18 @@ function wsOrgDoorSelect(a: { orgScope: ReturnType<typeof wsOrgScopeMake>; orgSe
 	orgSelect(p == null || p === '/' ? '' : String(p));
 }
 
-// THE TREE'S REMOTE, a note opened in Obsidian's tree (lifted out of openManuscriptModal, A888).
-function wsOrgDoorFollow(a: { drawPanel: () => void; exportOpts: WsExportPanelHandle | null; orgFollow: (it: { path: string; kind: string; }, keepScope: boolean, markOnly?: boolean) => void; orgScope: ReturnType<typeof wsOrgScopeMake>; s: WordSmithSettings; tab: string }, p: string) {
-	const { drawPanel, exportOpts, orgFollow, orgScope, s, tab } = a;
+// A NOTE, as the window hears of it (lifted out of openManuscriptModal, A888): one opened anywhere, or one CHOSEN by
+// the tree's right-click ("History here" on a note).
+function wsOrgDoorFollow(a: { drawPanel: () => void; exportOpts: WsExportPanelHandle | null; orgFollow: (it: { path: string; kind: string; }, keepScope: boolean, markOnly?: boolean) => void; orgScope: ReturnType<typeof wsOrgScopeMake>; tab: string }, p: string, chosen?: boolean) {
+	const { drawPanel, exportOpts, orgFollow, orgScope, tab } = a;
 	if (!p) return;
-	// PINNED: a note the folder holds is still marked; one it does not hold
-	// changes nothing — no jump, no mark outside the pane.
-	if (s.organizerPinned && !orgScope.orgScopeHolds(String(p))) return;
-	orgFollow({ kind: 'file', path: String(p) }, true);
+	// NOTHING OPENED ELSEWHERE MOVES THE WINDOW (A892, the writer: "i dont want to click on folders and the organizer
+	// to switch there. remove that, including history too, so remove the pin too"): a note the window shows is marked
+	// and that is all; one it does not show changes nothing; and on History, whose subject the mark is, not even the
+	// mark. A note CHOSEN is followed as before: the window keeps its folder when it holds the note, and History
+	// takes the note as its subject.
+	if (!chosen && (tab === 'history' || !orgScope.orgScopeShows(String(p)))) return;
+	orgFollow({ kind: 'file', path: String(p) }, true, !chosen);
 	drawPanel();
 	// THE READER FOLLOWS TOO: click a ticked file in Obsidian's tree and the
 	// reader goes to it.
@@ -1292,8 +286,7 @@ function wsOrgOpenOnNote(plugin: WordSmith, a: { folderOf: (path: string) => str
 				// only the JUMP that stops.
 				let been = null;
 				try { been = plugin._wsSession ? plugin._wsSession.folder : null; } catch (_) { wsCatch('openManuscriptModal: been = this._wsSession ? this._wsSession.folder : null;', _); }
-				// (and never while pinned: the pin outranks the session's first open)
-				orgFollow({ path: af.path, kind: 'file' }, true, been !== null || !!s.organizerPinned);
+				orgFollow({ path: af.path, kind: 'file' }, true, been !== null);
 				// (The cursor is already standing on the active note —
 				// the open logic above placed it; one writer.)
 				let dir = folderOf(af.path);
@@ -2468,112 +1461,7 @@ export const organizerWindowMethods = {
 		// know or care.
 		const host = o.host || this.modalHost();
 		if (!host) return;
-		// ── NO TITLE ON THIS WINDOW ─────────────────────────────────────────
-		//
-		// The title ELEMENT stays where Obsidian put it and simply holds
-		// nothing. Removing it is not ours to do: it is the modal's own
-		// furniture, and a theme that positions the close button against it
-		// would have nothing to position against.
-		host.rootEl.addClass('ws-uni-modal');
-		if (host.paneClass) host.rootEl.addClass(host.paneClass);
-		// One aurora palette per OPENING, not per draw: the inspector
-		// rebuilds on every tab switch and on every cursor move, and
-		// re-rolling the colours there reads as a glitch rather than as a
-		// thing you were dealt. Same reason, same line, as the report.
-		this._auroraSeed = Math.random();
-
-		const s = this.settings;
-		for (const k of ['fileGoals', 'fileStatus']) {
-			if (!wsBag(s)[k]) wsBag(s)[k] = {};
-		}
-		// DEAD KEYS, DELETED ON LOAD: a dead key that still parses is a trap for
-		// whoever reuses the name.
-		delete s.orgLenses;
-		delete s.uniSlimCol;
-		delete s.organizerView;
-		delete s.organizerDrawer;
-		// ONE STORE FOR TARGETS: a folder is the sum of its notes, and the table
-		// gets a folder row's number from `ORG_AGG` summing over the rows as shown.
-		const goalStore   = (): 'fileGoals' => 'fileGoals';
-		// ONE STORE, because only files have flags; `markOf` answers '' for a
-		// folder rather than reading a key that does not exist.
-		const statusStore = (): 'fileStatus' => 'fileStatus';
-		const targetOf = (path: string|number) => Number(s[goalStore()][path]) || 0;
-		const markOf   = (path: string|number, kind: string) => (kind === 'folder' ? ''
-			: (s[statusStore()][path] || ''));
-
-		// ── WHICH DOCUMENT THIS WINDOW IS IN ────────────────────────────
-		//
-		// A POPOUT IS A DIFFERENT DOCUMENT. This window is a leaf as well as
-		// a sheet, and a leaf can be dragged into its own OS window - which
-		// `openOutlinerPane` has always said is the whole reason it is one.
-		// In that window `document` and `window` still name the MAIN one, so
-		// every bare reference addresses a page the writer is not looking at:
-		// a selection that never highlights, a drag whose mouseup never
-		// arrives, an Escape that reaches nothing.
-		//
-		// ONE WRITER FOR THE FACT. Everything below asks these two rather
-		// than the globals, so there is one description of where this window
-		// lives instead of eight that have to be kept in step.
-		//
-		// FALLING BACK TO THE GLOBALS is not a nicety: `contentEl` is detached
-		// in a fixture, where `ownerDocument` is still right but `defaultView`
-		// can be null.
-		const ownerDoc = () => {
-			try { return host.contentEl.ownerDocument || document; }
-			catch { return document; }
-		};
-		const ownerWin = () => {
-			try { return ownerDoc().defaultView || window; }
-			catch { return window; }
-		};
-		const body  = host.contentEl.createDiv({ cls: 'ws-uni-body' });
-		// ACROSS THE TOP OF THE WINDOW, not inside the inspector: a tab that
-		// hides the inspector would hide the tabs with it.
-		const tabsRow = body.createDiv({ cls: 'ws-uni-tabs' });
-		// ONE TAB ONLY: a pane built for one tab hides the strip — the three
-		// tabs are three panes — and its tab cannot be switched.
-		const single = !!o.only;
-		if (single) body.addClass('is-single');
-		// ONE COLUMN. `cols` keeps its box for the stylesheet's sake and holds
-		// the one pane there is.
-		const cols  = body.createDiv({ cls: 'ws-uni-cols' });
-		const right = cols.createDiv({ cls: 'ws-uni-right' });
-		const foot  = body.createDiv({ cls: 'ws-uni-foot' });
-
-		// NARROW IS MEASURED, NOT ASKED OF THE PLATFORM. A sheet is always the
-		// same size, but a leaf is whatever width the writer dragged it to —
-		// docked into a sidebar it can be 260px on a desktop. The phone still
-		// declares itself, because a phone is narrow before anything has been
-		// measured; a pane is measured, and re-measured when it is dragged
-		// (`ResizeObserver`).
-		//
-		// THE THRESHOLD HAS ONE READER: `--ws-uni-narrow`, declared on
-		// `.ws-uni-modal` in the stylesheet beside the rules it switches. The
-		// `700` is a fallback for a root that is not styled yet; a test
-		// holds it against the stylesheet's own number so the two cannot drift.
-		// A PANE BUILT FOR ONE TAB HAS NO TREE COLUMN TO STACK, so its limit is
-		// the phone's, `--ws-uni-narrow-single`, not the two-column window's.
-		const orgNarrowLimit = () => {
-			const fallback = single ? 420 : 700;
-			try {
-				const said = getComputedStyle(host.rootEl)
-					.getPropertyValue(single ? '--ws-uni-narrow-single' : '--ws-uni-narrow');
-				const n = parseInt(String(said).trim(), 10);
-				return isFinite(n) && n > 0 ? n : fallback;
-			} catch { return fallback; }
-		};
-		const narrow = !!(Platform && Platform.isMobile);
-		if (narrow) host.rootEl.addClass('is-narrow');
-		// organizer-nav.ts reads this closure through the names below and
-		// nothing else; the aliases keep the names the closure calls.
-		const orgNav = wsOrgNavMake({
-			plugin: this,
-			get body() { return body; },
-			get host() { return host; },
-			get narrow() { return narrow; },
-			get orgNarrowLimit() { return orgNarrowLimit; },
-		});
+		const { body, foot, goalStore, markOf, orgNav, ownerDoc, ownerWin, right, s, single, statusStore, tabsRow, targetOf } = wsOrgWindowFrame(this, host, o);
 		// ── THE SELECTION ───────────────────────────────────────────────────
 		//
 		// One object the whole window shares. Each path carries its own kind —
@@ -2971,8 +1859,8 @@ export const organizerWindowMethods = {
 		// already holds the note and moves to the note's folder when it does not.
 		const treeDoor: WsOrgDoor = {
 			kind: host.kind,
-			select: (p: string) => wsOrgDoorSelect({ orgScope, orgSelect, s, tab }, p),
-			follow: (p: string) => wsOrgDoorFollow({ drawPanel, exportOpts, orgFollow, orgScope, s, tab }, p),
+			select: (p: string) => wsOrgDoorSelect({ orgScope, orgSelect, tab }, p),
+			follow: (p: string, chosen?: boolean) => wsOrgDoorFollow({ drawPanel, exportOpts, orgFollow, orgScope, tab }, p, chosen),
 			tab: () => tab,
 			single: () => single,
 			// THE MENUS' DOORS: switch the tab and say which host this is so a pane
@@ -3886,683 +2774,10 @@ export const organizerWindowMethods = {
 
 			// ── the bar: Sort by + AND-combined property chips ──────────
 			ctx.panel.textContent = '';
-			const bar = ctx.panel.createDiv({ cls: 'ws-org-bar' });
-			// ── A BAR MENU OPENS UNDER ITS BUTTON ─────────────
-			//
-			// `showAtMouseEvent` puts the menu's corner where the click landed, so
-			// a wide button like "Sort: Words ↓" opened its menu anywhere along its
-			// own width — the same list arriving in a different place each time.
-			// NO BASE CONVERSION HERE: an Obsidian `Menu` hangs off the document,
-			// not off our host, so a viewport point is the right frame. The mouse
-			// event stays as the fallback — a rect of all zeros is what a fixture
-			// hands back, and a menu at the origin would be worse than one at the
-			// pointer.
-			const menuUnder = (menu: Menu, btn: HTMLElement, ev: MouseEvent) => {
-				try {
-					const r = btn && btn.getBoundingClientRect ? btn.getBoundingClientRect() : null;
-					if (r && (r.width || r.height)) {
-						// THE ANCHOR'S WIDTH AND `overlap`, which is how Obsidian places its
-						// own dropdowns. Without them the positioner adds 2px to the LEFT as
-						// well as the top, so the menu sat a hair right of its button; with
-						// them it lines up on the button's left edge and opens 2px under it,
-						// the same 2px the Properties flyout uses.
-						menu.showAtPosition({ x: Math.round(r.left), y: Math.round(r.bottom), width: Math.round(r.width), overlap: true });
-						return;
-					}
-				} catch (_) { wsCatch('orgTableMake / menuUnder: const r = btn && btn.getBoundingClientRect', _); }
-				try { menu.showAtMouseEvent(ev); }
-				catch { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / menuUnder: menu.showAtPosition( x: 0, y: 0 )', _e); } }
-			};
-			// ── SORT BY ────────────────────────────────────────────────
-			// The header click still cycles; this menu is the same lens through a
-			// control a writer can FIND. One writer underneath: everything goes
-			// through orgLensSet.
-			// ── THE THREE LENSES WEAR BASES' OWN ICONS ──────────────────
-			//
-			// A writer who has used Bases already knows what these three do, and
-			// this window is dressed as Obsidian everywhere else — borrowing the
-			// app's vocabulary is cheaper than teaching our own.
-			//
-			// TRIED IN ORDER AND CHECKED, and the chosen name is RECORDED on the
-			// element: `setIcon` with a name this build's Lucide does not know
-			// leaves the element empty instead of throwing. `data-icon` records the
-			// name that DREW, or the first candidate when none did — never the word
-			// 'none', so a test can assert a real name where nothing can draw.
-			const lensIcon = (btn: HTMLElement, names: string[]) => {
-				for (const n of names) {
-					try { if (setIcon) setIcon(btn, n); } catch (_) { wsCatch('orgTableMake / lensIcon: if (setIcon) setIcon(btn, n);', _); }
-					if (btn.childElementCount > 0) { btn.dataset.icon = n; return n; }
-					btn.textContent = '';
-				}
-				btn.dataset.icon = names[0];
-				return null;
-			};
-			const sortBtn = bar.createEl('button',
-				{ cls: 'ws-export-mini ws-org-sortby' });
-			lensIcon(sortBtn, ['arrow-up-down', 'arrow-down-up',
-				'arrow-up-narrow-wide', 'sort-asc']);
-			// A LABEL SPAN, not `setText`: setText replaces every child, so
-			// it would take the icon straight back out again.
-			sortBtn.createSpan({ text: sortLabel ? wsT('Sort: {sort}', { sort: sortLabel }) : wsT('Sort') });
-			sortBtn.title = wsT('Arrange the rows by a reading — custom order is a click away');
-			sortBtn.addEventListener('click', (ev: MouseEvent) => wsOrgSortMenu(this, { cols, ctx, menuUnder, s, sortBtn, sortByName, sortCol, sortDir }, ev));
-			// ── FILTER BY ──────────────────────────────────────────────
-			const addBtn = bar.createEl('button',
-				{ cls: 'ws-export-mini ws-org-addfilter' });
-			lensIcon(addBtn, ['list-filter', 'filter', 'funnel']);
-			addBtn.createSpan({ text: wsT('Filter') });
-			// ── AND HOW MANY ARE ON ────────────────────────────────
-			//
-			// The chips beside it already say WHICH filters are on; this says HOW
-			// MANY without reading them, and it is the half that still shows when
-			// the strip is narrow. COUNTS THE APPLIED ONES ONLY. A chip can be
-			// unticked and left in place — that is what its checkbox is for — and
-			// a badge counting those would say the view is narrowed when it is not.
-			{
-				const on = ctx.orgLens.chips.filter((c) => !c.off).length;
-				if (on) addBtn.createSpan({ cls: 'ws-org-filtercount', text: String(on) });
-			}
-			addBtn.title = wsT('Narrow by a property — type to search the folder’s own keys');
-			addBtn.addEventListener('click', (ev: MouseEvent) => wsOrgFilterMenu(this, { addBtn, at, ctx, menuUnder }, ev));
-			// PROPERTIES, not Columns: the menu lists the readings AND the writer's
-			// own frontmatter keys, which is what Obsidian calls properties —
-			// "Columns" named the container rather than the contents.
-			const colsBtn = bar.createEl('button',
-				{ cls: 'ws-export-mini ws-org-colsbtn' });
-			lensIcon(colsBtn, ['table-properties', 'settings-2', 'list',
-				'columns-3']);
-			colsBtn.createSpan({ text: wsT('Properties') });
-			// ── AND ONE DOOR THAT SHUTS EVERYTHING ────────────────────
-			//
-			// ONE BUTTON, TWO JOBS, so its label is the only thing telling a writer
-			// which they are about to get — and the test is whether ANY folder is
-			// open, not whether all are. With nine folders and one open, "Expand
-			// all" would be a lie about the eight that are shut and would do
-			// nothing to the one that is not. IT WRITES THROUGH `orgOpenSet`, the
-			// one writer of the fold, so a folded-away row and a hidden row cannot
-			// come to mean two different things.
-			const foldBtn = bar.createEl('button',
-				{ cls: 'ws-export-mini ws-org-foldall' });
-			// EVERY ROW THAT CAN BE OPENED, note or folder: a note's open state is
-			// its property card. `orgOpen` holds both, and `orgIsOpen` is the same
-			// question asked of either.
-			//
-			// ── AND IT READS THE WHOLE SUBTREE, NOT WHAT IS ON SCREEN ───────
-			//
-			// NEITHER FLAG ALONE IS "EVERYTHING": `flat` dives through every folder
-			// regardless of its fold but OMITS the folders from what it returns,
-			// and `!flat` returns both kinds but walks only what is open. So the
-			// files come from the flat walk and the folders from their own paths —
-			// no second tree walk, and no chance of a second walker disagreeing
-			// with the first about what is under a folder.
-			//
-			// A FOLDER WITH NO NOTES UNDER IT IS NOT IN THE LIST, because no file
-			// names it. Opening it would reveal nothing, so the only difference is
-			// its own chevron.
-			const foldable = () => {
-				const out = new Set<string>();
-				for (const r0 of ctx.orgRowList(ctx.orgFolder, true)) {
-					out.add(r0.path);
-					const bits = String(r0.path).split('/');
-					bits.pop();
-					let acc = '';
-					for (const b of bits) {
-						acc = acc ? acc + '/' + b : b;
-						// Only what is at or under the scope: an ancestor above it
-						// is not a row in this view and is not ours to fold.
-						if (!ctx.orgFolder || acc === ctx.orgFolder
-							|| acc.indexOf(ctx.orgFolder + '/') === 0) out.add(acc);
-					}
-				}
-				return Array.from<string>(out);
-			};
-			const anyOpen = foldable().some(p0 => ctx.orgIsOpen(p0));
-			lensIcon(foldBtn, anyOpen ? ['chevrons-down-up', 'fold-vertical', 'minimize-2']
-				: ['chevrons-up-down', 'unfold-vertical', 'maximize-2']);
-			// THE GLYPH ALONE: it sits in a row of four labelled controls and was
-			// the widest of them for the least-used job. SO THE TITLE CARRIES THE
-			// WHOLE NAME, and it has to: the icon flips with the state, which means
-			// the picture is the only thing on screen saying which of two jobs a
-			// click will do. An `aria-label` as well, because a button whose only
-			// text is a drawing has no name at all to a screen reader.
-			const foldSay = anyOpen ? wsT('Collapse all \u2014 shut every folder and card')
-				: wsT('Expand all \u2014 open every folder and card');
-			foldBtn.title = foldSay;
-			foldBtn.setAttribute('aria-label', foldSay);
-			foldBtn.addEventListener('click', (ev: Event) => {
-				ev.stopPropagation();
-				const want = !anyOpen;
-				// ONE CALL, NOT ONE PER FOLDER — see `orgOpenSetMany`.
-				ctx.orgOpenSetMany(foldable(), want);
-			});
-			// UNDO AND REDO: two buttons at the bar's end, greyed when there is
-			// nothing to do, their titles saying what they would do — "Undo: Flag
-			// Draft on Chapter Two (Ctrl+Z)" — repainted by the journal whenever
-			// it moves.
-			if (ctx.orgHist) {
-				const histBtn = (kind: 'undo' | 'redo', names: string[], keySay: string) => {
-					const b = bar.createEl('button', { cls: 'ws-export-mini ws-org-hist ws-org-' + kind });
-					lensIcon(b, names);
-					const paint = () => {
-						const h = ctx.orgHist;
-						const has = kind === 'undo' ? h.canUndo() : h.canRedo();
-						const lab = kind === 'undo' ? h.undoLabel() : h.redoLabel();
-						const say = has
-							? (kind === 'undo' ? wsT('Undo: {label} ({key})', { label: lab, key: keySay }) : wsT('Redo: {label} ({key})', { label: lab, key: keySay }))
-							: (kind === 'undo' ? wsT('Nothing to undo ({key})', { key: keySay }) : wsT('Nothing to redo ({key})', { key: keySay }));
-						b.disabled = !has;
-						b.title = say;
-						b.setAttribute('aria-label', say);
-					};
-					paint();
-					b.addEventListener('click', (ev: Event) => {
-						ev.stopPropagation();
-						void ctx.orgHist.run(kind);
-					});
-					return paint;
-				};
-				const paintUndo = histBtn('undo', ['undo-2', 'undo', 'corner-up-left'], wsModKeyName() + '+Z');
-				const paintRedo = histBtn('redo', ['redo-2', 'redo', 'corner-up-right'], wsModKeyName() + '+Shift+Z');
-				ctx.orgHistPaint = () => { paintUndo(); paintRedo(); };
-				// THE WORD BESIDE THEM. One slot: what the journal just did, for six
-				// seconds, and otherwise how many rows the selection holds when it
-				// holds two or more. The message lives on the context, since the bar
-				// is rebuilt by the draw an undo ends with.
-				const sayEl = bar.createSpan({ cls: 'ws-org-barsay' });
-				let sayTimer: number | null = null;
-				const paintSay = () => {
-					const held = ctx.orgBarSaid;
-					const live = held && held.msg && Date.now() < held.until;
-					const n = ctx.orgSelCount ? ctx.orgSelCount() : 0;
-					sayEl.setText(live ? held.msg : (n >= 2 ? wsT('{n} selected', { n }) : ''));
-					sayEl.toggleClass('is-sel', !live && n >= 2);
-					if (sayTimer) { window.clearTimeout(sayTimer); sayTimer = null; }
-					if (live) sayTimer = window.setTimeout(paintSay, Math.max(50, held.until - Date.now()));
-				};
-				paintSay();
-				ctx.orgBarSayPaint = paintSay;
-			}
-			// ── ONE DOOR ONTO THE PROPERTIES ────────────────────────────
-			colsBtn.title = wsT('Which properties this window shows — a column in the table, a field under every row in Outline');
-			// IT TOGGLES. A second press on an open panel shuts it, which is what
-			// a writer expects of a button that opened one — and what a test
-			// driving this door has to know, because re-reading the list after a
-			// tick would otherwise CLOSE the panel and read nothing at all.
-			colsBtn.addEventListener('click', () => {
-				if (ctx.orgPropPopEl()) { ctx.orgPropPopClose(); return; }
-				ctx.orgPropPopOpen(colsBtn);
-			});
-
-			// ── THE ACTIVE CHIPS, UNDER THE CONTROLS THAT MADE THEM ──
-			//
-			// Under the buttons is where a writer looks. A SIBLING OF THE BAR, NOT
-			// A CHILD OF IT: `.ws-org-bar` is `flex-wrap`, so chips appended into
-			// it would sit BESIDE the buttons until the line filled, which is not
-			// "under". Built LAZILY so a lens-free window pays no empty row and no
-			// gap for it.
-			let chipRowEl: HTMLDivElement | null = null;
-			const chipHost = () => (chipRowEl
-				|| (chipRowEl = ctx.panel.createDiv({ cls: 'ws-org-chiprow' })));
-			// The active lens, as dismissible chips — pressing one takes
-			// only ITS narrowing away.
-			const chipBtn = (label: string, undo: () => void) => {
-				const b = chipHost().createEl('button', { cls: 'ws-org-chip' });
-				b.createSpan({ text: label });
-				b.createSpan({ cls: 'ws-org-chipx', text: '×' });
-				b.title = wsT('Remove this');
-				b.addEventListener('click', undo);
-			};
-			if (sortLabel) {
-				chipBtn(sortLabel, () => ctx.orgLensSet({ sort: null }));
-			}
-			for (const c of ctx.orgLens.chips) {
-				// A filter chip carries a CHECKBOX: unticking sets the filter aside
-				// without losing what was typed; the × still removes it for good. A
-				// sort chip has no box — there is nothing of its to keep while off.
-				const b = chipHost().createEl('button',
-					{ cls: 'ws-org-chip' + (c.off ? ' is-off' : '') });
-				const tick = b.createEl('input', { cls: 'ws-org-chiptick' });
-				tick.type = 'checkbox';
-				tick.checked = !c.off;
-				tick.title = c.off ? wsT('Tick to apply this filter again')
-					: wsT('Untick to set this filter aside');
-				tick.addEventListener('click', (ev: Event) => {
-					ev.stopPropagation();
-					ctx.orgLensSet({ chips: ctx.orgLens.chips.map((x) => x === c
-						? Object.assign({}, x, { off: !x.off }) : x) });
-				});
-				// A CHIP SAYS WHAT IT ASKS. `synopsis: ` with nothing after the
-				// colon would be an empty-looking chip for a filter that is
-				// precisely ABOUT emptiness — unreadable, and indistinguishable
-				// from a filter whose value had been lost.
-				// THE AXES' OWN WORDS IN THE INTERFACE'S LANGUAGE (A695); the chip itself keeps the English it was made with,
-				// the tasks' answer is matched by its id and a flag by its id, and a property's key and value are the writer's
-				const ckey = c.axis === 'tasks' ? wsT('Tasks') : c.axis === 'flag' ? wsT('Flag') : c.axis === 'tag' ? wsT('Tag') : String(c.key);
-				const cval = c.axis === 'tasks' ? (c.id === 'none' ? wsT('No tasks') : wsT('Has tasks'))
-					: (c.axis === 'flag' && !c.id) ? wsT('none') : String(c.value);
-				b.createSpan({ text: c.op === 'empty' ? wsT('{key} is empty', { key: ckey })
-					: c.op === 'filled' ? wsT('{key} is not empty', { key: ckey })
-					: wsT('{key}: {value}', { key: ckey, value: cval }) });
-				b.createSpan({ cls: 'ws-org-chipx', text: '×' });
-				b.title = wsT('Remove this');
-				b.addEventListener('click', () => ctx.orgLensSet({
-					chips: ctx.orgLens.chips.filter((x) => x !== c) }));
-			}
-			// ── WHAT THE LENS COSTS, AND THE WAY OUT, BESIDE THE CHIPS ──
-			//
-			// THE COUNT ONLY WHEN SOMETHING IS HIDDEN: "5 of 5 shown" is a sentence
-			// about nothing. THE WAY OUT WHENEVER THE LENS IS ON: a filter matching
-			// every note still has to come off.
-			// ── THE KIND NARROWING, IN THE SAME ROW AND THE SAME SHAPE ──
-			//
-			// A BUTTON, not a div, dismissed by pressing it anywhere rather than by
-			// hitting the × alone — which is what every chip beside it does. The ×
-			// stays as the sign that it can be dismissed. NOT `chipBtn`, though it
-			// is its twin: this one carries a second class so `selectors.js` can
-			// name it, and its undo is async.
-			//
-			// OUTSIDE `orgLensOn()`, deliberately: the kinds are narrowed by
-			// the shape picker, not by the lens, so this chip must appear with
-			// no lens on at all. `chipHost()` builds the row lazily, so asking
-			// for it here is what makes the row exist in that case.
-			{
-				const onKinds = this.uniTypeSet();
-				const allKinds = this.uniTypeGroups();
-				if (onKinds.size < allKinds.length || ctx.showShape() !== 'all') {
-					const kc = chipHost().createEl('button',
-						{ cls: 'ws-org-chip ws-org-kindchip' });
-					kc.createSpan({ text: wsT('kind: {kinds}', { kinds: ctx.typeLabel() }) });
-					kc.createSpan({ cls: 'ws-org-chipx', text: '×' });
-					kc.title = wsT('Only some kinds of file are shown — press to show every kind again');
-					// BOTH STORES, as the old chip's × learnt the hard way:
-					// on "Folders only" (every kind, one shape) undoing the
-					// kinds alone changed nothing at all.
-					const showEvery = async () => {
-						this.settings.uniTypes = allKinds.map((g) => g.id);
-						await ctx.setShape('all');
-						ctx.drawPanel();
-					};
-					kc.addEventListener('click', () => { void showEvery(); });
-				}
-			}
-			if (ctx.orgLensOn()) {
-				const tail = chipHost().createDiv({ cls: 'ws-org-chiptail' });
-				if (narrowed) {
-					tail.createSpan({ cls: 'ws-org-shownof',
-						text: wsT('{count} of {n} shown', { count: noteCount(rows), n: noteCount(list) }) });
-				}
-				const cl = tail.createEl('button', { cls: 'ws-org-clearlens' });
-				cl.setText(wsT('Clear all'));
-				cl.title = wsT('Take the lens off — Escape does this too');
-				cl.addEventListener('click', (ev: Event) => {
-					ev.stopPropagation();
-					ctx.orgLensClear();
-				});
-			}
+			wsOrgDrawBar(this, { at, cols, ctx, list, narrowed, noteCount, rows, s, sortByName, sortCol, sortDir, sortLabel });
 
 			// ── the table ───────────────────────────────────────────────
-			const wrap = ctx.panel.createDiv({ cls: 'ws-org-panel' });
-			// AND IT REPORTS WHERE IT IS. A fresh box every draw means a fresh
-			// listener every draw — which is right, not wasteful: the old box is
-			// discarded with its listener, so nothing accumulates. `passive`
-			// because this never calls `preventDefault`, and a non-passive scroll
-			// listener makes the browser wait for it.
-			wrap.addEventListener('scroll', () => {
-				ctx.orgScrollTop = wrap.scrollTop;
-				ctx.ses.scroll = ctx.orgScrollTop;
-				// Sideways too: a sort rebuilds this box and must not throw the
-				// columns back to the left edge.
-				ctx.orgScrollLeft = wrap.scrollLeft;
-			}, { passive: true });
-			// Everything that differs between arrangements is in the stylesheet,
-			// keyed off stamped classes — not in a second renderer, which is how a
-			// window ends up with two descriptions of a row that have to be kept
-			// in step.
-			const table = wrap.createEl('table', { cls: 'ws-org-table' });
-			ctx.orgNameStamp(table);
-			// NAME ALONE: with no column ticked the Name cells are the table's
-			// rounded corner cells, and the seam, a straight line down the host at
-			// their right edge, would run past both curves. The stylesheet hands
-			// that edge to the cells' own border, as it does for the last column.
-			const nameAlone = cols.length === 0;
-			table.toggleClass('is-namealone', nameAlone);
-			ctx.panel.toggleClass('ws-org-namealone', nameAlone);
-			if (nums) {
-				table.addClass('has-num');
-				table.style.setProperty('--ws-org-numw', 'calc(' + Math.max(1, numW) + 'ch + 8px)');
-			}
-			const thead = table.createEl('thead');
-			const hr = thead.createEl('tr');
-			// THE HEADER'S RIGHT-CLICK is an extra entry point, never a second copy
-			// of a list: sort up, sort down, filter by this, hide the column. The
-			// columns themselves are the Properties panel and the kinds are behind
-			// Filter by, so nothing is reachable only from the gesture. Built beside
-			// the drag, below.
-			// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
-			const nameTh = hr.createEl('th',
-				{ cls: 'ws-org-name', text: wsT('Name') });
-			// THE HEADING SAYS # OVER THE NUMBERS, at the cell's left, where the
-			// numbers are; the word stays centred over the names.
-			if (nums) nameTh.createSpan({ cls: 'ws-org-numhead', text: '#' });
-			ctx.orgNameGripBind(ctx.panel, nameTh, table);
-			// A CLICK SORTS BY NAME: A to Z first — the way a name column reads —
-			// then Z to A, then the book's order; the lens's one writer, and the
-			// same guard against the click a grip release synthesises.
-			nameTh.title = wsT('Sort: ascending, then descending, then the book’s order');
-			if (ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
-				nameTh.createSpan({ cls: 'ws-org-sortmark',
-					text: wsSortArrow(ctx.orgLens.sort.dir) });
-			}
-			nameTh.addEventListener('click', () => {
-				if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
-				const cur = ctx.orgLens.sort;
-				if (!cur || cur.id !== 'name') ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } });
-				else if (cur.dir === 'asc') ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } });
-				else ctx.orgLensSet({ sort: null });
-			});
-			// ── AND THE SEAM RUNS THE PANE, NOT THE ROWS ──────────────
-			//
-			// A column separator that ends with the data reads as a fragment. SO
-			// IT IS THE HOST'S, NOT THE CELLS': the Name column is sticky at the
-			// wrap's left edge, so its right edge is at the SAME screen x whatever
-			// the table is scrolled to — which is exactly what lets one line
-			// outside the scroller stand in for a border on every cell. The cells'
-			// own `border-right` comes off with this: two writers of one line is
-			// how a seam ends up doubled or stepped.
-			//
-			// MEASURED IN A FRAME, not at build time. The width is the table's
-			// answer to its own content and there is no layout to ask until the
-			// rows are in.
-			// ── ONE DEVICE PIXEL, NOT ONE CSS PIXEL ────────────────────────
-			//
-			// A 1px CSS bar at a fractional device position lights two device
-			// columns partly and reads as a soft two-pixel line (at a ratio of
-			// 1.25, CSS x 441.8 is device 552.25 to 553.5). SO IT IS SNAPPED ONTO
-			// THE DEVICE GRID and given exactly one device pixel of width — both
-			// numbers read from the machine at draw time, so nothing here is a
-			// literal that a different display would make wrong.
-			//
-			// THE OFFSET IS READ FROM THE PSEUDO-ELEMENT, which is the one writer
-			// of where the bar is: `getComputedStyle(el, '::before')` resolves the
-			// `calc(guidex + (depth - 1) * step)` the stylesheet owns, so this
-			// never restates that expression and cannot drift from it. THE SNAP IS
-			// ZEROED BEFORE READING, or the second call would measure a position
-			// that already includes the first call's correction and double it.
-			//
-			// BOTH SURFACES — the tree and the table — or they come to disagree.
-			const orgZoomOf = (el: HTMLElement) => {
-				let z = 1;
-				try {
-					const w0 = (el && el.ownerDocument && el.ownerDocument.defaultView) || window;
-					for (let n: HTMLElement | null = el; n && n.nodeType === 1; n = n.parentElement) {
-						const v = parseFloat(w0.getComputedStyle(n).zoom);
-						if (isFinite(v) && v > 0 && v !== 1) z *= v;
-					}
-				} catch (_) { wsCatch('orgTableMake / orgZoomOf: const w0 = el && el.ownerDocument', _); }
-				return (isFinite(z) && z > 0) ? z : 1;
-			};
-			const orgSnapAccent = () => wsOrgSnapAccent({ ctx, orgZoomOf, table });
-			// ── A RECT IS IN THE ZOOMED FRAME; A STAMP IS NOT ─────
-			//
-			// `getBoundingClientRect` answers in the zoomed frame and `offsetLeft`
-			// in the element's own; a seam stamped as `wrap.offsetLeft +
-			// rect.width` was written at zoom 0.8 as 246 for a column that ends at
-			// 304. NOT `offsetWidth`, the obvious swap: it is rounded to a whole
-			// pixel, and the seam's end is kept to two decimals below — a table is
-			// not a whole number of pixels tall. The rect keeps its decimals and is
-			// divided back into the frame it will be read in.
-			//
-			// UP THE TREE, MULTIPLYING: zoom nests. The pane sets one on
-			// `.ws-uni-body` and a theme may set another above it.
-			const orgNameLine = () => wsOrgNameLine({ ctx, nameTh, orgSnapAccent, orgZoomOf, table, wrap });
-			// THE FIT MEASURES THIS TABLE. Installed beside the seam’s own
-			// closure and for the same reason: both are built here and read
-			// from somewhere else.
-			//
-			// READ EVERYTHING, THEN WRITE. The stamps come off, one layout is
-			// forced by the first read, every width is taken, and only then is
-			// anything set — interleaving makes the browser lay the table out
-			// again on every column.
-			ctx.orgColFitNow = () => {
-				const ths = Array.from<HTMLElement>(table.querySelectorAll('thead th[data-col]'));
-				// THE NAME IS NOT IN `ths` — its heading carries no `data-col`, and on
-				// a wide pane the fit never touches it. On a NARROW one it is the way
-				// back: a dragged width wins there, so this is what returns the column
-				// to the room the readings leave. A pane with no readings still has a
-				// name to hand back, hence the second half of the guard.
-				const narrow = !!(ctx.orgNarrowNow && ctx.orgNarrowNow());
-				if (!ths.length && !narrow) return;
-				// EVERY CELL, not every header — `orgColLive` writes a column by
-				// walking `th, td`, and this is the same walk undone. Measuring
-				// after clearing only the headers is what made this button a
-				// round trip; see `orgColUnfix`.
-				for (const cell of Array.from<HTMLElement>(
-					table.querySelectorAll('th[data-col], td[data-col]'))) {
-					ctx.orgColUnfix(cell);
-				}
-				const ceil = ctx.orgColCeil(wrap);
-				// MEASURED IN THE FRAME THE WIDTH IS WRITTEN BACK IN: a stored column
-				// width is applied as a CSS length inside the zoom, so measuring the
-				// zoomed rect would shrink every column by the zoom each time the
-				// writer dragged one — and again the next time.
-				const zoomC = orgZoomOf(table);
-				const got = ths.map((th2) => ({
-					id: th2.getAttribute('data-col'),
-					w: Math.round(th2.getBoundingClientRect().width / zoomC)
-				}));
-				const m = Object.assign({}, ctx.orgColPx());
-				for (const g of got) {
-					if (!g.id || !(g.w > 0)) continue;
-					// THE CEILING BINDS HERE TOO: a Description holding a sentence is
-					// exactly the column that would take the pane.
-					m[g.id] = Math.max(ctx.ORG_COL_MIN, Math.min(ceil, g.w));
-				}
-				// CLEARED, NOT WRITTEN AT THE CAP. The undragged state IS the cap on a
-				// phone, and a stored 150 would open the desktop on a width the writer
-				// never chose.
-				if (narrow) delete m.name;
-				s.uniColPx = m;
-				this.saveSettings().catch(() => {});
-				ctx.drawPanel();
-			};
-			ctx.orgNameLineNow = orgNameLine;
-			// STAMPED NOW, BY AN OBSERVER, AND ONCE MORE AFTER THE BUILD. A seam
-			// that shows NOTHING when its stamp has not run is one missed frame
-			// away from that state at any time, so reading the width here forces
-			// the layout synchronously. At this instant the cell can measure 0 —
-			// the call runs between creating the Name heading and the loop that
-			// adds the other columns — so a ResizeObserver is the answer, not a
-			// later call site: it fires once as soon as the cell HAS a size, and
-			// again whenever it changes, so the seam follows a pane being dragged
-			// narrower. ONE AT A TIME: an observer per draw would hold every dead
-			// table in the session and stamp from all of them.
-			orgNameLine();
-			try {
-				if (ctx.orgNameRO) { ctx.orgNameRO.disconnect(); ctx.orgNameRO = null; }
-				const w0 = ctx.ownerWin();
-				if (w0 && w0.ResizeObserver) {
-					// THE TABLE, NOT THE HEADING. Observing the cell alone fired once while
-					// the header held only the Name column, stamped from that, and had no
-					// reason to fire again — adding rows does not resize a cell. The TABLE
-					// changes size as it is built, so it is the thing to watch.
-					ctx.orgNameRO = new w0.ResizeObserver(() => orgNameLine());
-					ctx.orgNameRO.observe(table);
-					ctx.orgNameRO.observe(wrap);
-				}
-				// AND ONCE MORE AFTER THE BUILD, unconditionally. The panel is
-				// drawn in one synchronous pass, so a task queued here runs
-				// with the finished table in front of it — which is the one
-				// moment every number this needs is knowable. The observer is
-				// what keeps it true afterwards; this is what makes it true.
-				if (w0 && w0.setTimeout) w0.setTimeout(() => {
-					orgNameLine();
-				}, 0);
-			} catch (_) { wsCatch('orgTableMake / drawOrg: if (ctx.orgNameRO) ctx.orgNameRO.disconnect();', _); }
-			wsOrgDrawHeads(this, { cols, ctx, fill, hr, s, sortCol, sortDir, wrap });
-			// THE PICK CELL IS A COLUMN WITH NO BUTTON IN IT. Every row builds a
-			// matching `ws-org-pickcell`, and the drawer rows' colspan is
-			// `cols.length + 2`, the second of which is this cell: a header one
-			// cell short is a ragged table. Dropping the column would move the
-			// colspan with it.
-			//
-			// NOT DRAGGABLE AND NOT A SORT, still: every other th in this row
-			// is both, and this one never was, because it is not a column.
-			hr.createEl('th', { cls: 'ws-org-headpick' });
-			const tbody = table.createEl('tbody');
-			// +2, NOT +1: the Name column and the picker's own header cell.
-			// A drawer row that spans one column short leaves the picker's
-			// column drawing a stray vertical rule down the whole table.
-			const colspan = cols.length + 2;
-			// THE ONE TRANSITION the table allows: a ~150ms fade when the binder
-			// dissolves into the flat list or comes back — it teaches "my folders
-			// melted because I sorted". Only on the CHANGE, never on an ordinary
-			// repaint, and the stylesheet stands down under prefers-reduced-motion.
-			if (ctx.orgLastGrouping !== null && lensed !== ctx.orgLastGrouping) {
-				table.addClass('is-melt');
-			}
-			ctx.orgLastGrouping = lensed;
-			// A FOLDER IS A ROW. It sits in the one interleaved order its parent
-			// already stores, it carries the same cells every other row carries,
-			// and it folds — the folder glyph, the folder's context menu, being a
-			// drop target that MOVES a note in, the row does on itself.
-			// ── THE TOTAL ROW ─────────────────────────────────────────
-			//
-			// One row for the whole table, emitted once, HERE — outside the loop
-			// below — so that it cannot become a run-break header. THE COUNT COMES
-			// FROM THE INDEX, not from `rows`: `rows` is what is DRAWN — folded
-			// folders keep their contents out of it — so a caption counting them
-			// would say "2 notes" about a folder holding forty, and change when a
-			// writer folded something.
-			// ── THE LENS EMPTIED IT, OR A FOLD DID ────────────────────
-			//
-			// The total row hides when a LENS emptied the table and stays when a
-			// FOLD did. THE TERMS: `!rows.length` — nothing is drawn; `list.length`
-			// — but there was something to draw. `list` is post-SHAPE and
-			// pre-LENS, so "Folders only" over a folder with no subfolders leaves
-			// it 0 and this stays false: that is a scope with nothing in it, not a
-			// filter that hid things.
-			//
-			// ONE WRITER: the empty-state block below asks the same question to
-			// choose its own words, and reads this rather than repeating the terms.
-			const orgLensEmptied = !rows.length && !!list.length;
-			wsOrgDrawRoot(this, { at, cols, ctx, orgLensEmptied, tbody, wrap });
-			// A FOLDER'S ROOT ROW, FIRST: the header's rule is the line over it.
-			// (The vault's Total row waits for the foot, below.)
-			const rooted = !!ctx.orgRootRow && ctx.orgRootRow.classList.contains('is-root');
-			if (ctx.orgRootRow && rooted) {
-				ctx.orgRootRow.classList.add('is-ruled');
-				tbody.appendChild(ctx.orgRootRow);
-				ctx.orgRootRow = null;
-			}
-			// THE SELECTION'S TINT, repainted in place on a modified click: a full
-			// redraw for a class on a row would rebuild the table for every
-			// Ctrl-click of a long selection.
-			ctx.orgSelPaint = (body: HTMLElement) => {
-				for (const tr0 of Array.from<HTMLElement>(body.querySelectorAll('tr.ws-org-row'))) {
-					const p = tr0.getAttribute('data-path') || '';
-					tr0.toggleClass('is-selected', !tr0.classList.contains('is-folder') && ctx.orgSelHas(p));
-				}
-				table.toggleClass('has-sel', ctx.orgSelCount() >= 2);
-				// THE BAR ON EACH, snapped to the device grid as the active one's is —
-				// the click painted the class, the snap follows.
-				try { orgSnapAccent(); } catch (_) { wsCatch('orgSelPaint: orgSnapAccent();', _); }
-				// AND THE COUNT BESIDE UNDO.
-				try { if (ctx.orgBarSayPaint) ctx.orgBarSayPaint(); } catch (_) { wsCatch('orgSelPaint: ctx.orgBarSayPaint();', _); }
-			};
-			// A RULE OVER A FOLDER ROW — unless the row above already draws one
-			// under itself (a folder row), which would make two. The draw knows the
-			// order; the sheet does not. The first row has the header's rule over
-			// it.
-			// THE ROOT ROW FOLDED SHUT draws nothing under it, and says nothing
-			// about it either: its chevron is the way back, and "no notes under
-			// this folder" would be untrue.
-			const rootShut = rooted && !orgLensEmptied && !!(ctx.ses && ctx.ses.rootShut);
-			const prevRuled = wsOrgDrawRows(this, { cols, ctx, lensed, nums, rooted, rows: rootShut ? [] : rows, tbody, wrap });
-			// THE VAULT'S TOTAL ROW, LAST. Under a folder row it is stamped
-			// `is-ruled` and draws no top rule of its own: the folder row's bottom
-			// rule is the line between them.
-			if (ctx.orgRootRow) {
-				if (prevRuled) ctx.orgRootRow.classList.add('is-ruled');
-				tbody.appendChild(ctx.orgRootRow);
-				ctx.orgRootRow = null;
-			}
-			// A FOLD IS NOT AN EMPTY RESULT. "Nothing passes the lens — clear it"
-			// whenever there are no rows and the list is not empty would be a LIE
-			// when a fold did the emptying — offering a button that would fix
-			// nothing. SAME QUESTION, ONE WRITER: `orgLensEmptied` decides, and
-			// the `if` one line down reads `list.length` to choose between the two
-			// sentences.
-			if (!rootShut && (orgLensEmptied || !rows.length)) {
-				// A DEAD END MUST SPEAK AND OFFER THE WAY OUT — the clearing is a
-				// BUTTON here, not a sentence about one.
-				const tr0 = tbody.createEl('tr', { cls: 'ws-org-row is-empty' });
-				const td0 = tr0.createEl('td');
-				td0.setAttribute('colspan', String(colspan));
-				if (list.length) {
-					const [say0, say1] = wsOrgAround(wsT('Nothing passes the lens — {clear} to see the {n} notes here.', { n: noteCount(list) }), '{clear}');
-					if (say0) td0.createSpan({ text: say0 });
-					const b0 = td0.createEl('button', {
-						cls: 'ws-export-mini ws-org-clearempty', text: wsT('Clear it') });
-					b0.addEventListener('click', (ev: Event) => {
-						ev.stopPropagation();
-						ctx.orgLensClear();
-					});
-					// `noteCount`, the strip's own counter, so this and the strip say the
-					// same number.
-					if (say1) td0.createSpan({ text: say1 });
-				} else {
-					// IT NAMES WHAT IT WENT LOOKING FOR. With "Folders only" up,
-					// a scope holding no subfolder is not a scope holding no
-					// notes, and saying the second sends a writer to check the
-					// wrong thing.
-					td0.setText(shaped === 'folders'
-						? wsT('No folders under this folder.')
-						: wsT('No notes under this folder.'));
-				}
-			}
-			// ── THE CELL THE WRITER ACTUALLY PRESSED ────────────────────
-			//
-			// A click on a cell while another editor was open rebuilds the
-			// pane rather than opening a second box, and the `td` it was
-			// pressed on does not survive that. This re-opens the one that
-			// was asked for, so the redraw is invisible to the writer: they
-			// pressed a cell and that cell is open.
-			//
-			// TAKEN BEFORE IT IS USED, so a failure to find the cell cannot
-			// leave the request standing and re-open it on the NEXT redraw,
-			// which would be a box appearing from nothing.
-			if (ctx.orgOpenAfter) {
-				const want = ctx.orgOpenAfter;
-				ctx.orgOpenAfter = null;
-				try {
-					const td2 = ctx.panel.querySelector('.ws-org-row[data-path="'
-						+ want.path + '"] td[data-col="' + want.id + '"]');
-					if (td2 && !td2.querySelector('.ws-org-editor')) {
-						td2.textContent = '';
-						ctx.orgFieldEditor(td2, want.path, want.key, false);
-					}
-				} catch (_) { wsCatch('orgTableMake / drawOrg: const td2 = ctx.panel.querySelector(\'.ws-org-row[data-path="\'', _); }
-			}
-			// AND THE WRITER IS PUT BACK WHERE THEY WERE. LAST, because the rows
-			// have to exist first: a scroller whose content is not in yet clamps
-			// the assignment to whatever fits, which is usually zero — the same
-			// fault, silently.
-			if (orgKeepScroll > 0) {
-				try {
-					const w1 = ctx.panel.querySelector('.ws-org-panel');
-					// WRITTEN, NEVER READ BACK. Setting it is a layout write and costs
-					// nothing here; reading it to check would force a layout.
-					if (w1) w1.scrollTop = orgKeepScroll;
-				} catch (_) { wsCatch('orgTableMake / drawOrg: const w1 = ctx.panel.querySelector(\'.ws-org-panel\');', _); }
-			}
-			// AND THE COLUMNS: the sideways position the last box reported, put
-			// back on the new one.
-			if (orgKeepScrollX > 0) {
-				try {
-					const w2 = ctx.panel.querySelector('.ws-org-panel');
-					if (w2) w2.scrollLeft = orgKeepScrollX;
-				} catch (_) { wsCatch('orgTableMake / drawOrg: w2.scrollLeft = orgKeepScrollX;', _); }
-			}
+			wsOrgDrawTable(this, { at, cols, ctx, fill, lensed, list, noteCount, numW, nums, orgKeepScroll, orgKeepScrollX, rows, s, shaped, sortCol, sortDir });
 		};
 		return { drawOrg };
 	},
@@ -4572,17 +2787,16 @@ export const organizerWindowMethods = {
 	// ════════════════════════════════════════════════════════════════════════
 	//
 	// Every open window — tab and pop-out — registers a DOOR here when it
-	// opens and takes it away when it closes; the tree and the active note
-	// drive every door there is. A door that throws is contained and
-	// named, so one broken window cannot stop the others.
+	// opens and takes it away when it closes; the tree's right-click and the
+	// note you open reach every door there is. A door that throws is
+	// contained and named, so one broken window cannot stop the others.
 	//
-	// THE CLICK IS WATCHED, NOT ASKED FOR. A capture-phase click listener
-	// on the document sees a click on a folder row before Obsidian folds
-	// the folder, and does not stop it: the fold is Obsidian's, the
-	// choosing is ours. It is attached with the first door and let go with
-	// the last, so a tree with no Organizer open has nothing of ours on
-	// it. Notes need no listener: a click on a note opens it, `file-open`
-	// fires, and the door follows it.
+	// A CLICK IN THE TREE CHOOSES NOTHING (A892, the writer: "i dont want to
+	// click on folders and the organizer to switch there. remove that,
+	// including history too, so remove the pin too"). The capture-phase
+	// listener that made a folder click the window's folder is gone, and
+	// with it the pin that shut it off; a note opened is only marked
+	// (`wsOrgDoorFollow`). The right-click below is the tree's one way in.
 
 	orgWindows(this: WordSmith) {
 		return (this._orgWindows || []).slice();
@@ -4591,13 +2805,11 @@ export const organizerWindowMethods = {
 	orgWindowAdd(this: WordSmith, door: WsOrgDoor) {
 		this._orgWindows = this.orgWindows().filter((d) => d !== door);
 		this._orgWindows.push(door);
-		this.orgTreeHookAttach();
 		this.orgTicksSchedule();
 	},
 
 	orgWindowDrop(this: WordSmith, door: WsOrgDoor) {
 		this._orgWindows = this.orgWindows().filter((d) => d !== door);
-		if (!this._orgWindows.length) this.orgTreeHookDetach();
 		this.orgTicksSchedule();
 	},
 
@@ -4736,11 +2948,11 @@ export const organizerWindowMethods = {
 	// ── THE RIGHT-CLICK ────────────────────────────────────────
 	//
 	// "Organizer here", "Export this", "History here" on a folder; the
-	// first and last on a note. This is the path that keeps working if the
-	// click hook ever stops, and what a phone gets as a long-press. A
-	// window already open is used and brought forward; none open, the pane
-	// is opened. Either way the folder is CHOSEN through the same door a
-	// click uses, so it persists like a click.
+	// first and last on a note. The tree's one way to choose the window's
+	// folder since a click there stopped choosing (A892), and what a phone
+	// gets as a long-press. A window already open is used and brought
+	// forward; none open, the pane is opened. Either way the folder is
+	// CHOSEN through the window's own door, so it persists.
 
 	async orgOpenAt(this: WordSmith, path: string, tabId: string, opts?: { note?: string; only?: string[] }) {
 		const p = (path == null || path === '/') ? '' : String(path);
@@ -4761,7 +2973,7 @@ export const organizerWindowMethods = {
 			try { if (door.ticksOnly) void door.ticksOnly(o.only); } catch (e) { wsGuardReport('the tree ticking what to export', e); }
 		} else {
 			this.orgTreeSelect(p);
-			if (o.note) this.orgTreeFollow(o.note);
+			if (o.note) this.orgTreeFollow(o.note, true);
 		}
 		this.orgReveal(door);
 		return true;
@@ -4855,7 +3067,7 @@ export const organizerWindowMethods = {
 		});
 	},
 
-	// A folder chosen in Obsidian's tree. '' and '/' are the whole vault.
+	// A folder chosen from Obsidian's tree, by its right-click. '' and '/' are the whole vault.
 	orgTreeSelect(this: WordSmith, path: string) {
 		const p = (path == null || path === '/') ? '' : String(path);
 		let n = 0;
@@ -4866,44 +3078,16 @@ export const organizerWindowMethods = {
 		return n;
 	},
 
-	// The note you opened. A door keeps its folder when it holds the note
-	// and moves to the note's own folder when it does not.
-	orgTreeFollow(this: WordSmith, path: string) {
+	// The note you opened: marked by a door that shows it, no door moved
+	// (A892). `chosen`, the tree's right-click on a note: followed.
+	orgTreeFollow(this: WordSmith, path: string, chosen?: boolean) {
 		if (!path) return 0;
 		let n = 0;
 		for (const w of this.orgWindows()) {
-			try { w.follow(String(path)); n++; }
+			try { w.follow(String(path), chosen); n++; }
 			catch (e) { wsGuardReport('the Organizer following the note you opened', e); }
 		}
 		return n;
-	},
-
-	orgTreeHookAttach(this: WordSmith) {
-		if (this._explorerClick) return;
-		this._explorerClick = (ev: Event) => {
-			try {
-				if (!this.orgWindows().length) return;
-				const t = wsElOf(ev.target);
-				if (!t) return;
-				if (!t.closest('.workspace-leaf-content[data-type="file-explorer"]')) return;
-				// Our own tick box is not a choosing; nor is a control somebody else
-				// put on the row.
-				if (t.closest('.ws-treetick, input, button')) return;
-				const row = t.closest('.nav-folder-title[data-path]');
-				if (!row) return;
-				const p = row.getAttribute('data-path');
-				if (p == null) return;
-				this.orgTreeSelect(p);
-			} catch (e) { wsGuardReport('the file tree choosing a folder for the Organizer', e); }
-		};
-		document.addEventListener('click', this._explorerClick, true);
-	},
-
-	orgTreeHookDetach(this: WordSmith) {
-		if (!this._explorerClick) return;
-		try { document.removeEventListener('click', this._explorerClick, true); }
-		catch (_) { wsCatch('orgTreeHookDetach: document.removeEventListener(click)', _); }
-		this._explorerClick = null;
 	},
 
 	// ── A HOST BACKED BY A LEAF ─────────────────────────────────────────────

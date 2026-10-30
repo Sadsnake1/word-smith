@@ -1383,6 +1383,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		SUB('The machine');
 		L(['{battery}'], 'The battery.');
 		L(['{caps}', '{num}'], 'Caps lock and num lock, only when on.');
+		L(['{sync}'], 'Obsidian Sync: a tick when synced, arrows while syncing, a pause when paused. Click it for Sync’s settings. Nothing while Sync is off.');
 		L(['{vim}'], 'Which Vim mode you\u2019re in.');
 		SUB('And');
 		L(['{obsidian}'], 'A small Obsidian crystal.');
@@ -1551,6 +1552,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				opt('Simplified theme', 'One wash for sidebars, header and title bar, dividers painted out.', 'barThemeSimplified', true),
 				{ name: 'Checkbox shape', desc: 'Circle, square, retro or markdown; or your theme’s own.', control: { type: 'dropdown', key: 'barThemeCheckbox',
 					options: { '': 'Theme’s own', circle: 'Circle', square: 'Square', retro: 'Retro', markdown: 'Markdown' } }, visible: themed },
+				// PAPER AND INK (GitHub #105, the writer: "a drop down effect with multiple variants")
+				{ name: 'Paper', desc: 'A texture under your notes, in dark and light.', control: { type: 'dropdown', key: 'barThemePaper',
+					options: { '': 'None', grain: 'Grain', laid: 'Laid', cotton: 'Cotton', linen: 'Linen', parchment: 'Parchment', newsprint: 'Newsprint', watercolor: 'Watercolor' } }, visible: themed },
+				{ name: 'Paper strength', desc: 'How much of the texture shows, in percent.', control: { type: 'slider', key: 'barThemePaperStrength', min: 0, max: 100, step: 5 }, visible: () => themed() && !!s.barThemePaper },
+				{ name: 'Ink', desc: 'An effect on your notes’ text, like ink on paper.', control: { type: 'dropdown', key: 'barThemeInk',
+					options: { '': 'None', grain: 'Grain', inkwell: 'Inkwell', bleed: 'Bleed', typewriter: 'Typewriter', letterpress: 'Letterpress', worn: 'Worn', faded: 'Faded' } }, visible: themed },
+				{ name: 'Ink strength', desc: 'How strong the effect is, in percent.', control: { type: 'slider', key: 'barThemeInkStrength', min: 0, max: 100, step: 5 }, visible: () => themed() && !!s.barThemeInk },
 				opt('Hide workspace borders', 'Empties the dividers between panes and the tab outlines. Works under Default too.', 'barThemeBorderless', false),
 				opt('Colored markdown', 'Bold, italics, links and tags take the scheme’s inks.', 'barThemeMarkdown', true),
 				{ name: 'Color the cursor',
@@ -1970,18 +1978,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				cat('Lexical illusions', 'The same word twice in a row.', 'checkIllusion', 'checkIllusionColor', ck),
 				// STOCK PHRASES (A839, the writer's pick "Clichés"; English's built in, each pack's `## Clichés (Cliches)`)
 				cat('Clichés', 'Stock phrases: at the end of the day, cold as ice, a blessing in disguise.', 'checkCliche', 'checkClicheColor', ck),
-				// YOUR OWN (A856, the writer: "do 3 too"): one a line, marked as the list's are
-				rendered({ name: 'Your clichés', desc: 'Phrases of your own to mark, one a line. {a|b} for either word, {*} for any one.', visible: all(ck, () => !!s.checkCliche),
-					render: (st) => {
-						st.settingEl.addClass('ws-set-block');
-						st.addTextArea((t) => {
-							t.inputEl.rows = 4;
-							t.setValue(String(s.customCliches || '')).onChange((v) => { void (async () => {
-								s.customCliches = v;
-								await this.plugin.saveSettings();
-							})(); });
-						});
-					} }, ['customCliches']),
 				cat('Dialogue', 'Everything inside quotes, and speech after a dialogue dash where the language writes one.', 'checkDialogue', 'checkDialogueColor', ck),
 				// A711, issue #68: thoughts and telepathy, written in italics or angle brackets
 				{ name: 'More speech marks', desc: 'Italics and angle brackets count as speech too: *thoughts*, ‹whispers›, <telepathy>.', control: { type: 'toggle', key: 'checkDialogueMore' }, visible: all(ck, () => !!s.checkDialogue) },
@@ -2167,7 +2163,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		};
 		const RAIL: RailEntry[] = [
 			{ key: 'organizer', name: 'Organizer', icon: 'list-tree', on: org, draw: (el) => { plugin.menuDrawIcon(el, 'organizer'); } },
-			{ key: 'tree', name: 'File tree', icon: 'folder-tree', on: () => !!(s.enableFileTreeCounts || s.fileTreeFlags || s.fileTreeTasks || s.fileTreeFolderIcons || s.treeOrder || s.enableOutlineCounts) },
+			{ key: 'tree', name: 'File tree', icon: 'folder-tree', on: () => !!(s.enableFileTreeCounts || s.fileTreeFlags || s.fileTreeTasks || s.fileTreeNumbers || s.fileTreeFolderIcons || s.treeOrder || s.enableOutlineCounts) },
 			{ key: 'history', name: 'History', icon: 'history', on: hist, draw: (el) => { plugin.menuDrawIcon(el, 'history'); } },
 		];
 		const value = () => {
@@ -2207,6 +2203,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Word counts', desc: 'Next to each note, added up for folders.', control: { type: 'toggle', key: 'enableFileTreeCounts' } },
 				{ name: 'Flags', desc: 'A tiny flag on anything flagged in the Organizer.', control: { type: 'toggle', key: 'fileTreeFlags' } },
 				{ name: 'Tasks left', desc: 'Unticked boxes beside the count; folders sum their children.', control: { type: 'toggle', key: 'fileTreeTasks' } },
+				// (#100) a layer: the name on disk stays as it is
+				{ name: 'Numbers', desc: 'A number before each row, as in the Organizer: 1, 2.1, 2.1.1. Nothing is renamed.', control: { type: 'toggle', key: 'fileTreeNumbers' } },
 				{ name: 'File tree folder icons', desc: 'A glyph beside each folder name.', control: { type: 'toggle', key: 'fileTreeFolderIcons' } },
 				this.noteRow('Right-click a folder in the file tree to give it a color.', () => !!s.fileTreeFolderIcons),
 				{ name: 'Custom order', desc: 'The Organizer’s order in the file tree; off, Obsidian’s sort.', control: { type: 'toggle', key: 'treeOrder' } },
@@ -2458,8 +2456,10 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// KEEP EVERY BLANK LINE (A851, the writer's pick): for notes written a paragraph a line, where one blank line is a gap
 				{ name: 'Keep every blank line', desc: 'Every blank line is an empty line, even the first between paragraphs. For notes with one paragraph a line.', render: flag('keepBlankLines') },
 			], this.railed('export', 'options')),
-			ex('Text', ['smartQuotes'], [
+			ex('Text', ['smartQuotes', 'snippetCss'], [
 				{ name: 'Curly quotes in exports', desc: 'Straight quotes turn curly as the file is compiled; your notes keep what you typed.', render: flag('smartQuotes') },
+				// (#102: the snippets turned on in Appearance)
+				{ name: 'Your CSS snippets', desc: 'The snippets you turned on in Appearance, applied to PDF, web page and EPUB exports.', render: flag('snippetCss') },
 			], this.railed('export', 'options')),
 			ex('Notes', ['footnotePlace'], [
 				{ name: 'Notes in a Word file', desc: 'Word’s own footnotes at the foot of each page, or endnotes at the end. PDF and web page notes go at the end.',
@@ -2851,6 +2851,10 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	barThemeMarkdown: (tab) => { tab.plugin.applyThemeVars(); },
 	barThemeBorderless: (tab) => { tab.plugin.applyThemeVars(); tab.plugin.applyThemeClass(); },
 	barThemeCheckbox: (tab) => { tab.plugin.applyThemeClass(); },
+	barThemePaper: (tab) => { tab.plugin.applyThemeClass(); },
+	barThemeInk: (tab) => { tab.plugin.applyThemeClass(); },
+	barThemePaperStrength: (tab) => { tab.plugin.applyThemeClass(); },
+	barThemeInkStrength: (tab) => { tab.plugin.applyThemeClass(); },
 	barThemeCursor: (tab) => { tab.plugin.applyThemeVars(); void tab.plugin.barThemeCursorSync(); },
 	barThemeVim: (tab) => { tab.plugin.applyThemeVars(); void tab.plugin.barThemeCursorSync(); },
 	menuDock: async (tab, v) => {

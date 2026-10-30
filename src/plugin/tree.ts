@@ -968,7 +968,7 @@ export const treeMethods = {
 			const c = n && (n as HTMLElement).classList;
 			if (!c) return false;
 			return c.contains('ws-count') || c.contains('ws-treeflag')
-				|| c.contains('ws-tasks')
+				|| c.contains('ws-tasks') || c.contains('ws-treenum')
 				|| c.contains('ws-treemarks') || c.contains('ws-foldericon')
 				// The export ticks are ours too; a box arriving on a row is not a tree
 				// change to redraw over.
@@ -1008,6 +1008,8 @@ export const treeMethods = {
 			() => s.fileTreeFolderIcons,
 			() => s.fileTreeKindIcons,
 			() => s.fileTreeTasks,
+			// the numbers beside the rows, the files never renamed (#100)
+			() => s.fileTreeNumbers,
 			// the plugin's own folder kept out of sight (A733)
 			() => s.hideOwnFolder,
 			() => s.folderColors && Object.keys(s.folderColors).length,
@@ -1911,6 +1913,101 @@ export const treeMethods = {
 		// rows are the ones a theme is fussiest about.
 		this.paintExplorerKindIcons();
 		this.paintExplorerOwnFolder();
+		this.paintExplorerNumbers();
+	},
+
+	// NUMBERS IN THE TREE, AND NOTHING RENAMED (#100).
+	//
+	// A layer: a span on each row, every one in a column at the tree's left
+	// edge. The file keeps its name, so a link, a search and a sync see
+	// nothing.
+	//
+	// THE ORGANIZER'S NUMBERS (the writer: "the numbers should be like 1.1
+	// like the organizer row numbers"): 1, 2, 3 in the order shown, folders
+	// and files alike, a folder's rows inside it 2.1, 2.2, deeper 2.1.1; the
+	// kinds the Organizer lists (`uniTypeAllows`, notes unless the writer
+	// added more), so a PDF beside the chapters takes no number; a hidden own
+	// folder takes none either. And like the Organizer's, the column is as
+	// wide as the widest number: `--ws-treenum-n` on the leaf, in characters.
+	//
+	// THE NUMBERS COME FROM THE EXPLORER'S MODEL, not from the rows on
+	// screen: the explorer draws only the rows near the view (measured: 27
+	// rows for 83 files), so counting the rows in the page would number a long
+	// folder's twentieth scene "1" the moment it scrolled in. `vChildren` is a
+	// folder's children in the order drawn, the custom order included; the
+	// walk goes down through the open folders, which are the rows a writer
+	// can scroll to.
+	//
+	// ONE COLUMN BY OBSIDIAN'S OWN RULE. Its scroller stretches every row
+	// back to the scroller's padding edge whatever the row's depth, writing
+	// `margin-inline-start: -(childLeft - padding)` on it (read in the asar),
+	// so the column's room is that padding, widened in the sheet, and each
+	// number sits just outside its row's left edge. `childLeft` is MEASURED
+	// ONCE AND KEPT, though: room given anywhere else (the first build put it
+	// on the rows' box) is in childLeft and not in the padding, and the rows
+	// drawn before and after a change keep different margins, a number off
+	// the column on each (the writer's screenshot: Citations' 2 over its
+	// chevron). With the room in the padding the two cancel, and when the
+	// room changes width the rows are re-measured (`treeNumbersRelayout`).
+	paintExplorerNumbers(this: WordSmith) {
+		const on = !!(this.settings && this.settings.fileTreeNumbers);
+		for (const view of this.explorerViews()) {
+			const leafEl = view.containerEl;
+			if (!leafEl) continue;
+			const wasOn = leafEl.hasClass('ws-tree-numbered');
+			leafEl.toggleClass('ws-tree-numbered', on);
+			const rows = Array.from(leafEl.querySelectorAll<HTMLElement>('.nav-file-title, .nav-folder-title'));
+			if (!on) {
+				leafEl.style.removeProperty('--ws-treenum-n');
+				for (const row of rows) { const stray = row.querySelector(':scope > .ws-treenum'); if (stray) stray.remove(); }
+				if (wasOn) this.treeNumbersRelayout(view);
+				continue;
+			}
+			const items = view.fileItems || {};
+			const labels = new Map<WsExplorerItem, string>();
+			let widest = 1;
+			// the vault's own row holds the top level, and is nobody's child
+			let top = Object.values(items).find((it) => !!(it && it.parent));
+			while (top && top.parent) top = top.parent;
+			const walk = (folder: WsExplorerItem, above: string) => {
+				let n = 0;
+				for (const c of (folder.vChildren && folder.vChildren._children) || []) {
+					const f = c && c.file;
+					if (!f || this.isOwnHidden(f.path)) continue;
+					const isFolder = wsIsFolder(f);
+					if (!isFolder && !this.uniTypeAllows(f)) continue;
+					const label = (above ? above + '.' : '') + String(++n);
+					labels.set(c, label);
+					if (label.length > widest) widest = label.length;
+					if (isFolder && !c.collapsed) walk(c, label);
+				}
+			};
+			if (top) walk(top, '');
+			const wide = leafEl.style.getPropertyValue('--ws-treenum-n') !== String(widest);
+			if (wide) leafEl.style.setProperty('--ws-treenum-n', String(widest));
+			for (const row of rows) {
+				const item = items[row.dataset.path || ''];
+				const said = item ? labels.get(item) : undefined;
+				let num = row.querySelector<HTMLElement>(':scope > .ws-treenum');
+				if (!said) { if (num) num.remove(); continue; }
+				if (!num) num = row.createSpan({ cls: 'ws-treenum' });
+				if (num.textContent !== said) num.textContent = said;
+			}
+			// the room changed width (turning on is a change from none): every row
+			// measured again, or the rows drawn before keep the old margin; a
+			// settled pass asks nothing
+			if (wide) this.treeNumbersRelayout(view);
+		}
+	},
+
+	// OBSIDIAN'S ROWS MEASURED AGAIN (WS_INTERNALS explorerRelayout): every
+	// row's kept `childLeft` dropped and one compute queued, Obsidian's own
+	// 50 ms; without it a row keeps its margin until something re-measures it.
+	treeNumbersRelayout(this: WordSmith, view: View) {
+		try {
+			const sc = view.tree && view.tree.infinityScroll;
+			if (sc && typeof sc.invalidateAll === 'function') sc.invalidateAll();
+		} catch (_) { wsCatch('treeNumbersRelayout: invalidateAll', _); }
 	},
 
 	async paintExplorerTasks(this: WordSmith, root: HTMLElement) {
@@ -2275,8 +2372,16 @@ export const treeMethods = {
 	// across the switch and across unload.
 	removeWordCounts(this: WordSmith) {
 		for (const sel of ['.ws-count', '.ws-tasks', '.ws-treeflag',
-			'.ws-treemarks', '.ws-treefolder', '.ws-treekind']) {
+			'.ws-treemarks', '.ws-treefolder', '.ws-treekind', '.ws-treenum']) {
 			document.querySelectorAll(sel).forEach(el => el.remove());
+		}
+		// the numbers' room given back, and Obsidian's rows measured again without it
+		for (const view of this.explorerViews()) {
+			const leafEl = view.containerEl;
+			if (!leafEl || !leafEl.hasClass('ws-tree-numbered')) continue;
+			leafEl.removeClass('ws-tree-numbered');
+			leafEl.style.removeProperty('--ws-treenum-n');
+			this.treeNumbersRelayout(view);
 		}
 		const rows = document.querySelectorAll(
 			'.workspace-leaf-content[data-type="file-explorer"] .nav-folder-title,'

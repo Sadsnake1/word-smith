@@ -659,9 +659,42 @@ export function wsDropTags(md: string) {
 	}
 	return out.join('\n');
 }
-// A $$ MATH BLOCK, from the line at `i`: on one line, or over several. No
-// formula renderer travels with a manuscript, so the text is set apart as
-// written, in monospace, like code. `end` is the block's last line.
+// INLINE MATH, $…$, as Obsidian reads it (#102): no space just inside either dollar, none escaped, no digit right after
+// the closing one, so "$5 and $10" stays prose. Global, for matchAll: [1] the character before the opening dollar
+// (or none at a line's start), [2] the TeX. NO LOOKBEHIND: iOS below 16.4 refuses one, a SyntaxError for the whole
+// bundle (ts/test/smoke.js), so the character before is captured and the last token holds the closing condition.
+export const WS_INLINE_MATH = /(^|[^\\$])\$(?=[^\s$])((?:\\.|[^$\\\n])*?(?:\\[^\s\\]|[^\s$\\]))\$(?![\d$])/g;
+// THE FIGURES A NOTE HOLDS (#102): its $$ blocks, its inline math outside code spans, its ```mermaid fences, found as
+// wsHtmlBlocks finds them, so each is rendered once before the page is built
+export function wsFigureSources(md: string) {
+	const out = { display: [] as string[], inline: [] as string[], mermaid: [] as string[] };
+	const lines = String(md == null ? '' : md).replace(/\r\n?/g, '\n').split('\n');
+	for (let i = 0; i < lines.length; i++) {
+		const t = lines[i].trim();
+		const fence = t.match(/^(`{3,}|~{3,})/);
+		if (fence) {
+			const ch = fence[1].charAt(0);
+			const info = t.slice(fence[1].length).trim().toLowerCase();
+			const buf: string[] = [];
+			for (i++; i < lines.length; i++) {
+				const ft = lines[i].trim();
+				if (ft.charAt(0) === ch && new RegExp('^' + ch + '{3,}').test(ft)) break;
+				buf.push(lines[i]);
+			}
+			if (info === 'mermaid') out.mermaid.push(buf.join('\n'));
+			continue;
+		}
+		if (/^\$\$/.test(t)) { const mb = wsMathBlock(lines, i); i = mb.end; if (mb.text) out.display.push(mb.text); continue; }
+		lines[i].split(/(`[^`]*`)/).forEach((seg, k) => {
+			if (k % 2) return;
+			for (const m of seg.matchAll(WS_INLINE_MATH)) out.inline.push(m[2]);
+		});
+	}
+	return out;
+}
+// A $$ MATH BLOCK, from the line at `i`: on one line, or over several. Set
+// apart as written, in monospace, like code, wherever no figure was rendered
+// for it (#102: the .docx; a formula MathJax refused). `end` is the block's last line.
 export function wsMathBlock(lines: string[], i: number) {
 	const t = lines[i].trim();
 	if (t.length > 4 && /^\$\$[\s\S]*\$\$$/.test(t)) return { text: t.slice(2, -2).trim(), end: i };
@@ -703,7 +736,33 @@ export function wsTableCells(row: string) {
 // bold, its [!kind] tag never printed.
 // The page's runs: emphasis, highlights, and a footnote as its number,
 // raised and linked to its note (the notes at the back carry the ids).
-export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild) {
+export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild): string {
+	// INLINE MATH, AS MATHML where the build rendered it (#102): the text cut at each $…$ outside a code span, the pieces
+	// between read as before; one with no figure stays as written, and text with none takes the old road whole
+	const figs = o.figures;
+	if (figs && figs.math.size && String(text).indexOf('$') !== -1) {
+		const out: string[] = [];
+		let buf = '', hit = false;
+		String(text).split(/(`[^`]*`)/).forEach((seg, k) => {
+			if (k % 2) { buf += seg; return; }
+			let last = 0;
+			for (const m of seg.matchAll(WS_INLINE_MATH)) {
+				const mml = figs.math.get('I\n' + m[2]);
+				if (!mml) continue;
+				buf += seg.slice(last, (m.index || 0) + m[1].length);
+				if (buf) out.push(wsRunsHtmlPlain(buf, o));
+				buf = '';
+				out.push('<span class="math">' + mml + '</span>');
+				hit = true;
+				last = (m.index || 0) + m[0].length;
+			}
+			buf += seg.slice(last);
+		});
+		if (hit) { if (buf) out.push(wsRunsHtmlPlain(buf, o)); return out.join(''); }
+	}
+	return wsRunsHtmlPlain(text, o);
+}
+function wsRunsHtmlPlain(text: string, o: WsExportOpts & WsExportBuild) {
 	const esc = (t: string) => String(t == null ? '' : t)
 		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	return wsInlineRuns(text, o).map((r) => {
@@ -805,13 +864,18 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 				if (ft.charAt(0) === ch && new RegExp('^' + ch + '{3,}').test(ft)) break;
 				buf.push(lines[i]);
 			}
-			parts.push('<pre class="code">' + esc(buf.join('\n')) + '</pre>');
+			// a Mermaid diagram as the SVG it was rendered to (#102); as code where none was
+			const info = t.slice(fence[1].length).trim().toLowerCase();
+			const svg = info === 'mermaid' && o.figures ? o.figures.mermaid.get(buf.join('\n')) : undefined;
+			parts.push(svg ? '<div class="mermaid">' + svg + '</div>' : '<pre class="code">' + esc(buf.join('\n')) + '</pre>');
 			continue;
 		}
 		if (/^\$\$/.test(t)) {
 			const mb = wsMathBlock(lines, i);
 			i = mb.end;
-			parts.push('<pre class="math">' + esc(mb.text) + '</pre>');
+			// as MathML where it was rendered (#102), as written where not
+			const mml = o.figures ? o.figures.math.get('D\n' + mb.text) : undefined;
+			parts.push(mml ? '<div class="math">' + mml + '</div>' : '<pre class="math">' + esc(mb.text) + '</pre>');
 			continue;
 		}
 		// A TABLE: its head row, its body rows.
@@ -1116,15 +1180,17 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 	// own properties, after its style as OOXML orders them, so the page starts
 	// with the prose and not with an empty line. A table there gets an empty
 	// paragraph to carry it; a --- with nothing after it is dropped rather
-	// than printing a blank last page.
+	// than printing a blank last page. …HERE: the file reports it, and the next
+	// file opens the page (#103, a chapter ended by a --- on its last scene).
+	let breakAfter = false;
 	for (const at of Array.from(breaks).sort((a, b) => b - a)) {
-		if (at >= out.length) continue;
+		if (at >= out.length) { breakAfter = true; continue; }
 		const p = String(out[at]);
 		if (p.indexOf('<w:pageBreakBefore/>') !== -1) continue;
 		if (/^<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>/.test(p)) out[at] = p.replace(/^(<w:p><w:pPr><w:pStyle w:val="[^"]*"\/>)/, '$1<w:pageBreakBefore/>');
 		else out.splice(at, 0, wsPara([], 'WsBody', { pageBreakBefore: true, noIndent: true }));
 	}
-	return { blocks: out, notes };
+	return { blocks: out, notes, breakAfter };
 }
 
 // The styles part. Manuscript standard (Shunn) is the default because it is
@@ -1554,6 +1620,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 	}
 
 	let bibAt = -1;
+	// A PAGE OWED (#103): the last file ended on a --- that asked for a new page, which its own blocks could not give
+	let owed = false;
 	// (the structure's numbers, #79)
 	const nums = wsHeadNumbers(o, sections);
 	sections.forEach((sec, idx) => {
@@ -1583,7 +1651,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			// A FOLDER STRAIGHT AFTER A FOLDER (A848) stays on the page the first opened, as the page targets carry both
 			// headings onto one; it gave "Novel" a page with nothing else on it
 			const afterFolder = idx > 0 && !!sections[idx - 1].folder;
-			const fbrk = !afterFolder && !!(idx > 0 || o.toc) && o.pageBreaks !== false;
+			const fbrk = (!afterFolder && !!(idx > 0 || o.toc) && o.pageBreaks !== false) || owed;
+			owed = false;
 			if (!afterFolder) folderOpenedPage = fbrk;
 			body.push(wsPara([{ text: wsNumbered(nums[idx], sec.title), bold: true }], 'WsHeading' + lv,
 				{ noIndent: true, pageBreakBefore: fbrk, bodyLevel: !!sec.book }));
@@ -1595,13 +1664,15 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		// immediately below the folder — a second file must break normally.
 		const justAfterFolder = folderOpenedPage;
 		folderOpenedPage = false;
+		const brkOwed = owed;
+		owed = false;
 		// A DIVIDER BETWEEN FILES, for scenes that run on rather than each
 		// starting a page. Deliberately independent of the page break: a
 		// manuscript that breaks pages between chapters still wants a
 		// divider between the scenes INSIDE one, and a writer who has each
 		// scene in its own file wants exactly this and no page breaks at
 		// all. Both on is legal and simply means both.
-		if (o.starBetween && idx > 0) {
+		if (o.starBetween && idx > 0 && !brkOwed) {
 			body.push(wsPara([{ text: wsJoinMark(o) }], 'WsDivider',
 				{ align: 'center', noIndent: true }));
 		}
@@ -1628,7 +1699,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			body.push(wsPara([{ text: wsNumbered(nums[idx], sec.title), bold: true }],
 				'WsHeading' + wsFileHeadLevel(o, sec),
 				{ noIndent: true,
-					pageBreakBefore: o.pageBreaks !== false && !first && !justAfterFolder }));
+					pageBreakBefore: (o.pageBreaks !== false && !first && !justAfterFolder) || brkOwed }));
 			if (o.toc) body.push('<w:bookmarkEnd w:id="' + (idx + 100) + '"/>');
 		} else if (o.toc) {
 			// No heading to hang it on, so the bookmark sits on an empty
@@ -1637,8 +1708,8 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 			const id = wsAnchorId(sec.title, idx);
 			body.push('<w:bookmarkStart w:id="' + (idx + 100) + '" w:name="' + id + '"/>'
 				+ '<w:bookmarkEnd w:id="' + (idx + 100) + '"/>');
-			if (o.pageBreaks && !first) body.push(wsPara([], 'WsBody', { pageBreakBefore: true }));
-		} else if (o.pageBreaks && !first) {
+			if ((o.pageBreaks && !first) || brkOwed) body.push(wsPara([], 'WsBody', { pageBreakBefore: true }));
+		} else if ((o.pageBreaks && !first) || brkOwed) {
 			body.push(wsPara([], 'WsBody', { pageBreakBefore: true }));
 		} else if (o.titlePage && idx === 0) {
 			body.push(wsPara([], 'WsBody', { pageBreakBefore: true }));
@@ -1665,6 +1736,7 @@ export function wsBuildDocx(sections: WsExportSection[], opt: WsExportRun | null
 		};
 		const built = wsBlocksFromMarkdown(wsNoteHeadings(o, sec, sec.markdown), o);
 		for (const b of built.blocks) body.push(b);
+		owed = built.breakAfter;
 	});
 	o.noteRef = null;
 	// THE LIST OF SOURCES (A572 step 4): a page of its own under the style's heading, each entry hanging half an

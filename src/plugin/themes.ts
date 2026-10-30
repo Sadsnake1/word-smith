@@ -10,6 +10,7 @@ import { BAR_THEMES, colorToHsl, hslToHex, mixColors, parseColorRGB, wsCatch } f
 import type { WsBarTheme, WsThemeHalf } from '../core/preamble';
 import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
+import { WS_PAPER_TEXTURES, WS_INK_EFFECTS, WS_PAPER_INK_VARS, wsPaperCss, wsInkCss } from '../core/paper-ink';
 
 // THE CHECKBOX SHAPES a look dresses the body with, one list for dressing and undressing (A870)
 const WS_CB_SHAPES = ['circle', 'square', 'retro', 'markdown'];
@@ -252,6 +253,17 @@ export const themesMethods = {
 				this.settings.barThemeEnabled !== false
 				&& this.settings.barThemeCheckbox === shape);
 		}
+		// PAPER AND INK (#105), looks like the checkbox shape: one class for "a paper" (the rules that place it)
+		// and one for which; a value from an older or a hand-edited file that names none is none. The tiles
+		// themselves are built at the strengths set and written on body (applyPaperInk)
+		const looks = this.settings.barThemeEnabled !== false;
+		const paper = looks && WS_PAPER_TEXTURES.includes(this.settings.barThemePaper) ? this.settings.barThemePaper : '';
+		const ink = looks && WS_INK_EFFECTS.includes(this.settings.barThemeInk) ? this.settings.barThemeInk : '';
+		want('ws-paper', !!paper);
+		for (const p of WS_PAPER_TEXTURES) want('ws-paper-' + p, paper === p);
+		want('ws-ink', !!ink);
+		for (const k of WS_INK_EFFECTS) want('ws-ink-' + k, ink === k);
+		this.applyPaperInk(paper, ink);
 		// Borderless is a LOOK, not a scheme — like the tab experiment
 		// before it, it works under Default and dies with the kill switch.
 		// Unlike that experiment it is variables-first (Minimal's own
@@ -265,6 +277,31 @@ export const themesMethods = {
 		// blur behind them (this class). Neither alone is the effect.
 		want('ws-glass', false);
 		want('ws-simpletabs', false);
+	},
+
+	// PAPER AND INK'S TILES on body (core/paper-ink.ts), at the strengths set, a light note's and a dark note's both,
+	// so the stylesheet picks by the theme's class and a switch between them rebuilds nothing. Each property is
+	// written only when it changes: this runs from applyThemeClass, which the body observer reaches (GitHub #14).
+	applyPaperInk(this: WordSmith, paper: string, ink: string) {
+		const st = document.body.style;
+		const pct = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) / 100 : 0.6; };
+		const ps = pct(this.settings.barThemePaperStrength), is = pct(this.settings.barThemeInkStrength);
+		const p = paper ? wsPaperCss(paper, ps, false) : null, pd = paper ? wsPaperCss(paper, ps, true) : null;
+		const k = ink ? wsInkCss(ink, is, false) : null, kd = ink ? wsInkCss(ink, is, true) : null;
+		const want: Record<string, string> = {
+			'--ws-paper-img-light': p ? p.img : '', '--ws-paper-img-dark': pd ? pd.img : '',
+			'--ws-paper-size': p ? p.size : '', '--ws-paper-attach': p ? p.attach : '',
+			'--ws-ink-mask': k ? k.mask : '', '--ws-ink-mask-size': k ? k.maskSize : '',
+			'--ws-ink-shadow-light': k ? k.shadow : '', '--ws-ink-shadow-dark': kd ? kd.shadow : '',
+			'--ws-ink-stroke-light': k ? k.stroke : '', '--ws-ink-stroke-dark': kd ? kd.stroke : '',
+			'--ws-ink-filter': k ? k.filter : '', '--ws-ink-opacity': k ? k.opacity : '',
+		};
+		for (const name of WS_PAPER_INK_VARS) {
+			const v = want[name] || '';
+			if (st.getPropertyValue(name) === v) continue;
+			if (v) st.setProperty(name, v);
+			else st.removeProperty(name);
+		}
 	},
 
 	// WCAG contrast between two colours parseColorRGB can read.
@@ -704,6 +741,8 @@ export const themesMethods = {
 			for (const shape of WS_CB_SHAPES.concat(['pill'])) {
 				document.body.classList.remove('ws-cb-' + shape);
 			}
+			document.body.classList.remove('ws-paper', 'ws-ink', ...WS_PAPER_TEXTURES.map((p) => 'ws-paper-' + p), ...WS_INK_EFFECTS.map((k) => 'ws-ink-' + k));
+			for (const k of WS_PAPER_INK_VARS) body.removeProperty(k);
 		} catch (_) { wsCatch('barThemeUndress: const body = document.body.style;', _); }
 		// And the caret, which lives in another plugin and would otherwise
 		// keep our colours after ours is gone.

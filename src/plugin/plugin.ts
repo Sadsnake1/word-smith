@@ -72,7 +72,7 @@ import { exportMethods } from './export';
 import type { ExportMethods } from './export';
 import { historyMethods } from './history';
 import type { HistoryMethods } from './history';
-import type { WsCm5Facade } from '../core/obsidian-private';
+import type { WsCm5Facade, WsSyncInstance } from '../core/obsidian-private';
 
 // THE HISTORY RECORD as the store holds it: the days by date, the paths' totals,
 // and today's tally — added, removed, net, with the words by note. Step 4
@@ -206,6 +206,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	// runs on scroll) only touches :root when the strip actually
 	// changes depth.
 	plugin._barReserve        = null;
+	plugin._barLift           = null;
 
 	// ── Drag / refresh bookkeeping ────────────────────────────────────────
 	plugin._activeDragCleanup = null;   // aborts an in-flight mask drag on unload
@@ -504,7 +505,7 @@ export function wsWireWorkspace(plugin: WordSmith) {
 		});
 
 	plugin.onAppEvent(plugin.app.workspace, 'file-open', (file: TAbstractFile) => {
-		// THE NOTE YOU OPEN IS FOLLOWED by every open Organizer.
+		// THE NOTE YOU OPEN IS MARKED by every open Organizer that shows it; none moves (A892).
 		plugin.orgTreeFollow(file && file.path);
 		// …AND WEIGHED, if History has never seen it, so its first edit counts (A863)
 		void plugin.historyNoteOpened(file);
@@ -1115,14 +1116,19 @@ export default class WordSmith extends WsPluginWithAreas {
 	_barPickerKey: ((e: KeyboardEvent) => void) | null;
 	_barRebuilding: boolean;
 	_barReserve: number | null;
+	/** the space below a phone's workspace the bar stands above (#109) */
+	_barLift: number | null;
 	_batteryHandler: (() => void) | null;
 	_batteryManager: { level: number; charging: boolean; addEventListener: (type: string, fn: () => void) => void; removeEventListener: (type: string, fn: () => void) => void } | null;
 	_bodyResizeObs: ResizeObserver | null;
 	_capSaid: Record<string, boolean>;
 	_capsLockOn: boolean;
+	/** the export's rendered math and diagrams, by source (#102) */
+	_exportFigCache: Map<string, string> | null;
+	/** the Sync instance {sync} listens to (one listener, #108) */
+	_syncWatched: WsSyncInstance | null;
 	_colorProbeEl: HTMLSpanElement | null;
 	_docStatsCache: { doc: CmText | null; totalWC: number; charCount: number; paras: { start: number; end: number }[]; tasks: { done: number; all: number } } | null;
-	_explorerClick: ((ev: Event) => void) | null;
 	_exportPage: number;
 	_exportZoom: number | null;
 	/** the open Export panes' preview refreshes, run on a change in Settings › Export (`exportOptsChanged`) */
@@ -1183,10 +1189,10 @@ export default class WordSmith extends WsPluginWithAreas {
 	_explorerSortWas: boolean | null = null;
 	_lastTypo: { from: number; to: number; caret: number; glyph: string; original: string; time: number } | null;
 	// your own clichés as one pattern, and the box and language it was made from (A856)
-	_customClicheKey = '';
-	_customClicheRe: RegExp | null = null;
 	_neverMarkKey = '';
 	_neverMarkRe: RegExp | null = null;
+	// the Letter Box band's settle after a scroll rests (focus.ts _lbSettleSoon), cleared with the scroll handler
+	_lbSettleTimer = 0;
 	_lastZoom: number;
 	_linkGen: number;
 	_loadMarks: [string, number][];
@@ -1879,11 +1885,7 @@ export default class WordSmith extends WsPluginWithAreas {
 		// Clean up word count observer
 		this.detachExplorerObserver();
 		this.removeWordCounts();
-		// The tree's remote: the folder click listener. The windows have closed
-		// by now and dropped their doors, but a start that never finished may
-		// not have.
-		this.orgTreeHookDetach();
-		// …and the export ticks it painted into Obsidian's tree.
+		// The export ticks painted into Obsidian's tree.
 		this.orgTicksClear();
 		// Clean up scroll/resize handlers
 		this.detachScrollHandler();
@@ -2583,6 +2585,13 @@ export default class WordSmith extends WsPluginWithAreas {
 		// wordperminute no charsper minute, remove the average while typing"): the speed now, in words a minute
 		if (this.settings.wpmTokenFormat === 'avg') this.settings.wpmTokenFormat = 'now';
 		delete this.settings.wpmTokenUnit;
+		// THE PIN (`organizerPinned`, A462), gone on the writer's word (A892: "i dont want to click on folders and the
+		// organizer to switch there. remove that, including history too, so remove the pin too"): nothing in the tree
+		// moves the window now, so there is nothing to pin against
+		delete this.settings.organizerPinned;
+		// YOUR CLICHÉS (`customCliches`, A856), gone on the writer's word (2026-10-30: "remove your cliches"): the pack's
+		// own list stays, and Never mark beside it
+		delete this.settings.customCliches;
 		// …AND DAYS LEFT (A731), the Deadline cell's own now
 		if (Array.isArray(this.settings.uniColsOff)) this.settings.uniColsOff = this.settings.uniColsOff.filter((id) => id !== 'perday' && id !== 'daysleft');
 		if (this.settings.uniColPx && typeof this.settings.uniColPx === 'object') { delete this.settings.uniColPx.perday; delete this.settings.uniColPx.daysleft; }
@@ -3044,7 +3053,6 @@ export default class WordSmith extends WsPluginWithAreas {
 		this.clearStyleProps();
 		this.detachExplorerObserver();
 		this.removeWordCounts();
-		this.orgTreeHookDetach();
 		this.orgTicksClear();
 		this.detachScrollHandler();
 		this.detachResizeHandler();

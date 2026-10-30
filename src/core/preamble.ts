@@ -609,6 +609,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			}
 			const lab = sub.createSpan({ cls: 'ws-picker-label', text: item.label });
 			if (item.font) lab.style.fontFamily = item.font;
+			if (item.note) sub.title = item.note;
 			sub.addEventListener('click', () => { void (async () => {
 				const idx = this.navItems().indexOf(sub);
 				if (idx >= 0) this._at = idx;
@@ -774,6 +775,9 @@ export const WsMenuView = ItemView ? class extends ItemView {
 			if (row.full) {
 				el.setAttribute('title', row.full);
 				el.setAttribute('aria-label', row.full);
+			} else {
+				const tip = plugin.menuRowTip(row.id);
+				if (tip) el.setAttribute('title', tip);
 			}
 			// A CHEVRON on anything that opens, turned down when it is
 			// open — the same affordance Obsidian's own file tree and
@@ -3568,7 +3572,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.8.9';
+export const WS_PLUGIN_VERSION = '1.9.0';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -4450,6 +4454,14 @@ export const DEFAULT_SETTINGS = {
 	// The shape of a task checkbox: '' leaves Obsidian's (or your theme's)
 	// alone, which is why the default is empty rather than 'square'.
 	barThemeCheckbox:   '',
+	// PAPER AND INK (GitHub #105): a texture under the note's text and an effect on it, '' for none; looks like the
+	// checkbox shape, under Default too, gone with the Themes switch (themes.ts WS_PAPERS, WS_INKS)
+	barThemePaper:      '',
+	barThemeInk:        '',
+	// …and how strong each is, 0 to 100% of its full (the writer: "the paper effect subtle, really subtle", "i want
+	// the sliders too", "the slider should go from 0 to 100%"): both at 60
+	barThemePaperStrength: 60,
+	barThemeInkStrength:   60,
 	// The Glass look is gone, but while it was on it borrowed Obsidian's own
 	// `translucency` setting; a vault that ran it still has that borrow
 	// outstanding. The repayment runs once, on load, and clears itself —
@@ -4737,11 +4749,6 @@ export const DEFAULT_SETTINGS = {
 	// means the whole vault. Written by ONE function (`orgSelect` in the
 	// window) and nothing else.
 	organizerFolder:          '',
-	// THE PIN: on, the explorer's door is shut — a note opened elsewhere and
-	// a folder clicked there leave the pane on `organizerFolder`; the pane's
-	// own crumbs still move it. The button on the path line is the one
-	// writer.
-	organizerPinned:          false,
 	// Which KINDS of file the Outliner's tree draws. Group ids from
 	// `uniTypeGroups` — ALL of them by default, decided by the vault that
 	// asked for this: the request was "all the file types in it", with the
@@ -4914,10 +4921,8 @@ export const DEFAULT_SETTINGS = {
 	// stock phrases (A839, the writer's pick "Clichés"), off like every check added since
 	checkCliche:              false,
 	checkClicheColor:         "#e0b90f",
-	// YOUR OWN CLICHÉS (A856, the writer: "do 3 too"): one a line, the slots a pack's use ({a|b}, {*}); marked as the list's
-	customCliches:            '',
-	// NEVER MARK (A857, the writer's pick, 2026-10-22): words and phrases no check marks, one a line, read as Your clichés
-	// are (a check… key, so the editor's cache of a line's marks hears a change)
+	// NEVER MARK (A857, the writer's pick, 2026-10-22): words and phrases no check marks, one a line, the slots a pack's
+	// ({a|b}, {*}) (a check… key, so the editor's cache of a line's marks hears a change)
 	checkNeverMark:           '',
 	// Dialogue: everything between quotes, so speech can be found at a
 	// glance. Off by default like every other check — a plugin that starts
@@ -5119,6 +5124,9 @@ export const DEFAULT_SETTINGS = {
 	// this one costs the rows that have no target too, in the space it takes
 	// from their names.
 	fileTreeTasks:            false,
+	// A number before each note and folder in the tree, its place in its
+	// folder; a layer, the files never renamed (#100)
+	fileTreeNumbers:          false,
 	enableOutlineCounts:      false,
 
 	// ── Vim and gutters ───────────────────────────────────────────────────────

@@ -256,7 +256,7 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 	// name — a button, never "the whole vault". The last crumb is where you
 	// are and is not a button.
 	const drawSubject = () => {
-		const subject = d.subject, s = plugin.settings;
+		const subject = d.subject;
 		subject.textContent = '';
 		const crumbs = subject.createDiv({ cls: 'ws-uni-crumbs' });
 		const at = d.orgFolder;
@@ -288,23 +288,6 @@ export const wsOrgChromeMake = (d: OrgChromeDeps) => {
 			crumbs.createSpan({ cls: 'ws-uni-crumbsep', text: '›' });
 			crumbs.createSpan({ cls: 'ws-uni-crumb is-current is-note',
 				text: (String(note).split('/').pop() || '').replace(/\.md$/i, '') });
-		}
-		// THE PIN: at the line's end, Obsidian's own icon button; on, the accent
-		// and the pin standing, off, faint and the pin lying down. The one
-		// writer of `organizerPinned`; a press saves and redraws the line,
-		// nothing else — the folder itself is untouched either way.
-		if (d.tab === 'organizer') {
-			const on = !!s.organizerPinned;
-			const pin = crumbs.createEl('button', { cls: 'clickable-icon ws-org-pin' + (on ? ' is-on' : ''),
-				attr: { type: 'button', 'aria-pressed': on ? 'true' : 'false',
-					'aria-label': on ? wsT('Pinned: the file explorer no longer moves the Organizer. Click to release.') : wsT('Pin this folder: the file explorer will no longer move the Organizer.') } });
-			pin.title = pin.getAttribute('aria-label') || '';
-			setIcon(pin, on ? 'pin' : 'pin-off');
-			pin.addEventListener('click', () => {
-				s.organizerPinned = !s.organizerPinned;
-				void plugin.saveSettings();
-				drawSubject();
-			});
 		}
 		const agg = note
 			? (plugin._orgIndex ? wsOrgAgg(plugin._orgIndex, [note]) : null)

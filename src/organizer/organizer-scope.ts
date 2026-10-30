@@ -160,6 +160,9 @@ const showItem = (it: { path: string; kind: string }, markOnly?: boolean) => {
 // is up, that repaints the numbers FROM it — one debounced clock,
 // because a paste into a big note lands as several events.
 let orgDrawTimer: number | null = null;
-	// (orgScopeHolds is out for the pin: the explorer's door asks it)
-	return { orgSelect, orgFollow, showItem, orgScopeHolds, get orgNote() { return orgNote; }, set orgNote(v) { orgNote = v; }, get orgDrawTimer() { return orgDrawTimer; }, set orgDrawTimer(v) { orgDrawTimer = v; } };
+	// whether the window shows a note at all: the vault's window shows every
+	// one (`orgScopeHolds` refuses the empty scope on purpose); a note opened
+	// is marked only where it is shown (A892)
+	const orgScopeShows = (path: string) => !d.orgFolder || orgScopeHolds(path);
+	return { orgSelect, orgFollow, showItem, orgScopeShows, get orgNote() { return orgNote; }, set orgNote(v) { orgNote = v; }, get orgDrawTimer() { return orgDrawTimer; }, set orgDrawTimer(v) { orgDrawTimer = v; } };
 };

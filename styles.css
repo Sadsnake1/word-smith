@@ -376,7 +376,7 @@ body.zenmode-active.ws-zen-hide-inline-title .inline-title { display: none; }
    further down. */
 body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .markdown-reading-view.markdown-reading-view {
 	padding-bottom: var(--ws-bar-reserve,
-		calc(var(--ws-status-bar-height, 30px) + var(--ws-vim-gutter, 0px)));
+		calc(var(--ws-status-bar-height, 30px) + var(--ws-vim-gutter, 0px) + var(--ws-bar-foot, 0px)));
 	box-sizing: border-box;
 }
 
@@ -407,7 +407,7 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .mark
    stamped inline and are not in --ws-status-bar-height). */
 body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .markdown-source-view.mod-cm6 .cm-editor .cm-scroller {
 	margin-bottom: var(--ws-bar-reserve,
-		calc(var(--ws-status-bar-height, 30px) + var(--ws-vim-gutter, 0px)));
+		calc(var(--ws-status-bar-height, 30px) + var(--ws-vim-gutter, 0px) + var(--ws-bar-foot, 0px)));
 }
 
 /* Focused file mode. */
@@ -1498,11 +1498,17 @@ body.ws-hemingway-active .cm-editor .cm-selectionBackground {
    Retro status bar
    ========================================================================= */
 
+/* THE BAR'S FOOT ON A PHONE (#109): the higher of the safe area Obsidian reports (the gesture strip) and the space
+   below its workspace (the keyboard shortens the workspace, not the viewport; --ws-bar-lift, measured by stampBarLift),
+   so the bar stands just above Obsidian's editing toolbar and the keyboard. Unset on a desktop: 0. */
+body.is-mobile {
+	--ws-bar-foot: max(var(--safe-area-inset-bottom, 0px), var(--ws-bar-lift, 0px));
+}
 .ws-status-bar {
 	position: fixed;
 	/* One row above the window edge — the row beneath belongs to the vim
 	   command line, and the ::after plinth below masks it while closed. */
-	bottom: var(--ws-vim-gutter, 0px); left: 0; width: 100%;
+	bottom: calc(var(--ws-vim-gutter, 0px) + var(--ws-bar-foot, 0px)); left: 0; width: 100%;
 	height: var(--ws-status-bar-height, 30px);
 	background-color: var(--ws-bg);
 	color: var(--ws-text);
@@ -1563,7 +1569,7 @@ body.ws-bar-ui-font .ws-status-bar {
 body.ws-bar-hidden .ws-status-bar {
 	/* The full journey: its own height plus the gutter it sits above —
 	   100% alone left it hovering a row short of the edge. */
-	transform: translateY(calc(100% + var(--ws-vim-gutter, 0px)));
+	transform: translateY(calc(100% + var(--ws-vim-gutter, 0px) + var(--ws-bar-foot, 0px)));
 }
 
 /* ...but a bar hidden in zen comes back while the pointer is near the strip
@@ -9327,16 +9333,6 @@ svg.ws-obsidian-mark { stroke-width: 46px; }
 	min-width: 0;
 	font-size: var(--font-ui-medium);
 }
-/* THE PIN (A462): the last thing on the crumbs line, pushed to its end; on,
-   it takes the accent. Obsidian's clickable-icon is the box and the hover. */
-/* Its 22px box (the app's 4px of clickable-icon padding round a 14px icon) would
-   make the row 22px tall and centre itself in that, a hair under the words
-   (A464); the padding is pulled back out of the row with a negative block
-   margin, so the row is the text's height and the pin centres on the text —
-   the hover box keeps its size, overflowing the line by a pixel each way. */
-.ws-uni-crumbs .ws-org-pin { margin-inline-start: auto; margin-block: -4px; align-self: center; color: var(--text-faint); }
-.ws-uni-crumbs .ws-org-pin.is-on { color: var(--interactive-accent); }
-.ws-uni-crumbs .ws-org-pin svg { width: 14px; height: 14px; }
 .ws-uni-crumb {
 	font-size: inherit;
 	font-weight: var(--font-semibold, 600);
@@ -13192,6 +13188,36 @@ body { --ws-hit-min: 44px; }
 .nav-file-title .ws-treekind:empty { display: none; }
 .nav-file-title .ws-treekind svg { width: 13px; height: 13px; display: block; }
 
+/* THE TREE'S NUMBERS (#100), a layer over the names: nothing is renamed.
+   One column at the tree's left edge, numbered as the Organizer numbers its
+   rows (1, 2.1, 2.1.1). The room is the scroller's own padding, widened by
+   the Organizer's width: one ch for each character of the widest number
+   (--ws-treenum-n, stamped on the leaf by the painter) and 8px. Obsidian
+   stretches every row back to that padding's edge whatever its depth, so
+   each number, placed just outside its row, ends on one line with the
+   others, right-aligned so a 9 and a 10 end together. The room on any
+   other box puts the rows out (tree.ts, paintExplorerNumbers). Measured
+   live: the widest number fits with 5.5px to spare at one digit, and
+   overflows by 2.5px without the 8px. */
+.workspace-leaf-content[data-type="file-explorer"].ws-tree-numbered .nav-files-container {
+	padding-inline-start: calc(var(--size-4-3, 12px) + var(--ws-treenum-n, 1) * 1ch + 8px);
+}
+.workspace-leaf-content[data-type="file-explorer"] .ws-treenum {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	inset-inline-end: 100%;
+	padding-inline-end: var(--size-2-2, 4px);
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	font-size: var(--font-ui-smaller, 12px);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	color: var(--text-faint);
+	pointer-events: none;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    THE MANUSCRIPT WINDOW, DRESSED AS OBSIDIAN
    ══════════════════════════════════════════════════════════════════════════
@@ -15447,9 +15473,12 @@ body.ws-titlebar-match.ws-page .titlebar {
 /* THE TITLE BAR WEARS THE GROUND, in Zen and out of it. A theme writes
    --titlebar-background inline on body as the page's color, which a sheet
    cannot outrank, and in Zen the strip is see-through over a body of the
-   page's color; so the strip itself is painted. */
-body.ws-page .titlebar,
-body.ws-page .titlebar-button-container {
+   page's color; so the strip itself is painted. Never Settings' own window
+   (Obsidian 1.14.5 draws it as a popout with its own title bar): it holds no
+   page, and the writer saw its strip on the desk's darker color over the
+   window's (2026-10-30). */
+body.ws-page:not(.is-popout-modal) .titlebar,
+body.ws-page:not(.is-popout-modal) .titlebar-button-container {
 	background-color: var(--ws-page-ground);
 }
 body:not(.is-mobile).zenmode-active.ws-page .titlebar.ws-main-titlebar {
@@ -15679,3 +15708,50 @@ body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-conten
 .ws-about-notes ul { margin: 0; padding-left: var(--size-4-5); color: var(--text-muted); }
 /* Buy me a coffee in its own yellow (the writer's mockup) */
 button.ws-about-coffee, button.ws-about-coffee:hover { background-color: #ffdd00; color: #1a1a1a; font-weight: var(--font-semibold); }
+
+/* =========================================================================
+   PAPER AND INK (GitHub #105, A901): Settings › Themes › Paper and Ink, two
+   dropdowns and their strengths, looks like the checkbox shape (they work
+   under Default and go with the Themes switch). The plugin builds the tiles
+   at the strengths set (core/paper-ink.ts: a sheet cannot scale an image's
+   alpha) and writes them on body, a light note's and a dark note's both;
+   here each is picked by the theme's class and put in place, ONLY IN THE
+   NOTES WORD-SMITH IS ON (.ws-scoped, as every layout: a reference note
+   beside the manuscript stays plain, pane_scope_test). A PAPER goes under
+   the text, on the note's scroller (its layers move with the text, an edge
+   with the view), or under page mode on the sheet, never the desk. An INK
+   goes on the text: its mask, filter and opacity on the content, its shadow
+   and stroke on every element in it, so a colored word bleeds its own color
+   (a currentColor set once on the content is that element's color,
+   inherited as it: the syntax colors went grey).
+   ========================================================================= */
+body.ws-paper { --ws-paper-img: var(--ws-paper-img-light, none); }
+body.theme-dark.ws-paper { --ws-paper-img: var(--ws-paper-img-dark, none); }
+body.ws-ink { --ws-ink-shadow: var(--ws-ink-shadow-light, none); --ws-ink-stroke: var(--ws-ink-stroke-light, 0px transparent); }
+body.theme-dark.ws-ink { --ws-ink-shadow: var(--ws-ink-shadow-dark, none); --ws-ink-stroke: var(--ws-ink-stroke-dark, 0px transparent); }
+body.ws-paper:not(.ws-page) .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
+body.ws-paper:not(.ws-page) .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view,
+body.ws-paper.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-scroller > .cm-sizer,
+body.ws-paper.ws-page .mod-root .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view > .markdown-preview-view > .markdown-preview-sizer {
+	background-image: var(--ws-paper-img);
+	background-size: var(--ws-paper-size);
+	background-attachment: var(--ws-paper-attach);
+	background-repeat: repeat;
+}
+/* the mask on the editor's content, and in reading view on each block (the sizer may be the sheet, which a mask would hole) */
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view .markdown-preview-sizer > div {
+	-webkit-mask-image: var(--ws-ink-mask, none);
+	mask-image: var(--ws-ink-mask, none);
+	-webkit-mask-size: var(--ws-ink-mask-size, auto);
+	mask-size: var(--ws-ink-mask-size, auto);
+	filter: var(--ws-ink-filter, none);
+	opacity: var(--ws-ink-opacity, 1);
+}
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-content,
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-source-view.mod-cm6 .cm-content *,
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view .markdown-preview-sizer > div,
+body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-reading-view .markdown-preview-sizer > div * {
+	text-shadow: var(--ws-ink-shadow);
+	-webkit-text-stroke: var(--ws-ink-stroke);
+}

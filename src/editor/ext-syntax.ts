@@ -236,10 +236,6 @@ export function wsSyntaxExtension(plugin: WordSmith, cm: NonNullable<typeof CM>)
 					for (const r of E.cliches(tokens, masked)) {
 						keep(checkMark.cliche, base + r.from, base + r.to);
 					}
-					// …and your own (A856), one a line, in any language
-					for (const r of wsPhraseSpansFor(plugin.customClicheRe(E.lang), masked, E.lang)) {
-						keep(checkMark.cliche, base + r.from, base + r.to);
-					}
 				}
 				if (s.checkIllusion) {
 					for (const r of E.illusions(tokens, masked)) {

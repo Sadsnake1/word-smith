@@ -9,7 +9,7 @@
 // declarations instead of replacing them. The names referenced but not
 // declared inside the block are imported for the linter's sake; the checker
 // resolves them either way.
-import type { CachedMetadata, Command, DataWriteOptions, Plugin, PluginManifest, TAbstractFile, TFile, TFolder, KeymapEventHandler } from 'obsidian';
+import type { CachedMetadata, Command, DataWriteOptions, Events, Plugin, PluginManifest, TAbstractFile, TFile, TFolder, KeymapEventHandler } from 'obsidian';
 import type { EditorView } from '@codemirror/view';
 
 // A community plugin as `app.plugins.plugins` holds it: the instance, with
@@ -25,7 +25,21 @@ export interface WsExplorerItem {
 	selfEl?: HTMLElement;
 	titleEl?: HTMLElement;
 	el?: HTMLElement;
+	// its folder's row (the root's has no file), whose `vChildren` holds the
+	// folder's children in the order drawn (WS_INTERNALS explorerChildren, #100)
+	parent?: WsExplorerItem;
+	vChildren?: { _children?: WsExplorerItem[] };
+	// a folder row folded shut (its rows are not drawn)
+	collapsed?: boolean;
 	updateChildren?(): void;
+}
+
+// Obsidian Sync's plugin instance ({sync}, #108; WS_INTERNALS obsidianSync): its state (`getStatus`, one of synced,
+// syncing, paused, error, disconnected, uninitialized), the sentence its own status bar says it with, and its
+// "status-change" event — read in the asar, every member feature-detected where it is read
+export interface WsSyncInstance extends Events {
+	getStatus?(): string;
+	syncStatus?: string;
 }
 
 // The CM5 facade the Vim adapter keeps at `editor.cm.cm`: its state carries
@@ -58,6 +72,10 @@ declare module 'obsidian' {
 		// (`setQuery` sets the box, focuses it and draws the list — measured live
 		// on 1.13.7, one command shown for its full name)
 		setting: { open(): void; openTabById(id: string): { setQuery?: (q: string) => void } | null };
+		// the CSS snippets turned on in Appearance, by name (WS_INTERNALS cssSnippets, #102)
+		customCss?: { enabledSnippets?: Set<string> };
+		// Obsidian's own core plugins, Sync's instance among them (WS_INTERNALS obsidianSync, {sync})
+		internalPlugins?: { getPluginById?(id: string): { enabled?: boolean; instance?: WsSyncInstance | null } | null };
 		// the property types (1.4+), every door feature-detected in orgPropType
 		metadataTypeManager?: {
 			properties?: Record<string, { name?: string; type?: string; widget?: string; count?: number } | undefined>;
@@ -98,7 +116,7 @@ declare module 'obsidian' {
 		// original unbound and calls it with the view (unbound-method)
 		getSortedFolderItems?: (folder: TFolder) => WsExplorerItem[];
 		fileItems?: Record<string, WsExplorerItem | undefined>;
-		tree?: { infinityScroll?: { compute?(): void } };
+		tree?: { infinityScroll?: { compute?(): void; invalidateAll?(): void } };
 		requestSort?(): void;
 		// methods, not properties: the plugin's own views define both
 		render?(): void;

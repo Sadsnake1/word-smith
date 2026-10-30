@@ -16,7 +16,7 @@ import { wsPhraseFold, wsPhraseRe } from '../core/lang-engine';
 import { wsSpaceForYouFits } from '../core/language';
 import type WordSmith from '../plugin/plugin';
 
-// A BOX OF PHRASES AS ONE PATTERN, Your clichés' (A856) and Never mark's (A857): one a line, a line opening with #
+// A BOX OF PHRASES AS ONE PATTERN, Never mark's (A857; A856's Your clichés read it too, gone 2026-10-30): one a line, a line opening with #
 // a note to yourself, each folded the language's way (wsPhraseFold: a Turkish İ, a Persian yeh), the slots a pack's
 // ({a|b}, {*}); words apart where a language spaces them, the text itself in Chinese and Japanese
 function wsPhraseBoxRe(src: string, lang: string): RegExp | null {
@@ -26,22 +26,8 @@ function wsPhraseBoxRe(src: string, lang: string): RegExp | null {
 
 export const editorMethods = {
 
-	// YOUR OWN CLICHÉS (A856, the writer: "do 3 too"): the box's lines as one pattern, the slots a pack's ({a|b}, {*}),
-	// made again only when the box or the language changes; words apart where a language spaces them, the text itself in
-	// Chinese and Japanese. A line opening with # is a note to yourself
-	// (in the language of the engine marking the text, folded its way, wsPhraseFold: a Turkish İ, a Persian yeh)
-	customClicheRe(this: WordSmith, engineLang?: string): RegExp | null {
-		const src = String(this.settings.customCliches || ''), lang = String(engineLang || this.settings.language || 'en');
-		const key = lang + '\n' + src;
-		if (this._customClicheKey === key) return this._customClicheRe;
-		this._customClicheKey = key;
-		try { this._customClicheRe = wsPhraseBoxRe(src, lang); }
-		catch (_) { wsCatch('customClicheRe', _); this._customClicheRe = null; }
-		return this._customClicheRe;
-	},
-
-	// NEVER MARK (A857, the writer's pick, 2026-10-22): the box's words and phrases as one pattern, read as Your clichés
-	// reads its own (the slots, a # line a note, the language's folding); a check's mark inside one goes
+	// NEVER MARK (A857, the writer's pick, 2026-10-22): the box's words and phrases as one pattern (the slots, a # line a
+	// note, the language's folding), made again only when the box or the language changes; a check's mark inside one goes
 	neverMarkRe(this: WordSmith, engineLang?: string): RegExp | null {
 		const src = String(this.settings.checkNeverMark || ''), lang = String(engineLang || this.settings.language || 'en');
 		const key = lang + '\n' + src;

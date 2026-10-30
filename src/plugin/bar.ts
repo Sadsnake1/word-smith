@@ -10,6 +10,7 @@ import type { WorkspaceLeaf } from 'obsidian';
 import type { WordSmithSettings, WsBoolKey, WsCursorSmithPlugin, WsCursorSmithSettings, WsCursorSmithLook, WsStringKey, WsMenuPickItem } from '../core/settings';
 import { PL_SEP_ASPECT, PL_SOFT, PL_SOFT_SPLIT, PL_THEME_BGS, PL_THEME_INKS, WS_STYLESHEET_VERSION, barCloneValue, mixColors, readBarDirective, wsCatch, wsBag, wsErrMsg, BAR_KEYS_LIVE, BAR_SECTION_GAP, BAR_THEME_INK_VARS, FIT_CLASS_AMBIENT, FIT_CLASS_DECORATION, FIT_CLASS_IDENTITY, FIT_CLASS_ORNAMENT, FIT_CLASS_READING, FIT_RESTORE_MARGIN, FIT_SLACK, OBSIDIAN_ICON_PATH, PL_BG_COUNT, PL_DIR, PL_DIVIDERS, READ_WPM, barCodeToPreset, barPresetWithDefaults, wsFlagSvg, wsStatusLabel, wsStatusNext, wsSvgInto, wsBarInto, wsCursorMarkSvg, wsHueRotate, wsTaskSay, wsNodeOf, wsElOf, wsPickerSwatch, wsPagesOf, wsGoalPlan, wsGoalPct, wsIconPick, wsDayKey, wsForDisk } from '../core/preamble';
 import type { WsGoalPlan } from '../core/preamble';
+import type { WsSyncInstance } from '../core/obsidian-private';
 import { wsT, wsUiJoin, wsUiLang } from '../core/ui-text';
 
 // {wpm} (A730): the last minute is "now"; ten seconds at least, so one burst is no record; a pause of five seconds is
@@ -2579,6 +2580,55 @@ export const barMethods = {
 		return this.buildKeyGlyph(a || 'Caps', b || '', wsT('Caps Lock is on'));
 	},
 
+	// OBSIDIAN SYNC, ON THE BAR ({sync}, #108, ryu-kyu: "so I can easily check whether my changes are synced or are in
+	// the midst of syncing"). Sync's own state (its `getStatus`, private: WS_INTERNALS obsidianSync) in the icon its own
+	// status bar wears for it, its own sentence on hover; nothing while Sync is off or this build has no such plugin.
+	syncState(this: WordSmith): { status: string; said: string } | null {
+		try {
+			const ip = this.app.internalPlugins;
+			const sp = ip && typeof ip.getPluginById === 'function' ? ip.getPluginById('sync') : null;
+			const inst = sp && sp.enabled ? sp.instance : null;
+			if (!inst || typeof inst.getStatus !== 'function') return null;
+			this.syncWatch(inst);
+			return { status: String(inst.getStatus()), said: String(inst.syncStatus || '') };
+		} catch (_) { wsCatch('syncState: getPluginById(sync)', _); return null; }
+	},
+
+	// ONE LISTENER on Sync's own instance, so the bar follows it as it changes; through onAppEvent like every app
+	// event (guarded, registered with the plugin, so an unload drops it: unified_probe counts the bare form)
+	syncWatch(this: WordSmith, inst: WsSyncInstance) {
+		if (this._syncWatched === inst || typeof inst.on !== 'function') return;
+		this._syncWatched = inst;
+		this.onAppEvent(inst, 'status-change', () => this.updateRetroStatusBar());
+	},
+
+	// Obsidian's own icon for each state (its sync plugin's status bar, read in the asar), with a stock one behind
+	// each, `setIcon` failing silently on a name it does not know
+	syncIconNames(this: WordSmith, status: string) {
+		if (status === 'synced') return ['check-small', 'check'];
+		if (status === 'paused') return ['paused', 'pause'];
+		if (status === 'disconnected') return ['refresh-cw-off', 'cloud-off'];
+		return ['sync-small', 'refresh-cw'];
+	},
+
+	buildSyncIndicator(this: WordSmith) {
+		const st = this.syncState();
+		const status = st ? st.status : '';
+		const el = this.buildBarButton('ws-barbtn-sync' + (status === 'error' || status === 'disconnected' ? ' is-error' : ''),
+			(node: HTMLElement) => {
+				node.textContent = '';
+				for (const n of this.syncIconNames(status)) {
+					try { setIcon(node, n); } catch (_) { wsCatch('buildSyncIndicator: setIcon', _); }
+					if (node.childElementCount) break;
+				}
+			},
+			// its own sentence ("Fully synced"), in Obsidian's own language
+			st && st.said ? st.said : 'Obsidian Sync',
+			() => { try { this.app.setting.open(); this.app.setting.openTabById('sync'); } catch (_) { wsCatch('buildSyncIndicator: open Sync settings', _); } });
+		el.setAttribute('data-sync', status);
+		return el;
+	},
+
 	buildNumIndicator(this: WordSmith) {
 		const [a, b] = wsT('keycap::Num Lock').split(/\s+/);
 		return this.buildKeyGlyph(a || 'Num', b || '', wsT('Num Lock is on'));
@@ -2586,26 +2636,27 @@ export const barMethods = {
 
 	// The writing checks get their own token, so the syntax picker can stay
 	// one line about them rather than seven.
-	getWriteChecks(this: WordSmith): { key: WsBoolKey; color: WsStringKey; label: string; swatch?: string }[] {
+	getWriteChecks(this: WordSmith): { key: WsBoolKey; color: WsStringKey; label: string; swatch?: string; tip: string }[] {
 		// Order here drives the picker, the bar tooltip and the settings
 		// tab, so there is one sequence to remember rather than three.
 		// The master switch stays at the foot of the picker; everything
 		// above is in reading order. The names in the pack's language while
 		// one is in use (A600).
 		return ([
-			{ key: 'checkFiller',     color: 'checkFillerColor',     label: 'Filler words'      },
-			{ key: 'checkPassive',    color: 'checkPassiveColor',    label: 'Passive voice'     },
-			{ key: 'checkPronoun',    color: 'checkPronounColor',    label: 'Loose pronouns'    },
-			{ key: 'checkRepetition', color: 'checkRepetitionColor', label: 'Repetition radar'  },
-			{ key: 'checkMisused',    color: 'checkMisusedColor',    label: 'Commonly misused'  },
-			{ key: 'checkIllusion',   color: 'checkIllusionColor',   label: 'Lexical illusions' },
+			// (`tip`, what it marks on hover, #113: its Settings line)
+			{ key: 'checkFiller',     color: 'checkFillerColor',     label: 'Filler words',      tip: 'Words like very, really, basically, kind of.' },
+			{ key: 'checkPassive',    color: 'checkPassiveColor',    label: 'Passive voice',     tip: 'Was written, is being considered.' },
+			{ key: 'checkPronoun',    color: 'checkPronounColor',    label: 'Loose pronouns',    tip: 'A sentence opening with an unclear it or this.' },
+			{ key: 'checkRepetition', color: 'checkRepetitionColor', label: 'Repetition radar',  tip: 'The same uncommon word twice, close together.' },
+			{ key: 'checkMisused',    color: 'checkMisusedColor',    label: 'Commonly misused',  tip: 'Affect and effect, its and it’s, fewer and less.' },
+			{ key: 'checkIllusion',   color: 'checkIllusionColor',   label: 'Lexical illusions', tip: 'The same word twice in a row.' },
 			// (A839, the writer's pick "Clichés")
-			{ key: 'checkCliche',     color: 'checkClicheColor',     label: 'Clichés'           },
+			{ key: 'checkCliche',     color: 'checkClicheColor',     label: 'Clichés',           tip: 'Stock phrases: at the end of the day, cold as ice, a blessing in disguise.' },
 			// Above Sentence rhythm, as in the settings tab: this list
 			// drives the picker, the bar tooltip AND that tab, so one
 			// sequence is the whole ordering and the three cannot
 			// disagree about it.
-			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue'          },
+			{ key: 'checkDialogue',   color: 'checkDialogueColor',   label: 'Dialogue',          tip: 'Everything inside quotes, and speech after a dialogue dash where the language writes one.' },
 			// No colour of its own in the picker. Sentence rhythm paints in
 			// TWO (hard and very hard, and it is a background tint rather
 			// than a mark), so a single swatch picked one of them and told
@@ -2613,8 +2664,8 @@ export const barMethods = {
 			// keeps the ball — the rows still line up — and takes the row's
 			// own colour, so it reads as the toggle it is.
 			{ key: 'checkRhythm',     color: 'checkRhythmHardColor', label: 'Sentence rhythm',
-			  swatch: 'text' }
-		] as { key: WsBoolKey; color: WsStringKey; label: string; swatch?: string }[]).map((c) => ({ ...c, label: this.catName(c.label) }));
+			  swatch: 'text', tip: 'Shades each sentence by how hard it reads or how long it runs.' }
+		] as { key: WsBoolKey; color: WsStringKey; label: string; swatch?: string; tip: string }[]).map((c) => ({ ...c, label: this.catName(c.label) }));
 	},
 
 	buildWriteChecksIndicator(this: WordSmith) {
@@ -2633,6 +2684,7 @@ export const barMethods = {
 		const s = this.settings;
 		const items = this.getWriteChecks().map((c) => ({
 			label: c.label,
+			note: wsT(c.tip),
 			// currentColor rather than a fixed value, so the ball fades with
 			// the row when the check is off exactly as the label does.
 			// (a tint left to the theme, A782, its color the theme's: Sentence rhythm's yellow)
@@ -2805,25 +2857,27 @@ export const barMethods = {
 	},
 
 	modesPickerItems(this: WordSmith) {
+		// WHAT EACH ONE DOES, on hover (#113): the line its own Settings page says it with
 		const defs = [
-			{ key: 'tw',  label: wsT('Typewriter'),
+			{ key: 'tw',  label: wsT('Typewriter'), note: wsT('Keeps the line you are writing at one height; the page moves under the cursor.'),
 			  on: () => !!this.opt('enableTypewriter') && this.isActiveFileInScope(),
 			  onClick: async () => { await this.toggleSetting('enableTypewriter'); } },
-			{ key: 'hem', label: wsT('Hemingway'),
+			{ key: 'hem', label: wsT('Hemingway'), note: wsT('Blocks the keys you would use to go back, so a draft can only move forward.'),
 			  on: () => !!this.opt('hemingwayEnabled') && this.isActiveFileInScope(),
 			  onClick: async () => { await this.toggleSetting('hemingwayEnabled'); } },
-			{ key: 'lb',  label: wsT('Letter Box'),
+			{ key: 'lb',  label: wsT('Letter Box'), note: wsT('Dims the top and bottom of the screen so only your band stays lit. Drag its sides to set the text’s margins.'),
 			  on: () => this.letterboxActive(),
 			  onClick: async () => { await this.toggleSetting('enableLetterbox'); } },
-			{ key: 'page', label: wsT('Page'),
+			{ key: 'page', label: wsT('Page'), note: wsT('Your text as a page, outlined on a darker ground.'),
 			  on: () => this.pageModeShown(),
 			  onClick: async () => { this.togglePageQuick(); } },
-			{ key: 'zen', label: wsT('Zen'),
+			{ key: 'zen', label: wsT('Zen'), note: wsT('Clears the workspace down to the words until you leave.'),
 			  on: () => this.zenActive(),
 			  onClick: async () => { await this.toggleZenFromBar(); } }
 		];
 		const items = defs.map(d => ({
 			label: d.label,
+			note: d.note,
 			icon:  () => this.buildModeGlyph(d.key),
 			on:    d.on,
 			onClick: d.onClick
@@ -3402,6 +3456,8 @@ export const barMethods = {
 			// lengths once per frame.
 			'{#>}':        this.headingTrailText(hTrail),
 			'{caps}':      this._capsLockOn ? '\x00CAPS\x00' : '',
+			// Obsidian Sync's state (#108): nothing while Sync is off
+			'{sync}':      this.syncState() ? '\x00SYNC\x00' : '',
 			'{num}':       this._numLockOn  ? '\x00NUM\x00'  : '',
 			'{vim}':       this.getVimModeLabel(),
 			'{mode}':      '\x00MODE\x00',
@@ -5163,6 +5219,7 @@ export const barMethods = {
 			PROPS:    () => this.buildPropsIndicator(),
 			BACKL:    () => this.buildBacklinksIndicator(),
 			CAPS:     () => this.buildCapsIndicator(),
+			SYNC:     () => this.buildSyncIndicator(),
 			NUM:      () => this.buildNumIndicator(),
 			CLOCK:    () => this.buildClockFace(),
 			WPM:      () => this.buildWpmTokenEl(),
@@ -5398,6 +5455,27 @@ export const barMethods = {
 	// Fails toward RESERVING. A leaf whose rect cannot be read keeps the
 	// strip: a needless gap at the bottom of a pane is visible and
 	// harmless, while a missing one hides the caret, which is the bug.
+	// THE BAR ABOVE A PHONE'S OWN FOOT (#109, Disble on a Galaxy Tab: with the floating keyboard open the viewport kept
+	// its 824.47 px while Obsidian's workspace ended at 724.47 and its editing toolbar climbed there; the bar stayed at
+	// 795.47..824.47, under both). The space below the workspace, `--ws-bar-lift`, which the sheet takes with the safe
+	// area into the bar's foot. Measured here, in the mask pass, before the bar's top is: the reserve and the masks
+	// then read the bar where it stands. Nothing on a desktop.
+	stampBarLift(this: WordSmith) {
+		let lift = 0;
+		if (this.isMobileApp()) {
+			try {
+				const ws = document.querySelector('.workspace');
+				const r = ws ? ws.getBoundingClientRect() : null;
+				if (r && r.height) lift = Math.max(0, Math.round(((window.innerHeight || 0) - r.bottom) * 100) / 100);
+			} catch (_) { wsCatch('stampBarLift: the workspace\'s foot', _); }
+		}
+		if (this._barLift === lift) return;
+		this._barLift = lift;
+		const root = document.documentElement.style;
+		if (lift > 0) root.setProperty('--ws-bar-lift', lift + 'px');
+		else root.removeProperty('--ws-bar-lift');
+	},
+
 	stampBarReserve(this: WordSmith, barTop: number) {
 		const root   = document.documentElement.style;
 		const leaves = document.querySelectorAll('.workspace-split.mod-root .workspace-leaf');
@@ -5424,7 +5502,10 @@ export const barMethods = {
 		if (!(bottom > barTop)) {
 			bottom = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 0;
 		}
-		const z = this.zoomFactor();
+		// NOT DIVIDED ON A PHONE (#109): measured on the tablet, the reserve came out short by the device's pixel ratio
+		// (2.125) with the division and met the bar's top to 0.00003 px without it; --zoom-factor there is not a zoom of
+		// this subtree. On a desktop it is, and the division stands (invariant 2).
+		const z = this.isMobileApp() ? 1 : this.zoomFactor();
 		// Rounded in the space it will be PAINTED in, like stampBarBounds:
 		// round the measurement, then divide.
 		const reserve = Math.max(0, Math.round((Math.round(bottom - barTop) / z) * 1000) / 1000);

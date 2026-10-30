@@ -27,6 +27,7 @@ Three bars ship with it, **Plain**, **Code** and **Fade**, as cards at the top o
 | `{dd}` `{mm}` `{yyyy}` `{yy}` | Date parts, joined however you like |
 | `{wpm}` | Your typing speed in words a minute, with a small gauge whose needle rests five seconds after your last key. The Momentum gauge, a dial alone, follows your last few seconds instead. Or today's average (pick one under **Powerline → Tokens**). Click it to start again from zero. It shows the number alone; type `wpm` after it if you want the word. Only what you type counts, never a paste |
 | `{battery}` `{caps}` `{num}` | Battery; caps and num lock, only when on |
+| `{sync}` | Obsidian Sync: a tick when synced, arrows while syncing; click for its settings |
 | `{vim}` | Which Vim mode you're in |
 | `{mode}` | A Modes button: letter box, typewriter, Hemingway, page and Zen, right on the bar |
 | `{flag}` | The flag of the note you're in. Click to change it |

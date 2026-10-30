@@ -1881,6 +1881,8 @@ export const focusMethods = {
 		// when they can have moved (see stampBarBounds: the root split is
 		// watched), like the bar update does.
 		if (this._barBoundsDirty !== false || this._barBoundsEl !== this.retroStatusBarEl) this.stampBarBounds();
+		// …and, on a phone, how far above the screen's foot it stands (#109): before its top is measured below
+		this.stampBarLift();
 		// THE REMEMBERED NOTE, not the focused one. This bailed whenever
 		// `getActiveViewOfType` came back empty — which is exactly what it
 		// does while focus sits in the docked panel. So toggling the
@@ -2080,7 +2082,8 @@ export const focusMethods = {
 		// them, its bottom edge cutting a line 27px in. The masks give or take under half a line so the band holds a
 		// whole number of the editor's lines; with Typewriter, which holds the caret's line still, the band also
 		// moves by under half a line (the top mask `shift` taller, the bottom as much shorter) so its edges fall
-		// between lines around it. Without Typewriter the text scrolls by any amount and no band stays on its lines.
+		// between lines around it. Without Typewriter the text scrolls by any amount, so the band lines up on the line
+		// under its top edge, and only once a scroll has rested (_lbSettleSoon: never crawling with the text).
 		// The stored height is untouched: the band is drawn to the nearest whole lines of it.
 		const lineH     = this._lbLinePx();
 		let arrowH      = maskH, shift = 0;
@@ -2088,7 +2091,7 @@ export const focusMethods = {
 			const k = Math.round((sHeight - 2 * (maskH + overhang)) / lineH);
 			const snapped = (sHeight - k * lineH) / 2 - overhang;
 			if (k >= 1 && snapped >= WS_MASK_MIN_PX && snapped <= this._maskMaxPx(sHeight)) arrowH = snapped;
-			const caret = this.opt('enableTypewriter') ? this._lbCaretTop(view) : null;
+			const caret = this.opt('enableTypewriter') ? this._lbCaretTop(view) : this._lbLineAt(view, sTop + arrowH + overhang);
 			if (caret != null) {
 				const off = (((caret - (sTop + arrowH + overhang)) % lineH) + lineH) % lineH;
 				const d = off > lineH / 2 ? off - lineH : off;
@@ -2448,6 +2451,31 @@ export const focusMethods = {
 		} catch { return null; }
 	},
 
+	// THE LINE UNDER A POINT, its top on screen (what the band lines up on without Typewriter, the point its top edge):
+	// the visual line there, its middle less half a line as _lbCaretTop reads the caret's; null where the editor
+	// answers nothing near it (a blank stretch between paragraphs, two lines and more away)
+	_lbLineAt(this: WordSmith, view: MarkdownView | null, y: number): number | null {
+		try {
+			const cm = view && view.editor ? view.editor.cm : null;
+			if (!cm || typeof cm.posAtCoords !== 'function') return null;
+			const r = cm.contentDOM.getBoundingClientRect();
+			const c = cm.coordsAtPos(cm.posAtCoords({ x: r.left + 4, y }, false));
+			const lineH = this._lbLinePx();
+			const top = c ? (c.top + c.bottom) / 2 - lineH / 2 : null;
+			return top != null && Math.abs(top - y) <= 2 * lineH ? top : null;
+		} catch { return null; }
+	},
+
+	// THE BAND SETTLES ON ITS LINES WHEN A SCROLL RESTS (known debt, A673's open half): a reposition 140ms after the
+	// last scroll, Letter Box on and Typewriter off (Typewriter lines the band up on the caret at every pass)
+	_lbSettleSoon(this: WordSmith) {
+		if (this._lbSettleTimer) window.clearTimeout(this._lbSettleTimer);
+		this._lbSettleTimer = window.setTimeout(() => {
+			this._lbSettleTimer = 0;
+			if (this.maskTopEl && !this.opt('enableTypewriter')) this.scheduleMaskPosition();
+		}, 140);
+	},
+
 	// A CHARACTER'S WIDTH, 1ch (the unit Characters per line counts in): a "0" in the editor's own font, measured
 	// off the page so nothing is written into the editor; 0 where it cannot be measured
 	_lbChPx(this: WordSmith): number {
@@ -2543,12 +2571,13 @@ export const focusMethods = {
 		const scroller = this.getActiveScroller();
 		if (!scroller) return;
 		this.currentScroller = scroller;
-		this.scrollHandler   = () => this.updateMaskVisibility();
+		this.scrollHandler   = () => { this.updateMaskVisibility(); this._lbSettleSoon(); };
 		scroller.addEventListener('scroll', this.scrollHandler, { passive: true });
 		window.requestAnimationFrame(() => this.updateMaskVisibility());
 	},
 
 	detachScrollHandler(this: WordSmith) {
+		if (this._lbSettleTimer) { window.clearTimeout(this._lbSettleTimer); this._lbSettleTimer = 0; }
 		if (this.currentScroller && this.scrollHandler) {
 			this.currentScroller.removeEventListener('scroll', this.scrollHandler);
 		}
@@ -2580,6 +2609,9 @@ export const focusMethods = {
 			if (typeof ResizeObserver === 'function') {
 				this._bodyResizeObs = new ResizeObserver(() => this.scheduleMaskPosition());
 				this._bodyResizeObs.observe(document.body);
+				// …and, on a phone, the workspace: the keyboard shortens it while the body keeps its size (#109)
+				const ws = this.isMobileApp() ? document.querySelector('.workspace') : null;
+				if (ws) this._bodyResizeObs.observe(ws);
 			}
 		} catch { /* the resize listener above still covers the common case */ }
 	},

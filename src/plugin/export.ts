@@ -5,15 +5,15 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
-import { MarkdownView, TFile, TFolder, Notice, Platform } from 'obsidian';
+import { MarkdownView, TFile, TFolder, Notice, Platform, loadMathJax, loadMermaid } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
-import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage } from '../core/settings';
+import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage, WsExportFigures } from '../core/settings';
 import { wsIsRtl, wsPageNumAt, wsTocTitle, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesFill, wsFootNotes, wsIndentSize, wsHeadNumbers, wsNumbered, wsNoteHeadings, wsPageOfPart, wsHeadFill, wsHeadSide, wsContactLines, WS_SUBTITLE_SIZE_EM, wsParaSpacing, wsDropHeadings } from '../core/preamble';
 import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsMdImageLink, wsRelPath, wsFootnoteDefs, wsNotesKept, wsRunsHtml, wsEpubCheck, wsWheelStep } from '../core/preamble';
 import type { WsWheelAcc } from '../core/preamble';
 import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
 import { wsT, wsTIn, wsUiJoin } from '../core/ui-text';
-import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsFigureSources, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
 // ── DRAWING A PICTURE (A568), with the engine Obsidian runs ─────────────
@@ -1900,6 +1900,7 @@ export const exportMethods = {
 		dflt('divider', '#');     dflt('a4', false);
 		dflt('starBetween', true);
 		dflt('dashPageBreak', false);
+		dflt('snippetCss', false);
 		// Folder names as headings — off, because it changes the shape of
 		// every existing export and a flat folder of scenes gains nothing.
 		dflt('folderHeadings', WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
@@ -2955,6 +2956,82 @@ export const exportMethods = {
 		});
 	},
 
+	// MATH AND DIAGRAMS, RENDERED (#102, Maja-Nune: "the PDF export does not render math (LaTeX) nor mermaid diagrams").
+	// Every $$ block and $…$ as MathML: MathJax's own `tex2mml`, after Obsidian's `loadMathJax` (its CHTML needs
+	// Obsidian's fonts; MathML draws in the PDF and in any browser opening the .html or the EPUB, nothing carried). Every
+	// ```mermaid fence as the SVG Obsidian's own Mermaid draws. Each once, kept by its source for the preview's next
+	// draw; one that fails stays as written. The .docx keeps the text.
+	async exportFigures(this: WordSmith, sections: WsExportSection[]): Promise<WsExportFigures> {
+		const figs: WsExportFigures = { math: new Map(), mermaid: new Map() };
+		const want = { display: new Set<string>(), inline: new Set<string>(), mermaid: new Set<string>() };
+		for (const sec of sections) {
+			if (!sec || sec.folder || !sec.markdown) continue;
+			const f = wsFigureSources(sec.markdown);
+			for (const x of f.display) want.display.add(x);
+			for (const x of f.inline) want.inline.add(x);
+			for (const x of f.mermaid) want.mermaid.add(x);
+		}
+		if (!want.display.size && !want.inline.size && !want.mermaid.size) return figs;
+		if (!this._exportFigCache || this._exportFigCache.size > 600) this._exportFigCache = new Map();
+		const cache = this._exportFigCache;
+		if (want.display.size || want.inline.size) {
+			try { await loadMathJax(); } catch (_) { wsCatch('exportFigures: loadMathJax', _); }
+			const mj = (window as unknown as { MathJax?: { tex2mml?: (tex: string, o: { display: boolean }) => string } }).MathJax;
+			for (const [kind, set] of [['D', want.display], ['I', want.inline]] as const) {
+				for (const tex of set) {
+					const key = kind + '\n' + tex;
+					let mml = cache.get(key);
+					if (mml === undefined) {
+						mml = '';
+						try { if (mj && typeof mj.tex2mml === 'function') mml = String(mj.tex2mml(tex, { display: kind === 'D' }) || ''); }
+						catch { mml = ''; }
+						cache.set(key, mml);
+					}
+					if (mml) figs.math.set(key, mml);
+				}
+			}
+		}
+		if (want.mermaid.size) {
+			type WsMermaid = { render?: (id: string, src: string) => Promise<string | { svg?: string }> };
+			let mermaid: WsMermaid | null = null;
+			try { mermaid = (await loadMermaid()) as WsMermaid; } catch (_) { wsCatch('exportFigures: loadMermaid', _); }
+			let n = 0;
+			for (const src of want.mermaid) {
+				const key = 'M\n' + src;
+				let svg = cache.get(key);
+				if (svg === undefined) {
+					svg = '';
+					try {
+						if (mermaid && typeof mermaid.render === 'function') {
+							const r = await mermaid.render('ws-mermaid-' + Date.now().toString(36) + '-' + (n++), src);
+							svg = typeof r === 'string' ? r : String((r && r.svg) || '');
+						}
+					} catch { svg = ''; }
+					cache.set(key, svg);
+				}
+				if (svg) figs.mermaid.set(src, svg);
+			}
+		}
+		return figs;
+	},
+
+	// THE WRITER'S CSS SNIPPETS (#102: "with the build in export you can target things with CSS"), the ones turned on in
+	// Appearance, read from the vault's snippets folder (private: WS_INTERNALS cssSnippets), only with the tick on
+	async exportUserCss(this: WordSmith, o: WsExportOpts): Promise<string> {
+		if (!o || !o.snippetCss) return '';
+		const parts: string[] = [];
+		try {
+			const on = this.app.customCss && this.app.customCss.enabledSnippets;
+			const dir = this.app.vault.configDir + '/snippets/';
+			for (const name of Array.from(on || [])) {
+				try { parts.push(await this.app.vault.adapter.read(dir + name + '.css')); }
+				catch (_) { wsCatch('exportUserCss: read ' + name, _); }
+			}
+		} catch (_) { wsCatch('exportUserCss: enabledSnippets', _); }
+		// (a snippet cannot end the page's sheet early)
+		return parts.join('\n').replace(/<\/style/gi, '<\\/style');
+	},
+
 	exportToHtml(this: WordSmith, sections: WsExportSection[], o: WsExportRun, forScreen: boolean) {
 		const esc = (t: string) => String(t == null ? '' : t)
 			.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2962,6 +3039,9 @@ export const exportMethods = {
 		// TRUE FOR EXACTLY ONE SECTION: the file that comes straight after a
 		// folder heading, which is already on a page of its own.
 		let heldPage = false;
+		// A PAGE OWED (#103): the last file ended on a --- that asked for a new page; its trailing page-section is
+		// dropped (no empty page at the end of the book) and the next file or folder opens the page instead
+		let owed = false;
 		// A FOLDER'S HEADING, CARRIED to the top of the next file rather than
 		// printed on a sheet of its own. `pendingBreak` is whether that file
 		// should open a page — the folder decided it, and the file is the one
@@ -3034,7 +3114,8 @@ export const exportMethods = {
 			// to be last would be a silent hole in the manuscript.
 			if (sec.folder) {
 				const lv = Math.min(6, sec.depth || 1);
-				const fbrk = !!(i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false;
+				const fbrk = (!!(i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false) || owed;
+				owed = false;
 				// A FOLDER OF FOLDERS (A848): the headings carried ADD UP, each tight against the one below it, and the first
 				// decides the page. One written over the last lost "Part One" above its first chapter's folder
 				if (pendingFolder) pendingFolder = pendingFolder.replace(/class="folderhead"/g, 'class="folderhead is-tight"');
@@ -3043,7 +3124,7 @@ export const exportMethods = {
 					+ wsAnchorId(sec.title, i) + '">' + esc(wsNumbered(nums[i], sec.title)) + '</h' + lv + '>';
 				return;
 			}
-			if (o.starBetween && i > 0) {
+			if (o.starBetween && i > 0 && !owed) {
 				parts.push('<p class="div">' + esc(wsJoinMark(o)) + '</p>');
 			}
 			// Each file opens a page when page breaks are on; otherwise the prose
@@ -3052,11 +3133,12 @@ export const exportMethods = {
 			// it. A CARRIED HEADING DECIDES THE BREAK: the folder worked out
 			// whether a page was owed; this section is the one that opens it, and
 			// then prints the heading at the top of itself.
-			const brk = pendingFolder
+			const brk = (pendingFolder
 				? pendingBreak
 				: (!heldPage
-					&& (i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false);
+					&& (i > 0 || o.titlePage || o.toc) && o.pageBreaks !== false)) || owed;
 			heldPage = false;
+			owed = false;
 			// ── AND WHICH NOTE IT IS, ON SCREEN ONLY ─────────────
 			//
 			// The tree knows a path; the reader has to be able to find the section
@@ -3123,8 +3205,8 @@ export const exportMethods = {
 			};
 			wsHtmlBlocks(md, o, pageOpen, parts);
 			o.noteRef = null;
-			// a --- with nothing after it opens no empty page
-			if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === '</section>') parts.length -= 2;
+			// a --- with nothing after it opens no empty page here: the next file opens it (#103)
+			if (parts[parts.length - 1] === pageOpen && parts[parts.length - 2] === '</section>') { parts.length -= 2; owed = true; }
 			parts.push('</section>');
 		});
 		// A FOLDER WITH NOTHING AFTER IT still prints its heading. The heading
@@ -3132,7 +3214,7 @@ export const exportMethods = {
 		// would simply be dropped — a folder silently missing from the
 		// manuscript, which is worse than the sheet-of-its-own this replaced.
 		if (pendingFolder) {
-			parts.push('<section class="' + (pendingBreak ? 'page' : 'run') + '">');
+			parts.push('<section class="' + ((pendingBreak || owed) ? 'page' : 'run') + '">');
 			parts.push(pendingFolder);
 			parts.push('</section>');
 			pendingFolder = '';
@@ -3686,6 +3768,12 @@ export const exportMethods = {
 			// THE PRINTED HEADER AND PAGE NUMBER, the page's margin boxes (A751: the number where it was asked), and NOTHING
 			// IN THE MARGINS OF THE TITLE PAGE, as the .docx and the preview have it. LAST IN THE SHEET: a parser that cannot
 			// read margin boxes (jsdom's) loses its place in one and takes the rule after it with it; here there is none
+			// MATH AND DIAGRAMS (#102): a display formula and a diagram centred on a line of their own, a diagram no
+			// wider than the page
+			+ 'div.math { text-align: center; margin: 0.8em 0; } div.mermaid { text-align: center; margin: 1em 0; }'
+			+ ' div.mermaid svg { max-width: 100%; height: auto; }'
+			// THE WRITER'S SNIPPETS (#102), after every rule of ours so theirs win, before the margin boxes (see below)
+			+ (o.userCss ? '\n' + o.userCss + '\n' : '')
 			+ (wsPageBoxesCss(o.runningHeader || '', pnAt, false, side) ? '@page {' + wsPageBoxesCss(o.runningHeader || '', pnAt, false, side) + ' }' : '')
 			+ (o.titlePage && (head || pnAt !== 'none') ? '@page :first {' + wsPageBoxesCss(o.runningHeader || '', pnAt, true, side) + ' }' : '')
 			+ '</style></head><body>'
@@ -4301,7 +4389,12 @@ export const exportMethods = {
 				let scope0 = '';
 				try { scope0 = (ctx && typeof ctx.scope === 'function')
 					? ctx.scope() : ''; } catch { scope0 = ''; }
-				try { secs = await this.exportSections(picked, o, null, scope0); await this.exportImages(secs, 'preview'); }
+				// (and the math, the diagrams and the snippets the page will have, #102)
+				let figures: WsExportFigures | null = null, userCss = '';
+				try {
+					secs = await this.exportSections(picked, o, null, scope0); await this.exportImages(secs, 'preview');
+					if (o.format !== 'md' && o.format !== 'docx') { figures = await this.exportFigures(secs); userCss = await this.exportUserCss(o); }
+				}
 				catch { return; }
 				// A SLOWER RUN MUST NOT LAND ON A NEWER ONE. Two changes inside
 				// one compile and the first to finish is not the first started.
@@ -4360,7 +4453,7 @@ export const exportMethods = {
 				this.exportTickAllSay(actRow, picked.length,
 					typeof ctx.total === 'function' ? ctx.total() : 0);
 				prevHandle = this.exportPreviewInto(prevCol, secs,
-					this.exportOptsFor(ctx.scope(), o, words), picked.length,
+					Object.assign(this.exportOptsFor(ctx.scope(), o, words), { figures, userCss }), picked.length,
 					actRow || null,
 					// THE FOOT'S REFRESH: the same recompile, asked for by hand.
 					// `refreshPreview` excuses the foot's clicks, so this is the one way a
@@ -4725,6 +4818,11 @@ export const exportMethods = {
 			if (said.length) this.exportNotice(said.join(' '), 12000);
 			if (progress) progress.show(files.length, files.length, wsT('Pictures'));
 			await this.exportImages(sections, kind === 'docx' ? 'docx' : 'page');
+			// the math and diagrams, and the writer's snippets, for every page format (#102)
+			if (kind !== 'docx') {
+				opt.figures = await this.exportFigures(sections);
+				opt.userCss = await this.exportUserCss(opt);
+			}
 		}
 		try {
 			if (kind === 'md') {

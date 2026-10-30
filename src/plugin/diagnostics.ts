@@ -450,6 +450,7 @@ export const diagnosticsMethods = {
 			L.push('file tree:  counts ' + yn(s.enableFileTreeCounts)
 				+ ' · flags ' + yn(s.fileTreeFlags)
 				+ ' · tasks ' + yn(s.fileTreeTasks)
+				+ ' · numbers ' + yn(s.fileTreeNumbers)
 				+ ' · folder icons ' + yn(s.fileTreeFolderIcons)
 				+ ' · order ' + yn(s.treeOrder));
 			// DOES THE TREE SCROLL? The painter's fight with Obsidian's
@@ -574,7 +575,7 @@ export const diagnosticsMethods = {
 
 			const rootStyle = getComputedStyle(document.documentElement);
 			for (const v of ['--ws-bar-reserve',
-				'--ws-status-bar-height', '--ws-vim-gutter']) {
+				'--ws-status-bar-height', '--ws-vim-gutter', '--ws-bar-lift', '--safe-area-inset-bottom']) {
 				L.push('  ' + v + ' = ' + (rootStyle.getPropertyValue(v).trim() || '(unset)'));
 			}
 			L.push('  zenActive = ' + this.zenActive()

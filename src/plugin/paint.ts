@@ -139,6 +139,8 @@ export const paintMethods = {
 		// ws-retrobar-active) but the padding would survive a disable in
 		// any vault whose snippet happens to match on it.
 		document.documentElement.style.removeProperty('--ws-bar-reserve');
+		// (a phone's lift, #109, goes with the prefix sweep below; its cache here, so a re-enable measures it again)
+		this._barLift = null;
 		// Same species: an inline custom property on documentElement outlives
 		// the stylesheet that read it, so a disabled plugin would otherwise
 		// leave a vault's editor padded for a typewriter that is no longer on.

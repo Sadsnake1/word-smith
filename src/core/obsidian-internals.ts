@@ -75,6 +75,63 @@ export const WS_INTERNALS = [
 		})
 	},
 	{
+		id: 'cssSnippets',
+		kind: 'property',
+		what: 'customCss.enabledSnippets',
+		where: 'the app',
+		without: 'Export’s “Your CSS snippets” brings none into the file.',
+		probe: (app: App) => { try { const c = app.customCss; return c ? !!c.enabledSnippets : false; } catch { return null; } }
+	},
+	{
+		id: 'mathML',
+		kind: 'method',
+		what: 'MathJax.tex2mml',
+		where: 'Obsidian’s MathJax, once loaded',
+		sometimes: true,
+		without: 'math in a PDF, web page or EPUB export is printed as written.',
+		probe: () => { try { const mj = (window as unknown as { MathJax?: { tex2mml?: unknown } }).MathJax; return mj ? typeof mj.tex2mml === 'function' : null; } catch { return null; } }
+	},
+	{
+		id: 'obsidianSync',
+		kind: 'method',
+		what: 'internalPlugins.getPluginById(sync).instance.getStatus',
+		where: 'the app',
+		without: '{sync} on the bar shows nothing.',
+		probe: (app: App) => {
+			try {
+				const ip = app.internalPlugins;
+				const sp = ip && typeof ip.getPluginById === 'function' ? ip.getPluginById('sync') : null;
+				if (!sp) return false;
+				return sp.instance ? typeof sp.instance.getStatus === 'function' : null;
+			} catch { return null; }
+		}
+	},
+	{
+		id: 'explorerRelayout',
+		kind: 'method',
+		what: 'tree.infinityScroll.invalidateAll',
+		where: 'the file-explorer view',
+		without: 'when the file tree’s numbers change width, a row may sit off the column until the tree is scrolled or a folder opened.',
+		probe: (app: App) => wsInternalView(app, 'file-explorer', (v) => {
+			const sc = v.tree && v.tree.infinityScroll;
+			return !!(sc && typeof sc.invalidateAll === 'function');
+		})
+	},
+	{
+		id: 'explorerChildren',
+		kind: 'property',
+		what: 'vChildren',
+		where: 'a file-explorer row',
+		without: 'the file tree’s numbers are not drawn.',
+		probe: (app: App) => wsInternalView(app, 'file-explorer', (v) => {
+			for (const item of Object.values(v.fileItems || {})) {
+				const up = item && item.parent;
+				if (up) return !!(up.vChildren && Array.isArray(up.vChildren._children));
+			}
+			return false;
+		})
+	},
+	{
 		id: 'sortMenu',
 		kind: 'method',
 		what: 'onHeaderMenu',

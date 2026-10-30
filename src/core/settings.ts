@@ -32,6 +32,8 @@ export interface WsExportOpts {
 	// switches
 	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean;
 	dashPageBreak?: boolean;
+	/** the CSS snippets turned on in Appearance, in the PDF, web page and EPUB (#102) */
+	snippetCss?: boolean;
 	keepFrontmatter?: boolean; keepComments?: boolean; keepCallouts?: boolean; keepTags?: boolean;
 	keepHeadings?: boolean; wordCountOnTitle?: boolean; roundWordCount?: boolean; pageNumbers?: boolean;
 	indent?: boolean; footnotes?: boolean; highlights?: boolean; smartQuotes?: boolean; justify?: boolean;
@@ -89,7 +91,7 @@ export interface WsTicksDoor { wanted: () => boolean; state: (path: string | nul
 // reach it (`orgWindowAdd`): which host it is, the tab it shows, its doors.
 export interface WsOrgDoor {
 	kind: 'modal' | 'leaf';
-	select: (p: string) => void; follow: (p: string) => void;
+	select: (p: string) => void; follow: (p: string, chosen?: boolean) => void;
 	tab: () => string; single: () => boolean; tabSet: (id: string) => boolean;
 	host: () => WsHost; ticks: WsTicksDoor; ticksOnly: (paths: string[]) => Promise<boolean>;
 }
@@ -122,7 +124,13 @@ export interface WsTextStats {
 export interface WsImage { name: string; alt: string; width: number | null; ext: string; mime: string; src: string; bytes: Uint8Array<ArrayBuffer> | null; w: number; h: number }
 /** what a build carries beside the options: the pictures of the note being walked, and the .docx's figure writer */
 /** …and the numbering of footnote markers, one call per marker: a number for one whose note is defined, null for one that is not */
-export interface WsExportBuild { imgs?: Map<string, WsImage> | null; docxFigure?: ((img: WsImage) => string[]) | null; noteRef?: ((label: string) => { n: number; end: boolean } | null) | null }
+export interface WsExportBuild { imgs?: Map<string, WsImage> | null; docxFigure?: ((img: WsImage) => string[]) | null; noteRef?: ((label: string) => { n: number; end: boolean } | null) | null;
+	/** the book's math and diagrams, rendered before the page is built (#102) */
+	figures?: WsExportFigures | null;
+	/** the writer's CSS snippets, last in the page's sheet (#102) */
+	userCss?: string }
+/** math by 'D\n' (a $$ block) or 'I\n' (inline) + its TeX, as MathML; a mermaid fence's source, as its SVG (#102) */
+export interface WsExportFigures { math: Map<string, string>; mermaid: Map<string, string> }
 export interface WsExportRun extends WsExportOpts, WsExportBuild { title?: string; wordCount?: number; runningHeader?: string;
 	/** the page each contents entry lands on, measured before a paged file is written (A751) */
 	tocPageOf?: Record<string, number> }
@@ -233,7 +241,7 @@ export interface WsLegacySettings {
 	barThemeMarginalia?: never; marginaliaGutter?: never; typewriterLinesAbove?: never; typewriterLinesBelow?: never;
 	letterboxRatio?: never; statusFormatText?: never; statusFormatLeft?: never; statusFormatCenter?: never;
 	statusFormatRight?: never; wpmWindowSec?: never; statusBarPadding?: never; hemFlashOnBlock?: never;
-	proseSkipCode?: never; uniCols?: never; folderGoals?: never; goalUnit?: never; goalTokenFormat?: never; targetTokenFollows?: never; markNbsp?: never; markInvisible?: never; markOther?: never; goalCelebrate?: never; goalMetSeen?: never; typoQuoteSpace?: never; wpmTokenUnit?: never; orgDeadlineShow?: never; uniColCh?: never; exportTicksAlways?: never;
+	proseSkipCode?: never; uniCols?: never; folderGoals?: never; goalUnit?: never; goalTokenFormat?: never; targetTokenFollows?: never; markNbsp?: never; markInvisible?: never; markOther?: never; goalCelebrate?: never; goalMetSeen?: never; typoQuoteSpace?: never; wpmTokenUnit?: never; orgDeadlineShow?: never; uniColCh?: never; exportTicksAlways?: never; organizerPinned?: never; customCliches?: never;
 	manuscriptRoots?: never; organizerRoot?: never; uniRootShut?: never; organizerRootShut?: never;
 	uniTreeWidth?: never; uniShut?: never; fileTreeGoals?: never; goalsFile?: never; goalBaseline?: never;
 	goalRingWeight?: never; goalOrientation?: never; goalLenWriting?: never; goalLenFile?: never;
