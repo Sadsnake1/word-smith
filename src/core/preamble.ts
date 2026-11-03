@@ -529,7 +529,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 				}
 			}
 			const state = el.querySelector('.ws-menu-state');
-			if (row.items && state) {
+			if (row.items && state && !row.actions) {
 				const its = row.items();
 				if (row.count !== false) {
 					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
@@ -832,7 +832,7 @@ export const WsMenuView = ItemView ? class extends ItemView {
 				const its = row.items();
 				const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
 				el.createSpan({ cls: 'ws-menu-state', text: on ? wsT('{n} on', { n: on }) : wsT('off') });
-			} else if (row.items) {
+			} else if (row.items && !row.actions) {
 				const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
 				if (cur) el.createSpan({ cls: 'ws-menu-state', text: cur.label });
 			}
@@ -3572,7 +3572,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.9.0';
+export const WS_PLUGIN_VERSION = '1.9.1';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -4478,6 +4478,19 @@ export const DEFAULT_SETTINGS = {
 	// exactly like a broken plugin.
 	scopeMode:                'include',  // 'include' | 'exclude'
 	scopePaths:               [] as string[],
+	// ── REVISIONS (#118): a note's past in the plugin's folder, off until turned on ──
+	revisionsOn:              false,
+	// where automatic ones are taken (the Organizer's folder put here the first time they are turned on), and the exceptions
+	revisionPaths:            [] as string[],
+	revisionExcept:           [] as string[],
+	// every 10, 30 or 60 minutes or once a day, while a note changes; 'off', only the ones saved by hand
+	revisionsEvery:           '30',
+	// how many automatic ones a note keeps (20, 50, 100 or 'all'); yours always
+	revisionsKeep:            '20',
+	// the compare: one text like track changes, or side by side
+	revisionsCompare:         'inline',
+	// Obsidian's File recovery versions listed after ours
+	revisionsRecovery:        true,
 	// Notes and folders that Word-Smith still WORKS in but never COUNTS: an
 	// outline, a research folder, a scratch file inside the manuscript. Kept
 	// separate from scopePaths because the two answer different questions —

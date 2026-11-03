@@ -459,7 +459,8 @@ export const organizerWindowMethods = {
 		// explorer's right-click, the Organizer tree's row menu, and the
 		// table's group-header menu.
 		if (!isFolder && WS_STATUSES.length) folded(wsT('Flag'), 'flag', flagRows);
-
+		// REVISIONS (#118): save one, compare, and where they are kept
+		this.revFileMenu(menu, file);
 	},
 
 	// ── ANY PROPERTY, AS A COLUMN ───────────────────────────────────────────

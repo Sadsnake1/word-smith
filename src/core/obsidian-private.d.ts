@@ -75,7 +75,11 @@ declare module 'obsidian' {
 		// the CSS snippets turned on in Appearance, by name (WS_INTERNALS cssSnippets, #102)
 		customCss?: { enabledSnippets?: Set<string> };
 		// Obsidian's own core plugins, Sync's instance among them (WS_INTERNALS obsidianSync, {sync})
-		internalPlugins?: { getPluginById?(id: string): { enabled?: boolean; instance?: WsSyncInstance | null } | null };
+		internalPlugins?: {
+			getPluginById?(id: string): { enabled?: boolean; instance?: WsSyncInstance | null } | null;
+			// File recovery's snapshots (WS_INTERNALS fileRecovery, revisions #118): its IndexedDB, by note path
+			getEnabledPluginById?(id: string): { db?: { transaction(store: 'backups', mode: 'readonly'): { store: { index(name: 'path'): { getAll(path: string): Promise<{ path: string; ts: number; data: string }[]> } } } } | null } | null;
+		};
 		// the property types (1.4+), every door feature-detected in orgPropType
 		metadataTypeManager?: {
 			properties?: Record<string, { name?: string; type?: string; widget?: string; count?: number } | undefined>;

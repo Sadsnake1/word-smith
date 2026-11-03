@@ -5,6 +5,7 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
+import { wsNameStamp } from '../core/revisions-core';
 import { MarkdownView, TFile, TFolder, Notice, Platform, loadMathJax, loadMermaid } from 'obsidian';
 import type { WorkspaceLeaf, TAbstractFile } from 'obsidian';
 import type { WsExportOpts, WsExportRun, WsExportBoolKey, WsExportStringKey, WsExportSection, WsImage, WsExportFigures } from '../core/settings';
@@ -759,8 +760,11 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 		+ (inRow ? ' is-inrow' : '') });
 	row.createSpan({ cls: 'ws-export-optname', text: label });
 	const pick = row.createDiv({ cls: 'ws-export-fontpick' });
-	const inp = pick.createEl('input', { cls: 'ws-export-text ws-export-fontinput' });
-	inp.type = 'text';
+	// IT LOOKS LIKE THE DROPDOWNS BESIDE IT (#121): a click opens every font, and it still takes a name typed in
+	const inp = pick.createEl('input', { cls: 'dropdown ws-export-sel ws-export-text ws-export-fontinput' });
+	// NO type ATTRIBUTE (a text box all the same): app.css's `input[type="text"]` (0,1,1) sets `background` as a shorthand,
+	// which out-weighs `.dropdown` (0,1,0) and put the chevron back to repeat at its own size: a row of chevrons across
+	// the field in a dark theme (the writer's shot), none in a light one. Without it `.dropdown` dresses the field whole
 	inp.value = o[key] || '';
 	inp.placeholder = 'Times New Roman';
 	// A font name is not prose: a red underline under "Alegreya" is
@@ -779,7 +783,8 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 	const note = noteHost.createDiv({
 		cls: 'ws-export-fontnote' + (inRow ? ' is-wide' : '') });
 	const hits = pick.createDiv({ cls: 'ws-export-hits ws-export-fonthits' });
-	let rows: HTMLElement[] = [], found: string[] = [], sel = -1;
+	// (typed: the field narrows the list only once something is typed into it; opened, the list is every font, #121)
+	let rows: HTMLElement[] = [], found: string[] = [], sel = -1, typed = false;
 	const face = (n: string) => '"' + String(n).replace(/["\\]/g, '') + '"';
 	const wear = () => {
 		const n = String(inp.value || '').trim();
@@ -847,6 +852,17 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 			hits.style.removeProperty('bottom');
 			hits.style.top = Math.round(r.bottom + 2) + 'px';
 		}
+		// AND WHERE A FIXED BOX IS NOT FIXED TO THE WINDOW (#121, thirdeye-media: in a tab "the list landed at left = 1846"
+		// in a 1728px window): a leaf is `contain: strict` and holds a fixed box as its own (measured: a box at 0,0 in a
+		// leaf at 200,40 lands at 200,40), so the coordinates above land offset by its corner. The offset is read off
+		// where the list did land and taken back, for a leaf, a modal or a popout alike
+		const got = hits.getBoundingClientRect();
+		const dx = got.left - boxL, dy = up ? got.bottom - (r.top - 2) : got.top - (r.bottom + 2);
+		if (Math.abs(dx) > 0.5) hits.style.left = Math.round(boxL - dx) + 'px';
+		if (Math.abs(dy) > 0.5) {
+			if (up) hits.style.bottom = Math.round(winH - r.top + 2 + dy) + 'px';
+			else hits.style.top = Math.round(r.bottom + 2 - dy) + 'px';
+		}
 	};
 	// A FIXED BOX DOES NOT TRAVEL WITH ITS FIELD. Scrolling the
 	// options column moves the input and leaves the list behind, so
@@ -877,7 +893,7 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 	};
 	const onMove = () => { if (inp.isConnected) placeHits(); else listen(false); };
 	const close = () => {
-		hits.textContent = ''; rows = []; found = []; sel = -1;
+		hits.textContent = ''; rows = []; found = []; sel = -1; typed = false;
 		listen(false);
 		noteShow();
 	};
@@ -888,7 +904,9 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 	};
 	const paint = () => {
 		hits.textContent = ''; rows = []; sel = -1;
-		found = plugin.fontFinderMatches(inp.value, 40);
+		// OPENED, EVERY FONT, the one in use first; TYPED INTO, the names that hold what is typed (a font already set
+		// showed only itself, #121). The rows render as they scroll in (content-visibility, styles.css)
+		found = typed ? plugin.fontFinderMatches(inp.value, 200) : plugin.fontFinderMatches('', 5000);
 		for (const name of found) {
 			const r  = hits.createDiv({ cls: 'ws-export-hit ws-export-fonthit' });
 			const nm = r.createSpan({ cls: 'ws-export-fontname', text: name });
@@ -916,11 +934,16 @@ function wsExportFontOpt(plugin: WordSmith, a: { o: WsExportOpts }, parent: HTML
 		void (async () => { await plugin.ensureSystemFonts(); if (rows.length) paint(); sayNote(); })();
 	};
 	inp.addEventListener('focus', wake);
-	inp.addEventListener('input', () => { wear(); sayNote(); paint(); });
+	inp.addEventListener('input', () => { typed = true; wear(); sayNote(); paint(); });
+	// a click on the field opens the list again after Escape or a pick, as a dropdown does
+	inp.addEventListener('click', () => { if (!rows.length) wake(); });
 	// Saved on change, like every other box here: a keystroke is not
 	// a decision, and blurring or pressing Enter is.
 	inp.addEventListener('change', () => {
-		o[key] = String(inp.value || '').trim();
+		// a name in another case takes the installed spelling ("courier prime" is Courier Prime, #121)
+		const name = String(inp.value || '').trim();
+		o[key] = plugin.fontInstalledName(name) || name;
+		inp.value = o[key];
 		void plugin.saveSettings(); wear(); sayNote();
 	});
 	inp.addEventListener('keydown', (ev: KeyboardEvent) => {
@@ -1551,7 +1574,6 @@ export const exportMethods = {
 			|| (String(scopePath || '').split('/').pop() || '').replace(/\.md$/, '');
 		const base = named.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'export';
 		const d = new Date();
-		const p2 = (n: number) => String(n).padStart(2, '0');
 		// dd-mm-yyyy and the time, by request. The clock matters more than
 		// it looks: a writer exports the same manuscript three times in an
 		// afternoon, and with only a date the second export collides with
@@ -1560,10 +1582,8 @@ export const exportMethods = {
 		// enough to tell those apart and short enough to read.
 		// THE DATE FIRST, then the time, on the writer's word: the book's
 		// name, the day, the minute.
-		return base + ' '
-			+ p2(d.getDate()) + '-' + p2(d.getMonth() + 1) + '-' + d.getFullYear() + ' '
-			+ p2(d.getHours()) + '-' + p2(d.getMinutes())
-			+ '.' + ext;
+		// (one stamp for an export and a revision alike: wsNameStamp)
+		return base + ' ' + wsNameStamp(d) + '.' + ext;
 	},
 
 	// Read every chosen file and hand back the sections the builders take.
@@ -3769,8 +3789,8 @@ export const exportMethods = {
 			// IN THE MARGINS OF THE TITLE PAGE, as the .docx and the preview have it. LAST IN THE SHEET: a parser that cannot
 			// read margin boxes (jsdom's) loses its place in one and takes the rule after it with it; here there is none
 			// MATH AND DIAGRAMS (#102): a display formula and a diagram centred on a line of their own, a diagram no
-			// wider than the page
-			+ 'div.math { text-align: center; margin: 0.8em 0; } div.mermaid { text-align: center; margin: 1em 0; }'
+			// wider than the page; a $$…$$ inside a line the same, its words either side (`math-block`)
+			+ 'div.math, span.math-block { display: block; text-align: center; margin: 0.8em 0; } div.mermaid { text-align: center; margin: 1em 0; }'
 			+ ' div.mermaid svg { max-width: 100%; height: auto; }'
 			// THE WRITER'S SNIPPETS (#102), after every rule of ours so theirs win, before the margin boxes (see below)
 			+ (o.userCss ? '\n' + o.userCss + '\n' : '')

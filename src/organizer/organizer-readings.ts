@@ -133,6 +133,8 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 			return (list && list.length) ? list : null;
 		}
 		case 'footnotes': return r && typeof r.footnotes === 'number' ? r.footnotes : null;
+		// HOW MANY REVISIONS A NOTE HAS (#118), counted from their folder, none while they are off
+		case 'revisions': { const n = d.plugin.revOn() ? d.plugin.revCount(String(path || '')) : 0; return n || null; }
 		case 'ftype': {
 			const m = /\.([A-Za-z0-9]+)$/.exec(String(path || ''));
 			return m ? m[1].toLowerCase() : null;
@@ -245,6 +247,7 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 		case 'outlinks':
 			return wsListOf(v).map((x) => { const o = (x && typeof x === 'object') ? x as { path?: string; text?: string } : null; return o && o.path ? d.nameOf(o.path) : wsStr(o && o.text || x); }).join(', ');
 		case 'footnotes': return Number(v).toLocaleString();
+		case 'revisions': return Number(v).toLocaleString();
 		// THE PLUGIN'S ONE READING OF A DURATION, shared with the
 		// Powerline bar and the report. `v` is the note's words.
 		case 'read': return d.plugin.formatReadTime(Number(v) || 0);
@@ -356,6 +359,8 @@ const ORG_AGG: Record<string, string> = {
 	// BECAUSE A FOLDER IS NOT A FILE: it has no kind, and the default would
 	// print the note count in a column of words like "md" and "xlsx".
 	read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
+	// a folder's revisions are its notes' added up (#118)
+	revisions: 'sum',
 	// PAGES SUM AS WORDS, and the total is said as pages once: three
 	// one-page scenes of 80 words are one page, not three.
 	pages: 'sum',

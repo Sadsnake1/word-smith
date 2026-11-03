@@ -1483,6 +1483,16 @@ export function wsSentenceStart(before: string, prevLine: string | null, marks?:
 
 // ── Non-prose line scanning ──────────────────────────────────────────────────
 
+// A LINE THAT OPENS A $$ BLOCK (#102): $$ alone, $$ and TeX going on below, or the whole line one $$x$$. A line whose
+// formula closes before its end ("$$x$$ is the area", "$$a$$ and $$b$$") is a paragraph with its formulas in it: read
+// as a block, the export took its words as TeX and, finding no closing line, the lines under it too; the count and the
+// checks dropped the lines under it. `t` is the line trimmed. The export and the scan below ask this one rule.
+export function wsMathBlockOpens(t: string) {
+	if (!/^\$\$/.test(t)) return false;
+	const close = t.indexOf('$$', 2);
+	return close === -1 || close === t.length - 2;
+}
+
 // Line numbers (1-based) that are not prose: YAML frontmatter, fenced code
 // (``` and ~~~), and $$ math blocks. Shared by the word counter, which works
 // on a raw string, and the syntax highlighter, which works on a CodeMirror
@@ -1502,9 +1512,10 @@ export function scanNonProseLines(lines: string[]) {
 			if (ch === fenceChar) { inFence = false; set.add(n); continue; }
 		}
 		if (inFence) { set.add(n); continue; }
-		if (/^\s{0,3}\$\$/.test(text)) {
+		// a $$ line inside a block closes it; outside, only a line that opens one is its edge (wsMathBlockOpens)
+		if (/^\s{0,3}\$\$/.test(text) && (inMath || wsMathBlockOpens(text.trim()))) {
 			set.add(n);
-			if (!/^\s{0,3}\$\$.*\$\$\s*$/.test(text)) inMath = !inMath;
+			if (inMath || text.trim().indexOf('$$', 2) === -1) inMath = !inMath;
 			continue;
 		}
 		if (inMath) set.add(n);

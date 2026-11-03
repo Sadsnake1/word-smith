@@ -18,7 +18,7 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 
 ## The table
 
-Readings the frontmatter can't give you: word count, target, deadline (the date and the days left), vocabulary, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
+Readings the frontmatter can't give you: word count, target, deadline (the date and the days left), vocabulary, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified, and with Revisions on, how many revisions a note has. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
 - **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.

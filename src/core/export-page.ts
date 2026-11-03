@@ -4,7 +4,7 @@
 
 import type { WsExportOpts, WsExportRun, WsExportSection, WsExportBuild, WsImage } from './settings';
 import { wsTIn } from './ui-text';
-import { wsTagSpans, wsReplaceToLast, wsUtf8, wsZip, wsColumnOf, wsHeadSizeEm, wsTitleWords, wsAnchorId, wsXml, wsHeadNumbers, wsNumbered, wsNoteHeadings, wsFileHeadLevel, wsDeepestLevel, wsTocSteps } from './preamble';
+import { wsTagSpans, wsMathBlockOpens, wsReplaceToLast,wsUtf8, wsZip, wsColumnOf, wsHeadSizeEm, wsTitleWords, wsAnchorId, wsXml, wsHeadNumbers, wsNumbered, wsNoteHeadings, wsFileHeadLevel, wsDeepestLevel, wsTocSteps } from './preamble';
 
 // ── Paper ───────────────────────────────────────────────────────────────────
 //
@@ -664,6 +664,10 @@ export function wsDropTags(md: string) {
 // (or none at a line's start), [2] the TeX. NO LOOKBEHIND: iOS below 16.4 refuses one, a SyntaxError for the whole
 // bundle (ts/test/smoke.js), so the character before is captured and the last token holds the closing condition.
 export const WS_INLINE_MATH = /(^|[^\\$])\$(?=[^\s$])((?:\\.|[^$\\\n])*?(?:\\[^\s\\]|[^\s$\\]))\$(?![\d$])/g;
+// $$…$$ IN A LINE (#102, Maja-Nune after 1.9.0: "only inline math renders. Math in `$$x$$` doesn't"): display math where
+// it stands, as Obsidian draws it, words before or after it on the line. [1] the character before (none at a line's
+// start, never an escape), [2] the TeX, trimmed by the reader; no lookbehind, as above.
+export const WS_DISPLAY_MATH_RUN = /(^|[^\\$])\$\$((?:\\.|[^$\\\n])+?)\$\$/g;
 // THE FIGURES A NOTE HOLDS (#102): its $$ blocks, its inline math outside code spans, its ```mermaid fences, found as
 // wsHtmlBlocks finds them, so each is rendered once before the page is built
 export function wsFigureSources(md: string) {
@@ -684,10 +688,11 @@ export function wsFigureSources(md: string) {
 			if (info === 'mermaid') out.mermaid.push(buf.join('\n'));
 			continue;
 		}
-		if (/^\$\$/.test(t)) { const mb = wsMathBlock(lines, i); i = mb.end; if (mb.text) out.display.push(mb.text); continue; }
+		if (wsMathBlockOpens(t)) { const mb = wsMathBlock(lines, i); i = mb.end; if (mb.text) out.display.push(mb.text); continue; }
 		lines[i].split(/(`[^`]*`)/).forEach((seg, k) => {
 			if (k % 2) return;
-			for (const m of seg.matchAll(WS_INLINE_MATH)) out.inline.push(m[2]);
+			for (const m of seg.matchAll(WS_DISPLAY_MATH_RUN)) if (m[2].trim()) out.display.push(m[2].trim());
+			for (const m of seg.replace(WS_DISPLAY_MATH_RUN, '$1 ').matchAll(WS_INLINE_MATH)) out.inline.push(m[2]);
 		});
 	}
 	return out;
@@ -743,20 +748,31 @@ export function wsRunsHtml(text: string, o: WsExportOpts & WsExportBuild): strin
 	if (figs && figs.math.size && String(text).indexOf('$') !== -1) {
 		const out: string[] = [];
 		let buf = '', hit = false;
-		String(text).split(/(`[^`]*`)/).forEach((seg, k) => {
-			if (k % 2) { buf += seg; return; }
+		const put = (html: string) => { if (buf) out.push(wsRunsHtmlPlain(buf, o)); buf = ''; out.push(html); hit = true; };
+		// the $…$ of a stretch with no $$…$$ in it
+		const inline = (seg: string) => {
 			let last = 0;
 			for (const m of seg.matchAll(WS_INLINE_MATH)) {
 				const mml = figs.math.get('I\n' + m[2]);
 				if (!mml) continue;
 				buf += seg.slice(last, (m.index || 0) + m[1].length);
-				if (buf) out.push(wsRunsHtmlPlain(buf, o));
-				buf = '';
-				out.push('<span class="math">' + mml + '</span>');
-				hit = true;
+				put('<span class="math">' + mml + '</span>');
 				last = (m.index || 0) + m[0].length;
 			}
 			buf += seg.slice(last);
+		};
+		String(text).split(/(`[^`]*`)/).forEach((seg, k) => {
+			if (k % 2) { buf += seg; return; }
+			// a $$…$$ first, on a line of its own where it stands (`math-block`), the words either side kept
+			let last = 0;
+			for (const m of seg.matchAll(WS_DISPLAY_MATH_RUN)) {
+				const mml = figs.math.get('D\n' + m[2].trim());
+				if (!mml) continue;
+				inline(seg.slice(last, (m.index || 0) + m[1].length));
+				put('<span class="math math-block">' + mml + '</span>');
+				last = (m.index || 0) + m[0].length;
+			}
+			inline(seg.slice(last));
 		});
 		if (hit) { if (buf) out.push(wsRunsHtmlPlain(buf, o)); return out.join(''); }
 	}
@@ -870,7 +886,7 @@ export function wsHtmlBlocks(md: string, o: WsExportOpts & WsExportBuild, pageOp
 			parts.push(svg ? '<div class="mermaid">' + svg + '</div>' : '<pre class="code">' + esc(buf.join('\n')) + '</pre>');
 			continue;
 		}
-		if (/^\$\$/.test(t)) {
+		if (wsMathBlockOpens(t)) {
 			const mb = wsMathBlock(lines, i);
 			i = mb.end;
 			// as MathML where it was rendered (#102), as written where not
@@ -1063,7 +1079,7 @@ export function wsBlocksFromMarkdown(md: string | null | undefined, opts: (WsExp
 		}
 
 		// MATH: set apart as written, in monospace, like code (wsMathBlock).
-		if (/^\$\$/.test(t)) {
+		if (wsMathBlockOpens(t)) {
 			const mb = wsMathBlock(lines, i);
 			i = mb.end;
 			for (const ml of mb.text.split('\n')) out.push(wsPara([{ text: ml, mono: true }], 'WsCode', { noIndent: true }));

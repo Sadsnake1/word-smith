@@ -7,7 +7,7 @@
 
 import { MarkdownView, Notice, Platform } from 'obsidian';
 import type { WorkspaceSidedock, WorkspaceMobileDrawer, WorkspaceLeaf } from 'obsidian';
-import { ARROW_STYLES, DEFAULT_SETTINGS, WS_PEEK_DWELL_MS, WS_PEEK_EDGE_PX, WS_PEEK_LEAVE_MS, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, WS_MASK_MAX_FRAC, WS_MASK_MIN_PX, wsCatch, WS_FONT_CANDIDATES, WS_SAFE_FONTS, wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts } from '../core/preamble';
+import { ARROW_STYLES, DEFAULT_SETTINGS, WS_PEEK_DWELL_MS, WS_PEEK_EDGE_PX, WS_PEEK_LEAVE_MS, MASK_MEASURE_RETRIES, WS_ARROWS_MIN_PX, WS_ARROWS_MIN_W, WS_MASK_MAX_FRAC, WS_MASK_MIN_PX, wsCatch, wsElOf,WS_FONT_CANDIDATES, WS_SAFE_FONTS, wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts } from '../core/preamble';
 import type WordSmith from './plugin';
 import type { EditorView } from '@codemirror/view';
 
@@ -988,21 +988,36 @@ export const focusMethods = {
 			return;
 		}
 		const w = window.innerWidth;
-		// a pointer dragging (a scroll bar, a selection) is not resting on the edge
-		const side = ev.buttons ? '' : ev.clientX < WS_PEEK_EDGE_PX ? 'left' : (ev.clientX >= w - WS_PEEK_EDGE_PX ? 'right' : '');
+		// a pointer dragging (a scroll bar, a selection) is not resting on the edge, NOR IS ONE ON A SCROLL BAR at the edge,
+		// which a pointer rests on to take it (#119)
+		const side = ev.buttons || this.zenPeekOnScrollbar(ev) ? ''
+			: ev.clientX < WS_PEEK_EDGE_PX ? 'left' : (ev.clientX >= w - WS_PEEK_EDGE_PX ? 'right' : '');
 		if (!side) { if (pk) this.zenPeekEnd(); return; }
 		if (pk && pk.side === side) return;
 		if (pk) this.zenPeekEnd();
 		const split = side === 'left' ? ws.leftSplit : ws.rightSplit;
 		if (!split.collapsed) return;
 		const next: { side: string; split: WorkspaceSidedock; open: boolean; arm: number | null; leave: number | null } = { side, split, open: false, arm: null, leave: null };
+		// A WINDOW THE WRITER IS NOT USING OPENS NOTHING (#119, axolotl-logic: two windows side by side, the pointer on the
+		// PDF's edge beside the note's window opened that window's panes), asked when the pointer has rested, since the
+		// writer may have gone to the other window while it waited
 		next.arm = window.setTimeout(() => {
-			if (this._peek !== next || this._unloaded) return;
+			if (this._peek !== next || this._unloaded || !document.hasFocus()) return;
 			next.arm = null;
 			next.open = true;
 			try { split.expand(); } catch (_) { wsCatch('zenPeekMove: split.expand();', _); }
 		}, WS_PEEK_DWELL_MS);
 		this._peek = next;
+	},
+
+	// THE POINTER ON A SCROLL BAR (#119): an element that scrolls, the pointer past its content box, which is where the
+	// bar is drawn (a bar drawn over the content, as on a Mac, takes no room and cannot be told from the text under it)
+	zenPeekOnScrollbar(this: WordSmith, ev: MouseEvent) {
+		try {
+			const el = wsElOf(ev.target);
+			if (!el) return false;
+			return el.clientWidth > 0 && el.scrollHeight > el.clientHeight && ev.offsetX >= el.clientWidth;
+		} catch { return false; }
 	},
 
 	// The writer is working in the pane: TYPING in it (a search field, a rename),
@@ -1385,7 +1400,9 @@ export const focusMethods = {
 			? this._sysFonts.slice() : WS_SAFE_FONTS.slice();
 		found.sort((a, b) => String(a).localeCompare(String(b)));
 		for (const n of found) parts.push(n);
-		for (const n of WS_SAFE_FONTS) parts.push(n);
+		// THE SAFE SEVEN only while the machine has not answered: its own list says what is installed, and a face from
+		// the seven that it lacks would be listed as if it were (#121: "lists all installed fonts")
+		if (this._sysFontsFrom !== 'local') for (const n of WS_SAFE_FONTS) parts.push(n);
 		return wsUniqueFonts(parts);
 	},
 
@@ -1395,14 +1412,18 @@ export const focusMethods = {
 	// old fixed list existed to prevent. An empty name is "installed": there
 	// is nothing to warn about, and the export falls back to Times.
 	fontIsInstalled(this: WordSmith, name: string) {
+		return !String(name == null ? '' : name).trim() || !!this.fontInstalledName(name);
+	},
+	// THE INSTALLED SPELLING of a name, whatever its case ("courier prime" is Courier Prime, #121); '' when there is none
+	fontInstalledName(this: WordSmith, name: string): string {
 		const key = String(name == null ? '' : name).trim().toLowerCase();
-		if (!key) return true;
+		if (!key) return '';
 		const list = (this._sysFonts && this._sysFonts.length) ? this._sysFonts : WS_SAFE_FONTS;
-		for (const n of list) if (String(n).toLowerCase() === key) return true;
+		for (const n of list) if (String(n).toLowerCase() === key) return String(n);
 		try {
-			for (const n of this.getConfiguredFonts()) if (String(n).toLowerCase() === key) return true;
-		} catch (_) { wsCatch('fontIsInstalled: for (const n of this.getConfiguredFonts()) if (String(n).toLowerCase() …', _); }
-		return false;
+			for (const n of this.getConfiguredFonts()) if (String(n).toLowerCase() === key) return String(n);
+		} catch (_) { wsCatch('fontInstalledName: for (const n of this.getConfiguredFonts()) if (String(n).toLowerCase() …', _); }
+		return '';
 	},
 
 	fontFinderMatches(this: WordSmith, q: string, limit: number) {

@@ -238,6 +238,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			this.pageProse(on),
 			this.pageText(on),
 			this.pageManuscript(on),
+			this.pageRevisions(on),
 			this.pageExport(on),
 			this.pageNavigation(on),
 			// under Navigation
@@ -845,7 +846,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// The paths as cards: the path, its kind, a two-tap trash; then a dashed
 	// pill that opens the picker.
-	renderPaths(st: Setting, key: 'scopePaths' | 'countExclude', addLabel: string, placeholder: string, withRoot: boolean) {
+	renderPaths(st: Setting, key: 'scopePaths' | 'countExclude' | 'revisionPaths' | 'revisionExcept', addLabel: string, placeholder: string, withRoot: boolean) {
 		const s = this.plugin.settings;
 		const paths = () => Array.isArray(s[key]) ? s[key] : (s[key] = []);
 		const box = this.block(st, 'ws-cards');
@@ -866,7 +867,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// The one picker for both lists: folders first (the vault itself where a
 	// list takes it), then notes; what the list already holds is left out.
-	pickPath(key: 'scopePaths' | 'countExclude', placeholder: string, withRoot: boolean) {
+	pickPath(key: 'scopePaths' | 'countExclude' | 'revisionPaths' | 'revisionExcept', placeholder: string, withRoot: boolean) {
 		if (!WsPathSuggestModal) return;
 		const s = this.plugin.settings;
 		const have = new Set<string>(Array.isArray(s[key]) ? s[key] : []);
@@ -1173,7 +1174,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				tokenFormat('{syntax}', 'syntax', 'Syntax', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{prose}', 'prose', 'Prose', 'The menu’s icon, the word, or both.'),
 				tokenFormat('{theme}', 'theme', 'Theme', 'The menu’s icon, the word, or both.'),
-				tokenFormat('{darklight}', 'darklight', 'Dark', 'The moon or the sun, the word, or both.'),
+				tokenFormat('{darklight}', 'darklight', 'Dark', 'The sun, the moon or the screen, the word, or both.'),
+				tokenFormat('{revisions}', 'revisions', 'Revisions', 'The page and its clock, the word, or both.'),
 				tokenFormat('{cursors}', 'cursors', 'Cursors', 'The text cursor, the word, or both.'),
 				tokenFormat('{lang}', 'lang', 'Language', 'The menu’s icon, the language’s code (En, Es), or both.'),
 				tokenFormat('{report}', 'report', 'Report', 'The menu’s icon, the word, or both.'),
@@ -1333,6 +1335,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		L(['{cursors}'], 'Cursor-Smith’s presets, by name. Pick one to load it.');
 		L(['{lang}'], 'The language in use. Pick another of those ticked under Prose, Language.');
 		L(['{darklight}'], 'Switches Obsidian between dark and light.');
+		L(['{revisions}'], 'Save a revision, compare, or find a deleted note.');
 		SUB('Panes and the menu');
 		L(['{report}', '{history}', '{export}', '{organizer}'], 'Each opens that pane; the Organizer on the tab you arrange it in.');
 		L(['{settings}'], 'A cog: Word-Smith\u2019s settings, in one press.');
@@ -1545,6 +1548,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.page('Themes', 'palette', 'A workspace color scheme, dark and light.', [
 			this.section('Themes', [
 				{ name: 'Themes', desc: 'A color scheme for the whole workspace, dark and light.', control: { type: 'toggle', key: 'barThemeEnabled', defaultValue: true } },
+				// FOLLOW THE SYSTEM (the writer: "a tick in the themes"): Obsidian's own "Adapt to system", read and written where
+				// it lives, so it is no key of ours and no reset's
+				rendered({ name: 'Follow the system', desc: 'Light or dark as your computer is set. Picking Light or Dark from the Powermenu turns this off.', render: (st) => this.renderFollowSystem(st) }, []),
 				rendered({ name: 'Scheme', desc: 'Tap one to wear it. Drag to reorder; the x sets one aside.', render: (st) => this.renderThemeShelf(st), searchable: false, visible: themed }, ['barTheme', 'barThemeOrder', 'barThemeHidden']),
 				this.subheadRow('Options'),
 				opt('Colored headings', 'H1 to H6 take inks derived from the scheme’s accents.', 'barThemeHeadings', true),
@@ -1569,6 +1575,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					control: { type: 'toggle', key: 'barThemeVim' }, visible: () => themed() && !!s.barThemeCursor },
 			]),
 		], value, on);
+	}
+
+	// THE TICK, Obsidian's "Adapt to system" (themes' followSystemColors writes it, colorMode reads it)
+	renderFollowSystem(st: Setting) {
+		const plugin = this.plugin;
+		st.addToggle((t) => t.setValue(plugin.colorMode() === 'system').onChange((v) => { plugin.followSystemColors(v); }));
 	}
 
 	// The shelf: a card per scheme (Default first, always, and it neither
@@ -2146,6 +2158,31 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		st.addSlider((sl) => sl.setLimits(2, 15, 1).setValue(s.checkRhythmShortWords != null ? s.checkRhythmShortWords : 8)
 			.onChange((v) => { void (async () => { s.checkRhythmShortWords = v; await this.plugin.saveSettings(); })(); }));
 		st.addColorPicker((cp) => cp.setValue(s.checkRhythmShortColor || wsThemeHex('green')).onChange((v) => { void (async () => { s.checkRhythmShortColor = v; await this.plugin.saveSettings(); })(); }));
+	}
+
+	// ── REVISIONS (#118) ──────────────────────────────────────────────────────────────────────
+	// A main category of its own (the writer: "i also want a main category for this setting"): off by default; on, the
+	// Organizer's folder chosen, every 30 minutes while a note changes, 20 automatic ones kept, yours always
+	pageRevisions(on: Pred): Page {
+		const plugin = this.plugin;
+		const s = plugin.settings;
+		const live: Pred = () => !!s.revisionsOn;
+		return this.page('Revisions', 'file-clock', 'Earlier versions of your notes, kept in your vault.', [
+			this.section('Revisions', [
+				{ name: 'Revisions', desc: 'Keep earlier versions of your notes, compare one with the note as it is now, and bring back what you cut.', control: { type: 'toggle', key: 'revisionsOn' } },
+				rendered({ name: 'Notes with revisions', desc: 'Automatic revisions are taken in these folders and notes. You can save a revision of any note by hand.', render: (st) => this.renderPaths(st, 'revisionPaths', 'Add a folder or note', wsT('Type a folder or note…'), true), visible: live }, ['revisionPaths']),
+				rendered({ name: 'Except', desc: 'Folders and notes in the list above to leave out.', render: (st) => this.renderPaths(st, 'revisionExcept', 'Add an exception', wsT('Type a folder or note…'), false), visible: live }, ['revisionExcept']),
+				{ name: 'Automatic revisions', desc: 'How often a revision is taken. A note that hasn’t changed is skipped.', control: { type: 'dropdown', key: 'revisionsEvery', options: { off: 'Off', 10: 'Every 10 minutes', 30: 'Every 30 minutes', 60: 'Every hour', day: 'Once a day' } }, visible: live },
+				{ name: 'Keep automatic revisions', desc: 'When a note has more, the oldest go to the trash. Revisions you save yourself stay until you delete them.', control: { type: 'dropdown', key: 'revisionsKeep', options: { 20: '20 per note', 50: '50 per note', 100: '100 per note', all: 'All' } }, visible: live },
+				{ name: 'Include File recovery', desc: 'Also list Obsidian’s snapshots of the last few days, after yours. They are stored outside your vault.', control: { type: 'toggle', key: 'revisionsRecovery' }, visible: live },
+				this.buttonRow('Stored', 'Revisions are saved as files in ws-revisions, inside Word-Smith’s folder in your vault.', 'Clean up…', () => plugin.revCleanupModal(() => this.update()), live),
+				this.hotkeysRow(['save-revision', 'compare-revisions']),
+			]),
+		], () => {
+			if (!s.revisionsOn) return wsT('Off');
+			const every: Record<string, string> = { off: wsT('Off'), 10: wsT('Every 10 minutes'), 30: wsT('Every 30 minutes'), 60: wsT('Every hour'), day: wsT('Once a day') };
+			return every[String(s.revisionsEvery)] || wsT('On');
+		}, on);
 	}
 
 	// ── MANUSCRIPT ──────────────────────────────────────────────────────────
@@ -2871,6 +2908,16 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 	organizerDateFormat: (tab) => { tab.update(); },   // the sample time in the description follows
 	// A733: the folder read again, and an open Organizer drawn without it (the explorer follows the save's refresh)
 	hideOwnFolder: (tab) => { tab.plugin._ownFolders = null; if (typeof tab.plugin._orgDraw === 'function') tab.plugin._orgDraw(); },
+	// REVISIONS ON (#118): the book chosen the first time, their folder out of search and the graph, the row, the token and
+	// the Organizer's column shown; off, all of them gone again (the files stay)
+	revisionsOn: async (tab, v) => {
+		if (v) { tab.plugin.revFirstOn(); await tab.plugin.saveSettings(true); }
+		tab.plugin._ownFolders = null;
+		try { tab.plugin.excludeOwnFolder(); } catch (_) { wsCatch('AFTER revisionsOn: excludeOwnFolder', _); }
+		try { tab.plugin.refreshMenuPanelsNow(); } catch (_) { wsCatch('AFTER revisionsOn: refreshMenuPanelsNow', _); }
+		tab.plugin.revChanged();
+		tab.update();
+	},
 	settingsMirror: (tab) => { tab.update(); },   // the file row's text follows
 };
 
@@ -2879,5 +2926,5 @@ const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
 	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons',
-	'layoutZenOnly', 'pageView', 'hideOwnFolder',
+	'layoutZenOnly', 'pageView', 'hideOwnFolder', 'revisionsOn',
 ]);

@@ -54,7 +54,11 @@ export const options = (test) => ({
 	platform: 'browser',
 	target: 'es2020',
 	outfile: test ? '../ws-dev/main.js' : 'main.js',
-	external: ['obsidian', 'electron', '@electron/remote', '@codemirror/*', '@lezer/*', '@replit/codemirror-vim'],
+	// every CodeMirror package Obsidian carries is asked of it at run time, one instance with its editor's; the merge
+	// view (#118, Revisions side by side) is not one of them, so it and its style-mod are bundled, MIT both
+	external: ['obsidian', 'electron', '@electron/remote', '@codemirror/autocomplete', '@codemirror/collab', '@codemirror/commands',
+		'@codemirror/language', '@codemirror/lint', '@codemirror/search', '@codemirror/state', '@codemirror/view', '@lezer/*',
+		'@replit/codemirror-vim'],
 	logLevel: 'info',
 	legalComments: 'none',
 	sourcemap: false,

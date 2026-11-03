@@ -155,6 +155,9 @@ const colDefs = (): WsOrgCol[] => [
 	{ id: 'charsall',  label: wsT('Chars + spaces'), def: 104, min: 60 },
 	{ id: 'sentences', label: wsT('Sentences'), def: 84, min: 56 }
 ].concat(
+	// ── HOW MANY REVISIONS (#118, the writer: "add revisions count in the organizer to see how many revisions each file
+	// has"): only while revisions are on ──
+	d.plugin.revOn() ? [{ id: 'revisions', label: wsT('Revisions'), def: 84, min: 56 }] : [],
 	// ── AND THE WRITER'S OWN ──────────────────────────────────────
 	//
 	// Any frontmatter property, added from the columns menu. They come
@@ -324,6 +327,7 @@ const BUILTIN_SORTS = [
 	// A DOT, a sentence's end (A728, the writer: "for sentences icon use this lucide.dev/icons/dot"): Obsidian 1.14.4's
 	// Lucide has none, so the plugin's own `ws-dot` (registered at load) until a build that has it
 	{ id: 'sentences', label: 'Sentences', icon: wsIconPick(['dot', 'ws-dot']) },
+	{ id: 'revisions', label: 'Revisions', icon: 'file-clock' },
 	{ id: 'tasks',    label: 'Tasks left', icon: 'check-square' },
 	// ── THE COLUMNS THAT ARE NOT SORTS IN THEIR OWN RIGHT ───────
 	//

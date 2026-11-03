@@ -133,6 +133,7 @@ export const menuMethods = {
 			lang: 'The language the syntax and prose checks read.',
 			report: 'Words, sentences and readability for the note you are in.',
 			history: 'How much you wrote, day by day.',
+			revisions: 'A note’s past: save a revision, compare, bring back what you cut.',
 			export: 'Turns a folder of notes into one manuscript file.',
 			organizer: 'Your notes as a table to order, flag and count.',
 			settings: 'Opens Word-Smith’s settings.',
@@ -162,7 +163,7 @@ export const menuMethods = {
 			// row saying one thing twice, rather than a picture arguing
 			// with the word beside it.
 			{ id: 'lightdark',    name: 'Light / Dark',
-			  icon: () => (this.isDarkTheme() ? 'moon' : 'sun') },
+			  icon: () => this.colorModeIcon() },
 			{ id: 'theme',    name: 'Theme',         icon: 'palette' },
 			// Cursor-Smith's presets: the text caret
 			{ id: 'cursors',  name: 'Cursors',       icon: 'text-cursor' },
@@ -170,6 +171,8 @@ export const menuMethods = {
 			{ id: 'lang',     name: 'Language',      icon: 'languages' },
 			{ id: 'report',    name: 'Report',       icon: 'bar-chart-2' },
 			{ id: 'history',    name: 'History',     icon: 'history' },
+			// a note's past (#118): a page with a clock
+			{ id: 'revisions',  name: 'Revisions',   icon: 'file-clock' },
 			// THE THIRD PLACE a row has to be named. `menuRowSpecs` makes it
 			// work, `menuLayout`'s default list makes it REACH a saved
 			// order, and this makes the Menu tab call it something. Miss
@@ -252,7 +255,7 @@ export const menuMethods = {
 		// Markers, Theme | Light / Dark — a rule, Report | History, Organizer |
 		// Export. The pairs are `menuJoined`'s default; this is the order.
 		const def = ['search', 'modes', 'syntax', 'prose', 'lang', 'font', 'markers',
-			'theme', 'cursors', 'lightdark', 'rule-1', 'report', 'history', 'organizer',
+			'theme', 'cursors', 'lightdark', 'rule-1', 'report', 'history', 'revisions', 'organizer',
 			'export', 'settings'];
 		const out: string[] = [];
 		for (const id of (this.settings.menuOrder || [])) {
@@ -278,6 +281,8 @@ export const menuMethods = {
 		// AND CURSOR-SMITH'S PRESETS only while it is there to load them.
 		return this.menuLayout().filter(id => !hidden.has(id) && (id !== 'organizer' || this.settings.organizerOn !== false)
 			&& (id !== 'cursors' || !!this.cursorSmithPlugin())
+			// REVISIONS only while they are on (#118)
+			&& (id !== 'revisions' || this.revOn())
 			// THE LANGUAGE ROW while a pack is in the vault: with none, English is all there is
 			&& (id !== 'lang' || !!(this._packs && this._packs.size)));
 	},
@@ -546,11 +551,12 @@ export const menuMethods = {
 			// "Dark" and "Light", not "Dark Mode" and "Light Mode". Every other
 			// row in this menu is a noun — Markers, Font, Theme — and "Mode"
 			// was doing no work in a list where nothing else needed the word.
-			label: () => this.isDarkTheme() ? wsT('Dark') : wsT('Light'),
-			// Both words, so the finder answers "dark" and "light"
+			// THE MODE ON SCREEN, and a press the other (`colorModeWord`); following the system is Settings › Themes' tick
+			label: () => this.colorModeWord(),
+			// Every word, so the finder answers "dark" and "light"
 			// whichever one the label happens to be showing.
 			keywords: 'light dark mode appearance',
-			toggle: () => this.barSetColorMode(!this.isDarkTheme())
+			toggle: () => this.barCycleColorMode()
 		},
 		{ id: 'theme',   label: wsT('Theme'),   items: () => this.themesPickerItems(), count: false },
 		// CURSOR-SMITH'S PRESETS, by name, the active one beside the row. Shown only
@@ -567,6 +573,8 @@ export const menuMethods = {
 			run: () => this.openReportModal() },
 		{ id: 'history', label: wsT('History'), wide: true, reopen: true,
 			run: () => this.openHistoryModal() },
+		// A NOTE'S PAST (#118): save one, compare with one, the deleted notes; the menu {revisions} opens too
+		{ id: 'revisions', label: wsT('Revisions'), items: () => this.revMenuItems(), count: false, actions: true },
 		// Export joins the pair for the same reason they are a pair: it
 		// OPENS a window rather than setting a switch. Third in the run,
 		// because it is the one you reach for least often and last in the
@@ -1015,7 +1023,7 @@ export const menuMethods = {
 					const its = row.items();
 					const on = its.filter(i => (typeof i.on === 'function' ? i.on() : i.on)).length;
 					el.createSpan({ cls: 'ws-menu-state', text: on ? wsT('{n} on', { n: on }) : wsT('off') });
-				} else if (row.items) {
+				} else if (row.items && !row.actions) {
 					const cur = row.items().find(i => (typeof i.on === 'function' ? i.on() : i.on));
 					if (cur) el.createSpan({ cls: 'ws-menu-state', text: cur.label });
 				}

@@ -12,6 +12,9 @@ import { wsT } from '../core/ui-text';
 import type WordSmith from './plugin';
 import { WS_PAPER_TEXTURES, WS_INK_EFFECTS, WS_PAPER_INK_VARS, wsPaperCss, wsInkCss } from '../core/paper-ink';
 
+// Obsidian's three modes by its own names: light, dark, and following the OS (#117)
+export type WsColorMode = 'moonstone' | 'obsidian' | 'system';
+
 // THE CHECKBOX SHAPES a look dresses the body with, one list for dressing and undressing (A870)
 const WS_CB_SHAPES = ['circle', 'square', 'retro', 'markdown'];
 export const themesMethods = {
@@ -609,8 +612,10 @@ export const themesMethods = {
 	// Nothing here touches the SCHEME. Flipping the mode makes the app
 	// fire css-change, and the handler below swaps the half — one path,
 	// whether the writer flips from our row or from Appearance.
-	barSetColorMode(this: WordSmith, dark: boolean) {
-		const name = dark ? 'obsidian' : 'moonstone';
+	//
+	// AND THE THIRD NAME, 'system' (#117): Obsidian's "Adapt to system", taken by name as well as by a boolean.
+	barSetColorMode(this: WordSmith, dark: boolean | WsColorMode) {
+		const name = typeof dark === 'string' ? dark : dark ? 'obsidian' : 'moonstone';
 		try {
 			if (typeof this.app.changeTheme === 'function') {
 				this.app.changeTheme(name);
@@ -625,6 +630,43 @@ export const themesMethods = {
 			}
 		} catch (_) { wsCatch('barSetColorMode: if (typeof this.app.changeTheme === \'function\')', _); }
 		return false;
+	},
+
+	// OBSIDIAN'S OWN SETTING: 'moonstone', 'obsidian' or 'system' (its default, read in the asar; `updateTheme` follows the
+	// OS on it). A vault with nothing stored reads Obsidian's default. 'system' is Settings › Themes' tick, Follow the system
+	// (the writer, 2026-11-03: "the light dark should not have the 3 option as system ... a tick in the themes"; #117,
+	// thirdeye-media: "after using the toggle the vault no longer follows the OS", was a third step on the row before)
+	colorMode(this: WordSmith): WsColorMode {
+		let v: unknown = 'system';
+		try { if (this.app.vault && this.app.vault.getConfig) v = this.app.vault.getConfig('theme'); } catch (_) { wsCatch('colorMode: getConfig(theme)', _); }
+		return v === 'obsidian' || v === 'moonstone' ? v : 'system';
+	},
+	// THE MODE ON SCREEN: Obsidian's choice, or the computer's while the system is followed
+	colorDark(this: WordSmith): boolean {
+		const m = this.colorMode();
+		if (m === 'system') return this.isDarkTheme();
+		return m === 'obsidian';
+	},
+	// the Powermenu's row and {darklight} name the mode on screen, Light or Dark, its sun or its moon
+	colorModeWord(this: WordSmith) {
+		return this.colorDark() ? wsT('Dark') : wsT('Light');
+	},
+	colorModeIcon(this: WordSmith) {
+		return this.colorDark() ? 'moon' : 'sun';
+	},
+	// A PRESS PICKS THE OTHER, BY HAND, which is the system no longer followed; and the bar drawn again after it: the
+	// press from a followed dark computer to Dark changes no class on <body>, so Obsidian fires no css-change
+	barCycleColorMode(this: WordSmith) {
+		const done = this.barSetColorMode(this.colorDark() ? 'moonstone' : 'obsidian');
+		try { this.updateRetroStatusBar(); } catch (_) { wsCatch('barCycleColorMode: updateRetroStatusBar', _); }
+		return done;
+	},
+	// THE TICK IN SETTINGS › THEMES, Follow the system: on is Obsidian's "Adapt to system"; off keeps the mode on screen,
+	// chosen now by hand, so taking the tick off changes nothing you see
+	followSystemColors(this: WordSmith, on: boolean) {
+		const done = this.barSetColorMode(on ? 'system' : this.colorDark() ? 'obsidian' : 'moonstone');
+		try { this.updateRetroStatusBar(); } catch (_) { wsCatch('followSystemColors: updateRetroStatusBar', _); }
+		return done;
 	},
 
 

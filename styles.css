@@ -5030,8 +5030,9 @@ body.ws-bar-hidden:not(.ws-bar-peek) .ws-bar-plinth {
 .ws-menu-sub.is-active {
 	background-color: color-mix(in srgb, currentColor 16%, transparent);
 }
+/* THE REGULAR WEIGHT (the writer, 2026-11-03: "dont make the words bold"; every label was semibold, 600) */
 .ws-menu-row .ws-menu-label {
-	font-weight: 600;
+	font-weight: normal;
 	color: var(--text-normal);
 	/* The fallback for a long name, and only the fallback: a pinned
 	   command wears the short alias its writer gave it, so this fires
@@ -5085,13 +5086,9 @@ body.ws-bar-hidden:not(.ws-bar-peek) .ws-bar-plinth {
    from me. Two writers of one alignment is what this file keeps finding;
    the base is the one writer, and this block keeps only what is
    PARTICULAR to a wide row, which is its lighter type.) */
-.ws-menu-row.is-wide .ws-menu-label {
-	font-weight: 500;
-	color: var(--text-muted);
-}
-.ws-menu-row.is-wide.is-active .ws-menu-label {
-	color: var(--text-normal);
-}
+/* TOMBSTONE: the lighter type above stood here, `font-weight: 500; color: var(--text-muted)` on a wide row's label. It
+   went on the writer's word (2026-11-03, "Build 1 to 4" of the menu's look): Settings, the one wide row left on its own
+   line, read as disabled beside every other label. A wide row is told apart by its place now, not by its ink. */
 /* ── Lines (1.3.0) ────────────────────────────────────────────────────────
    A band is one line of the menu, its cells sharing the width EVENLY —
    a table reads as a table because the columns line up, and content-sized
@@ -5109,6 +5106,11 @@ body.ws-bar-hidden:not(.ws-bar-peek) .ws-bar-plinth {
 	min-width: 0;
 	padding-inline: 0.45em;
 }
+/* IN THE POP-UP, ONE LEFT EDGE AND ONE RIGHT EDGE (the writer, 2026-11-03): a cell's 0.45em put its label 2.3px left of a
+   full line's and its value 2px right; and ROOM BETWEEN A LINE'S CELLS, 6px where 2 made "off" read with the next cell's
+   name (24px from a value to the next icon, 15.5 before) */
+.ws-menu-modal .ws-menu-band { gap: 2px 6px; }
+.ws-menu-modal .ws-menu-band .ws-menu-cell { padding-inline: 0.6em; }
 .ws-menu-band .ws-menu-cell .ws-menu-state {
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -5759,7 +5761,12 @@ body.ws-borderless .titlebar {
 	box-shadow: none;
 }
 .ws-menu-search::placeholder { color: var(--text-faint); }
-.ws-menu-search:focus { box-shadow: none; }
+/* ONE CONTOUR, INSIDE ITS BOX (the writer, 2026-11-03: "improve visually when i hover that so the red contour dont
+   overlap"): Obsidian's search box draws its focus as a 2px ring outside the field over a border of the same color, and
+   app.css's `input[type="search"]:focus` (0,2,1) out-weighed the `.ws-menu-search:focus` (0,2,0) that was here to take it
+   off, so the ring showed, past the field, against the row under it. The field keeps its border, in the focus color. */
+.ws-menu-searchwrap input.ws-menu-search[type="search"]:focus,
+.ws-menu-searchwrap input.ws-menu-search[type="search"]:focus-visible { box-shadow: none; }
 
 /* A result names the row it came from, so the finder teaches the menu
    instead of bypassing it. Right-aligned and faint: it is provenance, not
@@ -7443,6 +7450,10 @@ body:not(.is-phone) .ws-export-top .ws-export-prevhead {
 	line-height: 1.35;
 }
 .ws-export-fonthit { align-items: center; }
+/* EVERY FONT, OPENED (#121): hundreds of rows, each in its own face, rendered as they scroll into the list */
+.ws-export-fonthits .ws-export-fonthit { content-visibility: auto; contain-intrinsic-size: auto 2.2em; }
+/* THE FIELD WEARS THE DROPDOWNS' LOOK (#121), Obsidian's chevron on an input that still takes a typed name */
+.ws-export-fontpick input.ws-export-fontinput.dropdown { cursor: default; }
 .ws-export-fonttag {
 	flex: 0 0 auto;
 	color: var(--text-faint);
@@ -9896,7 +9907,8 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
    (`ws-export-mini`), a size smaller and muted, because it is a fact about
    the window before it is a control. */
 .ws-uni-subject .ws-uni-zoomtag,
-.ws-export-top .ws-uni-zoomtag { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+.ws-export-top .ws-uni-zoomtag,
+.ws-rev-head .ws-uni-zoomtag { font-size: var(--font-ui-smaller); color: var(--text-muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
 /* THE LENS BEFORE THE FIGURE (A544, writer 2026-10-06: "add an icon for it
    lens with + or - in it like on chrome"). The text's own size, so the
    figure is no taller than the line it sits in (A293); the svg is sized
@@ -15708,6 +15720,168 @@ body.ws-ck-dim:where(:not(.ws-ck-text)) .markdown-source-view.mod-cm6 .cm-conten
 .ws-about-notes ul { margin: 0; padding-left: var(--size-4-5); color: var(--text-muted); }
 /* Buy me a coffee in its own yellow (the writer's mockup) */
 button.ws-about-coffee, button.ws-about-coffee:hover { background-color: #ffdd00; color: #1a1a1a; font-weight: var(--font-semibold); }
+
+/* =========================================================================
+   REVISIONS (#118): the compare view, its picker, the save and clean-up
+   windows, the token's glint. Obsidian's own colors throughout, so a theme
+   and both modes carry it: green for what came, red for what went, orange
+   for what moved, the accent for yours.
+   ========================================================================= */
+/* (Obsidian pads a pane's content 12px: a sticky header then stuck 12px down and the text showed above it) */
+.workspace-leaf-content[data-type="word-smith-revisions"] > .view-content.ws-rev-view { padding: 0; }
+.ws-rev-view { outline: none; position: relative; }
+.ws-rev-head { position: sticky; top: 0; z-index: 3; background: var(--background-primary); border-bottom: 1px solid var(--background-modifier-border); padding: 6px max(var(--size-4-4), calc(50% - 440px)); }
+.ws-rev-sep { flex: none; align-self: center; width: 1px; height: 18px; margin: 0 var(--size-4-1); background: var(--background-modifier-border); }
+.ws-rev-line { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 0; white-space: nowrap; }
+/* side by side, the header cut as the panes are: the revision's half, the arrows' gutter, the note's half */
+.ws-rev-head.is-side { padding: 6px var(--size-4-3); }
+.ws-rev-line.is-split { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); gap: 0; }
+.ws-rev-half { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 0 var(--size-4-2); }
+.ws-rev-half .ws-rev-pick { max-width: none; }
+.ws-rev-half > .is-end { margin-left: auto; }
+.ws-rev-gap { align-self: stretch; margin: -6px 0; background: linear-gradient(var(--background-modifier-border), var(--background-modifier-border)) center / 1px 100% no-repeat; }
+.ws-rev-notename { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-ui-small); font-weight: var(--font-semibold); cursor: pointer; border-radius: var(--radius-s); padding: 2px 4px; }
+.ws-rev-notename:hover, .ws-rev-notename:focus-visible { color: var(--text-accent); background: var(--background-modifier-hover); }
+.ws-rev-textbtn { display: inline-flex; align-items: center; gap: 6px; flex: none; height: 28px; padding: 0 var(--size-4-3); font-size: var(--font-ui-small); }
+.ws-rev-textbtn svg { width: 14px; height: 14px; }
+.ws-rev-notename > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.ws-rev-pick { display: inline-flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0; max-width: 34%; height: 28px; padding: 0 6px 0 8px; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); background: var(--ws-tint); cursor: pointer; font-size: var(--font-ui-small); }
+.ws-rev-pick .ws-rev-when { flex: none; }
+.ws-rev-pick:hover, .ws-rev-pick:focus-visible { border-color: var(--background-modifier-border-hover); }
+.ws-rev-pick .ws-rev-when, .ws-rev-item .ws-rev-when { font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+.ws-rev-who { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.ws-rev-kind, .ws-rev-chev { display: inline-flex; flex: none; color: var(--text-faint); }
+.is-yours > .ws-rev-kind { color: var(--interactive-accent); }
+.ws-rev-kind svg, .ws-rev-chev svg { width: 14px; height: 14px; }
+.ws-rev-iconbtn { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; padding: 0; background: none; box-shadow: none; color: var(--text-muted); }
+.ws-rev-iconbtn:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.ws-rev-iconbtn:disabled { opacity: .35; cursor: default; background: none; }
+.ws-rev-iconbtn svg { width: 17px; height: 17px; }
+.ws-rev-seg { display: inline-flex; flex: none; border: 1px solid var(--background-modifier-border); border-radius: var(--radius-s); overflow: hidden; }
+.ws-rev-seg button { display: inline-grid; place-items: center; width: 32px; height: 26px; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--text-muted); }
+.ws-rev-seg button + button { border-left: 1px solid var(--background-modifier-border); }
+.ws-rev-seg button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.ws-rev-seg button.is-on { background: var(--background-modifier-active-hover); color: var(--text-accent); }
+.ws-rev-seg svg { width: 16px; height: 16px; }
+.ws-rev-sum { flex: 1 1 auto; display: flex; gap: var(--size-4-3); min-width: 0; margin: 0 var(--size-4-2); overflow: hidden; color: var(--text-faint); font-size: var(--font-ui-smaller); cursor: default; }
+.ws-rev-sum > span { flex: none; }
+.ws-rev-sum .is-add { color: var(--color-green); }
+.ws-rev-sum .is-rem { color: var(--color-red); }
+.ws-rev-sum .is-move { color: var(--color-orange); }
+.ws-rev-body { padding: var(--size-4-5) max(var(--size-4-4), calc(50% - 440px)) 80px; font-family: var(--font-text); font-size: calc(var(--font-text-size) * var(--ws-rev-zoom, 1)); line-height: var(--line-height-normal); }
+.ws-rev-body.is-side { padding: 0 0 80px; }
+.ws-rev-para { position: relative; margin: 0 0 1em; padding: 2px var(--size-4-3) 2px var(--size-4-4); border-left: 2px solid transparent; border-radius: 0 var(--radius-s) var(--radius-s) 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ws-rev-para.is-changed { border-left-color: var(--background-modifier-border-hover); }
+.ws-rev-para.is-added { border-left-color: var(--color-green); background: rgba(var(--color-green-rgb), 0.10); }
+.ws-rev-para.is-removed { border-left-color: var(--color-red); background: rgba(var(--color-red-rgb), 0.08); color: var(--text-muted); }
+.ws-rev-para.is-removed .ws-rev-text { text-decoration: line-through; }
+.ws-rev-para.is-moved { border-left-color: var(--color-orange); background: rgba(var(--color-orange-rgb), 0.08); }
+.ws-rev-para.is-ghost { border-left: 2px dashed var(--color-orange); background: none; padding-top: 0; padding-bottom: 0; }
+.ws-rev-phead { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-3); min-height: 24px; font-family: var(--font-interface); white-space: normal; }
+.ws-rev-tag { display: flex; align-items: center; gap: 5px; font-family: var(--font-interface); font-size: var(--font-ui-smaller); color: var(--text-faint); }
+.ws-rev-tag svg { width: 12px; height: 12px; }
+.ws-rev-para.is-added .ws-rev-tag { color: var(--color-green); }
+.ws-rev-para.is-removed .ws-rev-tag { color: var(--color-red); }
+.ws-rev-para.is-moved .ws-rev-tag, .ws-rev-para.is-ghost .ws-rev-tag { color: var(--color-orange); }
+.ws-rev-chg { cursor: pointer; }
+/* the red line through what went and the green one under what came, drawn and not decorated (Obsidian's CSS lint flags the
+   colored text-decoration forms); cloned on every line a change wraps onto */
+.ws-rev-chg del { text-decoration: none; color: var(--text-muted); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone;
+	background: linear-gradient(transparent calc(50% - 0.75px), var(--color-red) calc(50% - 0.75px), var(--color-red) calc(50% + 0.75px), transparent calc(50% + 0.75px)), rgba(var(--color-red-rgb), var(--ws-rev-del-a, 0.13)); }
+.ws-rev-chg ins { text-decoration: none; background: rgba(var(--color-green-rgb), var(--ws-rev-ins-a, 0.15)); box-shadow: inset 0 -1.5px var(--color-green); border-radius: 3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+/* A CHANGE ON HOVER DEEPENS ITS OWN RED AND GREEN, NO BOX (the writer, 2026-11-03: "still the red contour overlaps"): an
+   outline drawn 1px past the words ran into its neighbor and into the lines above and below */
+.ws-rev-chg:hover, .ws-rev-chg.is-focus { --ws-rev-del-a: 0.3; --ws-rev-ins-a: 0.34; }
+/* ITS ACCEPT AND REJECT IN THE LEFT MARGIN, ON ITS LINE: two icons beside the paragraph's rule, over no text. The
+   paragraph is their box (right: 100% and 6px), and the line is where the change starts: a mark of no width there, a
+   line high, holds them centred on it. With no room in the margin (a phone, a narrow pane) paintFocus sets is-above,
+   and they stand above the change's first word as before */
+.ws-rev-anchor { display: inline-flex; align-items: center; width: 0; height: 1lh; vertical-align: top; }
+.ws-rev-anchor > .ws-rev-acts { right: calc(100% + 6px); }
+.ws-rev-anchor .ws-rev-acts button { padding: 4px; }
+.ws-rev-chg.is-above .ws-rev-anchor { position: relative; }
+.ws-rev-chg.is-above .ws-rev-anchor > .ws-rev-acts { right: auto; left: 0; bottom: 100%; }
+.ws-rev-acts { position: absolute; z-index: 4; display: none; gap: 2px; padding: 2px; white-space: nowrap; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: var(--radius-m); box-shadow: var(--shadow-s); font-family: var(--font-interface); }
+.ws-rev-chg:hover .ws-rev-acts, .ws-rev-chg.is-focus .ws-rev-acts { display: inline-flex; }
+.ws-rev-acts button, .ws-rev-pacts button { display: inline-flex; align-items: center; gap: 5px; height: auto; padding: 2px var(--size-4-2); background: none; box-shadow: none; color: var(--text-muted); font-size: var(--font-ui-smaller); }
+.ws-rev-acts button:hover, .ws-rev-pacts button:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+.ws-rev-acts svg, .ws-rev-pacts svg { width: 13px; height: 13px; }
+/* (an icon's span centred on the line, its svg a block: on the text's baseline it rode high, the descender's room under it) */
+.ws-rev-acts button > span:first-child, .ws-rev-pacts button > span:first-child, .ws-rev-textbtn > span:first-child, .ws-rev-tag > span:first-child { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
+.ws-rev-acts svg, .ws-rev-pacts svg, .ws-rev-textbtn svg, .ws-rev-tag svg { display: block; }
+.ws-rev-pacts { display: inline-flex; gap: 4px; opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.ws-rev-para:hover .ws-rev-pacts, .ws-rev-para:focus-within .ws-rev-pacts, .is-mobile .ws-rev-pacts { opacity: 1; pointer-events: auto; }
+.ws-rev-pacts button { border: 1px solid var(--background-modifier-border); background: var(--background-primary); }
+.ws-rev-fold { margin: 0 0 1em; padding: 4px var(--size-4-4); border-left: 2px dotted var(--background-modifier-border-hover); color: var(--text-faint); font-family: var(--font-interface); font-size: var(--font-ui-smaller); cursor: pointer; }
+.ws-rev-fold:hover { color: var(--text-normal); }
+.ws-rev-empty { display: flex; flex-direction: column; align-items: center; gap: var(--size-4-3); padding: 60px var(--size-4-5); color: var(--text-faint); text-align: center; }
+.ws-rev-merge { position: relative; }
+.ws-rev-float { position: absolute; bottom: auto; }
+.ws-rev-float.is-on { display: inline-flex; }
+.ws-rev-view .ws-rev-merge .cm-editor { background: transparent; font-family: var(--font-text); font-size: calc(var(--font-text-size) * var(--ws-rev-zoom, 1)); line-height: var(--line-height-normal); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-focused { outline: none; }
+.ws-rev-view .ws-rev-merge .cm-content { padding: var(--size-4-4) var(--size-4-4) var(--size-4-4) var(--size-4-3); caret-color: var(--text-normal); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-a .cm-changedLine { background: rgba(var(--color-red-rgb), 0.06); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-b .cm-changedLine { background: rgba(var(--color-green-rgb), 0.06); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-a .cm-changedText { color: var(--text-muted); border-radius: 3px;
+	background: linear-gradient(transparent calc(50% - 0.75px), var(--color-red) calc(50% - 0.75px), var(--color-red) calc(50% + 0.75px), transparent calc(50% + 0.75px)), rgba(var(--color-red-rgb), 0.13); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-b .cm-changedText { background: rgba(var(--color-green-rgb), 0.15); box-shadow: inset 0 -1.5px var(--color-green); border-radius: 3px; }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-a .cm-changedLineGutter { background: var(--color-red); }
+.ws-rev-view .ws-rev-merge .cm-editor.cm-merge-b .cm-changedLineGutter { background: var(--color-green); }
+.ws-rev-view .ws-rev-merge .cm-gutters { background: transparent; border: 0; }
+.ws-rev-view .ws-rev-merge .cm-merge-spacer { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--background-modifier-hover) 6px 7px); }
+.ws-rev-view .ws-rev-merge .cm-merge-revert { width: 28px; background: linear-gradient(var(--background-modifier-border), var(--background-modifier-border)) center / 1px 100% no-repeat; }
+.ws-rev-view .ws-rev-merge .cm-merge-revert .ws-rev-revert { display: inline-grid; place-items: center; left: 3px; width: 22px; height: 22px; margin: 0; padding: 0; border: 1px solid var(--background-modifier-border); border-radius: 50%; background: var(--background-primary); box-shadow: none; color: var(--text-faint); cursor: pointer; transition: color .15s ease, background-color .15s ease, border-color .15s ease; }
+.ws-rev-view .ws-rev-merge .cm-merge-revert .ws-rev-revert:hover { color: var(--text-on-accent); background: var(--interactive-accent); border-color: var(--interactive-accent); }
+.ws-rev-view .ws-rev-merge .ws-rev-revert svg { width: 12px; height: 12px; }
+/* ON A PHONE, TWO LINES (measured at 360px under Obsidian's app.css: one line needs 397px of 328, the revision and the
+   note's name squeezed to 16 and 8px, the count to nothing, Restore past the screen): the revision and Restore, then the
+   note with Undo and Redo, then the count, small, on a line of its own; no switch (side by side is not drawn on a phone) and
+   no rules; and a finger's room, 36px for the header's controls and 32px for a row's pencil and bin and a change's Accept
+   and Reject (20 and 21px before). The revision and the note's name take what their line leaves (a basis of 0: at their
+   own width each took a line of its own, five in all) */
+.ws-rev-line.is-phone { flex-wrap: wrap; row-gap: 6px; }
+.ws-rev-line.is-phone > .ws-rev-seg, .ws-rev-line.is-phone > .ws-rev-sep { display: none; }
+.ws-rev-line.is-phone > .ws-rev-break { flex: 0 0 100%; height: 0; }
+.ws-rev-line.is-phone > .ws-rev-pick { flex: 1 1 0; max-width: none; height: 36px; }
+.ws-rev-line.is-phone > .ws-rev-notename { flex: 1 1 0; }
+.ws-rev-line.is-phone > .ws-rev-sum { order: 1; flex: 0 0 100%; margin: 0; }
+.ws-rev-line.is-phone > .ws-rev-iconbtn { width: 36px; height: 36px; }
+.ws-rev-line.is-phone > .ws-rev-textbtn { height: 36px; }
+.is-phone .ws-rev-rowacts button { padding: 9px; }
+.is-phone .ws-rev-acts button { min-height: 32px; }
+.ws-rev-pop { position: absolute; z-index: 10; min-width: 300px; max-width: min(420px, calc(100% - 12px)); max-height: 440px; overflow: auto; }
+.ws-rev-day { padding: 6px var(--size-4-3) 2px; color: var(--text-faint); font-size: var(--font-ui-smaller); letter-spacing: .05em; text-transform: uppercase; }
+.ws-rev-item { display: flex; align-items: center; gap: var(--size-4-3); padding: 6px var(--size-4-2) 6px var(--size-4-3); border-radius: var(--radius-s); font-size: var(--font-ui-small); cursor: pointer; }
+.ws-rev-item > .ws-rev-kind { align-self: flex-start; margin-top: 2px; }
+.ws-rev-rowtext { flex: 1; min-width: 0; }
+.ws-rev-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-normal); }
+.ws-rev-title.is-time { font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+/* the words from now: added in green and removed in red, as the header says them, in plain type (no pill: one in the
+   hovered row's own gray came and went with the hover), in a column of its own, so a count filling in moves nothing */
+.ws-rev-delta { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex: none; min-width: 6em; color: var(--text-faint); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; }
+.ws-rev-delta .is-add { color: var(--color-green); }
+.ws-rev-delta .is-rem { color: var(--color-red); }
+.ws-rev-meta { display: flex; gap: var(--size-4-2); margin-top: 1px; color: var(--text-faint); font-size: var(--font-ui-smaller); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* a row's pencil and bin, shown always (a tap reaches them on a phone, and the row does not change under the pointer) */
+.ws-rev-rowacts { display: inline-flex; flex: none; gap: 2px; }
+.ws-rev-rowacts button { height: auto; padding: 3px; background: none; box-shadow: none; color: var(--text-faint); }
+.ws-rev-rowacts button:hover { color: var(--text-normal); background: var(--background-modifier-hover); }
+.ws-rev-rowacts svg { width: 14px; height: 14px; }
+.ws-rev-item:hover, .ws-rev-item.is-sel, .ws-rev-item.is-hl { background: var(--background-modifier-hover); }
+.ws-rev-item.is-hl { box-shadow: inset 2px 0 var(--interactive-accent); }
+.ws-rev-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px var(--size-4-3); white-space: nowrap; margin-top: 4px; padding: 6px var(--size-4-3) 3px; border-top: 1px solid var(--background-modifier-border); color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.ws-rev-foot a { color: var(--text-faint); cursor: pointer; }
+.ws-rev-foot a:hover { color: var(--color-red); }
+.ws-rev-name-sub { margin-bottom: var(--size-4-3); color: var(--text-muted); font-size: var(--font-ui-small); }
+.ws-rev-name-input { width: 100%; }
+.ws-rev-deleted-row, .ws-rev-clean-row { display: flex; align-items: center; gap: var(--size-4-3); padding: var(--size-4-3) 0; border-top: 1px solid var(--background-modifier-border); }
+.ws-rev-deleted-info, .ws-rev-clean-info { flex: 1; min-width: 0; }
+.ws-rev-deleted-meta { color: var(--text-faint); font-size: var(--font-ui-smaller); }
+.ws-rev-clean-age { margin-left: var(--size-4-2); }
+.ws-barbtn-revisions.is-glint { animation: ws-rev-glint .9s ease-out; }
+@keyframes ws-rev-glint { 30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent) 45%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .ws-barbtn-revisions.is-glint { animation: none; } }
 
 /* =========================================================================
    PAPER AND INK (GitHub #105, A901): Settings › Themes › Paper and Ink, two

@@ -1930,7 +1930,7 @@ export const barMethods = {
 		// THE TWO COUNTS DEFAULT TO THE ICON: the number with the pane's small
 		// icon after it is that number saying what it counts; the word is a
 		// choice.
-		if (id === 'properties' || id === 'backlinks' || id === 'darklight' || id === 'cursors') return v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon';
+		if (id === 'properties' || id === 'backlinks' || id === 'darklight' || id === 'cursors' || id === 'revisions') return v === 'word' ? 'word' : v === 'both' ? 'both' : 'icon';
 		return v === 'icon' ? 'icon' : v === 'both' ? 'both' : 'word';
 	},
 
@@ -3472,6 +3472,8 @@ export const barMethods = {
 			'{font}':      '\x00FONT\x00',
 			'{theme}':     '\x00THEME\x00',
 			'{darklight}': '\x00DARKLIGHT\x00',
+			// THE OPEN NOTE'S REVISIONS (#118), counted; nothing while they are off
+			'{revisions}': this.revOn() ? '\x00REVISIONS\x00' : '',
 			'{cursors}':   '\x00CURSORS\x00',
 			'{lang}':      '\x00LANG\x00',
 			'{report}':    '\x00REPORT\x00',
@@ -4624,14 +4626,24 @@ export const barMethods = {
 			(anchor: HTMLElement) => this.openCursorsPicker(anchor));
 	},
 
-	// {darklight}: the menu's Dark / Light row on the bar, its moon or sun and
-	// its press. The mode is Obsidian's, so the app's own css-change redraws it.
+	// {darklight}: the menu's Light / Dark row on the bar, its sun or its moon and its
+	// press (the mode on screen, a press the other). The mode is Obsidian's, so the app's
+	// own css-change redraws it; a press that changes no class redraws it itself.
 	buildDarkLightIndicator(this: WordSmith) {
-		const word = this.isDarkTheme() ? wsT('Dark') : wsT('Light');
+		const word = this.colorModeWord();
 		return this.buildBarButton('ws-barbtn-darklight',
 			(node: HTMLElement) => this.barTokenPaint(node, 'darklight', word),
 			wsT('{word} \u2014 click to switch', { word }),
-			() => this.barSetColorMode(!this.isDarkTheme()));
+			() => this.barCycleColorMode());
+	},
+
+	// {revisions} (#118): its page-and-clock, the word, or both, and no count (the writer: "Don't show the number of
+	// revisions"); a press opens the Revisions menu (save one, compare, the deleted notes), the one the Powermenu's row opens
+	buildRevisionsIndicator(this: WordSmith) {
+		return this.buildBarButton('ws-barbtn-revisions',
+			(node: HTMLElement) => this.barTokenPaint(node, 'revisions', wsT('Revisions')),
+			wsT('Revisions of this note: click to save one or compare'),
+			(anchor: HTMLElement) => this.openBarPicker(anchor, this.revMenuItems(), 'choose'));
 	},
 
 	cursorSmithSettings(this: WordSmith): WsCursorSmithSettings | null {
@@ -5207,6 +5219,7 @@ export const barMethods = {
 			FONT:     () => this.buildFontIndicator(),
 			THEME:    () => this.buildThemeIndicator(),
 			DARKLIGHT: () => this.buildDarkLightIndicator(),
+			REVISIONS: () => this.buildRevisionsIndicator(),
 			CURSORS:  () => this.buildCursorsIndicator(),
 			LANG:     () => this.buildLangIndicator(),
 			REPORT:   () => this.buildReportIndicator(),

@@ -25,6 +25,8 @@ The Themes page is a list you curate: one card per scheme, the one in use ticked
 
 A master switch at the top of the page. Off, nothing is painted and nothing is forgotten. Picking a scheme from the bar switches it on. Picking **Default** switches it off.
 
+**Follow the system** under it lets Obsidian follow your computer's light and dark. Picking Light or Dark from the Powermenu or `{darklight}` turns it off.
+
 ## Options
 
 Each one separate, each off to start.

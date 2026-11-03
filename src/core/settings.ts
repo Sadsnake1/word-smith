@@ -164,6 +164,8 @@ export interface WsMenuRowSpec {
 	label: string | (() => string);
 	items?: () => WsMenuPickItem[];
 	count?: boolean;
+	// a drawer of actions, not of choices (Revisions, #118): nothing written beside its name
+	actions?: boolean;
 	keywords?: string;
 	full?: string;
 	toggle?: () => unknown;

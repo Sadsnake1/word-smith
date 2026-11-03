@@ -48,6 +48,11 @@ import type { WsPack } from '../core/language';
 import type { WsRef } from '../core/citations';
 import { diagnosticsMethods } from './diagnostics';
 import type { DiagnosticsMethods } from './diagnostics';
+import { revisionsMethods, WS_REV_VIEW } from './revisions';
+import type { RevisionsMethods } from './revisions';
+import { WsRevisionsView } from './revisions-view';
+import { WS_REV_DIR } from '../core/revisions-core';
+import type { WsRevMeta } from '../core/revisions-core';
 import { paintMethods } from './paint';
 import type { PaintMethods } from './paint';
 import { editorMethods } from '../editor/editor';
@@ -162,6 +167,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin._lastTypo        = null;   // last typography substitution, for backspace-to-revert
 	plugin._barPicker       = null;   // open bar popup, if any
 	plugin._backupLast = null; plugin._backupTried = null; plugin._ownFolders = null; plugin._ownMarked = null; plugin._ownExcludeTimer = null;
+	plugin._revMeta = null; plugin._revDirty = null; plugin._revRecovery = null;
 	plugin._goalNowState = null;
 	plugin._goalFolderCounts = null; plugin._goalFolderBusy = false;
 	plugin._goalPanel = null; plugin._goalPanelOff = null;
@@ -236,6 +242,10 @@ function wsFieldsReset(plugin: WordSmith) {
 export function wsRegisterCommands(plugin: WordSmith) {
 	// THE DAILY TARGET, from the palette (PR #93, A879): the token's panel when the token is on the bar, else a prompt
 	// for the words a day, 0 for none
+	// REVISIONS (#118): save one (the popup asks its name), compare the open note's, the deleted notes
+	plugin.addCommand({ id: 'save-revision', name: 'Save a revision of this note', checkCallback: (checking: boolean) => { const p = plugin.revActivePath(); if (!p) return false; if (!checking) plugin.revSavePrompt(p); return true; } });
+	plugin.addCommand({ id: 'compare-revisions', name: 'Compare this note with its revisions', checkCallback: (checking: boolean) => { const p = plugin.revActivePath(); if (!p || !plugin.revCount(p)) return false; if (!checking) void plugin.revOpen(p); return true; } });
+	plugin.addCommand({ id: 'revisions-deleted-notes', name: 'Show deleted notes that have revisions', callback: () => plugin.revDeletedModal() });
 	plugin.addCommand({
 		id: 'set-daily-target',
 		name: 'Set the daily target',
@@ -504,11 +514,17 @@ export function wsWireWorkspace(plugin: WordSmith) {
 			plugin.filesMenuFor(menu, files);
 		});
 
+	// AN OPEN REVISIONS TAB FOLLOWS ITS NOTE AS IT IS TYPED IN (#118), not only once it is saved
+	plugin.onAppEvent(plugin.app.workspace, 'editor-change', (_ed: unknown, info: { file?: { path: string } | null } | null) => {
+		if (plugin.revOn() && info && info.file) plugin.revViewsChanged(info.file.path);
+	});
 	plugin.onAppEvent(plugin.app.workspace, 'file-open', (file: TAbstractFile) => {
 		// THE NOTE YOU OPEN IS MARKED by every open Organizer that shows it; none moves (A892).
 		plugin.orgTreeFollow(file && file.path);
 		// …AND WEIGHED, if History has never seen it, so its first edit counts (A863)
 		void plugin.historyNoteOpened(file);
+		// …and its revisions' headers read, so the menu says what each one is the first time it opens (#118)
+		if (file && plugin.revOn()) void plugin.revList(file.path);
 		plugin.syncScope();
 		plugin.applyEditorFont();
 		plugin.applyVimMotionMaps();
@@ -814,6 +830,9 @@ export function wsWireDocument(plugin: WordSmith) {
 export function wsWireVault(plugin: WordSmith) {
 	plugin.onAppEvent(plugin.app.vault, 'modify', (file: TAbstractFile) => {
 		plugin.packsChanged(file && file.path);
+		// a note that changed is due a revision at the next interval, and an open Revisions tab on it draws again (#118)
+		plugin.revNoteChanged(file);
+		if (file) plugin.revViewsChanged(file.path);
 		plugin.citeChanged(file && file.path);
 		if (plugin.wordCountCache) plugin.wordCountCache.delete(file.path);
 		plugin.scheduleExplorerPatch();
@@ -896,6 +915,8 @@ export function wsWireVault(plugin: WordSmith) {
 	});
 	plugin.onAppEvent(plugin.app.vault, 'rename', (file: TAbstractFile, oldPath: string) => {
 		plugin.packsChanged(file && file.path);
+		// a note's revisions go where it went (#118)
+		void plugin.revFollowRename(file, oldPath);
 		plugin.citeChanged(file && file.path);
 		plugin.packsChanged(oldPath);
 		plugin.citeRenamed(oldPath, file.path);
@@ -1080,7 +1101,7 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 // area's methods (its value is Plugin itself), so a method added to an area module is known to the checker at once.
 // (Until 2026-10-22 each one was declared here by hand, 782 lines. A class and an interface of one name would say the
 // same in one line, and the review refuses that merge: no-unsafe-declaration-merging.)
-type WsAreaMethods = HistoryMethods & ExportMethods & ThemesMethods & StoresMethods & ReportMethods & MenuMethods & BarMethods & OrganizerWindowMethods & TreeMethods & FocusMethods & EditorMethods & PaintMethods & DiagnosticsMethods;
+type WsAreaMethods = HistoryMethods & ExportMethods & ThemesMethods & StoresMethods & ReportMethods & MenuMethods & BarMethods & OrganizerWindowMethods & TreeMethods & FocusMethods & EditorMethods & PaintMethods & DiagnosticsMethods & RevisionsMethods;
 const WsPluginWithAreas = Plugin as unknown as new (...args: ConstructorParameters<typeof Plugin>) => Plugin & WsAreaMethods;
 export default class WordSmith extends WsPluginWithAreas {
 	// ── THE FIELDS ─────────────────────────────────────────────────────────
@@ -1162,6 +1183,10 @@ export default class WordSmith extends WsPluginWithAreas {
 	_backupTried: Set<string> | null;
 	// A733: the plugin's own folders, read once until the vault changes, and the explorer rows marked hidden
 	_ownFolders: string[] | null;
+	// #118: revisions' headers read once, the notes changed since their last one, File recovery's texts by their keys
+	_revMeta: Map<string, WsRevMeta | null> | null;
+	_revDirty: Set<string> | null;
+	_revRecovery: Map<string, string> | null;
 	_ownMarked: Set<string> | null;
 	// #71: Obsidian's Excluded files brought in line a moment after the vault changes
 	_ownExcludeTimer: number | null;
@@ -1661,6 +1686,10 @@ export default class WordSmith extends WsPluginWithAreas {
 		// to run the command. Registering is a map entry — the tree is built
 		// in `onOpen`, and only if the pane is actually there.
 		this.registerOutlinerPane();
+		// REVISIONS' VIEW (#118), registered at load for the same reason: a saved workspace asks for it by name
+		try { const View = WsRevisionsView; if (View) this.registerView(WS_REV_VIEW, (leaf: WorkspaceLeaf) => new View(leaf, this)); } catch (_) { wsCatch('onload: registerView(WS_REV_VIEW)', _); }
+		// …and the automatic ones, looked at once a minute: only notes that changed, only past their interval (revAutoTick)
+		this.registerInterval(window.setInterval(() => { void this.revAutoTick(); }, 60000));
 		// THE METHODS STAY WHERE THEY HAVE OTHER CALLERS: `openOutlinerPane` is
 		// how `orgOpenTab` opens a tab that is not open, and `openOutlinerPopout`
 		// is the window’s own pop-out door. `openWritingLayout` had no caller but
@@ -3222,10 +3251,14 @@ export default class WordSmith extends WsPluginWithAreas {
 		// sanctioned door, and it answers null for a deferred view rather than
 		// a shell with no type. The three panes are three instances of the one
 		// view class.
+		// AND THE REVISIONS TAB, its own class (the writer, 2026-11-03: "i think this is the default status bar", Obsidian's
+		// own, empty, in the corner of a compare)
 		try {
 			if (!WsOutlinerView) return false;
 			const ws = this.app.workspace;
-			const v = ws && typeof ws.getActiveViewOfType === 'function' ? ws.getActiveViewOfType(WsOutlinerView) : null;
+			const outliner = WsOutlinerView, revisions = WsRevisionsView;
+			const ours = (view: unknown) => view instanceof outliner || (!!revisions && view instanceof revisions);
+			const v = ws && typeof ws.getActiveViewOfType === 'function' ? ws.getActiveViewOfType(WsOutlinerView) || (WsRevisionsView ? ws.getActiveViewOfType(WsRevisionsView) : null) : null;
 			if (v) return true;
 			// A SIDEBAR IN FOCUS LEAVES THE MAIN AREA'S ANSWER (A764, the writer: "if i have the organizer open and i click in
 			// the word-smith pane the obsidian status bar appears, check for history and export tabs too"): the pane took the
@@ -3233,7 +3266,7 @@ export default class WordSmith extends WsPluginWithAreas {
 			// in focus anywhere is the note's answer.
 			if (!ws || (typeof ws.getActiveViewOfType === 'function' && ws.getActiveViewOfType(MarkdownView))) return false;
 			const leaf = typeof ws.getMostRecentLeaf === 'function' ? ws.getMostRecentLeaf() : null;
-			return !!(leaf && leaf.view instanceof WsOutlinerView);
+			return !!(leaf && ours(leaf.view));
 		} catch (_) { wsCatch('wsOwnViewActive: const v = ws.getActiveViewOfType(WsOutlinerView);', _); return false; }
 	}
 
@@ -3537,6 +3570,8 @@ export default class WordSmith extends WsPluginWithAreas {
 		// A LANGUAGE PACK (A571) is the plugin's own file too: visible, never
 		// the writer's writing. Known by its name, before any scan.
 		if (wsIsPackPath(path)) return true;
+		// …AND A REVISION (#118), anywhere in ws-revisions: a copy of a note is not more writing
+		if (this.revIsPath(path)) return true;
 		try {
 			if (path === this._historyPath) return true;
 			if (path === this.structurePathNow()) return true;
@@ -3582,7 +3617,8 @@ export default class WordSmith extends WsPluginWithAreas {
 			const kids = node && wsIsFolder(node) ? node.children : null;
 			// (BY NAME TOO, measured live: just after a reload the history is not loaded yet, so `isStoreFile` did not know
 			// ws-history.md and the folder was no one's; the plugin's files keep their names wherever they live)
-			if (kids && kids.length && kids.every((k) => !wsIsFolder(k) && (this.isStoreFile(k.path) || WS_OWN_NAMES.test(k.name)))) out.push(dir);
+			// (…and the revisions' folder, #118: a folder of the plugin's that holds one is still the plugin's own)
+			if (kids && kids.length && kids.every((k) => (wsIsFolder(k) ? k.name === WS_REV_DIR : (this.isStoreFile(k.path) || WS_OWN_NAMES.test(k.name))))) out.push(dir);
 		}
 		this._ownFolders = out;
 		return out;
@@ -3631,8 +3667,12 @@ export default class WordSmith extends WsPluginWithAreas {
 		if (!vault || typeof vault.getConfig !== 'function' || typeof vault.setConfig !== 'function') return;
 		if (!this.app.workspace || !this.app.workspace.layoutReady) return;
 		const ours = (this.settings.ownExcluded || []).map(String);
-		if (!this.settings.hideOwnFolder && !ours.length) return;
+		if (!this.settings.hideOwnFolder && !this.settings.revisionsOn && !ours.length) return;
 		const want = this.settings.hideOwnFolder ? this.ownFolders().map((d) => d + '/') : [];
+		// …AND THE REVISIONS' FOLDER whenever revisions are on (#118): out of search, the graph, Bases and the switcher,
+		// and still synced, Sync not reading this list
+		const revs = this.revRoot() + '/';
+		if (this.settings.revisionsOn && !want.some((w) => revs.startsWith(w))) want.push(revs);
 		const raw = vault.getConfig('userIgnoreFilters');
 		const now = Array.isArray(raw) ? raw.map(String) : [];
 		const next = now.filter((e) => !(ours.includes(e) && !want.includes(e)));
@@ -3649,7 +3689,7 @@ export default class WordSmith extends WsPluginWithAreas {
 	}
 	// …a moment after the vault changes (the folder moved or renamed), and only while there is something to keep in line
 	excludeOwnFolderSoon() {
-		if (!this.settings || (!this.settings.hideOwnFolder && !(this.settings.ownExcluded || []).length)) return;
+		if (!this.settings || (!this.settings.hideOwnFolder && !this.settings.revisionsOn && !(this.settings.ownExcluded || []).length)) return;
 		if (this._ownExcludeTimer) window.clearTimeout(this._ownExcludeTimer);
 		this._ownExcludeTimer = window.setTimeout(() => { this._ownExcludeTimer = null; this.excludeOwnFolder(); }, 1500);
 	}
@@ -3956,4 +3996,4 @@ export default class WordSmith extends WsPluginWithAreas {
 }
 
 // The modules' methods onto the prototype (WsAreaMethods, over the class, is their type).
-Object.assign(WordSmith.prototype, historyMethods, exportMethods, themesMethods, storesMethods, menuMethods, barMethods, reportMethods, organizerWindowMethods, treeMethods, focusMethods, editorMethods, paintMethods, diagnosticsMethods);
+Object.assign(WordSmith.prototype, historyMethods, exportMethods, themesMethods, storesMethods, menuMethods, barMethods, reportMethods, organizerWindowMethods, treeMethods, focusMethods, editorMethods, paintMethods, diagnosticsMethods, revisionsMethods);

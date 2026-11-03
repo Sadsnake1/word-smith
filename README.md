@@ -174,6 +174,8 @@ No model, no network, no verdicts. Offline and based on some regex rules and a s
 
 [The menu](docs/commands-and-menu.md). More like the PowaaahMenu. Any Obsidian command can go in. Yes, you read it right. ANY Obsidian command!
 
+[Revisions](docs/revisions.md). Earlier versions of your notes, kept in your vault. Save one by hand or every so often, compare it with the note as it is now, word by word like track changes, and accept or reject each change. Off until you switch it on.
+
 Plus typography, text options, Vim niceties and word counts, flags and targets in Obsidian's own file tree for a quick glance and back to work!
 
 New here? A welcome walks you through the setup on first start, and Settings → Word-Smith → About brings it back, with what's new.
@@ -243,7 +245,7 @@ Made a writing space you love? Share a screenshot and your bar's share code in t
 
 ## Docs
 
-[Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Language packs](docs/language-packs.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
+[Organizer](docs/organizer.md) · [Export](docs/export.md) · [Writing modes](docs/writing-modes.md) · [Powerline](docs/powerline.md) · [Themes](docs/themes.md) · [History and report](docs/history-and-report.md) · [Revisions](docs/revisions.md) · [Syntax and prose](docs/syntax-and-prose.md) · [Language packs](docs/language-packs.md) · [Commands and menu](docs/commands-and-menu.md) · [Privacy](docs/privacy.md) · [Troubleshooting](docs/troubleshooting.md)
 
 
 ## Special thanks *(must be read in Dumbledore's voice)*

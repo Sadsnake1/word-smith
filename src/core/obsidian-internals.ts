@@ -107,6 +107,22 @@ export const WS_INTERNALS = [
 		}
 	},
 	{
+		id: 'fileRecovery',
+		kind: 'method',
+		what: 'internalPlugins.getEnabledPluginById(file-recovery).db',
+		where: 'the app',
+		sometimes: true,
+		without: 'File recovery’s versions are not listed with your revisions.',
+		probe: (app: App) => {
+			try {
+				const ip = app.internalPlugins;
+				if (!ip || typeof ip.getEnabledPluginById !== 'function') return false;
+				const fr = ip.getEnabledPluginById('file-recovery');
+				return fr ? !!fr.db : null;
+			} catch { return null; }
+		}
+	},
+	{
 		id: 'explorerRelayout',
 		kind: 'method',
 		what: 'tree.infinityScroll.invalidateAll',
