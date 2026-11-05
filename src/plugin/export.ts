@@ -1924,8 +1924,8 @@ export const exportMethods = {
 		// Folder names as headings — off, because it changes the shape of
 		// every existing export and a flat folder of scenes gains nothing.
 		dflt('folderHeadings', WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
-		dflt(o.wordCountOnTitle, true);
- 		// …and this is pinned, because the convention decides it
+		dflt('wordCountOnTitle', true);
+		// …and this is pinned, because the convention decides it
 		// and a switch nobody moves is a switch that only takes up room.
 		o.pageNumbers = true;
 		// PICTURES TRAVEL, ALWAYS (A568): a note with pictures exports with
@@ -1956,7 +1956,7 @@ export const exportMethods = {
 		dflt('justify', false);   dflt('keepHeadings', true);
 		dflt('numberStyle', 'none'); dflt('indentAfterHeads', false); dflt('keepBlankLines', false);
 		dflt('centerHeads', true);
-		dflt('smartQuotes', false); dflt('wordCountOnTitle', true);
+		dflt('smartQuotes', false);
 		dflt('roundWordCount', true);
 		dflt('pageNumbers', true);
 		dflt('outFolder', '');  dflt('toc', false);
