@@ -26,7 +26,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var C, COUNT, SET, top, StyleModule, adoptedSet, StyleSet;
 var init_style_mod = __esm({
-  "../node_modules/style-mod/src/style-mod.js"() {
+  "node_modules/style-mod/src/style-mod.js"() {
     C = "ͼ";
     COUNT = typeof Symbol == "undefined" ? "__" + C : Symbol.for(C);
     SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : /* @__PURE__ */ Symbol("styleSet");
@@ -99,15 +99,18 @@ var init_style_mod = __esm({
       mount(modules, root) {
         let sheet = this.sheet;
         let pos = 0, j = 0;
+        let changed = false;
         for (let i = 0; i < modules.length; i++) {
           let mod = modules[i], index = this.modules.indexOf(mod);
           if (index < j && index > -1) {
             this.modules.splice(index, 1);
+            changed = true;
             j--;
             index = -1;
           }
           if (index == -1) {
             this.modules.splice(j++, 0, mod);
+            changed = true;
             if (sheet)
               for (let k = 0; k < mod.rules.length; k++)
                 sheet.insertRule(mod.rules[k], pos++);
@@ -122,10 +125,12 @@ var init_style_mod = __esm({
           if (root.adoptedStyleSheets.indexOf(this.sheet) < 0)
             root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
         } else {
-          let text = "";
-          for (let i = 0; i < this.modules.length; i++)
-            text += this.modules[i].getRules() + "\n";
-          this.styleTag.textContent = text;
+          if (changed) {
+            let text = "";
+            for (let i = 0; i < this.modules.length; i++)
+              text += this.modules[i].getRules() + "\n";
+            this.styleTag.textContent = text;
+          }
           let target = root.head || root;
           if (this.styleTag.parentNode != target)
             target.insertBefore(this.styleTag, target.firstChild);
@@ -1018,7 +1023,7 @@ function overrideChunkInline(state, chunk, builder, gutterBuilder) {
 }
 var import_view2, import_state2, import_language3, import_highlight, Change, scanLimit, timeout, crude, Frontier, frontier1, frontier2, wordChar, MAX_SCAN, isSurrogate1, isSurrogate2, mergeConfig, setChunks, computeChunks, ChunkField, moveByChunk, goToNextChunk, goToPreviousChunk, Chunk, updateMargin, defaultDiffConfig, decorateChunks, changeGutter, changedLine, changedText, inserted, deleted, changedLineGutterMarker, Spacer, adjustSpacers, Spacers, epsilon, uncollapseUnchanged, CollapseWidget, CollapsedRanges, externalTheme, baseTheme, collapseCompartment, configCompartment, MergeView, deletedChunkGutterMarker, unifiedChangeGutter, updateOriginalDoc, originalDoc, DeletionWidgets, DeletionWidget, deletedChunks, InlineChunkCache, InlineDeletion, inlineChangedLineGutterMarker, inlineChangedLine;
 var init_dist = __esm({
-  "../node_modules/@codemirror/merge/dist/index.js"() {
+  "node_modules/@codemirror/merge/dist/index.js"() {
     import_view2 = require("@codemirror/view");
     import_state2 = require("@codemirror/state");
     init_style_mod();
@@ -45186,7 +45191,7 @@ var exportMethods = {
         parts.push("## " + String(o.subtitleText).trim());
       if (o.author)
         parts.push("*" + wsTIn(o.lang, "by {author}", { author: o.author }) + "*");
-      if (o.wordCount != null) {
+      if (o.wordCount != null && o.wordCountOnTitle !== false) {
         parts.push("*" + wsTitleWords(o) + "*");
       }
       parts.push("");
@@ -45265,7 +45270,7 @@ var exportMethods = {
     dflt("dashPageBreak", false);
     dflt("snippetCss", false);
     dflt("folderHeadings", WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
-    o.wordCountOnTitle = true;
+    dflt(o.wordCountOnTitle, true);
     o.pageNumbers = true;
     delete bag2.keepImages;
     delete bag2.dropImages;

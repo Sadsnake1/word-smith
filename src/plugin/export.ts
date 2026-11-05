@@ -1807,7 +1807,7 @@ export const exportMethods = {
 			// (the subtitle, #81)
 			if (String(o.subtitleText || '').trim()) parts.push('## ' + String(o.subtitleText).trim());
 			if (o.author) parts.push('*' + wsTIn(o.lang, 'by {author}', { author: o.author }) + '*');
-			if (o.wordCount != null) {
+			if (o.wordCount != null && o.wordCountOnTitle !== false) {
 				parts.push('*' + wsTitleWords(o) + '*');
 			}
 			parts.push('');
@@ -1924,9 +1924,9 @@ export const exportMethods = {
 		// Folder names as headings — off, because it changes the shape of
 		// every existing export and a flat folder of scenes gains nothing.
 		dflt('folderHeadings', WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
-		// …and these two are pinned, because the convention decides them
+		dflt(o.wordCountOnTitle, true);
+ 		// …and this is pinned, because the convention decides it
 		// and a switch nobody moves is a switch that only takes up room.
-		o.wordCountOnTitle = true;
 		o.pageNumbers = true;
 		// PICTURES TRAVEL, ALWAYS (A568): a note with pictures exports with
 		// them, so the "Image placeholders" switch is gone and its keys with
