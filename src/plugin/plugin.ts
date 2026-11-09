@@ -77,6 +77,8 @@ import { exportMethods } from './export';
 import type { ExportMethods } from './export';
 import { historyMethods } from './history';
 import type { HistoryMethods } from './history';
+import { scratchMethods } from './scratch';
+import type { ScratchMethods } from './scratch';
 import type { WsCm5Facade, WsSyncInstance } from '../core/obsidian-private';
 
 // THE HISTORY RECORD as the store holds it: the days by date, the paths' totals,
@@ -153,6 +155,7 @@ function wsFieldsReset(plugin: WordSmith) {
 	plugin.clockInterval    = null;
 	plugin._wpm = null; plugin._wpmTimer = null; plugin._wpmWanted = false; plugin._wpmDayDirty = false;
 	plugin._dailyWordsTimer = null; plugin._dailyWordsWeighing = null;
+	plugin._scratchLeaf = null; plugin._scratchWant = null; plugin._scratchQueue = null;
 	plugin.batteryLevel     = null;
 	plugin.batteryCharging  = false;
 	plugin._batteryManager  = null;   // kept so listeners can be detached on unload
@@ -250,6 +253,17 @@ export function wsRegisterCommands(plugin: WordSmith) {
 		id: 'set-daily-target',
 		name: 'Set the daily target',
 		callback: () => plugin.dailyTargetOpen()
+	});
+	// THE SCRATCH PAD (scratch.ts)
+	plugin.addCommand({
+		id: 'open-scratch-pad',
+		name: 'Open the scratch pad',
+		callback: () => { void plugin.scratchOpen(true); }
+	});
+	plugin.addCommand({
+		id: 'toggle-scratch-pad',
+		name: 'Show or hide the scratch pad',
+		callback: () => { plugin.scratchToggle(); }
 	});
 	plugin.addCommand({
 		id: 'repair-display',
@@ -612,7 +626,12 @@ export function wsWireWorkspace(plugin: WordSmith) {
 	});
 	plugin.onAppEvent(plugin.app.workspace, 'file-open', () => {
 		plugin.rememberActiveMarkdown();
+		// THE SCRATCH PAD follows the note you open, while its pane is open
+		plugin.scratchFollow();
 	});
+	// …and the note you move to, in another pane
+	plugin.onAppEvent(plugin.app.workspace, 'active-leaf-change', () => plugin.scratchFollow());
+	plugin.app.workspace.onLayoutReady(() => plugin.scratchFollow());
 	plugin.onAppEvent(plugin.app.workspace, 'css-change', () => {
 		// A theme's stylesheet can move the bar's color with nothing on <body>
 		// changing: the remembered read goes.
@@ -924,6 +943,8 @@ export function wsWireVault(plugin: WordSmith) {
 		void plugin.renameScopePath(oldPath, file.path);
 		plugin.historyRenamePath(oldPath, file.path);
 		plugin.dailyWordsRename(oldPath, file.path);
+		// a note's scratch pad goes with it
+		plugin.scratchRenamed(file, oldPath);
 		// FIRST, before anything writes: if the thing that moved was one
 		// of this plugin's own files — or a folder holding one — the
 		// path in settings has to follow it, or the next write makes a
@@ -1101,7 +1122,7 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 // area's methods (its value is Plugin itself), so a method added to an area module is known to the checker at once.
 // (Until 2026-10-22 each one was declared here by hand, 782 lines. A class and an interface of one name would say the
 // same in one line, and the review refuses that merge: no-unsafe-declaration-merging.)
-type WsAreaMethods = HistoryMethods & ExportMethods & ThemesMethods & StoresMethods & ReportMethods & MenuMethods & BarMethods & OrganizerWindowMethods & TreeMethods & FocusMethods & EditorMethods & PaintMethods & DiagnosticsMethods & RevisionsMethods;
+type WsAreaMethods = HistoryMethods & ExportMethods & ThemesMethods & StoresMethods & ReportMethods & MenuMethods & BarMethods & OrganizerWindowMethods & TreeMethods & FocusMethods & EditorMethods & PaintMethods & DiagnosticsMethods & RevisionsMethods & ScratchMethods;
 const WsPluginWithAreas = Plugin as unknown as new (...args: ConstructorParameters<typeof Plugin>) => Plugin & WsAreaMethods;
 export default class WordSmith extends WsPluginWithAreas {
 	// ── THE FIELDS ─────────────────────────────────────────────────────────
@@ -1379,6 +1400,10 @@ export default class WordSmith extends WsPluginWithAreas {
 	// the daily target: today's record's save on a rest, and the notes being weighed from disk for their start
 	_dailyWordsTimer: number | null;
 	_dailyWordsWeighing: Set<string> | null;
+	// the scratch pad's pane in the right sidebar, the note whose pad it should show, and the switches in line
+	_scratchLeaf: WorkspaceLeaf | null;
+	_scratchWant: string | null;
+	_scratchQueue: Promise<void> | null;
 	currentScroller: HTMLElement | null;
 	editorExtensions: Extension[];
 	explorerObserver: MutationObserver | null;
@@ -3612,20 +3637,25 @@ export default class WordSmith extends WsPluginWithAreas {
 			}
 		} catch (_) { wsCatch('ownFolders: this.app.vault.getFiles()', _); }
 		const out: string[] = [];
+		const scratch = this.scratchRoot();
 		for (const dir of dirs) {
 			const node = this.app.vault.getAbstractFileByPath(dir);
 			const kids = node && wsIsFolder(node) ? node.children : null;
 			// (BY NAME TOO, measured live: just after a reload the history is not loaded yet, so `isStoreFile` did not know
 			// ws-history.md and the folder was no one's; the plugin's files keep their names wherever they live)
-			// (…and the revisions' folder, #118: a folder of the plugin's that holds one is still the plugin's own)
-			if (kids && kids.length && kids.every((k) => (wsIsFolder(k) ? k.name === WS_REV_DIR : (this.isStoreFile(k.path) || WS_OWN_NAMES.test(k.name))))) out.push(dir);
+			// (…and the revisions' folder, #118: a folder of the plugin's that holds one is still the plugin's own; and the
+			// scratch pads' folder the same)
+			if (kids && kids.length && kids.every((k) => (wsIsFolder(k) ? (k.name === WS_REV_DIR || k.path === scratch) : (this.isStoreFile(k.path) || WS_OWN_NAMES.test(k.name))))) out.push(dir);
 		}
 		this._ownFolders = out;
 		return out;
 	}
 	// …and whether a path is in it, the switch on: the folder and everything in it
 	isOwnHidden(path: string): boolean {
-		if (!this.settings || !this.settings.hideOwnFolder || !path) return false;
+		if (!this.settings || !path) return false;
+		// THE SCRATCH PADS, switch or no switch: never a row in the Organizer, never a chapter of the compiled book
+		if (this.isScratchPath(path)) return true;
+		if (!this.settings.hideOwnFolder) return false;
 		return this.ownFolders().some((d0) => path === d0 || path.startsWith(d0 + '/'));
 	}
 	// …and out of Obsidian's file explorer: its row and its children go with the folder's `.nav-folder` (the class is
@@ -3710,6 +3740,8 @@ export default class WordSmith extends WsPluginWithAreas {
 		// a writer was choosing files. A record of the writing should not
 		// record itself being kept.
 		if (this.isStoreFile(file.path)) return false;
+		// …AND A SCRATCH PAD: notes about the writing, never the writing
+		if (this.isScratchPath(file.path)) return false;
 		if (!this.isFileInScope(file)) return false;
 		return !this.isPathExcludedFromCounts(file.path);
 	}
@@ -3996,4 +4028,4 @@ export default class WordSmith extends WsPluginWithAreas {
 }
 
 // The modules' methods onto the prototype (WsAreaMethods, over the class, is their type).
-Object.assign(WordSmith.prototype, historyMethods, exportMethods, themesMethods, storesMethods, menuMethods, barMethods, reportMethods, organizerWindowMethods, treeMethods, focusMethods, editorMethods, paintMethods, diagnosticsMethods, revisionsMethods);
+Object.assign(WordSmith.prototype, historyMethods, exportMethods, themesMethods, storesMethods, menuMethods, barMethods, reportMethods, organizerWindowMethods, treeMethods, focusMethods, editorMethods, paintMethods, diagnosticsMethods, revisionsMethods, scratchMethods);

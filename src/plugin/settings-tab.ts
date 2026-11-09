@@ -2202,6 +2202,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			{ key: 'organizer', name: 'Organizer', icon: 'list-tree', on: org, draw: (el) => { plugin.menuDrawIcon(el, 'organizer'); } },
 			{ key: 'tree', name: 'File tree', icon: 'folder-tree', on: () => !!(s.enableFileTreeCounts || s.fileTreeFlags || s.fileTreeTasks || s.fileTreeNumbers || s.fileTreeFolderIcons || s.treeOrder || s.enableOutlineCounts) },
 			{ key: 'history', name: 'History', icon: 'history', on: hist, draw: (el) => { plugin.menuDrawIcon(el, 'history'); } },
+			{ key: 'scratch', name: 'Scratch pad', icon: wsIconPick(['notebook-pen', 'notepad-text', 'sticky-note']) },
 		];
 		const value = () => {
 			const parts: string[] = [];
@@ -2256,6 +2257,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Delete all history', desc: 'Every day on record. No second copy, no undo.', render: (st) => this.renderHistoryDelete(st), visible: hist },
 				this.hotkeysRow(['open-history']),
 			], this.railed('manuscript', 'history')),
+			// THE SCRATCH PAD (scratch.ts)
+			this.section('Scratch pad', [
+				this.buttonRow('Scratch pad', 'A note beside every note, in the right sidebar. It follows the note you\u2019re in.', 'Open', () => { void plugin.scratchOpen(true); }),
+				{ name: 'Scratch pad folder', desc: 'Each pad at its note\u2019s own path. Pads never count as writing. Pads already made stay where they are.',
+					control: { type: 'text', key: 'scratchPadFolder', placeholder: 'Word-Smith/Scratch pads' } },
+				this.hotkeysRow(['open-scratch-pad', 'toggle-scratch-pad']),
+			], this.railed('manuscript', 'scratch')),
 		], value, on);
 	}
 
@@ -2918,6 +2926,8 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 		tab.plugin.revChanged();
 		tab.update();
 	},
+	// the plugin's folder read again: the pads' folder inside it is the plugin's
+	scratchPadFolder: (tab) => { tab.plugin._ownFolders = null; },
 	settingsMirror: (tab) => { tab.update(); },   // the file row's text follows
 };
 

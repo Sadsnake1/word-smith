@@ -4801,6 +4801,8 @@ export const DEFAULT_SETTINGS = {
 	dailyWordGoal:            0,
 	// …and how {dailytarget} says it: 'ratio' (356/1,000) | 'percent' (36%) | 'bar' (the bar alone)
 	dailyTargetFormat:        'ratio',
+	// THE SCRATCH PAD: where each note's pad is kept, at the note's own path below this folder
+	scratchPadFolder:         'Word-Smith/Scratch pads',
 	// …and TODAY'S WORDS while History is off, a new record each day: each note's count the first time it was seen today
 	// (`start`, read from the saved note, never the editor mid-switch) and its count now (`last`, live). Today's words are
 	// what the notes gained between the two, summed: a deletion takes words back. `reset` is today's figure when Reset
