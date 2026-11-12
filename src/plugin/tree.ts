@@ -61,9 +61,25 @@ export const treeMethods = {
 				label: String(was.label || def.label || id),
 				shape: was.shape || def.shape || 'pennant',
 				light: was.light || def.light || '#888888',
-				dark:  was.dark  || def.dark  || '#888888'
+				dark:  was.dark  || def.dark  || '#888888',
+				// ABSENT MEANS THE DEFAULT, so a vault that stored its flags
+				// before the switch existed gets Notes excluded and the other
+				// states counted, exactly as the shipped definitions say.
+				exclude: was.exclude !== undefined ? !!was.exclude : !!def.exclude
 			};
 		});
+	},
+
+	// WHETHER A NOTE'S FLAG SAYS "NOT PROSE". Read by `isFileCounted`, which
+	// every total already consults, so the flag reaches the Organizer, the
+	// Report, the history, the file-tree sums and the goals by one rule. The
+	// note itself is untouched: it stays in the vault, the table and the tree.
+	flagNotCounted(this: WordSmith, path: string) {
+		if (!path) return false;
+		const id = (this.settings.fileStatus || {})[path];
+		if (!id) return false;
+		const def = this.flagDefs().filter(f => f.id === id)[0];
+		return !!(def && def.exclude);
 	},
 
 	flagCount(this: WordSmith) {
@@ -106,6 +122,19 @@ export const treeMethods = {
 			}
 			this._flagsSig = sig;
 		} catch (_) { wsCatch('flagsApply: if (sig !== this._flagsSig) this._orgDraw();', _); }
+		// ── AND THE INDEX, WHEN THE SWITCH MOVED ─────────────────────────
+		//
+		// Turning "Not counted" on for a flag does not touch a single note, yet
+		// it changes what every total should contain. The note flags are the
+		// same; the membership rule is not. Only a change of that rule re-sweeps
+		// — this function runs on nearly every settings save.
+		try {
+			const excl = JSON.stringify(defs.map((f) => [f.id, !!f.exclude]));
+			if (this._flagsExclSig !== undefined && excl !== this._flagsExclSig && this._orgIndex) {
+				void this.orgIndexResweep();
+			}
+			this._flagsExclSig = excl;
+		} catch (_) { wsCatch('flagsApply: excluded flags changed', _); }
 		// ── AND THE FILE TREE IS TOLD ─────────────────────────────────────
 		//
 		// A colour is a CSS custom property, so the tree repaints itself the

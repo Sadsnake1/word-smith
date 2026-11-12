@@ -2419,9 +2419,18 @@ export const storesMethods = {
 		const dated = this.goalDatesStoreAdopt(store);
 		if (dated.folderTargets) this.settings.folderTargets = dated.folderTargets;
 		if (dated.goalDeadlines) this.settings.goalDeadlines = dated.goalDeadlines;
-		if (goals) { this.settings.fileGoals = goals.fileGoals; this.settings.fileStatus = goals.fileStatus || {}; }
+		// A HAND EDIT TO A FLAG is a change of what counts, exactly as a click in
+		// the Flag column is: compare before adopting, then let the index re-sweep
+		// rather than leave yesterday's membership in place.
+		let flagsMoved = false;
+		if (goals) {
+			flagsMoved = JSON.stringify(goals.fileStatus || {}) !== JSON.stringify(this.settings.fileStatus || {});
+			this.settings.fileGoals = goals.fileGoals;
+			this.settings.fileStatus = goals.fileStatus || {};
+		}
 		if (colors) this.settings.folderColors = colors;
 		if (ucols) this.settings.uniUserCols = ucols;
+		if (flagsMoved && this._orgIndex) void this.orgIndexResweep();
 		const sig = this.goalsSignature();
 		if ((!goals && !colors && !ucols && !dated.folderTargets && !dated.goalDeadlines) || sig === this._goalsSig) return false;
 		this._goalsSig = sig;

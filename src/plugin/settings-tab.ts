@@ -89,7 +89,7 @@ import {
 	wsParaSpacing,
 } from '../core/preamble';
 import type WordSmith from './plugin';
-import type { WordSmithSettings, WsExportBoolKey } from '../core/settings';
+import type { WordSmithSettings, WsExportBoolKey, WsFlagDef } from '../core/settings';
 
 type Key = keyof WordSmithSettings;
 type Def = SettingDefinition<Key>;
@@ -2230,6 +2230,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
 				...this.flagRows(flags),
+				this.noteRow('A flag with its switch on leaves the notes carrying it out of word counts, targets and the history. They stay in the table and the tree.', flags),
 				// two cards at the foot: what the window can do that no control on this
 				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
 				// wheel; two fingers on a phone)
@@ -2324,7 +2325,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					st.settingEl.addClass('ws-flagrow');
 					const icon = st.controlEl.createSpan({ cls: 'ws-flagrow-icon' });
 					wsSvgInto(icon, wsFlagSvg(f.id, 13));
-					const write = async (patch: Record<string, string>) => {
+					const write = async (patch: Partial<WsFlagDef>) => {
 						const all = plugin.flagDefs().map((x) => Object.assign({}, x));
 						Object.assign(all.filter((x) => x.id === f.id)[0], patch);
 						plugin.settings.flags = all;
@@ -2339,6 +2340,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					this.swatchRow(st);
 					st.addColorPicker((cp) => cp.setValue(f.light).onChange((v) => { void write({ light: v }); }));
 					st.addColorPicker((cp) => cp.setValue(f.dark).onChange((v) => { void write({ dark: v }); }));
+					// THE MEMBERSHIP SWITCH: a note carrying this flag keeps its
+					// row and its flag, and stops feeding word counts, targets
+					// and the history.
+					st.addToggle((t) => t.setValue(!!f.exclude)
+						.setTooltip(wsT('Not counted in word counts, targets and the history'))
+						.onChange((v) => { void (async () => { await write({ exclude: v }); this.update(); })(); }));
 				},
 			}, ['flags']));
 		}

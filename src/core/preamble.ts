@@ -3589,7 +3589,7 @@ export const HISTORY_MAX_UNSAVED_MS = 120000;
 // `folderStatus`, and the words in `ws-goals.md`): renaming a thing on
 // screen must not rewrite a vault's file.
 //
-// FIVE STATES, in the order a scene passes through them — which is also
+// SIX STATES, in the order a scene passes through them — which is also
 // the order a click cycles, so pressing a chip walks the scene forward
 // through its own life rather than round an arbitrary ring:
 //
@@ -3598,6 +3598,9 @@ export const HISTORY_MAX_UNSAVED_MS = 120000;
 //   Revise    written, and known to need work.
 //   Blocked   cannot proceed — research, continuity, a decision not made.
 //   Done      finished.
+//   Notes     not prose at all: research, an outline, a scratch page. The
+//             words stay on the row and the note stays in the vault, but
+//             they feed no word count, target or history (`exclude`).
 //
 // Stored in `ws-goals.md` beside the targets, because a status is the
 // same kind of fact as a target: the writer's own note about their
@@ -3611,12 +3614,12 @@ export const HISTORY_MAX_UNSAVED_MS = 120000;
 // written on disk, or every note carrying that flag loses it, and a
 // vault synced from a machine with different names would disagree about
 // what its own manuscript says. The label, the shape and the two
-// colours are settings; the five ids are not, and the count decides how
+// colours are settings; the six ids are not, and the count decides how
 // many are offered. The ORDER is the ring's and the count's (the first N
-// are offered): Draft, Revise, Done first, Sketch and Blocked after. A
-// vault's stored flags are read by id, so the order can move; the ids
-// cannot.
-export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked'];
+// are offered): Draft, Revise, Done first, Sketch and Blocked after, and
+// Notes last. A vault's stored flags are read by id, so the order can
+// move; the ids cannot.
+export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked', 'notes'];
 
 // The list every reader of a flag consults, kept in step with the settings by
 // `flagsApply`. A module-level table because `wsStatusLabel` and
@@ -3632,7 +3635,8 @@ export const WS_STATUSES: { id: string; label: string; shape?: string }[] = [
 	{ id: 'revise',  label: 'Revise'  },
 	{ id: 'done',    label: 'Done'    },
 	{ id: 'outline', label: 'Sketch' },
-	{ id: 'blocked', label: 'Blocked' }
+	{ id: 'blocked', label: 'Blocked' },
+	{ id: 'notes',   label: 'Notes' }
 ];
 // ── FOLDER COLOURS ──────────────────────────────────────────────────────────
 //
@@ -3673,7 +3677,7 @@ export const WS_FLAG_SHAPES = [
 	{ id: 'pause',    label: 'Paused' }
 ];
 export const WS_SHAPE_FOR: Record<string, string> = { outline: 'hollow', draft: 'pennant', revise: 'swallow',
-	blocked: 'alert', done: 'banner' };
+	blocked: 'alert', done: 'banner', notes: 'bookmark' };
 
 export function wsFlagShapeOf(id: string) {
 	for (const st of WS_STATUSES) if (st.id === id) return st.shape || WS_SHAPE_FOR[id] || 'pennant';
@@ -5123,12 +5127,18 @@ export const DEFAULT_SETTINGS = {
 		//
 		// THE ORDER IS THE RING'S, AND THE COUNT OFFERS THE FIRST N: Draft,
 		// Revise, Done are a fresh install's three; Sketch and Blocked join when
-		// the count is raised. Same order as WS_STATE_IDS.
-		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9' },
-		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52' },
-		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c' },
-		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98' },
-		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441' }
+		// the count is raised, and Notes last. Same order as WS_STATE_IDS.
+		//
+		// `exclude` IS THE SWITCH BESIDE EACH FLAG: the notes carrying it are
+		// left out of word counts, targets and the history while staying in the
+		// vault, the table and the tree. Notes ships with it on, because that is
+		// the whole point of that state; the other five ship counted.
+		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9', exclude: false },
+		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52', exclude: false },
+		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c', exclude: false },
+		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98', exclude: false },
+		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441', exclude: false },
+		{ id: 'notes',   label: 'Notes',   shape: 'bookmark', light: '#5b7f8a', dark: '#7fa8b5', exclude: true }
 	],
 	// Unticked boxes in the tree, beside the count: "3/5" on a scene says
 	// there is work left in it that a word count cannot.

@@ -2151,6 +2151,9 @@ export const barMethods = {
 				// reads for eleven pixels.
 				this.repaintExplorerFlag(f.path);
 				await this.saveSettings();
+				// …and the totals, when the flag that just landed (or left) is
+				// one that says "not prose".
+				this.orgIndexFlagsChanged([f.path]);
 			});
 	},
 

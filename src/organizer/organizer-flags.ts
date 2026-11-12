@@ -88,6 +88,10 @@ const orgFlagApply = async (pairs: [string, string][]) => {
 		else delete d.s[d.statusStore()][p];
 	}
 	await d.plugin.saveSettings();
+	// A FLAG IS ALSO A MEMBERSHIP QUESTION. Setting "Notes" on a row takes its
+	// words out of every total; clearing it puts them back. The index owns what
+	// counts, so it is told about exactly these paths, not swept wholesale.
+	d.plugin.orgIndexFlagsChanged(pairs.map(([p]) => p));
 	for (const [p] of pairs) d.plugin.repaintExplorerFlag(p);
 	d.drawPanel();
 };
