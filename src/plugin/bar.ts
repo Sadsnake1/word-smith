@@ -2154,6 +2154,11 @@ export const barMethods = {
 				// …and the totals, when the flag that just landed (or left) is
 				// one that says "not prose".
 				this.orgIndexFlagsChanged([f.path]);
+				// …and an open Organizer's row numbers, when the flag on either
+				// side of the change says "no row number".
+				if (this.flagSkipsNumber(now || '') !== this.flagSkipsNumber(next || '')) {
+					if (typeof this._orgDraw === 'function') this._orgDraw();
+				}
 			});
 	},
 

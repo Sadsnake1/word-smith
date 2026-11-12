@@ -362,6 +362,11 @@ export const organizerWindowMethods = {
 			this.settings[store] = all;
 			await this.saveSettings(true);
 			this.orgIndexFlagsChanged([path]);
+			// …and an open Organizer's row numbers, when the flag on either
+			// side of the change says "no row number".
+			if (this.flagSkipsNumber(nowFlag) !== this.flagSkipsNumber(id)) {
+				if (typeof this._orgDraw === 'function') this._orgDraw();
+			}
 			try { void this.patchExplorerDOM(); } catch (_) { wsCatch('fileMenuFor / setFlag: this.patchExplorerDOM();', _); }
 		};
 		const flagRows = (into: Menu) => {

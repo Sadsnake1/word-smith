@@ -91,6 +91,13 @@ export const treeMethods = {
 	flagNotNumbered(this: WordSmith, path: string) {
 		if (!path) return false;
 		const id = (this.settings.fileStatus || {})[path];
+		return this.flagSkipsNumber(id || '');
+	},
+
+	// THE SWITCH ITSELF, BY FLAG ID: needed where the old and the new flag are
+	// both in hand and the path is not — a flag write decides whether the row
+	// numbers moved before it touches the store.
+	flagSkipsNumber(this: WordSmith, id: string) {
 		if (!id) return false;
 		const def = this.flagDefs().filter(f => f.id === id)[0];
 		return !!(def && def.skipNumber);
