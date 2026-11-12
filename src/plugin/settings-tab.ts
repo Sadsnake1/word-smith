@@ -2230,7 +2230,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
 				...this.flagRows(flags),
-				this.noteRow('A flag with its switch on leaves the notes carrying it out of word counts, targets and the history. They stay in the table and the tree.', flags),
+				this.noteRow('Each flag has two switches: the first leaves the notes carrying it out of word counts, targets and the history; the second leaves them out of the Organizer’s and the file tree’s row numbers. The notes stay in the table and the tree either way.', flags),
 				// two cards at the foot: what the window can do that no control on this
 				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
 				// wheel; two fingers on a phone)
@@ -2346,6 +2346,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					st.addToggle((t) => t.setValue(!!f.exclude)
 						.setTooltip(wsT('Not counted in word counts, targets and the history'))
 						.onChange((v) => { void (async () => { await write({ exclude: v }); this.update(); })(); }));
+					// THE NUMBERING SWITCH: the row stays, the number does not,
+					// and the rows after it close the gap.
+					st.addToggle((t) => t.setValue(!!f.skipNumber)
+						.setTooltip(wsT('No row number in the Organizer or the file tree'))
+						.onChange((v) => { void (async () => { await write({ skipNumber: v }); this.update(); })(); }));
 				},
 			}, ['flags']));
 		}

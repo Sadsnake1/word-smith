@@ -65,7 +65,10 @@ export const treeMethods = {
 				// ABSENT MEANS THE DEFAULT, so a vault that stored its flags
 				// before the switch existed gets Notes excluded and the other
 				// states counted, exactly as the shipped definitions say.
-				exclude: was.exclude !== undefined ? !!was.exclude : !!def.exclude
+				exclude: was.exclude !== undefined ? !!was.exclude : !!def.exclude,
+				// …and the same for the numbering switch, which Notes also
+				// ships with on.
+				skipNumber: was.skipNumber !== undefined ? !!was.skipNumber : !!def.skipNumber
 			};
 		});
 	},
@@ -80,6 +83,17 @@ export const treeMethods = {
 		if (!id) return false;
 		const def = this.flagDefs().filter(f => f.id === id)[0];
 		return !!(def && def.exclude);
+	},
+
+	// WHETHER A NOTE'S FLAG SAYS "NO ROW NUMBER". The same lookup as
+	// `flagNotCounted`, on the other switch: the row stays, the number does
+	// not, and the rows after it close the gap.
+	flagNotNumbered(this: WordSmith, path: string) {
+		if (!path) return false;
+		const id = (this.settings.fileStatus || {})[path];
+		if (!id) return false;
+		const def = this.flagDefs().filter(f => f.id === id)[0];
+		return !!(def && def.skipNumber);
 	},
 
 	flagCount(this: WordSmith) {
@@ -135,6 +149,21 @@ export const treeMethods = {
 			}
 			this._flagsExclSig = excl;
 		} catch (_) { wsCatch('flagsApply: excluded flags changed', _); }
+		// ── AND THE ROW NUMBERS, WHEN THAT SWITCH MOVED ──────────────────
+		//
+		// "No row number" changes no note and no total, so it neither re-sweeps
+		// the index nor moves `WS_STATUSES` — but both places that draw numbers
+		// have to be told, or a stale column keeps its numbers until the next
+		// redraw. The same signature trick, and the same redraw of an open
+		// Organizer.
+		try {
+			const num = JSON.stringify(defs.map((f) => [f.id, !!f.skipNumber]));
+			if (this._flagsNumSig !== undefined && num !== this._flagsNumSig) {
+				if (typeof this._orgDraw === 'function') this._orgDraw();
+				if (this.explorerWanted()) this.scheduleExplorerPatch();
+			}
+			this._flagsNumSig = num;
+		} catch (_) { wsCatch('flagsApply: numbered flags changed', _); }
 		// ── AND THE FILE TREE IS TOLD ─────────────────────────────────────
 		//
 		// A colour is a CSS custom property, so the tree repaints itself the
@@ -2005,6 +2034,9 @@ export const treeMethods = {
 					if (!f || this.isOwnHidden(f.path)) continue;
 					const isFolder = wsIsFolder(f);
 					if (!isFolder && !this.uniTypeAllows(f)) continue;
+					// A NOTE THAT IS NOT NUMBERED: no label, and no count taken,
+					// so the rows after it close the gap.
+					if (!isFolder && this.flagNotNumbered(f.path)) continue;
 					const label = (above ? above + '.' : '') + String(++n);
 					labels.set(c, label);
 					if (label.length > widest) widest = label.length;

@@ -1164,6 +1164,8 @@ export default class WordSmith extends WsPluginWithAreas {
 	_flagStamp: string;
 	/** which flags say "not counted", so a change to that switch re-sweeps the index */
 	_flagsExclSig: string;
+	/** which flags say "no row number", so a change to that switch repaints the numbering */
+	_flagsNumSig: string;
 	_fmCache: Record<string, Record<string, boolean | string> | null>;
 	_focusTabPrev: Map<HTMLElement, { display: string; width: string; flexGrow: string; flexShrink: string; flexBasis: string }>;
 	_folderWordBusy: boolean;

@@ -2768,6 +2768,9 @@ export const organizerWindowMethods = {
 				for (const r0 of rows) {
 					const d = lensed ? 0 : (r0.depth || 0);
 					counters.length = d + 1;
+					// A NOTE THAT IS NOT NUMBERED: its row stays, its number does
+					// not, and the next row takes the number it would have had.
+					if (r0.kind !== 'folder' && this.flagNotNumbered(r0.path)) continue;
 					counters[d] = (counters[d] || 0) + 1;
 					const label = counters.slice(0, d + 1).join('.');
 					nums.set(r0.path, label);

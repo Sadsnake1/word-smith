@@ -5133,12 +5133,17 @@ export const DEFAULT_SETTINGS = {
 		// left out of word counts, targets and the history while staying in the
 		// vault, the table and the tree. Notes ships with it on, because that is
 		// the whole point of that state; the other five ship counted.
-		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9', exclude: false },
-		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52', exclude: false },
-		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c', exclude: false },
-		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98', exclude: false },
-		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441', exclude: false },
-		{ id: 'notes',   label: 'Notes',   shape: 'bookmark', light: '#5b7f8a', dark: '#7fa8b5', exclude: true }
+		//
+		// `skipNumber` IS THE SECOND SWITCH: the notes carrying it keep their
+		// rows but take no row number, in the Organizer and the file tree, and
+		// the rows after them close the gap. It is independent of `exclude`:
+		// a counted note can be unnumbered, and an excluded one numbered.
+		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9', exclude: false, skipNumber: false },
+		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52', exclude: false, skipNumber: false },
+		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c', exclude: false, skipNumber: false },
+		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98', exclude: false, skipNumber: false },
+		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441', exclude: false, skipNumber: false },
+		{ id: 'notes',   label: 'Notes',   shape: 'bookmark', light: '#5b7f8a', dark: '#7fa8b5', exclude: true,  skipNumber: true }
 	],
 	// Unticked boxes in the tree, beside the count: "3/5" on a scene says
 	// there is work left in it that a word count cannot.

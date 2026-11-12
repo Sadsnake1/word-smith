@@ -24,7 +24,7 @@ Readings the frontmatter can't give you: word count, target, deadline (the date 
 - **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.
 - Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
 - Folder rows add up what's inside them, folded or not (their Vocabulary counts each word once), and a **Total** row at the foot adds up everything you're looking at.
-- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter.
+- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter. A note flagged **Notes** keeps its row but takes no number, and the rows after it close the gap.
 - A cell you're editing never gets redrawn under you.
 
 ## Bulk edit and undo
@@ -47,7 +47,7 @@ Any note or folder can have a deadline too, in the Deadline column. The cell sho
 
 Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch**, **Blocked** and **Notes** join them, in that order. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
 
-**Notes** is for research, outlines and scratch pages: its switch under Settings → Word-Smith → Manuscript is **Not counted**, so a note carrying it stays in the vault, the table and the tree but adds nothing to a word count, target or the writing history. Any flag can be given that switch, and turning it off puts the notes back into the totals.
+**Notes** is for research, outlines and scratch pages: its switch under Settings → Word-Smith → Manuscript is **Not counted**, so a note carrying it stays in the vault, the table and the tree but adds nothing to a word count, target or the writing history. A second switch beside it, **No row number**, keeps the same notes out of the Organizer's and the file tree's numbering. Any flag can be given either switch, and turning one off puts the notes back into the totals or the numbering.
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
