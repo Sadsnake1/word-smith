@@ -487,6 +487,15 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			{ cls: 'ws-org-row' + (isFolder ? ' is-folder' : '') + (isFolder && !prevRuled ? ' is-topline' : '') });
 		prevRuled = isFolder;
 		tr.setAttribute('data-path', row.path);
+		// AND THE ROW'S FLAG, as the word a stylesheet selects on. The flag is
+		// painted in its own cell, so a theme or snippet that wants to say
+		// something about the WHOLE row — a Notes row's name sitting back, say
+		// — has nothing above the cell to stand on. `data-flag` is the word
+		// the file tree already uses for the same id on `.ws-treeflag`, so a
+		// snippet reads one name on both surfaces. Files only: `markOf` answers
+		// '' for a folder, whose Flag cell is its subtree's count, not a flag.
+		const flagId = ctx.markOf(row.path, row.kind);
+		if (flagId) tr.setAttribute('data-flag', flagId);
 		// The followed note is marked HERE too: the table is where the folder
 		// is read.
 		if (row.path === ctx.orgNote) tr.addClass('ws-org-active');
