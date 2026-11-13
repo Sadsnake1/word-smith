@@ -238,6 +238,9 @@ function wsOrgWindowClosed(plugin: WordSmith, a: { onHistKey: (ev: KeyboardEvent
 	// goes on swallowing Escape for a window nobody can see.
 	try { stopEscape(); } catch (_) { wsCatch('openManuscriptModal: stopEscape();', _); }
 	try { if (plugin._orgHistActive === onHistKey) plugin._orgHistActive = null; } catch (_) { wsCatch('openManuscriptModal: this._orgHistActive = null;', _); }
+	// AND THE RENAME DOOR, which holds this window's fold snapshot: a closed
+	// window must not be redrawn by a rename it cannot show.
+	try { plugin._orgOpenRename = () => {}; } catch (_) { wsCatch('openManuscriptModal: plugin._orgOpenRename = () => {};', _); }
 	// AND THE WIDTH WATCHER. A ResizeObserver holds its callback, and
 	// its callback holds this whole window — a pane closed without
 	// this keeps two thousand lines alive and toggles a class on an

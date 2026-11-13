@@ -47,7 +47,25 @@ Any note or folder can have a deadline too, in the Deadline column. The cell sho
 
 Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch**, **Blocked** and **Notes** join them, in that order. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
 
-**Notes** is for research, outlines and scratch pages: its switch under Settings → Word-Smith → Manuscript is **Not counted**, so a note carrying it stays in the vault, the table and the tree but adds nothing to a word count, target or the writing history. A second switch beside it, **No row number**, keeps the same notes out of the Organizer's and the file tree's numbering. Any flag can be given either switch, and turning one off puts the notes back into the totals or the numbering.
+**Notes** is for research, outlines and scratch pages, so it ships with both of the switches a flag can carry. Under Settings → Word-Smith → Manuscript, each flag's row ends with those two switches, after its name, shape and colors. Any flag can take either, and the two are independent: a counted note can be unnumbered, and an uncounted one numbered.
+
+| Flag | Not counted | No row number |
+| --- | --- | --- |
+| **Draft** | off | off |
+| **Revise** | off | off |
+| **Done** | off | off |
+| **Sketch** | off | off |
+| **Blocked** | off | off |
+| **Notes** | on, as it ships | on, as it ships |
+
+Sketch, Blocked and Notes appear as you raise the flag count; the three before them are a fresh install's.
+
+| Switch | What it does | What it leaves alone |
+| --- | --- | --- |
+| **Not counted** | Leaves every note carrying the flag out of the word counts, the targets and the writing history | The note stays in the vault, the Organizer and the file tree, with its row, its flag and its place untouched |
+| **No row number** | Keeps the note's row but takes its number, in the Organizer and in the file tree; the rows after it close the gap | Word counts, targets and the writing history are untouched |
+
+Turning a switch off puts those notes back into the totals, or back into the numbering.
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 

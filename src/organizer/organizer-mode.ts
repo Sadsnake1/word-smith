@@ -52,6 +52,28 @@ d.plugin._orgRedraw = () => d.drawPanel();
 // outside changes the store and nothing else until the next open.
 d.plugin._orgOpenSet = (p, on) => d.orgOpenSet(p, !!on);
 d.plugin._orgOpen = () => Array.from(d.orgOpen);
+// A RENAME CARRIES THE FOLDERS THAT WERE OPEN. `settings.organizerOpen`
+// follows the path in `renameGoalPaths`; this is the open window's
+// SNAPSHOT of it catching up, so the row does not come back folded after
+// the folder it names has moved. The redraw is the same one the vault
+// event already asks for, run after the store has the new path.
+d.plugin._orgOpenRename = (oldPath, newPath) => {
+	if (!oldPath || !newPath || oldPath === newPath) return;
+	let moved = false;
+	const next = new Set<string>();
+	for (const p of d.orgOpen) {
+		let q = p;
+		if (p === oldPath) q = newPath;
+		else if (p.startsWith(oldPath + '/')) q = newPath + p.slice(oldPath.length);
+		if (q !== p) moved = true;
+		next.add(q);
+	}
+	if (!moved) return;
+	d.orgOpen.clear();
+	for (const p of next) d.orgOpen.add(p);
+	d.s.organizerOpen = Array.from(d.orgOpen);
+	d.drawPanel();
+};
 
 	return { orgChevron };
 };

@@ -941,6 +941,9 @@ export function wsWireVault(plugin: WordSmith) {
 		// from those stores, and redrawing before they were rewritten
 		// would paint the order the vault had a moment ago.
 		plugin.treeShapeChanged();
+		// …and an OPEN Organizer's own snapshot of the fold, so a folder
+		// renamed in place comes back open rather than folded.
+		try { plugin._orgOpenRename(oldPath, file.path); } catch (_) { wsCatch('vault rename / _orgOpenRename', _); }
 	});
 	plugin.onAppEvent(plugin.app.vault, 'delete', (file: TAbstractFile) => {
 		plugin.packsChanged(file && file.path);
@@ -1276,6 +1279,7 @@ export default class WordSmith extends WsPluginWithAreas {
 	_orgRedraw: () => void;
 	_orgNote: () => string;
 	_orgOpen: () => string[];
+	_orgOpenRename: (oldPath: string, newPath: string) => void;
 	_orgOpenSet: (p: string, on: boolean) => void;
 	_orgPropKeys: (at: string) => string[];
 	_orgPropListSet: (p: string, k: string, v: unknown, before: unknown) => Promise<boolean>;
