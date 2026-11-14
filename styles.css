@@ -11410,17 +11410,8 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	min-width: 0;
 }
 .ws-org-table .ws-org-subrow td.ws-org-name {
-	/* A CELL, LIKE THE ROWS UNDER IT. This was `display: flex` and the
-	   subject row's name cell stopped at its content — measured in the
-	   vault, 256px of a 430px column — so the folder ground and the guide
-	   ended short of the Target column and left a gap. The flex row is
-	   `.ws-org-subject-in` inside the cell, which is where the rows below
-	   keep theirs. */
-	display: table-cell;
-	vertical-align: middle;
-}
-.ws-org-table .ws-org-subrow td.ws-org-name .ws-org-subject-in {
-	width: 100%;
+	display: flex;
+	align-items: center;
 }
 /* ── AND A GUIDE LINE UNDER EACH CHEVRON (A28, writer 2026-08-31) ──────
 
@@ -12271,12 +12262,7 @@ td.is-prop { cursor: pointer; }
    "i don't want it stickied"; kept at the vault on 2026-10-06: "remove the root
    vault row and add the total row"): the word in the middle of its cell, which
    has no chevron to indent for. */
-.ws-org-table .ws-org-subrow.is-total td.ws-org-name { padding-inline: 4px; }
-/* THE WORD IN THE MIDDLE, through the wrapper: the cell is a cell now, so
-   `justify-content` on it would do nothing. */
-.ws-org-table .ws-org-subrow.is-total td.ws-org-name .ws-org-subject-in {
-	justify-content: center;
-}
+.ws-org-table .ws-org-subrow.is-total td.ws-org-name { padding-inline: 4px; justify-content: center; }
 /* ── AND A CONTOUR ROUND THE ROW UNDER THE POINTER ────────────────────
 
    Writer, 2026-09-01: "when i hover a editable row add a accent color
