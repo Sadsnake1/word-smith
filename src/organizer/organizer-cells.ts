@@ -210,18 +210,28 @@ const orgIsFolder = (path: string) => {
 const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { words: number; target: number } | null) => {
 	const folder = row.kind === 'folder';
 	td.setText(text);
+	let progress = band || null;
 	try {
 		if (band) orgGoalBand(td, band.words, band.target);
-		else if (!folder) orgGoalBand(td, Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0);
+		else if (!folder) {
+			progress = { words: Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, target: Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0 };
+			orgGoalBand(td, progress.words, progress.target);
+		}
 	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
+	if (progress && progress.target > 0 && text.includes('/')) {
+		td.empty();
+		td.createSpan({ cls: 'ws-org-goal-current', text: progress.words.toLocaleString() });
+		td.createSpan({ cls: 'ws-org-goal-separator', text: ' / ' });
+		td.createSpan({ cls: 'ws-org-goal-target', text: progress.target.toLocaleString() });
+	}
 	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
 	const canGoal = folder || orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
 		// (a folder's own: both numbers first, then the click, A700)
 		const hint = text ? wsT('Click to change the target') : wsT('Click to set a target');
-		td.title = band && band.target > 0
-			? wsT('{count} of a target of {target}', { count: band.words.toLocaleString(), target: band.target.toLocaleString() }) + ' · ' + hint
+		td.title = progress && progress.target > 0
+			? wsT('{count} of a target of {target}', { count: progress.words.toLocaleString(), target: progress.target.toLocaleString() }) + ' · ' + hint
 			: hint;
 	}
 	td.addEventListener('click', (ev: Event) => {

@@ -11925,6 +11925,9 @@ td.is-prop { cursor: pointer; }
 .ws-org-table td.has-band.is-band-mid { --ws-goal-rgb: var(--color-orange-rgb); }
 .ws-org-table td.has-band.is-band-high { --ws-goal-rgb: var(--color-yellow-rgb); }
 .ws-org-table td.has-band.is-band-done { --ws-goal-rgb: var(--color-green-rgb); }
+.ws-org-goal-current { color: var(--text-normal); font-weight: 600; }
+.ws-org-goal-separator { color: var(--text-faint); white-space: pre; }
+.ws-org-goal-target { color: var(--text-muted); font-weight: 400; }
 .ws-org-goaledit {
 	width: 8ch;
 	text-align: right;
