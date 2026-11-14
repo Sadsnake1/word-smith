@@ -9486,6 +9486,121 @@ button.ws-uni-crumb:focus-visible { box-shadow: 0 0 0 2px var(--background-modif
    workspace gave it. A pane fills its leaf, which is what a leaf is for. */
 .ws-uni-modal.is-narrow:not(.ws-uni-pane) { width: 100vw; max-width: 100vw; height: 92vh; max-height: 92vh; }
 .ws-uni-modal.ws-uni-pane { width: 100%; max-width: none; height: 100%; max-height: none; }
+
+.ws-uni-modal.ws-organizer-floating.ws-organizer-floating {
+	position: fixed;
+	z-index: 50;
+	top: 8vh;
+	right: 3vw;
+	width: min(1200px, 94vw);
+	height: 84vh;
+	max-width: 100vw;
+	max-height: min(100vh, var(--ws-org-natural-height, 100vh));
+	min-width: min(240px, 100vw);
+	min-height: min(160px, 100vh, var(--ws-org-natural-height, 100vh));
+	container-type: inline-size;
+	background: var(--background-primary);
+	border: 1px solid var(--color-base-35, #888);
+	border-radius: var(--radius-m, 8px);
+	box-shadow: none;
+	overflow: hidden;
+}
+.ws-organizer-floating > .modal-header,
+.ws-uni-modal.ws-organizer-floating > .modal-header-button,
+.ws-organizer-floating .modal-close-button { display: none; }
+.ws-uni-modal.ws-organizer-floating.is-positioned { right: auto; }
+.ws-organizer-floating > .modal-content { display: flex; flex: 1; min-height: 0; }
+.ws-organizer-floating .ws-uni-body { min-width: 0; }
+.ws-organizer-floating .ws-org-panel { width: 100%; padding-bottom: 0; border-radius: 0; }
+.ws-organizer-floating .ws-org-table { width: 100%; min-width: 100%; border-radius: 0; }
+.ws-organizer-floating .ws-org-table .ws-org-headpick,
+.ws-organizer-floating .ws-org-table .ws-org-pickcell { display: none; }
+.ws-organizer-floating .ws-org-table thead th:first-child,
+.ws-organizer-floating .ws-org-table thead th:nth-last-child(2),
+.ws-organizer-floating .ws-org-table tbody tr:last-child td:first-child,
+.ws-organizer-floating .ws-org-table tbody tr:last-child td:nth-last-child(2) { border-radius: 0; }
+.ws-organizer-floating .ws-org-table thead th:nth-last-child(2) > .ws-org-colgrip { --ws-org-gripout: 0px; }
+.ws-organizer-floating .ws-org-bar:empty { display: none; }
+.ws-organizer-floating-corner {
+	position: absolute;
+	z-index: 12;
+	width: 1em;
+	height: 1em;
+	touch-action: none;
+}
+.ws-organizer-floating-drag {
+	flex: 0 0 auto;
+	width: 100%;
+	height: 2.6em;
+	padding: 0 3.5em 0 1em;
+	border: 0;
+	border-radius: 0;
+	box-shadow: none;
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+	font-weight: 600;
+	text-align: left;
+	cursor: move;
+	touch-action: none;
+}
+.ws-organizer-floating-corner.is-nw { top: 0; left: 0; cursor: nwse-resize; }
+.ws-organizer-floating-corner.is-ne { top: 0; right: 0; cursor: nesw-resize; }
+.ws-organizer-floating-corner.is-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.ws-organizer-floating-corner.is-se { bottom: 0; right: 0; cursor: nwse-resize; }
+.ws-organizer-floating-edge { position: absolute; z-index: 11; touch-action: none; }
+.ws-organizer-floating-edge.is-w,
+.ws-organizer-floating-edge.is-e { top: 1em; bottom: 1em; width: 6px; cursor: ew-resize; }
+.ws-organizer-floating-edge.is-w { left: 0; }
+.ws-organizer-floating-edge.is-e { right: 0; }
+.ws-organizer-floating-edge.is-s { left: 1em; right: 1em; bottom: 0; height: 6px; cursor: ns-resize; }
+.ws-organizer-floating-menu { position: absolute; z-index: 10; top: 4px; right: 6px; }
+.ws-organizer-floating-toggle {
+	opacity: 0;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px;
+	border: 0;
+	border-radius: 4px;
+	background: transparent;
+	box-shadow: none;
+	color: var(--text-normal);
+}
+.ws-organizer-floating-toggle svg { width: 16px; height: 16px; }
+.ws-organizer-floating-toggle:hover { background: var(--background-modifier-hover); }
+.ws-organizer-floating-toggle.has-state::after {
+	content: ''; position: absolute; right: 2px; top: 2px; width: 6px; height: 6px;
+	border-radius: 50%; background: var(--interactive-accent);
+}
+.ws-organizer-floating:hover .ws-organizer-floating-toggle,
+.ws-organizer-floating-menu:focus-within .ws-organizer-floating-toggle,
+.ws-organizer-floating-toggle.has-state,
+.ws-organizer-floating-menu.is-open .ws-organizer-floating-toggle { opacity: 1; }
+.ws-organizer-floating-actions {
+	display: none;
+	position: absolute;
+	right: 0;
+	top: 100%;
+	width: min(20em, 85cqi);
+	max-height: var(--ws-org-menu-height, 70vh);
+	overflow: auto;
+	padding: 6px;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	box-shadow: var(--shadow-s);
+}
+.ws-organizer-floating-menu.is-open .ws-organizer-floating-actions { display: block; }
+.ws-organizer-floating-controls { display: flex; flex-direction: column; gap: 2px; }
+.ws-organizer-floating-controls > button,
+.ws-organizer-floating-actions > button { width: 100%; justify-content: flex-start; text-align: left; }
+.ws-organizer-floating-path { padding: 4px 6px 8px; border-bottom: 1px solid var(--background-modifier-border); margin-bottom: 6px; }
+.ws-organizer-floating-path .ws-uni-crumbs { flex-wrap: wrap; }
+.ws-organizer-floating-filters .ws-org-chiprow { padding: 6px 0; }
+.ws-organizer-floating-actions > button { margin-top: 6px; }
+@media (hover: none) { .ws-organizer-floating-toggle { opacity: 1; } }
 /* ONE grid column when narrow; the strip stays on top, whichever pane is
    the window sits under it (they share row 2 — only one is ever shown). */
 .ws-uni-modal.is-narrow .ws-uni-body { grid-template-columns: minmax(0, 1fr); }
@@ -11417,8 +11532,17 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	min-width: 0;
 }
 .ws-org-table .ws-org-subrow td.ws-org-name {
-	display: flex;
-	align-items: center;
+	/* A CELL, LIKE THE ROWS UNDER IT. This was `display: flex` and the
+	   subject row's name cell stopped at its content — measured in the
+	   vault, 256px of a 430px column — so the folder ground and the guide
+	   ended short of the Target column and left a gap. The flex row is
+	   `.ws-org-subject-in` inside the cell, which is where the rows below
+	   keep theirs. */
+	display: table-cell;
+	vertical-align: middle;
+}
+.ws-org-table .ws-org-subrow td.ws-org-name .ws-org-subject-in {
+	width: 100%;
 }
 /* ── AND A GUIDE LINE UNDER EACH CHEVRON (A28, writer 2026-08-31) ──────
 
@@ -12269,7 +12393,12 @@ td.is-prop { cursor: pointer; }
    "i don't want it stickied"; kept at the vault on 2026-10-06: "remove the root
    vault row and add the total row"): the word in the middle of its cell, which
    has no chevron to indent for. */
-.ws-org-table .ws-org-subrow.is-total td.ws-org-name { padding-inline: 4px; justify-content: center; }
+.ws-org-table .ws-org-subrow.is-total td.ws-org-name { padding-inline: 4px; }
+/* THE WORD IN THE MIDDLE, through the wrapper: the cell is a cell now, so
+   `justify-content` on it would do nothing. */
+.ws-org-table .ws-org-subrow.is-total td.ws-org-name .ws-org-subject-in {
+	justify-content: center;
+}
 /* ── AND A CONTOUR ROUND THE ROW UNDER THE POINTER ────────────────────
 
    Writer, 2026-09-01: "when i hover a editable row add a accent color
@@ -12985,6 +13114,7 @@ body { --ws-org-folder-bg: color-mix(in srgb, var(--background-secondary) 50%, v
    never reached it. Moved 2026-08-30 rather than copied, so the number
    keeps ONE writer. */
 body { --ws-hit-min: 44px; }
+@media (pointer: coarse) {
 /* The table's rows reach 44px through their CELLS' padding — `display:
    flex` on a <tr> would un-table the table. (The narrow reveal rule went
    with the reveal button, writer's pass 2026-08-21.) */
@@ -13058,6 +13188,7 @@ body { --ws-hit-min: 44px; }
 	   rule, so the padding helped and did not finish). On a table-cell a
 	   `height` acts as a minimum, which is the one place that is useful. */
 	height: var(--ws-hit-min);
+}
 }
 
 /* Here stood a 44-line note on the drop line (the shadow it replaced, the

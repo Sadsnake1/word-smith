@@ -8,6 +8,8 @@ The big boy. Obsidian's file explorer is the tree, the Organizer is the table. C
 
 Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It opens to the right of your note, or as a new tab: **Settings → Word-Smith → Manuscript → Open in** (Export and History follow it). It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
 
+For a window over the workspace instead, run **Open the floating Organizer**. Drag its bar to move it, or its corners and side and bottom edges to resize it. The upper-right menu holds the path, filters, actions and Close. On the bar, arrow keys move the window; Alt with arrow keys resizes it, and Shift increases the step.
+
 No project file, no special folder. Your folders and files, as they are.
 
 ## Any file

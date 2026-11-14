@@ -436,6 +436,15 @@ export function wsRegisterCommands(plugin: WordSmith) {
 			return true;
 		}
 	});
+	plugin.addCommand({
+		id: 'open-floating-organizer',
+		name: wsT('Open the floating Organizer'),
+		checkCallback: (checking: boolean) => {
+			if (plugin.settings.organizerOn === false) return false;
+			if (!checking) plugin.openFloatingOrganizer();
+			return true;
+		}
+	});
 
 	// Quick panels — the left/right sidebar toggle and "reveal the view"
 	// as one keystroke, with the sidebar closing again once you have

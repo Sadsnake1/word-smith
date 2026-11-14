@@ -506,6 +506,16 @@ export function wsOrgDrawBar(plugin: WordSmith, a: { at: string; cols: WsOrgCol[
 		if (ctx.orgPropPopEl()) { ctx.orgPropPopClose(); return; }
 		ctx.orgPropPopOpen(colsBtn);
 	});
+	const floatingControls = ctx.panel.closest('.ws-organizer-floating')?.querySelector<HTMLElement>('.ws-organizer-floating-controls');
+	if (floatingControls) {
+		floatingControls.empty();
+		for (const button of Array.from(bar.querySelectorAll<HTMLButtonElement>(':scope > button'))) {
+			if (!button.textContent?.trim()) button.createSpan({ text: button.getAttribute('aria-label') || button.title });
+			floatingControls.appendChild(button);
+		}
+		const say = bar.querySelector('.ws-org-barsay');
+		if (say) floatingControls.appendChild(say);
+	}
 	
 	// ── THE ACTIVE CHIPS, UNDER THE CONTROLS THAT MADE THEM ──
 	//
@@ -515,8 +525,10 @@ export function wsOrgDrawBar(plugin: WordSmith, a: { at: string; cols: WsOrgCol[
 	// "under". Built LAZILY so a lens-free window pays no empty row and no
 	// gap for it.
 	let chipRowEl: HTMLDivElement | null = null;
+	const floatingFilters = ctx.panel.closest('.ws-organizer-floating')?.querySelector<HTMLElement>('.ws-organizer-floating-filters');
+	if (floatingFilters) floatingFilters.empty();
 	const chipHost = () => (chipRowEl
-		|| (chipRowEl = ctx.panel.createDiv({ cls: 'ws-org-chiprow' })));
+		|| (chipRowEl = (floatingFilters || ctx.panel).createDiv({ cls: 'ws-org-chiprow' })));
 	// The active lens, as dismissible chips — pressing one takes
 	// only ITS narrowing away.
 	const chipBtn = (label: string, undo: () => void) => {

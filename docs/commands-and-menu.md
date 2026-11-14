@@ -21,6 +21,7 @@ Obsidian lists these under **Word-Smith**. Search the palette for what you want 
 | Show the writing report | |
 | Show the writing history | Opens the History pane |
 | Open the Organizer | Opens the Organizer pane |
+| Open the floating Organizer | Opens the Organizer over the workspace |
 | Export a manuscript… | Opens the Export pane |
 | Open the menu | Also the WS badge in the ribbon |
 | Open the menu in a panel | The same menu, docked. Offered once the panel is switched on under **Menu** |

@@ -901,6 +901,207 @@ export const organizerWindowMethods = {
 		};
 	},
 
+	floatingOrganizerHost(this: WordSmith): WsHost | null {
+		const host = this.modalHost();
+		if (!host || !host.modal) return null;
+		const modal = host.modal;
+		const root = host.rootEl;
+		const doc = root.ownerDocument;
+		root.addClass('ws-organizer-floating');
+		host.kind = 'leaf';
+		host.closes = false;
+		host.contains = (el) => !!el && root.contains(el);
+		const cleanups: (() => void)[] = [];
+		host.key = (mods, key, fn) => {
+			const handler = (ev: KeyboardEvent) => {
+				if (ev.key !== key || (ev.ctrlKey || ev.metaKey) !== mods.includes('Mod')
+					|| ev.shiftKey !== mods.includes('Shift') || ev.altKey !== mods.includes('Alt')) return;
+				if (fn(ev, { modifiers: '', key, vkey: key }) === false) ev.preventDefault();
+			};
+			root.addEventListener('keydown', handler);
+			cleanups.push(() => root.removeEventListener('keydown', handler));
+		};
+		let closed = false;
+		const close = () => {
+			if (closed) return;
+			closed = true;
+			for (const cleanup of cleanups) cleanup();
+			modal.onClose();
+			root.remove();
+		};
+		modal.close = close;
+		this.register(close);
+		const drag = root.createEl('button', { cls: 'ws-organizer-floating-drag', text: wsT('Organizer'), attr: { 'aria-label': wsT('Move window'), title: wsT('Move window') } });
+		root.prepend(drag);
+		type ResizeEdge = 'nw' | 'ne' | 'sw' | 'se' | 'w' | 'e' | 's';
+		let naturalHeight = Infinity;
+		const place = (mode: 'move' | ResizeEdge, dx: number, dy: number, start: DOMRect) => {
+			const win = root.ownerDocument.defaultView || window;
+			root.addClass('is-positioned');
+			const minWidth = Math.min(240, win.innerWidth);
+			const minHeight = Math.min(160, win.innerHeight, naturalHeight);
+			if (mode === 'move') {
+				root.style.left = Math.max(0, Math.min(start.left + dx, win.innerWidth - Math.min(start.width, win.innerWidth))) + 'px';
+				root.style.top = Math.max(0, Math.min(start.top + dy, win.innerHeight - Math.min(start.height, win.innerHeight))) + 'px';
+			} else {
+				const left = mode.endsWith('w');
+				const top = mode.startsWith('n');
+				const width = mode === 's' ? start.width : Math.max(minWidth, Math.min(start.width + (left ? -dx : dx), left ? start.right : win.innerWidth - start.left));
+				const height = mode === 'w' || mode === 'e' ? start.height : Math.max(minHeight, Math.min(start.height + (top ? -dy : dy), naturalHeight, top ? start.bottom : win.innerHeight - start.top));
+				root.style.left = (left ? start.right - width : start.left) + 'px';
+				root.style.top = (top ? start.bottom - height : start.top) + 'px';
+				root.style.width = width + 'px';
+				root.style.height = height + 'px';
+			}
+		};
+		let stopPointerDrag: (() => void) | null = null;
+		cleanups.push(() => { if (stopPointerDrag) stopPointerDrag(); });
+		const bindHandle = (handle: HTMLElement, mode: 'move' | ResizeEdge) => {
+			handle.addEventListener('pointerdown', (ev) => {
+				if (ev.button !== 0) return;
+				ev.preventDefault();
+				ev.stopPropagation();
+				if (stopPointerDrag) stopPointerDrag();
+				const start = root.getBoundingClientRect();
+				const x = ev.clientX, y = ev.clientY;
+				const owner = root.ownerDocument.defaultView || window;
+				const move = (next: PointerEvent) => {
+					if (next.pointerId !== ev.pointerId) return;
+					next.preventDefault();
+					next.stopPropagation();
+					place(mode, next.clientX - x, next.clientY - y, start);
+				};
+				const end = (next: PointerEvent) => { if (next.pointerId === ev.pointerId) stop(); };
+				const stop = () => {
+					owner.removeEventListener('pointermove', move, true);
+					owner.removeEventListener('pointerup', end, true);
+					owner.removeEventListener('pointercancel', end, true);
+					owner.removeEventListener('blur', stop);
+					if (handle.hasPointerCapture(ev.pointerId)) handle.releasePointerCapture(ev.pointerId);
+					stopPointerDrag = null;
+				};
+				stopPointerDrag = stop;
+				owner.addEventListener('pointermove', move, { capture: true, passive: false });
+				owner.addEventListener('pointerup', end, true);
+				owner.addEventListener('pointercancel', end, true);
+				owner.addEventListener('blur', stop);
+				try { handle.setPointerCapture(ev.pointerId); } catch (_) { wsCatch('floating organizer pointer capture', _); }
+			});
+			handle.addEventListener('keydown', (ev) => {
+				const step = ev.shiftKey ? 40 : 10;
+				const dx = ev.key === 'ArrowLeft' ? -step : ev.key === 'ArrowRight' ? step : 0;
+				const dy = ev.key === 'ArrowUp' ? -step : ev.key === 'ArrowDown' ? step : 0;
+				if (!dx && !dy) return;
+				ev.preventDefault();
+				ev.stopPropagation();
+				place(mode === 'move' && ev.altKey ? 'se' : mode, dx, dy, root.getBoundingClientRect());
+			});
+		};
+		bindHandle(drag, 'move');
+		for (const corner of ['nw', 'ne', 'sw', 'se'] as const) {
+			const handle = root.createDiv({ cls: 'ws-organizer-floating-corner is-' + corner });
+			bindHandle(handle, corner);
+		}
+		for (const edge of ['w', 'e', 's'] as const) {
+			const handle = root.createDiv({ cls: 'ws-organizer-floating-edge is-' + edge });
+			bindHandle(handle, edge);
+		}
+		let measuredTable: Element | null = null;
+		let frame = 0;
+		const win = root.ownerDocument.defaultView || window;
+		const keepOnScreen = () => {
+			if (!root.isConnected) return;
+			if (stopPointerDrag) stopPointerDrag();
+			place('move', 0, 0, root.getBoundingClientRect());
+		};
+		win.addEventListener('resize', keepOnScreen);
+		cleanups.push(() => win.removeEventListener('resize', keepOnScreen));
+		const measure = () => {
+			frame = 0;
+			const table = root.querySelector<HTMLElement>('.ws-org-table');
+			const wrap = root.querySelector<HTMLElement>('.ws-org-panel');
+			if (table !== measuredTable) {
+				if (measuredTable) sizes.unobserve(measuredTable);
+				measuredTable = table;
+				if (table) sizes.observe(table);
+			}
+			if (!table || !wrap || !root.isConnected) return;
+			const wrapRect = wrap.getBoundingClientRect();
+			const style = win.getComputedStyle(wrap);
+			const scale = wrap.offsetHeight ? wrapRect.height / wrap.offsetHeight : 1;
+			const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+			const scrollbar = Math.max(0, wrap.offsetHeight - wrap.clientHeight);
+			const content = Math.max(table.getBoundingClientRect().height + padding * scale,
+				wrap.scrollHeight > wrap.clientHeight ? wrap.scrollHeight * scale : 0);
+			const height = Math.ceil(content + root.getBoundingClientRect().height - wrapRect.height + scrollbar * scale) + 1;
+			if (height > 0 && height !== naturalHeight) {
+				naturalHeight = height;
+				root.style.setProperty('--ws-org-natural-height', height + 'px');
+			}
+			if (!stopPointerDrag) place('move', 0, 0, root.getBoundingClientRect());
+		};
+		const scheduleMeasure = () => { if (!frame) frame = win.requestAnimationFrame(measure); };
+		const sizes = new ResizeObserver(scheduleMeasure);
+		sizes.observe(root);
+		const changes = new MutationObserver(scheduleMeasure);
+		changes.observe(root, { childList: true, subtree: true, characterData: true });
+		cleanups.push(() => { sizes.disconnect(); changes.disconnect(); if (frame) win.cancelAnimationFrame(frame); });
+		const menu = root.createDiv({ cls: 'ws-organizer-floating-menu' });
+		const toggle = menu.createEl('button', { cls: 'ws-organizer-floating-toggle clickable-icon' });
+		toggle.setAttribute('aria-label', wsT('Organizer actions'));
+		toggle.setAttribute('aria-expanded', 'false');
+		setIcon(toggle, 'more-horizontal');
+		const actions = menu.createDiv({ cls: 'ws-organizer-floating-actions' });
+		actions.createDiv({ cls: 'ws-organizer-floating-path' });
+		actions.createDiv({ cls: 'ws-organizer-floating-controls' });
+		actions.createDiv({ cls: 'ws-organizer-floating-filters' });
+		const closeButton = actions.createEl('button', { text: wsT('Close') });
+		closeButton.addEventListener('click', close);
+		const setMenuOpen = (open: boolean) => {
+			menu.toggleClass('is-open', open);
+			toggle.setAttribute('aria-expanded', String(open));
+		};
+		const sizeMenu = () => {
+			const available = Math.max(0, root.clientHeight - menu.offsetTop - toggle.offsetHeight - 6);
+			actions.style.setProperty('--ws-org-menu-height', available + 'px');
+		};
+		const menuSizes = new ResizeObserver(sizeMenu);
+		menuSizes.observe(root);
+		sizeMenu();
+		const paintMenuState = () => {
+			const selection = actions.querySelector('.ws-org-barsay.is-sel')?.textContent?.trim() || '';
+			const filters = actions.querySelectorAll('.ws-org-chip:not(.is-off)').length;
+			const filterLabel = filters === 1 ? wsT('1 active filter') : wsT('{n} active filters', { n: filters });
+			const state = [selection, filters ? filterLabel : ''].filter(Boolean).join(' · ');
+			toggle.toggleClass('has-state', !!state);
+			const label = wsT('Organizer actions') + (state ? ' · ' + state : '');
+			toggle.setAttribute('aria-label', label);
+			toggle.title = label;
+		};
+		const menuChanges = new MutationObserver(paintMenuState);
+		menuChanges.observe(actions, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] });
+		paintMenuState();
+		toggle.addEventListener('click', () => setMenuOpen(!menu.hasClass('is-open')));
+		menu.addEventListener('focusout', (ev) => {
+			if (ev.relatedTarget instanceof Node && menu.contains(ev.relatedTarget)) return;
+			setMenuOpen(false);
+		});
+		const outsideMenu = (ev: PointerEvent) => {
+			if (ev.target instanceof Node && !menu.contains(ev.target)) setMenuOpen(false);
+		};
+		doc.addEventListener('pointerdown', outsideMenu, true);
+		cleanups.push(() => { menuSizes.disconnect(); menuChanges.disconnect(); doc.removeEventListener('pointerdown', outsideMenu, true); });
+		menu.addEventListener('keydown', (ev) => {
+			if (ev.key === 'Escape' && menu.hasClass('is-open')) {
+				ev.stopPropagation();
+				setMenuOpen(false);
+				toggle.focus();
+			}
+		});
+		host.show = () => { document.body.appendChild(root); keepOnScreen(); scheduleMeasure(); };
+		return host;
+	},
+
 	// ── THE ORGANIZER INDEX — the glue ─────────────────────────────────────
 	//
 	// The pure store and its arithmetic live in org-index.ts; these methods
@@ -1997,7 +2198,8 @@ export const organizerWindowMethods = {
 		const { drawTabs, tabSet, drawSubject, said } = chrome;
 		chrome.doors();
 
-		const subject = right.createDiv({ cls: 'ws-uni-subject' });
+		const subjectHost = host.rootEl.querySelector<HTMLElement>('.ws-organizer-floating-path') || right;
+		const subject = subjectHost.createDiv({ cls: 'ws-uni-subject' });
 		orgZoom.zoomHost = subject;
 		const panel = right.createDiv({ cls: 'ws-uni-panel' });
 		// ── AND EMPTY SPACE PUTS THEM AWAY ─────────────────────────
@@ -2237,7 +2439,11 @@ export const organizerWindowMethods = {
 			get tab() { return tab; },
 			get typing() { return typing; },
 		});
-		const onEscape = orgKeys.onEscape;
+		const onEscape = (ev: Event) => {
+			const menu = host.rootEl.querySelector('.ws-organizer-floating-menu.is-open');
+			if ('key' in ev && ev.key === 'Escape' && menu?.contains(ownerDoc().activeElement)) return;
+			orgKeys.onEscape(ev);
+		};
 		const onHistKey = (ev: KeyboardEvent) => wsOrgHistKey({ host, orgHistMine, orgHistRun, ownerDoc, tab }, ev);
 		const orgHistMine = () => wsOrgHistMine(this, { host, onHistKey });
 		this._orgHist = orgHistApi;
@@ -3034,10 +3240,17 @@ export const organizerWindowMethods = {
 	// built for it, or a window that can switch to it. None: that tab's own
 	// pane is opened.
 	orgDoorFor(this: WordSmith, tabId: string) {
-		const doors = this.orgWindows();
+		const doors = this.orgWindows().filter((d) => !d.host().rootEl.hasClass('ws-organizer-floating'));
 		for (const d of doors) { try { if (d.tab() === tabId) return d; } catch (_) { wsCatch('orgDoorFor: d.tab()', _); } }
 		for (const d of doors) { try { if (!(d.single && d.single())) return d; } catch (_) { wsCatch('orgDoorFor: d.single()', _); } }
 		return null;
+	},
+
+	openFloatingOrganizer(this: WordSmith) {
+		const floating = this.orgWindows().find((d) => d.host().rootEl.hasClass('ws-organizer-floating'));
+		if (floating) return floating;
+		const host = this.floatingOrganizerHost();
+		if (host) return this.openManuscriptModal({ tab: 'organizer', host, only: true });
 	},
 
 	async orgOpenTab(this: WordSmith, tabId: string) {
