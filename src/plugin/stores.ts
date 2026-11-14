@@ -2450,7 +2450,7 @@ export const storesMethods = {
 		}
 		if (colors) this.settings.folderColors = colors;
 		if (ucols) this.settings.uniUserCols = ucols;
-		if (flagsMoved && this._orgIndex) void this.orgIndexResweep();
+		if (flagsMoved && this._orgIndex) void this.orgIndexResweep(true);
 		const sig = this.goalsSignature();
 		if ((!goals && !colors && !ucols && !dated.folderTargets && !dated.goalDeadlines) || sig === this._goalsSig) return false;
 		this._goalsSig = sig;

@@ -152,7 +152,7 @@ export const treeMethods = {
 		try {
 			const excl = JSON.stringify(defs.map((f) => [f.id, !!f.exclude]));
 			if (this._flagsExclSig !== undefined && excl !== this._flagsExclSig && this._orgIndex) {
-				void this.orgIndexResweep();
+				void this.orgIndexResweep(true);
 			}
 			this._flagsExclSig = excl;
 		} catch (_) { wsCatch('flagsApply: excluded flags changed', _); }
