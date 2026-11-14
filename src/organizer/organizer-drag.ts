@@ -1,5 +1,5 @@
-// Word-Smith — organizer-drag: a row moved within its parent, a file
-// dropped into a folder.
+// Word-Smith — organizer-drag: a row moved within or between folders, a
+// file dropped into a folder.
 
 import { setIcon } from 'obsidian';
 import { wsOrgDropBefore } from './org-index';
@@ -8,7 +8,7 @@ import { wsT } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 
 // ════════════════════════════════════════════════════════════════════════
-// THE DRAG — a row moved within its parent, a file dropped into a folder
+// THE DRAG — a row moved within or between folders, a file dropped into a folder
 // ════════════════════════════════════════════════════════════════════════
 //
 // The drag state (`orgDragPath`, `orgDragCol`, `orgLastGrouping`),
@@ -43,14 +43,15 @@ export const wsOrgDragMake = (d: OrgDragDeps) => {
 // The affordance is NOT RENDERED under a lens: no draggable
 // attribute, no grab cursor, no touch hold — drawOrg simply never
 // calls this — so drag-in-sorted-view corruption has no code path to
-// live in (spec, "what this design makes structural"). Cross-folder
-// moves are the TREE's job; a drop from another parent is refused
-// before the writer sees an indicator for it.
+// live in (spec, "what this design makes structural"). A Markdown file
+// may cross folders at a row edge; other cross-folder moves use the
+// existing drop-into-folder gesture.
 //
 // One drop executor for mouse and finger: the ONE reorder writer
 // (`treeOrderMove`), aimed by the ONE drop arithmetic
 // (`wsOrgDropBefore`) — the same pair the tree's touch path uses.
 let orgDragPath: string | null = null;
+let orgDragKind: string | null = null;
 // The table HEADER drag (inbox: draggable columns) — see the th
 // handlers in drawOrg; `uniColOrder` is the one store they write.
 let orgDragCol: string | null = null;
@@ -70,13 +71,33 @@ const orgDropMarks = () => {
 		el2.removeClass('ws-drop-into');
 	}
 };
-const orgDropRun = async (movedPath: string, ontoPath: string, below: boolean) => {
-	if (!movedPath || !ontoPath || movedPath === ontoPath) return;
-	if (d.folderOf(movedPath) !== d.folderOf(ontoPath)) return;
-	const parent = d.folderOf(movedPath);
-	await d.plugin.treeOrderMove(parent, movedPath,
-		wsOrgDropBefore(d.plugin.treeOrderCurrent(parent),
-			movedPath, ontoPath, below));
+const orgDropRun = async (movedPath: string, ontoPath: string, below: boolean, movedKind: string) => {
+	if (!movedPath || !ontoPath) return;
+	const from = d.folderOf(movedPath);
+	const parent = d.folderOf(ontoPath);
+	if (from === parent) {
+		await d.plugin.treeOrderMove(parent, movedPath,
+			wsOrgDropBefore(d.plugin.treeOrderCurrent(parent), movedPath, ontoPath, below));
+		return;
+	}
+	// A file can be placed directly into the destination folder's order.
+	// Folders and non-Markdown files keep the existing move-into-folder
+	// gesture, which uses the folder row's middle instead of its edges.
+	if (movedKind !== 'file' || !/\.md$/i.test(movedPath)) return;
+	const result = await d.plugin.treeMoveInto(movedPath, parent);
+	if (!result || !result.ok || !result.dest) {
+		if (result && result.said) d.said(result.said, true);
+		return;
+	}
+	const moved = result.dest;
+	const before = wsOrgDropBefore(d.plugin.treeOrderCurrent(parent), moved, ontoPath, below);
+	const ordered = await d.plugin.treeOrderMove(parent, moved, before);
+	if (!ordered) {
+		d.said(wsT('Moved “{name}” into {folder}, but could not set its position.', { name: d.nameOf(moved), folder: d.nameOf(parent) }), true);
+		return;
+	}
+	d.said(parent ? wsT('Moved “{name}” into {folder}.', { name: d.nameOf(moved), folder: d.nameOf(parent) })
+		: wsT('Moved “{name}” into the vault root.', { name: d.nameOf(moved) }), false);
 };
 // ── EDGES REORDER, THE MIDDLE MOVES IN ──────────────────────────
 //
@@ -115,7 +136,7 @@ const orgAtEdge = (el: HTMLElement, ev: MouseEvent) => {
 const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 	g.addEventListener('dragover', (ev: DragEvent) => {
 		orgDropMarks();
-		if (!orgDragPath) return;
+		if (!orgDragPath || orgDragPath === parentPath) return;
 		// A file cannot move to where it already is: its own
 		// header offers nothing, so the gesture says "no" by not
 		// lighting up rather than by refusing after the drop.
@@ -130,6 +151,7 @@ const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 	});
 	g.addEventListener('dragleave', () => g.removeClass('ws-drop-into'));
 	g.addEventListener('drop', (ev: DragEvent) => { void (async () => {
+		if (!orgDragPath) return;
 		// …and the mirror of it: the edges are the reorder's, so
 		// this hand-off happens before the drag state is touched.
 		if (orgAtEdge(g, ev)) return;
@@ -137,6 +159,7 @@ const orgGroupDrop = (g: HTMLElement, parentPath: string) => {
 		orgDropMarks();
 		g.removeClass('ws-drop-into');
 		orgDragPath = null;
+		orgDragKind = null;
 		if (!moved || d.folderOf(moved) === parentPath) return;
 		ev.preventDefault();
 		const done = await d.plugin.treeMoveInto(moved, parentPath);
@@ -173,6 +196,7 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 	tr.addClass('is-draggable');
 	tr.addEventListener('dragstart', (ev: DragEvent) => {
 		orgDragPath = row.path;
+		orgDragKind = row.kind;
 		tr.addClass('is-dragging');
 		try { if (ev.dataTransfer) ev.dataTransfer.setData('text/plain', row.path); } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.setData(\'text/plain\', row.path);', _); }
 		// THE GHOST IS OBSIDIAN'S (A704, the writer: "improve the dragging"): the explorer's own name tag, the glyph and
@@ -192,8 +216,13 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 	});
 	tr.addEventListener('dragover', (ev: DragEvent) => {
 		orgDropMarks();
-		if (!orgDragPath || orgDragPath === row.path) return;
-		if (d.folderOf(orgDragPath) !== row.parent) return;
+		if (!orgDragPath) return;
+		if (orgDragPath === row.path) {
+			ev.preventDefault();
+			if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+			return;
+		}
+		if (d.folderOf(orgDragPath) !== row.parent && !(orgDragKind === 'file' && /\.md$/i.test(orgDragPath))) return;
 		// …and a folder's MIDDLE belongs to move-into, which is bound
 		// to the same row. Edges only, there.
 		if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;
@@ -204,6 +233,14 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 		try { if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move'; } catch (_) { wsCatch('openManuscriptModal / orgRowDrag: ev.dataTransfer.dropEffect = \'move\';', _); }
 	});
 	tr.addEventListener('drop', (ev: MouseEvent) => { void (async () => {
+		if (orgDragPath === row.path) {
+			ev.preventDefault();
+			orgDropMarks();
+			tr.removeClass('is-dragging');
+			orgDragPath = null;
+			orgDragKind = null;
+			return;
+		}
 		// WHOSE BAND IS THIS? Asked FIRST, and that ordering is the
 		// whole of it: a folder row carries this handler AND the
 		// move-into one, on the same element. Both used to read
@@ -215,14 +252,17 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 		const moved = orgDragPath;
 		orgDropMarks();
 		orgDragPath = null;
-		if (!moved || d.folderOf(moved) !== row.parent) return;
+		const movedKind = orgDragKind;
+		orgDragKind = null;
+		if (!moved) return;
 		ev.preventDefault();
 		const r = tr.getBoundingClientRect();
 		await orgDropRun(moved, row.path,
-			(ev.clientY - r.top) > r.height / 2);
+			(ev.clientY - r.top) > r.height / 2, movedKind || '');
 	})(); });
 	tr.addEventListener('dragend', () => {
 		orgDragPath = null;
+		orgDragKind = null;
 		orgDropMarks();
 		tr.removeClass('is-dragging');
 	});
@@ -232,7 +272,7 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 		rows: () => Array.from<HTMLElement>(d.panel.querySelectorAll(
 			'.ws-org-row[data-path]')),
 		idOf: (el2: HTMLElement) => el2.getAttribute('data-path'),
-		drop: (from: string, to: string, below: boolean) => { void orgDropRun(from, to, below); }
+		drop: (from: string, to: string, below: boolean) => { void orgDropRun(from, to, below, row.kind); }
 	});
 };
 	return { orgGroupDrop, orgRowDrag, get orgDragCol() { return orgDragCol; }, set orgDragCol(v) { orgDragCol = v; }, get orgLastGrouping() { return orgLastGrouping; }, set orgLastGrouping(v) { orgLastGrouping = v; } };
