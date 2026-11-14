@@ -41,7 +41,7 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 ## Targets and flags
 
-Give a note a word count to aim for, and a folder one of its own: the whole book, a part, a chapter. A folder's target is its own, not the sum of its notes', so a 100,000-word book needs no target on every chapter. Set it in the Target column, or on the folder's own row at the top of the table (the Total row at the foot, for the whole vault).
+Give notes word counts to aim for in the Target column. By default, folders keep their own targets, which you can edit in the Target column. Turn on **Folder targets sum child targets** under Settings → Word-Smith → Manuscript to calculate each folder's target from descendant note targets, including notes in nested folders; calculated folder targets are read-only.
 
 Any note or folder can have a deadline too, in the Deadline column. The cell shows the date and the working days left, `20 Oct 2026 · 8d`, or just one of them (Settings → Word-Smith → Manuscript → **Deadline column shows**); hover it for the sentence. Sort by Deadline to see the nearest first: the days left run in the same order. A PDF or any other file can have one too. The words a day that get you there (what was left when today began, over the working days left) are on the bar: put `{target}` in a row and press it. Settings → Word-Smith → Manuscript → **Working days** picks the days that count. Targets count words.
 

@@ -342,8 +342,7 @@ const orgFolderIcon = (into: HTMLElement, path: string, open: boolean) =>
 // one that can be trusted. Same reader as the cells (`orgColRaw`), so a
 // total and its rows can never disagree.
 const ORG_AGG: Record<string, string> = {
-	// A FOLDER'S OWN (A700, the writer: folders get their own target, and the sum of their notes' targets is gone):
-	// the target, the deadline and the plan are the folder's, set on it; its progress, its rows' count as shown
+	// Targets sum descendant notes; deadlines remain independently set on folders.
 	words: 'sum', paras: 'sum', goal: 'own', deadline: 'own',
 	today: 'sum', grade: 'avg', modified: 'newest',
 	// A COUNT PER FLAG: a folder's Flag cell says how many files beneath
@@ -401,12 +400,16 @@ const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 	} catch (_) { wsCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
 	return 'count';
 };
-// A GROUP'S OWN READING (A700): `self` is the folder the row is (the vault's root as ''); its rows' count, as
-// shown, is the progress, the number the Words cell beside it reads
+// A group's progress and target sum the same descendant notes. Its deadline remains its own.
 const orgOwnAgg = (col: { id: string }, self: string, paths: string[]): WsOrgColAgg | null => {
 	let count = 0;
 	for (const p of (paths || [])) count += Number(orgColRaw(WORDS_COL, p)) || 0;
-	const target = d.plugin.folderTargetFor(self);
+	const target = col.id === 'goal' && d.plugin.settings.orgFolderTargetSum
+		? (paths || []).reduce((sum, path) => {
+			const file = d.plugin.app.vault.getAbstractFileByPath(path);
+			return sum + (file && d.plugin.isFileCounted(file) ? Number(orgColRaw({ id: 'goal' }, path)) || 0 : 0);
+		}, 0)
+		: d.plugin.folderTargetFor(self);
 	if (col.id === 'goal') {
 		if (!(target > 0)) return null;
 		return { text: d.plugin.orgTargetSay(count, target), goal: { words: count, target },

@@ -206,7 +206,7 @@ const orgGoalBand = (td: HTMLElement, words: number, target: number) => {
 const orgIsFolder = (path: string) => {
 	try { const f = d.plugin.app.vault.getAbstractFileByPath(String(path || '')); return !!f && !!f.children; } catch { return false; }
 };
-// A FOLDER'S OWN TARGET IS SET WHERE IT IS READ TOO (A700): `band` is its rows' count over it, from the aggregate.
+// Folder targets are calculated from their notes; note targets remain editable.
 const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { words: number; target: number } | null) => {
 	const folder = row.kind === 'folder';
 	td.setText(text);
@@ -214,6 +214,10 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 		if (band) orgGoalBand(td, band.words, band.target);
 		else if (!folder) orgGoalBand(td, Number(d.orgColRaw({ id: 'words' }, row.path)) || 0, Number(d.orgColRaw({ id: 'goal' }, row.path)) || 0);
 	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
+	if (folder && d.plugin.settings.orgFolderTargetSum) {
+		if (band && band.target > 0) td.title = wsT('{count} of a target of {target}', { count: band.words.toLocaleString(), target: band.target.toLocaleString() });
+		return;
+	}
 	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
 	const canGoal = folder || orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
