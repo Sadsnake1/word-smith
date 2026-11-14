@@ -8,7 +8,7 @@
     "build": "node esbuild.config.mjs",
     "check": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "node test/smoke.js"
+    "test": "node test/smoke.js && node test/locale-english.js"
   },
   "devDependencies": {
     "@codemirror/commands": "6.6.2",

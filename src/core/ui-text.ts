@@ -30,11 +30,14 @@ let WS_UI_LANG = '';
 const WS_UI_MISSED = new Set<string>();
 const WS_PLURAL_CAT = /^\s*(zero|one|two|few|many|other)\s*:/;
 
-/** Obsidian's language code to the table Word-Smith has for it, '' for English or a language it has none for:
+/** Obsidian's language code to the table Word-Smith has for it, '' for default English or a language it has none for:
+ *  en-NZ shares the en-GB spelling table while retaining its own formatting locale;
  *  zh is Simplified Chinese, zh-TW (and Hong Kong's, Macau's) Traditional (A767), nn reads Bokmål,
  *  pt-BR falls back to European Portuguese where it has no line of its own */
 export function wsUiPick(code: string): string {
-	const c = String(code || '').trim();
+	const c = String(code || '').trim().replace(/_/g, '-');
+	if (/^en-gb(?:-|$)/i.test(c)) return 'en-GB';
+	if (/^en-nz(?:-|$)/i.test(c)) return 'en-NZ';
 	if (!c || /^en(-|$)/i.test(c)) return '';
 	if (/^zh(-hans|-cn)?$/i.test(c)) return WS_LOCALES['zh-Hans'] ? 'zh-Hans' : '';
 	if (/^zh-(hant|tw|hk|mo)$/i.test(c)) return WS_LOCALES['zh-Hant'] ? 'zh-Hant' : '';
@@ -44,9 +47,20 @@ export function wsUiPick(code: string): string {
 	return /^zh$/i.test(base) ? '' : (WS_LOCALES[base] ? base : '');
 }
 
+/** Obsidian uses generic English; in that case use the device's English preference. */
+export function wsUiPickForApp(appLanguage: string, preferredLanguage: string): string {
+	const app = String(appLanguage || 'en').trim();
+	return wsUiPick(/^en$/i.test(app) && /^en(?:-|_)/i.test(preferredLanguage)
+		? preferredLanguage : app);
+}
+
+function wsUiTable(lang: string): Record<string, string> | null {
+	return WS_LOCALES[lang === 'en-NZ' ? 'en-GB' : lang] || null;
+}
+
 /** the interface in a language (a code from wsUiPick), or English for '' */
 export function wsUiSet(lang: string): void {
-	const table = lang ? WS_LOCALES[lang] : null;
+	const table = lang ? wsUiTable(lang) : null;
 	// Brazilian Portuguese: its own lines over European Portuguese's
 	const under = lang === 'pt-BR' ? WS_LOCALES.pt : null;
 	WS_UI = null;
@@ -86,7 +100,7 @@ export function wsTIn(code: string | null | undefined, en: string, vars?: Record
 	const lang = wsUiPick(String(code || ''));
 	const core = en.trim().normalize('NFC');
 	let hit = '';
-	for (const t of [lang ? WS_LOCALES[lang] : null, lang === 'pt-BR' ? WS_LOCALES.pt : null]) {
+	for (const t of [lang ? wsUiTable(lang) : null, lang === 'pt-BR' ? WS_LOCALES.pt : null]) {
 		if (hit || !t) continue;
 		const v = t[core] ?? t[en.trim()];
 		if (v && v.trim()) hit = v.normalize('NFC');
@@ -131,7 +145,7 @@ function wsTPlain(en: string, vars?: Record<string, string | number>): string {
 		const core = en.trim().normalize('NFC');
 		const hit = WS_UI.get(core);
 		if (hit) s = en.slice(0, en.length - en.trimStart().length) + hit + en.slice(en.trimEnd().length);
-		else if (core && !WS_UI_DONE.has(core)) WS_UI_MISSED.add(core);
+		else if (core && !WS_UI_DONE.has(core) && !/^en-/.test(WS_UI_LANG)) WS_UI_MISSED.add(core);
 	}
 	// A CONTEXT before '::' keeps apart two lines English writes alike ('spacing::Double' is Export's line spacing,
 	// 'Double' the band's line style, two words in Japanese): a table keys each its own, English shows what follows

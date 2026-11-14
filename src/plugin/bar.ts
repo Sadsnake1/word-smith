@@ -2510,7 +2510,7 @@ export const barMethods = {
 		const s = this.settings;
 		const active = s.posEnabled ? this.getSyntaxCategories().filter((c) => s[c.key]) : [];
 		const title = active.length
-			? wsT('Syntax highlight: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() ? c.label : c.label.toLowerCase()))) })
+			? wsT('Syntax highlight: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() && !wsUiLang().startsWith('en-') ? c.label : c.label.toLowerCase()))) })
 			: wsT('Syntax highlight is off');
 		const el = this.buildBarButton(
 			'ws-barbtn-syntax' + (active.length ? '' : ' is-off'),
@@ -2674,7 +2674,7 @@ export const barMethods = {
 		return this.buildBarButton(
 			'ws-barbtn-writechecks' + (active.length ? '' : ' is-off'),
 			(node: HTMLElement) => this.barTokenPaint(node, 'prose', wsT('Prose')),
-			active.length ? wsT('Prose checks: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() ? c.label : c.label.toLowerCase()))) })
+			active.length ? wsT('Prose checks: {list}', { list: wsUiJoin(active.map((c) => (wsUiLang() && !wsUiLang().startsWith('en-') ? c.label : c.label.toLowerCase()))) })
 				: wsT('Prose checks are off'),
 			(anchor: HTMLElement) => this.openWriteChecksPicker(anchor)
 		);

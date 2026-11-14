@@ -72,3 +72,5 @@ One switch at the top turns everything on or off. Under it, eleven pages; each o
 | **Themes** | The switch and the scheme shelf, then the options |
 | **Vault** | Where it applies (every note, some folders, or all but some), your settings as text (copy, paste, undo), a repair, the files the plugin keeps, where to add more fonts |
 | **About** | What's new, the welcome again, the documentation, an issue with your versions filled in |
+
+When Obsidian is set to English, the preferred language reported by the app or browser selects British spelling for British and New Zealand English. Other languages continue to follow Obsidian’s language setting.

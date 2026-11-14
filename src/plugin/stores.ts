@@ -6,7 +6,7 @@
 // as before, from any file. `this` is the plugin.
 
 import { Notice, getLanguage } from 'obsidian';
-import { wsT, wsUiPick, wsUiSet } from '../core/ui-text';
+import { wsT, wsUiPickForApp, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
 import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings, WS_MIRROR_DAY_KEYS } from '../core/preamble';
@@ -2641,7 +2641,8 @@ export const storesMethods = {
 	uiApply(this: WordSmith) {
 		let code = 'en';
 		try { code = getLanguage() || 'en'; } catch { code = 'en'; }
-		wsUiSet(wsUiPick(code));
+		const preferred = typeof navigator === 'undefined' ? '' : navigator.language;
+		wsUiSet(wsUiPickForApp(code, preferred));
 	},
 
 	// CHOOSING A LANGUAGE. Its quote marks are not written into Typography's own fields
