@@ -2108,6 +2108,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					visible: all(ty, () => !!wsPackSpaces(this.plugin.packActive()) && !!s.typoLanguageSpaces), control: { type: 'toggle', key: 'typoSpaceForYou' } },
 				{ name: 'Ellipsis', desc: '... becomes …', control: { type: 'toggle', key: 'typoEllipsis' }, visible: ty },
 				{ name: 'Dashes', desc: '-- becomes –, --- becomes —', control: { type: 'toggle', key: 'typoDashes' }, visible: ty },
+				// (#127, AeroPilot: "only the em dash is wrapped and the word is left behind")
+				{ name: 'Keep a word with its dash', desc: 'A word and the em dash after it wrap to a new line together, on screen and on paper. Your note is untouched.', control: { type: 'toggle', key: 'typoDashKeep' }, visible: ty },
 				{ name: 'Arrows', desc: '-> →, <- ←, => ⇒', control: { type: 'toggle', key: 'typoArrows' }, visible: ty },
 				{ name: 'Comparisons', desc: '<= ≤, >= ≥, /= ≠', control: { type: 'toggle', key: 'typoComparisons' }, visible: ty },
 				{ name: 'Guillemets', desc: '<< « and >> »', control: { type: 'toggle', key: 'typoGuillemets' }, visible: ty },
@@ -2221,6 +2223,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// A731: the deadline's two halves, one column
 				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
+				// (#136, JavaGT: the row carries its flag; the writer: "subtle coloring, toggle off by default")
+				{ name: 'Color rows by flag', desc: 'Each flagged note’s row takes a faint wash of its flag’s color.', control: { type: 'toggle', key: 'orgFlagWash' }, visible: flags },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
 				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
@@ -2403,7 +2407,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.page('Export', 'file-output', 'What every export does, decided once.', [
 			this.section('Sections', [this.railRow('export', RAIL)]),
 			// DECIDED ONCE (A574): moved out of the Export window, which says where they went
-			ex('Title page', ['author', 'roundWordCount', 'address', 'phone', 'email', 'contactOnTitle'], [
+			ex('Title page', ['author', 'wordCountOnTitle', 'roundWordCount', 'address', 'phone', 'email', 'contactOnTitle'], [
 				{ name: 'Author', desc: 'Your name on the title page and in the running header.',
 					render: (st) => {
 						st.addText((t) => t.setPlaceholder('A. Writer').setValue(String(opts().author || '')).onChange((v) => { void (async () => {
@@ -2413,6 +2417,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 							plugin.exportOptsChanged();
 						})(); }));
 					} },
+				// (#124, BelimFaux's PR #126: the count was pinned on)
+				{ name: 'Word count', desc: 'The book’s length on the title page. Off leaves it out.', render: flag('wordCountOnTitle') },
 				{ name: 'Round the word count', desc: '“About 90,000 words” on the title page, as a publisher expects. Off prints it exactly.', render: flag('roundWordCount') },
 				// YOUR CONTACT LINES (#81, the writer: "also add as options phone, adress, email"; their pick "Contact block")
 				// (ONE BOX, a line each: the writer, "don't make adress a token, just a text box that can have 3,4 lines for the adress")
@@ -2537,7 +2543,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			? 'A .bib or .json file in your vault (Zotero keeps either up to date). Cite with [@key].'
 			: plugin._citeLibError || (plugin.citeLibrary().size + ' sources read from ' + s.citeLibrary + '.');
 		let libTimer: number | null = null;
-		const text = (key: 'citeHeading' | 'citeCustomInText' | 'citeCustomEntry', ph: () => string) => (st: Setting) => {
+		const text = (key: 'citeHeading' | 'citeCustomInText' | 'citeCustomEntry' | 'citeCustomArticle' | 'citeCustomChapter', ph: () => string) => (st: Setting) => {
 			// a box tokens are typed in: under its name, the page's width
 			if (key !== 'citeHeading') { st.settingEl.addClass('ws-set-block'); st.settingEl.addClass('ws-cite-fmt'); }
 			st.addText((t) => t.setPlaceholder(ph()).setValue(String(s[key] || '')).onChange((v) => { void (async () => {
@@ -2593,10 +2599,12 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						btn.addClass('ws-cite-customize');
 						let armed = 0;
 						const disarm = () => { window.clearTimeout(armed); btn.removeClass('mod-warning'); b.setButtonText(wsT('Customize')); };
+						// (an article's or a chapter's box counts only when it holds something: a style customized before #128 has neither)
 						const changed = () => {
-							const mine = { inText: String(s.citeCustomInText || ''), around: String(s.citeCustomAround || 'parens'), entry: String(s.citeCustomEntry || '') };
-							if (!mine.inText.trim() && !mine.entry.trim()) return false;
-							return [WS_CITE_CUSTOM_DEFAULT, ...Object.values(WS_CITE_PRESET_TOKENS)].every((x) => x.inText !== mine.inText || x.entry !== mine.entry || x.around !== mine.around);
+							const mine = { inText: String(s.citeCustomInText || ''), around: String(s.citeCustomAround || 'parens'), entry: String(s.citeCustomEntry || ''), article: String(s.citeCustomArticle || ''), chapter: String(s.citeCustomChapter || '') };
+							if (!mine.inText.trim() && !mine.entry.trim() && !mine.article.trim() && !mine.chapter.trim()) return false;
+							return [WS_CITE_CUSTOM_DEFAULT, ...Object.values(WS_CITE_PRESET_TOKENS)].every((x) => x.inText !== mine.inText || x.entry !== mine.entry || x.around !== mine.around
+								|| (!!mine.article.trim() && mine.article !== (x.article || '')) || (!!mine.chapter.trim() && mine.chapter !== (x.chapter || '')));
 						};
 						b.setButtonText(wsT('Customize')).setTooltip(wsT('Start your own style from this one, in tokens.')).onClick(() => { void (async () => {
 							const from = WS_CITE_PRESET_TOKENS[s.citeStyle || 'apa'];
@@ -2609,6 +2617,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 							}
 							disarm();
 							s.citeCustomInText = from.inText; s.citeCustomAround = from.around; s.citeCustomEntry = from.entry;
+							s.citeCustomArticle = from.article || ''; s.citeCustomChapter = from.chapter || '';
 							s.citeStyle = 'custom';
 							await plugin.saveSettings();
 							this.update();
@@ -2625,7 +2634,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						box.empty();
 						const lib = plugin.citeLibrary();
 						const refs = lib.size ? Array.from(lib.values()).slice(0, 2) : WS_CITE_SAMPLES;
-						const citer = wsCiter(s.citeStyle || 'apa', new Map(refs.map((r) => [r.key, r])), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading, this.plugin.citeTerms(), { ibid: !!s.citeIbid });
+						const citer = wsCiter(s.citeStyle || 'apa', new Map(refs.map((r) => [r.key, r])), this.plugin.citeCustom(), s.citeHeading, this.plugin.citeTerms(), { ibid: !!s.citeIbid, sort: !!s.citeSort });
 						const one = (key: string, locator: string): WsCite => ({ from: 0, to: 0, narrative: false, items: [{ key, locator, prefix: '', suppress: false }] });
 						const said = refs.map((r, k) => citer.cite(one(r.key, k === 0 ? '12' : '')));
 						const prose = box.createDiv({ cls: 'ws-cite-preview-text' });
@@ -2642,17 +2651,26 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				} },
 			// IBID. (#60's rest): Chicago's notes alone, off by default; under the preview, so the style stays right over it (A634)
 			{ name: 'Ibid.', desc: 'A note citing the same source as the note before it says Ibid.', control: { type: 'toggle', key: 'citeIbid' }, visible: () => s.citeStyle === 'chicago-notes' },
+			// #128: APA 7 orders the sources in one citation by author; off by default, numbered styles and notes keep theirs
+			{ name: 'Sort sources in a citation', desc: 'Several sources cited together go in the order of the list at the back, each with its own page.',
+				control: { type: 'toggle', key: 'citeSort' }, visible: () => s.citeStyle !== 'ieee' && s.citeStyle !== 'chicago-notes' },
 			{ name: 'In the text', desc: 'One source as it reads in the text, in the tokens below; [ ] drops a part whose field is empty.',
 				render: text('citeCustomInText', () => '{etal} {year}[, {page}]'), visible: custom },
 			{ name: 'In the list', desc: 'One source as it reads in the list at the back.',
 				render: text('citeCustomEntry', () => '{authors-full}. {year}. {title*}.'), visible: custom },
+			// #128: an article and a chapter of their own, which Customize fills from the style; empty, as In the list
+			{ name: 'Articles in the list', desc: 'A journal article as it reads in the list; empty, as In the list.',
+				render: text('citeCustomArticle', () => '{authors-full}. {year}. {title-quoted}. {container*}[, {volume}][, {pages}].'), visible: custom },
+			{ name: 'Chapters in the list', desc: 'A chapter in a book as it reads in the list; empty, as In the list.',
+				render: text('citeCustomChapter', () => '{authors-full}. {year}. {title-quoted}. In {container*}[, {pages}].'), visible: custom },
 			{ name: 'Around them', desc: 'What encloses the sources cited together.',
 				render: (st) => {
 					st.addDropdown((d) => d.addOption('parens', '( )').addOption('brackets', '[ ]').addOption('none', wsT('Nothing'))
 						.setValue(s.citeCustomAround || 'parens').onChange((v) => { void (async () => { s.citeCustomAround = v; paint(); await plugin.saveSettings(); })(); }));
 				}, visible: custom },
-			{ name: 'List heading', desc: 'Over the list at the back; empty, the style\u2019s own (References, Works Cited, Bibliography).',
-				render: text('citeHeading', () => (WS_CITE_STYLES.find((x) => x.id === s.citeStyle) || WS_CITE_STYLES[0]).heading) },
+			// (#128: empty, the book's language's heading where it has one, as the export prints it)
+			{ name: 'List heading', desc: 'Over the list at the back; empty, your language\u2019s or the style\u2019s own (References, Works Cited).',
+				render: text('citeHeading', () => plugin.citeTerms().heading || (WS_CITE_STYLES.find((x) => x.id === s.citeStyle) || WS_CITE_STYLES[0]).heading) },
 			{ name: 'Citation tokens', desc: 'What each token draws.',
 				render: (st) => this.renderCiteTokens(st), searchable: false, visible: custom },
 			{ name: 'Mark citations', desc: 'As you write: a citation marked, a key not in the library underlined, its source on hover.', control: { type: 'toggle', key: 'citeMarks' } },
@@ -2925,6 +2943,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
-	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons',
+	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons', 'orgFlagWash',
 	'layoutZenOnly', 'pageView', 'hideOwnFolder', 'revisionsOn',
 ]);

@@ -1634,14 +1634,26 @@ export function wsCiteKeyText(key: string): string {
 	const k = String(key || '');
 	return new RegExp('^' + WS_CITE_KEY_START + WS_CITE_KEY_CHAR + '*$', 'u').test(k) && !/[.:,;?!/-]$/.test(k) ? k : '{' + k + '}';
 }
+// A NARRATIVE CITATION'S LOCATOR (#128): Pandoc's @key [p. 33], a space at most between them; no @ inside (that is
+// a bracketed citation of its own), not a footnote's [^1], a wikilink's [[, a checkbox's [ ] or a link's [text](
+const WS_CITE_NARRATIVE_LOC = '[ \\t]?\\[([^[\\]@^\\s][^[\\]@]*)\\](?![([])';
+/** what follows a narrative key, read as its locator (#128): the bracket's text, or null */
+export function wsCiteNarrativeLoc(after: string): { len: number; locator: string } | null {
+	const m = new RegExp('^' + WS_CITE_NARRATIVE_LOC, 'u').exec(String(after || ''));
+	return m && m[1].trim() ? { len: m[0].length, locator: m[1].trim() } : null;
+}
 const WS_CITE_BRACKET_MASK = new RegExp('\\[[^[\\]]*?-?@(?:' + WS_CITE_KEY_START + '|\\{)[^[\\]]*\\](?!\\()', 'gu');
-const WS_CITE_NARRATIVE_MASK = new RegExp('(^|[^\\p{L}\\p{N}_@[\\]`])@' + WS_CITE_KEY_RE, 'gu');
-// CITATIONS ARE NOT PROSE (A572): Pandoc's [@key, p. 12] and a narrative @key blanked,
-// for the count and for the marks; an email (a letter before its @) is left as it is.
+const WS_CITE_NARRATIVE_MASK = new RegExp('(^|[^\\p{L}\\p{N}_@[\\]`])@(' + WS_CITE_KEY_RE + ')((?:' + WS_CITE_NARRATIVE_LOC + ')?)', 'gu');
+// CITATIONS ARE NOT PROSE (A572): Pandoc's [@key, p. 12] and a narrative @key blanked, its [p. 33] with it (a key
+// ending in punctuation leaves it to the sentence, as the finder does), for the count and for the marks; an email (a
+// letter before its @) is left as it is.
 export function wsMaskCitations(text: string) {
 	return text
 		.replace(WS_CITE_BRACKET_MASK, (m: string) => ' '.repeat(m.length))
-		.replace(WS_CITE_NARRATIVE_MASK, (m: string, pre: string) => pre + ' '.repeat(m.length - pre.length));
+		.replace(WS_CITE_NARRATIVE_MASK, (m: string, pre: string, key: string, loc: string) => {
+			const keep = loc && !key.startsWith('{') && /[.:,;?!/-]$/.test(key) ? loc : '';
+			return pre + ' '.repeat(m.length - pre.length - keep.length) + keep;
+		});
 }
 
 // ── Markup masking ───────────────────────────────────────────────────────────

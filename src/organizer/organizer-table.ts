@@ -884,6 +884,8 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 	// window ends up with two descriptions of a row that have to be kept
 	// in step.
 	const table = wrap.createEl('table', { cls: 'ws-org-table' });
+	// the rows washed in their flags' colors, by the stylesheet off each row's data-flag (Settings: Color rows by flag)
+	if (plugin.settings.orgFlagWash === true) table.addClass('ws-org-flagwash');
 	ctx.orgNameStamp(table);
 	// NAME ALONE: with no column ticked the Name cells are the table's
 	// rounded corner cells, and the seam, a straight line down the host at

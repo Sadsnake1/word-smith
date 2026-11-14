@@ -3572,7 +3572,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.9.1';
+export const WS_PLUGIN_VERSION = '1.9.2';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -4436,6 +4436,9 @@ export const DEFAULT_SETTINGS = {
 	// The marker for the one-time flip in loadSettings; see the note there.
 	fileIconsOffOnce: false,
 	orgFolderIcons: true,
+	// A FAINT WASH OF EACH NOTE'S FLAG COLOR ACROSS ITS ROW (#136, JavaGT's data-flag on the row; the writer: "a toggle in
+	// organizer, subtle coloring, toggle off by default")
+	orgFlagWash: false,
 	// OFF: a folder glyph tells a folder from a note at a glance; a glyph on
 	// every note tells you what you already know from the row it is in. The
 	// switch stays, because a switch is one click back.
@@ -4985,9 +4988,14 @@ export const DEFAULT_SETTINGS = {
 	citeCustomInText:         '{etal} {year}[, {page}]',
 	citeCustomAround:         'parens',
 	citeCustomEntry:          '{authors-full}. {year}. {title*}.[ {place}:][ {publisher}.]',
+	// an article and a chapter in a custom style's list (#128): empty, as citeCustomEntry
+	citeCustomArticle:        '',
+	citeCustomChapter:        '',
 	citeMarks:                true,
 	// Ibid. in Chicago's notes (#60's rest): off, as Chicago now prefers the short note
 	citeIbid:                 false,
+	// several sources in one citation in the list's order (#128, APA 7): off, the order written
+	citeSort:                 false,
 	posEnabled:               false,
 	posDimOthers:             true,
 	// The Writing Checks counterpart of posDimOthers. Ships OFF where the
@@ -5030,6 +5038,8 @@ export const DEFAULT_SETTINGS = {
 	typoQuoteStyle:           'us',      // the usual marks: US “ ” outside, UK ‘ ’ outside (A694)
 	typoEllipsis:             true,
 	typoDashes:               true,
+	// A WORD AND THE EM DASH AFTER IT KEPT ON ONE LINE when a line wraps (#127, AeroPilot; the writer: "Build it")
+	typoDashKeep:             false,
 	typoArrows:               true,
 	typoComparisons:          false,
 	typoGuillemets:           false,

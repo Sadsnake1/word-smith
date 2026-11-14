@@ -28,7 +28,7 @@ import {
 	wsNarrowState, WsOutlinerView, wsPassState, wsPassStorm, wsRepairSettings, wsSecHeadLevel,
 	wsSessionLens, wsSessionNew, wsShareText, wsStatusLabel, wsStatusNext, wsTaskSay, wsTocSteps,
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, WS_DISPLAY_MATH_RUN, wsMathBlockOpens, scanNonProseLines, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsDashKeepSpans, wsDashJoin, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, WS_DISPLAY_MATH_RUN, wsMathBlockOpens, scanNonProseLines, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords, findDialogue, wsDialoguePairs, BAR_THEMES,
 	tokenizeLine, tagTokens, countSyllables, splitSentences, WS_EXPORT_PREVIEW_AUTO_BYTES, wsSentenceStart, posBucket,
@@ -71,7 +71,7 @@ export default Object.assign(WordSmith, {
 	wsUnderRow, wsOrgFolderWords,
 	// the twenty-three the Word export audit and probe evaluated out of a slice of the text
 	wsEpubCheck,
-	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, WS_DISPLAY_MATH_RUN, wsMathBlockOpens, scanNonProseLines, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
+	wsPageStarts, WS_TARGET_MAX, wsIsRtl, wsRelPath, wsPageNumAt, wsTocTitle, wsHdrFtrXml, wsPageBoxesCss, wsTocPagesMeasure, wsTocPagesApply, wsBuildDocx, wsBuildEpub, wsEpubUuid, wsDataUrlBytes, wsFormatHasPages, wsStylesXml, wsBlocksFromMarkdown, wsInlineRuns, wsDashKeepSpans, wsDashJoin, wsParseImageRef, wsSplitFigures, wsFigureHtml, wsHtmlBlocks, wsFigureSources, WS_INLINE_MATH, WS_DISPLAY_MATH_RUN, wsMathBlockOpens, scanNonProseLines, wsFootnoteDefs, wsRunsHtml, wsPara, wsPaperOf, wsTwipIn, WS_PAPERS,
 	wsLineTwips, wsJoinMark, wsZip, wsUtf8, wsCrc32, wsXml, wsTable, wsHeaderXml, wsAnchorId, wsRoundWords,
 	wsFontMatches, wsProbeInstalledFonts, wsUniqueFonts, WS_SAFE_FONTS, wsTitleWords,
 	// the dialogue finder the menu probe evaluated out of the text, the bar themes the theme probe did

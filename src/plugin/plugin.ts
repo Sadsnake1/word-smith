@@ -1759,6 +1759,8 @@ export default class WordSmith extends WsPluginWithAreas {
 		this.loadMark('events + chrome');
 		// CM6 decoration extensions (focus dimming + hidden markers)
 		this.setupEditorExtensions();
+		// A WORD AND ITS EM DASH ON ONE LINE IN READING VIEW TOO (#127): dashKeepInto, contained
+		this.registerMarkdownPostProcessor((el, ctx) => { try { this.dashKeepInto(el, ctx.sourcePath); } catch (_) { wsCatch('dashKeepInto', _); } });
 		this.scheduleVimMotionMaps();
 		this.loadMark('editor extensions');
 

@@ -2601,10 +2601,16 @@ export const storesMethods = {
 	// the style the settings name, over the library: one book's citations, in order, in the book's language (A713)
 	citer(this: WordSmith): WsCiter {
 		const s = this.settings;
-		return wsCiter(s.citeStyle || 'apa', this.citeLibrary(), { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry }, s.citeHeading, this.citeTerms(), { ibid: !!s.citeIbid });
+		return wsCiter(s.citeStyle || 'apa', this.citeLibrary(), this.citeCustom(), s.citeHeading, this.citeTerms(), { ibid: !!s.citeIbid, sort: !!s.citeSort });
 	},
 	// THE BOOK'S LANGUAGE FOR A CITATION (A713, issue #60): the language Settings → Language names, and its pack's own
 	// `cite-<term>` lines over the built-in words
+	// A STYLE OF THE WRITER'S OWN, one writer for the export, the editor's hover and the preview (#128: an article's
+	// and a chapter's templates with it)
+	citeCustom(this: WordSmith) {
+		const s = this.settings;
+		return { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry, article: s.citeCustomArticle, chapter: s.citeCustomChapter };
+	},
 	citeTerms(this: WordSmith) {
 		const p = this.packActive();
 		return wsCiteTermsFor(this.settings.language || 'en', p ? p.props : null);

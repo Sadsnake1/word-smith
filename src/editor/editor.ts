@@ -5,12 +5,12 @@
 // and declared on the class there, so every `this.x()` reaches them exactly
 // as before, from any file. `this` is the plugin.
 
-import type { EditorView, KeyBinding } from '@codemirror/view';
-import type { TransactionSpec } from '@codemirror/state';
+import type { Decoration, DecorationSet, EditorView, KeyBinding, ViewUpdate } from '@codemirror/view';
+import type { Extension, TransactionSpec } from '@codemirror/state';
 import { wsEditorExtensions } from './editor-extensions';
 import { WS_INTERNALS } from '../core/obsidian-internals';
-import { Platform } from 'obsidian';
-import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsVimOf } from '../core/preamble';
+import { Platform, TFile } from 'obsidian';
+import { CM, TYPO_MAX_LOOKBACK, TYPO_OPENS_AFTER, TYPO_RULES, wsCatch, wsDashKeepSpans, wsVimOf } from '../core/preamble';
 import { wsMakeCiteSuggest } from './cite-suggest';
 import { wsPhraseFold, wsPhraseRe } from '../core/lang-engine';
 import { wsSpaceForYouFits } from '../core/language';
@@ -126,6 +126,35 @@ export const editorMethods = {
 
 	// (A862: built while a note open anywhere wants it, `ws-typography: true` with the switch off; each editor then asks
 	// its own note, so `ws-typography: false` types plain beside a note that does not)
+	// A WORD AND ITS EM DASH ON ONE LINE IN READING VIEW (#127): every text node outside code, its runs (wsDashKeepSpans)
+	// wrapped in a span that does not wrap; the note untouched. A Markdown post-processor's, registered at load
+	dashKeepInto(this: WordSmith, el: HTMLElement, sourcePath: string) {
+		const s = this.settings;
+		if (!s.pluginEnabled || !s.typoDashKeep || (el.textContent || '').indexOf('\u2014') < 0) return;
+		const f = this.app.vault.getAbstractFileByPath(sourcePath);
+		if (!this.optFor(f instanceof TFile ? f : null, 'typographyEnabled')) return;
+		const doc = el.ownerDocument;
+		const walker = doc.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+		const nodes: Text[] = [];
+		for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+			const t = n as Text;
+			if (t.data.indexOf('\u2014') >= 0 && !(t.parentElement && t.parentElement.closest('code, pre, .ws-dash-keep'))) nodes.push(t);
+		}
+		for (const t of nodes) {
+			const spans = wsDashKeepSpans(t.data);
+			if (!spans.length) continue;
+			const frag = createFragment();
+			let at = 0;
+			for (const [a, z] of spans) {
+				if (a > at) frag.append(t.data.slice(at, a));
+				frag.append(createSpan({ cls: 'ws-dash-keep', text: t.data.slice(a, z) }));
+				at = z;
+			}
+			if (at < t.data.length) frag.append(t.data.slice(at));
+			t.replaceWith(frag);
+		}
+	},
+
 	buildTypographyExtension(this: WordSmith) {
 		if (!CM || !CM.EditorView || !this.notesWant('typographyEnabled')) return [];
 
@@ -313,7 +342,33 @@ export const editorMethods = {
 			}
 			return false;
 		});
-		return [CM.Prec ? CM.Prec.highest(handler) : handler];
+		// A WORD AND ITS EM DASH ON ONE LINE (#127): each run (wsDashKeepSpans) under a mark that does not wrap, the note
+		// untouched; built while the switch is on, every editor asking its own note
+		const out: Extension[] = [CM.Prec ? CM.Prec.highest(handler) : handler];
+		if (this.settings.typoDashKeep) {
+			const cm = CM;
+			const keep = cm.Decoration.mark({ class: 'ws-dash-keep' });
+			const build = (view: EditorView): DecorationSet => {
+				const s = this.settings;
+				if (!s.pluginEnabled || !s.typoDashKeep || !this.isEditorInScope(view) || !this.optForView(view, 'typographyEnabled')) return cm.Decoration.none;
+				const b = new cm.RangeSetBuilder<Decoration>(), doc = view.state.doc;
+				for (const range of view.visibleRanges) {
+					let pos = range.from;
+					while (pos <= range.to) {
+						const line = doc.lineAt(pos);
+						for (const [a, z] of wsDashKeepSpans(line.text)) b.add(line.from + a, line.from + z, keep);
+						pos = line.to + 1;
+					}
+				}
+				return b.finish();
+			};
+			out.push(cm.ViewPlugin.fromClass(class {
+				decorations: DecorationSet;
+				constructor(view: EditorView) { this.decorations = build(view); }
+				update(u: ViewUpdate) { if (u.docChanged || u.viewportChanged) this.decorations = build(u.view); }
+			}, { decorations: (v) => v.decorations }));
+		}
+		return out;
 	},
 
 	// Two transactions, not one. A single transaction that swapped "--" for an

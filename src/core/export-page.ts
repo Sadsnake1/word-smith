@@ -390,6 +390,29 @@ function wsShieldMark(c: string) {
 function wsUnshield(s: string) {
 	return s.replace(WS_SHIELD_RE, (ch: string) => WS_SHIELDED.charAt(ch.charCodeAt(0) - WS_SHIELD_AT));
 }
+// ── A WORD AND ITS EM DASH ON ONE LINE (#127, AeroPilot: "only the em dash is wrapped and the word is left behind") ─────
+// Chromium breaks lines by Unicode's rules (UAX #14), where an em dash may break before itself as well as after, so "word—"
+// can send its dash alone to the next line; word processors and e-readers keep the two together, and no CSS property can.
+// On screen a run is held by a span that does not wrap (the editor's mark, reading view's span); in an export a word joiner
+// (U+2060) goes between them, in the file only. A RUN is the word right before one or more em dashes, back to the last
+// space or the run before it; found by a scan, not a regex, so a long line with no space stays linear
+export function wsDashKeepSpans(text: string): [number, number][] {
+	const t = String(text == null ? '' : text), out: [number, number][] = [];
+	let floor = 0, i = t.indexOf('\u2014');
+	while (i !== -1) {
+		let end = i;
+		while (end < t.length && t.charCodeAt(end) === 0x2014) end++;
+		let start = i;
+		while (start > floor && !/\s/.test(t.charAt(start - 1))) start--;
+		if (start < i) out.push([start, end]);
+		floor = end;
+		i = t.indexOf('\u2014', end);
+	}
+	return out;
+}
+export function wsDashJoin(text: string): string {
+	return String(text == null ? '' : text).replace(/([^\s\u2014\u2060])\u2014/g, '$1\u2060\u2014');
+}
 export function wsInlineRuns(text: string, opts?: (WsExportOpts & WsExportBuild) | null) {
 	const o = opts || {};
 	let t = String(text == null ? '' : text);

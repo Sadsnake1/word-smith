@@ -14,7 +14,7 @@ import { WS_IMAGE_MIME, wsImageRefRe, wsParseImageRef, wsMdImageLink, wsRelPath,
 import type { WsWheelAcc } from '../core/preamble';
 import { wsCiteMissing, wsCiteMissingText, wsCiteSections, wsCiteThin, wsCiteThinText } from '../core/citations';
 import { wsT, wsTIn, wsUiJoin } from '../core/ui-text';
-import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsFigureSources, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
+import { wsPageStarts, WS_FRAME_SHELL, WS_TITLE_SIZE_EM, WS_EXPORT_FOLDER_HEADINGS_DEFAULT, WS_EXPORT_PREVIEW_AUTO_BYTES, wsHtmlBlocks, wsFigureSources, wsDropCallouts, wsDropTags, WS_PAPERS, wsAnchorId, wsBuildDocx, wsBuildEpub, wsCatch, wsCtxScope, wsExportRoot, wsFileHeadLevel, wsFormatHasPages, wsHeadSizeEm, wsHostTint, wsJoinMark, wsLineOfSnippet, wsLineTwips, wsPaperMicrons, wsPaperOf, wsSnippetOf, wsTitleWords, wsTocSteps, wsTwipIn, wsDashJoin, wsGlyphWord, wsIconInto, wsIsFile, wsIsFolder, wsStr, wsErrMsg, wsElOf } from '../core/preamble';
 import type WordSmith from './plugin';
 
 // ── DRAWING A PICTURE (A568), with the engine Obsidian runs ─────────────
@@ -1657,7 +1657,9 @@ export const exportMethods = {
 				depth = Math.min(6, bits.length);
 			}
 			const dirs = (treeRoot ? String(f.path).slice(treeRoot.length + 1) : String(f.path)).split('/').slice(0, -1);
-			secs.push({ title: f.basename, markdown: text, path: f.path, depth, dirs });
+			// A WORD AND ITS EM DASH ON ONE LINE IN THE FILE (#127): a word joiner between them, the note untouched
+			const keepDash = !!this.settings.typoDashKeep && !!this.optFor(f, 'typographyEnabled');
+			secs.push({ title: f.basename, markdown: keepDash ? wsDashJoin(text) : text, path: f.path, depth, dirs });
 			n++;
 			if (onStep && (n % 5 === 0 || n === files.length)) {
 				onStep(n, files.length);
@@ -1924,6 +1926,8 @@ export const exportMethods = {
 		// Folder names as headings — off, because it changes the shape of
 		// every existing export and a flat folder of scenes gains nothing.
 		dflt('folderHeadings', WS_EXPORT_FOLDER_HEADINGS_DEFAULT);
+		// THE WORD COUNT ON THE TITLE PAGE, on unless the writer says otherwise (#124, BelimFaux: "not every document exported
+		// is a manuscript"; their PR #126 unpinned it): a tick in Settings › Export › Title page
 		dflt('wordCountOnTitle', true);
 		// …and this is pinned, because the convention decides it
 		// and a switch nobody moves is a switch that only takes up room.

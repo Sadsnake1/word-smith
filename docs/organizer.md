@@ -65,6 +65,8 @@ Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 -
 
 ## In Obsidian's explorer
 
+**Color rows by flag** (Settings → Word-Smith → Manuscript → Organizer, off to start) gives each flagged note's row a faint wash of its flag's color. Each row carries its flag as `data-flag` (`draft`, `revise`, `done`, `outline`, `blocked`), the same word the file tree's flag wears, so a CSS snippet can style the rows of one flag.
+
 Under **Settings → Word-Smith → Manuscript → File tree**: word counts (folders total what's inside), flags, tasks left and folder icons. **Outline counts** put a word count beside each heading, so you can see which scene ran long.
 
 **Hide the Word-Smith folder** (Settings → Word-Smith → Vault) keeps the plugin's own folder out of the Organizer, the file explorer, the graph, search and the compiled book. While it's on, the folder is listed in Obsidian's **Excluded files** (Settings → Files and links), which is how the graph and search leave it out. The files stay where they are and still sync.

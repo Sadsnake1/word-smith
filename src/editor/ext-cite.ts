@@ -25,7 +25,7 @@ export function wsCiteExtension(plugin: WordSmith, cm: NonNullable<typeof CM>): 
 			const lib = plugin.citeLibrary();
 			if (!s.pluginEnabled || !s.citeMarks || !lib.size || !plugin.isEditorInScope(view)) return Decoration.none;
 			const style = s.citeStyle || 'apa';
-			const custom = { inText: s.citeCustomInText, around: s.citeCustomAround, entry: s.citeCustomEntry };
+			const custom = plugin.citeCustom();
 			const b = new RangeSetBuilder<Decoration>();
 			let done = 0;
 			for (const { from, to } of view.visibleRanges) {

@@ -173,6 +173,13 @@ body.hider-vault:not(.is-mobile) .workspace-split.mod-left-split .workspace-side
 
 .zenmode-active .mod-top-left-space .view-header { padding-left: var(--frame-left-space); }
 
+/* OBSIDIAN'S FIND BAR BELOW THE TITLE BAR (#123, LiamDragneel: in Zen "you can't interact with most of the 'find' text box
+   and buttons", and with Pages it reads as cut off): Zen hides the main area's tab row, so a note in the top row starts at
+   the window's top, under Obsidian's fixed title bar (the hidden frame's drag region and window buttons; measured 0..39 over
+   a find bar at 0..46, every control's centre on it). The find bar opens below it by the tab row's own height, only where
+   the title bar lies over the note: the hidden frame, not fullscreen, the top row */
+body.zenmode-active.is-hidden-frameless:not(.is-fullscreen) .mod-root .workspace-tabs.mod-top .document-search-container { margin-top: var(--header-height); }
+
 /* THE COLOR PROBE (colorProbeEl): a real box the computed style can be read
    off, off-canvas and zero-sized; the one inline cssText the tree wrote
    (A453). */
@@ -15929,3 +15936,34 @@ body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-re
 	text-shadow: var(--ws-ink-shadow);
 	-webkit-text-stroke: var(--ws-ink-stroke);
 }
+
+/* A FAINT WASH OF EACH NOTE'S FLAG COLOR ACROSS ITS ROW (#136, JavaGT: the row carries data-flag, the id the file tree
+   wears; the writer: "subtle coloring, toggle off by default"): Settings › Manuscript › Organizer › Color rows by flag. A
+   layer over each cell's own background, so a sticky cell stays opaque and a hovered or followed row still shows as one.
+   THE WHOLE ROW, FAINT (the writer: "i want the full row colored, even subtler", then "color is too subtle"): 7%, and the Name cell too, whose guides
+   are a background-image of their own: the wash joins its layers under the guide, as the hover's tint does (the hover with
+   it). A selected row keeps its selection tint. NOT THE PICKER'S CELL at the row's end, outside the table's frame (the
+   writer: "the rows color overshoots the table"), as the selection skips it */
+.ws-org-flagwash .ws-org-row[data-flag="draft"] { --ws-org-wash: var(--ws-flag-draft); }
+.ws-org-flagwash .ws-org-row[data-flag="revise"] { --ws-org-wash: var(--ws-flag-revise); }
+.ws-org-flagwash .ws-org-row[data-flag="done"] { --ws-org-wash: var(--ws-flag-done); }
+.ws-org-flagwash .ws-org-row[data-flag="outline"] { --ws-org-wash: var(--ws-flag-outline); }
+.ws-org-flagwash .ws-org-row[data-flag="blocked"] { --ws-org-wash: var(--ws-flag-blocked); }
+.ws-org-flagwash .ws-org-row[data-flag] { --ws-org-washc: color-mix(in srgb, var(--ws-org-wash, transparent) 7%, transparent); }
+.ws-org-flagwash .ws-org-row[data-flag]:not(.is-selected) > td:not(.ws-org-pickcell) { background-image: linear-gradient(var(--ws-org-washc), var(--ws-org-washc)); }
+.ws-org-table.ws-org-flagwash .ws-org-row[data-flag]:not(.is-selected) > td.ws-org-name {
+	background-image: var(--ws-org-guide-img), linear-gradient(var(--ws-org-washc), var(--ws-org-washc));
+	background-position: var(--ws-org-guidex) 0, 0 0;
+	background-size: calc(var(--ws-org-depth, 0) * var(--ws-org-step)) 100%, auto;
+	background-repeat: no-repeat, no-repeat;
+}
+.ws-org-table.ws-org-flagwash .ws-org-row[data-flag]:not(.is-selected):hover > td.ws-org-name {
+	background-image: var(--ws-org-guide-img), linear-gradient(var(--background-modifier-hover), var(--background-modifier-hover)), linear-gradient(var(--ws-org-washc), var(--ws-org-washc));
+	background-position: var(--ws-org-guidex) 0, 0 0, 0 0;
+	background-size: calc(var(--ws-org-depth, 0) * var(--ws-org-step)) 100%, auto, auto;
+	background-repeat: no-repeat, no-repeat, no-repeat;
+}
+
+/* A WORD AND ITS EM DASH ON ONE LINE (#127, AeroPilot): the run Typography's Keep a word with its dash marks, in the editor and
+   in reading view; the break after the dash is the line's own */
+.ws-dash-keep { white-space: nowrap; }
