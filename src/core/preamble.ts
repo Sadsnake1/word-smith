@@ -1815,7 +1815,11 @@ export function wsFootNotes(doc: Document): { notes: number; placed: number } {
 			const block = placeOn(p, ids);
 			if (!block) { for (const id of ids) { placed.add(id); leftovers.push(id); } continue; }
 			for (const fn of Array.from(block.querySelectorAll('p.fn'))) placed.add(fn.id);
-			if (!block.querySelector('p.fn')) { block.remove(); continue; }
+			// EVERY NOTE WENT ON WITH ITS MARK (#132, raphaelshklarek: the Word preview froze): the marks stood in the room their
+			// notes needed, so the page ends where the block stands and the rest opens the next page, each note with its mark,
+			// as Word carries the line over. The block was dropped instead, which left the page as it was, and the same page
+			// was tried again until the guard ran out (200,000 layouts). Bare, it holds the page's foot and draws no rule.
+			if (!block.querySelector('p.fn')) block.classList.add('fnbare');
 			// the section cut after the block: the rest opens the next page
 			const S = block.parentElement;
 			if (!S) break;
@@ -3572,7 +3576,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.9.2';
+export const WS_PLUGIN_VERSION = '1.9.3';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.

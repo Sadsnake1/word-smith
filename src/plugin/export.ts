@@ -3424,6 +3424,8 @@ export const exportMethods = {
 					// page. A paragraph cut for them goes on unindented, its first half's last line set full
 					+ '.fnfoot { break-after: column; text-indent: 0; font-size: ' + (Math.max(8, pt - 2) / pt).toFixed(4) + 'em; line-height: 1.45; }'
 					+ '.fnfoot::before { content: ""; display: block; width: 2in; max-width: 33%; border-top: 1px solid currentColor; opacity: 0.6; margin: 0 0 0.35em; }'
+					// (#132: a page whose notes all went on with their marks ends there, with no rule and no notes)
+					+ '.fnfoot.fnbare::before { content: none; }'
 					+ '.fnfoot p.fn { margin: 0; text-indent: 0; }'
 					// (and a paragraph cut where a page begins, for the reader, `wsPageCut`: the same, and joined again)
 					+ 'p.fncont, p.pgcont { text-indent: 0; } p.fnsplit, p.pgsplit { margin-bottom: 0;' + (o.justify ? ' text-align-last: justify;' : '') + ' }'
