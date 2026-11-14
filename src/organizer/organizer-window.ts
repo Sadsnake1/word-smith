@@ -2063,6 +2063,7 @@ export const organizerWindowMethods = {
 			get orgOpenSetMany() { return orgOpenSetMany; },
 			get orgHist() { return orgHistApi; },
 			get orgPruneUserCols() { return pruneUserCols; },
+			get markOf() { return markOf; },
 			get ownerWin() { return ownerWin; },
 			get panel() { return panel; },
 			get s() { return s; },

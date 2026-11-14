@@ -169,6 +169,16 @@ const orgRepaintFlagCell = (td: HTMLElement, path: string) => {
 		const col = (d.COLS || []).filter(c => c.id === 'mark')[0];
 		if (!col) return false;
 		const text = d.orgColText(col, path);
+		// THE ROW'S OWN COPY OF THE FLAG, kept in step here because this path
+		// returns without the full draw that stamps it. The table writes
+		// `data-flag` on every row for a stylesheet to select on; a snippet
+		// reading it must not go on saying "Notes" after the flag became Draft.
+		const rowEl = td.closest('tr');
+		if (rowEl) {
+			const flagId = d.markOf(path, 'file');
+			if (flagId) rowEl.setAttribute('data-flag', flagId);
+			else rowEl.removeAttribute('data-flag');
+		}
 		const more = td.querySelector('.ws-org-flagmore');
 		// EVERYTHING BUT THE CARET GOES. A cell can be going from a flag
 		// to none, so removing only what is there is not enough.

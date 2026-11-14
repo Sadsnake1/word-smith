@@ -59,6 +59,9 @@ export interface WsOrgCtxOwn {
 	readonly orgOpenSetMany: (paths: string[], on: boolean) => void;
 	readonly orgHist: ReturnType<typeof wsOrgJournalMake>['api'];
 	readonly orgPruneUserCols: () => boolean;
+	// THE ONE READ OF A ROW'S FLAG. The table stamps it on the row as
+	// `data-flag`; a folder has none, and this is where that is decided.
+	readonly markOf: (path: string | number, kind: string) => string;
 	readonly ownerWin: () => typeof window;
 	readonly panel: HTMLDivElement;
 	readonly s: WordSmithSettings;
