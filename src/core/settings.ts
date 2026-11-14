@@ -94,6 +94,7 @@ export interface WsOrgDoor {
 	select: (p: string) => void; follow: (p: string, chosen?: boolean) => void;
 	tab: () => string; single: () => boolean; tabSet: (id: string) => boolean;
 	host: () => WsHost; ticks: WsTicksDoor; ticksOnly: (paths: string[]) => Promise<boolean>;
+	renameOpen: (oldPath: string, newPath: string) => void;
 }
 // The window's host: the modal it opens in, or the leaf that is the pane
 // (`modalHost`, `leafHost`). One shape, so the window never asks which.

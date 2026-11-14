@@ -1860,6 +1860,7 @@ export const organizerWindowMethods = {
 		// already holds the note and moves to the note's folder when it does not.
 		const treeDoor: WsOrgDoor = {
 			kind: host.kind,
+			renameOpen: orgModeBox.orgOpenRename,
 			select: (p: string) => wsOrgDoorSelect({ orgScope, orgSelect, tab }, p),
 			follow: (p: string, chosen?: boolean) => wsOrgDoorFollow({ drawPanel, exportOpts, orgFollow, orgScope, tab }, p, chosen),
 			tab: () => tab,

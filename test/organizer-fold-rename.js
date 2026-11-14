@@ -1,0 +1,37 @@
+'use strict';
+const assert = require('assert');
+const Module = require('module');
+const esbuild = require('esbuild');
+const load = Module._load;
+Module._load = function (name) {
+	if (name === 'obsidian') return { Plugin: class {}, PluginSettingTab: class {}, Setting: class {}, Modal: class {}, Menu: class {}, MarkdownView: class {}, TFile: class {}, TFolder: class {}, ItemView: class {}, FuzzySuggestModal: class {}, Notice: class {}, Component: class {}, Events: class {}, Platform: {}, setIcon() {}, addIcon() {} };
+	if (name.startsWith('@codemirror/')) return {};
+	return load.apply(this, arguments);
+};
+const WordSmith = require('../main.js').default;
+const plugin = Object.create(WordSmith.prototype);
+plugin.settings = { organizerOpen: ['old', 'old/sub', 'elsewhere'] };
+plugin.goalPathStores = () => [];
+assert(plugin.renameGoalPaths('old', 'new'));
+assert.deepStrictEqual(plugin.settings.organizerOpen, ['new', 'new/sub', 'elsewhere']);
+assert(plugin.forgetGoalPaths('new'));
+assert.deepStrictEqual(plugin.settings.organizerOpen, ['elsewhere']);
+const result = esbuild.buildSync({ entryPoints: ['src/organizer/organizer-mode.ts'], bundle: true, platform: 'node', format: 'cjs', external: ['obsidian'], write: false });
+const compiled = new Module('organizer-fold-rename', module);
+compiled._compile(result.outputFiles[0].text, 'organizer-fold-rename.js');
+const settings = { organizerOpen: ['new', 'new/sub'] };
+const makeWindow = (paths) => {
+	const open = new Set(paths);
+	let draws = 0;
+	const mode = compiled.exports.wsOrgModeMake({ plugin: {}, orgOpen: open, s: settings, orgOpenSet() {}, drawPanel() { draws++; } });
+	return { open, mode, draws: () => draws };
+};
+const first = makeWindow(['old', 'old/sub']);
+const second = makeWindow(['old/sub']);
+for (const window of [first, second]) window.mode.orgOpenRename('old', 'new');
+assert.deepStrictEqual([...first.open], ['new', 'new/sub']);
+assert.deepStrictEqual([...second.open], ['new/sub']);
+assert.deepStrictEqual(settings.organizerOpen, ['new', 'new/sub']);
+assert.strictEqual(first.draws(), 1);
+assert.strictEqual(second.draws(), 1);
+console.log('Organizer folder rename state passed');
