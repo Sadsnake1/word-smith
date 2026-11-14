@@ -146,7 +146,13 @@ export type WsExportBoolKey = KeysOf<WsExportOpts, boolean>;
 export type WsExportStringKey = KeysOf<WsExportOpts, string>;
 
 /** a manuscript state, as `flagDefs` repairs it from what a vault stored */
-export interface WsFlagDef { id: string; label: string; shape?: string; light?: string; dark?: string }
+export interface WsFlagDef {
+	id: string; label: string; shape?: string; light?: string; dark?: string;
+	/** the notes carrying this flag are left out of word counts, targets and the history */
+	exclude?: boolean;
+	/** the notes carrying this flag are left out of the Organizer's and the file tree's row numbers */
+	skipNumber?: boolean;
+}
 
 /** the history record as 1.28 and earlier kept it in data.json; moved to its own file once, on load */
 export interface WsLegacyHistory { days?: Record<string, { a: number; r: number; n: number }>; started?: string; fileCounts?: Record<string, number> }

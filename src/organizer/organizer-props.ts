@@ -298,8 +298,30 @@ function wsOrgPropPopRender(a: { d: OrgPropsDeps; orgPropColToggle: (r: { col: {
 }
 
 // A property type's submenu, opened (lifted out of wsOrgPropsMake, A488).
-function wsOrgPropSubOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) => { left: number; top: number; }; orgPropPopEl: () => HTMLElement | null; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null }, anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) {
-	const { d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
+// A FIXED FLYOUT PLACED IN THE VIEWPORT, WHATEVER ITS FRAME.
+//
+// `position: fixed` is viewport-relative only while no ancestor establishes
+// a containing block: `.workspace-leaf` carries `contain: strict`, so the
+// panel's frame starts at the leaf, not at the window. `offsetParent` names
+// that frame in Chrome but is null for a fixed element in Safari — the panel
+// then landed a leaf-width off the glass, which reads as a dead button. So
+// place it by DELTA instead: put it at its frame's origin, measure where that
+// actually is, and move it by the difference. No browser's idea of
+// `offsetParent` is consulted.
+const orgPlaceFlyout = (el: HTMLElement, x: number, y: number) => {
+	try {
+		// A VARIABLE, NOT A LITERAL: the lint rule flags a literal written to
+		// `style` (the codebase writes its dynamic styles this way).
+		const zero = '0px';
+		el.style.left = zero;
+		el.style.top = zero;
+		const b = el.getBoundingClientRect();
+		el.style.left = Math.round(x - b.left) + 'px';
+		el.style.top = Math.round(y - b.top) + 'px';
+	} catch (_) { wsCatch('openManuscriptModal / orgPlaceFlyout', _); }
+};
+function wsOrgPropSubOpen(a: { d: OrgPropsDeps; orgPropPopEl: () => HTMLElement | null; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null }, anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) {
+	const { d, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
 	const was = !!orgPropSubEl();
 	orgPropSubClose();
 	if (was) return null;
@@ -349,18 +371,17 @@ function wsOrgPropSubOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) =>
 		if (vw && x + wide > vw) x = Math.max(0, box.left - wide);
 		let y = r.top;
 		if (vh && y + tall > vh) y = Math.max(0, vh - tall);
-		// INTO THE FRAME IT IS PLACED IN. The reads above are all
-		// viewport rects, and the flyout is positioned inside the host.
-		const base = orgPopBase(sub);
-		sub.style.left = Math.round(x - base.left) + 'px';
-		sub.style.top = Math.round(y - base.top) + 'px';
+		// INTO THE FRAME IT IS PLACED IN, whatever the browser calls that
+		// frame: the reads above are viewport rects, and the flyout is
+		// positioned inside the host.
+		orgPlaceFlyout(sub, x, y);
 	} catch (_) { wsCatch('openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();', _); }
 	return sub;
 }
 
 // THE PROPERTIES POPOVER, opened under its button (lifted out of wsOrgPropsMake, A488).
-function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) => { left: number; top: number; }; orgPropPopClose: () => void; orgPropPopRender: () => void; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null; orgPropSubOpen: (anchor: HTMLElement, door: { label?: string | undefined; icons?: string[] | undefined; types: { id: string; label: string; }[]; pick: (type: string, ev2: MouseEvent) => void; open?: ((ev2: MouseEvent) => void) | undefined; }) => HTMLDivElement | null; st: { orgPropPopQuery: string; orgPropPopOff: (() => void) | null; orgPropDragId: string | null; orgEditGuard: { path: string; key: string; } | null; orgOpenAfter: { path: string; id: string; key: string; } | null; orgRedrawPending: boolean; orgFieldEscape: (() => void) | null; } }, anchor: HTMLElement) {
-	const { d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
+function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPropPopClose: () => void; orgPropPopRender: () => void; orgPropSubClose: () => void; orgPropSubEl: () => HTMLElement | null; orgPropSubOpen: (anchor: HTMLElement, door: { label?: string | undefined; icons?: string[] | undefined; types: { id: string; label: string; }[]; pick: (type: string, ev2: MouseEvent) => void; open?: ((ev2: MouseEvent) => void) | undefined; }) => HTMLDivElement | null; st: { orgPropPopQuery: string; orgPropPopOff: (() => void) | null; orgPropDragId: string | null; orgEditGuard: { path: string; key: string; } | null; orgOpenAfter: { path: string; id: string; key: string; } | null; orgRedrawPending: boolean; orgFieldEscape: (() => void) | null; } }, anchor: HTMLElement) {
+	const { d, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
 	orgPropPopClose();
 	const d0 = d.ownerDoc();
 	// ── IN THE WINDOW, NOT ON THE BODY ──────────────────────────────
@@ -500,16 +521,13 @@ function wsOrgPropPopOpen(a: { d: OrgPropsDeps; orgPopBase: (el: HTMLElement) =>
 		const w0 = d.ownerWin();
 		const wide = pop.offsetWidth || 0;
 		const room = (w0.innerWidth || 0) - wide;
-		// INTO THE FRAME IT IS PLACED IN: the clamp is done in VIEWPORT space,
-		// where the room was measured, and the result is converted once, at
-		// the end.
-		const base = orgPopBase(pop);
+		// The clamp is done in VIEWPORT space, where the room was measured;
+		// `orgPlaceFlyout` converts it into the panel's own frame once.
 		const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
-		pop.style.left = Math.round(x - base.left) + 'px';
 		// TWO PIXELS UNDER THE BUTTON, LIKE THE MENUS BESIDE IT: Obsidian's
 		// own positioner writes `top = y + 2` for every menu it places, so Sort
 		// and Filter would sit 2px lower than this one. Same number, one row.
-		pop.style.top = Math.round(r.bottom - base.top) + 2 + 'px';
+		orgPlaceFlyout(pop, x, r.bottom + 2);
 	} catch (_) { wsCatch('openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();', _); }
 	// ── DISMISS: ESCAPE, AND A CLICK ANYWHERE ELSE ──────────────
 	//
@@ -1147,19 +1165,12 @@ const orgPropPopRender = () => wsOrgPropPopRender({ d, orgPropColToggle, orgProp
 // the viewport is written into the frame of the offset parent. A
 // MODAL's root starts at the viewport origin, where the two frames
 // agree; a PANE's root starts wherever the leaf is, so the panel would
-// paint a hand's width to the right of its button. ONE CONVERTER FOR
-// BOTH FLYOUTS, because the panel and its type submenu place
-// themselves the same way.
-const orgPopBase = (el: HTMLElement) => {
-	try {
-		const par = el && el.offsetParent;
-		if (!par || !par.getBoundingClientRect) return { left: 0, top: 0 };
-		const b = par.getBoundingClientRect();
-		return { left: b.left || 0, top: b.top || 0 };
-	} catch (_) { wsCatch('openManuscriptModal / orgPopBase: const par = el && el.offsetParent;', _); return { left: 0, top: 0 }; }
-};
-const orgPropSubOpen = (anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) => wsOrgPropSubOpen({ d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
-const orgPropPopOpen = (anchor: HTMLElement) => wsOrgPropPopOpen({ d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
+// paint a hand's width to the right of its button. `orgPlaceFlyout`
+// does the conversion by measuring the frame, not by naming it: Safari
+// reports no `offsetParent` for a fixed element, and naming the wrong
+// frame put the panel off the glass.
+const orgPropSubOpen = (anchor: HTMLElement, door: { label?: string; icons?: string[]; types: { id: string; label: string }[]; pick: (type: string, ev2: MouseEvent) => void; open?: (ev2: MouseEvent) => void }) => wsOrgPropSubOpen({ d, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
+const orgPropPopOpen = (anchor: HTMLElement) => wsOrgPropPopOpen({ d, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
 
 // ── THE EDIT-GUARD (spec: a focused row never redraws) ──────────────
 //

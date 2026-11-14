@@ -88,6 +88,10 @@ const orgFlagApply = async (pairs: [string, string][]) => {
 		else delete d.s[d.statusStore()][p];
 	}
 	await d.plugin.saveSettings();
+	// A FLAG IS ALSO A MEMBERSHIP QUESTION. Setting "Notes" on a row takes its
+	// words out of every total; clearing it puts them back. The index owns what
+	// counts, so it is told about exactly these paths, not swept wholesale.
+	d.plugin.orgIndexFlagsChanged(pairs.map(([p]) => p));
 	for (const [p] of pairs) d.plugin.repaintExplorerFlag(p);
 	d.drawPanel();
 };
@@ -103,7 +107,13 @@ const orgFlagSet = async (row: { path: string }, id: string, cell: HTMLElement |
 	// a sort moved anything. ONE ROW ONLY: the hint repaints the one cell
 	// and skips the draw, so a bulk set — which reaches other rows — takes
 	// the draw.
-	d.orgCellHint = (cell && paths.length === 1) ? { td: cell, path: row.path } : null;
+	//
+	// …UNLESS THE ROW'S NUMBER MOVES WITH THE FLAG. The one-cell shortcut
+	// repaints the flag and leaves the rest of the row alone, and a number is
+	// the rest of the row: a note that becomes "No row number", or stops
+	// being it, has to take the whole draw so its neighbours close the gap.
+	const renumbered = paths.some((p, i) => d.plugin.flagSkipsNumber(before[i][1]) !== d.plugin.flagSkipsNumber(after[i][1]));
+	d.orgCellHint = (cell && paths.length === 1 && !renumbered) ? { td: cell, path: row.path } : null;
 	d.orgHistPush({
 		label: d.orgHistOn(paths, id ? wsT('Flag {flag}', { flag: wsStatusLabel(id) }) : wsT('Flag cleared')),
 		undo: () => orgFlagApply(before),

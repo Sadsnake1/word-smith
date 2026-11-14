@@ -941,6 +941,9 @@ export function wsWireVault(plugin: WordSmith) {
 		// from those stores, and redrawing before they were rewritten
 		// would paint the order the vault had a moment ago.
 		plugin.treeShapeChanged();
+		// …and an OPEN Organizer's own snapshot of the fold, so a folder
+		// renamed in place comes back open rather than folded.
+		try { plugin._orgOpenRename(oldPath, file.path); } catch (_) { wsCatch('vault rename / _orgOpenRename', _); }
 	});
 	plugin.onAppEvent(plugin.app.vault, 'delete', (file: TAbstractFile) => {
 		plugin.packsChanged(file && file.path);
@@ -1162,6 +1165,10 @@ export default class WordSmith extends WsPluginWithAreas {
 	_fitShortenWidth: number;
 	_flagsSig: string;
 	_flagStamp: string;
+	/** which flags say "not counted", so a change to that switch re-sweeps the index */
+	_flagsExclSig: string;
+	/** which flags say "no row number", so a change to that switch repaints the numbering */
+	_flagsNumSig: string;
 	_fmCache: Record<string, Record<string, boolean | string> | null>;
 	_focusTabPrev: Map<HTMLElement, { display: string; width: string; flexGrow: string; flexShrink: string; flexBasis: string }>;
 	_folderWordBusy: boolean;
@@ -1272,6 +1279,7 @@ export default class WordSmith extends WsPluginWithAreas {
 	_orgRedraw: () => void;
 	_orgNote: () => string;
 	_orgOpen: () => string[];
+	_orgOpenRename: (oldPath: string, newPath: string) => void;
 	_orgOpenSet: (p: string, on: boolean) => void;
 	_orgPropKeys: (at: string) => string[];
 	_orgPropListSet: (p: string, k: string, v: unknown, before: unknown) => Promise<boolean>;
@@ -3712,6 +3720,13 @@ export default class WordSmith extends WsPluginWithAreas {
 		// a writer was choosing files. A record of the writing should not
 		// record itself being kept.
 		if (this.isStoreFile(file.path)) return false;
+		// …AND A NOTE THE WRITER FLAGGED "NOT PROSE". The same exclusion,
+		// chosen from the Organizer's Flag column instead of a path list: a
+		// research note or an outline keeps its row and its flag, and stops
+		// feeding every total. Read through the one predicate, so the Report,
+		// the history, the tree's folder sums and the goals agree by
+		// construction.
+		if (this.flagNotCounted(file.path)) return false;
 		if (!this.isFileInScope(file)) return false;
 		return !this.isPathExcludedFromCounts(file.path);
 	}

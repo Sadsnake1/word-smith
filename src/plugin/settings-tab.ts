@@ -89,7 +89,7 @@ import {
 	wsParaSpacing,
 } from '../core/preamble';
 import type WordSmith from './plugin';
-import type { WordSmithSettings, WsExportBoolKey } from '../core/settings';
+import type { WordSmithSettings, WsExportBoolKey, WsFlagDef } from '../core/settings';
 
 type Key = keyof WordSmithSettings;
 type Def = SettingDefinition<Key>;
@@ -2233,7 +2233,9 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				rendered({ name: 'Working days', desc: 'The days that count toward a deadline.', render: (st) => this.renderWorkDays(st), visible: org }, ['goalWorkDays']),
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
+				this.flagSwitchHead(flags),
 				...this.flagRows(flags),
+				this.noteRow('Each flag has two switches: the first leaves the notes carrying it out of word counts, targets and the history; the second leaves them out of the Organizer’s and the file tree’s row numbers. The notes stay in the table and the tree either way.', flags),
 				// two cards at the foot: what the window can do that no control on this
 				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
 				// wheel; two fingers on a phone)
@@ -2312,6 +2314,25 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		});
 	}
 
+	// THE HEADING ABOVE THE SWITCH COLUMNS. Each flag row carries two
+	// toggles at its right edge, and until now only their hovers said what
+	// they were: two identical switches, one of which leaves a note out of
+	// the counts and one of which leaves it out of the row numbers. The
+	// block is the same fixed width in this row and in every flag row, so
+	// the two words stand over the two switches they name. A heading row,
+	// not a paragraph: the switches are a table and this is its head.
+	flagSwitchHead(visible: Pred): Render {
+		return rendered({
+			name: wsT('Flag'), desc: '', searchable: false, visible,
+			render: (st) => {
+				st.settingEl.addClass('ws-flaghead');
+				const sw = st.controlEl.createDiv({ cls: 'ws-flagswitches' });
+				sw.createSpan({ cls: 'ws-flagswitch-name', text: wsT('Not counted') });
+				sw.createSpan({ cls: 'ws-flagswitch-name', text: wsT('No row number') });
+			},
+		}, []);
+	}
+
 	flagRows(visible: Pred): Def[] {
 		const plugin = this.plugin;
 		const count = plugin.flagCount();
@@ -2328,7 +2349,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					st.settingEl.addClass('ws-flagrow');
 					const icon = st.controlEl.createSpan({ cls: 'ws-flagrow-icon' });
 					wsSvgInto(icon, wsFlagSvg(f.id, 13));
-					const write = async (patch: Record<string, string>) => {
+					const write = async (patch: Partial<WsFlagDef>) => {
 						const all = plugin.flagDefs().map((x) => Object.assign({}, x));
 						Object.assign(all.filter((x) => x.id === f.id)[0], patch);
 						plugin.settings.flags = all;
@@ -2343,6 +2364,25 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					this.swatchRow(st);
 					st.addColorPicker((cp) => cp.setValue(f.light).onChange((v) => { void write({ light: v }); }));
 					st.addColorPicker((cp) => cp.setValue(f.dark).onChange((v) => { void write({ dark: v }); }));
+					// THE TWO SWITCHES, IN THE BLOCK THE HEADING NAMES.
+					const switches = st.controlEl.createDiv({ cls: 'ws-flagswitches' });
+					// THE MEMBERSHIP SWITCH: a note carrying this flag keeps its
+					// row and its flag, and stops feeding word counts, targets
+					// and the history.
+					st.addToggle((t) => {
+						t.setValue(!!f.exclude)
+							.setTooltip(wsT('Not counted in word counts, targets and the history'))
+							.onChange((v) => { void (async () => { await write({ exclude: v }); this.update(); })(); });
+						switches.appendChild(t.toggleEl);
+					});
+					// THE NUMBERING SWITCH: the row stays, the number does not,
+					// and the rows after it close the gap.
+					st.addToggle((t) => {
+						t.setValue(!!f.skipNumber)
+							.setTooltip(wsT('No row number in the Organizer or the file tree'))
+							.onChange((v) => { void (async () => { await write({ skipNumber: v }); this.update(); })(); });
+						switches.appendChild(t.toggleEl);
+					});
 				},
 			}, ['flags']));
 		}

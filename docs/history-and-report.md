@@ -41,6 +41,8 @@ Nothing before the day you switch it on can be reconstructed. A file only knows 
 
 One list of notes and folders is left out of your totals. An outline, a research folder, a scratch file. Word-Smith still works in them. They just don't count.
 
+A flag does the same thing without a list: turn on **Not counted** for a flag under Settings → Word-Smith → Manuscript, and every note carrying it stops counting. **Notes** ships with that switch on. The note keeps its row, its flag and its place in the tree; only its words leave the totals.
+
 ## What counts as a word
 
 Prose only. Frontmatter, `%%` and HTML comments, code blocks, maths, link targets, URLs and markup are stripped first. Headings, lists, quotes and footnotes count. The bar, the report, the Organizer and the history all use this one counter, so the numbers agree everywhere.

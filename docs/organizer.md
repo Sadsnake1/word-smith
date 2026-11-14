@@ -24,7 +24,7 @@ Readings the frontmatter can't give you: word count, target, deadline (the date 
 - **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.
 - Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
 - Folder rows add up what's inside them, folded or not (their Vocabulary counts each word once), and a **Total** row at the foot adds up everything you're looking at.
-- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter.
+- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter. A note flagged **Notes** keeps its row but takes no number, and the rows after it close the gap.
 - A cell you're editing never gets redrawn under you.
 
 ## Bulk edit and undo
@@ -45,7 +45,27 @@ Give a note a word count to aim for, and a folder one of its own: the whole book
 
 Any note or folder can have a deadline too, in the Deadline column. The cell shows the date and the working days left, `20 Oct 2026 · 8d`, or just one of them (Settings → Word-Smith → Manuscript → **Deadline column shows**); hover it for the sentence. Sort by Deadline to see the nearest first: the days left run in the same order. A PDF or any other file can have one too. The words a day that get you there (what was left when today began, over the working days left) are on the bar: put `{target}` in a row and press it. Settings → Word-Smith → Manuscript → **Working days** picks the days that count. Targets count words.
 
-Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
+Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch**, **Blocked** and **Notes** join them, in that order. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
+
+**Notes** is for research, outlines and scratch pages, so it ships with both of the switches a flag can carry. Under Settings → Word-Smith → Manuscript, each flag's row ends with those two switches, after its name, shape and colors. Any flag can take either, and the two are independent: a counted note can be unnumbered, and an uncounted one numbered.
+
+| Flag | Not counted | No row number |
+| --- | --- | --- |
+| **Draft** | off | off |
+| **Revise** | off | off |
+| **Done** | off | off |
+| **Sketch** | off | off |
+| **Blocked** | off | off |
+| **Notes** | on, as it ships | on, as it ships |
+
+Sketch, Blocked and Notes appear as you raise the flag count; the three before them are a fresh install's.
+
+| Switch | What it does | What it leaves alone |
+| --- | --- | --- |
+| **Not counted** | Leaves every note carrying the flag out of the word counts, the targets and the writing history | The note stays in the vault, the Organizer and the file tree, with its row, its flag and its place untouched |
+| **No row number** | Keeps the note's row but takes its number, in the Organizer and in the file tree; the rows after it close the gap | Word counts, targets and the writing history are untouched |
+
+Turning a switch off puts those notes back into the totals, or back into the numbering.
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 

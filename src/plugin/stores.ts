@@ -879,26 +879,36 @@ export const storesMethods = {
 				changed = true;
 			}
 		}
-		// ── AND THE MANUSCRIPT MARKS, WHICH ARE A LIST RATHER THAN A MAP ────
+		// ── AND THE FOLDERS THE ORGANIZER HAS OPEN, WHICH ARE A LIST ──────
 		//
-		// Reported from a vault: a folder marked as a manuscript, dragged
-		// into an unmarked folder, LOST THE MARK — and with the mark went
-		// its place in the Outliner, which is built from the roots. The
-		// folder was still there and still full of chapters; the plugin had
-		// simply stopped believing it was the writing.
-		//
-		// It is the same fault as the maps above and it needed its own code
-		// only because `manuscriptRoots` is an ARRAY of paths, so there is
-		// no key to move — the entry is rewritten in place.
-		//
-		// A PREFIX WALK, not an equality test. Marking `Book` and moving
-		// `Book/Part One` is the ordinary case where nothing should change;
-		// marking `Book/Part One` and moving `Book` has to carry the nested
-		// mark along with everything else that moved.
-		//
-		// NO DUPLICATES. Moving `Book` onto a path that is already marked
-		// would otherwise leave the same folder in the list twice, and every
-		// reading that counts roots would count it twice.
+		// A folder renamed in the Organizer kept its old path in this list,
+		// so the row came back folded: the table was redrawn from the new
+		// path while `organizerOpen` still named the one it left. The same
+		// prefix walk as the maps above — a folder moved with its parent
+		// open has to carry the open state of everything inside it.
+		const open = this.settings.organizerOpen;
+		if (Array.isArray(open)) {
+			for (let i = 0; i < open.length; i++) {
+				const p = open[i];
+				if (typeof p !== 'string') continue;
+				let next: string | null = null;
+				if (p === oldPath) next = newPath;
+				else if (p.startsWith(oldPath + '/')) next = newPath + p.slice(oldPath.length);
+				if (next === null || next === p) continue;
+				open[i] = next;
+				changed = true;
+			}
+			// NO DUPLICATES: moving a folder onto a path already open would
+			// otherwise leave the same folder in the list twice.
+			if (changed) {
+				const seen = new Set<string>();
+				this.settings.organizerOpen = open.filter((p) => {
+					if (typeof p !== 'string' || seen.has(p)) return false;
+					seen.add(p);
+					return true;
+				});
+			}
+		}
 		return changed;
 	},
 
@@ -926,6 +936,16 @@ export const storesMethods = {
 			for (const key of Object.keys(map)) {
 				if (key !== path && !key.startsWith(path + '/')) continue;
 				delete map[key];
+				changed = true;
+			}
+		}
+		// …AND THE FOLDERS THE ORGANIZER HAD OPEN, the same prefix walk:
+		// a deleted folder's path must not linger in the list for ever.
+		const open = this.settings.organizerOpen;
+		if (Array.isArray(open)) {
+			const next = open.filter((p) => typeof p === 'string' && p !== path && !p.startsWith(path + '/'));
+			if (next.length !== open.length) {
+				this.settings.organizerOpen = next;
 				changed = true;
 			}
 		}
@@ -2419,9 +2439,18 @@ export const storesMethods = {
 		const dated = this.goalDatesStoreAdopt(store);
 		if (dated.folderTargets) this.settings.folderTargets = dated.folderTargets;
 		if (dated.goalDeadlines) this.settings.goalDeadlines = dated.goalDeadlines;
-		if (goals) { this.settings.fileGoals = goals.fileGoals; this.settings.fileStatus = goals.fileStatus || {}; }
+		// A HAND EDIT TO A FLAG is a change of what counts, exactly as a click in
+		// the Flag column is: compare before adopting, then let the index re-sweep
+		// rather than leave yesterday's membership in place.
+		let flagsMoved = false;
+		if (goals) {
+			flagsMoved = JSON.stringify(goals.fileStatus || {}) !== JSON.stringify(this.settings.fileStatus || {});
+			this.settings.fileGoals = goals.fileGoals;
+			this.settings.fileStatus = goals.fileStatus || {};
+		}
 		if (colors) this.settings.folderColors = colors;
 		if (ucols) this.settings.uniUserCols = ucols;
+		if (flagsMoved && this._orgIndex) void this.orgIndexResweep();
 		const sig = this.goalsSignature();
 		if ((!goals && !colors && !ucols && !dated.folderTargets && !dated.goalDeadlines) || sig === this._goalsSig) return false;
 		this._goalsSig = sig;

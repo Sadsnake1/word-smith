@@ -238,6 +238,9 @@ function wsOrgWindowClosed(plugin: WordSmith, a: { onHistKey: (ev: KeyboardEvent
 	// goes on swallowing Escape for a window nobody can see.
 	try { stopEscape(); } catch (_) { wsCatch('openManuscriptModal: stopEscape();', _); }
 	try { if (plugin._orgHistActive === onHistKey) plugin._orgHistActive = null; } catch (_) { wsCatch('openManuscriptModal: this._orgHistActive = null;', _); }
+	// AND THE RENAME DOOR, which holds this window's fold snapshot: a closed
+	// window must not be redrawn by a rename it cannot show.
+	try { plugin._orgOpenRename = () => {}; } catch (_) { wsCatch('openManuscriptModal: plugin._orgOpenRename = () => {};', _); }
 	// AND THE WIDTH WATCHER. A ResizeObserver holds its callback, and
 	// its callback holds this whole window — a pane closed without
 	// this keeps two thousand lines alive and toggles a class on an
@@ -361,6 +364,12 @@ export const organizerWindowMethods = {
 			if (id) all[path] = id; else delete all[path];
 			this.settings[store] = all;
 			await this.saveSettings(true);
+			this.orgIndexFlagsChanged([path]);
+			// …and an open Organizer's row numbers, when the flag on either
+			// side of the change says "no row number".
+			if (this.flagSkipsNumber(nowFlag) !== this.flagSkipsNumber(id)) {
+				if (typeof this._orgDraw === 'function') this._orgDraw();
+			}
 			try { void this.patchExplorerDOM(); } catch (_) { wsCatch('fileMenuFor / setFlag: this.patchExplorerDOM();', _); }
 		};
 		const flagRows = (into: Menu) => {
@@ -968,7 +977,11 @@ export const organizerWindowMethods = {
 		const s = this.settings;
 		let n = 0;
 		try { n = this.app.vault.getMarkdownFiles().length; } catch { n = 0; }
-		return n + '|' + JSON.stringify([s.scopeMode, s.scopePaths, s.countExclude]);
+		// …AND WHICH FLAGS SAY "NOT COUNTED": turning that switch on changes
+		// membership without changing a path or a note.
+		let excl: [string, boolean][] = [];
+		try { excl = this.flagDefs().map((f) => [f.id, !!f.exclude] as [string, boolean]); } catch { excl = []; }
+		return n + '|' + JSON.stringify([s.scopeMode, s.scopePaths, s.countExclude, excl]);
 	},
 
 	orgIndexVaultHasNotes(this: WordSmith) {
@@ -1066,6 +1079,32 @@ export const organizerWindowMethods = {
 			ctime: (wsStatOf(f) || { ctime: 0 }).ctime || 0,
 			props
 		});
+	},
+
+	// ── A FLAG CHANGED, SO MEMBERSHIP MAY HAVE ─────────────────────────────
+	//
+	// The index holds what counts. A note that just became "Notes" leaves it;
+	// one that stopped being "Notes" comes back, read once. A flag is not an
+	// edit to the text, so a note that stays counted keeps the reading it had.
+	// Everything downstream (the table, the tree's folder sums, the Report)
+	// repaints from the index's bell.
+	orgIndexFlagsChanged(this: WordSmith, paths: string[]) {
+		if (!this._orgIndex) return;
+		let ring = false;
+		for (const p of (paths || [])) {
+			const f = this.app.vault.getAbstractFileByPath(String(p || ''));
+			if (!f || f.children) continue;
+			if (!this.isFileCounted(f)) {
+				if (wsOrgRemove(this._orgIndex, f.path)) ring = true;
+				continue;
+			}
+			if (!this._orgIndex.has(f.path)) {
+				void this.orgIndexRead(f).then(() => this._orgIndexRing(),
+					(e: unknown) => wsCatch('orgIndexFlagsChanged / orgIndexRead', e));
+			}
+		}
+		if (ring) this._orgIndexRing();
+		try { this.scheduleExplorerPatch(); } catch (_) { wsCatch('orgIndexFlagsChanged / scheduleExplorerPatch', _); }
 	},
 
 	// The events. `metadataCache.changed` fires after a file's content and
@@ -2738,6 +2777,9 @@ export const organizerWindowMethods = {
 				for (const r0 of rows) {
 					const d = lensed ? 0 : (r0.depth || 0);
 					counters.length = d + 1;
+					// A NOTE THAT IS NOT NUMBERED: its row stays, its number does
+					// not, and the next row takes the number it would have had.
+					if (r0.kind !== 'folder' && this.flagNotNumbered(r0.path)) continue;
 					counters[d] = (counters[d] || 0) + 1;
 					const label = counters.slice(0, d + 1).join('.');
 					nums.set(r0.path, label);
