@@ -6,17 +6,42 @@ const Module = require('module');
 const esbuild = require('esbuild');
 const fs = require('fs');
 const path = require('path');
-
-// Exercise the actual Organizer readings with the Obsidian runtime stubbed.
-const result = esbuild.buildSync({ entryPoints: ['src/organizer/organizer-readings.ts'], bundle: true, platform: 'node', format: 'cjs', external: ['obsidian'], write: false });
+const targets = { 'book/a.md': 100, 'book/sub/b.md': 200, 'book/sub/c.md': 0 };
 const load = Module._load;
 Module._load = function (name) {
 	if (name === 'obsidian') return { TFile: class {} };
 	return load.apply(this, arguments);
 };
+
+// Exercise the same target lookup used by reports and the writing bar.
+const reportBundle = esbuild.buildSync({ entryPoints: ['src/plugin/report.ts'], bundle: true, platform: 'node', format: 'cjs', external: ['obsidian'], write: false });
+const reportModule = new Module('organizer-report-target-test', module);
+reportModule._compile(reportBundle.outputFiles[0].text, 'organizer-report-target-test.js');
+const countedFiles = [{ path: 'book/a.md' }, { path: 'book/sub/b.md' }, { path: 'book/sub/c.md' }];
+const uncounted = new Set(['book/sub/c.md']);
+const reportPlugin = {
+	settings: { folderTargetMode: 'manual', folderTargets: { book: 999 } },
+	filesInFolder: (folder) => countedFiles.filter((file) => file.path.startsWith(folder === '/' ? '' : folder + '/')),
+	isFileCounted: (file) => !uncounted.has(file.path),
+	fileGoalFor: (path) => targets[path] || 0
+};
+const reportFolderTarget = reportModule.exports.reportMethods.folderTargetFor;
+assert.strictEqual(reportFolderTarget.call(reportPlugin, 'book'), 999);
+reportPlugin.settings.folderTargetMode = 'calculated';
+assert.strictEqual(reportFolderTarget.call(reportPlugin, 'book'), 300);
+assert.strictEqual(reportPlugin.settings.folderTargets.book, 999);
+uncounted.clear();
+uncounted.add('book/sub/c.md');
+assert.strictEqual(reportFolderTarget.call(reportPlugin, 'book'), 300);
+uncounted.add('book/a.md');
+assert.strictEqual(reportFolderTarget.call(reportPlugin, 'book'), 200);
+reportPlugin.settings.folderTargetMode = 'manual';
+assert.strictEqual(reportFolderTarget.call(reportPlugin, 'book'), 999);
+
+// Exercise the actual Organizer readings with the Obsidian runtime stubbed.
+const result = esbuild.buildSync({ entryPoints: ['src/organizer/organizer-readings.ts'], bundle: true, platform: 'node', format: 'cjs', external: ['obsidian'], write: false });
 const compiled = new Module('organizer-readings-test', module);
 compiled._compile(result.outputFiles[0].text, 'organizer-readings-test.js');
-const targets = { 'book/a.md': 100, 'book/sub/b.md': 200, 'book/sub/c.md': 0 };
 const folderTargets = {};
 const excluded = new Set();
 const settings = { folderTargets, folderTargetMode: 'calculated' };
