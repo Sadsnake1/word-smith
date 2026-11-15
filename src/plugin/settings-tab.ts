@@ -846,7 +846,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// The paths as cards: the path, its kind, a two-tap trash; then a dashed
 	// pill that opens the picker.
-	renderPaths(st: Setting, key: 'scopePaths' | 'countExclude' | 'revisionPaths' | 'revisionExcept', addLabel: string, placeholder: string, withRoot: boolean) {
+	renderPaths(st: Setting, key: 'scopePaths' | 'revisionPaths' | 'revisionExcept', addLabel: string, placeholder: string, withRoot: boolean) {
 		const s = this.plugin.settings;
 		const paths = () => Array.isArray(s[key]) ? s[key] : (s[key] = []);
 		const box = this.block(st, 'ws-cards');
@@ -867,7 +867,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 
 	// The one picker for both lists: folders first (the vault itself where a
 	// list takes it), then notes; what the list already holds is left out.
-	pickPath(key: 'scopePaths' | 'countExclude' | 'revisionPaths' | 'revisionExcept', placeholder: string, withRoot: boolean) {
+	pickPath(key: 'scopePaths' | 'revisionPaths' | 'revisionExcept', placeholder: string, withRoot: boolean) {
 		if (!WsPathSuggestModal) return;
 		const s = this.plugin.settings;
 		const have = new Set<string>(Array.isArray(s[key]) ? s[key] : []);
@@ -2216,16 +2216,18 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		return this.page('Manuscript', 'book-open', 'The Organizer, the file tree, the history.', [
 			this.section('Sections', [this.railRow('manuscript', RAIL)]),
 			this.section('Organizer', [
+				// (TOMBSTONE: four labeled runs, #153, built and taken out the same day: "remove those grouping for the plugin
+				// settings, because all other settings dont use it"; the rows keep the order they reached)
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
-				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer
-				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab' } } },
+				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer. A
+				// new window, the tab pulled out (the writer, 2026-11-15; #143's floating window was built and taken out that day)
+				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab', window: 'A new window' } } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
-				{ name: 'Folder targets sum child targets', desc: 'Calculate each folder target from the targets on its descendant notes.', control: { type: 'toggle', key: 'orgFolderTargetSum' }, visible: org },
 				// A731: the deadline's two halves, one column
 				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
-				// (#136, JavaGT: the row carries its flag; the writer: "subtle coloring, toggle off by default")
-				{ name: 'Color rows by flag', desc: 'Each flagged note’s row takes a faint wash of its flag’s color.', control: { type: 'toggle', key: 'orgFlagWash' }, visible: flags },
+				// (#153, the writer: "an option in plugins settings for all columns like Icon + Name, Name, or just Icon")
+				{ name: 'Column headers', desc: 'Each header as its name, its icon and name, or its icon. Icons save room in a narrow Organizer.', control: { type: 'dropdown', key: 'orgHeaderShow', options: { name: 'Name', both: 'Icon + Name', icon: 'Icon' } }, visible: org },
 				// the sample is a real render, not a hand-typed example: a second
 				// writer of the format would drift from `dateText` and lie quietly
 				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
@@ -2234,14 +2236,18 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				rendered({ name: 'Working days', desc: 'The days that count toward a deadline.', render: (st) => this.renderWorkDays(st), visible: org }, ['goalWorkDays']),
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
+				// (#136, JavaGT: the row carries its flag; the writer: "subtle coloring, toggle off by default")
+				{ name: 'Color rows by flag', desc: 'Each flagged note’s row takes a faint wash of its flag’s color.', control: { type: 'toggle', key: 'orgFlagWash' }, visible: flags },
+				// THE FLAGS WITH SWITCHES (#134/#135, JavaGT; the writer, 2026-11-15: "make the flags with toggles")
 				this.flagSwitchHead(flags),
 				...this.flagRows(flags),
-				this.noteRow('Each flag has two switches: the first leaves the notes carrying it out of word counts, targets and the history; the second leaves them out of the Organizer’s and the file tree’s row numbers. The notes stay in the table and the tree either way.', flags),
-				// two cards at the foot: what the window can do that no control on this
-				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
-				// wheel; two fingers on a phone)
+				this.noteRow('Not counted leaves a flag’s notes out of the totals and history.', flags),
+				// three cards at the foot: what the window can do that no control on this
+				// page says — the bulk edit (desktop only), the zoom (Ctrl and the
+				// wheel; two fingers on a phone) and a row number that is a switch
 				this.noteRow(wsModKeyName() + '-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
 				this.noteRow(wsModKeyName() + ' + scroll zooms the window; on a phone, pinch with two fingers.', org),
+				this.noteRow('Click a row’s number to leave it unnumbered; click its dash to number it again.', org),
 			], this.railed('manuscript', 'organizer')),
 			this.section('File tree', [
 				{ name: 'Word counts', desc: 'Next to each note, added up for folders.', control: { type: 'toggle', key: 'enableFileTreeCounts' } },
@@ -2259,7 +2265,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Track writing history', desc: 'Counts only, never your words; wherever Word-Smith applies.', control: { type: 'toggle', key: 'historyTracking' } },
 				{ name: 'Remember which notes', desc: 'A rename or a move takes its history along.', control: { type: 'toggle', key: 'historyPerFile' }, visible: hist },
 				{ name: 'Count pasted text', desc: 'Off, pasted and cut text are left out, so moving text never counts as writing.', control: { type: 'toggle', key: 'historyCountPasted' }, visible: hist },
-				rendered({ name: 'Never counted', desc: 'Folders and notes left out of the history and every folder total.', render: (st) => this.renderPaths(st, 'countExclude', 'Add a folder or note', wsT('Never count…'), false), visible: hist }, ['countExclude']),
 				{ name: 'Delete all history', desc: 'Every day on record. No second copy, no undo.', render: (st) => this.renderHistoryDelete(st), visible: hist },
 				this.hotkeysRow(['open-history']),
 			], this.railed('manuscript', 'history')),
@@ -2315,13 +2320,13 @@ export class WordSmithSettingTab extends PluginSettingTab {
 		});
 	}
 
-	// THE HEADING ABOVE THE SWITCH COLUMNS. Each flag row carries two
-	// toggles at its right edge, and until now only their hovers said what
-	// they were: two identical switches, one of which leaves a note out of
-	// the counts and one of which leaves it out of the row numbers. The
-	// block is the same fixed width in this row and in every flag row, so
-	// the two words stand over the two switches they name. A heading row,
-	// not a paragraph: the switches are a table and this is its head.
+	// THE HEADING ABOVE THE SWITCH COLUMN. Each flag row carries a toggle at
+	// its right edge, and a bare toggle says nothing until hovered. The block
+	// is the same fixed width in this row and in every flag row, so the word
+	// stands over the switch it names. A heading row, not a paragraph: the
+	// switches are a table and this is its head. (A second switch, No row
+	// number, went on the writer's word, 2026-11-15: a row's number is a click
+	// on the row.)
 	flagSwitchHead(visible: Pred): Render {
 		return rendered({
 			name: wsT('Flag'), desc: '', searchable: false, visible,
@@ -2329,7 +2334,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				st.settingEl.addClass('ws-flaghead');
 				const sw = st.controlEl.createDiv({ cls: 'ws-flagswitches' });
 				sw.createSpan({ cls: 'ws-flagswitch-name', text: wsT('Not counted') });
-				sw.createSpan({ cls: 'ws-flagswitch-name', text: wsT('No row number') });
 			},
 		}, []);
 	}
@@ -2365,7 +2369,7 @@ export class WordSmithSettingTab extends PluginSettingTab {
 					this.swatchRow(st);
 					st.addColorPicker((cp) => cp.setValue(f.light).onChange((v) => { void write({ light: v }); }));
 					st.addColorPicker((cp) => cp.setValue(f.dark).onChange((v) => { void write({ dark: v }); }));
-					// THE TWO SWITCHES, IN THE BLOCK THE HEADING NAMES.
+					// THE SWITCH, IN THE BLOCK THE HEADING NAMES.
 					const switches = st.controlEl.createDiv({ cls: 'ws-flagswitches' });
 					// THE MEMBERSHIP SWITCH: a note carrying this flag keeps its
 					// row and its flag, and stops feeding word counts, targets
@@ -2374,14 +2378,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 						t.setValue(!!f.exclude)
 							.setTooltip(wsT('Not counted in word counts, targets and the history'))
 							.onChange((v) => { void (async () => { await write({ exclude: v }); this.update(); })(); });
-						switches.appendChild(t.toggleEl);
-					});
-					// THE NUMBERING SWITCH: the row stays, the number does not,
-					// and the rows after it close the gap.
-					st.addToggle((t) => {
-						t.setValue(!!f.skipNumber)
-							.setTooltip(wsT('No row number in the Organizer or the file tree'))
-							.onChange((v) => { void (async () => { await write({ skipNumber: v }); this.update(); })(); });
 						switches.appendChild(t.toggleEl);
 					});
 				},
@@ -2503,6 +2499,8 @@ export class WordSmithSettingTab extends PluginSettingTab {
 			ex('Headings', ['centerHeads', 'dashPageBreak'], [
 				// ("in exports": Text › Layout has a Center headings of its own, for the editor; one name a row, as Curly quotes in exports)
 				{ name: 'Center headings in exports', desc: 'Headings in the middle of the line. Off sets them at the start, like the text. The title page stays centered.', render: flag('centerHeads') },
+				// (TOMBSTONE: Book folder as a heading, #151, moved into the Export window's Headings as Top folder on the writer's
+				// word, 2026-11-15: "this option should be in the export not in the plugin settings")
 				{ name: '--- starts a new page', desc: 'A line of three dashes in a note breaks the page there. *** and ___ stay scene breaks.', render: flag('dashPageBreak') },
 				// (TOMBSTONE: Heading number suffix, the writer: "drop the suffix thing"; the numbers are styles in the Export tab)
 			], this.railed('export', 'options')),
@@ -2977,7 +2975,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 		tab.plugin.revChanged();
 		tab.update();
 	},
-	orgFolderTargetSum: (tab) => { if (typeof tab.plugin._orgDraw === 'function') tab.plugin._orgDraw(); },
 	settingsMirror: (tab) => { tab.update(); },   // the file row's text follows
 };
 
@@ -2985,6 +2982,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
-	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgFolderTargetSum', 'orgDeadlineCell', 'orgFolderIcons', 'orgFlagWash',
+	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons', 'orgHeaderShow', 'orgFlagWash',
 	'layoutZenOnly', 'pageView', 'hideOwnFolder', 'revisionsOn',
 ]);

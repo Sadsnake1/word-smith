@@ -37,7 +37,7 @@ import { wsOrgWritesMake } from './organizer-writes';
 import { wsOrgZoomMake } from './organizer-zoom';
 import type { WsOrgCtx, WsOrgCtxOwn } from './org-ctx';
 import type { WsOrgRow } from './organizer-rows';
-import { WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsTimedRead } from '../core/preamble';
+import { wsRowNumbers, WS_FOLDER_COLOURS, WS_OUTLINER_VIEW, WS_PANE_CLASSES, WS_PANE_VIEWS, WS_STATUSES, WS_WRITE, WsOutlinerView, wsCatch, wsCtxLend, wsElShown, wsFlagSvg, wsFolderSvg, wsGuard, wsGuardReport, wsMenuIsNative, wsSessionNew, wsSortArrow, wsSvgInto, wsBag, wsStatOf, wsStr, wsErrMsg, wsTimedRead } from '../core/preamble';
 import { wsT, wsUiDate } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsModEvent, WsHistoryTabState, WsOrgExportCtx, WsExportPanelHandle, WsOrgHistoryCtx } from '../plugin/plugin';
@@ -362,9 +362,9 @@ export const organizerWindowMethods = {
 			this.settings[store] = all;
 			await this.saveSettings(true);
 			this.orgIndexFlagsChanged([path]);
-			// …and an open Organizer's row numbers, when the flag on either
-			// side of the change says "no row number".
-			if (this.flagSkipsNumber(nowFlag) !== this.flagSkipsNumber(id)) {
+			// …and an open Organizer's faded row and totals, when the flag on
+			// either side of the change says "not counted".
+			if (this.flagExcludes(nowFlag) !== this.flagExcludes(id)) {
 				if (typeof this._orgDraw === 'function') this._orgDraw();
 			}
 			try { void this.patchExplorerDOM(); } catch (_) { wsCatch('fileMenuFor / setFlag: this.patchExplorerDOM();', _); }
@@ -978,7 +978,7 @@ export const organizerWindowMethods = {
 		// membership without changing a path or a note.
 		let excl: [string, boolean][] = [];
 		try { excl = this.flagDefs().map((f) => [f.id, !!f.exclude] as [string, boolean]); } catch { excl = []; }
-		return n + '|' + JSON.stringify([s.scopeMode, s.scopePaths, s.countExclude, excl]);
+		return n + '|' + JSON.stringify([s.scopeMode, s.scopePaths, excl]);
 	},
 
 	orgIndexVaultHasNotes(this: WordSmith) {
@@ -1896,7 +1896,12 @@ export const organizerWindowMethods = {
 		// already holds the note and moves to the note's folder when it does not.
 		const treeDoor: WsOrgDoor = {
 			kind: host.kind,
-			renameOpen: orgModeBox.orgOpenRename,
+			// (the open folders, and the folder the window is opened on, which goes with its rename rather than leaving the
+			// window on a path that is gone: the writer, 2026-11-15, "i can't rename top folders")
+			renameOpen: (oldPath: string, newPath: string) => {
+				orgModeBox.orgOpenRename(oldPath, newPath);
+				if (oldPath && newPath && (orgFolder === oldPath || orgFolder.startsWith(oldPath + '/'))) orgSelect(newPath + orgFolder.slice(oldPath.length));
+			},
 			select: (p: string) => wsOrgDoorSelect({ orgScope, orgSelect, tab }, p),
 			follow: (p: string, chosen?: boolean) => wsOrgDoorFollow({ drawPanel, exportOpts, orgFollow, orgScope, tab }, p, chosen),
 			tab: () => tab,
@@ -2509,7 +2514,7 @@ export const organizerWindowMethods = {
 		const actHandle = this.buildExportAct(act, {
 			scope: () => exportScope(),
 			compileList: () => exportGoing(),
-			total: () => exportFiles().length,
+			total: () => this.exportCountedOf(exportFiles()),
 			tickAll: (on: boolean) => ctx.tickAll(on),
 			// A TAB DOES NOT CLOSE ITSELF after a compile: the writer is standing
 			// in their manuscript and has somewhere to go back to.
@@ -2545,7 +2550,7 @@ export const organizerWindowMethods = {
 			// `compileList` are: the pane recompiles on every option change
 			// and a captured count would be the one that was true when the
 			// pane was built.
-			total: () => exportFiles().length,
+			total: () => this.exportCountedOf(exportFiles()),
 		}));
 		// ── AND THEN THE FORMAT IS PAINTED AGAIN ────────────────────
 		//
@@ -2767,22 +2772,14 @@ export const organizerWindowMethods = {
 			// files keep their numbers, being absent, and its siblings keep theirs.
 			// Under a lens the list is flat and sorted: 1..n as shown. The widest
 			// number sets the column's width, stamped on the table for the sheet
-			// to read (`--ws-org-numw`).
-			const nums = s.uniRowNumbers ? new Map<string, string>() : null;
+			// to read (`--ws-org-numw`). A row the writer left unnumbered (its #
+			// off, or not counted) takes no number and no place (`wsRowNumbers`).
+			let nums: Map<string, string> | null = null;
 			let numW = 0;
-			if (nums) {
-				const counters: number[] = [];
-				for (const r0 of rows) {
-					const d = lensed ? 0 : (r0.depth || 0);
-					counters.length = d + 1;
-					// A NOTE THAT IS NOT NUMBERED: its row stays, its number does
-					// not, and the next row takes the number it would have had.
-					if (r0.kind !== 'folder' && this.flagNotNumbered(r0.path)) continue;
-					counters[d] = (counters[d] || 0) + 1;
-					const label = counters.slice(0, d + 1).join('.');
-					nums.set(r0.path, label);
-					if (label.length > numW) numW = label.length;
-				}
+			if (s.uniRowNumbers) {
+				const got = wsRowNumbers(rows, lensed, (p0) => this.isPathNumbered(p0));
+				nums = got.nums;
+				numW = got.width;
 			}
 			const sig = rows.map((r0: { path: string }) => r0.path).join('\n');
 			const hint = ctx.orgCellHint;
@@ -3253,8 +3250,10 @@ export const organizerWindowMethods = {
 				if (sibling && sibling.parent && typeof ws.createLeafInParent === 'function') {
 					leaf = ws.createLeafInParent(sibling.parent, (sibling.parent.children || []).length);
 				} else {
-					// A SPLIT, or the writer's new tab (#73)
-					leaf = this.settings.paneOpenIn === 'tab' ? ws.getLeaf('tab') : ws.getLeaf('split', 'vertical');
+					// A SPLIT, or the writer's new tab (#73), or a new window: the tab pulled out (the writer, 2026-11-15: "a
+					// 4th option for a pulled out tab")
+					const where = this.settings.paneOpenIn;
+					leaf = where === 'tab' ? ws.getLeaf('tab') : where === 'window' ? ws.getLeaf('window') : ws.getLeaf('split', 'vertical');
 				}
 				if (leaf) await leaf.setViewState({ type, active: true });
 			} catch { return null; }

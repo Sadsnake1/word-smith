@@ -45,9 +45,10 @@ export interface OrgRenameDeps {
 export const wsOrgRenameMake = (d: OrgRenameDeps) => {
 const orgRenameRow = (item: { path: string; kind?: string }) => {
 	if (!item || !item.path) return;
-	const rowEl = d.panel.querySelector('tr[data-path="'
-		+ String(item.path).replace(/"/g, '\\"') + '"]');
-	const nameEl = rowEl && rowEl.querySelector('.ws-org-namelabel');
+	const q = String(item.path).replace(/"/g, '\\"');
+	// (or the folder the window is opened on, its top row, renamed where it stands)
+	const rowEl = d.panel.querySelector('tr[data-path="' + q + '"]') || d.panel.querySelector('tr.ws-org-subrow.is-root[data-subject="' + q + '"]');
+	const nameEl = rowEl && rowEl.querySelector('.ws-org-namelabel, .ws-org-subjectname');
 	if (!nameEl) { d.said(wsT('That row is no longer on screen.'), true); return; }
 	const parts = d.plugin.outlinerRenameParts(item.path, false);
 	// A contenteditable, not an <input> (which carries a form field's

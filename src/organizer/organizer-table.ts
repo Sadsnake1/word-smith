@@ -4,6 +4,7 @@
 // empty-lens line, and the scroll put back where the writer was. Lifted out of `drawOrg` (2026-10-30)
 // with the seven helpers only it calls; `drawOrg` computes the rows and the bar, then hands them here.
 
+import { setIcon } from 'obsidian';
 import type { WordSmithSettings } from '../core/settings';
 import { wsCatch, wsFlagSvg, wsListOf, wsMenu, wsSortArrow, wsStr, wsSvgInto } from '../core/preamble';
 import { wsT, wsTq, wsUiJoin } from '../core/ui-text';
@@ -12,6 +13,7 @@ import type { WsOrgCtx } from './org-ctx';
 import { wsOrgCountsLine } from './organizer-chrome';
 import type { WsOrgCol } from './organizer-cols';
 import type { WsOrgColAgg } from './organizer-readings';
+import { wsOrgPropIconNames } from './organizer-props';
 import type { WsOrgRow } from './organizer-rows';
 
 // A SENTENCE WITH A CONTROL IN IT (A695): the line is one key, with `slot` where the button stands, so a
@@ -188,6 +190,20 @@ function wsOrgNameLine(a: { ctx: WsOrgCtx; nameTh: HTMLTableCellElement; orgSnap
 	try { orgSnapAccent(); } catch (_) { wsCatch('orgTableMake / orgNameLine: orgSnapAccent();', _); }
 }
 
+// THE HEADERS AS NAMES, ICONS AND NAMES, OR ICONS (#153, JavaGT; the writer, 2026-11-15: "an option in plugins settings for
+// all columns like Icon + Name, Name, or just Icon"; not a submenu on a header): one setting, every column, Name too
+const wsOrgHeaderShow = (s: WordSmithSettings): 'name' | 'both' | 'icon' => (s.orgHeaderShow === 'icon' || s.orgHeaderShow === 'both' ? s.orgHeaderShow : 'name');
+// …the glyph the Sort menu and the Properties panel show for the column, before its name or alone; a glyph that does
+// not draw leaves the name
+function wsOrgHeadGlyph(label: HTMLElement, icons: string[], name: string, show: 'both' | 'icon') {
+	label.empty();
+	const g = label.createSpan({ cls: 'ws-org-headglyph' });
+	for (const icon of icons) { g.empty(); setIcon(g, icon); if (g.childElementCount) break; }
+	if (!g.childElementCount) { label.setText(name); return; }
+	label.addClass(show === 'icon' ? 'is-icon' : 'is-both');
+	if (show === 'both') label.createSpan({ cls: 'ws-org-headname', text: name });
+}
+
 // THE HEADER ROW: one <th> per column (lifted out of drawOrg, A488).
 function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; fill: () => Promise<void>; hr: HTMLTableRowElement; s: WordSmithSettings; sortCol: WsOrgCol | null; sortDir: string; wrap: HTMLDivElement }) {
 	const { cols, ctx, fill, hr, s, sortCol, sortDir, wrap } = a;
@@ -199,7 +215,24 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 		// and hangs 3px past its right edge and the whole height of the
 		// table, so `overflow: hidden` here would clip the control the
 		// writer just asked to be able to grab.
-		th.createSpan({ cls: 'ws-org-headlabel', text: col.label });
+		const headLabel = th.createSpan({ cls: 'ws-org-headlabel', text: col.label });
+		// …OR ITS ICON AND NAME, OR ITS ICON (#153: Settings › Manuscript › Column headers)
+		const show = wsOrgHeaderShow(s);
+		if (show !== 'name') {
+			// (a property's glyph is its type's, the one the Properties panel draws beside it: the writer, 2026-11-15,
+			// "bad icons for properties", when every one wore the tag)
+			let icons: string[];
+			if (col.user) {
+				const key = String(col.key || '');
+				let type = '';
+				try { type = String(plugin.orgPropType(key) || ''); } catch (_) { wsCatch('wsOrgDrawHeads: orgPropType', _); }
+				icons = wsOrgPropIconNames(key, type);
+			} else {
+				const sort = ctx.SORTS.find((x) => x.id === col.id);
+				icons = [(sort && sort.icon) || 'tag'];
+			}
+			wsOrgHeadGlyph(headLabel, icons, col.label, show);
+		}
 		// ── THE STORED WIDTH, IF THERE IS ONE ──────────────────
 		//
 		// Absent means "the table decides", which is what every
@@ -215,6 +248,8 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 		// desc → asc → custom. A click is a LENS, so it goes through the
 		// lens's one writer.
 		th.title = wsT('Sort: newest-biggest first, then smallest, then the book’s order');
+		// (a glyph's column is named in its hover)
+		if (headLabel.hasClass('is-icon')) th.title = col.label + '\n' + th.title;
 		th.addEventListener('click', () => {
 			// NOT THE ONE THAT ENDS A DRAG. See `orgGripReleasedAt`: the
 			// click a grip release synthesises lands here, because the
@@ -404,6 +439,9 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			});
 		}
 		box.createSpan({ cls: 'ws-org-subjectname', text: rootName });
+		// (ITS PATH FOR ITS OWN RENAME, the writer, 2026-11-15: "i can't rename top folders"; not `data-path`, which
+		// every row walk reads as a row of the table)
+		if (isRoot) subj.setAttribute('data-subject', at);
 		// THE COUNTS THE PATH LINE CARRIED, on the hover: the notes, the other
 		// files beside them, the tasks.
 		const under0 = ctx.orgUnder(at);
@@ -449,7 +487,7 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			// …AND SET WHERE THEY ARE READ (A700, the writer: "let me hove on the root folder too"): the folder the window is
 			// opened on, or the vault's own on the Total row. A row of its own, `idx` -1: never a selection's.
 			// (the vault's Total row: what it cannot add, counted, A752)
-			const many = isRoot || (col.id === 'goal' && plugin.settings.orgFolderTargetSum) ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
+			const many = isRoot ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
 			if (col.id === 'goal' || col.id === 'deadline') {
 				const self: WsOrgRow = { path: at || '', parent: '', kind: 'folder', group: '', depth: 0, rel: '', idx: -1 };
 				// (its own first; the count only while the vault has none, a click still setting it)
@@ -507,6 +545,9 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		if (row.path === ctx.orgNote) tr.addClass('ws-org-active');
 		// A ROW IN THE SELECTION WEARS IT, across a redraw too.
 		if (!isFolder && ctx.orgSelHas(row.path)) tr.addClass('is-selected');
+		// NOT COUNTED, FADED: a note whose flag is Not counted (#134/#135, JavaGT; the writer: "make the flags with
+		// toggles"); the state shows without opening a menu
+		if (plugin.isPathUncounted(row.path)) tr.addClass('is-uncounted');
 		const nameTd = tr.createEl('td', { cls: 'ws-org-name' });
 		// A TABLE CELL AGAIN, WITH THE FLEX ROW INSIDE IT. A cell that is
 		// itself `display: flex` is a flex box in an anonymous cell rather than
@@ -521,8 +562,18 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		// THE NUMBER FIRST, at the cell's left edge before the indent — a
 		// column of its own inside the sticky Name, so the seam and the guides
 		// need not learn about a second column.
-		if (nums && nums.has(row.path)) {
-			nameTd.createSpan({ cls: 'ws-org-num', text: nums.get(row.path) });
+		//
+		// THE NUMBER IS A SWITCH (the writer, 2026-11-15: "the show row number should be a click on the number in the
+		// row, not per flag"): a file's number clicked off leaves a faint dash to click it back by, and the rows after it
+		// close the gap; a folder's number is part of every number inside it, so it stays a number.
+		if (nums && (nums.has(row.path) || !isFolder)) {
+			const on = nums.has(row.path);
+			const num = nameTd.createSpan({ cls: 'ws-org-num' + (on ? '' : ' is-off'), text: on ? nums.get(row.path) : '–' });
+			if (!isFolder) {
+				num.addClass('is-switch');
+				num.title = on ? wsT('Leave this row unnumbered') : wsT('Number this row');
+				num.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); if (plugin.numberSet(row.path, !on)) ctx.drawPanel(); });
+			}
 		}
 		const nameIn = nameTd.createDiv({ cls: 'ws-org-namein' });
 		// THE ROW'S KIND, drawn by the tree's own builder — same dropdown, same
@@ -901,8 +952,11 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 	// Filter by, so nothing is reachable only from the gesture. Built beside
 	// the drag, below.
 	// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
-	const nameTh = hr.createEl('th',
-		{ cls: 'ws-org-name', text: wsT('Name') });
+	const nameTh = hr.createEl('th', { cls: 'ws-org-name' });
+	// THE WORD, OR ITS ICON WITH IT, OR THE ICON (#153): the Name column's header is a column's header too
+	const nameShow = wsOrgHeaderShow(s);
+	if (nameShow === 'name') nameTh.appendText(wsT('Name'));
+	else wsOrgHeadGlyph(nameTh.createSpan({ cls: 'ws-org-headlabel' }), ['case-sensitive'], wsT('Name'), nameShow);
 	// THE HEADING SAYS # OVER THE NUMBERS, at the cell's left, where the
 	// numbers are; the word stays centred over the names.
 	if (nums) nameTh.createSpan({ cls: 'ws-org-numhead', text: '#' });
@@ -911,6 +965,7 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 	// then Z to A, then the book's order; the lens's one writer, and the
 	// same guard against the click a grip release synthesises.
 	nameTh.title = wsT('Sort: ascending, then descending, then the book’s order');
+	if (nameTh.querySelector('.ws-org-headlabel.is-icon')) nameTh.title = wsT('Name') + '\n' + nameTh.title;
 	if (ctx.orgLens.sort && ctx.orgLens.sort.id === 'name') {
 		nameTh.createSpan({ cls: 'ws-org-sortmark',
 			text: wsSortArrow(ctx.orgLens.sort.dir) });

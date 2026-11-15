@@ -16,17 +16,15 @@ Module._load = function (name) {
 };
 const WordSmith = require('../main.js').default;
 const plugin = Object.create(WordSmith.prototype);
-plugin.settings = { flags: [], fileStatus: { 'notes.md': 'notes', 'chapter.md': 'draft' } };
+plugin.settings = { flags: [{ id: 'outline', exclude: true }], fileStatus: { 'notes.md': 'outline', 'chapter.md': 'draft' } };
 plugin.isStoreFile = () => false;
 plugin.isFileInScope = () => true;
-plugin.isPathExcludedFromCounts = () => false;
 assert.strictEqual(plugin.flagNotCounted('notes.md'), true);
-assert.strictEqual(plugin.flagNotNumbered('notes.md'), true);
+assert.strictEqual(plugin.isPathNumbered('notes.md'), true);
 assert.strictEqual(plugin.isFileCounted({ path: 'notes.md' }), false);
 assert.strictEqual(plugin.isFileCounted({ path: 'chapter.md' }), true);
-plugin.settings.flags = [{ id: 'notes', exclude: false, skipNumber: false }];
+plugin.settings.flags = [{ id: 'outline', exclude: false }];
 assert.strictEqual(plugin.flagNotCounted('notes.md'), false);
-assert.strictEqual(plugin.flagNotNumbered('notes.md'), false);
 assert.strictEqual(plugin.isFileCounted({ path: 'notes.md' }), true);
 
 (async () => {
@@ -35,7 +33,7 @@ assert.strictEqual(plugin.isFileCounted({ path: 'notes.md' }), true);
 	recovering._orgIndex = new Map();
 	recovering._orgIndexBuild = null;
 	recovering.structureStore = () => ({});
-	recovering.goalsStoreAdopt = () => ({ fileGoals: {}, fileStatus: { 'notes.md': 'notes' } });
+	recovering.goalsStoreAdopt = () => ({ fileGoals: {}, fileStatus: { 'notes.md': 'outline' } });
 	recovering.colorsStoreAdopt = () => null;
 	recovering.userColsStoreAdopt = () => null;
 	recovering.goalDatesStoreAdopt = () => ({});
@@ -60,7 +58,7 @@ assert.strictEqual(plugin.isFileCounted({ path: 'notes.md' }), true);
 	assert.strictEqual(sweeps, 2);
 	global.document = { body: { classList: { contains: () => false }, style: { setProperty() {} } } };
 	const switched = Object.create(WordSmith.prototype);
-	switched.settings = { flags: [{ id: 'notes', exclude: false }], fileStatus: {} };
+	switched.settings = { flags: [{ id: 'outline', exclude: false }], fileStatus: {} };
 	switched._orgIndex = new Map();
 	switched._orgIndexBuild = null;
 	switched._orgIndexRing = () => {};

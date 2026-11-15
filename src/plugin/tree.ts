@@ -65,10 +65,7 @@ export const treeMethods = {
 				// ABSENT MEANS THE DEFAULT, so a vault that stored its flags
 				// before the switch existed gets Notes excluded and the other
 				// states counted, exactly as the shipped definitions say.
-				exclude: was.exclude !== undefined ? !!was.exclude : !!def.exclude,
-				// …and the same for the numbering switch, which Notes also
-				// ships with on.
-				skipNumber: was.skipNumber !== undefined ? !!was.skipNumber : !!def.skipNumber
+				exclude: was.exclude !== undefined ? !!was.exclude : !!def.exclude
 			};
 		});
 	},
@@ -80,27 +77,16 @@ export const treeMethods = {
 	flagNotCounted(this: WordSmith, path: string) {
 		if (!path) return false;
 		const id = (this.settings.fileStatus || {})[path];
-		if (!id) return false;
-		const def = this.flagDefs().filter(f => f.id === id)[0];
-		return !!(def && def.exclude);
-	},
-
-	// WHETHER A NOTE'S FLAG SAYS "NO ROW NUMBER". The same lookup as
-	// `flagNotCounted`, on the other switch: the row stays, the number does
-	// not, and the rows after it close the gap.
-	flagNotNumbered(this: WordSmith, path: string) {
-		if (!path) return false;
-		const id = (this.settings.fileStatus || {})[path];
-		return this.flagSkipsNumber(id || '');
+		return this.flagExcludes(id || '');
 	},
 
 	// THE SWITCH ITSELF, BY FLAG ID: needed where the old and the new flag are
 	// both in hand and the path is not — a flag write decides whether the row
-	// numbers moved before it touches the store.
-	flagSkipsNumber(this: WordSmith, id: string) {
+	// fades (and the totals move) before it touches the store.
+	flagExcludes(this: WordSmith, id: string) {
 		if (!id) return false;
 		const def = this.flagDefs().filter(f => f.id === id)[0];
-		return !!(def && def.skipNumber);
+		return !!(def && def.exclude);
 	},
 
 	flagCount(this: WordSmith) {
@@ -156,21 +142,6 @@ export const treeMethods = {
 			}
 			this._flagsExclSig = excl;
 		} catch (_) { wsCatch('flagsApply: excluded flags changed', _); }
-		// ── AND THE ROW NUMBERS, WHEN THAT SWITCH MOVED ──────────────────
-		//
-		// "No row number" changes no note and no total, so it neither re-sweeps
-		// the index nor moves `WS_STATUSES` — but both places that draw numbers
-		// have to be told, or a stale column keeps its numbers until the next
-		// redraw. The same signature trick, and the same redraw of an open
-		// Organizer.
-		try {
-			const num = JSON.stringify(defs.map((f) => [f.id, !!f.skipNumber]));
-			if (this._flagsNumSig !== undefined && num !== this._flagsNumSig) {
-				if (typeof this._orgDraw === 'function') this._orgDraw();
-				if (this.explorerWanted()) this.scheduleExplorerPatch();
-			}
-			this._flagsNumSig = num;
-		} catch (_) { wsCatch('flagsApply: numbered flags changed', _); }
 		// ── AND THE FILE TREE IS TOLD ─────────────────────────────────────
 		//
 		// A colour is a CSS custom property, so the tree repaints itself the
@@ -528,6 +499,34 @@ export const treeMethods = {
 		});
 	},
 
+	// THE SAME NAME, ASKED (#150): where the other note is (the first, and how many more), what Obsidian will do to the
+	// links, and two buttons, Cancel the default focus. Escape, the × and a click outside mean no, as for a delete.
+	confirmSameName(this: WordSmith, name: string, elsewhere: string[]) {
+		return new Promise<boolean>((resolve) => {
+			let answered = false;
+			const done = (v: boolean) => { if (!answered) { answered = true; resolve(v); } };
+			const m = this.wsModal();
+			if (!m) { done(false); return; }
+			const first = elsewhere[0] || '';
+			const where = first.lastIndexOf('/') > 0 ? first.slice(0, first.lastIndexOf('/')) : wsT('the vault’s top level');
+			m.titleEl.setText(wsT('A note with this name exists'));
+			m.contentEl.createEl('p', { text: elsewhere.length > 1
+				? wsT('Notes called “{name}” are already in {folder} and elsewhere.', { name, folder: where })
+				: wsT('A note called “{name}” is already in {folder}.', { name, folder: where }) });
+			m.contentEl.createEl('p', { cls: 'ws-settings-note', text:
+				wsT('Obsidian may rewrite the links to it, in every note that has one, to tell the two apart.') });
+			const row = m.contentEl.createDiv({ cls: 'ws-confirm-row' });
+			const no = row.createEl('button', { text: wsT('Cancel') });
+			no.addEventListener('click', () => { done(false); m.close(); });
+			const yes = row.createEl('button', { cls: 'mod-warning', text: wsT('Use this name') });
+			yes.addEventListener('click', () => { done(true); m.close(); });
+			const wasClose = m.onClose ? m.onClose.bind(m) : null;
+			m.onClose = () => { done(false); if (wasClose) wasClose(); };
+			m.open();
+			try { window.setTimeout(() => no.focus(), 0); } catch (_) { wsCatch('confirmSameName: focus', _); }
+		});
+	},
+
 	// ── RENAMING A ROW, THE WAY THE EXPLORER DOES ───────────────────────────
 	//
 	// The NAME ONLY. A note called `Ch 01.md` is offered as "Ch 01" and comes
@@ -569,6 +568,15 @@ export const treeMethods = {
 		try { taken = this.app.vault.getAbstractFileByPath(dest); } catch (_) { wsCatch('outlinerRenameTo: taken = this.app.vault.getAbstractFileByPath(dest);', _); }
 		if (taken) {
 			return { ok: false, said: wsT('There is already something called \u201c{name}\u201d here.', { name: want }) };
+		}
+		// THE SAME NAME ELSEWHERE IN THE VAULT (#150, SacredKarailee: a new note named like one elsewhere, "Obsidian
+		// displayed a notification that links in more than a dozen files had been updated"): a link names a note by its
+		// name alone, so a second note of that name has Obsidian rewrite the links to the first to tell the two apart.
+		// Asked first, with the other note's place; a no names nothing (a new note keeps the name it had).
+		if (!isFolder && /^\.md$/i.test(parts.ext)) {
+			const lower = want.toLowerCase();
+			const same = this.app.vault.getMarkdownFiles().filter((m) => m.basename.toLowerCase() === lower && m.path !== path).map((m) => m.path);
+			if (same.length && !(await this.confirmSameName(want, same))) return { ok: false, said: '' };
 		}
 		try {
 			const f = this.app.vault.getAbstractFileByPath(path);
@@ -1075,6 +1083,8 @@ export const treeMethods = {
 			() => s.fileTreeTasks,
 			// the numbers beside the rows, the files never renamed (#100)
 			() => s.fileTreeNumbers,
+			// the rows left out of the counts, faded: by a flag whose Not counted is on (#135), on a note that carries it
+			() => { const out = new Set(this.flagDefs().filter((f) => f.exclude).map((f) => f.id)); return out.size > 0 && Object.values(s.fileStatus || {}).some((id) => out.has(id)); },
 			// the plugin's own folder kept out of sight (A733)
 			() => s.hideOwnFolder,
 			() => s.folderColors && Object.keys(s.folderColors).length,
@@ -1979,6 +1989,22 @@ export const treeMethods = {
 		this.paintExplorerKindIcons();
 		this.paintExplorerOwnFolder();
 		this.paintExplorerNumbers();
+		this.paintExplorerUncounted();
+	},
+
+	// NOT COUNTED, FADED (2026-11-15): a note the writer left out of every total by its flag's switch is drawn faded in
+	// the file tree as in the Organizer, so the state shows without opening a menu. A class on Obsidian's own row, taken
+	// off by `removeWordCounts`.
+	paintExplorerUncounted(this: WordSmith) {
+		for (const view of this.explorerViews()) {
+			const leafEl = view.containerEl;
+			if (!leafEl) continue;
+			for (const row of Array.from(leafEl.querySelectorAll<HTMLElement>('.nav-file-title, .nav-folder-title'))) {
+				const path = row.dataset.path || '';
+				const out = this.isPathUncounted(path);
+				if (row.hasClass('ws-tree-uncounted') !== out) row.toggleClass('ws-tree-uncounted', out);
+			}
+		}
 	},
 
 	// NUMBERS IN THE TREE, AND NOTHING RENAMED (#100).
@@ -2041,9 +2067,9 @@ export const treeMethods = {
 					if (!f || this.isOwnHidden(f.path)) continue;
 					const isFolder = wsIsFolder(f);
 					if (!isFolder && !this.uniTypeAllows(f)) continue;
-					// A NOTE THAT IS NOT NUMBERED: no label, and no count taken,
-					// so the rows after it close the gap.
-					if (!isFolder && this.flagNotNumbered(f.path)) continue;
+					// THE ORGANIZER'S NUMBERS: a row clicked unnumbered there takes no number and no place,
+					// so the next row keeps the count, as in the Organizer
+					if (!this.isPathNumbered(f.path)) continue;
 					const label = (above ? above + '.' : '') + String(++n);
 					labels.set(c, label);
 					if (label.length > widest) widest = label.length;
@@ -2443,6 +2469,8 @@ export const treeMethods = {
 			'.ws-treemarks', '.ws-treefolder', '.ws-treekind', '.ws-treenum']) {
 			document.querySelectorAll(sel).forEach(el => el.remove());
 		}
+		// the faded rows' class, a class on Obsidian's own rows and not an element of ours
+		document.querySelectorAll('.ws-tree-uncounted').forEach((el) => el.removeClass('ws-tree-uncounted'));
 		// the numbers' room given back, and Obsidian's rows measured again without it
 		for (const view of this.explorerViews()) {
 			const leafEl = view.containerEl;

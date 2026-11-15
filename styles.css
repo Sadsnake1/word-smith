@@ -10796,6 +10796,25 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	white-space: nowrap;
 	vertical-align: bottom;
 }
+/* A HEADER AS ITS ICON (#153, JavaGT; Settings › Manuscript › Column headers): a box the icon's size, centered on the
+   label's line */
+.ws-org-table thead th > .ws-org-headlabel.is-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	vertical-align: middle;
+}
+.ws-org-table thead th > .ws-org-headlabel.is-icon svg { width: 14px; height: 14px; }
+/* THE GLYPH ITS OWN BOX, centered on the word beside it (the writer, 2026-11-15: "this icon in not aligned
+   properly": its span sat on the line's baseline, so the icon rode 2px over the name) */
+.ws-org-table thead th > .ws-org-headlabel .ws-org-headglyph { display: inline-flex; align-items: center; }
+.ws-org-table thead th > .ws-org-headlabel .ws-org-headglyph svg { display: block; }
+/* …AND THE ICON BEFORE THE NAME (Icon + Name): the two on one line, the name the part that gives way */
+.ws-org-table thead th > .ws-org-headlabel.is-both { display: inline-flex; align-items: center; gap: 4px; }
+.ws-org-table thead th > .ws-org-headlabel.is-both svg { width: 14px; height: 14px; flex: none; }
+.ws-org-table thead th > .ws-org-headlabel.is-both .ws-org-headname { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── AND THEY ARE AS TALL AS THE TABLE, LIKE THE NAME'S ────────────────
 
@@ -11395,6 +11414,11 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	white-space: nowrap;
 	pointer-events: none;
 }
+/* A FILE'S NUMBER IS A SWITCH (the writer, 2026-11-15: "the show row number should be a click on the number in the
+   row"): it takes the pointer the column above it does not, and a number clicked off stands as a dash to click back. */
+.ws-org-table .ws-org-num.is-switch { pointer-events: auto; cursor: pointer; }
+.ws-org-table .ws-org-num.is-switch:hover { color: var(--text-normal); }
+.ws-org-table .ws-org-num.is-off { opacity: 0.6; }
 .ws-org-table.has-num thead th.ws-org-name {
 	padding-left: calc(10px + var(--ws-org-numw, 0px));
 }
@@ -11925,9 +11949,6 @@ td.is-prop { cursor: pointer; }
 .ws-org-table td.has-band.is-band-mid { --ws-goal-rgb: var(--color-orange-rgb); }
 .ws-org-table td.has-band.is-band-high { --ws-goal-rgb: var(--color-yellow-rgb); }
 .ws-org-table td.has-band.is-band-done { --ws-goal-rgb: var(--color-green-rgb); }
-.ws-org-goal-current { color: var(--text-normal); font-weight: 600; }
-.ws-org-goal-separator { color: var(--text-faint); white-space: pre; }
-.ws-org-goal-target { color: var(--text-muted); font-weight: 400; }
 .ws-org-goaledit {
 	width: 8ch;
 	text-align: right;
@@ -14057,20 +14078,20 @@ body { --ws-hit-min: 44px; }
 	flex: 0 0 auto;
 }
 
-/* ── THE HEADING ABOVE THE TWO SWITCHES ──────────────────────────────────
-   Two identical toggles sat at the right of every flag row and only their
-   hovers said which was which. The head is a row of its own, above the flag
-   rows, and the block of two switches has the SAME fixed width in the head
-   and in every row — so each word stands over the switch it names, however
-   wide the label, shape and colour controls before it grow. */
+/* ── THE HEADING ABOVE THE SWITCH ────────────────────────────────────────
+   A bare toggle at the right of every flag row says nothing until hovered.
+   The head is a row of its own, above the flag rows, and the switch's block
+   has the SAME fixed width in the head and in every row, so the word stands
+   over the switch it names, however wide the label, shape and color controls
+   before it grow. (One switch since No row number became a click on the row.) */
 .ws-flagswitches {
 	display: grid;
-	grid-template-columns: 1fr 1fr;
+	grid-template-columns: 1fr;
 	align-items: center;
 	justify-items: center;
-	column-gap: 4px;
-	width: 196px;
-	flex: 0 0 196px;
+	gap: 4px;
+	width: 98px;
+	flex: 0 0 98px;
 }
 .ws-flaghead .setting-item-name {
 	font-size: var(--font-ui-smaller);
@@ -14084,7 +14105,7 @@ body { --ws-hit-min: 44px; }
 	line-height: 1.15;
 }
 .is-phone .modal .ws-flaghead .ws-flagswitches,
-.is-phone .modal .ws-flagrow .ws-flagswitches { width: 168px; flex-basis: 168px; }
+.is-phone .modal .ws-flagrow .ws-flagswitches { width: 84px; flex-basis: 84px; }
 
 /* ── EVERY MARK THIS PLUGIN ADDS TO SOMEBODY ELSE'S ROW ────────────────────
    One trailing box in a fixed order, so a row looks the same whichever
@@ -16002,3 +16023,19 @@ body.ws-ink .workspace-leaf-content[data-type="markdown"].ws-scoped .markdown-re
 /* A WORD AND ITS EM DASH ON ONE LINE (#127, AeroPilot): the run Typography's Keep a word with its dash marks, in the editor and
    in reading view; the break after the dash is the line's own */
 .ws-dash-keep { white-space: nowrap; }
+
+/* THE COUNT AND THE TARGET APART (#146/#147, JavaGT): the count in the text's color, the target quieter; by color alone,
+   never bold (the writer, 2026-11-15: "no bold text for targets") */
+.ws-org-goal-current { color: var(--text-normal); }
+.ws-org-goal-separator { color: var(--text-faint); }
+.ws-org-goal-target { color: var(--text-muted); font-weight: var(--font-normal, 400); }
+/* …a folder's target worked out from the targets inside it (#142, the writer's rule) muted, set by nobody */
+.ws-org-table td.is-goal.is-derived .ws-org-goal-current { color: var(--text-muted); }
+.ws-org-table td.is-goal.is-derived .ws-org-goal-target { color: var(--text-faint); }
+/* A ROW OUT OF THE COUNTS (the Not counted list, or a flag's Not counted switch), faded in the Organizer and the file tree */
+.ws-org-table .ws-org-row.is-uncounted > td { color: var(--text-faint); }
+.ws-org-table .ws-org-row.is-uncounted > td.ws-org-name { font-style: italic; }
+.ws-org-table .ws-org-row.is-uncounted .ws-org-goal-current, .ws-org-table .ws-org-row.is-uncounted .ws-org-goal-target { color: inherit; font-weight: inherit; }
+.workspace-leaf-content[data-type="file-explorer"] .ws-tree-uncounted { color: var(--text-faint); }
+.workspace-leaf-content[data-type="file-explorer"] .ws-tree-uncounted .nav-file-title-content,
+.workspace-leaf-content[data-type="file-explorer"] .ws-tree-uncounted .nav-folder-title-content { font-style: italic; }

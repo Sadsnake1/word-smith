@@ -25,7 +25,6 @@
 	"Custom order, flags, targets, ticks, colors, columns, and the details of files that are not notes.": "Custom order, flags, targets, ticks, colours, columns, and the details of files that are not notes.",
 	"Customize": "Customise",
 	"Each Vim mode wears its own color: Insert green, Visual purple, Replace red.": "Each Vim mode wears its own colour: Insert green, Visual purple, Replace red.",
-	"Each flag has two switches: the first leaves the notes carrying it out of word counts, targets and the history; the second leaves them out of the Organizer’s and the file tree’s row numbers. The notes stay in the table and the tree either way.": "Each flag has two switches: the first leaves the notes carrying it out of word counts, targets and the history; the second leaves them out of the Organiser’s and the file tree’s row numbers. The notes stay in the table and the tree either way.",
 	"Each opens that pane; the Organizer on the tab you arrange it in.": "Each opens that pane; the Organiser on the tab you arrange it in.",
 	"English is built in, so ws-lang-en.md is not needed. Get it only to extend or customize English’s word lists.": "English is built in, so ws-lang-en.md is not needed. Get it only to extend or customise English’s word lists.",
 	"Every token, and how to color a segment.": "Every token, and how to colour a segment.",
@@ -39,14 +38,11 @@
 	"Its color under a dark theme.": "Its colour under a dark theme.",
 	"Its files stay where they are. The Organizer, file explorer, graph, search and compiled book skip it.": "Its files stay where they are. The Organiser, file explorer, graph, search and compiled book skip it.",
 	"Left, center and right of the bar, written in tokens.": "Left, centre and right of the bar, written in tokens.",
-	"No row number in the Organizer or the file tree": "No row number in the Organiser or the file tree",
 	"Nouns, verbs and adjectives in color. Too many adverbs reads as a rash (thank you, Mr. Stephen King!). Filler words, passive voice and doubled words get an underline.": "Nouns, verbs and adjectives in colour. Too many adverbs reads as a rash (thank you, Mr. Stephen King!). Filler words, passive voice and doubled words get an underline.",
 	"Off, the arrows and lines borrow your theme’s text color.": "Off, the arrows and lines borrow your theme’s text colour.",
 	"Open the Organizer": "Open the Organiser",
-	"Open the floating Organizer": "Open the floating Organiser",
 	"Organize": "Organise",
 	"Organizer": "Organiser",
-	"Organizer actions": "Organiser actions",
 	"Organizer folder icons": "Organiser folder icons",
 	"Organizer here": "Organiser here",
 	"Out of the file explorer, the Organizer and Export. Still there, just out of sight.": "Out of the file explorer, the Organiser and Export. Still there, just out of sight.",
@@ -78,5 +74,6 @@
 	"Where the Organizer, Export and History open.": "Where the Organiser, Export and History open.",
 	"Write. Organize. Export.": "Write. Organise. Export.",
 	"the Organizer is off, so its file is left alone.": "the Organiser is off, so its file is left alone.",
-	"vim’s own quiet — monochrome by design, three colors allowed": "vim’s own quiet — monochrome by design, three colours allowed"
+	"vim’s own quiet — monochrome by design, three colors allowed": "vim’s own quiet — monochrome by design, three colours allowed",
+	"Each header as its name, its icon and name, or its icon. Icons save room in a narrow Organizer.": "Each header as its name, its icon and name, or its icon. Icons save room in a narrow Organiser."
 }

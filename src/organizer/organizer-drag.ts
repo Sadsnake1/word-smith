@@ -80,10 +80,12 @@ const orgDropRun = async (movedPath: string, ontoPath: string, below: boolean, m
 			wsOrgDropBefore(d.plugin.treeOrderCurrent(parent), movedPath, ontoPath, below));
 		return;
 	}
-	// A file can be placed directly into the destination folder's order.
-	// Folders and non-Markdown files keep the existing move-into-folder
-	// gesture, which uses the folder row's middle instead of its edges.
-	if (movedKind !== 'file' || !/\.md$/i.test(movedPath)) return;
+	// A file can be placed directly into the destination folder's order,
+	// any file, a PDF as a note (the writer, 2026-11-15: "i cant drag and
+	// drop other non md files like i can with md files"): `treeMoveInto`
+	// moves any file and the order holds every kind. A folder keeps the
+	// move-into-folder gesture, the folder row's middle, not its edges.
+	if (movedKind !== 'file') return;
 	const result = await d.plugin.treeMoveInto(movedPath, parent);
 	if (!result || !result.ok || !result.dest) {
 		if (result && result.said) d.said(result.said, true);
@@ -222,7 +224,7 @@ const orgRowDrag = (tr: HTMLElement, row: { path: string; parent: string; kind: 
 			if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
 			return;
 		}
-		if (d.folderOf(orgDragPath) !== row.parent && !(orgDragKind === 'file' && /\.md$/i.test(orgDragPath))) return;
+		if (d.folderOf(orgDragPath) !== row.parent && orgDragKind !== 'file') return;
 		// …and a folder's MIDDLE belongs to move-into, which is bound
 		// to the same row. Edges only, there.
 		if (row.kind === 'folder' && !orgAtEdge(tr, ev)) return;

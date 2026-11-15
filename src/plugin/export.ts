@@ -1024,11 +1024,14 @@ function wsExportOptsStructure(plugin: WordSmith, a: { o: WsExportOpts; optGroup
 		// and a first one of the same name goes; with Folders, everything moves down a level a folder
 		const HEADS: WsPickRow[] = [
 			['folderHeadings', wsT('Folders'), wsT('A folder becomes a heading where it begins, one level a folder, the book\u2019s own folder aside.'), ['folder-tree', 'folder']],
+			// TOP FOLDER (#151, raphaelshklarek; the writer, 2026-11-15: "rename this as top folder ... this option should be in
+			// the export"): the folder exported, as the first heading over its own folders; with Folders only, so listed then
+			['bookHeading', wsT('Top folder'), wsT('The folder you export opens the book as its first heading, above its own folders.'), ['folder-root', 'folder-open', 'folder']],
 			['sectionTitles', wsT('File names'), wsT('Each file opens with its own name as a heading.'), ['file-text', 'file']],
 			['keepHeadings', wsT('Note headings'), wsT('The note\u2019s own # headings, as written; under the file\u2019s name when that is on.'), ['heading', 'hash']],
 		];
-		pickList(hrow, 'ws-export-heads', () => HEADS, wsT('No headings'),
-			(list) => (list ? wsT('Headings: {list}. Press for the list.') : wsT('Headings: none. Press for the list.')));
+		pickList(hrow, 'ws-export-heads', () => HEADS.filter(([k]) => k !== 'bookHeading' || !!o.folderHeadings), wsT('No headings'),
+			(list) => (list ? wsT('Headings: {list}. Press for the list.', { list }) : wsT('Headings: none. Press for the list.')));
 		// NUMBERS, THE PAIR'S SECOND HALF (#79; the writer: "drop the suffix thing - add some options to display them (popular
 		// ones)", the picks "1.1.2, 1.1.2., I. A. 1., Chapter 1"): each answer what it prints, from the file tree
 		selOpt(pair, 'numberStyle', wsT('Numbers'), [
@@ -1626,12 +1629,16 @@ export const exportMethods = {
 		const picked = scope || wsExportRoot(paths, '');
 		// THE TREE'S ROOT whether the folders print or not: the numbers count them either way (#79, "From the tree")
 		const treeRoot = wsExportRoot(paths, picked);
-		const root = wantFolders ? treeRoot : '';
+		// THE BOOK'S FOLDER AS A HEADING (#151, raphaelshklarek: "the title of the top folder, which is also the title of the
+		// book, could be excluded"): off, the root steps down into it, so its parts head the text and nothing names the book
+		// twice (the title page does); the numbers never counted it
+		const bookOff = wantFolders && !!opts && opts.bookHeading === false && treeRoot !== wsExportRoot(paths, '');
+		const root = wantFolders ? (bookOff ? wsExportRoot(paths, '') : treeRoot) : '';
 		// THE BOOK'S OWN FOLDER (A848, the writer: "the first main folder name should not appear in contents- think on
 		// this"): the folder the root stepped up from, the one every file sits in, keeps its heading in the text (A424, "when
 		// i tick folder names as heading they are not there") and is marked `book`, which every contents passes by
 		// (wsTocSteps counts the levels without it). The numbers never counted it (wsHeadNumbers)
-		const book = wantFolders && treeRoot !== wsExportRoot(paths, '');
+		const book = wantFolders && !bookOff && treeRoot !== wsExportRoot(paths, '');
 		let seen: string[] = [];
 		for (const f of files) {
 			let text = '';
@@ -1643,6 +1650,7 @@ export const exportMethods = {
 				let i = 0;
 				while (i < seen.length && i < bits.length && seen[i] === bits[i]) i++;
 				for (let k = i; k < bits.length; k++) {
+					const fPath = (root ? root + '/' : '') + bits.slice(0, k + 1).join('/');
 					secs.push({
 						folder: true,
 						book: book && k === 0,
@@ -1650,7 +1658,7 @@ export const exportMethods = {
 						dirs: bits.slice(0, k + 1),
 						title: bits[k],
 						markdown: '',
-						path: (root ? root + '/' : '') + bits.slice(0, k + 1).join('/')
+						path: fPath
 					});
 				}
 				seen = bits;
@@ -1658,8 +1666,9 @@ export const exportMethods = {
 			}
 			const dirs = (treeRoot ? String(f.path).slice(treeRoot.length + 1) : String(f.path)).split('/').slice(0, -1);
 			// A WORD AND ITS EM DASH ON ONE LINE IN THE FILE (#127): a word joiner between them, the note untouched
+			// (#151: a preface clicked unnumbered in the Organizer prints no number, and the parts after it count from 1)
 			const keepDash = !!this.settings.typoDashKeep && !!this.optFor(f, 'typographyEnabled');
-			secs.push({ title: f.basename, markdown: keepDash ? wsDashJoin(text) : text, path: f.path, depth, dirs });
+			secs.push({ title: f.basename, markdown: keepDash ? wsDashJoin(text) : text, path: f.path, depth, dirs, unnumbered: !this.isPathNumbered(f.path) });
 			n++;
 			if (onStep && (n % 5 === 0 || n === files.length)) {
 				onStep(n, files.length);
@@ -1929,6 +1938,8 @@ export const exportMethods = {
 		// THE WORD COUNT ON THE TITLE PAGE, on unless the writer says otherwise (#124, BelimFaux: "not every document exported
 		// is a manuscript"; their PR #126 unpinned it): a tick in Settings › Export › Title page
 		dflt('wordCountOnTitle', true);
+		// THE BOOK'S FOLDER AS A HEADING (#151), on as it always was
+		dflt('bookHeading', true);
 		// …and this is pinned, because the convention decides it
 		// and a switch nobody moves is a switch that only takes up room.
 		o.pageNumbers = true;
@@ -2017,7 +2028,11 @@ export const exportMethods = {
 	},
 
 	// "Tick all" until everything is, then "Untick all". One element,
-	// re-said wherever the figures are.
+	// re-said wherever the figures are. EVERYTHING COUNTED (2026-11-15): Tick all
+	// leaves a note out of the counts unticked, so both figures count counted notes only.
+	exportCountedOf(this: WordSmith, files: { path: string }[]) {
+		return files.filter((f) => !this.isPathUncounted(f.path)).length;
+	},
 	exportTickAllSay(this: WordSmith, row: HTMLElement | null, picked: number, total: number) {
 		const b = row && row.querySelector('.ws-export-tickall');
 		if (!b) return;
@@ -4051,7 +4066,7 @@ export const exportMethods = {
 			ctx.tickAll(tickAll.dataset.all !== '1');
 		});
 		this.exportTickAllSay(into,
-			(ctx.compileList ? ctx.compileList() : []).length,
+			this.exportCountedOf(ctx.compileList ? ctx.compileList() : []),
 			typeof ctx.total === 'function' ? ctx.total() : 0);
 		fmt.createSpan({ cls: 'ws-export-fmtlabel', text: wsT('Export as') });
 		// FIVE FORMATS, and each one is a different question answered: Word
@@ -4395,7 +4410,7 @@ export const exportMethods = {
 							const head0 = actRow0.createDiv({ cls: 'ws-export-prevhead' });
 							head0.createSpan({ text: this.exportFiguresText(picked.length) });
 							wsPlaceFigures(actRow0, head0);
-							this.exportTickAllSay(actRow0, picked.length,
+							this.exportTickAllSay(actRow0, this.exportCountedOf(picked),
 								typeof ctx.total === 'function' ? ctx.total() : 0);
 						}
 					} catch (_) { wsCatch('buildExportOptions / refreshPreview: the long manuscript\'s figures', _); }
@@ -4458,7 +4473,7 @@ export const exportMethods = {
 						if (row0 && had) {
 							had.empty();
 							had.createSpan({ text: this.exportFiguresText(picked.length) });
-							this.exportTickAllSay(row0, picked.length,
+							this.exportTickAllSay(row0, this.exportCountedOf(picked),
 								typeof ctx.total === 'function' ? ctx.total() : 0);
 						}
 					} catch (_) { wsCatch('buildExportOptions / refreshPreview: const row0 = into.querySelector(\'.ws-export-top\');', _); }
@@ -4476,7 +4491,7 @@ export const exportMethods = {
 					const old = actRow.querySelector('.ws-export-prevhead');
 					if (old) old.remove();
 				}
-				this.exportTickAllSay(actRow, picked.length,
+				this.exportTickAllSay(actRow, this.exportCountedOf(picked),
 					typeof ctx.total === 'function' ? ctx.total() : 0);
 				prevHandle = this.exportPreviewInto(prevCol, secs,
 					Object.assign(this.exportOptsFor(ctx.scope(), o, words), { figures, userCss }), picked.length,

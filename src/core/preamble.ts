@@ -3334,6 +3334,47 @@ export function wsSecDirs(sec: WsExportSection): string[] {
 	if (!d) return [];
 	return (sec.folder ? parts : parts.slice(0, -1)).slice(-d);
 }
+// ── THE PATH LISTS (2026-11-15: the rows clicked unnumbered; #148 the Organizer's open folders) ───────────────────
+//
+// Vault paths the plugin keeps, in whole segments, so "Book/Notes" never takes "Book/Notes old.md"…
+// …carried by a rename or a move, everything inside a folder with it, each path once; null when nothing moved
+export function wsPathListRename(list: unknown, oldPath: string, newPath: string): string[] | null {
+	if (!Array.isArray(list) || !oldPath || !newPath || oldPath === newPath) return null;
+	let moved = false;
+	const out: string[] = [];
+	for (const p of list) {
+		if (typeof p !== 'string') { moved = true; continue; }
+		const q = p === oldPath ? newPath : p.indexOf(oldPath + '/') === 0 ? newPath + p.slice(oldPath.length) : p;
+		if (q !== p) moved = true;
+		if (out.indexOf(q) < 0) out.push(q); else moved = true;
+	}
+	return moved ? out : null;
+}
+// …and forgotten with a delete, a folder's whole inside with it; null when nothing went
+export function wsPathListForget(list: unknown, path: string): string[] | null {
+	if (!Array.isArray(list) || !path) return null;
+	const out = list.filter((p): p is string => typeof p === 'string' && p !== path && p.indexOf(path + '/') !== 0);
+	return out.length !== list.length ? out : null;
+}
+// THE ORGANIZER'S ROW NUMBERS: 1, 2, 3 in the order shown, folders and files alike, a folder's rows inside it 1.1, 1.2,
+// deeper 1.1.1, one counter per depth (a folded folder's rows keep theirs, being absent); under a lens flat, 1..n. A row
+// clicked unnumbered takes no number and no place, so the next one keeps the count
+export function wsRowNumbers(rows: { path: string; depth?: number }[], lensed: boolean, numbered: (path: string) => boolean): { nums: Map<string, string>; width: number } {
+	const nums = new Map<string, string>(), counters: number[] = [];
+	let width = 0;
+	for (const r of rows) {
+		if (!numbered(r.path)) continue;
+		const d = lensed ? 0 : (r.depth || 0);
+		counters.length = d + 1;
+		counters[d] = (counters[d] || 0) + 1;
+		const label = counters.slice(0, d + 1).join('.');
+		nums.set(r.path, label);
+		if (label.length > width) width = label.length;
+	}
+	return { nums, width };
+}
+// A section marked `unnumbered` by the compile (the Organizer's #, or not counted) takes no number and no place, so the
+// next keeps the count (#151: a preface unnumbered, the parts after it 1, 2, 3)
 export function wsHeadNumbers(o: WsExportOpts | null | undefined, sections: WsExportSection[]): string[] {
 	const out = sections.map(() => '');
 	const style = wsNumberStyle(o);
@@ -3362,6 +3403,7 @@ export function wsHeadNumbers(o: WsExportOpts | null | undefined, sections: WsEx
 	sections.forEach((sec, i) => {
 		const c = chains[i];
 		if (!c || (sec.folder && c.length <= common)) return;
+		if (sec.unnumbered) return;
 		const dirs = c.slice(common);
 		// a file counted among its folder's children whether its name prints or not, so the next one keeps its place
 		const p = sec.folder ? folderAt(dirs) : next(dirs.join('/'), folderAt(dirs));
@@ -3576,7 +3618,7 @@ export const WS_WRITE = Object.freeze({
 // new, the styles are new, and the version the writer READS — in
 // Community Plugins, in a bug report — is months old. A mismatch here
 // is a plugin lying about which one it is.
-export const WS_PLUGIN_VERSION = '1.9.3';
+export const WS_PLUGIN_VERSION = '1.9.4';
 
 // ── Writing history ─────────────────────────────────────────────────────────
 // One measurement per typing pause, not one per autosave.
@@ -3618,12 +3660,13 @@ export const HISTORY_MAX_UNSAVED_MS = 120000;
 // written on disk, or every note carrying that flag loses it, and a
 // vault synced from a machine with different names would disagree about
 // what its own manuscript says. The label, the shape and the two
-// colours are settings; the six ids are not, and the count decides how
+// colours are settings; the five ids are not, and the count decides how
 // many are offered. The ORDER is the ring's and the count's (the first N
-// are offered): Draft, Revise, Done first, Sketch and Blocked after, and
-// Notes last. A vault's stored flags are read by id, so the order can
-// move; the ids cannot.
-export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked', 'notes'];
+// are offered): Draft, Revise, Done first, Sketch and Blocked after. A
+// vault's stored flags are read by id, so the order can move; the ids
+// cannot. (A sixth, Notes, came with #135 and went on the writer's word,
+// 2026-11-15: "don't add the 6th flag called Notes".)
+export const WS_STATE_IDS = ['draft', 'revise', 'done', 'outline', 'blocked'];
 
 // The list every reader of a flag consults, kept in step with the settings by
 // `flagsApply`. A module-level table because `wsStatusLabel` and
@@ -3639,8 +3682,7 @@ export const WS_STATUSES: { id: string; label: string; shape?: string }[] = [
 	{ id: 'revise',  label: 'Revise'  },
 	{ id: 'done',    label: 'Done'    },
 	{ id: 'outline', label: 'Sketch' },
-	{ id: 'blocked', label: 'Blocked' },
-	{ id: 'notes',   label: 'Notes' }
+	{ id: 'blocked', label: 'Blocked' }
 ];
 // ── FOLDER COLOURS ──────────────────────────────────────────────────────────
 //
@@ -3681,7 +3723,7 @@ export const WS_FLAG_SHAPES = [
 	{ id: 'pause',    label: 'Paused' }
 ];
 export const WS_SHAPE_FOR: Record<string, string> = { outline: 'hollow', draft: 'pennant', revise: 'swallow',
-	blocked: 'alert', done: 'banner', notes: 'bookmark' };
+	blocked: 'alert', done: 'banner' };
 
 export function wsFlagShapeOf(id: string) {
 	for (const st of WS_STATUSES) if (st.id === id) return st.shape || WS_SHAPE_FOR[id] || 'pennant';
@@ -4428,8 +4470,8 @@ export const DEFAULT_SETTINGS = {
 	// column narrow, and a folder's cell says both numbers whichever way
 	// the notes read.
 	orgTargetShow: 'percent',
-	// Folder target behavior: retain manually set targets unless summed mode is enabled.
-	orgFolderTargetSum: false,
+	// THE COLUMN HEADERS (#153; the writer, 2026-11-15: "Icon + Name, Name, or just Icon"): 'name', 'both' or 'icon'
+	orgHeaderShow: 'name',
 	// THE DEADLINE CELL SHOWS the date and the working days left, "20 Oct 2026 · 8d" (A735, the writer: "show the deadline
 	// date too and 8d"), or one of them: 'both' | 'days' | 'date'. One column (A731), not a Days left that hung on it.
 	orgDeadlineCell: 'both',
@@ -4504,13 +4546,10 @@ export const DEFAULT_SETTINGS = {
 	revisionsCompare:         'inline',
 	// Obsidian's File recovery versions listed after ours
 	revisionsRecovery:        true,
-	// Notes and folders that Word-Smith still WORKS in but never COUNTS: an
-	// outline, a research folder, a scratch file inside the manuscript. Kept
-	// separate from scopePaths because the two answer different questions —
-	// that one is "leave this note alone entirely", this one is "help me write
-	// it, just do not put it in the total". NULL rather than [] for the reason
-	// every nested default here is: the merge in loadSettings is shallow.
-	countExclude:             null as string[] | null,
+	// THE ROWS CLICKED UNNUMBERED (the writer, 2026-11-15: "the show row number should be a click on the number in the
+	// row, not per flag"): files by path, each with no row number in the Organizer, the file tree or the export. NULL
+	// rather than [] for the reason every nested default here is: the merge in loadSettings is shallow.
+	numberExclude:            null as string[] | null,
 
 	// ── Zen mode ──────────────────────────────────────────────────────────────
 	// zenEnabled ships off while zenMode ships on. That is not a contradiction:
@@ -5143,23 +5182,19 @@ export const DEFAULT_SETTINGS = {
 		//
 		// THE ORDER IS THE RING'S, AND THE COUNT OFFERS THE FIRST N: Draft,
 		// Revise, Done are a fresh install's three; Sketch and Blocked join when
-		// the count is raised, and Notes last. Same order as WS_STATE_IDS.
+		// the count is raised. Same order as WS_STATE_IDS.
 		//
-		// `exclude` IS THE SWITCH BESIDE EACH FLAG: the notes carrying it are
-		// left out of word counts, targets and the history while staying in the
-		// vault, the table and the tree. Notes ships with it on, because that is
-		// the whole point of that state; the other five ship counted.
+		// `exclude` IS THE SWITCH BESIDE EACH FLAG (#135, JavaGT): the notes
+		// carrying it are left out of word counts, targets and the history while
+		// staying in the vault, the table and the tree. All five ship counted.
 		//
-		// `skipNumber` IS THE SECOND SWITCH: the notes carrying it keep their
-		// rows but take no row number, in the Organizer and the file tree, and
-		// the rows after them close the gap. It is independent of `exclude`:
-		// a counted note can be unnumbered, and an excluded one numbered.
-		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9', exclude: false, skipNumber: false },
-		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52', exclude: false, skipNumber: false },
-		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c', exclude: false, skipNumber: false },
-		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98', exclude: false, skipNumber: false },
-		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441', exclude: false, skipNumber: false },
-		{ id: 'notes',   label: 'Notes',   shape: 'bookmark', light: '#5b7f8a', dark: '#7fa8b5', exclude: true,  skipNumber: true }
+		// A ROW'S NUMBER IS NOT A FLAG'S (the writer, 2026-11-15: "the show row number should be a click on the number in
+		// the row, not per flag"): it is clicked off on the row (`numberExclude`).
+		{ id: 'draft',   label: 'Draft',   shape: 'pennant', light: '#4b7bb5', dark: '#6f95c9', exclude: false },
+		{ id: 'revise',  label: 'Revise',  shape: 'swallow', light: '#b8453c', dark: '#cf5b52', exclude: false },
+		{ id: 'done',    label: 'Done',    shape: 'banner',  light: '#3f8a53', dark: '#5aa96c', exclude: false },
+		{ id: 'outline', label: 'Sketch', shape: 'hollow',  light: '#7b818c', dark: '#8a8f98', exclude: false },
+		{ id: 'blocked', label: 'Blocked', shape: 'alert',   light: '#c08a2a', dark: '#d9a441', exclude: false }
 	],
 	// Unticked boxes in the tree, beside the count: "3/5" on a scene says
 	// there is work left in it that a word count cannot.

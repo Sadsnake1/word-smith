@@ -11,6 +11,10 @@ import { wsCompat, wsCompatText, WS_INTERNALS } from './core/obsidian-internals'
 import { wsOrgTicksMake } from './organizer/organizer-ticks';
 import { wsOrgRowsMake } from './organizer/organizer-rows';
 import { wsOrgReadingsMake } from './organizer/organizer-readings';
+import { wsOrgCellsMake } from './organizer/organizer-cells';
+import { wsRowNumbers, wsPathListRename, wsPathListForget } from './core/preamble';
+import { wsOrgPropIconNames } from './organizer/organizer-props';
+import { wsOrgRenameMake } from './organizer/organizer-rename';
 import {
 	wsCountFootnotes, wsOrgAgg, wsOrgDistinct, wsOrgDropBefore, wsOrgFolderWords, wsOrgIndex, wsOrgPathsUnder, wsOrgPut,
 	wsOrgRemove, wsOrgRename, wsOrgStale, wsUnderIndex, wsUnderRow,
@@ -99,6 +103,10 @@ export default Object.assign(WordSmith, {
 	wsOrgTicksMake, WS_EXPORT_PREVIEW_AUTO_BYTES,
 	// the Organizer's walk, driven by the own-folder suite (A733)
 	wsOrgRowsMake, wsOrgReadingsMake,
+	// the path lists, the row numbers, the cells (2026-11-15)
+	wsOrgCellsMake, wsRowNumbers, wsPathListRename, wsPathListForget,
+	// a property's glyph and the rename's row (2026-11-15: "bad icons for properties", "i can't rename top folders")
+	wsOrgPropIconNames, wsOrgRenameMake,
 	// the sentence rule, for the capitalize suite (A519)
 	wsSentenceStart,
 	// a Cursor-Smith preset drawn beside its name in the Cursors lists

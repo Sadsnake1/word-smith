@@ -30,7 +30,7 @@ import type WordSmith from '../plugin/plugin';
 // closure local the window has not typed yet (8 of 9).
 // What a column says of a folder: the text, a tooltip, and for the flags
 // column the flags counted under it.
-export interface WsOrgColAgg { text: string; title?: string; flags?: { id: string; n: number; label: string }[]; goal?: { words: number; target: number } }
+export interface WsOrgColAgg { text: string; title?: string; flags?: { id: string; n: number; label: string }[]; goal?: { words: number; target: number; derived?: boolean } }
 export interface OrgReadingsDeps {
 	plugin: WordSmith;
 	readonly markOf: (path: string | number, kind: string) => string;
@@ -342,7 +342,8 @@ const orgFolderIcon = (into: HTMLElement, path: string, open: boolean) =>
 // one that can be trusted. Same reader as the cells (`orgColRaw`), so a
 // total and its rows can never disagree.
 const ORG_AGG: Record<string, string> = {
-	// Targets sum descendant notes; deadlines remain independently set on folders.
+	// A FOLDER'S OWN (A700, the writer: folders get their own target, and the sum of their notes' targets is gone):
+	// the target, the deadline and the plan are the folder's, set on it; its progress, its rows' count as shown
 	words: 'sum', paras: 'sum', goal: 'own', deadline: 'own',
 	today: 'sum', grade: 'avg', modified: 'newest',
 	// A COUNT PER FLAG: a folder's Flag cell says how many files beneath
@@ -354,10 +355,11 @@ const ORG_AGG: Record<string, string> = {
 	// carry a value" — a count of notes printed under a heading that says
 	// minutes. `read: sum` IS THE ONLY SELF-CONSISTENT CHOICE: read time is
 	// the Words column divided by a constant, and Words sums; a folder
-	// saying 12,000 words and 3 minutes disagrees with itself. `ftype: none`
-	// BECAUSE A FOLDER IS NOT A FILE: it has no kind, and the default would
-	// print the note count in a column of words like "md" and "xlsx".
-	read: 'sum', ftype: 'none', footnotes: 'sum', outlinks: 'none',
+	// saying 12,000 words and 3 minutes disagrees with itself. `ftype: kinds`
+	// (the writer, 2026-11-15: "show the number of file types in it"): a folder
+	// is not a file and has no kind of its own, so its Type cell counts the
+	// kinds beneath it, "12 md · 1 pdf", where it was left empty.
+	read: 'sum', ftype: 'kinds', footnotes: 'sum', outlinks: 'none',
 	// a folder's revisions are its notes' added up (#118)
 	revisions: 'sum',
 	// PAGES SUM AS WORDS, and the total is said as pages once: three
@@ -400,18 +402,51 @@ const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 	} catch (_) { wsCatch('openManuscriptModal / orgAggHow: if (col.user && String(this.orgPropType(col.key || col.id))', _); }
 	return 'count';
 };
-// A group's progress and target sum the same descendant notes. Its deadline remains its own.
+// A GROUP'S OWN READING (A700): `self` is the folder the row is (the vault's root as ''); its rows' count, as
+// shown, is the progress, the number the Words cell beside it reads
+// A FOLDER'S TARGET FROM THE TARGETS INSIDE IT (#138/#142, JavaGT; the writer: "if no folder target is set, then it
+// shows the sum"): each note's own target, a folder inside with a target of its own as that one, a folder inside with
+// none summed the same way, down every level, so nested folders add up. A SUM, NEVER AN AVERAGE OF PERCENTAGES: a
+// 500-word note must not weigh as a 5,000-word chapter. The progress against it is the folder's Words figure, as with a
+// target of its own, so the two cells side by side never disagree. Only what is counted adds: a note adds only
+// while the index holds it (`orgUnder` gives every file beneath, a note out of the counts too), a folder left out none.
+const orgDerivedTarget = (self: string, paths: string[]): number => {
+	const pre = self ? self + '/' : '';
+	const kids = new Set<string>();
+	const ix = d.plugin._orgIndex;
+	let target = 0;
+	for (const p of paths || []) {
+		if (pre && p.indexOf(pre) !== 0) continue;
+		const rest = p.slice(pre.length), cut = rest.indexOf('/');
+		if (cut >= 0) kids.add(pre + rest.slice(0, cut));
+		else if (!ix || ix.has(p)) target += Math.max(0, d.targetOf(p) || 0);
+	}
+	// …and a folder right inside with a target of its own and no counted note yet: a part planned, not yet begun
+	for (const k of Object.keys(d.plugin.settings.folderTargets || {})) {
+		if (!k || (pre && k.indexOf(pre) !== 0)) continue;
+		const rest = k.slice(pre.length);
+		if (rest && rest.indexOf('/') < 0) kids.add(k);
+	}
+	for (const k of kids) {
+		const own = d.plugin.folderTargetFor(k);
+		target += own > 0 ? own : orgDerivedTarget(k, (paths || []).filter((p) => p.indexOf(k + '/') === 0));
+	}
+	return target;
+};
 const orgOwnAgg = (col: { id: string }, self: string, paths: string[]): WsOrgColAgg | null => {
 	let count = 0;
 	for (const p of (paths || [])) count += Number(orgColRaw(WORDS_COL, p)) || 0;
-	const target = col.id === 'goal' && d.plugin.settings.orgFolderTargetSum
-		? (paths || []).reduce((sum, path) => {
-			const file = d.plugin.app.vault.getAbstractFileByPath(path);
-			return sum + (file && d.plugin.isFileCounted(file) ? Number(orgColRaw({ id: 'goal' }, path)) || 0 : 0);
-		}, 0)
-		: d.plugin.folderTargetFor(self);
+	const target = d.plugin.folderTargetFor(self);
 	if (col.id === 'goal') {
-		if (!(target > 0)) return null;
+		if (!(target > 0)) {
+			// NO TARGET OF ITS OWN: the targets inside it, drawn muted as worked out (`derived`). A FOLDER'S ONLY: the vault's
+			// Total row says how many targets are set (A752, the writer: "say x targets"), a count and not a sum
+			if (!self) return null;
+			const sum = orgDerivedTarget(self, paths);
+			if (!(sum > 0)) return null;
+			return { text: d.plugin.orgTargetSay(count, sum), goal: { words: count, target: sum, derived: true },
+				title: wsT('{count} of a target of {target}', { count: count.toLocaleString(), target: sum.toLocaleString() }) };
+		}
 		return { text: d.plugin.orgTargetSay(count, target), goal: { words: count, target },
 			title: wsT('{count} of a target of {target}', { count: count.toLocaleString(), target: target.toLocaleString() }) };
 	}
@@ -451,7 +486,7 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 		// difference is visible in the rows themselves, where an absent
 		// property draws nothing and a false one draws a box.
 		if (how === 'ticked') { n++; if (v === true) done++; continue; }
-		if (how === 'flags') {
+		if (how === 'flags' || how === 'kinds') {
 			const k = wsStr(v);
 			seen.set(k, (Number(seen.get(k)) || 0) + 1); n++; continue;
 		}
@@ -500,6 +535,15 @@ const orgColAgg = (col: { id: string; user?: boolean; key?: string }, paths: str
 			text: wsUiJoin(flags.map(f => f.n + ' ' + f.label)),
 			title: wsUiJoin(flags.map(f => (f.n === 1 ? wsT('{n} file {flag}', { n: f.n, flag: f.label }) : wsT('{n} files {flag}', { n: f.n, flag: f.label }))))
 		};
+	}
+	// A FOLDER'S KINDS (the writer: "show the number of file types in it"): how many files of each kind are beneath it,
+	// every file whether counted or not (a listing, not a total), the most first, then by name: "12 md · 1 pdf · 1 xlsx",
+	// the same on hover where the cell is too narrow
+	if (how === 'kinds') {
+		const kinds = Array.from(seen.entries()).map(([k, c]) => ({ k, n: Number(c) || 0 }))
+			.sort((a, b) => b.n - a.n || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0));
+		const said = kinds.map((x) => x.n + ' ' + x.k).join(' · ');
+		return { text: said, title: said };
 	}
 	// A FOLDER WITH NOTHING TICKED SAYS NOTHING, like every other
 	// aggregate here — `!n` above has already returned for that.

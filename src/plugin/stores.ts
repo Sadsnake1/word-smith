@@ -9,7 +9,10 @@ import { Notice, getLanguage } from 'obsidian';
 import { wsT, wsUiPickForApp, wsUiSet } from '../core/ui-text';
 import type { TAbstractFile } from 'obsidian';
 import type { WsUserCol, WsStructRow } from '../core/settings';
-import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings, WS_MIRROR_DAY_KEYS } from '../core/preamble';
+import { EXPORT_MARK_END, EXPORT_MARK_START, GOALS_MARK_END, GOALS_MARK_START, SETTINGS_MARK_END, SETTINGS_MARK_START, STRUCT_BASENAME, STRUCT_MARK_END, STRUCT_MARK_START, WS_WRITE, wsCatch, wsDayOf, WS_TARGET_MAX, wsPathNorm, wsStatusLabel, wsTextSameEol, wsBag, wsStatOf, wsStr, wsIsFile, wsErrMsg, DEFAULT_SETTINGS, wsForDisk, wsRepairSettings, WS_MIRROR_DAY_KEYS, wsPathListRename, wsPathListForget } from '../core/preamble';
+// THE STORES THAT ARE A LIST OF VAULT PATHS, carried by a rename and forgotten with a delete (`renameGoalPaths`,
+// `forgetGoalPaths`): the rows clicked unnumbered and the Organizer's open folders (#148)
+const WS_PATH_LISTS = ['numberExclude', 'organizerOpen'] as const;
 import { wsIsPackPath, wsPackPick, wsPackQuotes, wsPackSpaces, wsParsePack } from '../core/language';
 import type { WsPack, WsPackSpaces } from '../core/language';
 import { wsPackEngine, wsEnglishPackEngine, WS_ENGLISH_ENGINE } from '../core/lang-engine';
@@ -879,35 +882,17 @@ export const storesMethods = {
 				changed = true;
 			}
 		}
-		// ── AND THE FOLDERS THE ORGANIZER HAS OPEN, WHICH ARE A LIST ──────
+		// ── AND THE STORES THAT ARE A LIST RATHER THAN A MAP ──────────────────
 		//
-		// A folder renamed in the Organizer kept its old path in this list,
-		// so the row came back folded: the table was redrawn from the new
-		// path while `organizerOpen` still named the one it left. The same
-		// prefix walk as the maps above — a folder moved with its parent
-		// open has to carry the open state of everything inside it.
-		const open = this.settings.organizerOpen;
-		if (Array.isArray(open)) {
-			for (let i = 0; i < open.length; i++) {
-				const p = open[i];
-				if (typeof p !== 'string') continue;
-				let next: string | null = null;
-				if (p === oldPath) next = newPath;
-				else if (p.startsWith(oldPath + '/')) next = newPath + p.slice(oldPath.length);
-				if (next === null || next === p) continue;
-				open[i] = next;
-				changed = true;
-			}
-			// NO DUPLICATES: moving a folder onto a path already open would
-			// otherwise leave the same folder in the list twice.
-			if (changed) {
-				const seen = new Set<string>();
-				this.settings.organizerOpen = open.filter((p) => {
-					if (typeof p !== 'string' || seen.has(p)) return false;
-					seen.add(p);
-					return true;
-				});
-			}
+		// Not counted, and the folders the Organizer has open (#148, JavaGT: "an expanded folder can return
+		// collapsed after it is renamed"). A PREFIX WALK, so a folder moved takes
+		// everything inside it along, and NO DUPLICATES, so moving onto a path
+		// already in a list leaves it there once (`wsPathListRename`). Not
+		// counted was not carried before: a folder left out of the counts,
+		// renamed, came back in.
+		for (const key of WS_PATH_LISTS) {
+			const next = wsPathListRename(this.settings[key], oldPath, newPath);
+			if (next) { this.settings[key] = next; changed = true; }
 		}
 		return changed;
 	},
@@ -939,15 +924,10 @@ export const storesMethods = {
 				changed = true;
 			}
 		}
-		// …AND THE FOLDERS THE ORGANIZER HAD OPEN, the same prefix walk:
-		// a deleted folder's path must not linger in the list for ever.
-		const open = this.settings.organizerOpen;
-		if (Array.isArray(open)) {
-			const next = open.filter((p) => typeof p === 'string' && p !== path && !p.startsWith(path + '/'));
-			if (next.length !== open.length) {
-				this.settings.organizerOpen = next;
-				changed = true;
-			}
+		// …and the lists: a deleted folder's path must not linger in them for ever (#148)
+		for (const key of WS_PATH_LISTS) {
+			const next = wsPathListForget(this.settings[key], path);
+			if (next) { this.settings[key] = next; changed = true; }
 		}
 		return changed;
 	},
@@ -2670,6 +2650,7 @@ export const storesMethods = {
 	uiApply(this: WordSmith) {
 		let code = 'en';
 		try { code = getLanguage() || 'en'; } catch { code = 'en'; }
+		// (#141, JavaGT: Obsidian's plain English reads the device's English, so en-GB and en-NZ get their own spelling)
 		const preferred = typeof navigator === 'undefined' ? '' : navigator.language;
 		wsUiSet(wsUiPickForApp(code, preferred));
 	},

@@ -206,11 +206,14 @@ const orgGoalBand = (td: HTMLElement, words: number, target: number) => {
 const orgIsFolder = (path: string) => {
 	try { const f = d.plugin.app.vault.getAbstractFileByPath(String(path || '')); return !!f && !!f.children; } catch { return false; }
 };
-// Folder targets are calculated from their notes; note targets remain editable.
-const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { words: number; target: number } | null) => {
+// A FOLDER'S OWN TARGET IS SET WHERE IT IS READ TOO (A700): `band` is its rows' count over it, from the aggregate.
+// A FOLDER WITH NO TARGET OF ITS OWN SHOWS THE TARGETS INSIDE IT (#138/#142, JavaGT; the writer: "if no folder target is
+// set, then it shows the sum"): `band.derived`, drawn muted, its hover saying where the number comes from; a click still
+// sets the folder's own, which then wins.
+const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { words: number; target: number; derived?: boolean } | null) => {
 	const folder = row.kind === 'folder';
 	td.setText(text);
-	let progress = band || null;
+	let progress: { words: number; target: number } | null = band || null;
 	try {
 		if (band) orgGoalBand(td, band.words, band.target);
 		else if (!folder) {
@@ -218,22 +221,24 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 			orgGoalBand(td, progress.words, progress.target);
 		}
 	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
-	if (progress && progress.target > 0 && text.includes('/')) {
+	// THE COUNT AND THE TARGET APART (#146/#147, JavaGT): the count stronger, the target quieter, each its own span. Cut
+	// from the text the cell was given, so both keep Word-Smith's own number format; a percentage stays as it is.
+	const cut = text.indexOf('/');
+	if (progress && progress.target > 0 && cut > 0) {
 		td.empty();
-		td.createSpan({ cls: 'ws-org-goal-current', text: progress.words.toLocaleString() });
-		td.createSpan({ cls: 'ws-org-goal-separator', text: ' / ' });
-		td.createSpan({ cls: 'ws-org-goal-target', text: progress.target.toLocaleString() });
+		td.createSpan({ cls: 'ws-org-goal-current', text: text.slice(0, cut) });
+		td.createSpan({ cls: 'ws-org-goal-separator', text: '/' });
+		td.createSpan({ cls: 'ws-org-goal-target', text: text.slice(cut + 1) });
 	}
-	if (folder && d.plugin.settings.orgFolderTargetSum) {
-		if (band && band.target > 0) td.title = wsT('{count} of a target of {target}', { count: band.words.toLocaleString(), target: band.target.toLocaleString() });
-		return;
-	}
+	const derived = !!(band && band.derived);
+	if (derived) td.addClass('is-derived');
 	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
 	const canGoal = folder || orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
 		// (a folder's own: both numbers first, then the click, A700)
-		const hint = text ? wsT('Click to change the target') : wsT('Click to set a target');
+		const hint = derived ? wsT('From the targets inside it. Click to set its own.')
+			: text ? wsT('Click to change the target') : wsT('Click to set a target');
 		td.title = progress && progress.target > 0
 			? wsT('{count} of a target of {target}', { count: progress.words.toLocaleString(), target: progress.target.toLocaleString() }) + ' · ' + hint
 			: hint;
@@ -543,5 +548,6 @@ const orgTagsCell = (td: HTMLElement, row: WsOrgRow) => {
 			: wsT('#{tag} — a frontmatter tag', { tag: t.tag });
 	}
 };
+
 	return { orgCanHoldProps, orgPropRefuse, orgPropCell, orgGoalBand, orgGoalCell, orgDeadlineCell, orgOutCell, orgBackCell, orgTagWrap, orgTagPill, orgTagsCell };
 };

@@ -37,11 +37,9 @@ A new vault gets it at `Word-Smith/ws-history.md`. Move it, rename it, keep it n
 
 Nothing before the day you switch it on can be reconstructed. A file only knows when it was touched, not how much went into it.
 
-## Never counted
+## Not counted
 
-One list of notes and folders is left out of your totals. An outline, a research folder, a scratch file. Word-Smith still works in them. They just don't count.
-
-A flag does the same thing without a list: turn on **Not counted** for a flag under Settings → Word-Smith → Manuscript, and every note carrying it stops counting. **Notes** ships with that switch on. The note keeps its row, its flag and its place in the tree; only its words leave the totals.
+A flag leaves notes out of your totals and your history: turn on **Not counted** for a flag under Settings → Word-Smith → Manuscript, and every note carrying it stops counting: an outline, a research page or a scratch file. Word-Smith still works in them. The note keeps its row, its flag and its place in the tree; only its words leave the totals. To leave a whole folder out, leave it out of Word-Smith under Settings → Word-Smith → Vault → **Where it applies**.
 
 ## What counts as a word
 

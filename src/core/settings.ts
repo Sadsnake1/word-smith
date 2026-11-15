@@ -30,7 +30,7 @@ import type { ItemView, KeymapEventListener, Modal, Modifier, TAbstractFile } fr
  */
 export interface WsExportOpts {
 	// switches
-	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean;
+	titlePage?: boolean; pageBreaks?: boolean; a4?: boolean; starBetween?: boolean; folderHeadings?: boolean; bookHeading?: boolean;
 	dashPageBreak?: boolean;
 	/** the CSS snippets turned on in Appearance, in the PDF, web page and EPUB (#102) */
 	snippetCss?: boolean;
@@ -142,7 +142,9 @@ export interface WsExportSection { title: string; markdown: string; path: string
 	/** its folders under the export's root, a folder's own chain, a file's folder's: whether they print or not (#79's numbers) */
 	dirs?: string[];
 	/** the list of sources at the back (A572 step 4): its heading the title, one entry a source */
-	bib?: boolean; entries?: string[] }
+	bib?: boolean; entries?: string[];
+	/** no number on its heading and no place taken (the Organizer's #, or not counted): `wsHeadNumbers` */
+	unnumbered?: boolean }
 export type WsExportBoolKey = KeysOf<WsExportOpts, boolean>;
 export type WsExportStringKey = KeysOf<WsExportOpts, string>;
 
@@ -151,8 +153,6 @@ export interface WsFlagDef {
 	id: string; label: string; shape?: string; light?: string; dark?: string;
 	/** the notes carrying this flag are left out of word counts, targets and the history */
 	exclude?: boolean;
-	/** the notes carrying this flag are left out of the Organizer's and the file tree's row numbers */
-	skipNumber?: boolean;
 }
 
 /** the history record as 1.28 and earlier kept it in data.json; moved to its own file once, on load */
@@ -250,7 +250,7 @@ export interface WsLegacySettings {
 	barThemeMarginalia?: never; marginaliaGutter?: never; typewriterLinesAbove?: never; typewriterLinesBelow?: never;
 	letterboxRatio?: never; statusFormatText?: never; statusFormatLeft?: never; statusFormatCenter?: never;
 	statusFormatRight?: never; wpmWindowSec?: never; statusBarPadding?: never; hemFlashOnBlock?: never;
-	proseSkipCode?: never; uniCols?: never; folderGoals?: never; goalUnit?: never; goalTokenFormat?: never; targetTokenFollows?: never; markNbsp?: never; markInvisible?: never; markOther?: never; goalCelebrate?: never; goalMetSeen?: never; typoQuoteSpace?: never; wpmTokenUnit?: never; orgDeadlineShow?: never; uniColCh?: never; exportTicksAlways?: never; organizerPinned?: never; customCliches?: never;
+	proseSkipCode?: never; uniCols?: never; folderGoals?: never; goalUnit?: never; goalTokenFormat?: never; targetTokenFollows?: never; markNbsp?: never; markInvisible?: never; markOther?: never; goalCelebrate?: never; goalMetSeen?: never; typoQuoteSpace?: never; wpmTokenUnit?: never; orgDeadlineShow?: never; uniColCh?: never; exportTicksAlways?: never; organizerPinned?: never; customCliches?: never; countExclude?: never; uniHeaderMode?: never;
 	manuscriptRoots?: never; organizerRoot?: never; uniRootShut?: never; organizerRootShut?: never;
 	uniTreeWidth?: never; uniShut?: never; fileTreeGoals?: never; goalsFile?: never; goalBaseline?: never;
 	goalRingWeight?: never; goalOrientation?: never; goalLenWriting?: never; goalLenFile?: never;

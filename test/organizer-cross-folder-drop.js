@@ -96,6 +96,23 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 	assert.deepStrictEqual(success.orders.two, ['two/B.md', 'two/AA.md', 'two/C.md']);
 	assert.strictEqual(success.messages.length, 1, 'successful placement is reported');
 
+	// ANY FILE, NOT NOTES ALONE (the writer, 2026-11-15: "i cant drag and drop other non md files like i can with md files")
+	const pdf = setup(async (path, folder, orders) => {
+		const dest = `${folder}/${path.split('/').pop()}`;
+		orders[folder].push(dest);
+		return { ok: true, dest };
+	});
+	const pdfSource = new Row();
+	const pdfTarget = new Row();
+	beginDrag(pdf.drag, pdfSource, { path: 'one/Cover.pdf', parent: 'one', kind: 'file' });
+	pdf.drag.orgRowDrag(pdfTarget, { path: 'two/B.md', parent: 'two', kind: 'file' });
+	let pdfAccepted = false;
+	pdfTarget.emit('dragover', event(25, () => { pdfAccepted = true; }));
+	assert.strictEqual(pdfAccepted, true, 'cross-folder PDF row accepts a drop');
+	pdfTarget.emit('drop', event(25));
+	await tick();
+	assert.deepStrictEqual(pdf.orders.two, ['two/Cover.pdf', 'two/B.md', 'two/C.md'], 'a PDF moves in and takes its place above the row');
+
 	const refused = setup(async () => ({ ok: false, said: 'Name already exists.' }));
 	const refusedSource = new Row();
 	const refusedTarget = new Row();

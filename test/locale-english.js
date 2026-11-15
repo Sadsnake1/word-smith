@@ -45,7 +45,7 @@ for (const locale of ['en-GB', 'en-NZ']) {
 	assert.strictEqual(ui.wsT('Organizer'), 'Organiser');
 	assert.strictEqual(ui.wsT('Colors'), 'Colours');
 	assert.strictEqual(ui.wsT('Center headings'), 'Centre headings');
-	assert.strictEqual(ui.wsT('Open the floating Organizer'), 'Open the floating Organiser');
+	assert.strictEqual(ui.wsT('Open the Organizer'), 'Open the Organiser');
 	assert.strictEqual(ui.wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: '22/01/1999' }), 'For every date the Organiser shows. A file time reads: 22/01/1999');
 	assert.strictEqual(ui.wsT(ui.wsT('Organizer')), 'Organiser', 'a second translation pass is stable');
 	assert.strictEqual(ui.wsT('An unchanged English sentence'), 'An unchanged English sentence');

@@ -22,10 +22,14 @@ for (const kind of ['folder', 'file']) {
 	const cell = new Cell();
 	cells.orgGoalCell(cell, { kind, path: 'chapter.md' }, '3,506/2,000', kind === 'folder' ? { words: 3506, target: 2000 } : null);
 	assert.deepStrictEqual(cell.children.map((item) => item.cls), ['ws-org-goal-current', 'ws-org-goal-separator', 'ws-org-goal-target']);
-	assert.deepStrictEqual(cell.children.map((item) => item.text), ['3,506', ' / ', '2,000']);
+	assert.deepStrictEqual(cell.children.map((item) => item.text), ['3,506', '/', '2,000']);
 	assert(cell.listeners.includes('click'));
 	assert.match(cell.title, /3,506.*2,000/);
 }
+// the spans are cut from the cell's own text, so Word-Smith's number format is kept (a thin space here, not toLocaleString's comma)
+const thin = new Cell();
+cells.orgGoalCell(thin, { kind: 'file', path: 'chapter.md' }, '3 506/2 000', null);
+assert.deepStrictEqual(thin.children.map((item) => item.text), ['3 506', '/', '2 000']);
 const percent = new Cell();
 cells.orgGoalCell(percent, { kind: 'file', path: 'chapter.md' }, '175%');
 assert.strictEqual(percent.text, '175%');

@@ -948,6 +948,35 @@ function wsOrgFieldEditor(a: { d: OrgPropsDeps; orgEditDone: () => void; orgProp
 // A ROW OF THE PROPERTIES PANEL: a column of the table, or a bare key the notes carry.
 interface WsPropRow { col: WsOrgCol | null; key: string; name: string; dead: boolean }
 
+// ── A PROPERTY WEARS ITS TYPE'S GLYPH ──────────────────────────
+//
+// Matching Obsidian's own properties block: a small icon, the key,
+// then the value. The icon is not decoration — it says what KIND of
+// property this is, which is why `tags` gets a tag and `aliases` gets
+// the forward arrow while an ordinary text key gets the lines. TWO
+// KEYS ARE SPECIAL BY NAME rather than by type: Obsidian treats `tags`
+// and `aliases` as their own things and draws them so, and a writer
+// reading the row expects the same picture in both windows. Names in
+// order and CHECKED, as everywhere else here: `setIcon` fails
+// silently, and Lucide has renamed several of these. ONE LIST FOR THE
+// PANEL'S ROWS AND THE TABLE'S HEADERS (2026-11-15: a header wore the tag).
+const WS_ORG_PROP_ICONS: Record<string, string[]> = {
+	tags:     ['tags', 'tag'],
+	aliases:  ['forward', 'corner-up-right', 'arrow-right'],
+	checkbox: ['check-square', 'square-check', 'check'],
+	number:   ['binary', 'hash'],
+	date:     ['calendar', 'calendar-days'],
+	datetime: ['clock', 'calendar-clock'],
+	list:     ['list'],
+	text:     ['text', 'align-left', 'list']
+};
+export function wsOrgPropIconNames(key: string, type: string): string[] {
+	const k = String(key || '').toLowerCase();
+	if (k === 'tags' || k === 'tag') return WS_ORG_PROP_ICONS.tags;
+	if (k === 'aliases' || k === 'alias') return WS_ORG_PROP_ICONS.aliases;
+	return WS_ORG_PROP_ICONS[type] || (type === 'multitext' ? WS_ORG_PROP_ICONS.list : WS_ORG_PROP_ICONS.text);
+}
+
 export const wsOrgPropsMake = (d: OrgPropsDeps) => {
 // RANKED BY USE, NOT BY ALPHABET: an alphabetical shortlist of twelve
 // comes back as nine `excalidraw-*` keys belonging to another plugin,
@@ -1245,38 +1274,11 @@ const orgFieldEditor = (card: HTMLElement, path: string, key: string, isDraft: b
 
 // The field row itself: property label (the view-wide picker), the
 // editor, and the per-row "+" that adds a property to that note.
-// ── A PROPERTY WEARS ITS TYPE'S GLYPH ──────────────────────────
-//
-// Matching Obsidian's own properties block: a small icon, the key,
-// then the value. The icon is not decoration — it says what KIND of
-// property this is, which is why `tags` gets a tag and `aliases` gets
-// the forward arrow while an ordinary text key gets the lines. TWO
-// KEYS ARE SPECIAL BY NAME rather than by type: Obsidian treats `tags`
-// and `aliases` as their own things and draws them so, and a writer
-// reading the row expects the same picture in both windows. Names in
-// order and CHECKED, as everywhere else here: `setIcon` fails
-// silently, and Lucide has renamed several of these.
-const ORG_PROP_ICONS: Record<string, string[]> = {
-	tags:     ['tags', 'tag'],
-	aliases:  ['forward', 'corner-up-right', 'arrow-right'],
-	checkbox: ['check-square', 'square-check', 'check'],
-	number:   ['binary', 'hash'],
-	date:     ['calendar', 'calendar-days'],
-	datetime: ['clock', 'calendar-clock'],
-	list:     ['list'],
-	text:     ['text', 'align-left', 'list']
-};
+// (A PROPERTY'S GLYPH: `wsOrgPropIconNames`, above the factory, the headers' list too)
 const orgPropIcon = (into: HTMLElement, key: string) => {
-	const k = String(key || '').toLowerCase();
-	let names = null;
-	if (k === 'tags' || k === 'tag') names = ORG_PROP_ICONS.tags;
-	else if (k === 'aliases' || k === 'alias') names = ORG_PROP_ICONS.aliases;
-	if (!names) {
-		let t = '';
-		try { t = String(d.plugin.orgPropType(key) || ''); } catch { t = ''; }
-		names = ORG_PROP_ICONS[t]
-			|| (t === 'multitext' ? ORG_PROP_ICONS.list : ORG_PROP_ICONS.text);
-	}
+	let t = '';
+	try { t = String(d.plugin.orgPropType(key) || ''); } catch { t = ''; }
+	const names = wsOrgPropIconNames(key, t);
 	const g = into.createSpan({ cls: 'ws-org-propicon' });
 	for (const n of names) {
 		g.textContent = '';

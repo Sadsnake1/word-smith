@@ -364,7 +364,7 @@ export const diagnosticsMethods = {
 	diagSettingsLines(this: WordSmith): string[] {
 		const s = this.settings;
 		const names = (a: unknown) => (Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string' && x !== '') : []);
-		const scope = names(s.scopePaths), never = names(s.countExclude);
+		const scope = names(s.scopePaths);
 		const FEATURES: [keyof WordSmithSettings, string][] = [['zenEnabled', 'Zen'], ['enableTypewriter', 'Typewriter'],
 			['enableLetterbox', 'Letter Box'], ['historyTracking', 'History'], ['posEnabled', 'Syntax'], ['checksEnabled', 'Prose checks'],
 			['typographyEnabled', 'Typography'], ['hemingwayEnabled', 'Hemingway'], ['organizerOn', 'Organizer'],
@@ -378,8 +378,7 @@ export const diagnosticsMethods = {
 			'',
 			'Word-Smith settings (folder and note names here and below are yours: remove any you would rather not share):',
 			'  plugin ' + (s.pluginEnabled === false ? 'OFF' : 'on') + ' · language ' + (s.language || 'en')
-				+ ' · scope ' + (scope.length ? (s.scopeMode === 'exclude' ? 'all but ' : 'only ') + scope.join(', ') : 'the whole vault')
-				+ ' · never counted ' + (never.length ? never.join(', ') : 'none'),
+				+ ' · scope ' + (scope.length ? (s.scopeMode === 'exclude' ? 'all but ' : 'only ') + scope.join(', ') : 'the whole vault'),
 			'  on: ' + (on.length ? on.join(', ') : 'none'),
 		];
 	},

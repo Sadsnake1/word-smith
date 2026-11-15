@@ -108,12 +108,12 @@ const orgFlagSet = async (row: { path: string }, id: string, cell: HTMLElement |
 	// and skips the draw, so a bulk set — which reaches other rows — takes
 	// the draw.
 	//
-	// …UNLESS THE ROW'S NUMBER MOVES WITH THE FLAG. The one-cell shortcut
-	// repaints the flag and leaves the rest of the row alone, and a number is
-	// the rest of the row: a note that becomes "No row number", or stops
-	// being it, has to take the whole draw so its neighbours close the gap.
-	const renumbered = paths.some((p, i) => d.plugin.flagSkipsNumber(before[i][1]) !== d.plugin.flagSkipsNumber(after[i][1]));
-	d.orgCellHint = (cell && paths.length === 1 && !renumbered) ? { td: cell, path: row.path } : null;
+	// …UNLESS THE ROW FADES WITH THE FLAG. The one-cell shortcut repaints the
+	// flag and leaves the rest of the row alone, and a flag whose Not counted
+	// is on takes the whole row out of the totals: its fade, its folder's sums
+	// and the Total row have to take the whole draw.
+	const refaded = paths.some((p, i) => d.plugin.flagExcludes(before[i][1]) !== d.plugin.flagExcludes(after[i][1]));
+	d.orgCellHint = (cell && paths.length === 1 && !refaded) ? { td: cell, path: row.path } : null;
 	d.orgHistPush({
 		label: d.orgHistOn(paths, id ? wsT('Flag {flag}', { flag: wsStatusLabel(id) }) : wsT('Flag cleared')),
 		undo: () => orgFlagApply(before),

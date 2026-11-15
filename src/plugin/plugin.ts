@@ -942,7 +942,7 @@ export function wsWireVault(plugin: WordSmith) {
 		// would paint the order the vault had a moment ago.
 		plugin.treeShapeChanged();
 		// …and an OPEN Organizer's own snapshot of the fold, so a folder
-		// renamed in place comes back open rather than folded.
+		// renamed in place comes back open rather than folded (#148, JavaGT).
 		for (const door of plugin.orgWindows()) {
 			try { door.renameOpen(oldPath, file.path); } catch (_) { wsCatch('vault rename / renameOpen', _); }
 		}
@@ -1169,8 +1169,6 @@ export default class WordSmith extends WsPluginWithAreas {
 	_flagStamp: string;
 	/** which flags say "not counted", so a change to that switch re-sweeps the index */
 	_flagsExclSig: string;
-	/** which flags say "no row number", so a change to that switch repaints the numbering */
-	_flagsNumSig: string;
 	_fmCache: Record<string, Record<string, boolean | string> | null>;
 	_focusTabPrev: Map<HTMLElement, { display: string; width: string; flexGrow: string; flexShrink: string; flexBasis: string }>;
 	_folderWordBusy: boolean;
@@ -2470,6 +2468,13 @@ export default class WordSmith extends WsPluginWithAreas {
 		delete this.settings.goalCelebrate; delete this.settings.goalMetSeen;
 		// `typoQuoteSpace` (A770), never released: the space with « » is typed in Custom quote marks since A776
 		delete this.settings.typoQuoteSpace;
+		// `countExclude`, the Not counted list (Never counted under History until 2026-11-15), gone on the writer's word
+		// ("remove this option"): a note is left out by its flag's Not counted switch, a folder by the scope
+		delete this.settings.countExclude;
+		// `skipNumber` on a flag (#135, never released): a row's number is a click on the row now (`numberExclude`)
+		for (const f of (Array.isArray(this.settings.flags) ? this.settings.flags : [])) { if (f) delete wsBag(f).skipNumber; }
+		// `uniHeaderMode` (#153's header submenu, never released): Column headers is one setting now (`orgHeaderShow`)
+		delete this.settings.uniHeaderMode;
 		// `exportOpts.tocPages` (A751, released in 1.8.3): the contents always carry their page numbers (the writer: "table of
 		// contents always have page numbers, so remove that extra page numbers option for toc")
 		if (this.settings.exportOpts) delete wsBag(this.settings.exportOpts).tocPages;
@@ -3553,27 +3558,39 @@ export default class WordSmith extends WsPluginWithAreas {
 		return Array.isArray(this.settings.scopePaths) && this.settings.scopePaths.length > 0;
 	}
 
-	// True when the path is named by the list, either exactly (a note) or as
-	// an ancestor (a folder). Prefix matching appends the separator so that
-	// "Novel" does not also claim "Novel Ideas/draft.md".
-	countExcludeList() {
+	// OUT OF THE COUNTS BY THE WRITER'S CHOICE: a note whose flag has Not counted on (#134/#135). Faded in the Organizer
+	// and the file tree, unticked by Tick all; never the scope. (The Not counted list in Settings went on the writer's
+	// word, 2026-11-15: "remove this option".)
+	isPathUncounted(path: string) { return !!path && this.flagNotCounted(path); }
+
+	// THE ROWS CLICKED UNNUMBERED, made on first use, so two vaults never share one (the default is null)
+	numberExcludeList() {
 		const s = this.settings;
-		if (!Array.isArray(s.countExclude)) s.countExclude = [];
-		return s.countExclude;
+		if (!Array.isArray(s.numberExclude)) s.numberExclude = [];
+		return s.numberExclude;
 	}
 
-	// Whole path segments only, so excluding "Book/Notes" does not also
-	// exclude "Book/Notebook.md". The same rule the goal renames and the
-	// history scoping use.
-	isPathExcludedFromCounts(path: string|string[]) {
+	// NUMBERED (the writer, 2026-11-15: "the show row number should be a click on the number in the row, not per flag"):
+	// a row clicked unnumbered takes no number, in the Organizer, the file tree and the export's headings, and no place
+	isPathNumbered(path: string) { return !!path && this.numberExcludeList().indexOf(path) < 0; }
+
+	// …AND THE CLICK: on or off, what draws numbers told, THEN saved (the writer, 2026-11-15: "clicking row numbers is
+	// kinda laggy": it waited for the save, then for the tree's next frame, which a window not painting never gave).
+	// True when it changed, so the window clicked redraws itself at once.
+	numberSet(path: string, numbered: boolean) {
 		if (!path) return false;
-		for (const entry of this.countExcludeList()) {
-			if (!entry) continue;
-			const base = String(entry).replace(/\/+$/, '');
-			if (!base) continue;
-			if (path === base || path.indexOf(base + '/') === 0) return true;
-		}
-		return false;
+		const list = this.numberExcludeList(), at = list.indexOf(path);
+		if (numbered === (at < 0)) return false;
+		if (numbered) list.splice(at, 1); else list.push(path);
+		this.numbersChanged();
+		void this.saveSettings();
+		return true;
+	}
+
+	// WHAT DRAWS THE NUMBERS, TOLD: every open Organizer (the tree's watchers) and the file tree's numbers
+	numbersChanged() {
+		try { this.treeShapeChanged(); } catch (_) { wsCatch('numbersChanged: treeShapeChanged', _); }
+		try { void this.patchExplorerDOM(); } catch (_) { wsCatch('numbersChanged: patchExplorerDOM', _); }
 	}
 
 	isStoreFile(path: string) {
@@ -3728,8 +3745,7 @@ export default class WordSmith extends WsPluginWithAreas {
 		// the history, the tree's folder sums and the goals agree by
 		// construction.
 		if (this.flagNotCounted(file.path)) return false;
-		if (!this.isFileInScope(file)) return false;
-		return !this.isPathExcludedFromCounts(file.path);
+		return this.isFileInScope(file);
 	}
 
 	pathMatchesScope(path: string) {

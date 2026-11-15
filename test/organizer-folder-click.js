@@ -53,7 +53,7 @@ for (const narrow of [false, true]) {
 		orgFolderIcon: () => {}, nameOf: () => 'Folder', orgNarrowNow: () => narrow,
 		orgRowDrag: () => {}, orgGroupDrop: () => {}, orgGripReleasedAt: 0, ORG_GRIP_CLICK_MS: 100
 	};
-	compiled.exports.wsOrgDrawRows({}, { cols: [], ctx, lensed: false, nums: null, rooted: false, rows: [{ path: 'folder', kind: 'folder' }], tbody, wrap: new Element() });
+	compiled.exports.wsOrgDrawRows({ isPathUncounted: () => false }, { cols: [], ctx, lensed: false, nums: null, rooted: false, rows: [{ path: 'folder', kind: 'folder' }], tbody, wrap: new Element() });
 	const row = tbody.children[0], name = row.children[0], inner = name.children[0], twist = inner.children[0], label = inner.children[1], other = row.children[1];
 	name.click();
 	assert.strictEqual(open, true, `empty name-cell space opens folder (narrow=${narrow})`);

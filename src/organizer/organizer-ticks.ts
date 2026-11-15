@@ -162,7 +162,8 @@ export const wsOrgTicksMake = (d: OrgTicksDeps) => {
 	// remember and redraw a row's box goes through.
 	const setAll = (on: boolean) => {
 		if (!ticks) return false;
-		for (const f of files()) { if (on) ticks.add(f.path); else ticks.delete(f.path); }
+		// (a note out of the counts by its flag is left unticked by Tick all; a hand still ticks it)
+		for (const f of files()) { if (on) { if (!plugin.isPathUncounted(f.path)) ticks.add(f.path); } else ticks.delete(f.path); }
 		remember();
 		d.redraw();
 		return true;

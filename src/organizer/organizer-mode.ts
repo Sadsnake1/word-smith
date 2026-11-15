@@ -52,7 +52,7 @@ d.plugin._orgRedraw = () => d.drawPanel();
 // outside changes the store and nothing else until the next open.
 d.plugin._orgOpenSet = (p, on) => d.orgOpenSet(p, !!on);
 d.plugin._orgOpen = () => Array.from(d.orgOpen);
-// A RENAME CARRIES THE FOLDERS THAT WERE OPEN. `settings.organizerOpen`
+// A RENAME CARRIES THE FOLDERS THAT WERE OPEN (#148, JavaGT). `settings.organizerOpen`
 // follows the path in `renameGoalPaths`; this is the open window's
 // SNAPSHOT of it catching up, so the row does not come back folded after
 // the folder it names has moved. The redraw is the same one the vault

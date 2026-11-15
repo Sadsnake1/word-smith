@@ -6,7 +6,7 @@ The big boy. Obsidian's file explorer is the tree, the Organizer is the table. C
 
 <img width="1573" alt="The Organizer: a folder as a table of chapters" src="https://github.com/user-attachments/assets/d1fa8dc0-21cb-475b-81a2-11a012c086f0" />
 
-Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It opens to the right of your note, or as a new tab: **Settings → Word-Smith → Manuscript → Open in** (Export and History follow it). It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
+Run **Open the Organizer** from the command palette or the menu. It's a pane, so dock it next to the note you're writing. It opens to the right of your note, as a new tab, or in a new window of its own: **Settings → Word-Smith → Manuscript → Open in** (Export and History follow it). It follows whatever note you open, and the arrow keys walk the table without changing the folder. If you'd rather it stayed put, press the pin at the end of the path line: the file explorer stops moving it until you press the pin again (the path line's own crumbs still do). On a phone, two fingers zoom the table.
 
 No project file, no special folder. Your folders and files, as they are.
 
@@ -21,10 +21,11 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 Readings the frontmatter can't give you: word count, target, deadline (the date and the days left), vocabulary, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified, and with Revisions on, how many revisions a note has. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
+- **Column headers**, in Settings → Word-Smith → Manuscript: every header as its name, its icon and name, or its icon alone, which saves room in a narrow Organizer.
 - **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.
 - Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
 - Folder rows add up what's inside them, folded or not (their Vocabulary counts each word once), and a **Total** row at the foot adds up everything you're looking at.
-- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter. A note flagged **Notes** keeps its row but takes no number, and the rows after it close the gap.
+- **Row numbers**, at the foot of the Sort menu: 1, 2, 3 for the folder you opened, 1.1 and 1.2 inside a chapter. Click a row's number and the row keeps its place but takes no number, in the Organizer, the file tree and exports; the rows after it close the gap. Click the dash left in its place to number it again.
 - A cell you're editing never gets redrawn under you.
 
 ## Bulk edit and undo
@@ -41,31 +42,21 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 ## Targets and flags
 
-Give notes word counts to aim for in the Target column. By default, folders keep their own targets, which you can edit in the Target column. Turn on **Folder targets sum child targets** under Settings → Word-Smith → Manuscript to calculate each folder's target from descendant note targets, including notes in nested folders; calculated folder targets are read-only.
+Give a note a word count to aim for, and a folder one of its own: the whole book, a part, a chapter. A folder with a target of its own keeps it, so a 100,000-word book needs no target on every chapter. A folder without one shows the targets inside it added up, in a lighter type, with its words against them; a folder inside it that has its own target counts as that one. Set a target in the Target column, or on the folder's own row at the top of the table (the Total row at the foot, for the whole vault).
 
 Any note or folder can have a deadline too, in the Deadline column. The cell shows the date and the working days left, `20 Oct 2026 · 8d`, or just one of them (Settings → Word-Smith → Manuscript → **Deadline column shows**); hover it for the sentence. Sort by Deadline to see the nearest first: the days left run in the same order. A PDF or any other file can have one too. The words a day that get you there (what was left when today began, over the working days left) are on the bar: put `{target}` in a row and press it. Settings → Word-Smith → Manuscript → **Working days** picks the days that count. Targets count words.
 
-Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch**, **Blocked** and **Notes** join them, in that order. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
+Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Sketch** and **Blocked** join them, in that order. Each has a little shape beside the word, so they read at any size. Settings → Word-Smith → Manuscript sets how many you have, their names, one of thirteen shapes, and a color for dark and light. Click a flag to pick one from its menu, or press space on the row to step through them. A folder's flag cell counts its notes' flags, shape by shape. Turn on **File tree → Flags** and the same flag shows in Obsidian's explorer.
 
-**Notes** is for research, outlines and scratch pages, so it ships with both of the switches a flag can carry. Under Settings → Word-Smith → Manuscript, each flag's row ends with those two switches, after its name, shape and colors. Any flag can take either, and the two are independent: a counted note can be unnumbered, and an uncounted one numbered.
+## Flags that leave notes out
 
-| Flag | Not counted | No row number |
-| --- | --- | --- |
-| **Draft** | off | off |
-| **Revise** | off | off |
-| **Done** | off | off |
-| **Sketch** | off | off |
-| **Blocked** | off | off |
-| **Notes** | on, as it ships | on, as it ships |
+Under Settings → Word-Smith → Manuscript, each flag's row ends with a **Not counted** switch, after its name, shape and colors. All five ship with it off; rename a spare flag (Sketch, say) to Research and turn it on for your scratch pages.
 
-Sketch, Blocked and Notes appear as you raise the flag count; the three before them are a fresh install's.
+**Not counted** leaves every note carrying the flag out of the word counts, the targets and the writing history; its row is drawn faded here and in the file tree, and **Tick all** in Export leaves it unticked. The note stays in the vault, the Organizer and the file tree, with its row, its flag and its place untouched. Turning the switch off puts those notes back into the totals. A row's number is not a flag's: click the number on the row.
 
-| Switch | What it does | What it leaves alone |
-| --- | --- | --- |
-| **Not counted** | Leaves every note carrying the flag out of the word counts, the targets and the writing history | The note stays in the vault, the Organizer and the file tree, with its row, its flag and its place untouched |
-| **No row number** | Keeps the note's row but takes its number, in the Organizer and in the file tree; the rows after it close the gap | Word counts, targets and the writing history are untouched |
+A folder's **Type** cell says what is inside it: `12 md · 1 pdf`.
 
-Turning a switch off puts those notes back into the totals, or back into the numbering.
+Name a new note, or rename one, with a name another note in the vault already has and the Organizer asks first, saying where the other one is: Obsidian would rewrite the links to that note to tell the two apart.
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
