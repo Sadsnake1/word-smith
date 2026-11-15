@@ -57,7 +57,7 @@ Select several folders in the explorer, right-click, **Export these**. Or tick b
 
 Obsidian sorts by name, which is why manuscripts end up as `01 - Opening`, `02 - The Ferry`. Turn on **File tree → Custom order** and drag your chapters into the order the book reads in instead.
 
-- Drag to the top or bottom edge of a row to put something above or below it. Drop on a folder and it still moves the file in, like always.
+- Drag to the top or bottom edge of a row to put something above or below it, including when moving a Markdown note into another folder. Drop on the middle of a folder row to move the file in without choosing its exact position.
 - New notes go to the end until you move them.
 - The table draws that order. The manuscript compiles in it. One order, three places.
 - It's kept in `ws-structure.md`, one path per line. Edit it by hand if you like.
