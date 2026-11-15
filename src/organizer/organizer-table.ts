@@ -16,6 +16,25 @@ import type { WsOrgColAgg } from './organizer-readings';
 import { wsOrgPropIconNames } from './organizer-props';
 import type { WsOrgRow } from './organizer-rows';
 
+const wsOrgMenuSubmenus = () => {
+	let supported = false;
+	try { wsMenu().addItem((item) => { supported = typeof item.setSubmenu === 'function'; }); } catch { /* older Obsidian builds use inline groups */ }
+	return supported;
+};
+const wsOrgMenuGroup = (menu: ReturnType<typeof wsMenu>, supported: boolean, title: string, icon: string, fill: (into: ReturnType<typeof wsMenu>) => void) => {
+	if (supported) {
+		menu.addItem((item) => {
+			item.setTitle(title);
+			try { item.setIcon(icon); } catch (_) { wsCatch('wsOrgMenuGroup: item.setIcon(icon);', _); }
+			try { fill(item.setSubmenu()); } catch (_) { wsCatch('wsOrgMenuGroup: fill(item.setSubmenu());', _); }
+		});
+		return;
+	}
+	menu.addSeparator();
+	menu.addItem((item) => item.setTitle(title).setIsLabel(true));
+	fill(menu);
+};
+
 // A SENTENCE WITH A CONTROL IN IT (A695): the line is one key, with `slot` where the button stands, so a
 // translation puts the button where its grammar wants it; this cuts it in two around the slot. The tools' echo
 // marks the whole line, so each half keeps the marks (ws-dev/ui-pseudo-panes.js reads a text node at a time).
@@ -310,15 +329,51 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 			ev.preventDefault();
 			ev.stopPropagation();
 			const menu = wsMenu();
+			const supportsSubmenus = wsOrgMenuSubmenus();
 			menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2191'))
-				.setIcon('arrow-up')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'asc' } })));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2193'))
-				.setIcon('arrow-down')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'desc' } })));
+			wsOrgMenuGroup(menu, supportsSubmenus, wsT('Sort'), 'arrow-up-down', (into) => {
+				into.addItem((i) => i.setTitle(wsT('Sort \u2191')).setIcon('arrow-up')
+					.setChecked(ctx.orgLens.sort?.id === col.id && ctx.orgLens.sort.dir === 'asc')
+					.onClick(() => ctx.orgLensSet({ sort: { id: col.id, dir: 'asc' } })));
+				into.addItem((i) => i.setTitle(wsT('Sort \u2193')).setIcon('arrow-down')
+					.setChecked(ctx.orgLens.sort?.id === col.id && ctx.orgLens.sort.dir === 'desc')
+					.onClick(() => ctx.orgLensSet({ sort: { id: col.id, dir: 'desc' } })));
+			});
+			if (col.id === 'goal' || col.id === 'deadline') {
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Display'), 'sliders-horizontal', (into) => {
+					const options = col.id === 'goal'
+						? [{ value: 'ratio', label: wsT('Words and target (2,145/5,000)') }, { value: 'percent', label: wsT('Percentage (43%)') }]
+						: [{ value: 'both', label: wsT('Both (8d left · 20 Oct 2026)') }, { value: 'days', label: wsT('Days left (8d left)') }, { value: 'date', label: wsT('The date (20 Oct 2026)') }];
+					const key = col.id === 'goal' ? 'orgTargetShow' : 'orgDeadlineCell';
+					for (const option of options) {
+						into.addItem((i) => i.setTitle(option.label)
+							.setChecked(String(plugin.settings[key] || (key === 'orgTargetShow' ? 'percent' : 'both')) === option.value)
+							.onClick(async () => {
+								plugin.settings[key] = option.value;
+								await plugin.saveSettings(true);
+								ctx.drawPanel();
+							}));
+					}
+				});
+			}
+			if (col.id === 'goal') {
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Folder targets'), 'folder', (into) => {
+					into.addItem((i) => i.setTitle(wsT('User defined'))
+						.setChecked(plugin.settings.folderTargetMode !== 'calculated')
+						.onClick(async () => {
+							plugin.settings.folderTargetMode = 'manual';
+							await plugin.saveSettings(true);
+							ctx.drawPanel();
+						}));
+					into.addItem((i) => i.setTitle(wsT('Calculated from notes'))
+						.setChecked(plugin.settings.folderTargetMode === 'calculated')
+						.onClick(async () => {
+							plugin.settings.folderTargetMode = 'calculated';
+							await plugin.saveSettings(true);
+							ctx.drawPanel();
+						}));
+				});
+			}
 			// FILTER ONLY WHERE THERE ARE VALUES TO ENUMERATE. A reading
 			// is arithmetic over the note, not a value the note carries,
 			// and `orgDistinctUnder` has nothing to answer with — a row
@@ -327,25 +382,28 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 			const fkey = col.user ? String(col.key)
 				: (col.id === 'tags' ? 'tags' : '');
 			if (fkey) {
-				menu.addItem((i) => i.setTitle(wsT('Filter by this\u2026'))
-					.setIcon('list-filter')
-					.onClick(() => ctx.orgFilterByKey(fkey, ev)));
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Filter'), 'list-filter', (into) => {
+					into.addItem((i) => i.setTitle(wsT('Filter by this\u2026'))
+						.setIcon('list-filter')
+						.onClick(() => ctx.orgFilterByKey(fkey, ev)));
+				});
 			}
-			menu.addSeparator();
-			// This plugin shows and hides columns; Obsidian deletes properties.
-			menu.addItem((i) => i.setTitle(wsT('Hide this column'))
-				.setIcon('eye-off')
-				.onClick(async () => {
-					ctx.colOff.add(col.id);
-					s.uniColsOff = Array.from<string>(ctx.colOff);
-					await plugin.saveSettings();
-					void fill(); ctx.drawPanel();
-				}));
-			// RIGHT UNDER IT: the same act the Properties panel's row calls — one
-			// fit, two doors — with the panel row's own words.
-			menu.addItem((i) => i.setTitle(wsT('Resize columns to fit'))
-				.setIcon('move-horizontal')
-				.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
+			wsOrgMenuGroup(menu, supportsSubmenus, wsT('Column'), 'columns-3', (into) => {
+				// This plugin shows and hides columns; Obsidian deletes properties.
+				into.addItem((i) => i.setTitle(wsT('Hide this column'))
+					.setIcon('eye-off')
+					.onClick(async () => {
+						ctx.colOff.add(col.id);
+						s.uniColsOff = Array.from<string>(ctx.colOff);
+						await plugin.saveSettings();
+						void fill(); ctx.drawPanel();
+					}));
+				// RIGHT UNDER IT: the same act the Properties panel's row calls — one
+				// fit, two doors — with the panel row's own words.
+				into.addItem((i) => i.setTitle(wsT('Resize columns to fit'))
+					.setIcon('move-horizontal')
+					.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
+			});
 			// WHERE DELETION LIVES NOW: a note's property is removed in
 			// Obsidian's own Properties view or by editing the
 			// frontmatter; a non-md file's is removed by CLEARING ITS
@@ -976,6 +1034,28 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 		if (!cur || cur.id !== 'name') ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } });
 		else if (cur.dir === 'asc') ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } });
 		else ctx.orgLensSet({ sort: null });
+	});
+	nameTh.addEventListener('contextmenu', (ev: MouseEvent) => {
+		ev.preventDefault();
+		ev.stopPropagation();
+		const menu = wsMenu();
+		const supportsSubmenus = wsOrgMenuSubmenus();
+		menu.addItem((item) => item.setTitle(wsT('Name')).setIsLabel(true));
+		wsOrgMenuGroup(menu, supportsSubmenus, wsT('Sort'), 'arrow-up-down', (into) => {
+			into.addItem((item) => item.setTitle(wsT('Sort A to Z')).setIcon('arrow-up')
+				.setChecked(ctx.orgLens.sort?.id === 'name' && ctx.orgLens.sort.dir === 'asc')
+				.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } })));
+			into.addItem((item) => item.setTitle(wsT('Sort Z to A')).setIcon('arrow-down')
+				.setChecked(ctx.orgLens.sort?.id === 'name' && ctx.orgLens.sort.dir === 'desc')
+				.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } })));
+		});
+		wsOrgMenuGroup(menu, supportsSubmenus, wsT('Column'), 'columns-3', (into) => {
+			into.addItem((item) => item.setTitle(wsT('Resize columns to fit'))
+				.setIcon('move-horizontal')
+				.onClick(() => { if (ctx.orgColFitNow) ctx.orgColFitNow(); }));
+		});
+		try { menu.showAtMouseEvent(ev); }
+		catch { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('wsOrgDrawTable: nameTh menu.showAtPosition(0, 0);', _e); } }
 	});
 	// ── AND THE SEAM RUNS THE PANE, NOT THE ROWS ──────────────
 	//

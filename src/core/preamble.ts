@@ -4472,6 +4472,8 @@ export const DEFAULT_SETTINGS = {
 	orgTargetShow: 'percent',
 	// THE COLUMN HEADERS (#153; the writer, 2026-11-15: "Icon + Name, Name, or just Icon"): 'name', 'both' or 'icon'
 	orgHeaderShow: 'name',
+	// Folder targets are manually set by default. Calculated mode reads the targets of counted notes and leaves these values stored.
+	folderTargetMode: 'manual',
 	// THE DEADLINE CELL SHOWS the date and the working days left, "20 Oct 2026 · 8d" (A735, the writer: "show the deadline
 	// date too and 8d"), or one of them: 'both' | 'days' | 'date'. One column (A731), not a Days left that hung on it.
 	orgDeadlineCell: 'both',

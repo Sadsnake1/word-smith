@@ -233,9 +233,12 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 	const derived = !!(band && band.derived);
 	if (derived) td.addClass('is-derived');
 	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
-	const canGoal = folder || orgCanHoldGoal(row.path);
+	const calculatedFolder = folder && d.plugin.settings.folderTargetMode === 'calculated';
+	const canGoal = folder ? !calculatedFolder : orgCanHoldGoal(row.path);
 	if (canGoal) td.addClass('is-goal');
-	if (canGoal) {
+	if (calculatedFolder) {
+		td.title = wsT('Calculated from counted note targets. Choose User defined in the Target header menu to edit this folder target.');
+	} else if (canGoal) {
 		// (a folder's own: both numbers first, then the click, A700)
 		const hint = derived ? wsT('From the targets inside it. Click to set its own.')
 			: text ? wsT('Click to change the target') : wsT('Click to set a target');

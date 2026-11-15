@@ -2222,9 +2222,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer. A
 				// new window, the tab pulled out (the writer, 2026-11-15; #143's floating window was built and taken out that day)
 				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab', window: 'A new window' } } },
-				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
-				// A731: the deadline's two halves, one column
-				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
 				// (#153, the writer: "an option in plugins settings for all columns like Icon + Name, Name, or just Icon")
 				{ name: 'Column headers', desc: 'Each header as its name, its icon and name, or its icon. Icons save room in a narrow Organizer.', control: { type: 'dropdown', key: 'orgHeaderShow', options: { name: 'Name', both: 'Icon + Name', icon: 'Icon' } }, visible: org },
@@ -2982,6 +2979,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
-	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons', 'orgHeaderShow', 'orgFlagWash',
+	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgFolderIcons', 'orgHeaderShow', 'orgFlagWash',
 	'layoutZenOnly', 'pageView', 'hideOwnFolder', 'revisionsOn',
 ]);

@@ -2975,10 +2975,13 @@ export const reportMethods = {
 	},
 
 	// ── GOALS WITH A DATE (A700) ───────────────────────────────────────────
-	// A FOLDER'S OWN TARGET, the root as '' (or '/'); 0 for none. Never a sum of its notes' targets.
+	// A folder target is either its saved value or the sum of counted descendant note targets.
 	folderTargetFor(this: WordSmith, path: string) {
 		const t = this.settings.folderTargets || {};
-		return Number(t[path === '/' ? '' : path]) || 0;
+		const key = path === '/' ? '' : path;
+		if (this.settings.folderTargetMode !== 'calculated') return Number(t[key]) || 0;
+		const files = this.filesInFolder(key || '/', true).filter((file) => this.isFileCounted(file));
+		return files.reduce((sum, file) => sum + Math.max(0, this.fileGoalFor(file.path)), 0);
 	},
 	goalDeadlineFor(this: WordSmith, path: string) {
 		const d = this.settings.goalDeadlines || {};

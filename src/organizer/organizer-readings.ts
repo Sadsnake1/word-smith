@@ -404,50 +404,14 @@ const orgAggHow = (col: { id: string; user?: boolean; key?: string }) => {
 };
 // A GROUP'S OWN READING (A700): `self` is the folder the row is (the vault's root as ''); its rows' count, as
 // shown, is the progress, the number the Words cell beside it reads
-// A FOLDER'S TARGET FROM THE TARGETS INSIDE IT (#138/#142, JavaGT; the writer: "if no folder target is set, then it
-// shows the sum"): each note's own target, a folder inside with a target of its own as that one, a folder inside with
-// none summed the same way, down every level, so nested folders add up. A SUM, NEVER AN AVERAGE OF PERCENTAGES: a
-// 500-word note must not weigh as a 5,000-word chapter. The progress against it is the folder's Words figure, as with a
-// target of its own, so the two cells side by side never disagree. Only what is counted adds: a note adds only
-// while the index holds it (`orgUnder` gives every file beneath, a note out of the counts too), a folder left out none.
-const orgDerivedTarget = (self: string, paths: string[]): number => {
-	const pre = self ? self + '/' : '';
-	const kids = new Set<string>();
-	const ix = d.plugin._orgIndex;
-	let target = 0;
-	for (const p of paths || []) {
-		if (pre && p.indexOf(pre) !== 0) continue;
-		const rest = p.slice(pre.length), cut = rest.indexOf('/');
-		if (cut >= 0) kids.add(pre + rest.slice(0, cut));
-		else if (!ix || ix.has(p)) target += Math.max(0, d.targetOf(p) || 0);
-	}
-	// …and a folder right inside with a target of its own and no counted note yet: a part planned, not yet begun
-	for (const k of Object.keys(d.plugin.settings.folderTargets || {})) {
-		if (!k || (pre && k.indexOf(pre) !== 0)) continue;
-		const rest = k.slice(pre.length);
-		if (rest && rest.indexOf('/') < 0) kids.add(k);
-	}
-	for (const k of kids) {
-		const own = d.plugin.folderTargetFor(k);
-		target += own > 0 ? own : orgDerivedTarget(k, (paths || []).filter((p) => p.indexOf(k + '/') === 0));
-	}
-	return target;
-};
 const orgOwnAgg = (col: { id: string }, self: string, paths: string[]): WsOrgColAgg | null => {
 	let count = 0;
 	for (const p of (paths || [])) count += Number(orgColRaw(WORDS_COL, p)) || 0;
 	const target = d.plugin.folderTargetFor(self);
 	if (col.id === 'goal') {
-		if (!(target > 0)) {
-			// NO TARGET OF ITS OWN: the targets inside it, drawn muted as worked out (`derived`). A FOLDER'S ONLY: the vault's
-			// Total row says how many targets are set (A752, the writer: "say x targets"), a count and not a sum
-			if (!self) return null;
-			const sum = orgDerivedTarget(self, paths);
-			if (!(sum > 0)) return null;
-			return { text: d.plugin.orgTargetSay(count, sum), goal: { words: count, target: sum, derived: true },
-				title: wsT('{count} of a target of {target}', { count: count.toLocaleString(), target: sum.toLocaleString() }) };
-		}
-		return { text: d.plugin.orgTargetSay(count, target), goal: { words: count, target },
+		if (!self || !(target > 0)) return null;
+		const derived = d.plugin.settings.folderTargetMode === 'calculated';
+		return { text: d.plugin.orgTargetSay(count, target), goal: { words: count, target, ...(derived ? { derived: true } : {}) },
 			title: wsT('{count} of a target of {target}', { count: count.toLocaleString(), target: target.toLocaleString() }) };
 	}
 	const due = d.plugin.goalDeadlineFor(self);
