@@ -154,6 +154,9 @@ export const storesMethods = {
 		};
 		all[this.goalsSectionKey('file')] =
 			build(this.settings.fileGoals, this.settings.fileStatus);
+		all['manuscript inclusion: notes'] = Object.keys(this.settings.fileIncluded || {}).sort()
+			.filter((path) => this.settings.fileIncluded[path] === false)
+			.map((path) => ({ path, on: false, note: 'excluded' }));
 		// NO FOLDER FLAGS IN THE FILE. `{}` is passed at the CALL rather than by
 		// touching `build`, which the notes section uses too — a folder TARGET is
 		// still a real thing and still round-trips. A folder that carried only a
@@ -173,7 +176,8 @@ export const storesMethods = {
 		const fileKey = this.goalsSectionKey('file');
 		const folderKey = this.goalsSectionKey('folder');
 		if (!Object.prototype.hasOwnProperty.call(all, fileKey)
-			&& !Object.prototype.hasOwnProperty.call(all, folderKey)) return null;
+			&& !Object.prototype.hasOwnProperty.call(all, folderKey)
+			&& !Object.prototype.hasOwnProperty.call(all, 'manuscript inclusion: notes')) return null;
 		const res: { fileGoals: Record<string, number>; fileStatus: Record<string, string> } = { fileGoals: {}, fileStatus: {} };
 		// `statusInto` may be NULL, which is how folder flags are dropped. The
 		// parse stays TOLERANT on purpose: a file written before folders lost
@@ -191,6 +195,9 @@ export const storesMethods = {
 			}
 		};
 		take(all[fileKey], 'fileGoals', 'fileStatus');
+		const included: Record<string, boolean> = {};
+		for (const row of (all['manuscript inclusion: notes'] || [])) included[row.path] = row.on !== false;
+		this.settings.fileIncluded = included;
 		// A FOLDERS SECTION IS READ AND DROPPED. Its PRESENCE still counts above
 		// — an older file whose only goals section is this one must not answer
 		// "no goals anywhere", which would send the loader hunting for a legacy
@@ -379,7 +386,7 @@ export const storesMethods = {
 	goalsNothing(this: WordSmith) {
 		const s = this.settings;
 		const none = (m: unknown) => !m || typeof m !== 'object' || !Object.keys(m).length;
-		return none(s.fileGoals) && none(s.fileStatus) && none(s.folderColors) && none(s.uniUserCols)
+		return none(s.fileGoals) && none(s.fileStatus) && none(s.fileIncluded) && none(s.folderColors) && none(s.uniUserCols)
 			&& none(s.folderTargets) && none(s.goalDeadlines);
 	},
 
@@ -387,6 +394,7 @@ export const storesMethods = {
 		try {
 			return JSON.stringify([this.settings.fileGoals,
 				this.settings.fileStatus,
+				this.settings.fileIncluded,
 				this.settings.folderColors, this.settings.uniUserCols,
 				this.settings.folderTargets, this.settings.goalDeadlines]);
 		} catch { return ''; }
@@ -939,8 +947,8 @@ export const storesMethods = {
 	// keeps it alive.
 	// (A700: a folder's own target and every deadline move and go with their path too, the day's start and the
 	// celebrated goals with them)
-	goalPathStores(this: WordSmith): ('fileGoals' | 'fileStatus' | 'folderColors' | 'folderTargets' | 'goalDeadlines')[] {
-		return ['fileGoals', 'fileStatus', 'folderColors', 'folderTargets', 'goalDeadlines'];
+	goalPathStores(this: WordSmith): ('fileGoals' | 'fileStatus' | 'fileIncluded' | 'folderColors' | 'folderTargets' | 'goalDeadlines')[] {
+		return ['fileGoals', 'fileStatus', 'fileIncluded', 'folderColors', 'folderTargets', 'goalDeadlines'];
 	},
 
 	async renameScopePath(this: WordSmith, oldPath: string, newPath: string) {

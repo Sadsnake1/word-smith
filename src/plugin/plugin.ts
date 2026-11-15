@@ -1082,6 +1082,7 @@ export function wsOnLayoutReady(plugin: WordSmith) {
 		try { await plugin.welcomeOnFirstStart(restored); } catch (_) { wsCatch('onLayoutReady: welcomeOnFirstStart', _); }
 		try {
 			await plugin.goalsFileLoad();
+			await plugin.migrateCountExclusions();
 			plugin.refresh();
 		} catch (_) { wsCatch('onLayoutReady: await plugin.goalsFileLoad();', _); }
 	})();
@@ -2606,6 +2607,8 @@ export default class WordSmith extends WsPluginWithAreas {
 		if (raw.goalDeadlines === undefined && Array.isArray(this.settings.uniColsOff)) {
 			for (const id of ['deadline']) if (this.settings.uniColsOff.indexOf(id) === -1) this.settings.uniColsOff.push(id);
 		}
+		if (raw.folderTargetMode === undefined && Array.isArray(this.settings.uniColsOff)
+			&& this.settings.uniColsOff.indexOf('include') === -1) this.settings.uniColsOff.push('include');
 		// PER DAY IS GONE (A725): a dev build's vault may name it among the hidden columns or the widths; a dead name
 		// is one somebody reuses
 		// A731's `orgDeadlineShow` ('days' | 'date'), never released: `orgDeadlineCell` since A735, the date and the days
@@ -3713,7 +3716,31 @@ export default class WordSmith extends WsPluginWithAreas {
 		// record itself being kept.
 		if (this.isStoreFile(file.path)) return false;
 		if (!this.isFileInScope(file)) return false;
-		return !this.isPathExcludedFromCounts(file.path);
+		return this.isInManuscript(file) && !this.isPathExcludedFromCounts(file.path);
+	}
+
+	isInManuscript(file: TAbstractFile | null | undefined) {
+		return !file || this.settings.fileIncluded?.[file.path] !== false;
+	}
+
+	async migrateCountExclusions() {
+		const rules = this.countExcludeList();
+		if (!rules.length) return;
+		const matched = new Set<string>();
+		const included = Object.assign({}, this.settings.fileIncluded || {});
+		for (const file of this.app.vault.getFiles()) {
+			if (this.isStoreFile(file.path) || !this.isPathExcludedFromCounts(file.path)) continue;
+			included[file.path] = false;
+			for (const rule of rules) if (file.path === rule || file.path.startsWith(rule.replace(/\/+$/, '') + '/')) matched.add(rule);
+		}
+		if (matched.size) {
+			this.settings.fileIncluded = included;
+			await this.goalsStoreWrite();
+		}
+		this.settings.countExclude = [];
+		await this.saveSettings(true);
+		const unmatched = rules.length - matched.size;
+		if (unmatched) new Notice(wsT('Word-Smith: {n} old exclusion path(s) had no current files and were cleared. New files are included by default.', { n: unmatched }), 8000);
 	}
 
 	pathMatchesScope(path: string) {

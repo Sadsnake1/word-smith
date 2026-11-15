@@ -76,6 +76,7 @@ export const wsOrgColsMake = (d: OrgColsDeps) => {
 // its assertion — that the band no longer draws the column — was the
 // one thing the source could not tell me.
 const colDefs = (): WsOrgCol[] => [
+	{ id: 'include', label: wsT('Include in manuscript'), def: 152, min: 100 },
 	{ id: 'goal',  label: wsT('Target'), def: 116, min: 78 },
 	// GOALS WITH A DATE (A700, issues #63 and #37): the day; the working days left; the day's share, worked out from
 	// the count at the start of today so it holds still all day. A note's or a folder's, the folder's its own.
@@ -186,7 +187,7 @@ if (!Array.isArray(d.s.uniColsOff)) {
 	// 'created' starts OFF on a fresh vault (the calm default) — a vault
 	// whose writer has already shaped this list gets it ON, which is who
 	// asked for the column.
-	d.s.uniColsOff = ['grade', 'modified', 'paras', 'tasks',
+		d.s.uniColsOff = ['include', 'grade', 'modified', 'paras', 'tasks',
 		// the deadline's two (A700; Per day gone, A725): off here, and off in a shaped list too (loadSettings, once)
 		'deadline',
 		'tags', 'created', 'read', 'pages', 'ftype', 'backlinks', 'outlinks', 'footnotes',

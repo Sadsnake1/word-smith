@@ -49,6 +49,14 @@ Three flags to start: **Draft**, **Revise**, **Done**; raise the count and **Ske
 
 Targets, deadlines and flags follow your files when you rename or move them. They live in `ws-structure.md`. See [Privacy and your files](privacy.md).
 
+## Manuscript inclusion
+
+The Organizer has an **Include in manuscript** column, hidden until enabled in Properties. A note or other file can be included or excluded there. Excluded notes remain visible and keep their properties and history, while their words are left out of totals, writing history and calculated targets. Missing inclusion values mean included.
+
+Folders do not store an inclusion value. Their row shows **Included**, **Excluded**, **Mixed**, or **Empty**, based on their current files. Clicking a folder applies the chosen state to its current files; a mixed folder becomes included on the first click. New files are included by default. Organizer rows expose this state as `data-manuscript-state` for CSS styling.
+
+Under **Settings → Word-Smith → Manuscript**, **Folder targets** switches between user-defined folder targets and targets calculated as the sum of included descendant note targets. Switching modes keeps the user-defined values, so they are ready if you switch back. Calculated values are read-only and include zero as a real result.
+
 ## Export
 
 Select several folders in the explorer, right-click, **Export these**. Or tick boxes in the explorer while the Export pane is open: any note, any folder, from anywhere in the vault. See [Export](export.md).

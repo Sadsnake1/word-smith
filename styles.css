@@ -11214,6 +11214,11 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
    above this line is kept because it records what the fill was for and
    why it was quietened before it was removed. */
 .ws-org-row { cursor: pointer; }
+.ws-org-table .ws-org-row[data-manuscript-state="excluded"] td.ws-org-name { opacity: .58; }
+.ws-org-table .ws-org-row[data-manuscript-state="mixed"] td.ws-org-name { text-decoration: underline dotted; text-underline-offset: 3px; }
+.ws-org-table .ws-org-subrow[data-manuscript-state="excluded"] td.ws-org-name { opacity: .58; }
+.ws-org-table .ws-org-subrow[data-manuscript-state="mixed"] td.ws-org-name { text-decoration: underline dotted; text-underline-offset: 3px; }
+.ws-org-table td.ws-org-inclusion { cursor: pointer; white-space: nowrap; }
 /* THE SAME FOR HOVER, AND FOR THE SAME REASON — see the block above. A
    pointer resting on a row was enough to make the frozen column
    see-through under it. */

@@ -4505,6 +4505,9 @@ export const DEFAULT_SETTINGS = {
 	// it, just do not put it in the total". NULL rather than [] for the reason
 	// every nested default here is: the merge in loadSettings is shallow.
 	countExclude:             null as string[] | null,
+	// Explicit per-file manuscript membership. Missing paths default to included.
+	fileIncluded:             {} as Record<string, boolean>,
+	folderTargetMode:         'manual',
 
 	// ── Zen mode ──────────────────────────────────────────────────────────────
 	// zenEnabled ships off while zenMode ships on. That is not a contradiction:

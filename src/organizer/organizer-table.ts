@@ -5,6 +5,7 @@
 // with the seven helpers only it calls; `drawOrg` computes the rows and the bar, then hands them here.
 
 import type { WordSmithSettings } from '../core/settings';
+import { TFile, type TAbstractFile } from 'obsidian';
 import { wsCatch, wsFlagSvg, wsListOf, wsMenu, wsSortArrow, wsStr, wsSvgInto } from '../core/preamble';
 import { wsT, wsTq, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
@@ -25,6 +26,33 @@ function wsOrgAround(line: string, slot: string): [string, string] {
 	const b = at === -1 ? '' : body.slice(at + slot.length);
 	return marked ? [a ? '⟦' + a + '⟧' : '', b ? '⟦' + b + '⟧' : ''] : [a, b];
 }
+
+const wsOrgManuscriptFiles = (plugin: WordSmith, path: string): TAbstractFile[] => plugin.app.vault.getFiles()
+	.filter((file) => !plugin.isStoreFile(file.path)
+		&& (!path || path === '/' || file.path.startsWith(path.replace(/\/$/, '') + '/')));
+const wsOrgManuscriptState = (plugin: WordSmith, files: TAbstractFile[]): string =>
+	!files.length ? 'empty' : files.every((file) => plugin.isInManuscript(file)) ? 'included'
+		: files.every((file) => !plugin.isInManuscript(file)) ? 'excluded' : 'mixed';
+const wsOrgManuscriptToggle = (plugin: WordSmith, files: TAbstractFile[], include: boolean) => {
+	if (!files.length) return;
+	if (!plugin.settings.fileIncluded) plugin.settings.fileIncluded = {};
+	for (const file of files) {
+		if (include) delete plugin.settings.fileIncluded[file.path];
+		else plugin.settings.fileIncluded[file.path] = false;
+		if (!include) {
+			const timer = plugin._historyTimers && plugin._historyTimers.get(file.path);
+			if (timer) window.clearTimeout(timer);
+			if (plugin._historyTimers) plugin._historyTimers.delete(file.path);
+			if (plugin._historyHeld) plugin._historyHeld.delete(file.path);
+			delete plugin.historyBaselines()[file.path];
+		} else if (file instanceof TFile) {
+			const live = plugin.historyLiveCount(file.path);
+			if (live !== null) { plugin.historyBaselines()[file.path] = live; plugin.historyQueueSave(); }
+			else void plugin.historyNoteOpened(file);
+		}
+	}
+	void plugin.saveSettings(true).then(() => { plugin.updateRetroStatusBar(); plugin.repairDisplay(); });
+};
 
 // The name column's accent snapped to whole device pixels (lifted out of drawOrg, A488).
 function wsOrgSnapAccent(a: { ctx: WsOrgCtx; orgZoomOf: (el: HTMLElement) => number; table: HTMLTableElement }) {
@@ -331,7 +359,8 @@ function wsOrgTotalSay(plugin: WordSmith, ctx: WsOrgCtx, id: string, paths: stri
 	if (id === 'goal' || id === 'deadline') {
 		const goals = plugin.settings.fileGoals || {}, folders = plugin.settings.folderTargets || {}, days = plugin.settings.goalDeadlines || {};
 		const keys = id === 'goal'
-			? Object.keys(goals).filter((p) => Number(goals[p]) > 0).concat(Object.keys(folders).filter((p) => Number(folders[p]) > 0))
+			? Object.keys(goals).filter((p) => Number(goals[p]) > 0 && plugin.isInManuscript(plugin.app.vault.getAbstractFileByPath(p)))
+				.concat(Object.keys(folders).filter((p) => Number(plugin.folderTargetFor(p)) > 0))
 			: Object.keys(days).filter((p) => !!days[p]);
 		const n = new Set(keys.filter(there)).size;
 		if (!n) return null;
@@ -369,6 +398,8 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 		// back, and the rows stand at the edge with nothing to hang from.
 		const isRoot = !!at;
 		const subj = tbody.createEl('tr', { cls: 'ws-org-subrow ' + (isRoot ? 'is-root' : 'is-total') });
+		const rootFiles = wsOrgManuscriptFiles(plugin, at);
+		subj.setAttribute('data-manuscript-state', wsOrgManuscriptState(plugin, rootFiles));
 		subj.remove();
 		const std = subj.createEl('td', { cls: 'ws-org-name' });
 		const box = std.createDiv({ cls: 'ws-org-subject-in' });
@@ -438,6 +469,14 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			// `orgColStamp`. Without this the column is as wide as its
 			// widest cell whatever the header asks for.
 			ctx.orgColStamp(td, col.id, wrap);
+			if (col.id === 'include') {
+				const state = wsOrgManuscriptState(plugin, rootFiles);
+				td.addClass('ws-org-inclusion');
+				td.setText(state === 'mixed' ? wsT('Mixed') : state === 'empty' ? wsT('Empty') : state === 'included' ? wsT('Included') : wsT('Excluded'));
+				td.title = wsT('Click to include or exclude this folder’s current files');
+				td.addEventListener('click', (ev) => { ev.stopPropagation(); wsOrgManuscriptToggle(plugin, rootFiles, state !== 'included'); });
+				continue;
+			}
 			// (its own target, deadline and plan: the folder the window is opened on, or the vault's, A700)
 			const agg = ctx.orgColAgg(col, subUnder, at || '');
 			// …AND SET WHERE THEY ARE READ (A700, the writer: "let me hove on the root folder too"): the folder the window is
@@ -496,6 +535,9 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 		// '' for a folder, whose Flag cell is its subtree's count, not a flag.
 		const flagId = ctx.markOf(row.path, row.kind);
 		if (flagId) tr.setAttribute('data-flag', flagId);
+		const members = isFolder ? wsOrgManuscriptFiles(plugin, row.path) : [];
+		const state = isFolder ? wsOrgManuscriptState(plugin, members) : (plugin.isInManuscript(plugin.app.vault.getAbstractFileByPath(row.path)) ? 'included' : 'excluded');
+		tr.setAttribute('data-manuscript-state', state);
 		// The followed note is marked HERE too: the table is where the folder
 		// is read.
 		if (row.path === ctx.orgNote) tr.addClass('ws-org-active');
@@ -657,6 +699,19 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			// The mark and goal cells are CONTROLS as well as readings: the flag
 			// cycles, the target edits.
 			if (col.id === 'mark') { ctx.orgFlagCell(td, row, text); continue; }
+			if (col.id === 'include') {
+				td.addClass('ws-org-inclusion');
+				td.setText(isFolder ? (state === 'mixed' ? wsT('Mixed') : state === 'empty' ? wsT('Empty') : state === 'included' ? wsT('Included') : wsT('Excluded')) : text);
+				td.title = isFolder ? wsT('Click to include or exclude this folder’s current files') : wsT('Click to toggle manuscript inclusion');
+				td.addEventListener('click', (ev) => {
+					ev.stopPropagation();
+					const targets: TAbstractFile[] = isFolder ? members : [plugin.app.vault.getAbstractFileByPath(row.path)].filter((f): f is TAbstractFile => !!f);
+					if (!targets.length) return;
+					const next = isFolder ? state !== 'included' : !plugin.isInManuscript(targets[0]);
+					wsOrgManuscriptToggle(plugin, targets, next);
+				});
+				continue;
+			}
 			if (col.id === 'goal') { ctx.orgGoalCell(td, row, text); continue; }
 			if (col.id === 'deadline') { ctx.orgDeadlineCell(td, row, text, ctx.orgPlanTitle('deadline', row.path)); continue; }
 			if (col.id === 'tags') { ctx.orgTagsCell(td, row); continue; }

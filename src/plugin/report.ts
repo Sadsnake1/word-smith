@@ -2978,7 +2978,11 @@ export const reportMethods = {
 	// A FOLDER'S OWN TARGET, the root as '' (or '/'); 0 for none. Never a sum of its notes' targets.
 	folderTargetFor(this: WordSmith, path: string) {
 		const t = this.settings.folderTargets || {};
-		return Number(t[path === '/' ? '' : path]) || 0;
+		const key = path === '/' ? '' : path;
+		if (this.settings.folderTargetMode !== 'calculated') return Number(t[key]) || 0;
+		const files = this.filesInFolder(key, true).filter((file) => file instanceof TFile
+			&& /\\.md$/i.test(file.path) && this.isFileInScope(file) && this.isInManuscript(file));
+		return files.reduce((sum, file) => sum + (Number((this.settings.fileGoals || {})[file.path]) || 0), 0);
 	},
 	goalDeadlineFor(this: WordSmith, path: string) {
 		const d = this.settings.goalDeadlines || {};

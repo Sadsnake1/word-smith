@@ -216,16 +216,18 @@ const orgGoalCell = (td: HTMLElement, row: WsOrgRow, text: string, band?: { word
 	} catch (_) { wsCatch('openManuscriptModal / orgGoalCell: orgGoalBand(td, words, target)', _); }
 	const store: 'fileGoals' | 'folderTargets' = folder ? 'folderTargets' : d.goalStore();
 	const canGoal = folder || orgCanHoldGoal(row.path);
+	const calculatedFolder = folder && d.s.folderTargetMode === 'calculated';
 	if (canGoal) td.addClass('is-goal');
 	if (canGoal) {
 		// (a folder's own: both numbers first, then the click, A700)
 		const hint = text ? wsT('Click to change the target') : wsT('Click to set a target');
-		td.title = band && band.target > 0
+		td.title = calculatedFolder ? wsT('Calculated from included descendant note targets') : band && band.target > 0
 			? wsT('{count} of a target of {target}', { count: band.words.toLocaleString(), target: band.target.toLocaleString() }) + ' · ' + hint
 			: hint;
 	}
 	td.addEventListener('click', (ev: Event) => {
 		ev.stopPropagation();
+		if (calculatedFolder) return;
 		if (!canGoal) {
 			const ext = String(row.path || '').split('.').pop();
 			try {

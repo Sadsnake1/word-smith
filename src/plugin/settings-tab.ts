@@ -2220,6 +2220,11 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer
 				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab' } } },
 				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
+				{ name: 'Folder targets', desc: 'Set each folder target yourself, or calculate it from included notes’ targets.', render: (st) => {
+					st.addDropdown((d) => d.addOption('manual', wsT('User defined')).addOption('calculated', wsT('Calculated from notes'))
+						.setValue(plugin.settings.folderTargetMode === 'calculated' ? 'calculated' : 'manual')
+						.onChange((v) => { void (async () => { plugin.settings.folderTargetMode = v === 'calculated' ? 'calculated' : 'manual'; await plugin.saveSettings(true); plugin.repairDisplay(); })(); }));
+				}, visible: org },
 				// A731: the deadline's two halves, one column
 				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
 				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
@@ -2256,7 +2261,6 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Track writing history', desc: 'Counts only, never your words; wherever Word-Smith applies.', control: { type: 'toggle', key: 'historyTracking' } },
 				{ name: 'Remember which notes', desc: 'A rename or a move takes its history along.', control: { type: 'toggle', key: 'historyPerFile' }, visible: hist },
 				{ name: 'Count pasted text', desc: 'Off, pasted and cut text are left out, so moving text never counts as writing.', control: { type: 'toggle', key: 'historyCountPasted' }, visible: hist },
-				rendered({ name: 'Never counted', desc: 'Folders and notes left out of the history and every folder total.', render: (st) => this.renderPaths(st, 'countExclude', 'Add a folder or note', wsT('Never count…'), false), visible: hist }, ['countExclude']),
 				{ name: 'Delete all history', desc: 'Every day on record. No second copy, no undo.', render: (st) => this.renderHistoryDelete(st), visible: hist },
 				this.hotkeysRow(['open-history']),
 			], this.railed('manuscript', 'history')),

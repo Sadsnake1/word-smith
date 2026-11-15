@@ -354,6 +354,9 @@ export const historyMethods = {
 				count = hit.count || 0;
 			} else {
 				const text = await this.app.vault.cachedRead(file);
+				// Inclusion may have changed while cachedRead was pending. A queued
+				// capture must never write for a file that was just excluded.
+				if (!this.isFileCounted(file)) return;
 				count = wsTimedRead(path, 'History', text, () => this.countWords(text));
 				if (this.wordCountCache) this.wordCountCache.set(path, { mtime: file.stat.mtime, count });
 			}

@@ -171,6 +171,7 @@ const orgColRaw = (col: { id: string; key?: string }, path: string): unknown => 
 			return t > 0 ? t : null;
 		}
 		case 'mark': return d.markOf(path, 'file') || null;
+		case 'include': return d.plugin.isInManuscript(d.plugin.app.vault.getAbstractFileByPath(path));
 		case 'tags': {
 			const tg = d.plugin.tagsOf(path);
 			return (tg && tg.length) ? tg : null;
@@ -238,6 +239,7 @@ const orgColText = (col: { id: string; key?: string }, path: string): string => 
 			return Number(v).toLocaleString();
 		// A TYPE IS ALREADY THE WORD IT SHOWS.
 		case 'ftype': return wsStr(v);
+		case 'include': return v === true ? wsT('Include') : wsT('Exclude');
 		// THE NAMES, not the paths: a column of "Book/Part One/Ch 01.md"
 		// is a column of one repeated prefix. The cell builder draws
 		// these as pressable spans; this text is what a hover and a
