@@ -12805,6 +12805,9 @@ textarea.ws-org-editor.is-grow {
    cells (a border would change the row's height mid-drag), top edge for
    "before this row", bottom for "after" — same grammar as the tree's. */
 .ws-org-row.is-draggable { cursor: grab; }
+/* The entire folder name cell toggles its fold, including the root folder. */
+.ws-org-table .ws-org-row.is-folder td.ws-org-name,
+.ws-org-table .ws-org-subrow.is-root td.ws-org-name { cursor: pointer; }
 /* THE GHOST IS OBSIDIAN'S (A704): its drag-ghost, built off screen for the browser to take its picture, then gone */
 .drag-ghost.ws-drag-ghost-shot { left: -2000px; top: -2000px; }
 .ws-org-row.is-dragging td { opacity: 0.45; }

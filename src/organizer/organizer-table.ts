@@ -387,6 +387,12 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 				if (ctx.ses) ctx.ses.rootShut = rootOpen;
 				ctx.drawPanel();
 			});
+			std.addEventListener('click', (ev: MouseEvent) => {
+				if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) return;
+				if (Date.now() - ctx.orgGripReleasedAt < ctx.ORG_GRIP_CLICK_MS) return;
+				if (ctx.ses) ctx.ses.rootShut = rootOpen;
+				ctx.drawPanel();
+			});
 			// The folder's own glyph, open or shut with its chevron, in its colour.
 			plugin.orgFolderIcon(box, at, rootOpen);
 			subj.addEventListener('contextmenu', (ev: MouseEvent) => {
@@ -804,23 +810,12 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 				+ ' .ws-goals-chev, .ws-org-twist'));
 		tr.addEventListener('click', (ev: MouseEvent) => {
 			if (inCtl(ev)) return;
-			// ── A FOLDER ROW FOLDS ITSELF ON A NARROW SCREEN ────────
-			//
-			// The twist is 16 x 15.6px, the smallest control in the window and
-			// the one that opens a folder. It reaches 28 x 44 under `is-narrow`
-			// and no further, because its width IS the tree's indent per level —
-			// at 44 a three-deep folder would spend 132px of a 390px screen on
-			// indent alone. The row is 44 tall and costs nothing: the SAME act as
-			// the twist, with a bigger target.
-			//
-			// NARROW ONLY. On a desktop the twist is a good target for a mouse,
-			// and a whole row that folds on any stray click is worse than a small
-			// one you aim at. `orgNarrowNow` reads the CLASS the ResizeObserver
-			// maintains, not the platform flag — a docked 300px pane on a desktop
-			// is narrow too. AND THE TWIST IS NOT DOUBLE-FIRED: `inCtl` already
-			// names `.ws-org-twist`, so a tap on the chevron returns above.
 			if (isFolder) {
-				if (ctx.orgNarrowNow()) ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+				if (ev.button === 0 && !ev.ctrlKey && !ev.metaKey && !ev.shiftKey && !ev.altKey
+					&& nameTd.contains(ev.target as Node | null)
+					&& Date.now() - ctx.orgGripReleasedAt >= ctx.ORG_GRIP_CLICK_MS) {
+					ctx.orgOpenSet(row.path, !ctx.orgIsOpen(row.path));
+				}
 				return;
 			}
 			// ── A CLICK HERE SELECTS. IT DOES NOT NAVIGATE ─────────
