@@ -8,7 +8,7 @@
     "build": "node esbuild.config.mjs",
     "check": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "node test/smoke.js && node test/organizer-fold-rename.js && node test/organizer-folder-click.js && node test/organizer-cross-folder-drop.js && node test/locale-english.js"
+    "test": "node test/smoke.js && node test/organizer-fold-rename.js && node test/organizer-folder-click.js && node test/organizer-cross-folder-drop.js && node test/locale-english.js && node test/organizer-target-display.js"
   },
   "devDependencies": {
     "@codemirror/commands": "6.6.2",
