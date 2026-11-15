@@ -26,7 +26,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var C, COUNT, SET, top, StyleModule, adoptedSet, StyleSet;
 var init_style_mod = __esm({
-  "../node_modules/style-mod/src/style-mod.js"() {
+  "node_modules/style-mod/src/style-mod.js"() {
     C = "ͼ";
     COUNT = typeof Symbol == "undefined" ? "__" + C : Symbol.for(C);
     SET = typeof Symbol == "undefined" ? "__styleSet" + Math.floor(Math.random() * 1e8) : /* @__PURE__ */ Symbol("styleSet");
@@ -99,15 +99,18 @@ var init_style_mod = __esm({
       mount(modules, root) {
         let sheet = this.sheet;
         let pos = 0, j = 0;
+        let changed = false;
         for (let i = 0; i < modules.length; i++) {
           let mod = modules[i], index = this.modules.indexOf(mod);
           if (index < j && index > -1) {
             this.modules.splice(index, 1);
+            changed = true;
             j--;
             index = -1;
           }
           if (index == -1) {
             this.modules.splice(j++, 0, mod);
+            changed = true;
             if (sheet)
               for (let k = 0; k < mod.rules.length; k++)
                 sheet.insertRule(mod.rules[k], pos++);
@@ -122,10 +125,12 @@ var init_style_mod = __esm({
           if (root.adoptedStyleSheets.indexOf(this.sheet) < 0)
             root.adoptedStyleSheets = [this.sheet, ...root.adoptedStyleSheets];
         } else {
-          let text = "";
-          for (let i = 0; i < this.modules.length; i++)
-            text += this.modules[i].getRules() + "\n";
-          this.styleTag.textContent = text;
+          if (changed) {
+            let text = "";
+            for (let i = 0; i < this.modules.length; i++)
+              text += this.modules[i].getRules() + "\n";
+            this.styleTag.textContent = text;
+          }
           let target = root.head || root;
           if (this.styleTag.parentNode != target)
             target.insertBefore(this.styleTag, target.firstChild);
@@ -1018,7 +1023,7 @@ function overrideChunkInline(state, chunk, builder, gutterBuilder) {
 }
 var import_view2, import_state2, import_language3, import_highlight, Change, scanLimit, timeout, crude, Frontier, frontier1, frontier2, wordChar, MAX_SCAN, isSurrogate1, isSurrogate2, mergeConfig, setChunks, computeChunks, ChunkField, moveByChunk, goToNextChunk, goToPreviousChunk, Chunk, updateMargin, defaultDiffConfig, decorateChunks, changeGutter, changedLine, changedText, inserted, deleted, changedLineGutterMarker, Spacer, adjustSpacers, Spacers, epsilon, uncollapseUnchanged, CollapseWidget, CollapsedRanges, externalTheme, baseTheme, collapseCompartment, configCompartment, MergeView, deletedChunkGutterMarker, unifiedChangeGutter, updateOriginalDoc, originalDoc, DeletionWidgets, DeletionWidget, deletedChunks, InlineChunkCache, InlineDeletion, inlineChangedLineGutterMarker, inlineChangedLine;
 var init_dist = __esm({
-  "../node_modules/@codemirror/merge/dist/index.js"() {
+  "node_modules/@codemirror/merge/dist/index.js"() {
     import_view2 = require("@codemirror/view");
     import_state2 = require("@codemirror/state");
     init_style_mod();
@@ -28590,8 +28595,17 @@ function wsOrgPropPopRender(a) {
     });
   }
 }
+function orgPlaceFlyout(el, x, y) {
+  try {
+    el.setCssProps({ left: "0px", top: "0px" });
+    const b = el.getBoundingClientRect();
+    el.setCssProps({ left: Math.round(x - b.left) + "px", top: Math.round(y - b.top) + "px" });
+  } catch (_) {
+    wsCatch("openManuscriptModal / orgPlaceFlyout", _);
+  }
+}
 function wsOrgPropSubOpen(a, anchor, door) {
-  const { d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
+  const { d, orgPropPopEl, orgPropSubClose, orgPropSubEl } = a;
   const was = !!orgPropSubEl();
   orgPropSubClose();
   if (was)
@@ -28629,16 +28643,14 @@ function wsOrgPropSubOpen(a, anchor, door) {
     let y = r.top;
     if (vh && y + tall > vh)
       y = Math.max(0, vh - tall);
-    const base = orgPopBase(sub);
-    sub.style.left = Math.round(x - base.left) + "px";
-    sub.style.top = Math.round(y - base.top) + "px";
+    orgPlaceFlyout(sub, x, y);
   } catch (_) {
     wsCatch("openManuscriptModal / orgPropSubOpen: const r = anchor.getBoundingClientRect();", _);
   }
   return sub;
 }
 function wsOrgPropPopOpen(a, anchor) {
-  const { d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
+  const { d, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st } = a;
   orgPropPopClose();
   const d0 = d.ownerDoc();
   const pop = (d.host.rootEl || d0.body).createDiv({ cls: "menu ws-org-proppop" });
@@ -28753,10 +28765,8 @@ function wsOrgPropPopOpen(a, anchor) {
       const w0 = d.ownerWin();
       const wide = pop.offsetWidth || 0;
       const room = (w0.innerWidth || 0) - wide;
-      const base = orgPopBase(pop);
       const x = Math.max(0, room > 0 ? Math.min(r.left, room) : r.left);
-      pop.style.left = Math.round(x - base.left) + "px";
-      pop.style.top = Math.round(r.bottom - base.top) + 2 + "px";
+      orgPlaceFlyout(pop, x, r.bottom + 2);
     } catch (_) {
       wsCatch("openManuscriptModal / orgPropPopOpen: const r = anchor.getBoundingClientRect();", _);
     }
@@ -29147,20 +29157,8 @@ var wsOrgPropsMake = (d) => {
     }
   };
   const orgPropPopRender = () => wsOrgPropPopRender({ d, orgPropColToggle, orgPropIcon, orgPropKindOf, orgPropMoveTo, orgPropPanelRows, orgPropPopEl, orgPropRowId, st });
-  const orgPopBase = (el) => {
-    try {
-      const par = el && el.offsetParent;
-      if (!par || !par.getBoundingClientRect)
-        return { left: 0, top: 0 };
-      const b = par.getBoundingClientRect();
-      return { left: b.left || 0, top: b.top || 0 };
-    } catch (_) {
-      wsCatch("openManuscriptModal / orgPopBase: const par = el && el.offsetParent;", _);
-      return { left: 0, top: 0 };
-    }
-  };
-  const orgPropSubOpen = (anchor, door) => wsOrgPropSubOpen({ d, orgPopBase, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
-  const orgPropPopOpen = (anchor) => wsOrgPropPopOpen({ d, orgPopBase, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
+  const orgPropSubOpen = (anchor, door) => wsOrgPropSubOpen({ d, orgPropPopEl, orgPropSubClose, orgPropSubEl }, anchor, door);
+  const orgPropPopOpen = (anchor) => wsOrgPropPopOpen({ d, orgPropPopClose, orgPropPopRender, orgPropSubClose, orgPropSubEl, orgPropSubOpen, st }, anchor);
   const orgOtherEditorOpen = (td) => {
     try {
       return Array.from(d.panel.querySelectorAll(".ws-org-editor")).some((e) => !td.contains(e));
