@@ -449,7 +449,7 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			// …AND SET WHERE THEY ARE READ (A700, the writer: "let me hove on the root folder too"): the folder the window is
 			// opened on, or the vault's own on the Total row. A row of its own, `idx` -1: never a selection's.
 			// (the vault's Total row: what it cannot add, counted, A752)
-			const many = isRoot ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
+			const many = isRoot || (col.id === 'goal' && plugin.settings.orgFolderTargetSum) ? null : wsOrgTotalSay(plugin, ctx, col.id, subUnder);
 			if (col.id === 'goal' || col.id === 'deadline') {
 				const self: WsOrgRow = { path: at || '', parent: '', kind: 'folder', group: '', depth: 0, rel: '', idx: -1 };
 				// (its own first; the count only while the vault has none, a click still setting it)
