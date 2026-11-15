@@ -4,6 +4,7 @@
 // puts them in main.js, as the writer asked ("we ship translation in main.js"); ws-dev/ui-lines.js lists what each
 // one lacks. A language is a file here and a line below.
 
+import en_GB from '../../locales/en-GB.json';
 import de from '../../locales/de.json';
 import es from '../../locales/es.json';
 import fr from '../../locales/fr.json';
@@ -31,6 +32,7 @@ import ar from '../../locales/ar.json';
 import fa from '../../locales/fa.json';
 
 export const WS_LOCALES: Record<string, Record<string, string>> = {
+	'en-GB': en_GB,
 	de: de,
 	es: es,
 	fr: fr,

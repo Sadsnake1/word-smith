@@ -427,7 +427,7 @@ export function wsRegisterCommands(plugin: WordSmith) {
 	// wrappers, this becomes the way in and they point at it.
 	plugin.addCommand({
 		id: 'open-manuscript',
-		name: 'Open the Organizer',
+		name: wsT('Open the Organizer'),
 		// THE PANE: the id and the name are promised to every saved hotkey and
 		// stay. THE SWITCH: off, the command is not offered.
 		checkCallback: (checking: boolean) => {
