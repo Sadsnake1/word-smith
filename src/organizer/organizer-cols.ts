@@ -48,7 +48,8 @@ export interface OrgColsDeps {
 // A COLUMN OF THE TABLE: a built-in reading by id, or (`user`) a property
 // the writer added — its frontmatter `key`, how it sorts (`sortAs`: empty
 // for "work it out", or number/date/text). `def`/`min` are widths.
-export interface WsOrgCol { id: string; label: string; def: number; min: number; user?: boolean; key?: string; sortAs?: string }
+export interface WsOrgCol { id: string; label: string; def: number; min: number; icon?: string; user?: boolean; key?: string; sortAs?: string }
+
 export const wsOrgColsMake = (d: OrgColsDeps) => {
 // ONE CONTROL FOR THE TARGET AND THE PROGRESS, because they are one
 // fact. Two columns asked "how far along?" and "how far to go?"
@@ -267,7 +268,8 @@ const colSort = (list: WsOrgCol[]) => {
 // with no opinion about the tab. `shownCols` is this narrowed by what
 // the current tab draws; the filter menu wants the wider answer, since
 // a question is worth asking whether or not its column is on screen.
-const setCols = () => colSort(COLS.filter(c => !colOff.has(c.id)));
+const setCols = () => colSort(COLS.filter(c => !colOff.has(c.id)))
+	.map((col) => ({ ...col, icon: SORTS.find((sort) => sort.id === col.id)?.icon || 'tag' }));
 // ── ONE TRACK LIST, AND THE BROWSER OWNS THE WIDTHS ────────────────
 //
 // The name column's width when the writer has dragged one is in `ch`,
@@ -303,6 +305,7 @@ const BUILTIN_SORTS = [
 	// together.
 	{ id: 'order',  label: 'Custom order', icon: 'list-ordered' },
 	{ id: 'name',   label: 'Name', icon: 'case-sensitive' },
+	{ id: 'include', label: 'Include in manuscript', icon: 'eye' },
 	{ id: 'words',  label: 'Words', icon: 'file-text' },
 	// Lucide's letters, the writer's pick; Obsidian 1.14.4 bundles a set without it, and letter-text stands in
 	{ id: 'vocab',  label: 'Vocabulary', icon: wsIconPick(['letters', 'letter-text', 'whole-word']) },
@@ -340,6 +343,7 @@ const BUILTIN_SORTS = [
 	{ id: 'created', label: 'Created', icon: 'calendar-plus' },
 	{ id: 'tags',    label: 'Tags',    icon: 'tags' }
 ];
+
 let SORTS = sortDefs();
 
 

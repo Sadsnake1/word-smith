@@ -57,6 +57,7 @@ import { PluginSettingTab, Setting, TFolder, Notice, Platform, Modal, setIcon, a
 import { WS_WHATS_NEW } from '../core/whats-new';
 import { wsWhatsNewInto, WS_README_URL, WS_ISSUES_URL, WS_CURSOR_SMITH_URL, WS_FUNDING_URL } from './welcome';
 import { WS_PACKS_URL, wsPackCovers, wsPackSpaces } from '../core/language';
+import { ORG_COLUMN_DISPLAY_CHOICES, orgColumnDisplayOptions } from '../organizer/organizer-column-display';
 import { wsT, wsTq, wsUiLang, wsUiEchoOn, wsUiJoin, wsUiLocale } from '../core/ui-text';
 import { wsPackGradeName, wsPackGradeFrom } from '../core/lang-engine';
 import { WS_CITE_STYLES, WS_CITE_TOKENS, WS_CITE_SAMPLES, WS_CITE_CUSTOM_DEFAULT, WS_CITE_PRESET_TOKENS, wsCiter } from '../core/citations';
@@ -2219,31 +2220,36 @@ export class WordSmithSettingTab extends PluginSettingTab {
 				{ name: 'Organizer', desc: 'Off, the window is hidden and its file is never written.', control: { type: 'toggle', key: 'organizerOn', defaultValue: true } },
 				// #73 (Maja-Nune): where the three panes open; for Export and History too, so never hidden with the Organizer
 				{ name: 'Open in', desc: 'Where the Organizer, Export and History open.', control: { type: 'dropdown', key: 'paneOpenIn', options: { split: 'A split to the right', tab: 'A new tab' } } },
-				{ name: 'Target column shows', desc: 'Words and target, or a percentage.', control: { type: 'dropdown', key: 'orgTargetShow', options: { ratio: 'Words and target (2,145/5,000)', percent: 'Percentage (43%)' } }, visible: org },
-				{ name: 'Folder targets', desc: 'Set each folder target yourself, or calculate it from included notes’ targets.', render: (st) => {
+				// (#136, JavaGT: the row carries its flag; the writer: "subtle coloring, toggle off by default")
+				{ name: 'Color rows by flag', desc: 'Each flagged note’s row takes a faint wash of its flag’s color.', control: { type: 'toggle', key: 'orgFlagWash' }, visible: flags },
+				this.noteRow(wsModKeyName() + '-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
+				this.noteRow(wsModKeyName() + ' + scroll zooms the window; on a phone, pinch with two fingers.', org),
+			], this.railed('manuscript', 'organizer')),
+			this.section('Column display', [
+				{ name: ORG_COLUMN_DISPLAY_CHOICES.target.name, desc: ORG_COLUMN_DISPLAY_CHOICES.target.desc,
+					control: { type: 'dropdown', key: ORG_COLUMN_DISPLAY_CHOICES.target.key, options: orgColumnDisplayOptions(ORG_COLUMN_DISPLAY_CHOICES.target.options) }, visible: org },
+				{ name: ORG_COLUMN_DISPLAY_CHOICES.deadline.name, desc: ORG_COLUMN_DISPLAY_CHOICES.deadline.desc,
+					control: { type: 'dropdown', key: ORG_COLUMN_DISPLAY_CHOICES.deadline.key, options: orgColumnDisplayOptions(ORG_COLUMN_DISPLAY_CHOICES.deadline.options) }, visible: org },
+				{ name: ORG_COLUMN_DISPLAY_CHOICES.include.name, desc: ORG_COLUMN_DISPLAY_CHOICES.include.desc,
+					control: { type: 'dropdown', key: ORG_COLUMN_DISPLAY_CHOICES.include.key, options: orgColumnDisplayOptions(ORG_COLUMN_DISPLAY_CHOICES.include.options) }, visible: org },
+				{ name: 'Name column shows', desc: 'Show or hide folder icons beside names.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
+				// One setting across Created, Modified and Deadline, so keep its shared reach visible here.
+				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
+					control: { type: 'dropdown', key: 'organizerDateFormat', defaultValue: 'human', options: dateOptions() }, visible: org },
+			], this.railed('manuscript', 'organizer')),
+			this.section('Targets and deadlines', [
+				rendered({ name: 'Folder targets', desc: 'Set each folder target yourself, or calculate it from included notes’ targets.', render: (st) => {
 					st.addDropdown((d) => d.addOption('manual', wsT('User defined')).addOption('calculated', wsT('Calculated from notes'))
 						.setValue(plugin.settings.folderTargetMode === 'calculated' ? 'calculated' : 'manual')
 						.onChange((v) => { void (async () => { plugin.settings.folderTargetMode = v === 'calculated' ? 'calculated' : 'manual'; await plugin.saveSettings(true); plugin.repairDisplay(); })(); }));
-				}, visible: org },
-				// A731: the deadline's two halves, one column
-				{ name: 'Deadline column shows', desc: 'The date and the working days left, or one of them. Both are on hover.', control: { type: 'dropdown', key: 'orgDeadlineCell', options: { both: 'Both (8d left \u00b7 20 Oct 2026)', days: 'Days left (8d left)', date: 'The date (20 Oct 2026)' } }, visible: org },
-				{ name: 'Organizer folder icons', desc: 'A glyph beside each folder name in the window.', control: { type: 'toggle', key: 'orgFolderIcons' }, visible: org },
-				// (#136, JavaGT: the row carries its flag; the writer: "subtle coloring, toggle off by default")
-				{ name: 'Color rows by flag', desc: 'Each flagged note’s row takes a faint wash of its flag’s color.', control: { type: 'toggle', key: 'orgFlagWash' }, visible: flags },
-				// the sample is a real render, not a hand-typed example: a second
-				// writer of the format would drift from `dateText` and lie quietly
-				{ name: 'Date format', desc: wsT('For every date the Organizer shows. A file time reads: {stamp}', { stamp: plugin.orgStamp(Date.UTC(1999, 0, 22, 9, 30)) }),
-					control: { type: 'dropdown', key: 'organizerDateFormat', defaultValue: 'human', options: dateOptions() }, visible: org },
+				}, visible: org }, ['folderTargetMode']),
 				// GOALS WITH A DATE (A700): the days that count toward a deadline. A target counts words, only words (A705)
 				rendered({ name: 'Working days', desc: 'The days that count toward a deadline.', render: (st) => this.renderWorkDays(st), visible: org }, ['goalWorkDays']),
+			], this.railed('manuscript', 'organizer')),
+			this.section('Flags', [
 				rendered({ name: 'Number of flags', desc: '',
 					render: (st) => this.renderFlagCount(st), visible: org }, ['flagCount']),
 				...this.flagRows(flags),
-				// two cards at the foot: what the window can do that no control on this
-				// page says — the bulk edit (desktop only) and the zoom (Ctrl and the
-				// wheel; two fingers on a phone)
-				this.noteRow(wsModKeyName() + '-click or Shift-click picks several notes; a flag, target or property set on one lands on all (desktop).', org),
-				this.noteRow(wsModKeyName() + ' + scroll zooms the window; on a phone, pinch with two fingers.', org),
 			], this.railed('manuscript', 'organizer')),
 			this.section('File tree', [
 				{ name: 'Word counts', desc: 'Next to each note, added up for folders.', control: { type: 'toggle', key: 'enableFileTreeCounts' } },
@@ -2947,6 +2953,6 @@ const AFTER: Record<string, (tab: WordSmithSettingTab, value: unknown) => void |
 const SAVE_NOW = new Set<string>([
 	'pluginEnabled', 'scopeMode', 'zenEnabled', 'zenHideBar', 'enableLetterbox', 'enableRetroStatus', 'retroBarOnPhone',
 	'statusBarBorderTop', 'statusBarBorderBottom', 'powerlineModeColors', 'vimFollowCursorSmith', 'posEnabled', 'checksEnabled',
-	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgFolderIcons', 'orgFlagWash',
+	'checkFillerSoft', 'checkDialogueMore', 'hemingwayEnabled', 'typographyEnabled', 'orgTargetShow', 'orgDeadlineCell', 'orgIncludeDisplay', 'orgFolderIcons', 'orgFlagWash',
 	'layoutZenOnly', 'pageView', 'hideOwnFolder', 'revisionsOn',
 ]);

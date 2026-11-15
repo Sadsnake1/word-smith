@@ -2981,7 +2981,7 @@ export const reportMethods = {
 		const key = path === '/' ? '' : path;
 		if (this.settings.folderTargetMode !== 'calculated') return Number(t[key]) || 0;
 		const files = this.filesInFolder(key, true).filter((file) => file instanceof TFile
-			&& /\\.md$/i.test(file.path) && this.isFileInScope(file) && this.isInManuscript(file));
+			&& /\.md$/i.test(file.path) && this.isFileInScope(file) && this.isInManuscript(file));
 		return files.reduce((sum, file) => sum + (Number((this.settings.fileGoals || {})[file.path]) || 0), 0);
 	},
 	goalDeadlineFor(this: WordSmith, path: string) {

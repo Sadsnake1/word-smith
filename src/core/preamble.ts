@@ -4424,6 +4424,9 @@ export const DEFAULT_SETTINGS = {
 	// column narrow, and a folder's cell says both numbers whichever way
 	// the notes read.
 	orgTargetShow: 'percent',
+	// The Include column's state as check/X icons or words. The icons are
+	// decorative; the cell keeps its action label for assistive technology.
+	orgIncludeDisplay: 'icons',
 	// THE DEADLINE CELL SHOWS the date and the working days left, "20 Oct 2026 · 8d" (A735, the writer: "show the deadline
 	// date too and 8d"), or one of them: 'both' | 'days' | 'date'. One column (A731), not a Days left that hung on it.
 	orgDeadlineCell: 'both',

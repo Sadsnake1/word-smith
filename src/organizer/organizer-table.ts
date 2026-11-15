@@ -5,15 +5,52 @@
 // with the seven helpers only it calls; `drawOrg` computes the rows and the bar, then hands them here.
 
 import type { WordSmithSettings } from '../core/settings';
-import { TFile, type TAbstractFile } from 'obsidian';
+import { setIcon, TFile, type TAbstractFile } from 'obsidian';
 import { wsCatch, wsFlagSvg, wsListOf, wsMenu, wsSortArrow, wsStr, wsSvgInto } from '../core/preamble';
 import { wsT, wsTq, wsUiJoin } from '../core/ui-text';
 import type WordSmith from '../plugin/plugin';
 import type { WsOrgCtx } from './org-ctx';
 import { wsOrgCountsLine } from './organizer-chrome';
 import type { WsOrgCol } from './organizer-cols';
+import { ORG_COLUMN_DISPLAY_CHOICES } from './organizer-column-display';
 import type { WsOrgColAgg } from './organizer-readings';
 import type { WsOrgRow } from './organizer-rows';
+
+const wsOrgMenuSupportsSubmenus = () => {
+	let supported = false;
+	try { wsMenu().addItem((i) => { supported = typeof i.setSubmenu === 'function'; }); } catch { /* older Obsidian builds flatten groups */ }
+	return supported;
+};
+const wsOrgMenuGroup = (menu: ReturnType<typeof wsMenu>, supportsSubmenus: boolean, title: string, icon: string, fill: (into: ReturnType<typeof wsMenu>) => void) => {
+	if (supportsSubmenus) {
+		menu.addItem((i) => {
+			i.setTitle(title);
+			try { i.setIcon(icon); } catch (_) { wsCatch('orgTableMake / wsOrgMenuGroup: i.setIcon(icon);', _); }
+			try { fill(i.setSubmenu()); } catch (_) { wsCatch('orgTableMake / wsOrgMenuGroup: fill(i.setSubmenu());', _); }
+		});
+		return;
+	}
+	menu.addSeparator();
+	menu.addItem((i) => i.setTitle(title).setIsLabel(true));
+	fill(menu);
+};
+const wsOrgAddHeaderModeGroup = (menu: ReturnType<typeof wsMenu>, supportsSubmenus: boolean, plugin: WordSmith, ctx: WsOrgCtx, id: string) => {
+	wsOrgMenuGroup(menu, supportsSubmenus, wsT('Header'), 'heading', (into) => {
+		for (const [mode, label] of [['text', wsT('Text')], ['icon', wsT('Icon')]] as const) {
+			into.addItem((i) => i.setTitle(label)
+				.setChecked((plugin.settings.uniHeaderMode || {})[id] === mode || (mode === 'text' && (plugin.settings.uniHeaderMode || {})[id] !== 'icon'))
+				.onClick(async () => {
+					const modes = { ...(plugin.settings.uniHeaderMode || {}) };
+					if (mode === 'icon') modes[id] = 'icon';
+					else delete modes[id];
+					plugin.settings.uniHeaderMode = modes;
+					await plugin.saveSettings(true);
+					ctx.drawPanel();
+				}));
+		}
+	});
+};
+const wsOrgHeaderMode = (settings: WordSmithSettings, id: string) => settings.uniHeaderMode?.[id] === 'icon' ? 'icon' : 'text';
 
 // A SENTENCE WITH A CONTROL IN IT (A695): the line is one key, with `slot` where the button stands, so a
 // translation puts the button where its grammar wants it; this cuts it in two around the slot. The tools' echo
@@ -33,6 +70,35 @@ const wsOrgManuscriptFiles = (plugin: WordSmith, path: string): TAbstractFile[] 
 const wsOrgManuscriptState = (plugin: WordSmith, files: TAbstractFile[]): string =>
 	!files.length ? 'empty' : files.every((file) => plugin.isInManuscript(file)) ? 'included'
 		: files.every((file) => !plugin.isInManuscript(file)) ? 'excluded' : 'mixed';
+const wsOrgInclusionCountCell = (td: HTMLElement, plugin: WordSmith, files: TAbstractFile[]) => {
+	const visible = files.filter((file) => plugin.isInManuscript(file)).length;
+	const hidden = files.length - visible;
+	td.empty();
+	td.addClass('ws-org-inclusion', 'ws-org-aggcell', 'ws-org-inclusion-counts');
+	td.createSpan({ cls: 'ws-org-inclusion-visible', text: visible.toLocaleString() });
+	td.createSpan({ cls: 'ws-org-inclusion-separator', text: '\u00b7', attr: { 'aria-hidden': 'true' } });
+	td.createSpan({ cls: 'ws-org-inclusion-hidden', text: hidden.toLocaleString() });
+	const summary = wsT('{visible} visible, {hidden} hidden', { visible: visible.toLocaleString(), hidden: hidden.toLocaleString() });
+	td.title = summary;
+	td.setAttribute('aria-label', summary);
+};
+const wsOrgInclusionCell = (td: HTMLTableCellElement, state: string, display: string) => {
+	td.empty();
+	if (state === 'included' || state === 'excluded') {
+		if (display === 'text') {
+			td.setText(state === 'included' ? wsT('Included') : wsT('Excluded'));
+			return;
+		}
+		td.addClass('is-iconmode');
+		const icon = td.createSpan({ cls: 'ws-org-inclusion-icon', attr: { 'aria-hidden': 'true' } });
+		try {
+			if (typeof setIcon === 'function') setIcon(icon, state === 'included' ? 'check' : 'x');
+			else icon.setText(state === 'included' ? '✓' : '×');
+		} catch (_) { wsCatch('orgTableMake / wsOrgInclusionCell: setIcon(icon, state);', _); icon.setText(state === 'included' ? '✓' : '×'); }
+		return;
+	}
+	td.setText(state === 'mixed' ? wsT('Mixed') : wsT('Empty'));
+};
 const wsOrgManuscriptToggle = (plugin: WordSmith, files: TAbstractFile[], include: boolean) => {
 	if (!files.length) return;
 	if (!plugin.settings.fileIncluded) plugin.settings.fileIncluded = {};
@@ -219,6 +285,38 @@ function wsOrgNameLine(a: { ctx: WsOrgCtx; nameTh: HTMLTableCellElement; orgSnap
 // THE HEADER ROW: one <th> per column (lifted out of drawOrg, A488).
 function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; fill: () => Promise<void>; hr: HTMLTableRowElement; s: WordSmithSettings; sortCol: WsOrgCol | null; sortDir: string; wrap: HTMLDivElement }) {
 	const { cols, ctx, fill, hr, s, sortCol, sortDir, wrap } = a;
+	const saveDisplay = async (key: 'orgTargetShow' | 'orgDeadlineCell' | 'orgIncludeDisplay', value: string) => {
+		if (key === 'orgTargetShow') plugin.settings.orgTargetShow = value;
+		else if (key === 'orgDeadlineCell') plugin.settings.orgDeadlineCell = value;
+		else plugin.settings.orgIncludeDisplay = value;
+		await plugin.saveSettings(true);
+		ctx.drawPanel();
+	};
+	const saveFolderTargetMode = async (mode: 'manual' | 'calculated') => {
+		plugin.settings.folderTargetMode = mode;
+		await plugin.saveSettings(true);
+		plugin.repairDisplay();
+	};
+	const displayValue = (key: 'orgTargetShow' | 'orgDeadlineCell' | 'orgIncludeDisplay') =>
+		key === 'orgTargetShow' ? plugin.settings.orgTargetShow
+			: key === 'orgDeadlineCell' ? plugin.settings.orgDeadlineCell
+				: plugin.settings.orgIncludeDisplay;
+	const supportsSubmenus = wsOrgMenuSupportsSubmenus();
+	const addDisplayChoices = (menu: ReturnType<typeof wsMenu>, choice: typeof ORG_COLUMN_DISPLAY_CHOICES[keyof typeof ORG_COLUMN_DISPLAY_CHOICES]) => {
+		for (const { value, label } of choice.options) {
+			menu.addItem((i) => i.setTitle(label)
+				.setChecked(String(displayValue(choice.key) || '') === value)
+				.onClick(() => { void saveDisplay(choice.key, value); }));
+		}
+	};
+	const addFolderTargetModeChoices = (menu: ReturnType<typeof wsMenu>) => {
+		menu.addItem((i) => i.setTitle(wsT('User defined'))
+			.setChecked(plugin.settings.folderTargetMode !== 'calculated')
+			.onClick(() => { void saveFolderTargetMode('manual'); }));
+		menu.addItem((i) => i.setTitle(wsT('Calculated from notes'))
+			.setChecked(plugin.settings.folderTargetMode === 'calculated')
+			.onClick(() => { void saveFolderTargetMode('calculated'); }));
+	};
 	for (const col of cols) {
 		const th = hr.createEl('th', { cls: ctx.colTextish(col) ? 'is-text' : '' });
 		th.setAttribute('data-col', col.id);
@@ -227,7 +325,14 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 		// and hangs 3px past its right edge and the whole height of the
 		// table, so `overflow: hidden` here would clip the control the
 		// writer just asked to be able to grab.
-		th.createSpan({ cls: 'ws-org-headlabel', text: col.label });
+		const headLabel = th.createSpan({ cls: 'ws-org-headlabel', text: col.label });
+		th.setAttribute('aria-label', col.label);
+		if (wsOrgHeaderMode(s, col.id) === 'icon') {
+			headLabel.empty();
+			headLabel.addClass('is-icon');
+			headLabel.setAttribute('aria-hidden', 'true');
+			setIcon(headLabel, col.icon || 'tag');
+		}
 		// ── THE STORED WIDTH, IF THERE IS ONE ──────────────────
 		//
 		// Absent means "the table decides", which is what every
@@ -304,14 +409,23 @@ function wsOrgDrawHeads(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx;
 			ev.stopPropagation();
 			const menu = wsMenu();
 			menu.addItem((i) => i.setTitle(col.label).setIsLabel(true));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2191'))
-				.setIcon('arrow-up')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'asc' } })));
-			menu.addItem((i) => i.setTitle(wsT('Sort \u2193'))
-				.setIcon('arrow-down')
-				.onClick(() => ctx.orgLensSet({
-					sort: { id: col.id, dir: 'desc' } })));
+			wsOrgMenuGroup(menu, supportsSubmenus, wsT('Sort'), 'arrow-up-down', (into) => {
+				into.addItem((i) => i.setTitle(wsT('Sort \u2191')).setIcon('arrow-up')
+					.setChecked(ctx.orgLens.sort?.id === col.id && ctx.orgLens.sort.dir === 'asc')
+					.onClick(() => ctx.orgLensSet({ sort: { id: col.id, dir: 'asc' } })));
+				into.addItem((i) => i.setTitle(wsT('Sort \u2193')).setIcon('arrow-down')
+					.setChecked(ctx.orgLens.sort?.id === col.id && ctx.orgLens.sort.dir === 'desc')
+					.onClick(() => ctx.orgLensSet({ sort: { id: col.id, dir: 'desc' } })));
+			});
+			if (col.id === 'goal') {
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Display'), 'sliders-horizontal', (into) => addDisplayChoices(into, ORG_COLUMN_DISPLAY_CHOICES.target));
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Folder targets'), 'folder', addFolderTargetModeChoices);
+			} else if (col.id === 'deadline') {
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Display'), 'sliders-horizontal', (into) => addDisplayChoices(into, ORG_COLUMN_DISPLAY_CHOICES.deadline));
+			} else if (col.id === 'include') {
+				wsOrgMenuGroup(menu, supportsSubmenus, wsT('Display'), 'sliders-horizontal', (into) => addDisplayChoices(into, ORG_COLUMN_DISPLAY_CHOICES.include));
+			}
+			wsOrgAddHeaderModeGroup(menu, supportsSubmenus, plugin, ctx, col.id);
 			// FILTER ONLY WHERE THERE ARE VALUES TO ENUMERATE. A reading
 			// is arithmetic over the note, not a value the note carries,
 			// and `orgDistinctUnder` has nothing to answer with — a row
@@ -471,9 +585,9 @@ function wsOrgDrawRoot(plugin: WordSmith, a: { at: string; cols: WsOrgCol[]; ctx
 			ctx.orgColStamp(td, col.id, wrap);
 			if (col.id === 'include') {
 				const state = wsOrgManuscriptState(plugin, rootFiles);
-				td.addClass('ws-org-inclusion');
-				td.setText(state === 'mixed' ? wsT('Mixed') : state === 'empty' ? wsT('Empty') : state === 'included' ? wsT('Included') : wsT('Excluded'));
-				td.title = wsT('Click to include or exclude this folder’s current files');
+				wsOrgInclusionCountCell(td, plugin, rootFiles);
+				td.title += ' · ' + wsT('Click to include or exclude this folder’s current files');
+				td.setAttribute('aria-label', td.title);
 				td.addEventListener('click', (ev) => { ev.stopPropagation(); wsOrgManuscriptToggle(plugin, rootFiles, state !== 'included'); });
 				continue;
 			}
@@ -650,6 +764,16 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			// change its own number, and a fold that moves a total is a fold
 			// acting as a filter.
 			if (isFolder) {
+				if (col.id === 'include') {
+					wsOrgInclusionCountCell(td, plugin, members);
+					td.title += ' · ' + wsT('Click to include or exclude this folder’s current files');
+					td.setAttribute('aria-label', td.title);
+					td.addEventListener('click', (ev) => {
+						ev.stopPropagation();
+						wsOrgManuscriptToggle(plugin, members, state !== 'included');
+					});
+					continue;
+				}
 				const agg = ctx.orgColAgg(col, ctx.orgUnder(row.path), row.path);
 				// A FOLDER'S OWN TARGET AND DEADLINE ARE ITS OWN, set where they are read (A700): no summary weight
 				if (col.id === 'goal') { ctx.orgGoalCell(td, row, agg ? agg.text : '', agg && agg.goal ? agg.goal : null); continue; }
@@ -701,8 +825,9 @@ function wsOrgDrawRows(plugin: WordSmith, a: { cols: WsOrgCol[]; ctx: WsOrgCtx; 
 			if (col.id === 'mark') { ctx.orgFlagCell(td, row, text); continue; }
 			if (col.id === 'include') {
 				td.addClass('ws-org-inclusion');
-				td.setText(isFolder ? (state === 'mixed' ? wsT('Mixed') : state === 'empty' ? wsT('Empty') : state === 'included' ? wsT('Included') : wsT('Excluded')) : text);
+				wsOrgInclusionCell(td, state, plugin.settings.orgIncludeDisplay || 'icons');
 				td.title = isFolder ? wsT('Click to include or exclude this folder’s current files') : wsT('Click to toggle manuscript inclusion');
+				td.setAttribute('aria-label', td.title);
 				td.addEventListener('click', (ev) => {
 					ev.stopPropagation();
 					const targets: TAbstractFile[] = isFolder ? members : [plugin.app.vault.getAbstractFileByPath(row.path)].filter((f): f is TAbstractFile => !!f);
@@ -961,11 +1086,18 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 	// Filter by, so nothing is reachable only from the gesture. Built beside
 	// the drag, below.
 	// THE NAME HEADING, AND THE EDGE THAT SIZES IT.
-	const nameTh = hr.createEl('th',
-		{ cls: 'ws-org-name', text: wsT('Name') });
+	const nameTh = hr.createEl('th', { cls: 'ws-org-name' });
 	// THE HEADING SAYS # OVER THE NUMBERS, at the cell's left, where the
 	// numbers are; the word stays centred over the names.
 	if (nums) nameTh.createSpan({ cls: 'ws-org-numhead', text: '#' });
+	const nameHeadLabel = nameTh.createSpan({ cls: 'ws-org-nameheadlabel', text: wsT('Name') });
+	nameTh.setAttribute('aria-label', wsT('Name'));
+	if (wsOrgHeaderMode(s, 'name') === 'icon') {
+		nameHeadLabel.empty();
+		nameHeadLabel.addClass('is-icon');
+		nameHeadLabel.setAttribute('aria-hidden', 'true');
+		setIcon(nameHeadLabel, 'case-sensitive');
+	}
 	ctx.orgNameGripBind(ctx.panel, nameTh, table);
 	// A CLICK SORTS BY NAME: A to Z first — the way a name column reads —
 	// then Z to A, then the book's order; the lens's one writer, and the
@@ -981,6 +1113,33 @@ export function wsOrgDrawTable(plugin: WordSmith, a: { at: string; cols: WsOrgCo
 		if (!cur || cur.id !== 'name') ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } });
 		else if (cur.dir === 'asc') ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } });
 		else ctx.orgLensSet({ sort: null });
+	});
+	nameTh.addEventListener('contextmenu', (ev: MouseEvent) => {
+		ev.preventDefault();
+		ev.stopPropagation();
+		const menu = wsMenu();
+		const supportsSubmenus = wsOrgMenuSupportsSubmenus();
+		menu.addItem((i) => i.setTitle(wsT('Name')).setIsLabel(true));
+		wsOrgMenuGroup(menu, supportsSubmenus, wsT('Sort'), 'arrow-up-down', (into) => {
+			into.addItem((i) => i.setTitle(wsT('Sort A to Z')).setIcon('arrow-up')
+				.setChecked(ctx.orgLens.sort?.id === 'name' && ctx.orgLens.sort.dir === 'asc')
+				.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir: 'asc' } })));
+			into.addItem((i) => i.setTitle(wsT('Sort Z to A')).setIcon('arrow-down')
+				.setChecked(ctx.orgLens.sort?.id === 'name' && ctx.orgLens.sort.dir === 'desc')
+				.onClick(() => ctx.orgLensSet({ sort: { id: 'name', dir: 'desc' } })));
+		});
+		wsOrgMenuGroup(menu, supportsSubmenus, wsT('Display'), 'sliders-horizontal', (into) => {
+			into.addItem((i) => i.setTitle(wsT('Show folder icons')).setIcon('folder')
+				.setChecked(s.orgFolderIcons !== false)
+				.onClick(async () => {
+					s.orgFolderIcons = s.orgFolderIcons === false;
+					await plugin.saveSettings(true);
+					ctx.drawPanel();
+				}));
+		});
+		wsOrgAddHeaderModeGroup(menu, supportsSubmenus, plugin, ctx, 'name');
+		try { menu.showAtMouseEvent(ev); }
+		catch { try { menu.showAtPosition({ x: 0, y: 0 }); } catch (_e) { wsCatch('orgTableMake / drawOrg: nameTh menu.showAtPosition(0, 0);', _e); } }
 	});
 	// ── AND THE SEAM RUNS THE PANE, NOT THE ROWS ──────────────
 	//

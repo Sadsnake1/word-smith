@@ -227,6 +227,7 @@ export interface WsLazySettings {
 	organizerOpen?: string[];
 	oldInstallerSaid?: number;
 	uniColPx?: Record<string, number>;
+	uniHeaderMode?: Record<string, 'text' | 'icon'>;
 	flags?: WsFlagDef[];
 	// the Organizer's own: the readings switched off, the saved lens, the shape shown
 	uniColsOff?: string[];

@@ -21,6 +21,7 @@ So a note tagged `#birds` and a PDF tagged `#birds` sit in one filtered list. A 
 Readings the frontmatter can't give you: word count, target, deadline (the date and the days left), vocabulary, flag, reading grade, paragraphs, tasks, tags, reading time, pages (a rough count at 250 words a page; Export's preview counts the real ones), backlinks, outgoing links, footnotes, created, last modified, and with Revisions on, how many revisions a note has. Turn on the ones you want. Then add any property in your vault as a column and edit it right there. Tags are Obsidian's own pills, so a theme that colors your tags colors them here too.
 
 - Click a header to sort. Click again to flip. Again to go back to book order. The sort and the filter you leave on come back after a restart.
+- Right-click a header for its settings. **Sort** and **Display** are grouped in submenus; each column can show a text or icon header. Target and Deadline display choices live on their columns, as do Include icons/text and the manual or calculated folder-target mode. The same display choices are in Settings → Word-Smith → Manuscript → **Column display**.
 - **Filter** is chips: a property and its value, a tag, a flag, or tasks left. Chips stack. No query language. The same button picks which kinds of file show up.
 - Click a row to look at it, click again to open it. A new note from the row menu stays put so you can name it on the spot.
 - Folder rows add up what's inside them, folded or not (their Vocabulary counts each word once), and a **Total** row at the foot adds up everything you're looking at.
@@ -41,7 +42,7 @@ Edits go through Obsidian's frontmatter writer. Your other keys are safe. The fi
 
 ## Targets and flags
 
-Give a note a word count to aim for, and a folder one of its own: the whole book, a part, a chapter. A folder's target is its own, not the sum of its notes', so a 100,000-word book needs no target on every chapter. Set it in the Target column, or on the folder's own row at the top of the table (the Total row at the foot, for the whole vault).
+Give a note a word count to aim for, and choose whether folders use targets you set or the sum of included descendant note targets. Manual folder targets are the default and stay saved when you switch to calculated targets. Set a manual target in the Target column or on the folder's own row at the top of the table (the Total row at the foot, for the whole vault); calculated folder targets are read-only.
 
 Any note or folder can have a deadline too, in the Deadline column. The cell shows the date and the working days left, `20 Oct 2026 · 8d`, or just one of them (Settings → Word-Smith → Manuscript → **Deadline column shows**); hover it for the sentence. Sort by Deadline to see the nearest first: the days left run in the same order. A PDF or any other file can have one too. The words a day that get you there (what was left when today began, over the working days left) are on the bar: put `{target}` in a row and press it. Settings → Word-Smith → Manuscript → **Working days** picks the days that count. Targets count words.
 
@@ -53,7 +54,7 @@ Targets, deadlines and flags follow your files when you rename or move them. The
 
 The Organizer has an **Include in manuscript** column, hidden until enabled in Properties. A note or other file can be included or excluded there. Excluded notes remain visible and keep their properties and history, while their words are left out of totals, writing history and calculated targets. Missing inclusion values mean included.
 
-Folders do not store an inclusion value. Their row shows **Included**, **Excluded**, **Mixed**, or **Empty**, based on their current files. Clicking a folder applies the chosen state to its current files; a mixed folder becomes included on the first click. New files are included by default. Organizer rows expose this state as `data-manuscript-state` for CSS styling.
+Folders do not store an inclusion value. Their row shows included and excluded counts separated by a middle dot; included files use normal text and excluded files use muted text. Clicking a folder applies the chosen state to its current files. New files are included by default. Organizer rows expose their derived state as `data-manuscript-state` for CSS styling.
 
 Under **Settings → Word-Smith → Manuscript**, **Folder targets** switches between user-defined folder targets and targets calculated as the sum of included descendant note targets. Switching modes keeps the user-defined values, so they are ready if you switch back. Calculated values are read-only and include zero as a real result.
 

@@ -10796,6 +10796,17 @@ body.ws-retrobar-active:not(.ws-bar-hidden) .workspace-leaf.ws-bar-overlap .ws-u
 	white-space: nowrap;
 	vertical-align: bottom;
 }
+.ws-org-table thead th > .ws-org-headlabel.is-icon,
+.ws-org-table thead th > .ws-org-nameheadlabel.is-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	vertical-align: middle;
+}
+.ws-org-table thead th > .ws-org-headlabel.is-icon svg,
+.ws-org-table thead th > .ws-org-nameheadlabel.is-icon svg { width: 14px; height: 14px; }
 
 /* ── AND THEY ARE AS TALL AS THE TABLE, LIKE THE NAME'S ────────────────
 
@@ -11219,6 +11230,13 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 .ws-org-table .ws-org-subrow[data-manuscript-state="excluded"] td.ws-org-name { opacity: .58; }
 .ws-org-table .ws-org-subrow[data-manuscript-state="mixed"] td.ws-org-name { text-decoration: underline dotted; text-underline-offset: 3px; }
 .ws-org-table td.ws-org-inclusion { cursor: pointer; white-space: nowrap; }
+.ws-org-table td.ws-org-inclusion.is-iconmode { text-align: center; }
+.ws-org-table td.ws-org-inclusion-counts { font-weight: var(--font-semibold, 600); color: var(--text-normal); }
+.ws-org-inclusion-visible { font-weight: var(--font-semibold, 600); color: var(--text-normal); }
+.ws-org-inclusion-separator { margin-inline: 4px; color: var(--text-muted); }
+.ws-org-inclusion-hidden { font-weight: var(--font-semibold, 600); color: var(--text-muted); }
+.ws-org-inclusion-icon { display: inline-flex; width: 14px; height: 14px; vertical-align: middle; }
+.ws-org-inclusion-icon svg { width: 14px; height: 14px; }
 /* THE SAME FOR HOVER, AND FOR THE SAME REASON — see the block above. A
    pointer resting on a row was enough to make the frozen column
    see-through under it. */
@@ -11421,7 +11439,20 @@ body.is-mobile .menu.ws-org-proppop .ws-org-propauto {
 	align-items: center;
 	min-width: 0;
 }
-.ws-org-table .ws-org-subrow td.ws-org-name {
+
+/* Keep the root subject as a table cell so Safari can pin it horizontally
+   while its row is pinned below the headings; flex stays inside the cell. */
+.ws-org-table .ws-org-subrow.is-root td.ws-org-name {
+	display: table-cell;
+	position: sticky;
+	left: 0;
+	z-index: 3;
+}
+.ws-org-table .ws-org-subrow.is-root td.ws-org-name .ws-org-subject-in {
+	display: flex;
+	align-items: center;
+}
+.ws-org-table .ws-org-subrow:not(.is-root) td.ws-org-name {
 	display: flex;
 	align-items: center;
 }
