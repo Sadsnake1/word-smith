@@ -14057,6 +14057,35 @@ body { --ws-hit-min: 44px; }
 	flex: 0 0 auto;
 }
 
+/* ── THE HEADING ABOVE THE TWO SWITCHES ──────────────────────────────────
+   Two identical toggles sat at the right of every flag row and only their
+   hovers said which was which. The head is a row of its own, above the flag
+   rows, and the block of two switches has the SAME fixed width in the head
+   and in every row — so each word stands over the switch it names, however
+   wide the label, shape and colour controls before it grow. */
+.ws-flagswitches {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	align-items: center;
+	justify-items: center;
+	column-gap: 4px;
+	width: 196px;
+	flex: 0 0 196px;
+}
+.ws-flaghead .setting-item-name {
+	font-size: var(--font-ui-smaller);
+	font-weight: var(--font-medium, 500);
+	color: var(--text-muted);
+}
+.ws-flaghead .ws-flagswitch-name {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	text-align: center;
+	line-height: 1.15;
+}
+.is-phone .modal .ws-flaghead .ws-flagswitches,
+.is-phone .modal .ws-flagrow .ws-flagswitches { width: 168px; flex-basis: 168px; }
+
 /* ── EVERY MARK THIS PLUGIN ADDS TO SOMEBODY ELSE'S ROW ────────────────────
    One trailing box in a fixed order, so a row looks the same whichever
    features are on. Three passes used to place their own marks their own way
