@@ -1655,7 +1655,11 @@ export const exportMethods = {
 						folder: true,
 						book: book && k === 0,
 						depth: Math.min(6, k + 1),
-						dirs: bits.slice(0, k + 1),
+						// THE NUMBERS' PATH FROM THE TREE'S ROOT, as a file's is: with Top folder off the root steps into the
+						// book, and a part's path from there lacked the book's level the numbers pass by, so a part read as
+						// the book and printed no number (#151, raphaelshklarek on 1.9.4: "Unticking the top folder leads the
+						// Part folders to become unnumbered")
+						dirs: (treeRoot ? fPath.slice(treeRoot.length + 1) : fPath).split('/'),
 						title: bits[k],
 						markdown: '',
 						path: fPath

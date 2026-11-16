@@ -9658,7 +9658,7 @@ var WS_WRITE = Object.freeze({
   move: "follow the store to its new place",
   settings: "save your settings"
 });
-var WS_PLUGIN_VERSION = "1.9.4";
+var WS_PLUGIN_VERSION = "1.9.5";
 var HISTORY_DEBOUNCE_MS = 2e3;
 var HISTORY_IDLE_MS = 8e3;
 var HISTORY_MAX_UNSAVED_MS = 12e4;
@@ -10811,7 +10811,7 @@ function wsThemeHex(name) {
   return /^#[0-9a-f]{6}$/i.test(v) ? v : WS_THEME_FALLBACK[name] || "#808080";
 }
 var import_obsidian3 = require("obsidian");
-var WS_WHATS_NEW = "### Also new\n- Each flag now has a Not counted switch in Settings › Manuscript. Thanks to JavaGT for this one!\n- Notes left out of the counts are faded in the Organizer and the file tree, and Tick all in Export skips them.\n- Click a row's number in the Organizer to leave it unnumbered, so the parts after a preface start at 1.\n- Column headers can show their name, their icon and name, or just their icon, in Settings › Manuscript. Thanks to JavaGT for the idea!\n- The Organizer, Export and History can open in a new window.\n- A folder with no target of its own shows the targets inside it added up. Thanks to JavaGT for the idea!\n- The Target column sets your words apart from the target. Thanks to JavaGT for this one!\n- Click anywhere on a folder's name in the Organizer to open or close it. Thanks to JavaGT for this one!\n- Drop a note or any other file between the rows of another folder to move it there. Thanks to JavaGT for this one!\n- A folder's Type cell counts the kinds of files in it.\n- Export can leave the top folder out of the headings, from Headings in the Export window.\n- The Not counted list in Settings is gone, so a flag's Not counted switch does that job now.\n\n### Languages\n- The interface uses British spelling when your system is set to British or New Zealand English. Thanks to JavaGT for this one!\n\n### Fixes\n- A folder stays open in the Organizer after you rename it. Thanks to JavaGT for this one!\n- The Properties panel in the Organizer opens in the right place in Safari. Thanks to JavaGT for this one!\n- The Organizer asks before giving a note a name another note already has, which would make Obsidian rewrite your links. Thanks to SacredKarailee for catching it!\n- Hovering Headings in the Export window names the headings that are on.\n- You can rename the folder at the top of the Organizer from its own row.";
+var WS_WHATS_NEW = "### Fixes\n- With Top folder unticked, the parts keep their numbers in the export. Thanks to raphaelshklarek for catching it!";
 var WS_PACK_FORMAT = 1;
 var WS_PACK_PARTS = {
   "nouns": "list",
@@ -45644,7 +45644,7 @@ var exportMethods = {
             folder: true,
             book: book && k === 0,
             depth: Math.min(6, k + 1),
-            dirs: bits.slice(0, k + 1),
+            dirs: (treeRoot ? fPath.slice(treeRoot.length + 1) : fPath).split("/"),
             title: bits[k],
             markdown: "",
             path: fPath
